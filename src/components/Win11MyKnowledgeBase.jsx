@@ -177,7 +177,7 @@ const Win11MyKnowledgeBase = () => {
     try {
       setLoading(true);
       const response = await axios.post(getApiUrl('/api/my-knowledge/categories'), {
-        name: newCategoryName,
+        name: newCategoryName.trim(), // 确保去除空格
         description: '',
         icon: '📁'
       });
@@ -185,12 +185,25 @@ const Win11MyKnowledgeBase = () => {
       if (response.data && response.data.id) {
         toast.success('分类创建成功');
         setShowCreateCategoryModal(false);
-        setNewCategoryName('');
+        setNewCategoryName(''); // 清空输入框
         fetchCategories(); // 重新获取分类列表
+      } else {
+        // 如果响应中没有id，显示错误信息
+        toast.error('创建分类失败: 服务器响应异常');
       }
     } catch (error) {
       console.error('创建分类失败:', error);
-      toast.error('创建分类失败: ' + (error.response?.data?.message || error.message));
+      // 提供更详细的错误信息
+      if (error.response) {
+        // 服务器响应了错误状态码
+        toast.error('创建分类失败: ' + (error.response.data?.message || error.response.statusText || '服务器错误'));
+      } else if (error.request) {
+        // 请求已发出但没有收到响应
+        toast.error('创建分类失败: 无法连接到服务器');
+      } else {
+        // 其他错误
+        toast.error('创建分类失败: ' + (error.message || '未知错误'));
+      }
     } finally {
       setLoading(false);
     }
@@ -413,7 +426,7 @@ const Win11MyKnowledgeBase = () => {
                       onClick={() => setPreviewFile(article)}
                     >
                       <div className="text-7xl mb-3">
-                        📄
+                        {getFileIcon(article.attachments?.[0]?.type) || '📄'}
                       </div>
                       <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
                         {article.title}

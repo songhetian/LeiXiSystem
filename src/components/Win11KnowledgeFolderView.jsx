@@ -417,7 +417,7 @@ const Win11KnowledgeFolderView = () => {
                       onClick={() => setPreviewFile(article)}
                     >
                       <div className="text-7xl mb-3">
-                        📄
+                        📁
                       </div>
                       <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
                         {article.title}
@@ -519,7 +519,7 @@ const Win11KnowledgeFolderView = () => {
                             </button>
                           </div>
                           <div className="text-7xl mb-3">
-                            {category.icon || '📁'}
+                            📁
                           </div>
                           <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
                             {category.name}
@@ -558,7 +558,7 @@ const Win11KnowledgeFolderView = () => {
                           🔒
                         </button>
                       </div>
-                      <div className="text-7xl mb-3">📂</div>
+                      <div className="text-7xl mb-3">📁</div>
                       <h3 className="font-medium text-gray-900 text-center text-base">未分类</h3>
                       <div className="text-xs text-gray-500 mt-1">
                         📄 {uncategorizedArticles.length}
