@@ -5,6 +5,7 @@ import { categoryIcons } from '../utils/iconOptions'
 import AdvancedSearch from './AdvancedSearch'
 import { getApiUrl } from '../utils/apiConfig'
 import FilePreviewModal from './FilePreviewModal'
+import Win11ContextMenu from './Win11ContextMenu'
 
 const MyKnowledgeBase = () => {
   const [articles, setArticles] = useState([])
@@ -44,6 +45,15 @@ const MyKnowledgeBase = () => {
 
   // 高级搜索
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    type: '', // 'folder' or 'file'
+    data: null
+  })
 
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
@@ -198,6 +208,69 @@ const MyKnowledgeBase = () => {
       icon: '📁'
     })
     setEditingCategory(null)
+  }
+
+  // 右键菜单处理函数
+  const handleContextMenu = (e, type, data) => {
+    e.preventDefault()
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      type,
+      data
+    })
+  }
+
+  const handleContextMenuClose = () => {
+    setContextMenu({
+      visible: false,
+      x: 0,
+      y: 0,
+      type: '',
+      data: null
+    })
+  }
+
+  const handleContextMenuAction = (item) => {
+    if (contextMenu.type === 'folder') {
+      switch (item.actionType) {
+        case 'open':
+          handleOpenFolder(contextMenu.data)
+          break
+        case 'edit':
+          setEditingCategory(contextMenu.data)
+          setCategoryFormData({
+            name: contextMenu.data.name,
+            description: contextMenu.data.description || '',
+            icon: contextMenu.data.icon || '📁'
+          })
+          setShowCategoryModal(true)
+          break
+        case 'delete':
+          handleDeleteCategory(contextMenu.data.id)
+          break
+        default:
+          break
+      }
+    } else if (contextMenu.type === 'file') {
+      switch (item.actionType) {
+        case 'preview':
+          setPreviewFile(contextMenu.data)
+          break
+        case 'view':
+          handleViewArticle(contextMenu.data)
+          break
+        case 'move':
+          handleMoveArticle(contextMenu.data)
+          break
+        case 'delete':
+          handleDeleteArticle(contextMenu.data)
+          break
+        default:
+          break
+      }
+    }
   }
 
   const getFileIcon = (type) => {
@@ -396,7 +469,8 @@ const MyKnowledgeBase = () => {
                   return (
                     <div
                       key={category.id}
-                      className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border-2 border-transparent hover:border-primary-300 overflow-hidden group relative"
+                      className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border-2 border-transparent hover:border-primary-300 overflow-hidden group relative win11-folder"
+                      onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                     >
                       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                         <button
@@ -432,7 +506,7 @@ const MyKnowledgeBase = () => {
                         onClick={() => handleOpenFolder(category)}
                       >
                         <div className="flex items-start justify-between mb-4">
-                          <div className="text-5xl">{category.icon}</div>
+                          <div className="text-5xl">{category.icon || '📁'}</div>
                         </div>
                         <h3 className="font-semibold text-gray-800 text-lg mb-1 truncate">
                           {category.name}
@@ -457,8 +531,9 @@ const MyKnowledgeBase = () => {
 
                 {uncategorizedArticles.length > 0 && (
                   <div
-                    className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group"
+                    className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group win11-folder"
                     onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂', description: '未指定分类的文档' })}
+                    onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂', description: '未指定分类的文档' })}
                   >
                     <div className="p-6">
                       <div className="flex items-start justify-between mb-4">
@@ -606,7 +681,8 @@ const MyKnowledgeBase = () => {
                   {getPaginatedArticles().map(article => (
                     <div
                       key={article.id}
-                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full"
+                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full win11-file"
+                      onContextMenu={(e) => handleContextMenu(e, 'file', article)}
                     >
                       {/* 大图标 */}
                       <div
@@ -964,6 +1040,31 @@ const MyKnowledgeBase = () => {
         setModalWidth={setPreviewModalWidth}
         modalHeight={previewModalHeight}
         setModalHeight={setPreviewModalHeight}
+      />
+
+      {/* Win11风格右键菜单 */}
+      <Win11ContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        visible={contextMenu.visible}
+        onClose={handleContextMenuClose}
+        onAction={handleContextMenuAction}
+        items={
+          contextMenu.type === 'folder'
+            ? [
+                { icon: '📂', label: '打开', actionType: 'open' },
+                { icon: '✏️', label: '编辑', actionType: 'edit' },
+                { icon: '🗑️', label: '删除', actionType: 'delete' }
+              ]
+            : contextMenu.type === 'file'
+            ? [
+                { icon: '👁️', label: '预览', actionType: 'preview' },
+                { icon: '📄', label: '查看详情', actionType: 'view' },
+                { icon: '📦', label: '移动到', actionType: 'move' },
+                { icon: '🗑️', label: '删除', actionType: 'delete' }
+              ]
+            : []
+        }
       />
     </div>
   )

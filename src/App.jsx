@@ -18,6 +18,9 @@ import KnowledgeManagement from './components/KnowledgeManagement'
 import KnowledgeBase from './components/KnowledgeBase'
 import KnowledgeFolderView from './components/KnowledgeFolderView'
 import MyKnowledgeBase from './components/MyKnowledgeBase'
+import Win11KnowledgeBase from './components/Win11KnowledgeBase'
+import Win11MyKnowledgeBase from './components/Win11MyKnowledgeBase'
+import Win11KnowledgeFolderView from './components/Win11KnowledgeFolderView'
 import ExamManagement from './components/ExamManagement'
 import ExamCategoryManagement from './components/ExamCategoryManagement'
 import Statistics from './components/Statistics'
@@ -172,10 +175,16 @@ function App() {
       // 知识库
       case 'knowledge-articles':
         return <KnowledgeFolderView />
+      case 'knowledge-articles-win11':
+        return <Win11KnowledgeFolderView />
       case 'knowledge-base':
         return <KnowledgeBase />
+      case 'knowledge-base-win11':
+        return <Win11KnowledgeBase />
       case 'my-knowledge':
         return <MyKnowledgeBase />
+      case 'my-knowledge-win11':
+        return <Win11MyKnowledgeBase />
 
       // 考核系统
       case 'exam-papers':

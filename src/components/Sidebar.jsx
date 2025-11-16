@@ -78,8 +78,11 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
       icon: '📚',
       children: [
         { id: 'knowledge-base', label: '浏览知识库', icon: '📖' },
+        { id: 'knowledge-base-win11', label: '浏览知识库(Win11)', icon: '🪟' },
         { id: 'knowledge-articles', label: '知识文档', icon: '📄' },
-        { id: 'my-knowledge', label: '我的知识库', icon: '⭐' }
+        { id: 'knowledge-articles-win11', label: '知识文档(Win11)', icon: '📁' },
+        { id: 'my-knowledge', label: '我的知识库', icon: '⭐' },
+        { id: 'my-knowledge-win11', label: '我的知识库(Win11)', icon: '🌟' }
       ]
     },
     {

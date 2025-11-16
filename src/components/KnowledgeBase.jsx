@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import api from '../api'
+import axios from 'axios'
 import AdvancedSearch from './AdvancedSearch'
 import { getApiUrl, getApiBaseUrl } from '../utils/apiConfig'
 import FilePreviewModal from './FilePreviewModal'
+import Win11ContextMenu from './Win11ContextMenu'
 
 
 const KnowledgeBase = () => {
@@ -49,6 +51,15 @@ const KnowledgeBase = () => {
   const [articleModalHeight, setArticleModalHeight] = useState('max-h-[90vh]')
   const [previewModalWidth, setPreviewModalWidth] = useState('max-w-6xl')
   const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]')
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    type: '', // 'folder' or 'file'
+    data: null
+  })
 
   useEffect(() => {
     fetchCategories()
@@ -352,6 +363,73 @@ const KnowledgeBase = () => {
     return []
   }
 
+  // 处理分类显示/隐藏
+  const handleToggleCategoryVisibility = async (categoryId, isHidden) => {
+    try {
+      await axios.put(getApiUrl(`/api/knowledge/categories/${categoryId}/visibility`), { is_hidden: isHidden });
+      toast.success(isHidden === 1 ? '分类已隐藏' : '分类已显示');
+      // 重新获取分类列表
+      fetchCategories();
+    } catch (error) {
+      console.error('更新分类可见性失败:', error);
+      toast.error('操作失败');
+    }
+  }
+
+  // 右键菜单处理函数
+  const handleContextMenu = (e, type, data) => {
+    e.preventDefault()
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      type,
+      data
+    })
+  }
+
+  const handleContextMenuClose = () => {
+    setContextMenu({
+      visible: false,
+      x: 0,
+      y: 0,
+      type: '',
+      data: null
+    })
+  }
+
+  const handleContextMenuAction = (item) => {
+    if (contextMenu.type === 'folder') {
+      switch (item.actionType) {
+        case 'open':
+          handleOpenFolder(contextMenu.data)
+          break
+        default:
+          break
+      }
+    } else if (contextMenu.type === 'file') {
+      switch (item.actionType) {
+        case 'preview':
+          setPreviewFile(contextMenu.data)
+          break
+        case 'view':
+          handleViewArticle(contextMenu.data)
+          break
+        case 'collect':
+          handleCollect(contextMenu.data.id)
+          break
+        case 'like':
+          handleLike(contextMenu.data.id)
+          break
+        case 'addToPlan':
+          handleAddToPlan(contextMenu.data)
+          break
+        default:
+          break
+      }
+    }
+  }
+
   const getFileIcon = (type) => {
     if (type.startsWith('image/')) return '🖼️'
     if (type.startsWith('video/')) return '🎬'
@@ -599,12 +677,27 @@ const KnowledgeBase = () => {
                   return (
                     <div
                       key={category.id}
-                      className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group"
+                      className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group win11-folder relative"
                       onClick={() => handleOpenFolder(category)}
+                      onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                     >
+                      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // 显示/隐藏功能
+                            const newStatus = category.is_hidden === 1 ? 0 : 1;
+                            handleToggleCategoryVisibility(category.id, newStatus);
+                          }}
+                          className={`px-2 py-1 text-white rounded text-xs ${category.is_hidden === 1 ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
+                          title={category.is_hidden === 1 ? '显示分类' : '隐藏分类'}
+                        >
+                          {category.is_hidden === 1 ? '👁️' : '🙈'}
+                        </button>
+                      </div>
                       <div className="p-6">
                         <div className="flex items-start justify-between mb-4">
-                          <div className="text-5xl">{category.icon}</div>
+                          <div className="text-5xl">{category.icon || '📁'}</div>
                         </div>
                         <h3 className="font-semibold text-gray-800 text-lg mb-1 truncate">
                           {category.name}
@@ -630,9 +723,23 @@ const KnowledgeBase = () => {
                 {/* 未分类文档 */}
                 {uncategorizedArticles.length > 0 && (
                   <div
-                    className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group"
+                    className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-2 border-transparent hover:border-primary-300 overflow-hidden group win11-folder relative"
                     onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂', description: '未指定分类的文档' })}
+                    onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂', description: '未指定分类的文档' })}
                   >
+                    <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // 未分类文件夹不能隐藏，所以只显示信息
+                          toast.info('未分类文件夹不能隐藏');
+                        }}
+                        className="px-2 py-1 bg-gray-400 text-white rounded text-xs cursor-not-allowed"
+                        title="未分类文件夹不能隐藏"
+                      >
+                        🔒
+                      </button>
+                    </div>
                     <div className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="text-5xl">📂</div>
@@ -722,7 +829,7 @@ const KnowledgeBase = () => {
           <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-4xl">{currentFolderCategory.icon}</span>
+                <span className="text-4xl">{currentFolderCategory.icon || '📁'}</span>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800">{currentFolderCategory.name}</h2>
                   {currentFolderCategory.description && (
@@ -802,7 +909,8 @@ const KnowledgeBase = () => {
                     <div
                       key={article.id}
                       onClick={() => setPreviewFile(article)}
-                      className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all hover:border-primary-400 cursor-pointer group aspect-square flex flex-col"
+                      className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all hover:border-primary-400 cursor-pointer group aspect-square flex flex-col win11-file"
+                      onContextMenu={(e) => handleContextMenu(e, 'file', article)}
                     >
                       {/* 大图标 */}
                       <div className="flex items-center justify-center mb-4 flex-shrink-0">
@@ -867,7 +975,8 @@ const KnowledgeBase = () => {
                     <div
                       key={article.id}
                       onClick={() => setPreviewFile(article)}
-                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-primary-400 cursor-pointer group flex items-center gap-4"
+                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-primary-400 cursor-pointer group flex items-center gap-4 win11-file"
+                      onContextMenu={(e) => handleContextMenu(e, 'file', article)}
                     >
                       {/* 图标 */}
                       <div className="flex-shrink-0">
@@ -1421,6 +1530,30 @@ const KnowledgeBase = () => {
         onClose={() => setFilePreview(null)}
         getFileIcon={getFileIcon}
         formatFileSize={formatFileSize}
+      />
+
+      {/* Win11风格右键菜单 */}
+      <Win11ContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        visible={contextMenu.visible}
+        onClose={handleContextMenuClose}
+        onAction={handleContextMenuAction}
+        items={
+          contextMenu.type === 'folder'
+            ? [
+                { icon: '📂', label: '打开', actionType: 'open' }
+              ]
+            : contextMenu.type === 'file'
+            ? [
+                { icon: '👁️', label: '预览', actionType: 'preview' },
+                { icon: '📄', label: '查看详情', actionType: 'view' },
+                { icon: '💾', label: '收藏', actionType: 'collect' },
+                { icon: '❤️', label: '点赞', actionType: 'like' },
+                { icon: '📅', label: '添加到学习计划', actionType: 'addToPlan' }
+              ]
+            : []
+        }
       />
     </div>
   )
