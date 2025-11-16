@@ -1,0 +1,41 @@
+.notification-badge-wrapper {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.notification-badge {
+  background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: bold;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
+  border: 2px solid white;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 71, 87, 0.6);
+  }
+}
+
+.notification-badge-wrapper:hover .notification-badge {
+  animation: none;
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(255, 71, 87, 0.6);
+}
