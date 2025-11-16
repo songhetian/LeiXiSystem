@@ -1308,7 +1308,7 @@ const KnowledgeFolderView = () => {
             </div>
 
             {/* 文档卡片网格 */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-8 max-h-[calc(98vh-200px)]">
               {getPaginatedArticles().length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <div className="text-8xl mb-6">📭</div>
@@ -1493,7 +1493,7 @@ const KnowledgeFolderView = () => {
       {/* 文档预览模态框 */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[98vh] flex flex-col">
             <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex-1 min-w-0">
                 <h2 className="text-3xl font-bold text-gray-900 truncate">{previewFile.title}</h2>
@@ -1533,13 +1533,13 @@ const KnowledgeFolderView = () => {
                       <img
                         src={previewFile.url}
                         alt={previewFile.name}
-                        className="max-w-full max-h-96 object-contain"
+                        className="max-w-full max-h-[70vh] object-contain"
                       />
                     )}
                     {previewFile.type.includes('pdf') && (
                       <iframe
                         src={previewFile.url}
-                        className="w-full h-96"
+                        className="w-full h-[70vh]"
                         title={previewFile.name}
                       />
                     )}
@@ -1547,7 +1547,7 @@ const KnowledgeFolderView = () => {
                       <video
                         src={previewFile.url}
                         controls
-                        className="max-w-full max-h-96"
+                        className="max-w-full max-h-[70vh]"
                       />
                     )}
                     {!previewFile.type.startsWith('image/') &&
