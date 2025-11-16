@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
-import axios from 'axios'
+import api from '../api'
 import AdvancedSearch from './AdvancedSearch'
 import { getApiUrl, getApiBaseUrl } from '../utils/apiConfig'
+import FilePreviewModal from './FilePreviewModal'
 
 
 const KnowledgeBase = () => {
@@ -25,18 +26,40 @@ const KnowledgeBase = () => {
   const [saveNotes, setSaveNotes] = useState('')
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [previewFile, setPreviewFile] = useState(null)
+  const [filePreview, setFilePreview] = useState(null)
   const [likedArticles, setLikedArticles] = useState(new Set()) // 记录已点赞的文档
+  // 添加视图模式状态
+  const [viewMode, setViewMode] = useState('grid') // 'grid' 或 'list'
+  // 添加收藏状态
+  const [collectedArticles, setCollectedArticles] = useState(new Set())
+  // 添加学习计划状态
+  const [learningPlans, setLearningPlans] = useState([])
+  const [showAddToPlanModal, setShowAddToPlanModal] = useState(false)
+  const [selectedArticleForPlan, setSelectedArticleForPlan] = useState(null)
+  const [selectedPlanId, setSelectedPlanId] = useState('')
+  // 添加文章分页状态
+  const [articlePage, setArticlePage] = useState(1)
+  const [articlePageSize, setArticlePageSize] = useState(20)
+  const [totalArticles, setTotalArticles] = useState(0)
+  // 添加总分类数状态
+  const [totalCategories, setTotalCategories] = useState(0)
 
   useEffect(() => {
     fetchCategories()
     fetchArticles()
     fetchMyCategories()
+    fetchLearningPlans()
   }, [])
+
+  useEffect(() => {
+    fetchArticles()
+  }, [articlePage, articlePageSize, searchTerm])
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/knowledge/categories'))
+      const response = await api.get('/knowledge/categories')
       setCategories(response.data || [])
+      setTotalCategories(response.data?.length || 0)
     } catch (error) {
       console.error('获取分类失败:', error)
     }
@@ -45,10 +68,17 @@ const KnowledgeBase = () => {
   const fetchArticles = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/knowledge/articles'))
+      const response = await api.get('/knowledge/articles', {
+        params: {
+          page: articlePage,
+          pageSize: articlePageSize,
+          search: searchTerm
+        }
+      })
       // 只显示已发布的文档
-      const publishedArticles = (response.data || []).filter(a => a.status === 'published')
+      const publishedArticles = (response.data.data || response.data || []).filter(a => a.status === 'published')
       setArticles(publishedArticles)
+      setTotalArticles(response.data.pagination?.total || response.data.length || 0)
     } catch (error) {
       console.error('获取文档失败:', error)
       toast.error('获取文档失败')
@@ -63,7 +93,7 @@ const KnowledgeBase = () => {
 
     // 增加浏览量
     try {
-      await axios.post(getApiUrl(`/api/knowledge/articles/${article.id}/view`))
+      await api.post(`/knowledge/articles/${article.id}/view`)
       // 刷新文章列表以更新浏览量
       fetchArticles()
     } catch (error) {
@@ -80,7 +110,7 @@ const KnowledgeBase = () => {
 
     try {
       const userId = localStorage.getItem('userId') || 'anonymous'
-      const response = await axios.post(getApiUrl(`/api/knowledge/articles/${articleId}/like`), { userId })
+      const response = await api.post(`/knowledge/articles/${articleId}/like`, { userId })
 
       if (response.data.success) {
         toast.success('点赞成功')
@@ -115,8 +145,74 @@ const KnowledgeBase = () => {
   const checkLikedStatus = async (articleId) => {
     try {
       const userId = localStorage.getItem('userId') || 'anonymous'
-      const response = await axios.get(getApiUrl(`/api/knowledge/articles/${articleId}/liked?userId=${userId}`))
+      const response = await api.get(`/knowledge/articles/${articleId}/liked?userId=${userId}`)
       return response.data.liked
+    } catch (error) {
+      return false
+    }
+  }
+
+  // 收藏文档
+  const handleCollect = async (articleId) => {
+    // 检查是否已收藏
+    if (collectedArticles.has(articleId)) {
+      toast.warning('文档已在收藏夹中')
+      return
+    }
+
+    try {
+      const userId = localStorage.getItem('userId') || 'anonymous'
+      const response = await api.post(`/knowledge/articles/${articleId}/collect`, {
+        user_id: userId
+      })
+
+      if (response.data.success) {
+        toast.success('收藏成功')
+        // 记录已收藏
+        setCollectedArticles(prev => new Set([...prev, articleId]))
+        // 刷新文章列表
+        fetchArticles()
+      }
+    } catch (error) {
+      if (error.response?.status === 400) {
+        toast.warning(error.response.data.message || '文档已在收藏夹中')
+        setCollectedArticles(prev => new Set([...prev, articleId]))
+      } else {
+        toast.error('收藏失败')
+      }
+    }
+  }
+
+  // 取消收藏文档
+  const handleUncollect = async (articleId) => {
+    try {
+      const userId = localStorage.getItem('userId') || 'anonymous'
+      const response = await api.delete(`/knowledge/articles/${articleId}/uncollect`, {
+        data: { user_id: userId }
+      })
+
+      if (response.data.success) {
+        toast.success('已取消收藏')
+        // 移除收藏记录
+        setCollectedArticles(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(articleId)
+          return newSet
+        })
+        // 刷新文章列表
+        fetchArticles()
+      }
+    } catch (error) {
+      toast.error('取消收藏失败')
+    }
+  }
+
+  // 检查文档是否已收藏
+  const checkCollectedStatus = async (articleId) => {
+    try {
+      const userId = localStorage.getItem('userId') || 'anonymous'
+      const response = await api.get(`/knowledge/articles/${articleId}/collected?userId=${userId}`)
+      return response.data.collected
     } catch (error) {
       return false
     }
@@ -124,10 +220,87 @@ const KnowledgeBase = () => {
 
   const fetchMyCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/categories'))
+      const response = await api.get('/my-knowledge/categories')
       setMyCategories(response.data || [])
     } catch (error) {
       console.error('获取我的分类失败:', error)
+    }
+  }
+
+  // 获取学习计划列表
+  const fetchLearningPlans = async () => {
+    try {
+      const response = await api.get('/learning-plans')
+      setLearningPlans(response.data || [])
+    } catch (error) {
+      console.error('获取学习计划失败:', error)
+    }
+  }
+
+  // 添加文章到学习计划
+  const handleAddToPlan = async (article) => {
+    setSelectedArticleForPlan(article)
+    await fetchLearningPlans()
+    setShowAddToPlanModal(true)
+  }
+
+  // 确认添加到学习计划
+  const confirmAddToPlan = async () => {
+    if (!selectedArticleForPlan) {
+      toast.error('未选择文档')
+      return
+    }
+
+    // 如果没有选择学习计划，自动创建一个以当前文件夹名命名的学习计划
+    let planId = selectedPlanId
+    if (!planId) {
+      try {
+        // 获取当前文件夹名称
+        let planName = '默认学习计划'
+        if (currentFolderCategory) {
+          planName = currentFolderCategory.name === '未分类' ? '未分类文档学习计划' : `${currentFolderCategory.name}学习计划`
+        } else if (selectedArticleForPlan.category_name) {
+          planName = `${selectedArticleForPlan.category_name}学习计划`
+        }
+
+        // 创建新的学习计划
+        const createResponse = await api.post('/learning-plans', {
+          title: planName,
+          description: `自动创建的学习计划，包含${planName}中的文档`
+        })
+
+        if (createResponse.data && createResponse.data.data) {
+          planId = createResponse.data.data.id
+          toast.success(`已自动创建学习计划: ${planName}`)
+          // 刷新学习计划列表
+          await fetchLearningPlans()
+        } else {
+          throw new Error('创建学习计划失败')
+        }
+      } catch (error) {
+        console.error('创建学习计划失败:', error)
+        toast.error('创建学习计划失败: ' + (error.response?.data?.message || error.message))
+        return
+      }
+    }
+
+    try {
+      const response = await api.post(`/learning-plans/${planId}/details`, {
+        title: selectedArticleForPlan.title,
+        description: selectedArticleForPlan.summary || '',
+        article_id: selectedArticleForPlan.id,
+        order_num: 1
+      })
+
+      if (response.data.success) {
+        toast.success('已添加到学习计划')
+        setShowAddToPlanModal(false)
+        setSelectedArticleForPlan(null)
+        setSelectedPlanId('')
+      }
+    } catch (error) {
+      console.error('添加到学习计划失败:', error)
+      toast.error('添加到学习计划失败')
     }
   }
 
@@ -142,7 +315,7 @@ const KnowledgeBase = () => {
     if (!selectedArticle) return
 
     try {
-      const response = await axios.post(getApiUrl('/api/my-knowledge/articles/save'), {
+      const response = await api.post('/my-knowledge/articles/save', {
         articleId: selectedArticle.id,
         categoryId: selectedCategory,
         notes: saveNotes
@@ -182,6 +355,14 @@ const KnowledgeBase = () => {
     if (type.includes('excel') || type.includes('sheet')) return '📊'
     if (type.includes('powerpoint') || type.includes('presentation')) return '📽️'
     return '📎'
+  }
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   // 确保附件 URL 格式正确
@@ -252,6 +433,11 @@ const KnowledgeBase = () => {
     return Math.ceil(visibleCategories.length / categoryPageSize)
   }
 
+  // 文章分页计算
+  const getArticleTotalPages = () => {
+    return Math.ceil(totalArticles / articlePageSize)
+  }
+
   // 按分类分组文档
   const articlesByCategory = {}
   const uncategorizedArticles = []
@@ -288,7 +474,22 @@ const KnowledgeBase = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  setArticlePage(1)
+                  fetchArticles()
+                }
+              }}
             />
+            <button
+              onClick={() => {
+                setArticlePage(1)
+                fetchArticles()
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors whitespace-nowrap"
+            >
+              🔍 搜索
+            </button>
             <button
               onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
               className={`px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
@@ -297,24 +498,52 @@ const KnowledgeBase = () => {
                   : 'bg-blue-500 text-white hover:bg-blue-600'
               }`}
             >
-              🔍 {showAdvancedSearch ? '收起搜索' : '高级搜索'}
+              {showAdvancedSearch ? '收起搜索' : '高级搜索'}
             </button>
           </div>
 
-          <select
-            value={categoryPageSize}
-            onChange={(e) => {
-              setCategoryPageSize(Number(e.target.value))
-              setCategoryPage(1)
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value={4}>每页 4 个</option>
-            <option value={8}>每页 8 个</option>
-            <option value={12}>每页 12 个</option>
-            <option value={16}>每页 16 个</option>
-            <option value={20}>每页 20 个</option>
-          </select>
+          <div className="flex gap-2 items-center">
+            {/* 视图模式切换 */}
+            <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-2 text-sm ${
+                  viewMode === 'grid'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+                title="网格视图"
+              >
+                🟦
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-2 text-sm ${
+                  viewMode === 'list'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+                title="列表视图"
+              >
+                📋
+              </button>
+            </div>
+
+            <select
+              value={categoryPageSize}
+              onChange={(e) => {
+                setCategoryPageSize(Number(e.target.value))
+                setCategoryPage(1)
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value={4}>每页 4 个</option>
+              <option value={8}>每页 8 个</option>
+              <option value={12}>每页 12 个</option>
+              <option value={16}>每页 16 个</option>
+              <option value={20}>每页 20 个</option>
+            </select>
+          </div>
         </div>
 
         {/* 高级搜索面板 */}
@@ -503,18 +732,51 @@ const KnowledgeBase = () => {
               </button>
             </div>
 
-            <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-              <input
-                type="text"
-                placeholder="搜索文档..."
-                value={folderSearchTerm}
-                onChange={(e) => {
-                  setFolderSearchTerm(e.target.value)
-                  setCurrentPage(1)
+            {/* 操作栏 */}
+            <div className="p-4 border-b border-gray-200 flex flex-wrap items-center gap-3 bg-gray-50">
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="搜索文档..."
+                  value={folderSearchTerm}
+                  onChange={(e) => {
+                    setFolderSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  console.log('切换到网格视图')
+                  setViewMode('grid')
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-              <span className="text-sm text-gray-600 whitespace-nowrap">
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+                title="网格视图"
+              >
+                🟦 网格
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  console.log('切换到列表视图')
+                  setViewMode('list')
+                }}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+                title="列表视图"
+              >
+                📋 列表
+              </button>
+              <span className="text-sm text-gray-600 whitespace-nowrap bg-white px-3 py-2 rounded-lg border border-gray-300">
                 共 {getCurrentFolderArticles().length} 篇文档
               </span>
             </div>
@@ -527,7 +789,8 @@ const KnowledgeBase = () => {
                     {folderSearchTerm ? '没有找到匹配的文档' : '暂无文档'}
                   </p>
                 </div>
-              ) : (
+              ) : viewMode === 'grid' ? (
+                // 网格视图
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {getPaginatedArticles().map(article => (
                     <div
@@ -556,7 +819,7 @@ const KnowledgeBase = () => {
 
                       {/* 底部信息 */}
                       <div className="mt-auto pt-3 border-t border-gray-100 flex-shrink-0">
-                        <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+                        <div className="flex items-center justify-center gap-3 text-xs text-gray-400 mb-2">
                           <span className="flex items-center gap-1">
                             👁️ {article.view_count || 0}
                           </span>
@@ -569,6 +832,84 @@ const KnowledgeBase = () => {
                             📎 {parseAttachments(article.attachments).length} 个附件
                           </div>
                         )}
+                        {/* 预览按钮 */}
+                        <div className="mt-3 flex justify-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFilePreview({
+                                name: article.title,
+                                type: 'article',
+                                size: 0,
+                                url: article.content
+                              });
+                            }}
+                            className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-xs whitespace-nowrap"
+                            title="预览"
+                          >
+                            👁️ 预览
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // 列表视图
+                <div className="space-y-3">
+                  {getPaginatedArticles().map(article => (
+                    <div
+                      key={article.id}
+                      onClick={() => setPreviewFile(article)}
+                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-primary-400 cursor-pointer group flex items-center gap-4"
+                    >
+                      {/* 图标 */}
+                      <div className="flex-shrink-0">
+                        <span className="text-3xl">{article.icon || '📄'}</span>
+                      </div>
+
+                      {/* 内容 */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors truncate">
+                          {article.title}
+                        </h3>
+
+                        {article.summary && (
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                            {article.summary}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
+                          <span>👁️ {article.view_count || 0}</span>
+                          <span>❤️ {article.like_count || 0}</span>
+                          {parseAttachments(article.attachments).length > 0 && (
+                            <span>📎 {parseAttachments(article.attachments).length} 个附件</span>
+                          )}
+                          <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex-shrink-0 flex flex-col gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFilePreview({
+                              name: article.title,
+                              type: 'article',
+                              size: 0,
+                              url: article.content
+                            });
+                          }}
+                          className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-xs whitespace-nowrap"
+                          title="预览"
+                        >
+                          👁️ 预览
+                        </button>
+                        <div className="text-gray-400 text-xs flex items-center justify-center">
+                          →
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -794,69 +1135,153 @@ const KnowledgeBase = () => {
 
       {/* 文档预览模态框 */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+            <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-800 truncate">{previewFile.title}</h2>
-                <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                  <span>📁 {previewFile.category_name || '未分类'}</span>
-                  <span>👤 {previewFile.author_name || '未知'}</span>
-                  <span>📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
-                  <span>👁️ {previewFile.view_count || 0} 浏览</span>
-                  <span>❤️ {previewFile.like_count || 0} 点赞</span>
+                <h2 className="text-3xl font-bold text-gray-900 truncate">{previewFile.title}</h2>
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-base text-gray-700">
+                  <span className="flex items-center gap-2 text-lg">📁 {previewFile.category_name || '未分类'}</span>
+                  <span className="flex items-center gap-2 text-lg">👤 {previewFile.author_name || '未知'}</span>
+                  <span className="flex items-center gap-2 text-lg">📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-2 text-lg">👁️ {previewFile.view_count || 0} 浏览</span>
+                  <span className="flex items-center gap-2 text-lg">❤️ {previewFile.like_count || 0} 点赞</span>
                 </div>
               </div>
               <button
                 onClick={() => setPreviewFile(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors flex-shrink-0 ml-4"
+                className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
               >
                 ✕
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-8">
               {previewFile.summary && (
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2">📝 摘要</h3>
-                  <p className="text-gray-700">{previewFile.summary}</p>
+                <div className="mb-8 p-6 bg-blue-100 rounded-xl border border-blue-200">
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-4">📝 摘要</h3>
+                  <p className="text-lg text-gray-800 leading-relaxed">{previewFile.summary}</p>
                 </div>
               )}
 
-              <div className="prose max-w-none">
-                <div
-                  className="text-gray-800 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: previewFile.content?.replace(/\n/g, '<br/>') || '暂无内容' }}
-                />
+              <div className="prose max-w-none mb-8">
+                {previewFile.content ? (
+                  <div
+                    className="text-xl text-gray-900 whitespace-pre-wrap leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: previewFile.content.replace(/\n/g, '<br/>') }}
+                  />
+                ) : (
+                  <div className="text-gray-600 text-center py-12">
+                    <p className="text-2xl">暂无内容</p>
+                  </div>
+                )}
               </div>
+
+              {/* 附件预览区域 */}
+              {parseAttachments(previewFile.attachments).length > 0 && (
+                <div className="mt-8 pt-8 border-t border-gray-200">
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-6">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {parseAttachments(previewFile.attachments).map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                        onClick={() => {
+                          // 根据文件类型决定是预览还是下载
+                          if (file.type.startsWith('image/') ||
+                              file.type.includes('pdf') ||
+                              file.type.startsWith('video/')) {
+                            // 支持预览的文件类型，设置文件预览对象
+                            setFilePreview({
+                              name: file.name,
+                              type: file.type,
+                              size: file.size,
+                              url: file.url
+                            });
+                          } else {
+                            // 其他文件类型直接下载
+                            const link = document.createElement('a');
+                            link.href = file.url;
+                            link.download = file.name;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        }}
+                      >
+                        <div className="text-4xl">
+                          {file.type.startsWith('image/') && '🖼️'}
+                          {file.type.includes('pdf') && '📄'}
+                          {file.type.startsWith('video/') && '🎬'}
+                          {file.type.includes('word') && '📝'}
+                          {file.type.includes('excel') && '📊'}
+                          {file.type.includes('powerpoint') && '📑'}
+                          {file.type.includes('zip') && '📦'}
+                          {!file.type.startsWith('image/') &&
+                           !file.type.includes('pdf') &&
+                           !file.type.startsWith('video/') &&
+                           !file.type.includes('word') &&
+                           !file.type.includes('excel') &&
+                           !file.type.includes('powerpoint') &&
+                           !file.type.includes('zip') && '📄'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-lg text-gray-900 truncate">{file.name}</div>
+                          <div className="text-base text-gray-600 mt-1">
+                            {formatFileSize(file.size)}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                              ? '点击预览'
+                              : '点击下载'}
+                          </div>
+                        </div>
+                        <div className="text-blue-600 text-lg">
+                          {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                            ? '👁️'
+                            : '📥'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-between">
-              <button
-                onClick={() => {
-                  setSelectedArticle(previewFile)
-                  setPreviewFile(null) // 关闭预览模态框
-                  setShowSaveModal(true)
-                }}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-              >
-                💾 保存到我的知识库
-              </button>
-              <div className="flex gap-3">
+            <div className="p-8 border-t border-gray-200 flex gap-4 justify-between bg-gray-50">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setSelectedArticle(previewFile)
+                    setPreviewFile(null) // 关闭预览模态框
+                    setShowSaveModal(true)
+                  }}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all flex items-center gap-3 text-lg font-medium shadow-md"
+                >
+                  💾 保存到我的知识库
+                </button>
+                <button
+                  onClick={() => handleAddToPlan(previewFile)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-3 text-lg font-medium shadow-md"
+                >
+                  📅 添加到学习计划
+                </button>
+              </div>
+              <div className="flex gap-4">
                 <button
                   onClick={() => handleLike(previewFile.id)}
                   disabled={likedArticles.has(previewFile.id)}
-                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  className={`px-6 py-3 rounded-xl transition-all flex items-center gap-3 text-lg font-medium shadow-md ${
                     likedArticles.has(previewFile.id)
                       ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-red-500 text-white hover:bg-red-600'
+                      : 'bg-red-600 text-white hover:bg-red-700'
                   }`}
                 >
                   ❤️ {likedArticles.has(previewFile.id) ? '已点赞' : '点赞'} ({previewFile.like_count || 0})
                 </button>
                 <button
                   onClick={() => setPreviewFile(null)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-all text-lg font-medium shadow-md"
                 >
                   关闭
                 </button>
@@ -865,6 +1290,74 @@ const KnowledgeBase = () => {
           </div>
         </div>
       )}
+
+      {/* 添加到学习计划模态框 */}
+      {showAddToPlanModal && selectedArticleForPlan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">添加到学习计划</h2>
+              <p className="text-sm text-gray-600 mt-1">选择要添加的学习计划</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  文档标题
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{selectedArticleForPlan.title}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择学习计划（可选，不选择将自动创建）
+                </label>
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">请选择学习计划</option>
+                  {learningPlans.map(plan => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddToPlanModal(false)
+                  setSelectedArticleForPlan(null)
+                  setSelectedPlanId('')
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmAddToPlan}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                确认添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 独立文件预览模态框 */}
+      <FilePreviewModal
+        file={filePreview}
+        onClose={() => setFilePreview(null)}
+        getFileIcon={getFileIcon}
+        formatFileSize={formatFileSize}
+      />
     </div>
   )
 }

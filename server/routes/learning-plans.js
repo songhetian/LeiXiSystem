@@ -175,11 +175,12 @@ module.exports = async function (fastify, opts) {
 
       // 获取计划详情
       const [detailRows] = await pool.query(
-        `SELECT * FROM learning_plan_details
+        `SELECT id, plan_id, article_id, exam_id, title, description, order_num, status, progress, completed_at, created_at, updated_at
+         FROM learning_plan_details
          WHERE plan_id = ?
          ORDER BY order_num ASC`,
         [id]
-      )
+      );
 
       return {
         ...planRows[0],
@@ -469,8 +470,8 @@ module.exports = async function (fastify, opts) {
         })
       }
 
-      const { planId, detailId } = request.params
-      const { title, description, article_id, exam_id, order_num, status } = request.body
+      const { planId, detailId } = request.params;
+      const { title, description, article_id, exam_id, order_num, status, progress } = request.body;
 
       // 检查计划是否存在且属于当前用户
       const [planRows] = await pool.query(
@@ -548,6 +549,14 @@ module.exports = async function (fastify, opts) {
 
         updateFields.push('status = ?')
         updateValues.push(status)
+      }
+
+      // 处理进度字段
+      if (progress !== undefined) {
+        // 确保进度在0-100范围内
+        const validProgress = Math.max(0, Math.min(100, parseInt(progress) || 0));
+        updateFields.push('progress = ?');
+        updateValues.push(validProgress);
       }
 
       // 添加更新时间

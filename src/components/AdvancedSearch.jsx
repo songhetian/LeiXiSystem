@@ -674,7 +674,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
               {getTotalPages() > 1 && (
                 <div className="mt-4 sm:mt-6 flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
                   <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={prevPage}
                     disabled={currentPage === 1}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs sm:text-base"
                   >
@@ -698,7 +698,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
                     return (
                       <button
                         key={i}
-                        onClick={() => setCurrentPage(pageNum)}
+                        onClick={() => goToPage(pageNum)}
                         className={`px-3 sm:px-4 py-1.5 sm:py-2 border rounded-lg transition-colors text-xs sm:text-base ${
                           currentPage === pageNum
                             ? 'bg-primary-500 text-white border-primary-500'
@@ -711,13 +711,17 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
                   })}
 
                   <button
-                    onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
+                    onClick={nextPage}
                     disabled={currentPage === getTotalPages()}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs sm:text-base"
                   >
                     <span className="hidden sm:inline">下一页 →</span>
                     <span className="sm:hidden">→</span>
                   </button>
+
+                  <div className="text-sm text-gray-600 ml-4">
+                    共 {totalResults} 条结果
+                  </div>
                 </div>
               )}
             </>

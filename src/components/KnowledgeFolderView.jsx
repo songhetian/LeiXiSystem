@@ -4,6 +4,7 @@ import axios from 'axios'
 import { categoryIcons } from '../utils/iconOptions'
 import RecycleBin from './RecycleBin'
 import AdvancedSearch from './AdvancedSearch'
+import FilePreviewModal from './FilePreviewModal'
 import { getApiUrl } from '../utils/apiConfig'
 
 
@@ -20,7 +21,7 @@ const KnowledgeFolderView = () => {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [expandedFolders, setExpandedFolders] = useState({})
   const [uploadingFiles, setUploadingFiles] = useState(false)
-  const [previewFile, setPreviewFile] = useState(null)
+  const [filePreview, setFilePreview] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null)
   const [folderSearchTerm, setFolderSearchTerm] = useState('')
@@ -81,7 +82,8 @@ const KnowledgeFolderView = () => {
     setLoading(true)
     try {
       const response = await axios.get(getApiUrl('/api/knowledge/articles'))
-      setArticles(response.data || [])
+      // API 返回的是包含 data 字段的对象，需要提取实际的文章数组
+      setArticles(response.data.data || response.data || [])
     } catch (error) {
       console.error('获取知识文档失败:', error)
       toast.error('获取知识文档失败')
@@ -668,7 +670,12 @@ const KnowledgeFolderView = () => {
                 }
               }}
               onPreview={(article) => {
-                setPreviewFile(article)
+                setFilePreview({
+                  name: article.title,
+                  type: 'article',
+                  size: 0,
+                  url: article.content
+                })
               }}
               onEdit={(article) => {
                 handleEdit(article)
@@ -744,13 +751,22 @@ const KnowledgeFolderView = () => {
                     )}
 
                     {/* 操作按钮 */}
-                    <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <div
+                      className="absolute top-2 right-2 z-[100] flex gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        console.log('点击了按钮容器')
+                      }}
+                    >
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
+                          console.log('点击显示/隐藏按钮', category)
                           handleOpenVisibilityModal(category)
                         }}
-                        className={`px-2 py-1 text-white rounded text-xs ${
+                        className={`px-2 py-1 text-white rounded text-xs cursor-pointer ${
                           category.is_hidden === 1
                             ? 'bg-green-500 hover:bg-green-600'
                             : 'bg-gray-500 hover:bg-gray-600'
@@ -760,18 +776,24 @@ const KnowledgeFolderView = () => {
                         {category.is_hidden === 1 ? '👁️' : '👁️‍🗨️'}
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
+                          console.log('点击新建文档按钮', category)
                           handleCreateInCategory(category)
                         }}
-                        className="px-2 py-1 bg-primary-500 text-white rounded text-xs hover:bg-primary-600"
+                        className="px-2 py-1 bg-primary-500 text-white rounded text-xs hover:bg-primary-600 cursor-pointer"
                         title="新建文档"
                       >
                         ➕
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
+                          console.log('点击编辑分类按钮', category)
                           setEditingCategory(category)
                           setCategoryFormData({
                             name: category.name,
@@ -780,17 +802,20 @@ const KnowledgeFolderView = () => {
                           })
                           setShowCategoryModal(true)
                         }}
-                        className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                        className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 cursor-pointer"
                         title="编辑分类"
                       >
                         ✏️
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault()
                           e.stopPropagation()
+                          console.log('点击删除分类按钮', category)
                           handleDeleteCategory(category.id)
                         }}
-                        className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                        className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 cursor-pointer"
                         title="删除分类"
                       >
                         🗑️
@@ -897,7 +922,7 @@ const KnowledgeFolderView = () => {
 
       {/* 文档编辑Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ zIndex: 1000 }}>
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
             <button
               type="button"
@@ -1047,7 +1072,12 @@ const KnowledgeFolderView = () => {
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => setPreviewFile(file)}
+                            onClick={() => setFilePreview({
+                              name: file.name,
+                              type: file.type,
+                              size: file.size,
+                              url: file.url
+                            })}
                             className="text-blue-600 hover:text-blue-800 text-sm"
                           >
                             👁️ 预览
@@ -1092,72 +1122,74 @@ const KnowledgeFolderView = () => {
 
       {/* 文件夹内容模态框 */}
       {showFolderModal && currentFolderCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" style={{ zIndex: 800 }}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col">
             {/* 头部 */}
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">{currentFolderCategory.icon}</span>
+            <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-4">
+                <span className="text-5xl">{currentFolderCategory.icon}</span>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800">{currentFolderCategory.name}</h2>
+                  <h2 className="text-3xl font-bold text-gray-900">{currentFolderCategory.name}</h2>
                   {currentFolderCategory.description && (
-                    <p className="text-gray-600 text-sm">{currentFolderCategory.description}</p>
+                    <p className="text-gray-700 text-lg mt-2">{currentFolderCategory.description}</p>
                   )}
                 </div>
               </div>
               <button
                 onClick={() => setShowFolderModal(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-2xl"
               >
                 ✕
               </button>
             </div>
 
             {/* 操作栏 */}
-            <div className="p-4 border-b border-gray-200 flex items-center gap-3">
+            <div className="p-6 border-b border-gray-200 flex flex-wrap items-center gap-4 bg-gray-50">
               <button
                 onClick={() => {
                   handleCreateInCategory(currentFolderCategory.id !== 'uncategorized' ? currentFolderCategory : null)
                   setShowFolderModal(false)
                 }}
-                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-3 text-lg font-medium shadow-md"
               >
                 ➕ 新建文档
               </button>
-              <input
-                type="text"
-                placeholder="搜索文档..."
-                value={folderSearchTerm}
-                onChange={(e) => {
-                  setFolderSearchTerm(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="搜索文档..."
+                  value={folderSearchTerm}
+                  onChange={(e) => {
+                    setFolderSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-500 focus:border-transparent text-lg shadow-sm"
+                />
+              </div>
               <select
                 value={filterType}
                 onChange={(e) => {
                   setFilterType(e.target.value)
                   setCurrentPage(1)
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="px-6 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-500 focus:border-transparent text-lg shadow-sm"
               >
                 <option value="all">全部类型</option>
                 <option value="company">🏢 公司知识</option>
                 <option value="personal">👤 个人知识</option>
                 <option value="shared">🤝 共享知识</option>
               </select>
-              <span className="text-sm text-gray-600 whitespace-nowrap">
+              <span className="text-lg text-gray-700 whitespace-nowrap bg-white px-4 py-3 rounded-xl shadow-sm">
                 共 {getCurrentFolderArticles().length} 篇文档
               </span>
             </div>
 
             {/* 文档卡片网格 */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
               {getPaginatedArticles().length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="text-6xl mb-4">📭</div>
-                  <p className="text-gray-500 mb-4">
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="text-8xl mb-6">📭</div>
+                  <p className="text-2xl text-gray-600 mb-6">
                     {folderSearchTerm ? '没有找到匹配的文档' : '暂无文档'}
                   </p>
                   {!folderSearchTerm && (
@@ -1166,26 +1198,31 @@ const KnowledgeFolderView = () => {
                         handleCreateInCategory(currentFolderCategory.id !== 'uncategorized' ? currentFolderCategory : null)
                         setShowFolderModal(false)
                       }}
-                      className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                      className="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-xl font-medium shadow-lg"
                     >
                       创建第一篇文档
                     </button>
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {getPaginatedArticles().map(article => (
                     <div
                       key={article.id}
-                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-primary-300"
+                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full"
                     >
-                      <div className="flex items-start gap-3 mb-3">
-                        <span className="text-2xl flex-shrink-0">{getDocumentIcon(article)}</span>
+                      <div className="flex items-start gap-4 mb-4">
+                        <span className="text-4xl flex-shrink-0 group-hover:scale-110 transition-transform">{getDocumentIcon(article)}</span>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-3">
                             <h3
-                              className="font-semibold text-gray-900 flex-1 pr-2 line-clamp-2 text-base cursor-pointer hover:text-primary-600 transition-colors"
-                              onClick={() => setPreviewFile(article)}
+                              className="font-bold text-gray-900 flex-1 pr-2 line-clamp-2 text-xl cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => setFilePreview({
+                                name: article.title,
+                                type: 'article',
+                                size: 0,
+                                url: article.content
+                              })}
                               title="点击预览"
                             >
                               {article.title}
@@ -1193,35 +1230,47 @@ const KnowledgeFolderView = () => {
                             {getStatusBadge(article.status, article)}
                           </div>
                           {article.summary && (
-                            <p className="text-sm text-gray-600 line-clamp-2">
+                            <p className="text-gray-600 line-clamp-3 text-base leading-relaxed">
                               {article.summary}
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mb-3 flex-wrap">
-                        <span className="flex items-center gap-1">
+                      <div className="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
+                        <span className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-lg">
                           👁️ {article.view_count || 0}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-lg">
                           ❤️ {article.like_count || 0}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-lg">
                           📅 {new Date(article.created_at).toLocaleDateString()}
                         </span>
                       </div>
 
                       {parseAttachments(article.attachments).length > 0 && (
-                        <div className="text-xs text-gray-500 mb-3 flex items-center gap-1">
+                        <div className="text-sm text-gray-500 mb-4 flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
                           📎 {parseAttachments(article.attachments).length} 个附件
                         </div>
                       )}
 
-                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                      <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => setFilePreview({
+                            name: article.title,
+                            type: 'article',
+                            size: 0,
+                            url: article.content
+                          })}
+                          className="px-4 py-2 text-green-600 hover:bg-green-50 rounded-xl transition-all flex items-center gap-2 text-lg font-medium"
+                          title="预览"
+                        >
+                          👁️ 预览
+                        </button>
                         <button
                           onClick={() => handleMoveArticle(article)}
-                          className="px-3 py-1 text-purple-600 hover:bg-purple-50 rounded transition-colors text-sm"
+                          className="px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all flex items-center gap-2 text-lg font-medium"
                           title="移动到其他分类"
                         >
                           📁 移动
@@ -1231,14 +1280,14 @@ const KnowledgeFolderView = () => {
                             handleEdit(article)
                             setShowFolderModal(false)
                           }}
-                          className="px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors text-sm"
+                          className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center gap-2 text-lg font-medium"
                           title="编辑"
                         >
                           ✏️ 编辑
                         </button>
                         <button
                           onClick={() => handleDelete(article.id)}
-                          className="px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm"
+                          className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all flex items-center gap-2 text-lg font-medium"
                           title="删除"
                         >
                           🗑️ 删除
@@ -1252,16 +1301,16 @@ const KnowledgeFolderView = () => {
 
             {/* 分页 */}
             {getTotalPages() > 1 && (
-              <div className="p-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
+              <div className="p-6 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="text-lg text-gray-700">
                     第 {currentPage} / {getTotalPages()} 页
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3 flex-wrap">
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg font-medium shadow-sm"
                     >
                       ← 上一页
                     </button>
@@ -1284,10 +1333,10 @@ const KnowledgeFolderView = () => {
                         <button
                           key={i}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-4 py-2 border rounded-lg transition-colors ${
+                          className={`px-6 py-3 border-2 rounded-xl transition-all text-lg font-medium shadow-sm ${
                             currentPage === pageNum
-                              ? 'bg-primary-500 text-white border-primary-500'
-                              : 'border-gray-300 hover:bg-gray-50'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-100'
                           }`}
                         >
                           {pageNum}
@@ -1298,7 +1347,7 @@ const KnowledgeFolderView = () => {
                     <button
                       onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
                       disabled={currentPage === getTotalPages()}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg font-medium shadow-sm"
                     >
                       下一页 →
                     </button>
@@ -1311,561 +1360,12 @@ const KnowledgeFolderView = () => {
       )}
 
       {/* 文件预览Modal */}
-      {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">{previewFile.name}</h2>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4 bg-gray-50">
-              {previewFile.type.startsWith('image/') && (
-                <img
-                  src={previewFile.url}
-                  alt={previewFile.name}
-                  className="max-w-full h-auto mx-auto"
-                />
-              )}
-              {previewFile.type.startsWith('video/') && (
-                <video
-                  controls
-                  className="max-w-full h-auto mx-auto"
-                  style={{ maxHeight: '70vh' }}
-                >
-                  <source src={previewFile.url} type={previewFile.type} />
-                  您的浏览器不支持视频播放
-                </video>
-              )}
-              {previewFile.type.includes('pdf') && (
-                <iframe
-                  src={previewFile.url}
-                  className="w-full h-full min-h-[600px]"
-                  title={previewFile.name}
-                />
-              )}
-              {!previewFile.type.startsWith('image/') &&
-               !previewFile.type.startsWith('video/') &&
-               !previewFile.type.includes('pdf') && (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="text-6xl mb-4">{getFileIcon(previewFile.type)}</div>
-                  <div className="text-xl font-medium text-gray-800 mb-2">{previewFile.name}</div>
-                  <div className="text-gray-600 mb-4">此文件类型不支持在线预览</div>
-                  <a
-                    href={previewFile.url}
-                    download={previewFile.name}
-                    className="px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
-                  >
-                    📥 下载文件
-                  </a>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-gray-200 flex justify-between items-center">
-              <div className="text-sm text-gray-600">
-                文件大小：{formatFileSize(previewFile.size)}
-              </div>
-              <div className="flex gap-3">
-                <a
-                  href={previewFile.url}
-                  download={previewFile.name}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                >
-                  📥 下载
-                </a>
-                <button
-                  onClick={() => setPreviewFile(null)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 分类管理Modal */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl relative">
-            <button
-              type="button"
-              onClick={() => {
-                setShowCategoryModal(false)
-                resetCategoryForm()
-              }}
-              className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all shadow-md"
-              title="关闭"
-            >
-              ✕
-            </button>
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 pr-10">分类管理</h2>
-            </div>
-            <div className="p-6">
-              <form onSubmit={handleCategorySubmit} className="space-y-4 mb-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      required
-                      value={categoryFormData.name}
-                      onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      placeholder="分类名称"
-                    />
-                  </div>
-                  <div>
-                    <select
-                      value={categoryFormData.icon}
-                      onChange={(e) => setCategoryFormData({ ...categoryFormData, icon: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    >
-                      {categoryIcons.map(icon => (
-                        <option key={icon.value} value={icon.value}>
-                          {icon.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <textarea
-                  value={categoryFormData.description}
-                  onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
-                  rows="2"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  placeholder="分类描述"
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
-                >
-                  {editingCategory ? '更新分类' : '添加分类'}
-                </button>
-              </form>
-
-              <div className="border-t border-gray-200 pt-4">
-                <div className="text-sm font-medium text-gray-700 mb-3">
-                  已有分类 ({categories.length} 个)
-                </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {categories.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      暂无分类，请先添加分类
-                    </div>
-                  ) : (
-                    categories.map(cat => {
-                      const catArticleCount = articles.filter(a => a.category_id == cat.id && a.status !== 'deleted').length
-                      return (
-                        <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center gap-3 flex-1">
-                            <span className="text-2xl">{cat.icon}</span>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{cat.name}</span>
-                                {cat.is_hidden === 1 && (
-                                  <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded">
-                                    隐藏
-                                  </span>
-                                )}
-                              </div>
-                              {cat.description && (
-                                <div className="text-sm text-gray-500">{cat.description}</div>
-                              )}
-                              <div className="text-xs text-gray-400 mt-1">
-                                📄 {catArticleCount} 篇文档
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingCategory(cat)
-                                setCategoryFormData({
-                                  name: cat.name,
-                                  description: cat.description || '',
-                                  icon: cat.icon || '📚'
-                                })
-                              }}
-                              className="px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                              title="编辑"
-                            >
-                              ✏️ 编辑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCategory(cat.id)}
-                              className="px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="删除"
-                            >
-                              🗑️ 删除
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 mt-4 border-t">
-                <button
-                  onClick={() => {
-                    setShowCategoryModal(false)
-                    resetCategoryForm()
-                  }}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 状态修改Modal */}
-      {showStatusModal && statusChangingArticle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800">修改文档状态</h3>
-            </div>
-            <div className="p-6">
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  文档：<span className="font-medium">{statusChangingArticle.title}</span>
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  当前状态：<span className="font-medium">
-                    {statusChangingArticle.status === 'draft' ? '草稿' :
-                     statusChangingArticle.status === 'published' ? '已发布' : '已归档'}
-                  </span>
-                </p>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  选择新状态：
-                </label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="draft">📝 草稿</option>
-                  <option value="published">✅ 已发布</option>
-                  <option value="archived">📦 已归档</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowStatusModal(false)
-                    setStatusChangingArticle(null)
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleConfirmStatusChange}
-                  className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-                >
-                  确认修改
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 分类显示/隐藏确认Modal */}
-      {showVisibilityModal && categoryToToggle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800">
-                {categoryToToggle.is_hidden === 1 ? '显示分类' : '隐藏分类'}
-              </h3>
-            </div>
-            <div className="p-6">
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-4xl">{categoryToToggle.icon}</span>
-                  <div>
-                    <p className="font-medium text-gray-800">{categoryToToggle.name}</p>
-                    {categoryToToggle.description && (
-                      <p className="text-sm text-gray-500">{categoryToToggle.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <span className="text-yellow-600 text-xl">⚠️</span>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700 font-medium mb-2">
-                        {categoryToToggle.is_hidden === 1 ? '显示此分类后：' : '隐藏此分类后：'}
-                      </p>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        {categoryToToggle.is_hidden === 1 ? (
-                          <>
-                            <li>• 分类将在知识库中显示</li>
-                            <li>• 该分类下所有文档状态将改为"已发布"</li>
-                            <li>• 用户可以查看该分类及其文档</li>
-                          </>
-                        ) : (
-                          <>
-                            <li>• 分类将在知识库中隐藏</li>
-                            <li>• 该分类下所有文档状态将改为"已归档"</li>
-                            <li>• 用户将无法查看该分类及其文档</li>
-                          </>
-                        )}
-                      </ul>
-                      <p className="text-sm text-gray-600 mt-2">
-                        受影响的文档数量：
-                        <span className="font-medium text-gray-800">
-                          {articles.filter(a => a.category_id == categoryToToggle.id && a.status !== 'deleted').length} 篇
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowVisibilityModal(false)
-                    setCategoryToToggle(null)
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleConfirmToggleVisibility}
-                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
-                    categoryToToggle.is_hidden === 1
-                      ? 'bg-green-500 hover:bg-green-600'
-                      : 'bg-gray-500 hover:bg-gray-600'
-                  }`}
-                >
-                  {categoryToToggle.is_hidden === 1 ? '✅ 确认显示' : '🔒 确认隐藏'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 删除分类确认模态框 */}
-      {showDeleteCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">确认删除分类</h3>
-                  <p className="text-sm text-gray-500">此操作将移至回收站</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                {categoryArticlesCount > 0 ? (
-                  <p className="text-gray-700">
-                    该分类下有 <span className="font-bold text-red-600">{categoryArticlesCount}</span> 篇文档，
-                    删除后将一起移至回收站。确定要删除吗？
-                  </p>
-                ) : (
-                  <p className="text-gray-700">
-                    确定要删除这个分类吗？删除后可以在回收站中恢复。
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowDeleteCategoryModal(false)
-                    setCategoryToDelete(null)
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDeleteCategory}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                >
-                  确认删除
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 移动文档模态框 */}
-      {showMoveModal && articleToMove && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <span className="text-2xl">📁</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">移动文档</h3>
-                  <p className="text-sm text-gray-500">选择目标分类</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-1">文档标题：</p>
-                  <p className="font-medium text-gray-900">{articleToMove.title}</p>
-                </div>
-
-                <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-1">当前分类：</p>
-                  <p className="font-medium text-gray-700">
-                    {articleToMove.category_name || '未分类'}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    目标分类：
-                  </label>
-                  <select
-                    value={targetCategoryId}
-                    onChange={(e) => setTargetCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">未分类</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowMoveModal(false)
-                    setArticleToMove(null)
-                    setTargetCategoryId('')
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmMoveArticle}
-                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                >
-                  确认移动
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 文档预览模态框 */}
-      {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-            {/* 头部 */}
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-800 truncate">{previewFile.title}</h2>
-                <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                  <span>📁 {previewFile.category_name || '未分类'}</span>
-                  <span>👤 {previewFile.author_name || '未知'}</span>
-                  <span>📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors flex-shrink-0 ml-4"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* 内容 */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {previewFile.summary && (
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2">📝 摘要</h3>
-                  <p className="text-gray-700">{previewFile.summary}</p>
-                </div>
-              )}
-
-              <div className="prose max-w-none">
-                <div
-                  className="text-gray-800 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: previewFile.content?.replace(/\n/g, '<br/>') || '暂无内容' }}
-                />
-              </div>
-
-              {parseAttachments(previewFile.attachments).length > 0 && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-3">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
-                  <div className="space-y-2">
-                    {parseAttachments(previewFile.attachments).map((file, index) => (
-                      <a
-                        key={index}
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-2 hover:bg-white rounded transition-colors"
-                      >
-                        <span className="text-2xl">📄</span>
-                        <span className="text-blue-600 hover:underline">{file.name}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 底部操作按钮 */}
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  handleEdit(previewFile)
-                  setPreviewFile(null)
-                }}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                ✏️ 编辑
-              </button>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FilePreviewModal
+        file={filePreview}
+        onClose={() => setFilePreview(null)}
+        getFileIcon={getFileIcon}
+        formatFileSize={formatFileSize}
+      />
 
       {/* 回收站 */}
       <RecycleBin
@@ -1877,6 +1377,288 @@ const KnowledgeFolderView = () => {
           fetchRecycleBinCount()
         }}
       />
+
+      {/* 显示/隐藏分类确认模态框 */}
+      {showVisibilityModal && categoryToToggle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">
+                {categoryToToggle.is_hidden === 1 ? '显示分类' : '隐藏分类'}
+              </h2>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                确定要{categoryToToggle.is_hidden === 1 ? '显示' : '隐藏'}分类
+                <span className="font-semibold"> {categoryToToggle.icon} {categoryToToggle.name}</span> 吗？
+              </p>
+              {categoryToToggle.is_hidden !== 1 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-700">
+                  <p>隐藏后，该分类将不会在浏览知识库页面显示，但仍可在管理页面访问。</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowVisibilityModal(false)
+                  setCategoryToToggle(null)
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmToggleVisibility}
+                className={`px-6 py-2 text-white rounded-lg transition-colors ${
+                  categoryToToggle.is_hidden === 1
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : 'bg-gray-500 hover:bg-gray-600'
+                }`}
+              >
+                确认{categoryToToggle.is_hidden === 1 ? '显示' : '隐藏'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除分类确认模态框 */}
+      {showDeleteCategoryModal && categoryToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">删除分类</h2>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                确定要删除这个分类吗？
+              </p>
+              {categoryArticlesCount > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-700">
+                  <p className="font-semibold mb-2">⚠️ 注意</p>
+                  <p>该分类下有 <span className="font-bold text-red-600">{categoryArticlesCount}</span> 篇文档。</p>
+                  <p className="mt-2">删除分类后，这些文档将被移至回收站。</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteCategoryModal(false)
+                  setCategoryToDelete(null)
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteCategory}
+                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 移动文档模态框 */}
+      {showMoveModal && articleToMove && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">移动文档</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  文档标题
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{articleToMove.title}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  目标分类
+                </label>
+                <select
+                  value={targetCategoryId}
+                  onChange={(e) => setTargetCategoryId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">无分类</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowMoveModal(false)
+                  setArticleToMove(null)
+                  setTargetCategoryId('')
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmMoveArticle}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                确认移动
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 状态修改模态框 */}
+      {showStatusModal && statusChangingArticle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">修改文档状态</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  文档标题
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{statusChangingArticle.title}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择状态
+                </label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="draft">草稿</option>
+                  <option value="published">已发布</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowStatusModal(false)
+                  setStatusChangingArticle(null)
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmStatusChange}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                确认修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 分类编辑模态框 */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">
+                {editingCategory ? '编辑分类' : '新建分类'}
+              </h2>
+            </div>
+
+            <form onSubmit={handleCategorySubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  分类名称 *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={categoryFormData.name}
+                  onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="输入分类名称"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  分类图标
+                </label>
+                <select
+                  value={categoryFormData.icon}
+                  onChange={(e) => setCategoryFormData({ ...categoryFormData, icon: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  {categoryIcons.map(icon => (
+                    <option key={icon.value} value={icon.value}>
+                      {icon.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  分类描述
+                </label>
+                <textarea
+                  value={categoryFormData.description}
+                  onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  placeholder="输入分类描述（可选）"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCategoryModal(false)
+                    resetCategoryForm()
+                  }}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? '保存中...' : editingCategory ? '保存修改' : '创建分类'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

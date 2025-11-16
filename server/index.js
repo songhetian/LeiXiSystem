@@ -1616,26 +1616,7 @@ fastify.post('/api/knowledge/categories/:id/toggle-visibility', async (request, 
   }
 });
 
-// 获取知识文章列表
-fastify.get('/api/knowledge/articles', async (request, reply) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        ka.*,
-        kc.name as category_name,
-        u.real_name as author_name
-      FROM knowledge_articles ka
-      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
-      LEFT JOIN users u ON ka.created_by = u.id
-      WHERE ka.status != 'deleted'
-      ORDER BY ka.created_at DESC
-    `);
-    return rows;
-  } catch (error) {
-    console.error('Failed to fetch knowledge articles:', error);
-    reply.code(500).send({ error: 'Failed to fetch knowledge articles' });
-  }
-});
+
 
 // 创建知识文章
 fastify.post('/api/knowledge/articles', async (request, reply) => {
@@ -2197,6 +2178,132 @@ fastify.get('/api/knowledge/articles/:id/liked', async (request, reply) => {
   }
 });
 
+// 文档收藏
+fastify.post('/api/knowledge/articles/:id/collect', async (request, reply) => {
+  const { id } = request.params;
+  const { folder_id, notes } = request.body;
+  const userId = request.user?.id || null;
+
+  try {
+    // 检查是否已经收藏过
+    const [existing] = await pool.query(
+      'SELECT id FROM article_collections WHERE user_id = ? AND article_id = ?',
+      [userId, id]
+    );
+
+    if (existing.length > 0) {
+      return reply.code(400).send({ success: false, message: '文档已在收藏夹中' });
+    }
+
+    // 添加收藏记录
+    const [result] = await pool.query(
+      'INSERT INTO article_collections (user_id, article_id, folder_id, notes) VALUES (?, ?, ?, ?)',
+      [userId, id, folder_id || null, notes || null]
+    );
+
+    // 更新文章的收藏次数
+    await pool.query(
+      'UPDATE knowledge_articles SET collect_count = collect_count + 1 WHERE id = ?',
+      [id]
+    );
+
+    return {
+      success: true,
+      message: '收藏成功',
+      id: result.insertId
+    };
+  } catch (error) {
+    console.error('收藏文档失败:', error);
+    reply.code(500).send({ error: 'Failed to collect article' });
+  }
+});
+
+// 获取用户收藏的文档
+fastify.get('/api/knowledge/collections', async (request, reply) => {
+  try {
+    const userId = request.user?.id || null;
+
+    const [rows] = await pool.query(`
+      SELECT
+        ac.*,
+        ka.title,
+        ka.summary,
+        ka.icon,
+        ka.view_count,
+        ka.like_count,
+        ka.collect_count,
+        ka.created_at as article_created_at,
+        cf.name as folder_name
+      FROM article_collections ac
+      LEFT JOIN knowledge_articles ka ON ac.article_id = ka.id
+      LEFT JOIN collection_folders cf ON ac.folder_id = cf.id
+      WHERE ac.user_id = ?
+      ORDER BY ac.created_at DESC
+    `, [userId]);
+
+    return {
+      success: true,
+      data: rows
+    };
+  } catch (error) {
+    console.error('获取收藏文档失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch collections' });
+  }
+});
+
+// 取消收藏文档
+fastify.delete('/api/knowledge/articles/:id/uncollect', async (request, reply) => {
+  const { id } = request.params;
+  const userId = request.user?.id || null;
+
+  try {
+    // 删除收藏记录
+    const [result] = await pool.query(
+      'DELETE FROM article_collections WHERE user_id = ? AND article_id = ?',
+      [userId, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return reply.code(404).send({ success: false, message: '未找到收藏记录' });
+    }
+
+    // 更新文章的收藏次数
+    await pool.query(
+      'UPDATE knowledge_articles SET collect_count = GREATEST(0, collect_count - 1) WHERE id = ?',
+      [id]
+    );
+
+    return {
+      success: true,
+      message: '已取消收藏'
+    };
+  } catch (error) {
+    console.error('取消收藏失败:', error);
+    reply.code(500).send({ error: 'Failed to uncollect article' });
+  }
+});
+
+// 检查文档是否已收藏
+fastify.get('/api/knowledge/articles/:id/collected', async (request, reply) => {
+  const { id } = request.params;
+  const userId = request.user?.id || null;
+
+  try {
+    const [existing] = await pool.query(
+      'SELECT id, folder_id, notes FROM article_collections WHERE user_id = ? AND article_id = ?',
+      [userId, id]
+    );
+
+    return {
+      collected: existing.length > 0,
+      collection: existing[0] || null
+    };
+  } catch (error) {
+    console.error('检查收藏状态失败:', error);
+    return { collected: false };
+  }
+});
+
 // 获取我的分类（用户创建的分类）
 fastify.get('/api/my-knowledge/categories', async (request, reply) => {
   try {
@@ -2254,6 +2361,87 @@ fastify.get('/api/my-knowledge/articles', async (request, reply) => {
   } catch (error) {
     console.error('获取我的文档失败:', error);
     reply.code(500).send({ error: 'Failed to fetch my articles' });
+  }
+});
+
+// 获取单个知识文章
+fastify.get('/api/knowledge/articles/:id', async (request, reply) => {
+  try {
+    const { id } = request.params;
+
+    const [rows] = await pool.query(`
+      SELECT
+        ka.*,
+        kc.name as category_name,
+        u.real_name as author_name
+      FROM knowledge_articles ka
+      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
+      LEFT JOIN users u ON ka.created_by = u.id
+      WHERE ka.id = ? AND ka.status != 'deleted'
+    `, [id]);
+
+    if (rows.length === 0) {
+      return reply.code(404).send({ error: 'Article not found' });
+    }
+
+    return rows[0];
+  } catch (error) {
+    console.error('Failed to fetch knowledge article:', error);
+    reply.code(500).send({ error: 'Failed to fetch knowledge article' });
+  }
+});
+
+// 获取知识文章列表（支持分页和搜索）
+fastify.get('/api/knowledge/articles', async (request, reply) => {
+  try {
+    const { page = 1, pageSize = 20, search = '' } = request.query;
+    const offset = (page - 1) * pageSize;
+
+    // 构建查询条件
+    let whereClause = 'WHERE ka.status != "deleted"';
+    const params = [];
+
+    if (search) {
+      whereClause += ' AND (ka.title LIKE ? OR ka.summary LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    // 获取文章总数
+    const [countResult] = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM knowledge_articles ka
+      ${whereClause}
+    `, params);
+
+    const total = countResult[0].total;
+
+    // 获取分页文章数据
+    const [rows] = await pool.query(`
+      SELECT
+        ka.*,
+        kc.name as category_name,
+        u.real_name as author_name
+      FROM knowledge_articles ka
+      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
+      LEFT JOIN users u ON ka.created_by = u.id
+      ${whereClause}
+      ORDER BY ka.created_at DESC
+      LIMIT ? OFFSET ?
+    `, [...params, parseInt(pageSize), parseInt(offset)]);
+
+    return {
+      success: true,
+      data: rows,
+      pagination: {
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        total,
+        totalPages: Math.ceil(total / pageSize)
+      }
+    };
+  } catch (error) {
+    console.error('获取知识文章列表失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch knowledge articles' });
   }
 });
 

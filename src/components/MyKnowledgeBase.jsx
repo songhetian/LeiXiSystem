@@ -4,7 +4,7 @@ import axios from 'axios'
 import { categoryIcons } from '../utils/iconOptions'
 import AdvancedSearch from './AdvancedSearch'
 import { getApiUrl } from '../utils/apiConfig'
-
+import FilePreviewModal from './FilePreviewModal'
 
 const MyKnowledgeBase = () => {
   const [articles, setArticles] = useState([])
@@ -34,6 +34,7 @@ const MyKnowledgeBase = () => {
 
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null)
+  const [filePreview, setFilePreview] = useState(null)
 
   // 高级搜索
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
@@ -204,11 +205,26 @@ const MyKnowledgeBase = () => {
     return '📎'
   }
 
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
   const handleOpenFolder = (category) => {
     setCurrentFolderCategory(category)
     setFolderSearchTerm('')
     setCurrentPage(1)
     setShowFolderModal(true)
+  }
+
+  // 在指定分类下创建文档
+  const handleCreateArticle = (category) => {
+    // 注意：在我的知识库中，我们不需要创建新文档，而是收藏已有文档
+    // 这里保留函数以避免错误，但可以添加提示信息
+    toast.info('在我的知识库中，请先在知识库中找到文档并点击"收藏"按钮')
   }
 
   const getCurrentFolderArticles = () => {
@@ -522,60 +538,73 @@ const MyKnowledgeBase = () => {
 
       {/* 文件夹内容模态框 */}
       {showFolderModal && currentFolderCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">{currentFolderCategory.icon}</span>
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col">
+            {/* 头部 */}
+            <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-4">
+                <span className="text-5xl">{currentFolderCategory.icon || '📁'}</span>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800">{currentFolderCategory.name}</h2>
+                  <h2 className="text-3xl font-bold text-gray-900">{currentFolderCategory.name}</h2>
                   {currentFolderCategory.description && (
-                    <p className="text-gray-600 text-sm">{currentFolderCategory.description}</p>
+                    <p className="text-gray-700 text-lg mt-2">{currentFolderCategory.description}</p>
                   )}
                 </div>
               </div>
               <button
                 onClick={() => setShowFolderModal(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-2xl"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-              <input
-                type="text"
-                placeholder="搜索文档..."
-                value={folderSearchTerm}
-                onChange={(e) => {
-                  setFolderSearchTerm(e.target.value)
-                  setCurrentPage(1)
+            {/* 操作栏 */}
+            <div className="p-6 border-b border-gray-200 flex flex-wrap items-center gap-4 bg-gray-50">
+              <button
+                onClick={() => {
+                  handleCreateArticle(currentFolderCategory)
+                  setShowFolderModal(false)
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-              <span className="text-sm text-gray-600 whitespace-nowrap">
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-3 text-lg font-medium shadow-md"
+              >
+                ➕ 新建文档
+              </button>
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="搜索文档..."
+                  value={folderSearchTerm}
+                  onChange={(e) => {
+                    setFolderSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-500 focus:border-transparent text-lg shadow-sm"
+                />
+              </div>
+              <span className="text-lg text-gray-700 whitespace-nowrap bg-white px-4 py-3 rounded-xl shadow-sm">
                 共 {getCurrentFolderArticles().length} 篇文档
               </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
               {getPaginatedArticles().length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="text-6xl mb-4">📭</div>
-                  <p className="text-gray-500">
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="text-8xl mb-6">📭</div>
+                  <p className="text-2xl text-gray-600 mb-6">
                     {folderSearchTerm ? '没有找到匹配的文档' : '暂无文档'}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                   {getPaginatedArticles().map(article => (
                     <div
                       key={article.id}
-                      className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all hover:border-primary-400 group aspect-square flex flex-col"
+                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full"
                     >
                       {/* 大图标 */}
                       <div
-                        className="flex items-center justify-center mb-3 flex-shrink-0 cursor-pointer"
+                        className="flex items-center justify-center mb-4 flex-shrink-0 cursor-pointer"
                         onClick={() => setPreviewFile(article)}
                       >
                         <span className="text-5xl group-hover:scale-110 transition-transform">
@@ -585,7 +614,7 @@ const MyKnowledgeBase = () => {
 
                       {/* 标题 */}
                       <h3
-                        className="font-semibold text-gray-900 mb-2 line-clamp-2 text-center text-sm cursor-pointer hover:text-primary-600 transition-colors flex-shrink-0"
+                        className="font-bold text-gray-900 mb-3 line-clamp-2 text-center text-lg cursor-pointer hover:text-blue-600 transition-colors flex-shrink-0"
                         onClick={() => setPreviewFile(article)}
                         title={article.title}
                       >
@@ -594,49 +623,39 @@ const MyKnowledgeBase = () => {
 
                       {/* 笔记提示 */}
                       {article.notes && (
-                        <div className="text-xs text-yellow-600 text-center mb-2 flex-shrink-0">
+                        <div className="text-sm text-yellow-600 text-center mb-3 flex-shrink-0 bg-yellow-50 px-3 py-1 rounded-lg">
                           💡 有笔记
                         </div>
                       )}
 
                       {/* 操作按钮 */}
-                      <div className="mt-auto pt-3 border-t border-gray-100 flex-shrink-0">
-                        <div className="flex items-center justify-center gap-1 mb-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleMoveArticle(article)
-                            }}
-                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                            title="移动"
-                          >
-                            📁
-                          </button>
+                      <div className="mt-auto pt-4 border-t border-gray-100 flex-shrink-0">
+                        <div className="flex items-center justify-center gap-2 mb-3">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               handleViewArticle(article)
                             }}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="编辑"
+                            className="px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center gap-1 text-base font-medium"
+                            title="预览"
                           >
-                            ✏️
+                            👁️ 预览
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               handleDeleteArticle(article)
                             }}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all flex items-center gap-1 text-base font-medium"
                             title="删除"
                           >
-                            🗑️
+                            🗑️ 删除
                           </button>
                         </div>
 
                         {/* 附件信息 */}
                         {parseAttachments(article.attachments).length > 0 && (
-                          <div className="text-xs text-gray-400 text-center">
+                          <div className="text-sm text-gray-500 text-center bg-gray-100 px-3 py-2 rounded-lg">
                             📎 {parseAttachments(article.attachments).length} 个附件
                           </div>
                         )}
@@ -648,16 +667,16 @@ const MyKnowledgeBase = () => {
             </div>
 
             {getTotalPages() > 1 && (
-              <div className="p-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
+              <div className="p-6 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="text-lg text-gray-700">
                     第 {currentPage} / {getTotalPages()} 页
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3 flex-wrap">
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg font-medium shadow-sm"
                     >
                       ← 上一页
                     </button>
@@ -679,10 +698,10 @@ const MyKnowledgeBase = () => {
                         <button
                           key={i}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-4 py-2 border rounded-lg ${
+                          className={`px-6 py-3 border-2 rounded-xl transition-all text-lg font-medium shadow-sm ${
                             currentPage === pageNum
-                              ? 'bg-primary-500 text-white border-primary-500'
-                              : 'border-gray-300 hover:bg-gray-50'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-100'
                           }`}
                         >
                           {pageNum}
@@ -693,7 +712,7 @@ const MyKnowledgeBase = () => {
                     <button
                       onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
                       disabled={currentPage === getTotalPages()}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg font-medium shadow-sm"
                     >
                       下一页 →
                     </button>
@@ -754,22 +773,50 @@ const MyKnowledgeBase = () => {
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">📎 附件</h3>
                   <div className="space-y-2">
                     {parseAttachments(selectedArticle.attachments).map((file, index) => (
-                      <a
+                      <div
                         key={index}
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                        onClick={() => {
+                          // 根据文件类型决定是预览还是下载
+                          if (file.type.startsWith('image/') ||
+                              file.type.includes('pdf') ||
+                              file.type.startsWith('video/')) {
+                            // 支持预览的文件类型，设置文件预览对象
+                            setFilePreview({
+                              name: file.name,
+                              type: file.type,
+                              size: file.size,
+                              url: file.url
+                            });
+                          } else {
+                            // 其他文件类型直接下载
+                            const link = document.createElement('a');
+                            link.href = file.url;
+                            link.download = file.name;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        }}
                       >
                         <span className="text-2xl">{getFileIcon(file.type)}</span>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-900 truncate">{file.name}</div>
                           <div className="text-sm text-gray-500">
-                            {(file.size / 1024).toFixed(2)} KB
+                            {formatFileSize(file.size)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                              ? '点击预览'
+                              : '点击下载'}
                           </div>
                         </div>
-                        <span className="text-primary-500">下载</span>
-                      </a>
+                        <span className="text-blue-600">
+                          {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                            ? '👁️'
+                            : '📥'}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -872,177 +919,13 @@ const MyKnowledgeBase = () => {
         </div>
       )}
 
-      {/* 文档预览模态框 */}
-      {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-800 truncate">{previewFile.title}</h2>
-                <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                  <span>📁 {previewFile.category_name || '未分类'}</span>
-                  <span>👤 {previewFile.author_name || '未知'}</span>
-                  <span>📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors flex-shrink-0 ml-4"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              {previewFile.summary && (
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2">📝 摘要</h3>
-                  <p className="text-gray-700">{previewFile.summary}</p>
-                </div>
-              )}
-
-              <div className="prose max-w-none">
-                <div
-                  className="text-gray-800 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: previewFile.content?.replace(/\n/g, '<br/>') || '暂无内容' }}
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  handleViewArticle(previewFile)
-                  setPreviewFile(null)
-                }}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                ✏️ 编辑
-              </button>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 移动文档模态框 */}
-      {showMoveModal && articleToMove && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <span className="text-2xl">📁</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">移动文档</h3>
-                  <p className="text-sm text-gray-500">选择目标分类</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-1">文档标题：</p>
-                  <p className="font-medium text-gray-900">{articleToMove.title}</p>
-                </div>
-
-                <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-1">当前分类：</p>
-                  <p className="font-medium text-gray-700">
-                    {articleToMove.category_name || '未分类'}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    目标分类：
-                  </label>
-                  <select
-                    value={targetCategoryId}
-                    onChange={(e) => setTargetCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">未分类</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowMoveModal(false)
-                    setArticleToMove(null)
-                    setTargetCategoryId('')
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmMoveArticle}
-                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                >
-                  确认移动
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 删除确认模态框 */}
-      {showDeleteModal && articleToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">确认删除文档</h3>
-                  <p className="text-sm text-gray-500">此操作将移至回收站</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-gray-700">
-                  确定要删除文档 <span className="font-bold">"{articleToDelete.title}"</span> 吗？
-                  删除后可以在回收站中恢复。
-                </p>
-              </div>
-
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowDeleteModal(false)
-                    setArticleToDelete(null)
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDeleteArticle}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                >
-                  确认删除
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 独立文件预览模态框 */}
+      <FilePreviewModal
+        file={filePreview}
+        onClose={() => setFilePreview(null)}
+        getFileIcon={getFileIcon}
+        formatFileSize={formatFileSize}
+      />
     </div>
   )
 }
