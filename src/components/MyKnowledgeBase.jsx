@@ -36,6 +36,12 @@ const MyKnowledgeBase = () => {
   const [previewFile, setPreviewFile] = useState(null)
   const [filePreview, setFilePreview] = useState(null)
 
+  // 添加调整弹出框宽高的状态
+  const [articleModalWidth, setArticleModalWidth] = useState('max-w-4xl')
+  const [articleModalHeight, setArticleModalHeight] = useState('max-h-[90vh]')
+  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-6xl')
+  const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]')
+
   // 高级搜索
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
 
@@ -727,7 +733,7 @@ const MyKnowledgeBase = () => {
       {/* 文章详情模态框 */}
       {showArticleModal && selectedArticle && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className={`bg-white rounded-lg w-full ${articleModalWidth} ${articleModalHeight} overflow-hidden flex flex-col`}>
             <div className="p-6 border-b border-gray-200 flex items-start justify-between">
               <div className="flex-1 pr-10">
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -740,12 +746,41 @@ const MyKnowledgeBase = () => {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setShowArticleModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 调整宽高按钮 */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      const widths = ['max-w-2xl', 'max-w-3xl', 'max-w-4xl', 'max-w-5xl']
+                      const currentIndex = widths.indexOf(articleModalWidth)
+                      const nextIndex = (currentIndex + 1) % widths.length
+                      setArticleModalWidth(widths[nextIndex])
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-sm"
+                    title="调整宽度"
+                  >
+                    ↔️
+                  </button>
+                  <button
+                    onClick={() => {
+                      const heights = ['max-h-[80vh]', 'max-h-[85vh]', 'max-h-[90vh]', 'max-h-[95vh]']
+                      const currentIndex = heights.indexOf(articleModalHeight)
+                      const nextIndex = (currentIndex + 1) % heights.length
+                      setArticleModalHeight(heights[nextIndex])
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-sm"
+                    title="调整高度"
+                  >
+                    ↕️
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowArticleModal(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -925,6 +960,10 @@ const MyKnowledgeBase = () => {
         onClose={() => setFilePreview(null)}
         getFileIcon={getFileIcon}
         formatFileSize={formatFileSize}
+        modalWidth={previewModalWidth}
+        setModalWidth={setPreviewModalWidth}
+        modalHeight={previewModalHeight}
+        setModalHeight={setPreviewModalHeight}
       />
     </div>
   )

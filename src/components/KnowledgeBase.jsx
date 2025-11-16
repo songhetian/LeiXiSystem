@@ -44,6 +44,12 @@ const KnowledgeBase = () => {
   // 添加总分类数状态
   const [totalCategories, setTotalCategories] = useState(0)
 
+  // 添加调整弹出框宽高的状态
+  const [articleModalWidth, setArticleModalWidth] = useState('max-w-4xl')
+  const [articleModalHeight, setArticleModalHeight] = useState('max-h-[90vh]')
+  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-6xl')
+  const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]')
+
   useEffect(() => {
     fetchCategories()
     fetchArticles()
@@ -978,7 +984,7 @@ const KnowledgeBase = () => {
       {/* 文章详情Modal */}
       {showArticleModal && selectedArticle && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className={`bg-white rounded-lg w-full ${articleModalWidth} ${articleModalHeight} overflow-hidden flex flex-col`}>
             <div className="p-6 border-b border-gray-200 flex items-start justify-between">
               <div className="flex-1 pr-10">
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -990,12 +996,41 @@ const KnowledgeBase = () => {
                   <span>📅 {new Date(selectedArticle.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
-              <button
-                onClick={() => setShowArticleModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 调整宽高按钮 */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      const widths = ['max-w-2xl', 'max-w-3xl', 'max-w-4xl', 'max-w-5xl']
+                      const currentIndex = widths.indexOf(articleModalWidth)
+                      const nextIndex = (currentIndex + 1) % widths.length
+                      setArticleModalWidth(widths[nextIndex])
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-sm"
+                    title="调整宽度"
+                  >
+                    ↔️
+                  </button>
+                  <button
+                    onClick={() => {
+                      const heights = ['max-h-[80vh]', 'max-h-[85vh]', 'max-h-[90vh]', 'max-h-[95vh]']
+                      const currentIndex = heights.indexOf(articleModalHeight)
+                      const nextIndex = (currentIndex + 1) % heights.length
+                      setArticleModalHeight(heights[nextIndex])
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-sm"
+                    title="调整高度"
+                  >
+                    ↕️
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowArticleModal(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -1136,7 +1171,7 @@ const KnowledgeBase = () => {
       {/* 文档预览模态框 */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+          <div className={`bg-white rounded-xl shadow-2xl w-full ${previewModalWidth} ${previewModalHeight} flex flex-col`}>
             <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex-1 min-w-0">
                 <h2 className="text-3xl font-bold text-gray-900 truncate">{previewFile.title}</h2>
@@ -1148,12 +1183,41 @@ const KnowledgeBase = () => {
                   <span className="flex items-center gap-2 text-lg">❤️ {previewFile.like_count || 0} 点赞</span>
                 </div>
               </div>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 调整宽高按钮 */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl']
+                      const currentIndex = widths.indexOf(previewModalWidth)
+                      const nextIndex = (currentIndex + 1) % widths.length
+                      setPreviewModalWidth(widths[nextIndex])
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    title="调整宽度"
+                  >
+                    ↔️
+                  </button>
+                  <button
+                    onClick={() => {
+                      const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]']
+                      const currentIndex = heights.indexOf(previewModalHeight)
+                      const nextIndex = (currentIndex + 1) % heights.length
+                      setPreviewModalHeight(heights[nextIndex])
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    title="调整高度"
+                  >
+                    ↕️
+                  </button>
+                </div>
+                <button
+                  onClick={() => setPreviewFile(null)}
+                  className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8">

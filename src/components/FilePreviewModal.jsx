@@ -1,15 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize }) => {
+const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWidth, setModalWidth, modalHeight, setModalHeight }) => {
   if (!file) return null;
 
   const isImage = file.type?.startsWith('image/');
   const isVideo = file.type?.startsWith('video/');
   const isPdf = file.type?.includes('pdf');
 
+  // 如果没有传递调整宽高的状态，则使用内部状态
+  const [internalModalWidth, internalSetModalWidth] = useState('max-w-6xl');
+  const [internalModalHeight, internalSetModalHeight] = useState('max-h-[95vh]');
+
+  const actualModalWidth = modalWidth || internalModalWidth;
+  const actualModalHeight = modalHeight || internalModalHeight;
+  const setActualModalWidth = setModalWidth || internalSetModalWidth;
+  const setActualModalHeight = setModalHeight || internalSetModalHeight;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+      <div className={`bg-white rounded-xl shadow-2xl w-full ${actualModalWidth} ${actualModalHeight} flex flex-col`}>
         <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex-1 min-w-0">
             <h2 className="text-3xl font-bold text-gray-900 truncate">{file.name}</h2>
@@ -25,12 +34,41 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize }) => {
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 调整宽高按钮 */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl']
+                  const currentIndex = widths.indexOf(actualModalWidth)
+                  const nextIndex = (currentIndex + 1) % widths.length
+                  setActualModalWidth(widths[nextIndex])
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                title="调整宽度"
+              >
+                ↔️
+              </button>
+              <button
+                onClick={() => {
+                  const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]']
+                  const currentIndex = heights.indexOf(actualModalHeight)
+                  const nextIndex = (currentIndex + 1) % heights.length
+                  setActualModalHeight(heights[nextIndex])
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                title="调整高度"
+              >
+                ↕️
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
+            >
+              ✕
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-6 bg-gray-50">
           {isImage && (
