@@ -21,7 +21,7 @@ const KnowledgeFolderView = () => {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [expandedFolders, setExpandedFolders] = useState({})
   const [uploadingFiles, setUploadingFiles] = useState(false)
-  const [filePreview, setFilePreview] = useState(null)
+  // const [filePreview, setFilePreview] = useState(null)  // 已替换为 previewFile 状态
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null)
   const [folderSearchTerm, setFolderSearchTerm] = useState('')
@@ -71,6 +71,18 @@ const KnowledgeFolderView = () => {
     description: '',
     icon: '📚'
   })
+
+  // 添加预览相关的状态
+  const [previewFile, setPreviewFile] = useState(null)
+  const [likedArticles, setLikedArticles] = useState(new Set()) // 记录已点赞的文档
+  const [collectedArticles, setCollectedArticles] = useState(new Set()) // 记录已收藏的文档
+  const [learningPlans, setLearningPlans] = useState([]) // 学习计划列表
+  const [showAddToPlanModal, setShowAddToPlanModal] = useState(false) // 添加到学习计划模态框
+  const [selectedArticleForPlan, setSelectedArticleForPlan] = useState(null) // 选择的文章
+  const [selectedPlanId, setSelectedPlanId] = useState('') // 选择的学习计划ID
+  const [showSaveModal, setShowSaveModal] = useState(false) // 保存到我的知识库模态框
+  const [myCategories, setMyCategories] = useState([]) // 我的分类
+  const [saveNotes, setSaveNotes] = useState('') // 保存笔记
 
   useEffect(() => {
     fetchArticles()
@@ -582,6 +594,115 @@ const KnowledgeFolderView = () => {
     )
   }
 
+  // 检查文档是否已点赞
+  const checkLikedStatus = async (articleId) => {
+    try {
+      // 这里需要根据实际的API进行调整
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // 点赞文档
+  const handleLike = async (articleId) => {
+    // 检查是否已点赞
+    if (likedArticles.has(articleId)) {
+      toast.warning('您已经点赞过了')
+      return
+    }
+
+    try {
+      // 这里需要根据实际的API进行调整
+      // 模拟点赞成功
+      toast.success('点赞成功')
+      // 记录已点赞
+      setLikedArticles(prev => new Set([...prev, articleId]))
+      // 更新预览文件的点赞数
+      if (previewFile && previewFile.id === articleId) {
+        setPreviewFile({
+          ...previewFile,
+          like_count: (previewFile.like_count || 0) + 1
+        })
+      }
+    } catch (error) {
+      toast.error('点赞失败')
+    }
+  }
+
+  // 获取我的分类
+  const fetchMyCategories = async () => {
+    try {
+      // 这里需要根据实际的API进行调整
+      setMyCategories([])
+    } catch (error) {
+      console.error('获取我的分类失败:', error)
+    }
+  }
+
+  // 获取学习计划列表
+  const fetchLearningPlans = async () => {
+    try {
+      // 这里需要根据实际的API进行调整
+      setLearningPlans([])
+    } catch (error) {
+      console.error('获取学习计划失败:', error)
+    }
+  }
+
+  // 添加文章到学习计划
+  const handleAddToPlan = async (article) => {
+    setSelectedArticleForPlan(article)
+    await fetchLearningPlans()
+    setShowAddToPlanModal(true)
+  }
+
+  // 确认添加到学习计划
+  const confirmAddToPlan = async () => {
+    if (!selectedArticleForPlan) {
+      toast.error('未选择文档')
+      return
+    }
+
+    // 如果没有选择学习计划，提示用户选择
+    if (!selectedPlanId) {
+      toast.warning('请选择学习计划')
+      return
+    }
+
+    try {
+      // 这里需要根据实际的API进行调整
+      toast.success('已添加到学习计划')
+      setShowAddToPlanModal(false)
+      setSelectedArticleForPlan(null)
+      setSelectedPlanId('')
+    } catch (error) {
+      toast.error('添加到学习计划失败')
+    }
+  }
+
+  // 保存到我的知识库
+  const handleSaveToMyKnowledge = () => {
+    // 这里需要根据实际的API进行调整
+    fetchMyCategories()
+    setShowSaveModal(true)
+    setSaveNotes('')
+    setSelectedCategory(null)
+  }
+
+  // 确认保存到我的知识库
+  const handleConfirmSave = async () => {
+    try {
+      // 这里需要根据实际的API进行调整
+      toast.success('已保存到我的知识库')
+      setShowSaveModal(false)
+      setPreviewFile(null)
+    } catch (error) {
+      console.error('保存失败:', error)
+      toast.error('保存失败')
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -670,7 +791,8 @@ const KnowledgeFolderView = () => {
                 }
               }}
               onPreview={(article) => {
-                setFilePreview({
+                setPreviewFile({
+                  ...article,
                   name: article.title,
                   type: 'article',
                   size: 0,
@@ -737,6 +859,7 @@ const KnowledgeFolderView = () => {
                     key={category.id}
                     className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all border-2 overflow-hidden group relative ${
                       category.is_hidden === 1
+
                         ? 'border-gray-300 hover:border-gray-400 opacity-75'
                         : 'border-transparent hover:border-primary-300'
                     }`}
@@ -1072,7 +1195,7 @@ const KnowledgeFolderView = () => {
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => setFilePreview({
+                            onClick={() => setPreviewFile({
                               name: file.name,
                               type: file.type,
                               size: file.size,
@@ -1122,7 +1245,7 @@ const KnowledgeFolderView = () => {
 
       {/* 文件夹内容模态框 */}
       {showFolderModal && currentFolderCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" style={{ zIndex: 800 }}>
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[900] p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col">
             {/* 头部 */}
             <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -1217,11 +1340,11 @@ const KnowledgeFolderView = () => {
                           <div className="flex items-start justify-between mb-3">
                             <h3
                               className="font-bold text-gray-900 flex-1 pr-2 line-clamp-2 text-xl cursor-pointer hover:text-blue-600 transition-colors"
-                              onClick={() => setFilePreview({
+                              onClick={() => setPreviewFile({
+                                ...article,
                                 name: article.title,
                                 type: 'article',
-                                size: 0,
-                                url: article.content
+                                size: 0
                               })}
                               title="点击预览"
                             >
@@ -1257,11 +1380,11 @@ const KnowledgeFolderView = () => {
 
                       <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                         <button
-                          onClick={() => setFilePreview({
+                          onClick={() => setPreviewFile({
+                            ...article,
                             name: article.title,
                             type: 'article',
-                            size: 0,
-                            url: article.content
+                            size: 0
                           })}
                           className="px-4 py-2 text-green-600 hover:bg-green-50 rounded-xl transition-all flex items-center gap-2 text-lg font-medium"
                           title="预览"
@@ -1360,12 +1483,307 @@ const KnowledgeFolderView = () => {
       )}
 
       {/* 文件预览Modal */}
-      <FilePreviewModal
+      {/* <FilePreviewModal
         file={filePreview}
         onClose={() => setFilePreview(null)}
         getFileIcon={getFileIcon}
         formatFileSize={formatFileSize}
-      />
+      /> */}
+
+      {/* 文档预览模态框 */}
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+            <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-3xl font-bold text-gray-900 truncate">{previewFile.title}</h2>
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-base text-gray-700">
+                  <span className="flex items-center gap-2 text-lg">📁 {previewFile.category_name || '未分类'}</span>
+                  <span className="flex items-center gap-2 text-lg">👤 {previewFile.author_name || '未知'}</span>
+                  <span className="flex items-center gap-2 text-lg">📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-2 text-lg">👁️ {previewFile.view_count || 0} 浏览</span>
+                  <span className="flex items-center gap-2 text-lg">❤️ {previewFile.like_count || 0} 点赞</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8">
+              {previewFile.summary && (
+                <div className="mb-8 p-6 bg-blue-100 rounded-xl border border-blue-200">
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-4">📝 摘要</h3>
+                  <p className="text-lg text-gray-800 leading-relaxed">{previewFile.summary}</p>
+                </div>
+              )}
+
+              <div className="prose max-w-none mb-8">
+                {previewFile.content ? (
+                  <div
+                    className="text-xl text-gray-900 whitespace-pre-wrap leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: previewFile.content.replace(/\n/g, '<br/>') }}
+                  />
+                ) : previewFile.url ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    {previewFile.type.startsWith('image/') && (
+                      <img
+                        src={previewFile.url}
+                        alt={previewFile.name}
+                        className="max-w-full max-h-96 object-contain"
+                      />
+                    )}
+                    {previewFile.type.includes('pdf') && (
+                      <iframe
+                        src={previewFile.url}
+                        className="w-full h-96"
+                        title={previewFile.name}
+                      />
+                    )}
+                    {previewFile.type.startsWith('video/') && (
+                      <video
+                        src={previewFile.url}
+                        controls
+                        className="max-w-full max-h-96"
+                      />
+                    )}
+                    {!previewFile.type.startsWith('image/') &&
+                     !previewFile.type.includes('pdf') &&
+                     !previewFile.type.startsWith('video/') && (
+                      <div className="text-center">
+                        <p className="text-2xl mb-4">📎 {previewFile.name}</p>
+                        <a
+                          href={previewFile.url}
+                          download={previewFile.name}
+                          className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-lg font-medium shadow-md"
+                        >
+                          下载文件
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-gray-600 text-center py-12">
+                    <p className="text-2xl">暂无内容</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 附件预览区域 */}
+              {parseAttachments(previewFile.attachments).length > 0 && (
+                <div className="mt-8 pt-8 border-t border-gray-200">
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-6">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {parseAttachments(previewFile.attachments).map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                        onClick={() => {
+                          // 根据文件类型决定是预览还是下载
+                          if (file.type.startsWith('image/') ||
+                              file.type.includes('pdf') ||
+                              file.type.startsWith('video/')) {
+                            // 支持预览的文件类型，设置文件预览对象
+                            setPreviewFile({
+                              name: file.name,
+                              type: file.type,
+                              size: file.size,
+                              url: file.url
+                            });
+                          } else {
+                            // 其他文件类型直接下载
+                            const link = document.createElement('a');
+                            link.href = file.url;
+                            link.download = file.name;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        }}
+                      >
+                        <div className="text-4xl">
+                          {file.type.startsWith('image/') && '🖼️'}
+                          {file.type.includes('pdf') && '📄'}
+                          {file.type.startsWith('video/') && '🎬'}
+                          {file.type.includes('word') && '📝'}
+                          {file.type.includes('excel') && '📊'}
+                          {file.type.includes('powerpoint') && '📑'}
+                          {file.type.includes('zip') && '📦'}
+                          {!file.type.startsWith('image/') &&
+                           !file.type.includes('pdf') &&
+                           !file.type.startsWith('video/') &&
+                           !file.type.includes('word') &&
+                           !file.type.includes('excel') &&
+                           !file.type.includes('powerpoint') &&
+                           !file.type.includes('zip') && '📄'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-lg text-gray-900 truncate">{file.name}</div>
+                          <div className="text-base text-gray-600 mt-1">
+                            {formatFileSize(file.size)}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                              ? '点击预览'
+                              : '点击下载'}
+                          </div>
+                        </div>
+                        <div className="text-blue-600 text-lg">
+                          {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
+                            ? '👁️'
+                            : '📥'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 简化的底部按钮区域，只保留关闭按钮 */}
+            <div className="p-8 border-t border-gray-200 flex justify-end bg-gray-50">
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-lg font-medium shadow-md"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 添加到学习计划模态框 */}
+      {showAddToPlanModal && selectedArticleForPlan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">添加到学习计划</h2>
+              <p className="text-sm text-gray-600 mt-1">选择要添加的学习计划</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  文档标题
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="font-medium text-gray-900">{selectedArticleForPlan.title}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择学习计划（可选，不选择将自动创建）
+                </label>
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">请选择学习计划</option>
+                  {learningPlans.map(plan => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddToPlanModal(false)
+                  setSelectedArticleForPlan(null)
+                  setSelectedPlanId('')
+                }}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmAddToPlan}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                确认添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 保存到我的知识库模态框 */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">保存到我的知识库</h2>
+              <p className="text-sm text-gray-600 mt-1">选择分类或保存到默认分类</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择分类（可选）
+                </label>
+                <select
+                  value={selectedCategory || ''}
+                  onChange={(e) => setSelectedCategory(e.target.value || null)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">默认分类</option>
+                  {myCategories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  如果不选择，将保存到"默认分类"中
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  个人笔记（可选）
+                </label>
+                <textarea
+                  value={saveNotes}
+                  onChange={(e) => setSaveNotes(e.target.value)}
+                  placeholder="添加你的学习笔记或心得..."
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">文档标题：</span>{previewFile?.title}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+              >
+                确认保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 回收站 */}
       <RecycleBin
