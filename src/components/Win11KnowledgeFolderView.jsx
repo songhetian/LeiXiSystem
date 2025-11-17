@@ -827,111 +827,84 @@ const Win11KnowledgeFolderView = () => {
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-100">
-      {/* 顶部标题栏 */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <span className="text-2xl">📁</span>
-          知识文档
-        </h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowCreateCategoryModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
-          >
-            <span>📁</span>
-            <span>添加分类</span>
-          </button>
-          <button
-            onClick={openRecycleBin}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg shadow-sm hover:bg-gray-300 transition-colors text-sm flex items-center gap-2"
-          >
-            <span>🗑️</span>
-            <span>回收站</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 搜索栏 */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 min-w-[300px] max-w-2xl relative">
-            <input
-              type="text"
-              placeholder="搜索文档..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
-            />
-            <div className="absolute left-3 top-2.5 text-gray-400">
-              🔍
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-700 whitespace-nowrap">视图:</span>
-            <div className="flex border border-gray-300 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setViewMode('card')}
-                className={`px-3 py-1.5 text-sm ${
-                  viewMode === 'card' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-                title="卡片视图"
-              >
-                🟦
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1.5 text-sm border-l border-gray-300 ${
-                  viewMode === 'list' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-                title="列表视图"
-              >
-                📋
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-700 whitespace-nowrap">排序:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[120px]"
-              >
-                <option value="name">名称</option>
-                <option value="date">日期</option>
-                <option value="views">浏览量</option>
-              </select>
-              <button
-                onClick={() => {
-                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                title={sortOrder === 'asc' ? '升序' : '降序'}
-              >
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-gray-700 whitespace-nowrap">每页:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[100px]"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={30}>30</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+      {/* 顶部操作栏 */}
+      <div className="mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="text-2xl">📁</span>
+              知识文档
+            </h1>
+            
+            {/* 搜索框和操作按钮 */}
+            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 items-stretch">
+              {/* 搜索框 */}
+              <div className="relative flex-1 min-w-[250px]">
+                <input
+                  type="text"
+                  placeholder={currentFolderCategory 
+                    ? `在 ${currentFolderCategory.name} 中搜索...` 
+                    : '搜索所有文档...'}
+                  value={currentFolderCategory ? folderSearchTerm : searchTerm}
+                  onChange={(e) => {
+                    if (currentFolderCategory) {
+                      setFolderSearchTerm(e.target.value);
+                    } else {
+                      setSearchTerm(e.target.value);
+                    }
+                  }}
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  🔍
+                </div>
+              </div>
+              
+              {/* 操作按钮 */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (currentFolderCategory) {
+                      setShowCreateArticleModal(true);
+                      setCreatingCategory(currentFolderCategory);
+                    } else {
+                      setShowCreateCategoryModal(true);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                  <span>{currentFolderCategory ? '📄' : '📁'}</span>
+                  <span>{currentFolderCategory ? '添加文档' : '添加分类'}</span>
+                </button>
+                
+                <button
+                  onClick={openRecycleBin}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="回收站"
+                >
+                  🗑️
+                </button>
+                
+                {/* 视图切换按钮 - 仅在分类视图中显示 */}
+                {currentFolderCategory && (
+                  <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setViewMode('card')}
+                      className={`p-2 ${viewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                      title="卡片视图"
+                    >
+                      🟦
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`p-2 border-l border-gray-200 ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                      title="列表视图"
+                    >
+                      📋
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -955,23 +928,9 @@ const Win11KnowledgeFolderView = () => {
                 <span className="text-2xl">📁</span>
                 <h2 className="text-xl font-semibold">{currentFolderCategory.name}</h2>
               </div>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="搜索..."
-                    value={folderSearchTerm}
-                    onChange={(e) => setFolderSearchTerm(e.target.value)}
-                    className="px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="absolute left-3 top-2.5 text-gray-400">
-                    🔍
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* 文件列表（使用分页结果）：支持分类内分页/搜索/排序 */}
+            {/* 文件列表 */}
             <div className="flex-1 overflow-y-auto p-4">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
@@ -981,7 +940,7 @@ const Win11KnowledgeFolderView = () => {
                   </div>
                 </div>
               ) : getPaginatedArticles().length === 0 ? (
-                <div className="flex flex-col items-center justify-center h满 text-center py-12">
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <div className="text-6xl mb-4">📭</div>
                   <p className="text-gray-500">
                     {folderSearchTerm ? '没有找到匹配的文档' : '此文件夹为空'}

@@ -1,20 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWidth, setModalWidth, modalHeight, setModalHeight }) => {
   if (!file) return null;
 
+  const [isMaximized, setIsMaximized] = useState(false);
+  const modalRef = useRef(null);
+  
   const isImage = file.type?.startsWith('image/');
   const isVideo = file.type?.startsWith('video/');
   const isPdf = file.type?.includes('pdf');
+  const isPpt = file.type?.includes('presentation') || file.name?.match(/\.(ppt|pptx)$/i);
 
   // 如果没有传递调整宽高的状态，则使用内部状态
   const [internalModalWidth, internalSetModalWidth] = useState('max-w-6xl');
   const [internalModalHeight, internalSetModalHeight] = useState('max-h-[95vh]');
+  const [savedDimensions, setSavedDimensions] = useState({
+    width: modalWidth || 'max-w-6xl',
+    height: modalHeight || 'max-h-[95vh]'
+  });
 
-  const actualModalWidth = modalWidth || internalModalWidth;
-  const actualModalHeight = modalHeight || internalModalHeight;
+  const actualModalWidth = isMaximized ? 'w-screen' : (modalWidth || internalModalWidth);
+  const actualModalHeight = isMaximized ? 'h-screen' : (modalHeight || internalModalHeight);
   const setActualModalWidth = setModalWidth || internalSetModalWidth;
   const setActualModalHeight = setModalHeight || internalSetModalHeight;
+
+  // 处理全屏切换
+  const toggleMaximize = () => {
+    if (!isMaximized) {
+      // 保存当前尺寸
+      setSavedDimensions({
+        width: actualModalWidth,
+        height: actualModalHeight
+      });
+    } else {
+      // 恢复保存的尺寸
+      setActualModalWidth(savedDimensions.width);
+      setActualModalHeight(savedDimensions.height);
+    }
+    setIsMaximized(!isMaximized);
+  };
+
+  // 处理ESC键退出全屏
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isMaximized) {
+        toggleMaximize();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMaximized]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-4">
@@ -30,36 +66,52 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
                 📅 {new Date().toLocaleDateString()}
               </span>
               <span className="flex items-center gap-2 text-lg">
-                💾 {formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}
+                � {formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {/* 调整宽高按钮 */}
             <div className="flex gap-1">
+              {!isMaximized && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl']
+                      const currentIndex = widths.indexOf(actualModalWidth)
+                      const nextIndex = (currentIndex + 1) % widths.length
+                      setActualModalWidth(widths[nextIndex])
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    title="调整宽度"
+                  >
+                    ↔️
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]']
+                      const currentIndex = heights.indexOf(actualModalHeight)
+                      const nextIndex = (currentIndex + 1) % heights.length
+                      setActualModalHeight(heights[nextIndex])
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    title="调整高度"
+                  >
+                    ↕️
+                  </button>
+                </>
+              )}
               <button
-                onClick={() => {
-                  const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl']
-                  const currentIndex = widths.indexOf(actualModalWidth)
-                  const nextIndex = (currentIndex + 1) % widths.length
-                  setActualModalWidth(widths[nextIndex])
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMaximize();
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
-                title="调整宽度"
+                title={isMaximized ? "恢复窗口" : "最大化"}
               >
-                ↔️
-              </button>
-              <button
-                onClick={() => {
-                  const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]']
-                  const currentIndex = heights.indexOf(actualModalHeight)
-                  const nextIndex = (currentIndex + 1) % heights.length
-                  setActualModalHeight(heights[nextIndex])
-                }}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
-                title="调整高度"
-              >
-                ↕️
+                {isMaximized ? '⛶' : '⛶'}
               </button>
             </div>
             <button
@@ -109,7 +161,21 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
               </div>
             </div>
           )}
-          {!isImage && !isVideo && !isPdf && (
+          {isPpt && (
+            <div className="flex flex-col h-full">
+              <iframe
+                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`}
+                className="w-full h-full min-h-[70vh] rounded-xl shadow-lg"
+                frameBorder="0"
+                title={file.name}
+              />
+              <div className="mt-4 text-center">
+                <p className="text-lg text-gray-700">{file.name}</p>
+                <p className="text-sm text-gray-500 mt-2">使用 Microsoft Office 在线预览</p>
+              </div>
+            </div>
+          )}
+          {!isImage && !isVideo && !isPdf && !isPpt && (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white rounded-xl shadow-sm">
               <div className="text-8xl mb-6">
                 {getFileIcon ? getFileIcon(file.type) : '📄'}

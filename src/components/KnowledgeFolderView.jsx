@@ -13,7 +13,16 @@ const KnowledgeFolderView = () => {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // 添加搜索状态变化的日志
+  useEffect(() => {
+    console.log('搜索词更新:', searchTerm);
+    console.log('当前选中的分类:', selectedCategory);
+    console.log('所有分类:', categories);
+  }, [searchTerm, selectedCategory, categories]);
+
   const [selectedArticle, setSelectedArticle] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState(null)
   const [showArticleModal, setShowArticleModal] = useState(false)
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null)
@@ -359,7 +368,7 @@ const KnowledgeFolderView = () => {
     } else {
       uncategorizedArticles.push(article)
     }
-  })
+  });
 
   return (
     <div className="p-6">
@@ -370,51 +379,58 @@ const KnowledgeFolderView = () => {
 
       {/* 操作栏 */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                resetCategoryForm()
-                setShowCategoryModal(true)
-              }}
-              className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-            >
-              📁 管理分类
-            </button>
-            <button
-              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                showAdvancedSearch
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              🔍 {showAdvancedSearch ? '收起搜索' : '高级搜索'}
-            </button>
+        <div className="flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex-1 flex gap-3 items-center">
+            <div className="relative flex-1 max-w-2xl">
+              <input
+                type="text"
+                placeholder={selectedCategory ? `在 ${selectedCategory.name} 中搜索...` : '搜索所有文档...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                🔍
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-3 items-center">
-            <input
-              type="text"
-              placeholder="快速搜索文档标题..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-            <select
-              value={categoryPageSize}
-              onChange={(e) => {
-                setCategoryPageSize(Number(e.target.value))
-                setCategoryPage(1)
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (selectedCategory) {
+                  // 添加文档逻辑
+                  setShowArticleModal(true);
+                } else {
+                  // 添加分类逻辑
+                  resetCategoryForm();
+                  setShowCategoryModal(true);
+                }
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
             >
-              <option value={4}>每页 4 个</option>
-              <option value={8}>每页 8 个</option>
-              <option value={12}>每页 12 个</option>
-              <option value={16}>每页 16 个</option>
-              <option value={20}>每页 20 个</option>
-            </select>
+              {selectedCategory ? '📄 添加文档' : '📁 添加分类'}
+            </button>
+            
+            <button
+              onClick={() => setShowRecycleBin(true)}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="回收站"
+            >
+              🗑️
+            </button>
+            
+            <button
+              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              className={`p-2 rounded-lg transition-colors ${
+                showAdvancedSearch
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              title="高级搜索"
+            >
+              ⚙️
+            </button>
           </div>
         </div>
 
@@ -688,7 +704,20 @@ const KnowledgeFolderView = () => {
                       {/* 大图标 */}
                       <div
                         className="flex items-center justify-center mb-4 flex-shrink-0 cursor-pointer"
-                        onClick={() => setPreviewFile(article)}
+                        onClick={() => {
+                          // 如果文章有附件，预览第一个附件
+                          const attachments = parseAttachments(article.attachments);
+                          if (attachments && attachments.length > 0) {
+                            setFilePreview({
+                              name: attachments[0].name,
+                              type: attachments[0].type,
+                              size: attachments[0].size,
+                              url: attachments[0].url
+                            });
+                          } else {
+                            setPreviewFile(article);
+                          }
+                        }}
                       >
                         <span className="text-5xl group-hover:scale-110 transition-transform">
                           {article.icon || '📄'}
@@ -698,7 +727,20 @@ const KnowledgeFolderView = () => {
                       {/* 标题 */}
                       <h3
                         className="font-bold text-gray-900 mb-3 line-clamp-2 text-center text-lg cursor-pointer hover:text-blue-600 transition-colors flex-shrink-0"
-                        onClick={() => setPreviewFile(article)}
+                        onClick={() => {
+                          // 如果文章有附件，预览第一个附件
+                          const attachments = parseAttachments(article.attachments);
+                          if (attachments && attachments.length > 0) {
+                            setFilePreview({
+                              name: attachments[0].name,
+                              type: attachments[0].type,
+                              size: attachments[0].size,
+                              url: attachments[0].url
+                            });
+                          } else {
+                            setPreviewFile(article);
+                          }
+                        }}
                         title={article.title}
                       >
                         {article.title}
@@ -884,70 +926,77 @@ const KnowledgeFolderView = () => {
                 <div className="mt-8 pt-6 border-t border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">📎 附件</h3>
                   <div className="space-y-2">
-                    {parseAttachments(selectedArticle.attachments).map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
-                        onClick={() => {
-                          // 根据文件类型决定是预览还是下载
-                          if (file.type.startsWith('image/') ||
-                              file.type.includes('pdf') ||
-                              file.type.startsWith('video/')) {
-                            // 支持预览的文件类型，设置文件预览对象
-                            setFilePreview({
-                              name: file.name,
-                              type: file.type,
-                              size: file.size,
-                              url: file.url
-                            });
-                          } else {
-                            // 其他文件类型直接下载
-                            const link = document.createElement('a');
-                            link.href = file.url;
-                            link.download = file.name;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          }
-                        }}
-                      >
-                        <span className="text-2xl">{getFileIcon(file.type)}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{file.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {formatFileSize(file.size)}
+                    {parseAttachments(selectedArticle.attachments).map((file, index) => {
+                      // 支持预览的文件类型
+                      const previewableTypes = [
+                        'image/',
+                        'video/',
+                        'application/pdf',
+                        'application/vnd.ms-powerpoint',
+                        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                      ];
+                      
+                      const isPreviewable = previewableTypes.some(type => file.type.includes(type));
+                      
+                      const handleFileClick = useCallback(() => {
+                        if (isPreviewable) {
+                          // 支持预览的文件类型，设置文件预览对象
+                          setFilePreview({
+                            name: file.name,
+                            type: file.type,
+                            size: file.size,
+                            url: file.url
+                          });
+                        } else {
+                          // 其他文件类型直接下载
+                          const link = document.createElement('a');
+                          link.href = file.url;
+                          link.download = file.name;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }
+                      }, [file, isPreviewable, setFilePreview]);
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                          onClick={handleFileClick}
+                        >
+                          <span className="text-2xl">{getFileIcon(file.type)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{file.name}</div>
+                            <div className="text-sm text-gray-500">
+                              {formatFileSize(file.size)}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {isPreviewable ? '点击预览' : '点击下载'}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
-                              ? '点击预览'
-                              : '点击下载'}
-                          </div>
+                          <span className="text-blue-600">
+                            {isPreviewable ? '👁️' : '📥'}
+                          </span>
                         </div>
-                        <span className="text-blue-600">
-                          {file.type.includes('pdf') || file.type.startsWith('image/') || file.type.startsWith('video/')
-                            ? '👁️'
-                            : '📥'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="p-6 border-t border-gray-200 flex items-center justify-end">
-              <button
-                onClick={() => setShowArticleModal(false)}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                关闭
-              </button>
-            </div>
+              <div className="p-6 border-t border-gray-200 flex items-center justify-end">
+                <button
+                  onClick={() => setShowArticleModal(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  关闭
+                </button>
+              </div>
           </div>
         </div>
+      </div>
       )}
-
-      {/* 分类管理模态框 */}
+  
       {showCategoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md">
