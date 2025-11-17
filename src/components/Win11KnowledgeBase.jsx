@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿﻿﻿﻿import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
@@ -41,6 +41,47 @@ const Win11KnowledgeBase = () => {
   const [previewFile, setPreviewFile] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const getToken = () => {
+    return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+  };
+
+  const getCurrentUserId = () => {
+    try {
+      const token = getToken();
+      if (!token) return null;
+      const jwt = token.startsWith('Bearer ') ? token.slice(7) : token;
+      const parts = jwt.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.userId || payload.user_id || payload.sub || payload.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const isPublished = (item) => {
+    const s = (item?.status || '').toLowerCase();
+    if (s) return ['published', 'publish', 'active'].includes(s);
+    if (typeof item?.is_published !== 'undefined') return item.is_published === 1;
+    return true;
+  };
+
+  const isNotDeleted = (item) => {
+    if (typeof item?.is_deleted !== 'undefined') return item.is_deleted === 0;
+    if (typeof item?.deleted !== 'undefined') return item.deleted === 0;
+    if (Object.prototype.hasOwnProperty.call(item || {}, 'deleted_at')) return !item.deleted_at;
+    return true;
+  };
+
+  const isPublic = (item) => {
+    if (item?.is_public === 1) return true;
+    const t = (item?.type || '').toLowerCase();
+    if (t && ['common', 'public', 'global'].includes(t)) return true;
+    const v = (item?.visibility || '').toLowerCase();
+    if (v === 'public') return true;
+    return false;
+  };
+
   useEffect(() => {
     fetchCategories();
     fetchArticles();
@@ -57,7 +98,11 @@ const Win11KnowledgeBase = () => {
         // 如果是分页数据结构 { data: [...], pagination: {...} }
         categoriesData = categoriesData.data;
       }
-      setCategories(categoriesData);
+      const filtered = (categoriesData || []).filter(c => {
+        const t = String(c?.type || '').toLowerCase();
+        return t === 'common' && c.is_public === 1 && isPublished(c) && isNotDeleted(c);
+      });
+      setCategories(filtered);
     } catch (error) {
       console.error('获取分类失败:', error);
     }
@@ -68,21 +113,14 @@ const Win11KnowledgeBase = () => {
     try {
       const response = await axios.get(getApiUrl('/api/knowledge/articles'));
       console.log('Articles API Response:', response.data); // 调试信息
-      // 只显示已发布的文档
       let articlesData = response.data || [];
-      // 检查数据结构
-      if (Array.isArray(articlesData)) {
-        articlesData = articlesData.filter(a => a.status === 'published');
-      } else if (articlesData.data && Array.isArray(articlesData.data)) {
-        // 如果是分页数据结构 { data: [...], pagination: {...} }
-        articlesData = articlesData.data.filter(a => a.status === 'published');
+      if (!Array.isArray(articlesData) && articlesData?.data && Array.isArray(articlesData.data)) {
+        articlesData = articlesData.data;
       } else if (typeof articlesData === 'object' && !Array.isArray(articlesData)) {
-        // 如果是分页对象结构 { data: [...], total: ..., page: ... }
-        articlesData = (articlesData.data || []).filter(a => a.status === 'published');
-      } else {
-        articlesData = [];
+        articlesData = articlesData.data || [];
       }
-      setArticles(articlesData);
+      const filtered = (articlesData || []).filter(a => a.is_public === 1 && isPublished(a) && isNotDeleted(a));
+      setArticles(filtered);
     } catch (error) {
       console.error('获取文档失败:', error);
       toast.error('获取文档失败');
@@ -120,7 +158,7 @@ const Win11KnowledgeBase = () => {
 
   const getFileTypeName = (type) => {
     if (!type) return '未知文件';
-    
+
     // 根据文件类型返回相应的名称
     if (type.startsWith('image/')) return '图片文件';
     if (type.startsWith('video/')) return '视频文件';
@@ -136,14 +174,14 @@ const Win11KnowledgeBase = () => {
     if (type.includes('html')) return 'HTML文件';
     if (type.includes('css')) return 'CSS文件';
     if (type.includes('javascript') || type.includes('js')) return 'JS文件';
-    
+
     // 默认文件类型名称
     return '文件';
   };
 
   const getFileIcon = (type) => {
     if (!type) return '📄';
-    
+
     // 根据文件类型返回相应的图标
     if (type.startsWith('image/')) return '🖼️';  // 图片文件
     if (type.startsWith('video/')) return '🎬';  // 视频文件
@@ -159,7 +197,7 @@ const Win11KnowledgeBase = () => {
     if (type.includes('html')) return '🌐';      // HTML文件
     if (type.includes('css')) return '🎨';       // CSS文件
     if (type.includes('javascript') || type.includes('js')) return '📜'; // JavaScript文件
-    
+
     // 默认文件图标
     return '📄';
   };
@@ -219,7 +257,7 @@ const Win11KnowledgeBase = () => {
     // 排序
     filtered.sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case 'name':
           aValue = a.title.toLowerCase();
@@ -236,7 +274,7 @@ const Win11KnowledgeBase = () => {
         default:
           return 0;
       }
-      
+
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
@@ -345,8 +383,8 @@ const Win11KnowledgeBase = () => {
     const categoryArticles = articlesByCategory[category.id] || [];
     // 如果有搜索词，只显示包含匹配文档的分类
     if (searchTerm) {
-      return category.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-             categoryArticles.some(article => 
+      return category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             categoryArticles.some(article =>
                article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
              );
@@ -391,7 +429,7 @@ const Win11KnowledgeBase = () => {
 
   const handleContextMenuAction = (item) => {
     if (!contextMenu.article) return;
-    
+
     switch (item.action) {
       case 'saveToMyKnowledge':
         setSelectedArticleToSave(contextMenu.article);
@@ -403,7 +441,7 @@ const Win11KnowledgeBase = () => {
       default:
         break;
     }
-    
+
     handleContextMenuClose();
   };
 
@@ -425,11 +463,11 @@ const Win11KnowledgeBase = () => {
   // 保存到我的知识库
   const handleSaveToMyKnowledge = async () => {
     if (!selectedArticleToSave) return;
-    
+
     try {
       setLoading(true);
       let categoryId = targetCategory;
-      
+
       // 如果选择了新建分类
       if (targetCategory === 'new' && newCategoryName.trim()) {
         // 创建新分类
@@ -439,24 +477,24 @@ const Win11KnowledgeBase = () => {
           icon: '📁'
         });
         categoryId = categoryResponse.data.id;
-        
+
         toast.success(`分类 "${newCategoryName.trim()}" 创建成功`);
-        
+
         // 重新获取我的知识库分类列表
         fetchMyKnowledgeCategories();
       }
-      
+
       // 保存文档到我的知识库
       const response = await axios.post(getApiUrl('/api/my-knowledge/articles/save'), {
         articleId: selectedArticleToSave.id,
         categoryId: categoryId !== 'new' ? categoryId : null,
         notes: '' // 暂时留空，可以根据需要添加备注功能
       });
-      
+
       if (response.data.success) {
         toast.success(`文档 "${selectedArticleToSave.title}" 已保存到我的知识库`);
       }
-      
+
       // 关闭模态框
       setShowSaveToMyKnowledgeModal(false);
       setSelectedArticleToSave(null);
@@ -473,11 +511,11 @@ const Win11KnowledgeBase = () => {
   // 渲染文件预览
   const renderFilePreview = (article) => {
     // 获取附件信息
-    const attachments = article.attachments ? 
-      (Array.isArray(article.attachments) ? article.attachments : 
-       typeof article.attachments === 'string' ? JSON.parse(article.attachments) : 
+    const attachments = article.attachments ?
+      (Array.isArray(article.attachments) ? article.attachments :
+       typeof article.attachments === 'string' ? JSON.parse(article.attachments) :
        []) : [];
-    
+
     if (attachments.length === 0) {
       // 如果没有附件，显示文章内容
       return article.content ? (
@@ -491,19 +529,19 @@ const Win11KnowledgeBase = () => {
         </div>
       );
     }
-    
+
     // 获取第一个附件
     const attachment = attachments[0];
     const fileType = attachment.type || '';
     const fileUrl = getAttachmentUrl(attachment.url || attachment.path || '');
-    
+
     // 根据文件类型渲染预览
     if (fileType.includes('pdf')) {
       // PDF预览
       return (
-        <div className={`w-full ${isFullscreen ? 'h-[80vh]' : 'h-[600px]'}`} style={{ minHeight: '600px' }}>
-          <iframe 
-            src={`${fileUrl}#view=fit`} 
+        <div className={`w-full ${isFullscreen ? 'h-[80vh]' : 'h-[700px]'}`} style={{ minHeight: '600px' }}>
+          <iframe
+            src={`${fileUrl}#view=fit`}
             className="w-full h-full border border-gray-300 rounded-lg"
             title="PDF预览"
           />
@@ -513,9 +551,9 @@ const Win11KnowledgeBase = () => {
       // 图片预览
       return (
         <div className="flex justify-center">
-          <img 
-            src={fileUrl} 
-            alt={attachment.name || '图片预览'} 
+          <img
+            src={fileUrl}
+            alt={attachment.name || '图片预览'}
             className={`max-w-full ${isFullscreen ? 'max-h-[70vh]' : 'max-h-[350px]'} object-contain border border-gray-300 rounded-lg`}
           />
         </div>
@@ -524,9 +562,9 @@ const Win11KnowledgeBase = () => {
       // 视频预览
       return (
         <div className="flex justify-center">
-          <video 
-            src={fileUrl} 
-            controls 
+          <video
+            src={fileUrl}
+            controls
             className={`max-w-full ${isFullscreen ? 'max-h-[70vh]' : 'max-h-[350px]'} border border-gray-300 rounded-lg`}
           >
             您的浏览器不支持视频播放。
@@ -539,9 +577,9 @@ const Win11KnowledgeBase = () => {
         <div className="text-center py-8">
           <div className="text-6xl mb-4">📽️</div>
           <p className="text-gray-700 mb-4">这是一个演示文稿文件</p>
-          <a 
-            href={fileUrl} 
-            download 
+          <a
+            href={fileUrl}
+            download
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <span>📥</span>
@@ -549,7 +587,7 @@ const Win11KnowledgeBase = () => {
           </a>
         </div>
       );
-    } else if (fileType.includes('word') || fileType.includes('document') || 
+    } else if (fileType.includes('word') || fileType.includes('document') ||
                fileType.includes('excel') || fileType.includes('sheet')) {
       // Office文档预览 - 显示下载链接
       return (
@@ -558,9 +596,9 @@ const Win11KnowledgeBase = () => {
             {fileType.includes('word') || fileType.includes('document') ? '📝' : '📊'}
           </div>
           <p className="text-gray-700 mb-4">这是一个Office文档</p>
-          <a 
-            href={fileUrl} 
-            download 
+          <a
+            href={fileUrl}
+            download
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <span>📥</span>
@@ -574,9 +612,9 @@ const Win11KnowledgeBase = () => {
         <div className="text-center py-8">
           <div className="text-6xl mb-4">📎</div>
           <p className="text-gray-700 mb-4">这是一个文件附件</p>
-          <a 
-            href={fileUrl} 
-            download 
+          <a
+            href={fileUrl}
+            download
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <span>📥</span>
@@ -625,7 +663,7 @@ const Win11KnowledgeBase = () => {
               🔍
             </div>
           </div>
-          
+
           {/* 控制按钮区域 - 增加排序和分页 */}
           <div className="flex flex-wrap gap-3 items-center">
             {/* 视图模式切换 */}
@@ -656,7 +694,7 @@ const Win11KnowledgeBase = () => {
                 </button>
               </div>
             </div>
-            
+
             {/* 排序和每页显示数量 - 增加宽度 */}
             <div className="flex flex-wrap gap-3 items-center">
               <div className="flex items-center gap-2">
@@ -673,7 +711,7 @@ const Win11KnowledgeBase = () => {
                   <option value="date">日期</option>
                   <option value="views">浏览量</option>
                 </select>
-                
+
                 <button
                   onClick={() => {
                     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -685,7 +723,7 @@ const Win11KnowledgeBase = () => {
                   {sortOrder === 'asc' ? '↑' : '↓'}
                 </button>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <span className="text-gray-700 whitespace-nowrap">每页:</span>
                 <select
@@ -827,7 +865,7 @@ const Win11KnowledgeBase = () => {
                     >
                       上一页
                     </button>
-                    
+
                     {[...Array(Math.min(5, getTotalPages()))].map((_, i) => {
                       let pageNum;
                       const totalPages = getTotalPages();
@@ -840,7 +878,7 @@ const Win11KnowledgeBase = () => {
                       } else {
                         pageNum = currentPage - 2 + i;
                       }
-                      
+
                       return (
                         <button
                           key={i}
@@ -855,7 +893,7 @@ const Win11KnowledgeBase = () => {
                         </button>
                       );
                     })}
-                    
+
                     <button
                       onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
                       disabled={currentPage === getTotalPages()}
@@ -997,11 +1035,11 @@ const Win11KnowledgeBase = () => {
       {/* 文档预览模态框 */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-0">
-          <div 
+          <div
             className={`bg-white rounded-xl shadow-2xl w-full ${isFullscreen ? 'max-w-none' : 'max-w-6xl'}`}
-            style={{ 
-              maxHeight: isFullscreen ? '100vh' : '60vh',
-              height: isFullscreen ? '100vh' : '60vh'
+            style={{
+              maxHeight: isFullscreen ? '100vh' : '700px',
+              height: isFullscreen ? '100vh' : '700px'
             }}
           >
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -1015,6 +1053,19 @@ const Win11KnowledgeBase = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* 添加到我的知识库按钮 */}
+                <button
+                  onClick={() => {
+                    setSelectedArticleToSave(previewFile);
+                    setShowSaveToMyKnowledgeModal(true);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-all shadow-md"
+                  title="添加到我的知识库"
+                >
+                  <span>📥</span>
+                  <span className="hidden sm:inline">添加到我的知识库</span>
+                </button>
+
                 {/* 全屏按钮 */}
                 <button
                   onClick={() => setIsFullscreen(!isFullscreen)}
@@ -1032,7 +1083,7 @@ const Win11KnowledgeBase = () => {
               </div>
             </div>
 
-            <div className="overflow-y-auto p-6" style={{ flex: '1 1 auto' }}>
+            <div className="overflow-y-auto" style={{ flex: '1 1 auto' }}>
               {previewFile.summary && (
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <h3 className="font-semibold text-gray-900 mb-2">摘要</h3>
@@ -1041,7 +1092,7 @@ const Win11KnowledgeBase = () => {
               )}
 
               {/* 文件预览区域 */}
-              <div className="prose max-w-none mb-8">
+              <div className="prose max-w-none mb-8" style={{ margin: 0, padding: 0 }}>
                 {renderFilePreview(previewFile)}
               </div>
             </div>

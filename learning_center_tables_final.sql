@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS learning_plans (
 CREATE TABLE IF NOT EXISTS learning_plan_details (
   id INT PRIMARY KEY AUTO_INCREMENT,
   plan_id INT NOT NULL,
-  article_id INT,
+  article_id BIGINT UNSIGNED,
   exam_id INT,
   title VARCHAR(255) NOT NULL,
   description TEXT,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS learning_plan_details (
 CREATE TABLE IF NOT EXISTS learning_records (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
-  article_id INT,
+  article_id BIGINT UNSIGNED,
   exam_id INT,
   plan_id INT,
   start_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS collection_folders (
 CREATE TABLE IF NOT EXISTS article_collections (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
-  article_id INT NOT NULL,
+  article_id BIGINT UNSIGNED NOT NULL,
   folder_id INT NULL,
   notes TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS article_collections (
 
 CREATE TABLE IF NOT EXISTS article_comments (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  article_id INT NOT NULL,
+  article_id BIGINT UNSIGNED NOT NULL,
   user_id INT NOT NULL,
   parent_id INT NULL,
   content TEXT NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS comment_likes (
 CREATE TABLE IF NOT EXISTS knowledge_article_learning_records (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
-  article_id INT NOT NULL,
+  article_id BIGINT UNSIGNED NOT NULL,
   start_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   end_time DATETIME NULL,
   duration INT NOT NULL DEFAULT 0,

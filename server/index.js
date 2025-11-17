@@ -1461,18 +1461,13 @@ fastify.post('/api/employee-changes/create', async (request, reply) => {
     });
   }
 });
-
-// 保持在文件末尾调�?start()
-
-// ==================== 知识库管�?API ====================
-
-// 获取知识库分类列�?
 fastify.get('/api/knowledge/categories', async (request, reply) => {
   try {
     const [rows] = await pool.query(`
-      SELECT * FROM knowledge_categories
-      WHERE is_active = 1 AND deleted_at IS NULL
-      ORDER BY sort_order, created_at DESC
+      SELECT *
+      FROM knowledge_categories
+      WHERE is_deleted = 0
+      ORDER BY created_at DESC
     `);
     return rows;
   } catch (error) {
@@ -1481,17 +1476,21 @@ fastify.get('/api/knowledge/categories', async (request, reply) => {
   }
 });
 
-// 创建知识库分�?
+// 创建知识库分类
 fastify.post('/api/knowledge/categories', async (request, reply) => {
-  const { name, description, icon } = request.body;
+  const { name, description, icon, owner_id, type, is_public } = request.body;
   try {
     if (!name) {
       return reply.code(400).send({ error: 'Category name is required' });
     }
 
+    const ownerId = owner_id || null;
+    const catType = type || 'common';
+    const isPublic = typeof is_public === 'number' ? is_public : 1;
+
     const [result] = await pool.query(
-      'INSERT INTO knowledge_categories (name, description, icon) VALUES (?, ?, ?)',
-      [name, description || null, icon || '📁']
+      'INSERT INTO knowledge_categories (name, description, icon, owner_id, type, is_public) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, description || null, icon || '', ownerId, catType, isPublic]
     );
 
     return { success: true, id: result.insertId };
@@ -1620,19 +1619,35 @@ fastify.post('/api/knowledge/categories/:id/toggle-visibility', async (request, 
 
 // 创建知识文章
 fastify.post('/api/knowledge/articles', async (request, reply) => {
-  const { title, category_id, summary, content, type, status, icon, attachments } = request.body;
+  const { title, category_id, summary, content, type, status, icon, attachments, is_public } = request.body;
   try {
     const attachmentsJson = attachments && attachments.length > 0 ? JSON.stringify(attachments) : null;
+    const userId = request.user?.id || null;
+    const articleType = type || 'common';
+    const articleStatus = status || 'published';
+    const isPublic = typeof is_public === 'number' ? is_public : 0; // 默认不公开
 
     const [result] = await pool.query(
       `INSERT INTO knowledge_articles
-      (title, category_id, summary, content, attachments, type, status, icon, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, category_id || null, summary || null, content, attachmentsJson, type, status, icon || '📄', request.user?.id || null]
+      (title, category_id, summary, content, attachments, type, status, icon, created_by, owner_id, is_public)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        category_id || null,
+        summary || null,
+        content || '',
+        attachmentsJson,
+        articleType,
+        articleStatus,
+        icon || '📄',
+        userId,
+        userId,
+        isPublic
+      ]
     );
     return { success: true, id: result.insertId };
   } catch (error) {
-    console.error(error);
+    console.error('Failed to create knowledge article:', error);
     reply.code(500).send({ error: 'Failed to create knowledge article' });
   }
 });
@@ -2304,24 +2319,24 @@ fastify.get('/api/knowledge/articles/:id/collected', async (request, reply) => {
   }
 });
 
-// 获取我的分类（用户创建的分类）
+// 获取我的分类（用户创建的分类，按新知识库表结构）
 fastify.get('/api/my-knowledge/categories', async (request, reply) => {
   try {
-    // 如果没有用户认证，返回所有分类
+    // 如果没有用户认证，返回所有未删除分类
     const userId = request.user?.id || null;
 
     let query = `
       SELECT * FROM knowledge_categories
-      WHERE deleted_at IS NULL
+      WHERE is_deleted = 0
     `;
     const params = [];
 
     if (userId) {
-      query += ` AND created_by = ?`;
+      query += ` AND owner_id = ?`;
       params.push(userId);
     }
 
-    query += ` ORDER BY sort_order, created_at DESC`;
+    query += ` ORDER BY created_at DESC`;
 
     const [rows] = await pool.query(query, params);
     return rows;

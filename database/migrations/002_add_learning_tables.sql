@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS learning_plans (
 CREATE TABLE IF NOT EXISTS learning_plan_details (
   id INT PRIMARY KEY AUTO_INCREMENT COMMENT '详情ID',
   plan_id INT NOT NULL COMMENT '计划ID',
-  article_id INT COMMENT '知识库文章ID',
+  article_id BIGINT UNSIGNED COMMENT '知识库文章ID',
   exam_id INT COMMENT '考试ID',
   title VARCHAR(255) NOT NULL COMMENT '项目标题',
   description TEXT COMMENT '项目描述',
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS learning_plan_details (
 CREATE TABLE IF NOT EXISTS learning_records (
   id INT PRIMARY KEY AUTO_INCREMENT COMMENT '记录ID',
   user_id INT NOT NULL COMMENT '用户ID',
-  article_id INT COMMENT '知识库文章ID',
+  article_id BIGINT UNSIGNED COMMENT '知识库文章ID',
   exam_id INT COMMENT '考试ID',
   plan_id INT COMMENT '学习计划ID',
   start_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '开始学习时间',
@@ -163,7 +163,7 @@ ADD INDEX IF NOT EXISTS idx_collect_count (collect_count);
 CREATE TABLE IF NOT EXISTS article_collections (
   id INT PRIMARY KEY AUTO_INCREMENT COMMENT '收藏ID',
   user_id INT NOT NULL COMMENT '用户ID',
-  article_id INT NOT NULL COMMENT '文章ID',
+  article_id BIGINT UNSIGNED NOT NULL COMMENT '文章ID',
   folder_id INT NULL COMMENT '收藏夹ID',
   notes TEXT COMMENT '收藏备注',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS collection_folders (
 -- ============================================
 CREATE TABLE IF NOT EXISTS article_comments (
   id INT PRIMARY KEY AUTO_INCREMENT COMMENT '评论ID',
-  article_id INT NOT NULL COMMENT '文章ID',
+  article_id BIGINT UNSIGNED NOT NULL COMMENT '文章ID',
   user_id INT NOT NULL COMMENT '用户ID',
   parent_id INT NULL COMMENT '父评论ID',
   content TEXT NOT NULL COMMENT '评论内容',

@@ -40,6 +40,45 @@ const Win11MyKnowledgeBase = () => {
     fetchArticles();
   }, []);
 
+  const getToken = () => {
+    return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+  };
+
+  const getCurrentUserId = () => {
+    try {
+      const token = getToken();
+      if (!token) return null;
+      const jwt = token.startsWith('Bearer ') ? token.slice(7) : token;
+      const parts = jwt.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.userId || payload.user_id || payload.sub || payload.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const isNotDeleted = (item) => {
+    if (typeof item?.is_deleted !== 'undefined') return item.is_deleted === 0;
+    if (typeof item?.deleted !== 'undefined') return item.deleted === 0;
+    if (Object.prototype.hasOwnProperty.call(item || {}, 'deleted_at')) return !item.deleted_at;
+    return true;
+  };
+
+  const isPersonal = (item) => {
+    if (item?.is_public === 0) return true;
+    const t = (item?.type || '').toLowerCase();
+    if (t && ['personal', 'private'].includes(t)) return true;
+    const v = (item?.visibility || '').toLowerCase();
+    if (v === 'private') return true;
+    return false;
+  };
+
+  const isOwnedBy = (item, userId) => {
+    const owner = item?.user_id || item?.owner_id || item?.uid || item?.created_by;
+    return userId ? String(owner) === String(userId) : false;
+  };
+
   const fetchCategories = async () => {
     try {
       const response = await axios.get(getApiUrl('/api/my-knowledge/categories'));
@@ -50,7 +89,9 @@ const Win11MyKnowledgeBase = () => {
         // 如果是分页数据结构 { data: [...], pagination: {...} }
         categoriesData = categoriesData.data;
       }
-      setCategories(categoriesData);
+      const uid = getCurrentUserId();
+      const filtered = (categoriesData || []).filter(c => isPersonal(c) && isOwnedBy(c, uid) && isNotDeleted(c));
+      setCategories(filtered);
     } catch (error) {
       console.error('获取分类失败:', error);
     }
@@ -74,7 +115,9 @@ const Win11MyKnowledgeBase = () => {
       } else {
         articlesData = [];
       }
-      setArticles(articlesData);
+      const uid = getCurrentUserId();
+      const filtered = (articlesData || []).filter(a => isPersonal(a) && isOwnedBy(a, uid) && isNotDeleted(a));
+      setArticles(filtered);
     } catch (error) {
       console.error('获取文档失败:', error);
       toast.error('获取文档失败');
