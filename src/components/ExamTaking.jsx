@@ -88,18 +88,18 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
   const fetchExamDetails = async () => {
     setLoading(true);
     try {
-      // TODO: Implement server time synchronization here to get accurate start time and remaining time.
-      // const serverTimeResponse = await api.get('/time');
-      // const serverStartTime = new Date(serverTimeResponse.data.currentTime);
-      // Calculate time difference and adjust timeLeft accordingly.
+      // 开始考试，创建考试结果并获取题目与剩余时间
+      const startResponse = await api.post('/assessment-results/start', {
+        exam_id: examId,
+        plan_id: planId
+      });
+      const { result_id, exam, questions, time_left_seconds } = startResponse.data;
+      setExam(exam);
+      setQuestions(questions);
+      setTimeLeft(time_left_seconds || (exam.duration * 60));
+      setResultIdState(result_id);
 
-      // Fetch exam details (including questions without correct answers)
-      const examResponse = await api.get(`/exams/${examId}/take`); // Assuming a specific API for taking exams
-      setExam(examResponse.data.exam);
-      setQuestions(examResponse.data.questions);
-      setTimeLeft(examResponse.data.exam.duration * 60); // Convert minutes to seconds
-
-      // Load existing user answers from local storage if available
+      // 从本地恢复作答进度（可选）
       const savedAnswers = loadFromLocalStorage();
       if (Object.keys(savedAnswers).length > 0) {
         setUserAnswers(savedAnswers);
@@ -124,13 +124,23 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
     setResultIdState(tempResultId);
   };
 
-  const handleAnswerChange = (questionId, answer) => {
+  const handleAnswerChange = async (questionId, answer) => {
     if (examEnded) return; // Prevent changing answers after exam ends
     setUserAnswers((prevAnswers) => ({
       ...prevAnswers,
       [questionId]: answer,
     }));
-    // Auto-save is handled by the useAutoSave hook
+    // 自动保存到后端
+    try {
+      if (resultIdState) {
+        await api.put(`/assessment-results/${resultIdState}/answer`, {
+          question_id: questionId,
+          answer
+        });
+      }
+    } catch (e) {
+      console.error('自动保存答案失败:', e);
+    }
   };
 
   const handleSubmitExam = async (isTimeout = false) => {
@@ -139,12 +149,11 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
     clearInterval(timerRef.current);
 
     try {
-      // TODO: Call API to submit exam and get the actual resultId
-      const mockResultId = 'mock-result-123'; // Placeholder for actual resultId from backend
-      // await api.post(`/assessment-results/${resultId}/submit`, { userAnswers, isTimeout });
+      if (!resultIdState) throw new Error('缺少考试结果ID');
+      await api.post(`/assessment-results/${resultIdState}/submit`, { isTimeout });
       toast.success(isTimeout ? '考试时间到，已自动提交！' : '考试提交成功！');
-      setExamEnded(true); // Mark exam as ended
-      onExamEnd(mockResultId); // Go back to my exams list or show result
+      setExamEnded(true);
+      onExamEnd(resultIdState);
     } catch (error) {
       console.error('提交考试失败:', error);
       toast.error('提交考试失败');

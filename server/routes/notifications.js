@@ -75,7 +75,25 @@ module.exports = async function (fastify, opts) {
       }
 
       await connection.commit();
-      // TODO: Emit WebSocket event here: fastify.io.emit('notification:new', ...);
+      const newNotification = {
+        id: notificationId,
+        type,
+        title,
+        content,
+        content_type,
+        image_url,
+        link_url,
+        priority,
+        sender_id: user.id,
+        department_id,
+        expires_at,
+        created_at: new Date().toISOString(),
+      };
+
+      // Emit WebSocket event to specific recipients
+      for (const recipientId of recipients) {
+        fastify.io.to(`user-${recipientId}`).emit('notification:new', { ...newNotification, recipient_id: recipientId });
+      }
       return { success: true, message: '通知创建成功', data: { id: notificationId } };
     } catch (error) {
       await connection.rollback();
@@ -141,10 +159,13 @@ module.exports = async function (fastify, opts) {
     }
 
     try {
-      await pool.query(
+      const [result] = await pool.query(
         'UPDATE notification_recipients SET is_read = true, read_at = CURRENT_TIMESTAMP WHERE notification_id = ? AND user_id = ?',
         [id, user.id]
       );
+      if (result.affectedRows > 0) {
+        fastify.io.to(`user-${user.id}`).emit('notification:update', { notification_id: Number(id), user_id: user.id, is_read: true });
+      }
       return { success: true, message: '标记已读成功' };
     } catch (error) {
       console.error('标记已读失败:', error);
@@ -160,10 +181,13 @@ module.exports = async function (fastify, opts) {
     }
 
     try {
-      await pool.query(
+      const [result] = await pool.query(
         'UPDATE notification_recipients SET is_read = true, read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND is_read = false',
         [user.id]
       );
+      if (result.affectedRows > 0) {
+        fastify.io.to(`user-${user.id}`).emit('notification:update', { user_id: user.id, action: 'read-all' });
+      }
       return { success: true, message: '全部标记已读成功' };
     } catch (error) {
       console.error('全部标记已读失败:', error);
@@ -180,10 +204,13 @@ module.exports = async function (fastify, opts) {
     }
 
     try {
-      await pool.query(
+      const [result] = await pool.query(
         'UPDATE notification_recipients SET is_deleted = true WHERE notification_id = ? AND user_id = ?',
         [id, user.id]
       );
+      if (result.affectedRows > 0) {
+        fastify.io.to(`user-${user.id}`).emit('notification:delete', { notification_id: Number(id), user_id: user.id });
+      }
       return { success: true, message: '删除成功' };
     } catch (error) {
       console.error('删除通知失败:', error);

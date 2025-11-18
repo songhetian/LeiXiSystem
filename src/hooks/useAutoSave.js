@@ -1,83 +1,94 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { toast } from 'react-toastify';
-import debounce from 'lodash.debounce'; // Assuming lodash is available or will be installed
+import { useState, useEffect, useCallback, useRef } from 'react';
+import debounce from 'lodash.debounce';
+import axios from 'axios';
+import { message } from 'antd';
 
-const useAutoSave = (examId, resultId, userAnswers, onSaveSuccess, onSaveError) => {
+const useAutoSave = (saveFunction, resultId, delay = 3000, syncInterval = 30000) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState(null);
-  const userAnswersRef = useRef(userAnswers); // Use ref to get latest answers in debounced function
+  const [saveError, setSaveError] = useState(null);
+  const saveFunctionRef = useRef(saveFunction);
+  const resultIdRef = useRef(resultId);
+  const lastSavedDataRef = useRef(null); // To track last successfully saved data
 
-  // Update ref whenever userAnswers changes
   useEffect(() => {
-    userAnswersRef.current = userAnswers;
-  }, [userAnswers]);
+    saveFunctionRef.current = saveFunction;
+    resultIdRef.current = resultId;
+  }, [saveFunction, resultId]);
 
-  // Function to save answers to local storage
-  const saveToLocalStorage = useCallback((answers) => {
-    if (examId && resultId) {
-      localStorage.setItem(`exam-${examId}-${resultId}-answers`, JSON.stringify(answers));
-    }
-  }, [examId, resultId]);
-
-  // Function to load answers from local storage
-  const loadFromLocalStorage = useCallback(() => {
-    if (examId && resultId) {
-      const savedAnswers = localStorage.getItem(`exam-${examId}-${resultId}-answers`);
-      return savedAnswers ? JSON.parse(savedAnswers) : {};
-    }
-    return {};
-  }, [examId, resultId]);
-
-  // Function to clear answers from local storage
-  const clearLocalStorage = useCallback(() => {
-    if (examId && resultId) {
-      localStorage.removeItem(`exam-${examId}-${resultId}-answers`);
-    }
-  }, [examId, resultId]);
-
-  // Debounced function to save answers to server
-  const saveToServer = useCallback(
-    debounce(async (answers) => {
-      if (!examId || !resultId) return;
-
+  // Debounced function for immediate saves (e.g., on input change)
+  const debouncedSave = useCallback(
+    debounce(async (dataToSave) => {
+      if (!resultIdRef.current) return;
       setIsSaving(true);
+      setSaveError(null);
       try {
-        // TODO: Call API to save answers
-        // await api.put(`/assessment-results/${resultId}/answer`, { answers });
-        console.log('Answers saved to server:', answers); // Placeholder for actual API call
-        setLastSaved(new Date());
-        onSaveSuccess && onSaveSuccess();
+        await saveFunctionRef.current(resultIdRef.current, dataToSave);
+        lastSavedDataRef.current = dataToSave; // Update last saved data
+        message.success('答案已自动保存', 1);
       } catch (error) {
-        console.error('Failed to auto-save answers:', error);
-        toast.error('答案自动保存失败！');
-        onSaveError && onSaveError(error);
+        setSaveError(error);
+        message.error('自动保存失败');
+        console.error('Auto-save failed:', error);
       } finally {
         setIsSaving(false);
       }
-    }, 3000), // Debounce for 3 seconds
-    [examId, resultId, onSaveSuccess, onSaveError]
+    }, delay),
+    [delay]
   );
 
-  // Effect to trigger auto-save when userAnswers change
-  useEffect(() => {
-    if (Object.keys(userAnswers).length > 0) { // Only save if there are answers
-      saveToLocalStorage(userAnswers);
-      saveToServer(userAnswers);
-    }
-  }, [userAnswers, saveToLocalStorage, saveToServer]);
+  // LocalStorage Caching
+  const getLocalStorageKey = useCallback(() => `exam_answers_${resultIdRef.current}`, []);
 
-  // Effect to periodically sync to server (e.g., every 30 seconds)
+  const saveToLocalStorage = useCallback((data) => {
+    if (resultIdRef.current) {
+      localStorage.setItem(getLocalStorageKey(), JSON.stringify(data));
+    }
+  }, [getLocalStorageKey]);
+
+  const loadFromLocalStorage = useCallback(() => {
+    if (resultIdRef.current) {
+      const saved = localStorage.getItem(getLocalStorageKey());
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  }, [getLocalStorageKey]);
+
+  const clearLocalStorage = useCallback(() => {
+    if (resultIdRef.current) {
+      localStorage.removeItem(getLocalStorageKey());
+    }
+  }, [getLocalStorageKey]);
+
+  // Timed Server Sync
   useEffect(() => {
+    if (!resultIdRef.current) return;
+
     const interval = setInterval(() => {
-      if (Object.keys(userAnswersRef.current).length > 0 && !isSaving) {
-        saveToServer(userAnswersRef.current);
+      // Only sync if there are changes since last successful save
+      const currentData = loadFromLocalStorage();
+      if (currentData && JSON.stringify(currentData) !== JSON.stringify(lastSavedDataRef.current)) {
+        debouncedSave(currentData); // Use debounced save for periodic sync too
       }
-    }, 30000); // Every 30 seconds
+    }, syncInterval);
 
     return () => clearInterval(interval);
-  }, [saveToServer, isSaving]);
+  }, [debouncedSave, loadFromLocalStorage, syncInterval]);
 
-  return { isSaving, lastSaved, loadFromLocalStorage, clearLocalStorage };
+  // Network status detection (basic)
+  useEffect(() => {
+    const handleOnline = () => message.success('网络已恢复，答案将继续自动保存。');
+    const handleOffline = () => message.warning('网络连接已断开，请检查您的网络。答案将暂时保存到本地。');
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return { debouncedSave, isSaving, saveError, saveToLocalStorage, loadFromLocalStorage, clearLocalStorage };
 };
 
 export default useAutoSave;

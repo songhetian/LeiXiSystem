@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { categoryIcons } from '../utils/iconOptions'
@@ -6,6 +6,7 @@ import AdvancedSearch from './AdvancedSearch'
 import { getApiUrl } from '../utils/apiConfig'
 import FilePreviewModal from './FilePreviewModal'
 import Win11ContextMenu from './Win11ContextMenu'
+import useReadingTracker from '../hooks/useReadingTracker'
 
 const MyKnowledgeBase = () => {
   const [articles, setArticles] = useState([])
@@ -36,6 +37,7 @@ const MyKnowledgeBase = () => {
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null)
   const [filePreview, setFilePreview] = useState(null)
+  const articleContentRef = useRef(null)
 
   // 添加调整弹出框宽高的状态
   const [articleModalWidth, setArticleModalWidth] = useState('max-w-4xl')
@@ -92,6 +94,8 @@ const MyKnowledgeBase = () => {
     setSelectedArticle(article)
     setShowArticleModal(true)
   }
+
+  useReadingTracker({ articleId: selectedArticle?.id, isOpen: !!showArticleModal && !!selectedArticle, contentRef: articleContentRef })
 
   const handleDeleteArticle = (article) => {
     setArticleToDelete(article)
@@ -390,6 +394,12 @@ const MyKnowledgeBase = () => {
             >
               🔍 {showAdvancedSearch ? '收起搜索' : '高级搜索'}
             </button>
+            <button
+              onClick={() => setShowStats(s => !s)}
+              className="px-4 py-2 rounded-lg transition-colors bg-indigo-500 text-white hover:bg-indigo-600"
+            >
+              {showStats ? '隐藏统计' : '查看统计'}
+            </button>
           </div>
 
           <div className="flex gap-3 items-center">
@@ -443,6 +453,44 @@ const MyKnowledgeBase = () => {
           </div>
         )}
       </div>
+
+      {showStats && (
+        <div className="bg-indigo-50 rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-800">最近7天文档统计</h3>
+            <button onClick={() => fetchArticleStats()} className="px-3 py-1 text-sm rounded bg-white border border-indigo-200 hover:bg-indigo-100">刷新</button>
+          </div>
+          {statsLoading ? (
+            <div className="text-gray-600">加载统计...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-600">
+                    <th className="px-3 py-2">文档</th>
+                    <th className="px-3 py-2">浏览</th>
+                    <th className="px-3 py-2">完整阅读率</th>
+                    <th className="px-3 py-2">平均时长(秒)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {articleStats.map(row => (
+                    <tr key={row.article_id} className="border-t border-gray-200">
+                      <td className="px-3 py-2">{row.title}</td>
+                      <td className="px-3 py-2">{row.views}</td>
+                      <td className="px-3 py-2">{row.full_read_rate}%</td>
+                      <td className="px-3 py-2">{row.avg_duration}</td>
+                    </tr>
+                  ))}
+                  {articleStats.length === 0 && (
+                    <tr><td className="px-3 py-2 text-gray-500" colSpan={4}>暂无统计数据</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 文件夹网格视图 */}
       {loading ? (
@@ -859,7 +907,7 @@ const MyKnowledgeBase = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6" id="my-kb-article-content" ref={articleContentRef}>
               {selectedArticle.summary && (
                 <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
                   <p className="text-gray-700">{selectedArticle.summary}</p>

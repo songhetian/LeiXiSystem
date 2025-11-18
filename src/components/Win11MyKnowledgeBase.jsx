@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import Win11ContextMenu from './Win11ContextMenu';
+import useReadingTracker from '../hooks/useReadingTracker';
 
 const Win11MyKnowledgeBase = () => {
   const [articles, setArticles] = useState([]);
@@ -38,6 +39,14 @@ const Win11MyKnowledgeBase = () => {
   const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]');
   const [attachmentToPreview, setAttachmentToPreview] = useState(null);
   const [nonPreviewableFile, setNonPreviewableFile] = useState(null);
+  const articleContentRef = useRef(null); // Ref for the article content area
+  const videoRef = useRef(null); // Ref for the video element in attachment preview
+  const [articleViewStartTime, setArticleViewStartTime] = useState(null); // State for tracking article view start time
+  const [attachmentViewStartTime, setAttachmentViewStartTime] = useState(null); // State for tracking attachment view start time
+  const articleDurationRef = useRef(0); // Use ref to store duration across renders
+  const isArticleActiveRef = useRef(true); // Use ref to track if user is actively engaging with the article
+  const articleEngagementTimeoutRef = useRef(null); // Use ref for the engagement timeout ID
+  const isDocumentVisibleRef = useRef(true); // Ref to track document visibility
 
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState({
@@ -56,23 +65,7 @@ const Win11MyKnowledgeBase = () => {
     fetchArticles();
   }, [currentPage, pageSize]);
 
-  const getToken = () => {
-    return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
-  };
-
-  const getCurrentUserId = () => {
-    try {
-      const token = getToken();
-      if (!token) return null;
-      const jwt = token.startsWith('Bearer ') ? token.slice(7) : token;
-      const parts = jwt.split('.');
-      if (parts.length < 2) return null;
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-      return payload.userId || payload.user_id || payload.sub || payload.id || null;
-    } catch {
-      return null;
-    }
-  };
+  useReadingTracker({ articleId: previewFile?.id, isOpen: !!previewFile, contentRef: articleContentRef })
 
   const isNotDeleted = (item) => {
     if (typeof item?.is_deleted !== 'undefined') return item.is_deleted === 0;
@@ -255,6 +248,7 @@ const Win11MyKnowledgeBase = () => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
 
   // 确保附件 URL 格式正确
   const getAttachmentUrl = (url) => {
@@ -1255,7 +1249,7 @@ const Win11MyKnowledgeBase = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6" ref={articleContentRef}>
               {previewFile.summary && (
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <h3 className="font-semibold text-gray-900 mb-2">摘要</h3>
@@ -1362,7 +1356,7 @@ const Win11MyKnowledgeBase = () => {
                       <img src={getAttachmentUrl(attachmentToPreview.url)} alt={attachmentToPreview.name} className="w-full h-full object-contain" />
                     )}
                     {inferFileType(attachmentToPreview).startsWith('video/') && (
-                      <video src={getAttachmentUrl(attachmentToPreview.url)} controls autoPlay className="w-full h-full object-contain" />
+                      <video ref={videoRef} src={getAttachmentUrl(attachmentToPreview.url)} controls autoPlay className="w-full h-full object-contain" />
                     )}
                     {inferFileType(attachmentToPreview).includes('pdf') && (
                       <iframe src={getAttachmentUrl(attachmentToPreview.url)} className="w-full h-full" title={attachmentToPreview.name} />

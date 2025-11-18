@@ -81,3 +81,91 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #c1c1c1 #f1f1f1;
 }
+
+aside .flex.items-center.gap-3 > span:first-child {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  color: #4f46e5;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+aside button:hover .flex.items-center.gap-3 > span:first-child {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4338ca;
+}
+
+aside .ml-4 .w-full.flex.items-center.gap-2 > span:first-child {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 16px;
+  line-height: 1;
+}
+
+aside .ml-4 .w-full.flex.items-center.gap-2:hover > span:first-child {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+aside .ml-4 .w-full.flex.items-center.gap-2[class*="bg-primary-100"] > span:first-child {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+aside nav .text-gray-400 {
+  color: #9ca3af;
+}
+
+aside .p-6.flex-1 {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
+}
+
+aside .mb-6.pb-4.border-b.border-gray-200 h1 {
+  color: #111827;
+  letter-spacing: .2px;
+}
+
+aside .mb-6.pb-4.border-b.border-gray-200 p {
+  color: #6b7280;
+}
+
+aside .mb-6.p-3.bg-primary-50.rounded-lg.border.border-primary-100 {
+  background: linear-gradient(180deg, #f5f7ff 0%, #f8faff 100%);
+  border-color: #e0e7ff;
+  box-shadow: 0 1px 0 rgba(17,24,39,.04);
+}
+
+aside .w-10.h-10.bg-primary-500.rounded-full {
+  box-shadow: 0 0 0 3px #eef2ff, 0 6px 12px rgba(79,70,229,.25);
+}
+
+aside .p-4.border-t.border-gray-200.space-y-2 {
+  background: #f9fafb;
+}
+
+aside .p-4.border-t.border-gray-200 .w-full.px-4.py-2 {
+  background: linear-gradient(180deg, #f8fafc 0%, #f3f4f6 100%);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(17,24,39,.06);
+}
+
+aside .p-4.border-t.border-gray-200 .w-full.px-4.py-2:hover {
+  background: linear-gradient(180deg, #edf2f7 0%, #e5e7eb 100%);
+}
+
+aside .p-4.border-t.border-gray-200 .text-xs.text-gray-400.text-center {
+  color: #9ca3af;
+  letter-spacing: .2px;
+}

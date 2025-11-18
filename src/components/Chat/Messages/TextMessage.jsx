@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
-const TextMessage = ({ message, isSender, onReply, onForward, onCollect, isNew }) => {
+const TextMessage = ({ message, isSender, onReply, onForward, onCollect, isNew, onRecall, onDelete }) => {
   const messageClass = isSender
     ? 'bg-blue-500 text-white rounded-br-none'
     : 'bg-gray-200 text-gray-800 rounded-bl-none';
@@ -31,6 +31,24 @@ const TextMessage = ({ message, isSender, onReply, onForward, onCollect, isNew }
             >
               <ArrowUturnLeftIcon className="h-4 w-4" />
             </button>
+          )}
+          {isSender && (
+            <>
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                onClick={() => onRecall && onRecall(message.id)}
+                title="Recall"
+              >
+                撤回
+              </button>
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                onClick={() => onDelete && onDelete(message.id)}
+                title="Delete"
+              >
+                删除
+              </button>
+            </>
           )}
           {onForward && (
             <button

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS learning_tasks (
   assigned_to INT NOT NULL COMMENT '分配给用户ID',
   assigned_by INT COMMENT '分配者ID',
   status ENUM('pending', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'pending' COMMENT '任务状态',
-  priority ENUM('low', 'medium', 'high') NOT NULL DEFAULT 'medium' COMMENT '优先级',
+  priority ENUM('low', 'medium', 'high') NOT NULL DEFAULT 'medium',
   due_date DATETIME NULL COMMENT '截止日期',
   completed_at DATETIME NULL COMMENT '完成时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -131,31 +131,7 @@ CREATE TABLE IF NOT EXISTS learning_statistics (
   INDEX idx_date (date)
 ) COMMENT = '学习统计表';
 
--- ============================================
--- 6. 为 knowledge_articles 表添加学习相关字段
--- ============================================
--- 添加阅读次数字段
-ALTER TABLE knowledge_articles
-ADD COLUMN read_count INT NOT NULL DEFAULT 0 COMMENT '阅读次数';
 
--- 添加平均阅读时长字段
-ALTER TABLE knowledge_articles
-ADD COLUMN avg_read_duration INT NOT NULL DEFAULT 0 COMMENT '平均阅读时长(秒)';
-
--- 添加收藏次数字段
-ALTER TABLE knowledge_articles
-ADD COLUMN collect_count INT NOT NULL DEFAULT 0 COMMENT '收藏次数';
-
--- 添加评论次数字段
-ALTER TABLE knowledge_articles
-ADD COLUMN comment_count INT NOT NULL DEFAULT 0 COMMENT '评论次数';
-
--- 添加索引优化查询性能
-ALTER TABLE knowledge_articles
-ADD INDEX idx_read_count (read_count);
-
-ALTER TABLE knowledge_articles
-ADD INDEX idx_collect_count (collect_count);
 
 -- ============================================
 -- 8. 创建收藏夹表 (collection_folders)

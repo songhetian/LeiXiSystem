@@ -169,28 +169,28 @@ const NotificationCenter = () => {
     <div className="p-6 bg-white shadow rounded-lg">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">通知中心</h2>
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0">
         <div className="flex space-x-2">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              statusFilter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            className={`btn btn-sm ${
+              statusFilter === 'all' ? 'btn-primary' : 'btn-ghost'
             }`}
           >
             全部
           </button>
           <button
             onClick={() => setStatusFilter('unread')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              statusFilter === 'unread' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            className={`btn btn-sm ${
+              statusFilter === 'unread' ? 'btn-primary' : 'btn-ghost'
             }`}
           >
             未读
           </button>
           <button
             onClick={() => setStatusFilter('read')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              statusFilter === 'read' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            className={`btn btn-sm ${
+              statusFilter === 'read' ? 'btn-primary' : 'btn-ghost'
             }`}
           >
             已读
@@ -198,7 +198,7 @@ const NotificationCenter = () => {
         </div>
         <button
           onClick={handleMarkAllAsRead}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600"
+          className="btn btn-sm btn-success"
         >
           全部标为已读
         </button>
@@ -211,11 +211,14 @@ const NotificationCenter = () => {
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`p-4 border rounded-lg shadow-sm ${
+              className={`relative p-4 border rounded-lg shadow-sm transition-all duration-200 ${
                 notification.is_read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'
               }`}
             >
-              <div className="flex justify-between items-start mb-2">
+              {!notification.is_read && (
+                <span className="absolute top-3 left-3 w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></span>
+              )}
+              <div className="flex justify-between items-start mb-2 pl-5"> {/* Added pl-5 for dot */}
                 <h3 className={`text-lg font-semibold ${notification.is_read ? 'text-gray-800' : 'text-blue-800'}`}>
                   {notification.title}
                 </h3>
@@ -223,21 +226,21 @@ const NotificationCenter = () => {
                   {format(new Date(notification.created_at), 'yyyy-MM-dd HH:mm')}
                 </span>
               </div>
-              <div className="text-gray-700 text-sm mb-3">
+              <div className="text-gray-700 text-sm mb-3 pl-5"> {/* Added pl-5 for dot */}
                 {renderNotificationContent(notification)}
               </div>
               <div className="flex justify-end space-x-2">
                 {!notification.is_read && (
                   <button
                     onClick={() => handleMarkAsRead(notification.id)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded-md text-xs hover:bg-blue-600"
+                    className="btn btn-xs btn-primary"
                   >
                     标为已读
                   </button>
                 )}
                 <button
                   onClick={() => handleDeleteNotification(notification.id)}
-                  className="px-3 py-1 bg-red-500 text-white rounded-md text-xs hover:bg-red-600"
+                  className="btn btn-xs btn-error"
                 >
                   删除
                 </button>

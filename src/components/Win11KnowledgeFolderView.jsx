@@ -46,7 +46,7 @@ const Win11KnowledgeFolderView = () => {
     category_id: '',
     summary: '',
     content: '',
-    type: 'common',
+    type: 'personal',
     status: 'published',
     icon: '📄',
     attachments: []
@@ -63,6 +63,13 @@ const Win11KnowledgeFolderView = () => {
 
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null);
+  const [showSaveToMyKnowledgeModal, setShowSaveToMyKnowledgeModal] = useState(false);
+  const [selectedArticleToSave, setSelectedArticleToSave] = useState(null);
+  const [targetCategory, setTargetCategory] = useState('');
+  const [myKnowledgeCategories, setMyKnowledgeCategories] = useState([]);
+  const [showMoveArticleModal, setShowMoveArticleModal] = useState(false);
+  const [articleToMove, setArticleToMove] = useState(null);
+  const [moveTargetCategory, setMoveTargetCategory] = useState('');
 
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState({
@@ -169,7 +176,7 @@ const Win11KnowledgeFolderView = () => {
       const filtered = (categoriesData || []).filter(c => {
         const t = String(c?.type || '').toLowerCase();
         const notDeleted = !c.deleted_at && c.status !== 'deleted' && c.is_deleted !== 1;
-        return isOwnedBy(c, uid) && t === 'common' && isPublished(c) && notDeleted;
+        return isOwnedBy(c, uid) && t === 'personal' && isPublished(c) && notDeleted;
       });
 
       setCategories(filtered);
@@ -225,6 +232,108 @@ const Win11KnowledgeFolderView = () => {
       }
     }
     return [];
+  };
+
+  const fetchMyKnowledgeCategories = async () => {
+    try {
+      const response = await axios.get(getApiUrl('/api/my-knowledge/categories'));
+      setMyKnowledgeCategories(response.data || []);
+    } catch (error) {
+      console.error('获取我的知识库分类失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showSaveToMyKnowledgeModal) {
+      (async () => {
+        await fetchMyKnowledgeCategories();
+        const list = myKnowledgeCategories || [];
+        if (!list.length) {
+          try {
+            const resp = await axios.post(getApiUrl('/api/knowledge/categories'), {
+              name: '默认分类',
+              description: '',
+              icon: '📁',
+              owner_id: getCurrentUserId(),
+              type: 'personal',
+              is_public: 1
+            });
+            const newId = resp.data?.id;
+            await fetchMyKnowledgeCategories();
+            if (newId) setTargetCategory(newId);
+          } catch (e) {
+          }
+        }
+      })();
+    }
+  }, [showSaveToMyKnowledgeModal]);
+
+  const handleSaveToMyKnowledge = async () => {
+    if (!selectedArticleToSave) return;
+    try {
+      setLoading(true);
+      let categoryId = targetCategory;
+      if (targetCategory === 'new' && newCategoryName.trim()) {
+        const categoryResponse = await axios.post(getApiUrl('/api/knowledge/categories'), {
+          name: newCategoryName.trim(),
+          description: '',
+          icon: '📁',
+          owner_id: getCurrentUserId(),
+          type: 'personal',
+          is_public: 1
+        });
+        categoryId = categoryResponse.data.id;
+        toast.success(`分类 "${newCategoryName.trim()}" 创建成功`);
+        fetchMyKnowledgeCategories();
+      }
+      const response = await axios.post(getApiUrl('/api/my-knowledge/articles/save'), {
+        articleId: selectedArticleToSave.id,
+        categoryId: categoryId !== 'new' ? categoryId : null,
+        notes: ''
+      });
+      if (response.data?.success) {
+        toast.success(`文档 "${selectedArticleToSave.title}" 已保存到我的知识库`);
+        await fetchCategories();
+        await fetchArticles();
+      }
+      setShowSaveToMyKnowledgeModal(false);
+      setSelectedArticleToSave(null);
+      setTargetCategory('');
+      setNewCategoryName('');
+    } catch (error) {
+      console.error('保存到我的知识库失败:', error);
+      toast.error('保存失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMoveArticle = async () => {
+    if (!articleToMove) return;
+    try {
+      setLoading(true);
+      const updated = {
+        title: articleToMove.title,
+        category_id: moveTargetCategory || null,
+        summary: articleToMove.summary || null,
+        content: articleToMove.content || '',
+        attachments: articleToMove.attachments || null,
+        type: articleToMove.type || 'personal',
+        status: articleToMove.status || 'published',
+        icon: articleToMove.icon || '📄'
+      };
+      await axios.put(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`), updated);
+      toast.success('文档已移动到目标分类');
+      setShowMoveArticleModal(false);
+      setArticleToMove(null);
+      setMoveTargetCategory('');
+      fetchArticles();
+    } catch (error) {
+      console.error('移动文档失败:', error);
+      toast.error('移动失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getFileIcon = (type) => {
@@ -377,10 +486,6 @@ const Win11KnowledgeFolderView = () => {
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-
-    // Set total article items and total pages for articles
-    setTotalArticleItems(filtered.length);
-    setArticleTotalPages(Math.ceil(filtered.length / pageSize));
 
     return filtered;
   };
@@ -538,8 +643,8 @@ const Win11KnowledgeFolderView = () => {
         // 现在不需要摘要和正文内容，后端字段保持为空字符串
         summary: '',
         content: '',
-        // 文档类型简化为固定值，可在后端/列表中统一理解为“普通文档”
-        type: 'common',
+        // 文档类型为个人知识库
+        type: 'personal',
         status: articleFormData.status || 'published',
         // 图标优先使用分类图标，否则使用默认图标
         icon: creatingCategory?.icon || '📄',
@@ -558,7 +663,7 @@ const Win11KnowledgeFolderView = () => {
           category_id: '',
           summary: '',
           content: '',
-          type: 'common',
+          type: 'personal',
           status: 'published',
           icon: '📄',
           attachments: []
@@ -587,7 +692,7 @@ const Win11KnowledgeFolderView = () => {
         description: '',
         icon: '\ud83d\udcc1',
         owner_id: getCurrentUserId(),
-        type: 'common',
+        type: 'personal',
         is_public: 0
       });
 
@@ -644,6 +749,20 @@ const Win11KnowledgeFolderView = () => {
     }
   };
 
+  // 处理分类公开/不公开
+  const handleToggleCategoryPublic = async (categoryId, isPublic) => {
+    try {
+      await axios.put(getApiUrl(`/api/knowledge/categories/${categoryId}`), { is_public: isPublic });
+      toast.success(isPublic === 1 ? '分类已公开（含文档）' : '分类已设为不公开');
+      // 公开状态影响文章在公共知识库的展示，这里也刷新文章
+      fetchCategories();
+      fetchArticles();
+    } catch (error) {
+      console.error('更新分类公开状态失败:', error);
+      toast.error('操作失败');
+    }
+  };
+
   // 按分类分组文档
   const articlesByCategory = {};
   const uncategorizedArticles = [];
@@ -693,6 +812,9 @@ const Win11KnowledgeFolderView = () => {
         case 'toggleVisibility':
           handleToggleCategoryVisibility(contextMenu.data.id, contextMenu.data.is_hidden === 0 ? 1 : 0);
           break;
+        case 'togglePublic':
+          handleToggleCategoryPublic(contextMenu.data.id, contextMenu.data.is_public === 1 ? 0 : 1);
+          break;
         case 'rename':
           openRenameCategoryModal(contextMenu.data);
           break;
@@ -724,9 +846,13 @@ const Win11KnowledgeFolderView = () => {
           }
           break;
         }
-        case 'move':
-          toast.info('移动功能待实现');
+        case 'move': {
+          const article = contextMenu.data;
+          setArticleToMove(article);
+          setMoveTargetCategory(article?.category_id || '');
+          setShowMoveArticleModal(true);
           break;
+        }
         case 'delete': {
           const article = contextMenu.data;
           if (!article) break;
@@ -1104,12 +1230,12 @@ const Win11KnowledgeFolderView = () => {
             </div>
 
             {/* 分页 */}
-            {articleTotalPages > 1 && (
+            {getTotalPages() > 1 && (
               <div className="p-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="text-sm text-gray-600">
-                      共 {totalArticleItems} 个文档，第 {currentPage} / {articleTotalPages} 页
+                      共 {getCurrentFolderArticles().length} 个文档，第 {currentPage} / {getTotalPages()} 页
                     </div>
                     <select
                       value={pageSize}
@@ -1138,9 +1264,9 @@ const Win11KnowledgeFolderView = () => {
                       上一页
                     </button>
 
-                    {[...Array(Math.min(5, articleTotalPages))].map((_, i) => {
+                    {[...Array(Math.min(5, getTotalPages()))].map((_, i) => {
                       let pageNum;
-                      const totalPages = articleTotalPages;
+                      const totalPages = getTotalPages();
                       if (totalPages <= 5) {
                         pageNum = i + 1;
                       } else if (currentPage <= 3) {
@@ -1165,15 +1291,15 @@ const Win11KnowledgeFolderView = () => {
                     })}
 
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(articleTotalPages, p + 1))}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
+                      disabled={currentPage === getTotalPages()}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       下一页
                     </button>
                     <button
-                      onClick={() => setCurrentPage(articleTotalPages)}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(getTotalPages())}
+                      disabled={currentPage === getTotalPages()}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       末页
@@ -1219,34 +1345,37 @@ const Win11KnowledgeFolderView = () => {
                             onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                             onClick={() => handleOpenFolder(category)}
                           >
-                            {category.is_hidden === 1 && (
-                              <div className="absolute inset-0 bg-white/50 rounded-lg pointer-events-none" />
+                            {category.is_public !== 1 && (
+                              <div className="absolute inset-0 bg-white/60 rounded-lg pointer-events-none" />
                             )}
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleCategoryVisibility(category.id, category.is_hidden === 1 ? 0 : 1);
-                                }}
-                                className="text-xs p-1 rounded hover:bg-gray-200"
-                                title={category.is_hidden === 1 ? '公开分类' : '不公开分类'}
-                              >
-                                {category.is_hidden === 1 ? '🌐' : '🔒'}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteCategory(category.id);
-                                }}
-                                className="text-xs p-1 rounded hover:bg-gray-200 text-red-500"
-                                title="删除分类"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                            <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
-                            <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">{category.name}</h3>
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleCategoryVisibility(category.id, category.is_hidden === 1 ? 0 : 1);
+                              }}
+                              className="text-xs p-1 rounded hover:bg-gray-200"
+                              title={category.is_hidden === 1 ? '公开分类' : '不公开分类'}
+                            >
+                              {category.is_hidden === 1 ? '🌐' : '🔒'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCategory(category.id);
+                              }}
+                              className="text-xs p-1 rounded hover:bg-gray-200 text-red-500"
+                              title="删除分类"
+                            >
+                              🗑️
+                            </button>
                           </div>
+                          <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-full border bg-white/70">
+                            {category.is_public === 1 ? '🌐 公开' : '🔒 私有'}
+                          </div>
+                          <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
+                          <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">{category.name}</h3>
+                        </div>
                         );
                       })}
 
@@ -1289,8 +1418,8 @@ const Win11KnowledgeFolderView = () => {
                             onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                             onClick={() => handleOpenFolder(category)}
                           >
-                            {category.is_hidden === 1 && (
-                              <div className="absolute inset-0 bg-white/50 rounded-lg pointer-events-none" />
+                            {category.is_public !== 1 && (
+                              <div className="absolute inset-0 bg-white/60 rounded-lg pointer-events-none" />
                             )}
                             <div className="text-5xl flex-shrink-0">📂</div>
                             <div className="flex-1 min-w-0">
@@ -1415,6 +1544,17 @@ const Win11KnowledgeFolderView = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedArticleToSave(previewFile);
+                    setShowSaveToMyKnowledgeModal(true);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-all shadow-md"
+                  title="添加到我的知识库"
+                >
+                  <span>📥</span>
+                  <span className="hidden sm:inline">添加到我的知识库</span>
+                </button>
                 {/* 调整宽高按钮 */}
                 <div className="flex gap-1">
                   <button
@@ -1614,19 +1754,24 @@ const Win11KnowledgeFolderView = () => {
         items={
           contextMenu.type === 'folder'
             ? [
+                // 公开/不公开（依据 is_public）
+                contextMenu.data && contextMenu.data.is_public === 1
+                  ? { icon: '🔒', label: '不公开', actionType: 'togglePublic' }
+                  : { icon: '🌐', label: '公开', actionType: 'togglePublic' },
+                // 显示/隐藏（依据 is_hidden）
                 contextMenu.data && contextMenu.data.is_hidden === 1
-                  ? { icon: '🌐', label: '公开', actionType: 'toggleVisibility' }
-                  : { icon: '🔒', label: '不公开', actionType: 'toggleVisibility' },
+                  ? { icon: '👁️', label: '显示', actionType: 'toggleVisibility' }
+                  : { icon: '🙈', label: '隐藏', actionType: 'toggleVisibility' },
                 { icon: '✏️', label: '修改名称', actionType: 'rename' },
                 { icon: '➕', label: '添加文档', actionType: 'addArticle' },
                 { icon: '🗑️', label: '删除', actionType: 'delete' }
               ]
             : contextMenu.type === 'file'
             ? [
-                { icon: '👁️', label: '预览', actionType: 'preview' },
-                { icon: '📂', label: '移动到', actionType: 'move' },
-                { icon: '🗑️', label: '删除', actionType: 'delete' }
-              ]
+              { icon: '👁️', label: '预览', actionType: 'preview' },
+              { icon: '📂', label: '移动到', actionType: 'move' },
+              { icon: '🗑️', label: '删除', actionType: 'delete' }
+            ]
             : []
         }
       />
@@ -1928,6 +2073,148 @@ const Win11KnowledgeFolderView = () => {
         </div>
       )}
 
+      {showSaveToMyKnowledgeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">保存到我的知识库</h2>
+              <button
+                onClick={() => {
+                  setShowSaveToMyKnowledgeModal(false);
+                  setSelectedArticleToSave(null);
+                  setTargetCategory('');
+                  setNewCategoryName('');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              {selectedArticleToSave && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <h3 className="font-medium text-gray-900 truncate">{selectedArticleToSave.title}</h3>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">选择分类</label>
+                <select
+                  value={targetCategory}
+                  onChange={(e) => setTargetCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">选择现有分类</option>
+                  {myKnowledgeCategories.map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                  <option value="new">新建分类</option>
+                </select>
+              </div>
+
+              {targetCategory === 'new' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">新分类名称 *</label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="请输入分类名称"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowSaveToMyKnowledgeModal(false);
+                    setSelectedArticleToSave(null);
+                    setTargetCategory('');
+                    setNewCategoryName('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveToMyKnowledge}
+                  disabled={loading || !targetCategory || (targetCategory === 'new' && !newCategoryName.trim())}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMoveArticleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">移动文档到分类</h2>
+              <button
+                onClick={() => {
+                  setShowMoveArticleModal(false);
+                  setArticleToMove(null);
+                  setMoveTargetCategory('');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              {articleToMove && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <h3 className="font-medium text-gray-900 truncate">{articleToMove.title}</h3>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">目标分类</label>
+                <select
+                  value={moveTargetCategory}
+                  onChange={(e) => setMoveTargetCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">未分类</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowMoveArticleModal(false);
+                    setArticleToMove(null);
+                    setMoveTargetCategory('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleMoveArticle}
+                  disabled={loading || !articleToMove}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? '移动中...' : '确定移动'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 重命名分类模态框 */}
       {showRenameCategoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
@@ -1954,7 +2241,7 @@ const Win11KnowledgeFolderView = () => {
                 <input
                   type="text"
                   value={renameCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onChange={(e) => setRenameCategoryName(e.target.value)}
                   placeholder="请输入新的分类名称"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   autoFocus

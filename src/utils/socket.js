@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getApiBaseUrl } from './apiConfig';
 
 let socket;
 
@@ -8,8 +9,8 @@ export const connectSocket = (userId, token) => {
     return;
   }
 
-  // Replace with your backend URL
-  socket = io('http://localhost:3001', {
+  const serverUrl = getApiBaseUrl().replace('/api', '');
+  socket = io(serverUrl, {
     query: { userId, token },
     transports: ['websocket'], // Force WebSocket
     reconnectionAttempts: 5,

@@ -1,58 +1,67 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { ToastContainer, toast } from 'react-toastify'
-import { io } from 'socket.io-client';
+import { connectSocket, disconnectSocket, listenSocketEvent, removeSocketListener } from './utils/socket'
 import { showNotificationToast } from './utils/notificationUtils';
 import 'react-toastify/dist/ReactToastify.css'
-import Login from './pages/Login'
-import Sidebar from './components/Sidebar'
 import { useTokenVerification } from './hooks/useTokenVerification'
-import CustomerList from './components/CustomerList'
-import SessionManagement from './components/SessionManagement'
-import QualityInspection from './components/QualityInspection'
-import DepartmentManagement from './components/DepartmentManagement'
-import PositionManagement from './components/PositionManagement'
-import EmployeeManagement from './components/EmployeeManagement'
-import EmployeeChanges from './components/EmployeeChanges'
-import EmployeeApproval from './components/EmployeeApproval'
-import ResetPassword from './components/ResetPassword'
-import PermissionManagement from './components/PermissionManagement'
-import KnowledgeManagement from './components/KnowledgeManagement'
-import KnowledgeBase from './components/KnowledgeBase'
-import KnowledgeFolderView from './components/KnowledgeFolderView'
-import MyKnowledgeBase from './components/MyKnowledgeBase'
-import Win11KnowledgeBase from './components/Win11KnowledgeBase'
-import Win11MyKnowledgeBase from './components/Win11MyKnowledgeBase'
-import Win11KnowledgeFolderView from './components/Win11KnowledgeFolderView'
-import AssessmentManagement from './components/AssessmentManagement'
-import MyExamList from './components/MyExamList'
-import ExamTaking from './components/ExamTaking'
-import ExamResult from './components/ExamResult'
-import Statistics from './components/Statistics'
-import ComingSoon from './components/ComingSoon'
-import PersonalInfo from './components/PersonalInfo'
-import NotificationCenter from './components/NotificationCenter'
-import NotificationSender from './components/NotificationSender'
 import { getApiUrl } from './utils/apiConfig'
+import { Spin } from 'antd'; // Import Spin for fallback
 
-// 考勤管理页面
-import {
-  AttendanceHome,
-  AttendanceRecords,
-  LeaveApply,
-  LeaveRecords,
-  OvertimeApply,
-  OvertimeRecords,
-  MakeupApply,
-  AttendanceStats,
-  DepartmentStats,
-  DepartmentAttendanceStats,
-  ShiftManagement,
-  ScheduleManagement,
-  Notifications,
-  SmartSchedule,
-  ApprovalManagement,
-  AttendanceSettings
-} from './pages/Attendance'
+// Lazy-loaded components
+const Login = lazy(() => import('./pages/Login'));
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const CustomerList = lazy(() => import('./components/CustomerList'));
+const SessionManagement = lazy(() => import('./components/SessionManagement'));
+const QualityInspection = lazy(() => import('./components/QualityInspection'));
+const DepartmentManagement = lazy(() => import('./components/DepartmentManagement'));
+const PositionManagement = lazy(() => import('./components/PositionManagement'));
+const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'));
+const EmployeeChanges = lazy(() => import('./components/EmployeeChanges'));
+const EmployeeApproval = lazy(() => import('./components/EmployeeApproval'));
+const ResetPassword = lazy(() => import('./components/ResetPassword'));
+const PermissionManagement = lazy(() => import('./components/PermissionManagement'));
+const KnowledgeManagement = lazy(() => import('./components/KnowledgeManagement'));
+const KnowledgeBase = lazy(() => import('./components/KnowledgeBase'));
+const KnowledgeFolderView = lazy(() => import('./components/KnowledgeFolderView'));
+const MyKnowledgeBase = lazy(() => import('./components/MyKnowledgeBase'));
+const Win11KnowledgeBase = lazy(() => import('./components/Win11KnowledgeBase'));
+const Win11MyKnowledgeBase = lazy(() => import('./components/Win11MyKnowledgeBase'));
+const Win11KnowledgeFolderView = lazy(() => import('./components/Win11KnowledgeFolderView'));
+const AssessmentManagement = lazy(() => import('./components/AssessmentManagement'));
+const MyExamList = lazy(() => import('./components/MyExamList'));
+const ExamTaking = lazy(() => import('./components/ExamTaking'));
+const ExamResult = lazy(() => import('./components/ExamResult'));
+const Statistics = lazy(() => import('./components/Statistics'));
+const ComingSoon = lazy(() => import('./components/ComingSoon'));
+const PersonalInfo = lazy(() => import('./components/PersonalInfo'));
+const NotificationCenter = lazy(() => import('./components/NotificationCenter'));
+const NotificationSender = lazy(() => import('./components/NotificationSender'));
+const NotificationSettings = lazy(() => import('./components/NotificationSettings'));
+const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'));
+const QualityRuleManagementPage = lazy(() => import('./pages/QualityRuleManagementPage'));
+const QualityStatisticsPage = lazy(() => import('./pages/QualityStatisticsPage'));
+const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
+const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
+const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+
+// Lazy-loaded Attendance Management Pages
+const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
+const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
+const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
+const LeaveRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveRecords })));
+const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeApply })));
+const OvertimeRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeRecords })));
+const MakeupApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.MakeupApply })));
+const AttendanceStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceStats })));
+const DepartmentStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.DepartmentStats })));
+const DepartmentAttendanceStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.DepartmentAttendanceStats })));
+const ShiftManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ShiftManagement })));
+const ScheduleManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ScheduleManagement })));
+const Notifications = lazy(() => import('./pages/Attendance').then(module => ({ default: module.Notifications })));
+const SmartSchedule = lazy(() => import('./pages/Attendance').then(module => ({ default: module.SmartSchedule })));
+const ApprovalManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ApprovalManagement })));
+const AttendanceSettings = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceSettings })));
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -71,36 +80,25 @@ function App() {
   }, [])
 
   useEffect(() => {
-    let socket;
     if (isLoggedIn && user) {
-      socket = io(getApiUrl('/')); // Connect to the root namespace
-
-      socket.on('connect', () => {
-        console.log('Socket.IO connected:', socket.id);
-        socket.emit('user:online', user.id); // Notify server user is online
-      });
-
-      socket.on('notification:new', (notification) => {
-        console.log('New notification received:', notification);
-        showNotificationToast(notification); // Display the notification
-      });
-
-      socket.on('disconnect', () => {
-        console.log('Socket.IO disconnected');
-      });
-
-      socket.on('connect_error', (err) => {
-        console.error('Socket.IO connection error:', err);
-      });
-    }
-
-    return () => {
-      if (socket) {
-        console.log('Disconnecting Socket.IO');
-        socket.disconnect();
+      const token = localStorage.getItem('token')
+      connectSocket(user.id, token)
+      const onNew = (notification) => {
+        showNotificationToast(notification)
       }
-    };
-  }, [isLoggedIn, user]);
+      const onConnectError = (err) => {
+        console.error('Socket.IO connection error:', err)
+      }
+      listenSocketEvent('notification:new', onNew)
+      listenSocketEvent('connect_error', onConnectError)
+
+      return () => {
+        removeSocketListener('notification:new', onNew)
+        removeSocketListener('connect_error', onConnectError)
+        disconnectSocket()
+      }
+    }
+  }, [isLoggedIn, user])
 
   const handleLoginSuccess = (userData) => {
     setIsLoggedIn(true)
@@ -162,9 +160,9 @@ function App() {
 
       // 聊天通讯
       case 'chat-message':
-        return <ComingSoon title="即时通讯" />
+        return <ChatPage />
       case 'chat-group':
-        return <ComingSoon title="群组管理" />
+        return <ChatPage />
 
       // 考勤管理
       case 'attendance-home':
@@ -204,23 +202,29 @@ function App() {
       case 'quality-session':
         return <SessionManagement />
       case 'quality-rule':
-        return <ComingSoon title="质检规则" />
+        return <QualityRuleManagementPage />
       case 'quality-score':
         return <QualityInspection />
       case 'quality-report':
-        return <ComingSoon title="质检报告" />
+        return <QualityStatisticsPage />
+      case 'quality-report-summary': // New case for QualityReportPage
+        return <QualityReportPage />
+      case 'quality-case-library': // New case for CaseLibraryPage
+        return <CaseLibraryPage />
+      case 'quality-recommendation': // New case for CaseRecommendationPage
+        return <CaseRecommendationPage />
 
       // 知识库
       case 'knowledge-articles':
-        return <KnowledgeFolderView />
+        return <Win11KnowledgeBase />
       case 'knowledge-articles-win11':
         return <Win11KnowledgeFolderView />
       case 'knowledge-base':
-        return <KnowledgeBase />
+        return <Win11KnowledgeFolderView />
       case 'knowledge-base-win11':
         return <Win11KnowledgeBase />
       case 'my-knowledge':
-        return <MyKnowledgeBase />
+        return <Win11MyKnowledgeBase />
       case 'my-knowledge-win11':
         return <Win11MyKnowledgeBase />
 
@@ -229,8 +233,7 @@ function App() {
         return <MyExamList onStartExam={(examId, planId) => handleSetActiveTab('exam-taking', { examId, planId })} />
       case 'exam-taking':
         return <ExamTaking
-          examId={activeTab.params.examId}
-          planId={activeTab.params.planId}
+          resultId={activeTab.params.resultId}
           onExamEnd={(resultId) => handleSetActiveTab('exam-result', { resultId })}
         />
       case 'exam-result':
@@ -248,6 +251,8 @@ function App() {
         return <ComingSoon title="员工统计" />
       case 'statistics-department':
         return <ComingSoon title="部门统计" />
+      case 'statistics-viewing':
+        return <ViewingStatistics />
 
       // 个人中心
       case 'personal-info':
@@ -258,6 +263,8 @@ function App() {
         return <NotificationCenter />
       case 'notification-sender':
         return <NotificationSender />
+      case 'notification-settings': // New case for NotificationSettings
+        return <NotificationSettings />
 
       default:
         return <EmployeeManagement />
@@ -277,7 +284,9 @@ function App() {
         onLogout={handleLogout}
       />
       <main className="flex-1 overflow-auto bg-gray-50">
-        {renderContent()}
+        <Suspense fallback={<div className="flex justify-center items-center h-full"><Spin size="large" /></div>}>
+          {renderContent()}
+        </Suspense>
       </main>
       <ToastContainer
         position="top-right"
@@ -290,6 +299,7 @@ function App() {
         draggable
         pauseOnHover
         theme="light"
+        limit={3}
       />
     </div>
   )

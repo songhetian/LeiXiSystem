@@ -32,21 +32,7 @@ fastify.register(multipart, {
   }
 })
 
-// 注册限流插件
-fastify.register(require('@fastify/rate-limit'), {
-  global: false, // Disable global rate limit for now, apply per-route
-  max: 100, // Max requests per window
-  timeWindow: '1 minute', // Time window for requests
-  hook: 'onRequest', // Hook to apply rate limit
-  // Add a custom message for rate limit exceeded
-  errorResponseBuilder: function (request, context) {
-    return {
-      code: 429,
-      message: `Too many requests, please try again in ${context.after} seconds.`,
-      statusCode: 429
-    }
-  }
-});
+// 限流插件暂不启用
 
 // 添加请求日志钩子
 fastify.addHook('onRequest', async (request, reply) => {
@@ -126,6 +112,11 @@ async function initDatabase() {
 // 健康检查
 fastify.get('/api/health', async (request, reply) => {
   return { status: 'ok', message: '服务正常' }
+})
+
+// 服务器时间同步
+fastify.get('/api/time/server', async (request, reply) => {
+  return { success: true, serverTime: new Date().toISOString() }
 })
 
 // ==================== 文件上传 API ====================
@@ -3111,6 +3102,10 @@ fastify.register(require('./routes/attendance-approval'));
 // ==================== 增强功能路由 ====================
 fastify.register(require('./routes/export'));
 fastify.register(notificationRoutes);
+fastify.register(require('./routes/notification-settings'));
+fastify.register(require('./routes/notification-stats'));
+fastify.register(require('./routes/knowledge-reading'));
+fastify.register(require('./routes/knowledge-stats'));
 
 fastify.register(require('./routes/smart-schedule'));
 
@@ -3124,6 +3119,7 @@ fastify.register(require('./routes/departments'))
 fastify.register(require('./routes/exams'))
 fastify.register(require('./routes/assessment-plans'))
 fastify.register(require('./routes/assessment-results'))
+fastify.register(require('./routes/statistics'))
 
 // ==================== 学习中心路由 ====================
 fastify.register(require('./routes/learning-tasks'))
@@ -3141,9 +3137,8 @@ const { Server } = require('socket.io');
 const start = async () => {
   try {
     await initDatabase();
-    await fastify.listen({ port: 3001, host: '0.0.0.0' });
 
-    // Initialize Socket.IO
+    // 初始化 Socket.IO（需在启动前装饰到 fastify）
     const io = new Server(fastify.server, {
       cors: {
         origin: "*", // Allow all origins for now, refine later
@@ -3166,11 +3161,12 @@ const start = async () => {
         concurrencyLimit: 10, // Limit compression concurrency
       }
     });
-
+    fastify.decorate('io', io);
     require('./socket-handlers')(io, fastify);
-
-    fastify.decorate('io', io); // Make io instance available to Fastify routes
     console.log('✅ Socket.IO initialized');
+
+    await fastify.listen({ port: 3001, host: '0.0.0.0' });
+    console.log('✅ Fastify server listening on http://localhost:3001')
 
   } catch (err) {
     fastify.log.error(err);

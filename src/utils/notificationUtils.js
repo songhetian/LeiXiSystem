@@ -22,8 +22,14 @@ export const showNotificationToast = (notification) => {
   } = notification;
 
   let toastType = toast.info;
+  // 读取用户偏好
+  let userSettings = null;
+  try {
+    userSettings = JSON.parse(localStorage.getItem('notificationSettings') || 'null');
+  } catch {}
+  const duration = userSettings?.toastDuration || 5000;
   let toastOptions = {
-    autoClose: 5000,
+    autoClose: duration,
     closeOnClick: true,
     pauseOnHover: true,
     draggable: true,
@@ -47,50 +53,78 @@ export const showNotificationToast = (notification) => {
       toastType = toast.info;
   }
 
+  // 免打扰时间段检查（紧急不屏蔽）
+  const inDnd = (() => {
+    if (!userSettings?.doNotDisturbStart || !userSettings?.doNotDisturbEnd) return false;
+    try {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const nowStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const start = userSettings.doNotDisturbStart;
+      const end = userSettings.doNotDisturbEnd;
+      if (start === end) return false;
+      if (start < end) {
+        return nowStr >= start && nowStr <= end;
+      } else {
+        // 跨午夜
+        return nowStr >= start || nowStr <= end;
+      }
+    } catch {
+      return false;
+    }
+  })();
+  if (inDnd && priority !== 'urgent') return;
+
   const renderContent = () => {
     switch (content_type) {
       case 'rich_text':
-        return (
-          <div>
-            <strong>{title}</strong>
-            <div dangerouslySetInnerHTML={{ __html: content }} />
-          </div>
-        );
+        return React.createElement(
+          'div',
+          null,
+          React.createElement('strong', null, title),
+          React.createElement('div', { dangerouslySetInnerHTML: { __html: content } })
+        )
       case 'image':
-        return (
-          <div>
-            <strong>{title}</strong>
-            <p>{content}</p>
-            {image_url && <img src={image_url} alt="Notification" style={{ maxWidth: '100%', height: 'auto' }} />}
-          </div>
-        );
+        return React.createElement(
+          'div',
+          null,
+          React.createElement('strong', null, title),
+          React.createElement('p', null, content),
+          image_url && React.createElement('img', { src: image_url, alt: 'Notification', style: { maxWidth: '100%', height: 'auto' } })
+        )
       case 'link':
-        return (
-          <div>
-            <strong>{title}</strong>
-            <p>{content}</p>
-            {link_url && <a href={link_url} target="_blank" rel="noopener noreferrer">{link_url}</a>}
-          </div>
-        );
+        return React.createElement(
+          'div',
+          null,
+          React.createElement('strong', null, title),
+          React.createElement('p', null, content),
+          link_url && React.createElement('a', { href: link_url, target: '_blank', rel: 'noopener noreferrer' }, link_url)
+        )
       case 'mixed':
-        return (
-          <div>
-            <strong>{title}</strong>
-            <div dangerouslySetInnerHTML={{ __html: content }} />
-            {image_url && <img src={image_url} alt="Notification" style={{ maxWidth: '100%', height: 'auto' }} />}
-            {link_url && <a href={link_url} target="_blank" rel="noopener noreferrer">{link_url}</a>}
-          </div>
-        );
+        return React.createElement(
+          'div',
+          null,
+          React.createElement('strong', null, title),
+          React.createElement('div', { dangerouslySetInnerHTML: { __html: content } }),
+          image_url && React.createElement('img', { src: image_url, alt: 'Notification', style: { maxWidth: '100%', height: 'auto' } }),
+          link_url && React.createElement('a', { href: link_url, target: '_blank', rel: 'noopener noreferrer' }, link_url)
+        )
       case 'text':
       default:
-        return (
-          <div>
-            <strong>{title}</strong>
-            <p>{content}</p>
-          </div>
-        );
+        return React.createElement(
+          'div',
+          null,
+          React.createElement('strong', null, title),
+          React.createElement('p', null, content)
+        )
     }
-  };
-
+  }
+  // 播放提示音（可选）
+  if (userSettings?.notificationSound && (priority === 'high' || priority === 'urgent')) {
+    try {
+      const audio = new Audio('/sounds/notify.mp3');
+      audio.play().catch(() => {});
+    } catch {}
+  }
   toastType(renderContent(), toastOptions);
 };

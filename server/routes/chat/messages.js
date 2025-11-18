@@ -36,15 +36,60 @@ module.exports = async function (fastify, options) {
   // PUT /api/chat/messages/:id/recall - 撤回消息
   fastify.put('/messages/:id/recall', async (request, reply) => {
     const { id } = request.params;
-    // Implementation for recalling a message
-    return { message: `Recall message ${id}` };
+    try {
+      // 标记撤回
+      const [msgRows] = await mysql.query(`SELECT id, conversation_id FROM messages WHERE id = ?`, [id]);
+      if (msgRows.length === 0) {
+        return reply.code(404).send({ success: false, message: 'Message not found' });
+      }
+      const convId = msgRows[0].conversation_id;
+      await mysql.query(`UPDATE messages SET is_recalled = 1, recalled_at = NOW() WHERE id = ?`, [id]);
+
+      // 广播撤回事件到会话成员
+      try {
+        const [memberRows] = await mysql.query(`SELECT user_id FROM conversation_members WHERE conversation_id = ?`, [convId]);
+        for (const member of memberRows) {
+          const socketId = await fastify.redis.get(`user:${member.user_id}:socketId`);
+          if (socketId) fastify.io.to(socketId).emit('message:recall', { messageId: parseInt(id), conversationId: convId });
+        }
+      } catch (e) {
+        fastify.log.error(e);
+      }
+
+      return { success: true };
+    } catch (error) {
+      fastify.log.error('Recall message failed', error);
+      reply.code(500).send({ success: false, message: 'Recall message failed' });
+    }
   });
 
   // DELETE /api/chat/messages/:id - 删除消息
   fastify.delete('/messages/:id', async (request, reply) => {
     const { id } = request.params;
-    // Implementation for deleting a message
-    return { message: `Delete message ${id}` };
+    try {
+      const [msgRows] = await mysql.query(`SELECT id, conversation_id FROM messages WHERE id = ?`, [id]);
+      if (msgRows.length === 0) {
+        return reply.code(404).send({ success: false, message: 'Message not found' });
+      }
+      const convId = msgRows[0].conversation_id;
+      await mysql.query(`DELETE FROM messages WHERE id = ?`, [id]);
+
+      // 广播删除事件
+      try {
+        const [memberRows] = await mysql.query(`SELECT user_id FROM conversation_members WHERE conversation_id = ?`, [convId]);
+        for (const member of memberRows) {
+          const socketId = await fastify.redis.get(`user:${member.user_id}:socketId`);
+          if (socketId) fastify.io.to(socketId).emit('message:delete', { messageId: parseInt(id), conversationId: convId });
+        }
+      } catch (e) {
+        fastify.log.error(e);
+      }
+
+      return { success: true };
+    } catch (error) {
+      fastify.log.error('Delete message failed', error);
+      reply.code(500).send({ success: false, message: 'Delete message failed' });
+    }
   });
 
   // POST /api/chat/messages/:id/collect - 收藏消息

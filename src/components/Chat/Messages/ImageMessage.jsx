@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
-const ImageMessage = ({ message, isSender, onReply, onForward, onCollect, isNew }) => {
+const ImageMessage = ({ message, isSender, onReply, onForward, onCollect, isNew, onRecall, onDelete }) => {
   const messageClass = isSender
     ? 'bg-blue-500 text-white rounded-br-none'
     : 'bg-gray-200 text-gray-800 rounded-bl-none';
@@ -18,7 +18,7 @@ const ImageMessage = ({ message, isSender, onReply, onForward, onCollect, isNew 
             <p className="truncate">{message.reply_to_message_content || 'Original message'}</p>
           </div>
         )}
-        <img src={message.file_url} alt="Sent image" className="max-w-full h-auto rounded-lg" />
+        <img src={message.file_url} alt="Sent image" className="max-w-full h-auto rounded-lg" loading="lazy" />
         <div className="flex justify-between items-center mt-1">
           <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
             {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -31,6 +31,24 @@ const ImageMessage = ({ message, isSender, onReply, onForward, onCollect, isNew 
             >
               <ArrowUturnLeftIcon className="h-4 w-4" />
             </button>
+          )}
+          {isSender && (
+            <>
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                onClick={() => onRecall && onRecall(message.id)}
+                title="Recall"
+              >
+                撤回
+              </button>
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600 ml-2"
+                onClick={() => onDelete && onDelete(message.id)}
+                title="Delete"
+              >
+                删除
+              </button>
+            </>
           )}
           {onForward && (
             <button

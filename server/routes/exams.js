@@ -7,6 +7,120 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
 
+  // 获取试卷列表
+  // GET /api/exams
+  // 支持分页参数（page, pageSize）
+  // 支持筛选（category, difficulty, status）
+  // 支持搜索（title 模糊查询）
+  // 返回字段：id, title, category, difficulty, duration, total_score, pass_score, question_count, status, created_at
+  // 按创建时间倒序排列
+  fastify.get('/api/exams', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({
+          success: false,
+          message: '未提供认证令牌'
+        })
+      }
+
+      try {
+        jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({
+          success: false,
+          message: '无效的认证令牌'
+        })
+      }
+
+      const {
+        page = 1,
+        pageSize = 10,
+        category,
+        difficulty,
+        status,
+        title
+      } = request.query
+
+      const pageNum = parseInt(page)
+      const limitNum = parseInt(pageSize)
+      if (isNaN(pageNum) || pageNum < 1) {
+        return reply.code(400).send({ success: false, message: '页码必须是大于0的整数' })
+      }
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return reply.code(400).send({ success: false, message: '每页数量必须是1-100之间的整数' })
+      }
+
+      let whereClauses = []
+      let params = []
+
+      if (category) {
+        whereClauses.push('category = ?')
+        params.push(category)
+      }
+      if (difficulty) {
+        const validDifficulties = ['easy', 'medium', 'hard']
+        if (!validDifficulties.includes(difficulty)) {
+          return reply.code(400).send({ success: false, message: '难度必须是 easy, medium 或 hard' })
+        }
+        whereClauses.push('difficulty = ?')
+        params.push(difficulty)
+      }
+      if (status) {
+        const validStatuses = ['draft', 'published', 'archived']
+        if (!validStatuses.includes(status)) {
+          return reply.code(400).send({ success: false, message: '状态必须是 draft, published 或 archived' })
+        }
+        whereClauses.push('status = ?')
+        params.push(status)
+      }
+      if (title) {
+        whereClauses.push('title LIKE ?')
+        params.push(`%${title}%`)
+      }
+
+      const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''
+
+      const countSql = `SELECT COUNT(*) as total FROM exams ${whereSql}`
+      const [countRows] = await pool.query(countSql, params)
+      const total = countRows[0]?.total || 0
+
+      const offset = (pageNum - 1) * limitNum
+      const listSql = `
+        SELECT id, title, category, difficulty, duration, total_score, pass_score, question_count, status, created_at
+        FROM exams
+        ${whereSql}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `
+      const [rows] = await pool.query(listSql, [...params, limitNum, offset])
+
+      return {
+        success: true,
+        data: {
+          exams: rows.map(r => ({
+            id: r.id,
+            title: r.title,
+            category: r.category,
+            difficulty: r.difficulty,
+            duration: parseFloat(r.duration),
+            total_score: parseFloat(r.total_score),
+            pass_score: parseFloat(r.pass_score),
+            question_count: r.question_count,
+            status: r.status,
+            created_at: r.created_at
+          })),
+          page: pageNum,
+          pageSize: limitNum,
+          total
+        }
+      }
+    } catch (error) {
+      console.error('获取试卷列表失败:', error)
+      return reply.code(500).send({ success: false, message: '获取失败' })
+    }
+  })
+
   // 创建试卷
   // POST /api/exams
   // 必填字段验证：title, duration, total_score, pass_score

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿﻿﻿import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
@@ -44,7 +44,6 @@ const Win11KnowledgeBase = () => {
 
   // 新建分类状态
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
 
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null);
@@ -724,7 +723,6 @@ const Win11KnowledgeBase = () => {
   };
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-100">
     <div className="p-6 h-full flex flex-col bg-gray-100">
       {/* 顶部操作栏 */}
       <div className="mb-6">

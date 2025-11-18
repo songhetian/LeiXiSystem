@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { connectSocket, disconnectSocket, emitSocketEvent, listenSocketEvent, removeSocketListener } from '../utils/socket';
 import ConversationList from '../components/Chat/ConversationList';
+import ChatRoomList from '../components/Chat/ChatRoomList';
+import ChatRoom from '../components/Chat/ChatRoom';
+import GroupInfo from '../components/Chat/GroupInfo';
 import ChatWindow from '../components/Chat/ChatWindow';
 import MessageInput from '../components/Chat/MessageInput';
 import TextMessage from '../components/Chat/Messages/TextMessage';
@@ -10,6 +13,7 @@ import VoiceMessage from '../components/Chat/Messages/VoiceMessage';
 import VideoMessage from '../components/Chat/Messages/VideoMessage';
 import SystemMessage from '../components/Chat/Messages/SystemMessage';
 import axios from 'axios';
+import { getApiUrl } from '../utils/apiConfig';
 
 const ChatPage = () => {
   const [conversations, setConversations] = useState([]);
@@ -23,6 +27,9 @@ const ChatPage = () => {
   const [messagesToForward, setMessagesToForward] = useState([]);
   const [collectedMessages, setCollectedMessages] = useState([]);
   const [showCollectedMessages, setShowCollectedMessages] = useState(false);
+  const [viewMode, setViewMode] = useState('conversation');
+  const [chatRooms, setChatRooms] = useState([]);
+  const [selectedChatRoom, setSelectedChatRoom] = useState(null);
 
   useEffect(() => {
     // Connect to WebSocket when component mounts
@@ -73,18 +80,43 @@ const ChatPage = () => {
       }
     });
 
+    listenSocketEvent('conversation:unread:update', (data) => {
+      setConversations((prev) => prev.map(c => c.id === data.conversationId ? { ...c, unread_count: data.unreadCount } : c));
+    });
+
+    listenSocketEvent('offline:messages', (payload) => {
+      const { conversationId, messages: offMsgs } = payload || {};
+      if (selectedConversation?.id === conversationId && Array.isArray(offMsgs)) {
+        setMessages((prev) => [...prev, ...offMsgs]);
+      }
+    });
+
+    listenSocketEvent('message:recall', ({ messageId, conversationId }) => {
+      if (!conversationId || (selectedConversation && conversationId !== selectedConversation.id)) return;
+      setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, content: '这条消息已被撤回', is_recalled: 1, recalled_at: new Date() } : m));
+    });
+
+    listenSocketEvent('message:delete', ({ messageId, conversationId }) => {
+      if (!conversationId || (selectedConversation && conversationId !== selectedConversation.id)) return;
+      setMessages((prev) => prev.filter(m => m.id !== messageId));
+    });
+
     // Clean up on component unmount
     return () => {
       disconnectSocket();
       removeSocketListener('message:receive');
       removeSocketListener('user:status');
       removeSocketListener('message:typing');
+      removeSocketListener('conversation:unread:update');
+      removeSocketListener('offline:messages');
+      removeSocketListener('message:recall');
+      removeSocketListener('message:delete');
     };
   }, [userId, token, selectedConversation]); // Add selectedConversation to dependencies
 
   const fetchConversations = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/chat/conversations`, {
+      const response = await axios.get(getApiUrl('/api/chat/conversations'), {
         params: { userId },
       });
       if (response.data.success) {
@@ -112,7 +144,7 @@ const ChatPage = () => {
   const fetchMessages = async (convId, limit, offset, append = false) => {
     setIsLoadingMessages(true);
     try {
-      const response = await axios.get(`http://localhost:3001/api/chat/conversations/${convId}/messages`, {
+      const response = await axios.get(getApiUrl(`/api/chat/conversations/${convId}/messages`), {
         params: { limit, offset },
       });
       if (response.data.success) {
@@ -132,6 +164,23 @@ const ChatPage = () => {
     }
   };
 
+  const fetchChatRooms = async () => {
+    try {
+      const response = await axios.get(getApiUrl('/api/chat/rooms'));
+      if (response.data.success) {
+        setChatRooms(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching chat rooms:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'rooms') {
+      fetchChatRooms();
+    }
+  }, [viewMode]);
+
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
     setMessages([]); // Clear previous messages
@@ -145,6 +194,22 @@ const ChatPage = () => {
     emitSocketEvent('message:read', { conversationId: conversation.id, readerId: userId, messageIds: messages.map(msg => msg.id) });
   };
 
+  const handleSelectChatRoom = (room) => {
+    setSelectedChatRoom(room);
+    setSelectedConversation(null);
+  };
+
+  const handleCreateChatRoom = async () => {
+    try {
+      const response = await axios.post(getApiUrl('/api/chat/rooms'), { name: `Room_${Date.now()}` });
+      if (response.data && response.data.success) {
+        fetchChatRooms();
+      }
+    } catch (e) {
+      console.error('Create room failed', e);
+    }
+  };
+
   const handleLoadMoreMessages = () => {
     if (selectedConversation && hasMoreMessages) {
       fetchMessages(selectedConversation.id, messageLimit, messageOffset, true);
@@ -153,6 +218,12 @@ const ChatPage = () => {
 
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState({}); // { userId: true/false }
+
+  const sensitiveKeywords = ['违规', '非法', '敏感'];
+  const containsSensitive = (text) => {
+    if (!text) return false;
+    return sensitiveKeywords.some((kw) => String(text).includes(kw));
+  };
 
   const handleSendMessage = (messageData) => {
     const messageToSend = {
@@ -163,12 +234,31 @@ const ChatPage = () => {
       ...messageData,
       created_at: new Date(),
     };
+    if (messageData.message_type === 'text' && containsSensitive(messageData.content)) {
+      setErrorMessage('消息可能包含敏感词，请确认后再发送');
+      return;
+    }
     emitSocketEvent('message:send', messageToSend);
     setMessages((prevMessages) => [...prevMessages, messageToSend]); // Optimistically add message to UI
     setIsTyping(false); // Reset typing status after sending message
     emitSocketEvent('message:typing', { conversationId: selectedConversation.id, userId, isTyping: false });
     setReplyToMessage(null); // Clear replyToMessage after sending
     setErrorMessage(null); // Clear any previous error messages
+  };
+
+  const handleSendRoomMessage = (messageData) => {
+    if (!selectedChatRoom) return;
+    const payload = {
+      room_id: selectedChatRoom.id,
+      sender_id: userId,
+      ...messageData,
+      created_at: new Date()
+    };
+    if (messageData.message_type === 'text' && containsSensitive(messageData.content)) {
+      setErrorMessage('消息可能包含敏感词，请确认后再发送');
+      return;
+    }
+    emitSocketEvent('room:message', payload);
   };
 
   const handleSearch = async (query) => {
@@ -179,7 +269,7 @@ const ChatPage = () => {
     }
 
     try {
-      const response = await axios.get(`http://localhost:3001/api/chat/messages/search`, {
+      const response = await axios.get(getApiUrl('/api/chat/messages/search'), {
         params: {
           query: query,
           conversationId: selectedConversation ? selectedConversation.id : null, // Search within current conversation or globally
@@ -205,7 +295,7 @@ const ChatPage = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('http://localhost:3001/api/upload', formData, {
+      const response = await axios.post(getApiUrl('/api/upload'), formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -241,7 +331,7 @@ const ChatPage = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('http://localhost:3001/api/upload', formData, {
+      const response = await axios.post(getApiUrl('/api/upload'), formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -285,7 +375,7 @@ const ChatPage = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('http://localhost:3001/api/upload', formData, {
+      const response = await axios.post(getApiUrl('/api/upload'), formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -323,7 +413,7 @@ const ChatPage = () => {
     }
 
     try {
-      const response = await axios.post(`http://localhost:3001/api/chat/messages/${messageId}/forward`, {
+      const response = await axios.post(getApiUrl(`/api/chat/messages/${messageId}/forward`), {
         targetConversationIds,
         senderId: userId,
       });
@@ -341,13 +431,35 @@ const ChatPage = () => {
     }
   };
 
+  const handleRecallMessage = async (messageId) => {
+    try {
+      const response = await axios.put(getApiUrl(`/api/chat/messages/${messageId}/recall`));
+      if (response.data && response.data.success) {
+        setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, content: '这条消息已被撤回', is_recalled: 1, recalled_at: new Date() } : m));
+      }
+    } catch (e) {
+      console.error('Recall message failed', e);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      const response = await axios.delete(getApiUrl(`/api/chat/messages/${messageId}`));
+      if (response.data && response.data.success) {
+        setMessages((prev) => prev.filter(m => m.id !== messageId));
+      }
+    } catch (e) {
+      console.error('Delete message failed', e);
+    }
+  };
+
   const handleClearHistory = async () => {
     if (!selectedConversation || !window.confirm('Are you sure you want to clear chat history for this conversation?')) {
       return;
     }
 
     try {
-      const response = await axios.delete(`http://localhost:3001/api/chat/conversations/${selectedConversation.id}/messages`);
+      const response = await axios.delete(getApiUrl(`/api/chat/conversations/${selectedConversation.id}/messages`));
       if (response.data.success) {
         setMessages([]); // Clear messages in UI
         console.log('Chat history cleared successfully.');
@@ -367,7 +479,7 @@ const ChatPage = () => {
       return;
     }
     try {
-      const response = await axios.post(`http://localhost:3001/api/chat/messages/${messageId}/collect`, { userId });
+      const response = await axios.post(getApiUrl(`/api/chat/messages/${messageId}/collect`), { userId });
       if (response.data.success) {
         console.log('Message collected successfully.');
         // Refresh collected messages list
@@ -388,7 +500,7 @@ const ChatPage = () => {
       return;
     }
     try {
-      const response = await axios.delete(`http://localhost:3001/api/chat/messages/${messageId}/uncollect`, { data: { userId } });
+      const response = await axios.delete(getApiUrl(`/api/chat/messages/${messageId}/uncollect`), { data: { userId } });
       if (response.data.success) {
         console.log('Message uncollected successfully.');
         // Refresh collected messages list
@@ -406,7 +518,7 @@ const ChatPage = () => {
   const fetchCollectedMessages = async () => {
     if (!userId) return;
     try {
-      const response = await axios.get(`http://localhost:3001/api/chat/collected-messages`, { params: { userId } });
+      const response = await axios.get(getApiUrl('/api/chat/collected-messages'), { params: { userId } });
       if (response.data.success) {
         setCollectedMessages(response.data.data);
       } else {
@@ -431,7 +543,7 @@ const ChatPage = () => {
   const renderMessage = (message, onReply, onForward, onCollect) => {
     const isSender = message.sender_id === userId;
     const isNew = message.created_at > new Date(Date.now() - 5000); // Consider messages less than 5 seconds old as new
-    const commonProps = { key: message.id, message, isSender, onReply, onForward, onCollect, isNew };
+    const commonProps = { key: message.id, message, isSender, onReply, onForward, onCollect, isNew, onRecall: handleRecallMessage, onDelete: handleDeleteMessage };
 
     switch (message.message_type) {
       case 'text':
@@ -457,37 +569,40 @@ const ChatPage = () => {
 
         <div className="flex flex-col md:flex-row h-full w-full overflow-x-hidden">
 
-          {/* Conversation List Sidebar */}
+          {/* Sidebar: Conversations or Rooms */}
 
-          <div className={`flex-shrink-0 ${selectedConversation ? 'hidden md:flex' : 'flex'} flex-col py-8 pl-6 pr-2 md:w-64 bg-white border-r border-gray-200`}>
+          <div className={`flex-shrink-0 ${selectedConversation || selectedChatRoom ? 'hidden md:flex' : 'flex'} flex-col py-8 pl-6 pr-2 md:w-64 bg-white border-r border-gray-200`}>
 
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
 
-              <h2 className="text-xl font-semibold text-gray-800">Chats</h2>
+              <h2 className="text-xl font-semibold text-gray-800">{viewMode === 'conversation' ? 'Chats' : 'Rooms'}</h2>
 
-              <button
-
-                onClick={() => setShowCollectedMessages(!showCollectedMessages)}
-
-                className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300"
-
-              >
-
-                {showCollectedMessages ? 'Hide Collected' : 'Show Collected'}
-
-              </button>
+              <div className="flex items-center">
+                <button
+                  onClick={() => setShowCollectedMessages(!showCollectedMessages)}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300"
+                >
+                  {showCollectedMessages ? 'Hide Collected' : 'Show Collected'}
+                </button>
+                <button
+                  onClick={() => setViewMode(viewMode === 'conversation' ? 'rooms' : 'conversation')}
+                  className="ml-2 px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
+                >
+                  {viewMode === 'conversation' ? 'Go Rooms' : 'Go Chats'}
+                </button>
+              </div>
 
             </div>
 
-            <ConversationList
-
-              conversations={conversations}
-
-              onSelectConversation={handleSelectConversation}
-
-              onSearch={handleSearch}
-
-            />
+            {viewMode === 'conversation' ? (
+              <ConversationList
+                conversations={conversations}
+                onSelectConversation={handleSelectConversation}
+                onSearch={handleSearch}
+              />
+            ) : (
+              <ChatRoomList chatRooms={chatRooms} onSelectChatRoom={handleSelectChatRoom} onCreateChatRoom={handleCreateChatRoom} />
+            )}
 
           </div>
 
@@ -495,7 +610,7 @@ const ChatPage = () => {
 
           {/* Chat Window */}
 
-          <div className={`flex flex-col flex-auto h-full p-6 ${selectedConversation ? 'flex' : 'hidden md:flex'}`}>
+          <div className={`flex flex-col flex-auto h-full p-6 ${(selectedConversation || selectedChatRoom) ? 'flex' : 'hidden md:flex'}`}>
 
             {errorMessage && (
 
@@ -515,13 +630,21 @@ const ChatPage = () => {
 
             )}
 
-            <div className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
-
-              <ChatWindow selectedConversation={selectedConversation} messages={messages} renderMessage={(message) => renderMessage(message, setReplyToMessage, handleForwardMessage, handleCollectMessage)} typingUsers={typingUsers} userId={userId} searchResults={searchResults} searchQuery={searchQuery} onReply={setReplyToMessage} onClearHistory={handleClearHistory} onLoadMoreMessages={handleLoadMoreMessages} hasMoreMessages={hasMoreMessages} isLoadingMessages={isLoadingMessages} />
-
-              <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} onImageUpload={handleImageUpload} onFileUpload={handleFileUpload} onVoiceRecord={handleVoiceRecord} onVideoUpload={handleVideoUpload} replyToMessage={replyToMessage} setReplyToMessage={setReplyToMessage} />
-
-            </div>
+            {selectedChatRoom ? (
+              <div className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
+                <ChatRoom selectedChatRoom={selectedChatRoom} onSendMessage={handleSendRoomMessage} onlineMembers={[]} />
+              </div>
+            ) : (
+              <div className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
+                {selectedConversation?.type === 'group' && (
+                  <div className="mb-2">
+                    <GroupInfo />
+                  </div>
+                )}
+                <ChatWindow selectedConversation={selectedConversation} messages={messages} renderMessage={(message) => renderMessage(message, setReplyToMessage, handleForwardMessage, handleCollectMessage)} typingUsers={typingUsers} userId={userId} searchResults={searchResults} searchQuery={searchQuery} onReply={setReplyToMessage} onClearHistory={handleClearHistory} onLoadMoreMessages={handleLoadMoreMessages} hasMoreMessages={hasMoreMessages} isLoadingMessages={isLoadingMessages} />
+                <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} onImageUpload={handleImageUpload} onFileUpload={handleFileUpload} onVoiceRecord={handleVoiceRecord} onVideoUpload={handleVideoUpload} replyToMessage={replyToMessage} setReplyToMessage={setReplyToMessage} />
+              </div>
+            )}
 
           </div>
 

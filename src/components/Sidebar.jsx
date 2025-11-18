@@ -1,5 +1,34 @@
 import React, { useState, useMemo } from 'react'
 import NotificationBadge from './NotificationBadge'
+import {
+  UserOutlined,
+  TeamOutlined,
+  ApartmentOutlined,
+  MessageOutlined,
+  ClockCircleOutlined,
+  HomeOutlined,
+  FileTextOutlined,
+  FormOutlined,
+  KeyOutlined,
+  SafetyOutlined,
+  BarChartOutlined,
+  LineChartOutlined,
+  SyncOutlined,
+  CalendarOutlined,
+  BellOutlined,
+  SearchOutlined,
+  FolderOpenOutlined,
+  DatabaseOutlined,
+  StarOutlined,
+  IdcardOutlined,
+  BookOutlined,
+  EyeOutlined,
+  FileSearchOutlined,
+  ThunderboltOutlined,
+  SendOutlined,
+  CheckCircleOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
 
 const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   const [expandedMenus, setExpandedMenus] = useState(['user', 'org'])
@@ -11,23 +40,116 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
       {
         id: 'user',
         label: '员工管理',
-        icon: '👥',
+        icon: <TeamOutlined />,
         children: [
-          { id: 'user-employee', label: '员工管理', icon: '👨‍💼' },
-          { id: 'user-changes', label: '变动记录', icon: '📋' },
-          { id: 'user-approval', label: '员工审核', icon: '✅' },
-          { id: 'user-reset-password', label: '重置密码', icon: '🔑' },
-          { id: 'user-permission', label: '权限管理', icon: '🔐', admin: true },
+          { id: 'user-employee', label: '员工管理', icon: <UserOutlined /> },
+          { id: 'user-changes', label: '变动记录', icon: <FileTextOutlined /> },
+          { id: 'user-approval', label: '员工审核', icon: <CheckCircleOutlined /> },
+          { id: 'user-reset-password', label: '重置密码', icon: <KeyOutlined /> },
+          { id: 'user-permission', label: '权限管理', icon: <SafetyOutlined />, admin: true },
         ],
       },
-      // ... (other menu items remain the same)
+      {
+        id: 'org',
+        label: '组织架构',
+        icon: <ApartmentOutlined />,
+        children: [
+          { id: 'org-department', label: '部门管理', icon: <ApartmentOutlined /> },
+          { id: 'org-position', label: '职位管理', icon: <IdcardOutlined /> },
+        ],
+      },
+      {
+        id: 'chat',
+        label: '聊天通讯',
+        icon: <MessageOutlined />,
+        children: [
+          { id: 'chat-message', label: '即时通讯', icon: <MessageOutlined /> },
+          { id: 'chat-group', label: '群组管理', icon: <TeamOutlined /> },
+        ],
+      },
+      {
+        id: 'attendance',
+        label: '考勤管理',
+        icon: <ClockCircleOutlined />,
+        children: [
+          { id: 'attendance-home', label: '考勤主页', icon: <HomeOutlined /> },
+          { id: 'attendance-records', label: '考勤记录', icon: <FileTextOutlined /> },
+          { id: 'attendance-leave-apply', label: '请假申请', icon: <FormOutlined /> },
+          { id: 'attendance-leave-records', label: '请假记录', icon: <FileTextOutlined /> },
+          { id: 'attendance-overtime-apply', label: '加班申请', icon: <FormOutlined /> },
+          { id: 'attendance-overtime-records', label: '加班记录', icon: <FileTextOutlined /> },
+          { id: 'attendance-makeup', label: '补卡申请', icon: <FormOutlined /> },
+          { id: 'attendance-stats', label: '考勤统计', icon: <BarChartOutlined /> },
+          { id: 'attendance-department', label: '部门考勤', icon: <ApartmentOutlined /> },
+          { id: 'attendance-department-stats', label: '部门考勤统计', icon: <LineChartOutlined /> },
+          { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined /> },
+          { id: 'attendance-schedule', label: '排班管理', icon: <CalendarOutlined /> },
+          { id: 'attendance-notifications', label: '考勤通知', icon: <BellOutlined /> },
+          { id: 'attendance-smart-schedule', label: '智能排班', icon: <ThunderboltOutlined /> },
+          { id: 'attendance-approval', label: '审批管理', icon: <CheckCircleOutlined /> },
+          { id: 'attendance-settings', label: '考勤设置', icon: <SettingOutlined /> },
+        ],
+      },
+      {
+        id: 'quality',
+        label: '质检管理',
+        icon: <SearchOutlined />,
+        children: [
+          { id: 'quality-session', label: '会话管理', icon: <MessageOutlined /> },
+          { id: 'quality-rule', label: '规则管理', icon: <FileSearchOutlined /> },
+          { id: 'quality-score', label: '质检评分', icon: <StarOutlined /> },
+          { id: 'quality-report', label: '质检报告', icon: <BarChartOutlined /> },
+          { id: 'quality-report-summary', label: '质检综合报告', icon: <LineChartOutlined /> },
+          { id: 'quality-case-library', label: '案例库', icon: <FolderOpenOutlined /> },
+          { id: 'quality-recommendation', label: '案例推荐', icon: <StarOutlined /> },
+        ],
+      },
+      {
+        id: 'knowledge',
+        label: '知识库',
+        icon: <BookOutlined />,
+        children: [
+          { id: 'knowledge-articles', label: '公共知识库', icon: <FileTextOutlined /> },
+          { id: 'knowledge-base', label: '知识库', icon: <DatabaseOutlined /> },
+          { id: 'my-knowledge', label: '我的知识库', icon: <StarOutlined /> },
+        ],
+      },
+      {
+        id: 'assessment',
+        label: '考核系统',
+        icon: <FormOutlined />,
+        children: [
+          { id: 'assessment-management', label: '考核管理', icon: <FormOutlined /> },
+          { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },
+        ],
+      },
+      {
+        id: 'statistics',
+        label: '统计分析',
+        icon: <BarChartOutlined />,
+        children: [
+          { id: 'statistics-overview', label: '总览', icon: <LineChartOutlined /> },
+          { id: 'statistics-employee', label: '员工统计', icon: <UserOutlined /> },
+          { id: 'statistics-department', label: '部门统计', icon: <ApartmentOutlined /> },
+          { id: 'statistics-viewing', label: '浏览统计', icon: <EyeOutlined /> },
+        ],
+      },
+      {
+        id: 'personal',
+        label: '个人中心',
+        icon: <UserOutlined />,
+        children: [
+          { id: 'personal-info', label: '个人信息', icon: <IdcardOutlined /> },
+        ],
+      },
       {
         id: 'notifications',
         label: '消息通知',
-        icon: '🔔',
+        icon: <BellOutlined />,
         children: [
-          { id: 'notification-center', label: '通知中心', icon: '✉️' },
-          { id: 'notification-management', label: '通知管理', icon: '🛠️', admin: true },
+          { id: 'notification-center', label: '通知中心', icon: <BellOutlined /> },
+          { id: 'notification-sender', label: '通知发送', icon: <SendOutlined />, admin: true },
+          { id: 'notification-settings', label: '通知设置', icon: <SettingOutlined /> },
         ],
       },
     ];
@@ -76,7 +198,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
 
         {/* 菜单 */}
         <nav className="space-y-1">
-          {allMenuItems.map(item => (
+          {menuItems.map(item => ( // Changed from allMenuItems to menuItems
             <div key={item.id}>
               {/* 一级菜单 */}
               <button

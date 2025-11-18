@@ -547,6 +547,199 @@ module.exports = async function (fastify, opts) {
     }
   })
 
+  // ==================== 追踪 API ====================
+
+  // 记录查看时长
+  fastify.post('/api/tracking/view-duration', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const { fileId, durationSeconds, type } = request.body
+      const userId = decoded.id
+
+      if (!fileId || durationSeconds === undefined || type === undefined) {
+        return reply.code(400).send({ success: false, message: '缺少必要的追踪数据 (fileId, durationSeconds, type)' })
+      }
+
+      await pool.query(
+        `INSERT INTO viewing_durations (file_id, duration_seconds, type, user_id)
+         VALUES (?, ?, ?, ?)`,
+        [fileId, durationSeconds, type, userId]
+      )
+
+      return { success: true, message: '查看时长已记录' }
+    } catch (error) {
+      console.error('记录查看时长失败:', error)
+      reply.code(500).send({ error: '记录查看时长失败' })
+    }
+  })
+
+  // ==================== 观看统计 API ====================
+
+  // 获取观看统计数据
+  fastify.get('/api/tracking/statistics', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const { departmentId, userId, page = 1, pageSize = 10 } = request.query
+      const limit = parseInt(pageSize);
+      const offset = (parseInt(page) - 1) * limit;
+
+      let baseQuery = `
+        FROM viewing_durations vd
+        JOIN users u ON vd.user_id = u.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        WHERE 1=1
+      `
+      const params = []
+
+      if (departmentId) {
+        baseQuery += ' AND u.department_id = ?'
+        params.push(departmentId)
+      }
+
+      if (userId) {
+        baseQuery += ' AND vd.user_id = ?'
+        params.push(userId)
+      }
+
+      // Get total count
+      const [countRows] = await pool.query(`SELECT COUNT(DISTINCT vd.user_id) AS total ${baseQuery}`, params);
+      const totalItems = countRows[0].total;
+
+      let dataQuery = `
+        SELECT
+          vd.user_id,
+          u.real_name AS user_name,
+          u.department_id,
+          d.name AS department_name,
+          SUM(vd.duration_seconds) AS total_view_duration_seconds,
+          COUNT(DISTINCT vd.file_id) AS unique_files_viewed
+        ${baseQuery}
+        GROUP BY vd.user_id, u.real_name, u.department_id, d.name
+        ORDER BY total_view_duration_seconds DESC
+        LIMIT ? OFFSET ?
+      `
+      const dataParams = [...params, limit, offset];
+
+      const [rows] = await pool.query(dataQuery, dataParams)
+
+      return reply.code(200).send({
+        success: true,
+        message: '观看统计数据获取成功',
+        data: rows,
+        totalItems,
+        currentPage: parseInt(page),
+        pageSize: limit,
+        totalPages: Math.ceil(totalItems / limit)
+      })
+    } catch (error) {
+      console.error('获取观看统计数据失败:', error)
+      reply.code(500).send({ error: '获取观看统计数据失败' })
+    }
+  })
+
+  // 导出观看统计数据到 Excel
+  fastify.get('/api/tracking/export-excel', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const { departmentId, userId } = request.query
+
+      let query = `
+        SELECT
+          vd.user_id,
+          u.real_name AS user_name,
+          u.department_id,
+          d.name AS department_name,
+          SUM(vd.duration_seconds) AS total_view_duration_seconds,
+          COUNT(DISTINCT vd.file_id) AS unique_files_viewed
+        FROM viewing_durations vd
+        JOIN users u ON vd.user_id = u.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        WHERE 1=1
+      `
+      const params = []
+
+      if (departmentId) {
+        query += ' AND u.department_id = ?'
+        params.push(departmentId)
+      }
+
+      if (userId) {
+        query += ' AND vd.user_id = ?'
+        params.push(userId)
+      }
+
+      query += `
+        GROUP BY vd.user_id, u.real_name, u.department_id, d.name
+        ORDER BY total_view_duration_seconds DESC
+      `
+
+      const [rows] = await pool.query(query, params)
+
+      // Generate Excel file
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('观看统计');
+
+      // Add headers
+      worksheet.columns = [
+        { header: '用户ID', key: 'user_id', width: 10 },
+        { header: '用户姓名', key: 'user_name', width: 20 },
+        { header: '部门ID', key: 'department_id', width: 10 },
+        { header: '部门名称', key: 'department_name', width: 20 },
+        { header: '总观看时长 (秒)', key: 'total_view_duration_seconds', width: 20 },
+        { header: '独立观看文件数', key: 'unique_files_viewed', width: 20 },
+      ];
+
+      // Add data rows
+      worksheet.addRows(rows);
+
+      // Set response headers for Excel download
+      reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      reply.header('Content-Disposition', 'attachment; filename="viewing_statistics.xlsx"');
+
+      // Write workbook to buffer and send as response
+      const buffer = await workbook.xlsx.writeBuffer();
+      return reply.send(buffer);
+
+    } catch (error) {
+      console.error('导出观看统计数据失败:', error)
+      reply.code(500).send({ error: '导出观看统计数据失败' })
+    }
+  })
+
   // ==================== 学习统计 API ====================
 
   // 获取学习统计

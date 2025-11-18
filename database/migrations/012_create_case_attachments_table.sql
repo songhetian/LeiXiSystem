@@ -1,4 +1,6 @@
 
+DROP TABLE IF EXISTS case_attachments;
+
 CREATE TABLE case_attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     case_id INT NOT NULL COMMENT '案例ID',

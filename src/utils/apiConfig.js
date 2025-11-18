@@ -1,6 +1,6 @@
 // API配置工具
 export const getApiBaseUrl = () => {
-  return import.meta.env.VITE_API_BASE_URL || 'http://192.168.2.31/api'
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 }
 
 

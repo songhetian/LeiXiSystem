@@ -229,7 +229,7 @@ module.exports = async function (fastify, opts) {
             }
 
             const [result] = await pool.query(
-                `INSERT INTO quality_rules (rule_name, category, JSON_UNQUOTE(scoring_standard), weight, is_enabled)
+                `INSERT INTO quality_rules (rule_name, category, scoring_standard, weight, is_enabled)
                  VALUES (?, ?, ?, ?, ?)`,
                 [rule_name, category, JSON.stringify(scoring_standard), weight, is_enabled]
             );
@@ -523,6 +523,311 @@ module.exports = async function (fastify, opts) {
         }
     });
 
+
+    // POST /api/quality/cases - Create case
+    fastify.post('/api/quality/cases', async (request, reply) => {
+        const { title, category, description, problem_description, solution, is_excellent, difficulty_level, priority, session_id } = request.body;
+        try {
+            if (!title || !category || !problem_description || !solution) {
+                return reply.code(400).send({ success: false, message: 'Title, category, problem description, and solution are required.' });
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO quality_cases (title, category, description, problem_description, solution, is_excellent, difficulty_level, priority, session_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [title, category, description, problem_description, solution, is_excellent, difficulty_level, priority, session_id]
+            );
+            return { success: true, id: result.insertId };
+        } catch (error) {
+            console.error('Error creating quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to create quality case.' });
+        }
+    });
+
+
+    // GET /api/quality/cases - Get case list (with filtering)
+    fastify.get('/api/quality/cases', async (request, reply) => {
+        const { page = 1, pageSize = 10, search = '', category, difficulty, tag, sortBy = 'created_at', sortOrder = 'desc' } = request.query;
+        const offset = (page - 1) * pageSize;
+
+        let query = `
+            SELECT
+                qc.*,
+                qs.session_code
+            FROM quality_cases qc
+            LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (search) {
+            query += ` AND (qc.title LIKE ? OR qc.description LIKE ? OR qc.problem_description LIKE ? OR qc.solution LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+        }
+        if (category) {
+            query += ` AND qc.category = ?`;
+            params.push(category);
+        }
+        if (difficulty) {
+            query += ` AND qc.difficulty_level = ?`;
+            params.push(difficulty);
+        }
+        // Tag filtering would require joining with case_tags and tags tables, which is more complex.
+        // For now, we'll skip direct tag filtering in the main query to keep it simpler.
+
+        // Get total count
+        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM quality_cases qc LEFT JOIN quality_sessions qs ON qc.session_id = qs.id WHERE 1=1 ${query.split('WHERE 1=1')[1]}`, params);
+        const total = countResult[0].total;
+
+        query += ` ORDER BY qc.${sortBy} ${sortOrder.toUpperCase()} LIMIT ? OFFSET ?`;
+        params.push(parseInt(pageSize), parseInt(offset));
+
+        try {
+            const [rows] = await pool.query(query, params);
+            return {
+                success: true,
+                data: rows,
+                pagination: {
+                    page: parseInt(page),
+                    pageSize: parseInt(pageSize),
+                    total,
+                    totalPages: Math.ceil(total / pageSize)
+                }
+            };
+        } catch (error) {
+            console.error('Error fetching quality cases:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch quality cases.' });
+        }
+    });
+
+
+    // GET /api/quality/cases/:id - Get case details
+    fastify.get('/api/quality/cases/:id', async (request, reply) => {
+        const { id } = request.params;
+        try {
+            const [rows] = await pool.query(
+                `SELECT
+                    qc.*,
+                    qs.session_code
+                FROM quality_cases qc
+                LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
+                WHERE qc.id = ?`,
+                [id]
+            );
+            if (rows.length === 0) {
+                return reply.code(404).send({ success: false, message: 'Quality case not found.' });
+            }
+            return { success: true, data: rows[0] };
+        } catch (error) {
+            console.error('Error fetching quality case details:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch quality case details.' });
+        }
+    });
+
+
+    // PUT /api/quality/cases/:id - Update case
+    fastify.put('/api/quality/cases/:id', async (request, reply) => {
+        const { id } = request.params;
+        const { title, category, description, problem_description, solution, is_excellent, difficulty_level, priority, session_id } = request.body;
+        try {
+            const [result] = await pool.query(
+                `UPDATE quality_cases SET
+                    title = ?,
+                    category = ?,
+                    description = ?,
+                    problem_description = ?,
+                    solution = ?,
+                    is_excellent = ?,
+                    difficulty_level = ?,
+                    priority = ?,
+                    session_id = ?
+                 WHERE id = ?`,
+                [title, category, description, problem_description, solution, is_excellent, difficulty_level, priority, session_id, id]
+            );
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Quality case not found.' });
+            }
+            return { success: true, message: 'Quality case updated successfully.' };
+        } catch (error) {
+            console.error('Error updating quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to update quality case.' });
+        }
+    });
+
+
+    // POST /api/quality/cases/:id/comments - Add comment
+    fastify.post('/api/quality/cases/:id/comments', async (request, reply) => {
+        const { id } = request.params; // case_id
+        const { user_id, comment_text } = request.body;
+        try {
+            if (!user_id || !comment_text) {
+                return reply.code(400).send({ success: false, message: 'User ID and comment text are required.' });
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO case_comments (case_id, user_id, comment_text)
+                 VALUES (?, ?, ?)`,
+                [id, user_id, comment_text]
+            );
+            return { success: true, id: result.insertId };
+        } catch (error) {
+            console.error('Error adding comment to quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to add comment to quality case.' });
+        }
+    });
+
+
+    // GET /api/quality/cases/:id/comments - Get comment list
+    fastify.get('/api/quality/cases/:id/comments', async (request, reply) => {
+        const { id } = request.params; // case_id
+        try {
+            const [rows] = await pool.query(
+                `SELECT cc.*, u.real_name as user_name
+                 FROM case_comments cc
+                 LEFT JOIN users u ON cc.user_id = u.id
+                 WHERE cc.case_id = ?
+                 ORDER BY cc.created_at DESC`,
+                [id]
+            );
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching comments for quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch comments for quality case.' });
+        }
+    });
+
+
+    // PUT /api/quality/comments/:id - Modify comment
+    fastify.put('/api/quality/comments/:id', async (request, reply) => {
+        const { id } = request.params; // comment_id
+        const { comment_content } = request.body;
+        try {
+            const [result] = await pool.query(
+                `UPDATE case_comments SET
+                    comment_content = ?
+                 WHERE id = ?`,
+                [comment_content, id]
+            );
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Comment not found.' });
+            }
+            return { success: true, message: 'Comment updated successfully.' };
+        } catch (error) {
+            console.error('Error updating comment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to update comment.' });
+        }
+    });
+
+
+    // DELETE /api/quality/comments/:id - Delete comment
+    fastify.delete('/api/quality/comments/:id', async (request, reply) => {
+        const { id } = request.params; // comment_id
+        try {
+            const [result] = await pool.query('DELETE FROM case_comments WHERE id = ?', [id]);
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Comment not found.' });
+            }
+            return { success: true, message: 'Comment deleted successfully.' };
+        } catch (error) {
+            console.error('Error deleting comment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete comment.' });
+        }
+    });
+
+
+    // POST /api/quality/comments/:id/like - Like comment
+    fastify.post('/api/quality/comments/:id/like', async (request, reply) => {
+        const { id } = request.params; // comment_id
+        try {
+            const [result] = await pool.query(
+                'UPDATE case_comments SET likes = likes + 1 WHERE id = ?',
+                [id]
+            );
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Comment not found.' });
+            }
+            return { success: true, message: 'Comment liked successfully.' };
+        } catch (error) {
+            console.error('Error liking comment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to like comment.' });
+        }
+    });
+
+
+    // POST /api/quality/cases/:id/attachments - Upload attachment
+    fastify.post('/api/quality/cases/:id/attachments', async (request, reply) => {
+        const { id } = request.params; // case_id
+        const { file_name, file_type, file_size, file_url } = request.body; // Assuming metadata is sent in body for simplicity
+        try {
+            if (!file_name || !file_type || !file_url) {
+                return reply.code(400).send({ success: false, message: 'File name, type, and URL are required.' });
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO case_attachments (case_id, file_name, file_type, file_size, file_url)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [id, file_name, file_type, file_size, file_url]
+            );
+            return { success: true, id: result.insertId };
+        } catch (error) {
+            console.error('Error uploading attachment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to upload attachment.' });
+        }
+    });
+
+
+    // GET /api/quality/cases/:id/attachments - Get attachment list
+    fastify.get('/api/quality/cases/:id/attachments', async (request, reply) => {
+        const { id } = request.params; // case_id
+        try {
+            const [rows] = await pool.query(
+                `SELECT * FROM case_attachments WHERE case_id = ? ORDER BY uploaded_at DESC`,
+                [id]
+            );
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching attachments for quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch attachments for quality case.' });
+        }
+    });
+
+
+    // DELETE /api/quality/attachments/:id - Delete attachment
+    fastify.delete('/api/quality/attachments/:id', async (request, reply) => {
+        const { id } = request.params; // attachment_id
+        try {
+            const [result] = await pool.query('DELETE FROM case_attachments WHERE id = ?', [id]);
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Attachment not found.' });
+            }
+            return { success: true, message: 'Attachment deleted successfully.' };
+        } catch (error) {
+            console.error('Error deleting attachment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete attachment.' });
+        }
+    });
+
+    // GET /api/quality/attachments/:id/download - Download attachment
+    fastify.get('/api/quality/attachments/:id/download', async (request, reply) => {
+        const { id } = request.params; // attachment_id
+        try {
+            const [rows] = await pool.query(
+                `SELECT file_url, file_name FROM case_attachments WHERE id = ?`,
+                [id]
+            );
+            if (rows.length === 0) {
+                return reply.code(404).send({ success: false, message: 'Attachment not found.' });
+            }
+            const attachment = rows[0];
+            // In a real application, you would stream the file from storage (e.g., S3, local disk)
+            // For this example, we'll just redirect to the file_url or return it.
+            reply.redirect(attachment.file_url); // Or reply.send({ file_url: attachment.file_url, file_name: attachment.file_name });
+        } catch (error) {
+            console.error('Error downloading attachment:', error);
+            reply.code(500).send({ success: false, message: 'Failed to download attachment.' });
+        }
+    });
+
     // DELETE /api/quality/cases/:id - Delete case
     fastify.delete('/api/quality/cases/:id', async (request, reply) => {
         const { id } = request.params;
@@ -580,6 +885,374 @@ module.exports = async function (fastify, opts) {
         } catch (error) {
             console.error('Error fetching recommended quality cases:', error);
             reply.code(500).send({ success: false, message: 'Failed to fetch recommended quality cases.' });
+        }
+    });
+
+    // POST /api/quality/cases/:id/favorite - Add case to favorites
+    fastify.post('/api/quality/cases/:id/favorite', async (request, reply) => {
+        const { id: case_id } = request.params;
+        const { user_id } = request.body; // Assuming user_id is sent in body or obtained from auth
+        try {
+            if (!user_id) {
+                return reply.code(400).send({ success: false, message: 'User ID is required.' });
+            }
+            const [result] = await pool.query(
+                `INSERT INTO user_case_favorites (user_id, case_id)
+                 VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE created_at = created_at`, // Do nothing if already exists
+                [user_id, case_id]
+            );
+            return { success: true, message: 'Case added to favorites.' };
+        } catch (error) {
+            console.error('Error adding case to favorites:', error);
+            reply.code(500).send({ success: false, message: 'Failed to add case to favorites.' });
+        }
+    });
+
+    // DELETE /api/quality/cases/:id/favorite - Remove case from favorites
+    fastify.delete('/api/quality/cases/:id/favorite', async (request, reply) => {
+        const { id: case_id } = request.params;
+        const { user_id } = request.body; // Assuming user_id is sent in body or obtained from auth
+        try {
+            if (!user_id) {
+                return reply.code(400).send({ success: false, message: 'User ID is required.' });
+            }
+            const [result] = await pool.query(
+                'DELETE FROM user_case_favorites WHERE user_id = ? AND case_id = ?',
+                [user_id, case_id]
+            );
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Favorite not found or already removed.' });
+            }
+            return { success: true, message: 'Case removed from favorites.' };
+        } catch (error) {
+            console.error('Error removing case from favorites:', error);
+            reply.code(500).send({ success: false, message: 'Failed to remove case from favorites.' });
+        }
+    });
+
+    // GET /api/quality/users/:userId/favorites - Get user's favorite cases
+    fastify.get('/api/quality/users/:userId/favorites', async (request, reply) => {
+        const { userId } = request.params;
+        const { page = 1, pageSize = 10, search = '', category, difficulty } = request.query;
+        const offset = (page - 1) * pageSize;
+
+        let query = `
+            SELECT
+                qc.*,
+                qs.session_code,
+                ucf.created_at as favorited_at
+            FROM user_case_favorites ucf
+            JOIN quality_cases qc ON ucf.case_id = qc.id
+            LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
+            WHERE ucf.user_id = ?
+        `;
+        const params = [userId];
+
+        if (search) {
+            query += ` AND (qc.title LIKE ? OR qc.description LIKE ? OR qc.problem_description LIKE ? OR qc.solution LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+        }
+        if (category) {
+            query += ` AND qc.category = ?`;
+            params.push(category);
+        }
+        if (difficulty) {
+            query += ` AND qc.difficulty_level = ?`;
+            params.push(difficulty);
+        }
+
+        // Get total count
+        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM user_case_favorites ucf JOIN quality_cases qc ON ucf.case_id = qc.id WHERE ucf.user_id = ? ${query.split('WHERE ucf.user_id = ?')[1]}`, params);
+        const total = countResult[0].total;
+
+        query += ` ORDER BY ucf.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(pageSize), parseInt(offset));
+
+        try {
+            const [rows] = await pool.query(query, params);
+            return {
+                success: true,
+                data: rows,
+                pagination: {
+                    page: parseInt(page),
+                    pageSize: parseInt(pageSize),
+                    total,
+                    totalPages: Math.ceil(total / pageSize)
+                }
+            };
+        } catch (error) {
+            console.error('Error fetching user favorite cases:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch user favorite cases.' });
+        }
+    });
+
+    // POST /api/quality/cases/:id/learn/start - Record start of learning for a case
+    fastify.post('/api/quality/cases/:id/learn/start', async (request, reply) => {
+        const { id: case_id } = request.params;
+        const { user_id } = request.body;
+        try {
+            if (!user_id) {
+                return reply.code(400).send({ success: false, message: 'User ID is required.' });
+            }
+            // Check if an active learning session already exists for this user and case
+            const [existingRecord] = await pool.query(
+                'SELECT id FROM case_learning_records WHERE user_id = ? AND case_id = ? AND end_time IS NULL',
+                [user_id, case_id]
+            );
+
+            if (existingRecord.length > 0) {
+                return reply.code(200).send({ success: true, message: 'Learning session already active.', id: existingRecord[0].id });
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO case_learning_records (user_id, case_id, start_time)
+                 VALUES (?, ?, NOW())`,
+                [user_id, case_id]
+            );
+            return { success: true, id: result.insertId, message: 'Learning session started.' };
+        } catch (error) {
+            console.error('Error starting learning session:', error);
+            reply.code(500).send({ success: false, message: 'Failed to start learning session.' });
+        }
+    });
+
+    // PUT /api/quality/cases/:id/learn/end - Record end of learning for a case
+    fastify.put('/api/quality/cases/:id/learn/end', async (request, reply) => {
+        const { id: case_id } = request.params;
+        const { user_id, progress_percentage } = request.body;
+        try {
+            if (!user_id) {
+                return reply.code(400).send({ success: false, message: 'User ID is required.' });
+            }
+
+            const [record] = await pool.query(
+                'SELECT id, start_time FROM case_learning_records WHERE user_id = ? AND case_id = ? AND end_time IS NULL',
+                [user_id, case_id]
+            );
+
+            if (record.length === 0) {
+                return reply.code(404).send({ success: false, message: 'Active learning session not found for this case and user.' });
+            }
+
+            const learningRecordId = record[0].id;
+            const startTime = record[0].start_time;
+            const endTime = new Date();
+            const durationSeconds = Math.floor((endTime.getTime() - new Date(startTime).getTime()) / 1000);
+
+            const [result] = await pool.query(
+                `UPDATE case_learning_records SET
+                    end_time = ?,
+                    duration_seconds = ?,
+                    progress_percentage = ?
+                 WHERE id = ?`,
+                [endTime, durationSeconds, progress_percentage || 100, learningRecordId]
+            );
+            return { success: true, message: 'Learning session ended and updated.' };
+        } catch (error) {
+            console.error('Error ending learning session:', error);
+            reply.code(500).send({ success: false, message: 'Failed to end learning session.' });
+        }
+    });
+
+    // GET /api/quality/users/:userId/learning-records - Get user's learning records
+    fastify.get('/api/quality/users/:userId/learning-records', async (request, reply) => {
+        const { userId } = request.params;
+        const { page = 1, pageSize = 10, search = '', category, difficulty } = request.query;
+        const offset = (page - 1) * pageSize;
+
+        let query = `
+            SELECT
+                clr.*,
+                qc.title,
+                qc.category,
+                qc.difficulty_level,
+                qc.description
+            FROM case_learning_records clr
+            JOIN quality_cases qc ON clr.case_id = qc.id
+            WHERE clr.user_id = ?
+        `;
+        const params = [userId];
+
+        if (search) {
+            query += ` AND (qc.title LIKE ? OR qc.description LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`);
+        }
+        if (category) {
+            query += ` AND qc.category = ?`;
+            params.push(category);
+        }
+        if (difficulty) {
+            query += ` AND qc.difficulty_level = ?`;
+            params.push(difficulty);
+        }
+
+        // Get total count
+        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM case_learning_records clr JOIN quality_cases qc ON clr.case_id = qc.id WHERE clr.user_id = ? ${query.split('WHERE clr.user_id = ?')[1]}`, params);
+        const total = countResult[0].total;
+
+        query += ` ORDER BY clr.updated_at DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(pageSize), parseInt(offset));
+
+        try {
+            const [rows] = await pool.query(query, params);
+            return {
+                success: true,
+                data: rows,
+                pagination: {
+                    page: parseInt(page),
+                    pageSize: parseInt(pageSize),
+                    total,
+                    totalPages: Math.ceil(total / pageSize)
+                }
+            };
+        } catch (error) {
+            console.error('Error fetching user learning records:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch user learning records.' });
+        }
+    });
+
+    // Helper function to convert array of objects to CSV string
+    const convertToCsv = (data) => {
+        if (data.length === 0) return '';
+        const headers = Object.keys(data[0]);
+        const csvRows = [
+            headers.join(','), // Header row
+            ...data.map(row => headers.map(fieldName => JSON.stringify(row[fieldName])).join(',')) // Data rows
+        ];
+        return csvRows.join('\n');
+    };
+
+    // GET /api/quality/export/sessions - Export quality session data
+    fastify.get('/api/quality/export/sessions', async (request, reply) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT
+                    qs.id,
+                    qs.session_code,
+                    u.real_name as customer_service_name,
+                    qs.customer_info,
+                    qs.communication_channel,
+                    qs.duration,
+                    qs.message_count,
+                    qs.quality_status,
+                    qs.score,
+                    qs.grade,
+                    qs.created_at,
+                    qs.updated_at
+                FROM quality_sessions qs
+                LEFT JOIN users u ON qs.customer_service_id = u.id
+                ORDER BY qs.created_at DESC
+            `);
+
+            const csv = convertToCsv(rows);
+            reply.header('Content-Type', 'text/csv');
+            reply.header('Content-Disposition', 'attachment; filename="quality_sessions.csv"');
+            return reply.send(csv);
+        } catch (error) {
+            console.error('Error exporting quality sessions:', error);
+            reply.code(500).send({ success: false, message: 'Failed to export quality sessions.' });
+        }
+    });
+
+    // GET /api/quality/export/cases - Export quality case data
+    fastify.get('/api/quality/export/cases', async (request, reply) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT
+                    qc.id,
+                    qc.title,
+                    qc.category,
+                    qc.description,
+                    qc.problem_description,
+                    qc.solution,
+                    qc.is_excellent,
+                    qc.difficulty_level,
+                    qc.priority,
+                    qc.session_id,
+                    qc.views,
+                    qc.likes,
+                    qc.created_at,
+                    qc.updated_at
+                FROM quality_cases qc
+                ORDER BY qc.created_at DESC
+            `);
+
+            const csv = convertToCsv(rows);
+            reply.header('Content-Type', 'text/csv');
+            reply.header('Content-Disposition', 'attachment; filename="quality_cases.csv"');
+            return reply.send(csv);
+        } catch (error) {
+            console.error('Error exporting quality cases:', error);
+            reply.code(500).send({ success: false, message: 'Failed to export quality cases.' });
+        }
+    });
+
+    // GET /api/quality/reports/summary - Generate summary quality report
+    fastify.get('/api/quality/reports/summary', async (request, reply) => {
+        try {
+            // Total sessions
+            const [totalSessionsResult] = await pool.query('SELECT COUNT(*) as total FROM quality_sessions');
+            const totalSessions = totalSessionsResult[0].total;
+
+            // Average score
+            const [avgScoreResult] = await pool.query('SELECT AVG(score) as average FROM quality_sessions WHERE score IS NOT NULL');
+            const averageScore = avgScoreResult[0].average || 0;
+
+            // Sessions by status
+            const [statusDistribution] = await pool.query('SELECT quality_status, COUNT(*) as count FROM quality_sessions GROUP BY quality_status');
+
+            // Top N customer service by average score
+            const [topCustomerService] = await pool.query(`
+                SELECT
+                    u.real_name as customer_service_name,
+                    AVG(qs.score) as average_score,
+                    COUNT(qs.id) as total_sessions
+                FROM quality_sessions qs
+                LEFT JOIN users u ON qs.customer_service_id = u.id
+                WHERE qs.score IS NOT NULL
+                GROUP BY u.real_name
+                ORDER BY average_score DESC
+                LIMIT 5
+            `);
+
+            // Most viewed cases
+            const [mostViewedCases] = await pool.query(`
+                SELECT id, title, view_count FROM quality_cases ORDER BY view_count DESC LIMIT 5
+            `);
+
+            // Most liked cases
+            const [mostLikedCases] = await pool.query(`
+                SELECT id, title, like_count FROM quality_cases ORDER BY like_count DESC LIMIT 5
+            `);
+
+            // Rule compliance (example: count of sessions where a rule was scored)
+            const [ruleCompliance] = await pool.query(`
+                SELECT
+                    qr.rule_name,
+                    COUNT(DISTINCT qs.session_id) as sessions_scored,
+                    AVG(qs.score) as average_rule_score
+                FROM quality_scores qs
+                JOIN quality_rules qr ON qs.rule_id = qr.id
+                GROUP BY qr.rule_name
+                ORDER BY sessions_scored DESC
+            `);
+
+            return {
+                success: true,
+                data: {
+                    totalSessions,
+                    averageScore,
+                    statusDistribution,
+                    topCustomerService,
+                    mostViewedCases,
+                    mostLikedCases,
+                    ruleCompliance
+                }
+            };
+        } catch (error) {
+            console.error('Error generating summary quality report:', error);
+            reply.code(500).send({ success: false, message: 'Failed to generate summary quality report.' });
         }
     });
 };

@@ -1,4 +1,4 @@
-CREATE TABLE notification_recipients (
+CREATE TABLE IF NOT EXISTS notification_recipients (
     id INT AUTO_INCREMENT PRIMARY KEY,
     notification_id INT NOT NULL,
     user_id INT NOT NULL,

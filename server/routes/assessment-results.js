@@ -337,4 +337,1324 @@ module.exports = async function (fastify, opts) {
       })
     }
   })
+
+  // 获取考试进度
+  // GET /api/assessment-results/:id
+  // 参数：id (assessment_result_id)
+  // 验证用户权限（只能查看自己的）
+  // 返回考试基本信息
+  // 返回已保存的答案
+  // 计算剩余时间
+  // 返回答题进度
+  fastify.get('/api/assessment-results/:id', async (request, reply) => {
+    try {
+      // 验证用户身份
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const userId = decoded.id
+      const resultId = parseInt(request.params.id)
+
+      // 验证 resultId 格式
+      if (isNaN(resultId) || resultId <= 0) {
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
+      }
+
+      // 获取考核结果信息
+      const [resultRows] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.plan_id,
+          ar.exam_id,
+          ar.user_id,
+          ar.attempt_number,
+          ar.start_time,
+          ar.submit_time,
+          ar.status,
+          ap.title as plan_title,
+          ap.max_attempts,
+          ap.duration as plan_duration,
+          e.title as exam_title,
+          e.duration as exam_duration,
+          e.total_score,
+          e.pass_score,
+          e.question_count
+        FROM assessment_results ar
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        INNER JOIN exams e ON ar.exam_id = e.id
+        WHERE ar.id = ?`,
+        [resultId]
+      )
+
+      if (resultRows.length === 0) {
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+
+      const result = resultRows[0]
+
+      // 权限验证：只能查看自己的或管理员可以查看
+      if (result.user_id !== userId && decoded.role !== 'admin') { // Assuming 'admin' role for administrators
+        return reply.code(403).send({ success: false, message: '无权查看此考核结果' })
+      }
+
+      // 获取已保存的答案
+      const [answerRows] = await pool.query(
+        `SELECT
+          question_id,
+          user_answer
+        FROM answer_records
+        WHERE assessment_result_id = ?`,
+        [resultId]
+      )
+
+      const savedAnswers = answerRows.reduce((acc, curr) => {
+        acc[curr.question_id] = curr.user_answer
+        return acc
+      }, {})
+
+      // 计算剩余时间
+      let remainingTime = 0 // seconds
+      const now = new Date()
+      const startTime = new Date(result.start_time)
+      const examDurationSeconds = (result.exam_duration || result.plan_duration) * 60 // Use exam duration if available, else plan duration
+
+      if (result.status === 'in_progress') {
+        const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
+        remainingTime = Math.max(0, examDurationSeconds - elapsedSeconds)
+      }
+
+      // 获取试卷题目（不含 correct_answer 和 explanation）
+      const [questions] = await pool.query(
+        `SELECT
+          id,
+          exam_id,
+          type,
+          content,
+          options,
+          score,
+          order_num
+        FROM questions
+        WHERE exam_id = ?
+        ORDER BY order_num ASC`,
+        [result.exam_id]
+      )
+
+      // 格式化题目数据
+      const formattedQuestions = questions.map(q => {
+        let parsedOptions = null
+        if (q.options) {
+          try {
+            parsedOptions = JSON.parse(q.options)
+          } catch (error) {
+            console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
+            parsedOptions = q.options
+          }
+        }
+
+        return {
+          id: q.id,
+          exam_id: q.exam_id,
+          type: q.type,
+          content: q.content,
+          options: parsedOptions,
+          score: parseFloat(q.score),
+          order_num: q.order_num
+        }
+      })
+
+      return {
+        success: true,
+        message: '获取考试进度成功',
+        data: {
+          result_id: result.id,
+          plan_id: result.plan_id,
+          plan_title: result.plan_title,
+          exam_id: result.exam_id,
+          exam_title: result.exam_title,
+          user_id: result.user_id,
+          attempt_number: result.attempt_number,
+          max_attempts: result.max_attempts,
+          start_time: result.start_time,
+          submit_time: result.submit_time,
+          status: result.status,
+          duration: result.exam_duration || result.plan_duration, // minutes
+          total_score: parseFloat(result.total_score),
+          pass_score: parseFloat(result.pass_score),
+          question_count: result.question_count,
+          remaining_time: remainingTime, // seconds
+          questions: formattedQuestions,
+          saved_answers: savedAnswers
+        }
+      }
+    } catch (error) {
+      console.error('获取考试进度失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '获取考试进度失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
+
+  // 保存答案
+  // PUT /api/assessment-results/:id/answer
+  // 参数：question_id, user_answer
+  // 验证考试状态（in_progress）
+  // 验证考试时间（未超时）
+  // 创建或更新 answer_records
+  // 自动保存，不评分
+  // 返回保存状态
+  fastify.put('/api/assessment-results/:id/answer', async (request, reply) => {
+    try {
+      // 验证用户身份
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const userId = decoded.id
+      const resultId = parseInt(request.params.id)
+      const { question_id, user_answer } = request.body
+
+      // 验证必填字段
+      if (!question_id || user_answer === undefined) {
+        return reply.code(400).send({ success: false, message: '缺少必填字段：question_id 或 user_answer' })
+      }
+
+      // 验证 resultId 和 question_id 格式
+      if (isNaN(resultId) || resultId <= 0 || isNaN(question_id) || question_id <= 0) {
+        return reply.code(400).send({ success: false, message: '考核结果ID或题目ID无效' })
+      }
+
+      // 获取考核结果信息
+      const [resultRows] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.plan_id,
+          ar.exam_id,
+          ar.user_id,
+          ar.start_time,
+          ar.status,
+          e.duration as exam_duration,
+          ap.duration as plan_duration
+        FROM assessment_results ar
+        INNER JOIN exams e ON ar.exam_id = e.id
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        WHERE ar.id = ?`,
+        [resultId]
+      )
+
+      if (resultRows.length === 0) {
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+
+      const result = resultRows[0]
+
+      // 权限验证：只能保存自己的答案
+      if (result.user_id !== userId) {
+        return reply.code(403).send({ success: false, message: '无权保存此考核结果的答案' })
+      }
+
+      // 验证考试状态（in_progress）
+      if (result.status !== 'in_progress') {
+        return reply.code(400).send({ success: false, message: `考试状态为 ${result.status}，无法保存答案` })
+      }
+
+      // 验证考试时间（未超时）
+      const now = new Date()
+      const startTime = new Date(result.start_time)
+      const examDurationSeconds = (result.exam_duration || result.plan_duration) * 60 // Use exam duration if available, else plan duration
+      const examEndTime = new Date(startTime.getTime() + examDurationSeconds * 1000)
+
+      if (now > examEndTime) {
+        // 考试已超时，自动更新状态
+        await pool.query(
+          `UPDATE assessment_results
+          SET status = 'expired', updated_at = NOW()
+          WHERE id = ?`,
+          [resultId]
+        )
+        return reply.code(400).send({ success: false, message: '考试已超时，无法保存答案' })
+      }
+
+      // 验证 question_id 是否属于该试卷
+      const [questionRows] = await pool.query(
+        `SELECT id FROM questions WHERE id = ? AND exam_id = ?`,
+        [question_id, result.exam_id]
+      )
+
+      if (questionRows.length === 0) {
+        return reply.code(400).send({ success: false, message: '题目ID不属于当前试卷' })
+      }
+
+      // 检查是否已存在答案记录
+      const [existingAnswerRows] = await pool.query(
+        `SELECT id FROM answer_records WHERE assessment_result_id = ? AND question_id = ?`,
+        [resultId, question_id]
+      )
+
+      if (existingAnswerRows.length > 0) {
+        // 更新答案
+        await pool.query(
+          `UPDATE answer_records
+          SET user_answer = ?, updated_at = NOW()
+          WHERE assessment_result_id = ? AND question_id = ?`,
+          [user_answer, resultId, question_id]
+        )
+      } else {
+        // 插入新答案
+        await pool.query(
+          `INSERT INTO answer_records (assessment_result_id, question_id, user_answer)
+          VALUES (?, ?, ?)`,
+          [resultId, question_id, user_answer]
+        )
+      }
+
+      return { success: true, message: '答案保存成功' }
+    } catch (error) {
+      console.error('保存答案失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '保存答案失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
+
+  // 提交考试
+  // POST /api/assessment-results/:id/submit
+  // 验证考试状态（in_progress）
+  // 更新 submit_time
+  // 计算 duration（秒）
+  // 自动评分客观题（single_choice, multiple_choice, true_false）
+  // 填空题关键词匹配评分
+  // 主观题标记待评分（is_correct = NULL）
+  // 计算总分 score
+  // 判断是否通过 is_passed
+  // 更新状态为 'submitted' 或 'graded'
+  // 返回考试结果
+  fastify.post('/api/assessment-results/:id/submit', async (request, reply) => {
+    const connection = await pool.getConnection()
+    try {
+      // 鉴权
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        connection.release()
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        connection.release()
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const resultId = parseInt(request.params.id)
+      if (isNaN(resultId) || resultId <= 0) {
+        connection.release()
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
+      }
+
+      await connection.beginTransaction()
+
+      // 获取考试结果与配置
+      const [resultRows] = await connection.query(
+        `SELECT
+          ar.id, ar.plan_id, ar.exam_id, ar.user_id, ar.start_time, ar.status,
+          ap.max_attempts, ap.duration as plan_duration,
+          e.title as exam_title, e.duration as exam_duration, e.total_score, e.pass_score
+        FROM assessment_results ar
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        INNER JOIN exams e ON ar.exam_id = e.id
+        WHERE ar.id = ? FOR UPDATE`,
+        [resultId]
+      )
+      if (resultRows.length === 0) {
+        await connection.rollback(); connection.release()
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+      const result = resultRows[0]
+
+      // 权限校验：只能提交自己的考试
+      if (result.user_id !== decoded.id) {
+        await connection.rollback(); connection.release()
+        return reply.code(403).send({ success: false, message: '无权提交此考试' })
+      }
+
+      if (result.status !== 'in_progress') {
+        await connection.rollback(); connection.release()
+        return reply.code(400).send({ success: false, message: `考试状态为 ${result.status}，无法提交` })
+      }
+
+      // 取题目与已有答案
+      const [questions] = await connection.query(
+        `SELECT id, type, content, options, correct_answer, score, order_num FROM questions WHERE exam_id = ? ORDER BY order_num ASC`,
+        [result.exam_id]
+      )
+      const [answerRows] = await connection.query(
+        `SELECT id, question_id, user_answer, score, is_correct FROM answer_records WHERE assessment_result_id = ?`,
+        [resultId]
+      )
+      const answerMap = new Map(answerRows.map(r => [r.question_id, r]))
+
+      // 工具：解析 options、映射答案
+      const parseOptions = (raw) => {
+        if (!raw) return null
+        try { return JSON.parse(raw) } catch { return raw }
+      }
+      const toLetter = (idx) => String.fromCharCode('A'.charCodeAt(0) + idx)
+      const normalizeUserAnswerSingle = (q, userAnswer) => {
+        if (!userAnswer) return null
+        const options = parseOptions(q.options) || []
+        // 如果 correct_answer 是字母，用户答案可能是选项文本或字母
+        if (options && Array.isArray(options)) {
+          const byTextIndex = options.findIndex(opt => opt === userAnswer)
+          if (byTextIndex >= 0) return toLetter(byTextIndex)
+        }
+        return userAnswer
+      }
+      const normalizeUserAnswerMultiple = (q, userAnswer) => {
+        if (!userAnswer) return []
+        let arr
+        try { arr = Array.isArray(userAnswer) ? userAnswer : JSON.parse(userAnswer) } catch { arr = [] }
+        const options = parseOptions(q.options) || []
+        const letters = arr.map(v => {
+          const idx = options.findIndex(opt => opt === v)
+          return idx >= 0 ? toLetter(idx) : v
+        })
+        // 去重排序
+        return Array.from(new Set(letters)).sort()
+      }
+
+      // 评分
+      let totalScore = 0
+      let correctCount = 0
+      let pendingManualCount = 0
+      const detailedQuestions = []
+
+      for (const q of questions) {
+        const options = parseOptions(q.options)
+        const correctRaw = q.correct_answer
+        let userAnsRaw = answerMap.get(q.id)?.user_answer || null
+        let isCorrect = null
+        let earned = null
+
+        if (q.type === 'single_choice') {
+          const userLetter = normalizeUserAnswerSingle(q, userAnsRaw)
+          isCorrect = userLetter && correctRaw ? (userLetter === correctRaw) : 0
+          earned = isCorrect ? parseFloat(q.score) : 0
+        } else if (q.type === 'multiple_choice') {
+          const userLetters = normalizeUserAnswerMultiple(q, userAnsRaw)
+          const correctLetters = correctRaw ? correctRaw.split('').sort() : []
+          const fullCorrect = userLetters.length === correctLetters.length && userLetters.every((v, i) => v === correctLetters[i])
+          // 可选：部分正确给部分分，这里按匹配比例给分（若不需要可改为 fullCorrect 才给满分）
+          const intersect = new Set(userLetters.filter(v => correctLetters.includes(v)))
+          const ratio = correctLetters.length > 0 ? (intersect.size / correctLetters.length) : 0
+          if (fullCorrect) {
+            isCorrect = 1; earned = parseFloat(q.score)
+          } else {
+            isCorrect = intersect.size > 0 ? 0 : 0
+            // 部分分（可选）：给到比例分
+            earned = parseFloat(q.score) * ratio
+          }
+        } else if (q.type === 'true_false') {
+          // correct_answer 为 'A' 或 'B'，前端可能传 'true'/'false'
+          const normalized = (userAnsRaw === 'true') ? 'A' : (userAnsRaw === 'false') ? 'B' : userAnsRaw
+          isCorrect = normalized && correctRaw ? (normalized === correctRaw) : 0
+          earned = isCorrect ? parseFloat(q.score) : 0
+        } else if (q.type === 'fill_blank') {
+          // 关键词匹配（OR），忽略大小写与空格；部分匹配给部分分
+          let keywords
+          try { keywords = JSON.parse(correctRaw) } catch { keywords = (correctRaw || '').split(',').map(s => s.trim()).filter(Boolean) }
+          let blanks
+          try { blanks = Array.isArray(userAnsRaw) ? userAnsRaw : JSON.parse(userAnsRaw) } catch { blanks = userAnsRaw ? [userAnsRaw] : [] }
+          const matchOne = (kw, ans) => ans && kw && ans.toLowerCase().includes(kw.toLowerCase())
+          const matched = blanks.filter(ans => keywords.some(kw => matchOne(kw, ans))).length
+          const ratio = blanks.length > 0 ? (matched / blanks.length) : 0
+          isCorrect = matched === blanks.length ? 1 : 0
+          earned = parseFloat(q.score) * ratio
+        } else {
+          // 主观题待评分
+          pendingManualCount += 1
+          isCorrect = null
+          earned = null
+        }
+
+        // 汇总
+        if (earned !== null) totalScore += parseFloat(earned || 0)
+        if (isCorrect === 1) correctCount += 1
+
+        // 更新/插入答题记录评分
+        const existing = answerMap.get(q.id)
+        if (existing) {
+          await connection.query(
+            `UPDATE answer_records SET score = ?, is_correct = ?, updated_at = NOW() WHERE id = ?`,
+            [earned, isCorrect, existing.id]
+          )
+        } else {
+          await connection.query(
+            `INSERT INTO answer_records (assessment_result_id, question_id, user_answer, score, is_correct) VALUES (?, ?, ?, ?, ?)`,
+            [resultId, q.id, userAnsRaw, earned, isCorrect]
+          )
+        }
+
+        detailedQuestions.push({
+          id: q.id,
+          type: q.type,
+          content: q.content,
+          options,
+          question_max_score: parseFloat(q.score),
+          user_answer: userAnsRaw,
+          user_score: earned !== null ? parseFloat(earned) : null,
+          is_correct: isCorrect
+        })
+      }
+
+      // 用时/状态
+      const submitTime = new Date()
+      const startTime = new Date(result.start_time)
+      const durationSeconds = Math.max(0, Math.floor((submitTime.getTime() - startTime.getTime()) / 1000))
+      const isPassed = totalScore >= parseFloat(result.pass_score) ? 1 : 0
+      const newStatus = pendingManualCount === 0 ? 'graded' : 'submitted'
+
+      await connection.query(
+        `UPDATE assessment_results SET submit_time = ?, duration = ?, score = ?, is_passed = ?, status = ?, updated_at = NOW() WHERE id = ?`,
+        [submitTime, durationSeconds, totalScore, isPassed, newStatus, resultId]
+      )
+
+      await connection.commit(); connection.release()
+
+      // 构建返回
+      return {
+        success: true,
+        message: '考试提交成功',
+        data: {
+          result_summary: {
+            result_id: resultId,
+            plan_id: result.plan_id,
+            exam_id: result.exam_id,
+            exam_title: result.exam_title,
+            submit_time: submitTime,
+            duration: durationSeconds,
+            user_score: parseFloat(totalScore),
+            exam_total_score: parseFloat(result.total_score),
+            pass_score: parseFloat(result.pass_score),
+            is_passed: isPassed === 1,
+            question_count: questions.length,
+            correct_count: correctCount,
+            pending_grading_count: pendingManualCount
+          },
+          detailed_questions: detailedQuestions
+        }
+      }
+    } catch (error) {
+      try { await connection.rollback() } catch {}
+      connection.release()
+      console.error('提交考试失败:', error)
+      return reply.code(500).send({ success: false, message: '提交考试失败' })
+    }
+  })
+
+
+  // 查看考试结果
+  // GET /api/assessment-results/:id/result
+  // 验证用户权限
+  // 返回考试成绩
+  // 返回答题详情
+  // 返回正确答案和解析
+  // 返回错题列表
+  // 返回排名信息
+  fastify.get('/api/assessment-results/:id/result', async (request, reply) => {
+    try {
+      // 验证用户身份
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const userId = decoded.id
+      const resultId = parseInt(request.params.id)
+
+      // 验证 resultId 格式
+      if (isNaN(resultId) || resultId <= 0) {
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
+      }
+
+      // 获取考核结果信息
+      const [resultRows] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.plan_id,
+          ar.exam_id,
+          ar.user_id,
+          ar.attempt_number,
+          ar.start_time,
+          ar.submit_time,
+          ar.duration,
+          ar.score,
+          ar.is_passed,
+          ar.status,
+          ap.title as plan_title,
+          ap.max_attempts,
+          e.title as exam_title,
+          e.total_score as exam_total_score,
+          e.pass_score,
+          e.question_count
+        FROM assessment_results ar
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        INNER JOIN exams e ON ar.exam_id = e.id
+        WHERE ar.id = ?`,
+        [resultId]
+      )
+
+      if (resultRows.length === 0) {
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+
+      const result = resultRows[0]
+
+      // 权限验证：只能查看自己的或管理员可以查看
+      if (result.user_id !== userId && decoded.role !== 'admin') {
+        return reply.code(403).send({ success: false, message: '无权查看此考核结果' })
+      }
+
+      // 获取所有题目（包含正确答案和解析）
+      const [questions] = await pool.query(
+        `SELECT
+          id,
+          type,
+          content,
+          options,
+          correct_answer,
+          explanation,
+          score as question_max_score
+        FROM questions
+        WHERE exam_id = ?
+        ORDER BY order_num ASC`,
+        [result.exam_id]
+      )
+
+      // 获取用户已保存的答案和评分结果
+      const [answerRecords] = await pool.query(
+        `SELECT
+          question_id,
+          user_answer,
+          score as user_score,
+          is_correct
+        FROM answer_records
+        WHERE assessment_result_id = ?`,
+        [resultId]
+      )
+
+      const answerMap = answerRecords.reduce((acc, curr) => {
+        acc[curr.question_id] = curr
+        return acc
+      }, {})
+
+      const detailedQuestions = questions.map(q => {
+        const userAnswerData = answerMap[q.id] || {}
+        let parsedOptions = null
+        if (q.options) {
+          try {
+            parsedOptions = JSON.parse(q.options)
+          } catch (error) {
+            console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
+            parsedOptions = q.options
+          }
+        }
+
+        let parsedCorrectAnswer = null
+        if (q.correct_answer) {
+          try {
+            parsedCorrectAnswer = JSON.parse(q.correct_answer)
+          } catch (error) {
+            parsedCorrectAnswer = q.correct_answer
+          }
+        }
+
+        let parsedUserAnswer = null
+        if (userAnswerData.user_answer) {
+          try {
+            parsedUserAnswer = JSON.parse(userAnswerData.user_answer)
+          } catch (error) {
+            parsedUserAnswer = userAnswerData.user_answer
+          }
+          // Handle cases where user_answer might be a string for fill_blank or essay
+          if (typeof parsedUserAnswer === 'string' && (q.type === 'fill_blank' || q.type === 'essay')) {
+            parsedUserAnswer = userAnswerData.user_answer;
+          }
+        }
+
+        return {
+          id: q.id,
+          type: q.type,
+          content: q.content,
+          options: parsedOptions,
+          correct_answer: parsedCorrectAnswer,
+          explanation: q.explanation,
+          question_max_score: parseFloat(q.question_max_score),
+          user_answer: parsedUserAnswer,
+          user_score: userAnswerData.user_score !== undefined ? parseFloat(userAnswerData.user_score) : null,
+          is_correct: userAnswerData.is_correct
+        }
+      })
+
+      const incorrectQuestions = detailedQuestions.filter(q => q.is_correct === 0)
+      const pendingGradingQuestions = detailedQuestions.filter(q => q.is_correct === null)
+
+      // TODO: Implement ranking information if needed
+
+      return {
+        success: true,
+        message: '获取考试结果成功',
+        data: {
+          result_summary: {
+            result_id: result.id,
+            plan_id: result.plan_id,
+            plan_title: result.plan_title,
+            exam_id: result.exam_id,
+            exam_title: result.exam_title,
+            user_id: result.user_id,
+            attempt_number: result.attempt_number,
+            start_time: result.start_time,
+            submit_time: result.submit_time,
+            duration: result.duration, // seconds
+            user_score: parseFloat(result.score),
+            exam_total_score: parseFloat(result.exam_total_score),
+            pass_score: parseFloat(result.pass_score),
+            is_passed: result.is_passed === 1,
+            status: result.status,
+            question_count: result.question_count,
+            correct_count: detailedQuestions.filter(q => q.is_correct === 1).length,
+            incorrect_count: incorrectQuestions.length,
+            pending_grading_count: pendingGradingQuestions.length
+          },
+          detailed_questions: detailedQuestions,
+          incorrect_questions: incorrectQuestions.map(q => ({ id: q.id, content: q.content })),
+          pending_grading_questions: pendingGradingQuestions.map(q => ({ id: q.id, content: q.content }))
+        }
+      }
+    } catch (error) {
+      console.error('获取考试结果失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '获取考试结果失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
+
+  // 获取我的考试记录
+  // GET /api/my-results
+  // 返回当前用户的所有考试记录
+  // 支持分页和排序
+  // 支持状态筛选
+  // 显示成绩、通过状态、考试时间
+  fastify.get('/api/my-results', async (request, reply) => {
+    try {
+      // 验证用户身份
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const userId = decoded.id
+      const { page = 1, pageSize = 10, status, sortBy = 'submit_time', sortOrder = 'DESC' } = request.query
+
+      const offset = (page - 1) * pageSize
+      const limit = parseInt(pageSize)
+
+      let whereClauses = [`ar.user_id = ?`]
+      let queryParams = [userId]
+
+      if (status) {
+        whereClauses.push(`ar.status = ?`)
+        queryParams.push(status)
+      }
+
+      const orderByMapping = {
+        submit_time: 'ar.submit_time',
+        score: 'ar.score',
+        status: 'ar.status',
+        exam_title: 'e.title',
+        plan_title: 'ap.title'
+      }
+
+      const validSortBy = orderByMapping[sortBy] || orderByMapping.submit_time
+      const validSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
+
+      const [results] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.plan_id,
+          ar.exam_id,
+          ar.user_id,
+          ar.attempt_number,
+          ar.start_time,
+          ar.submit_time,
+          ar.duration,
+          ar.score,
+          ar.is_passed,
+          ar.status,
+          ap.title as plan_title,
+          e.title as exam_title,
+          e.total_score as exam_total_score,
+          e.pass_score
+        FROM assessment_results ar
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        INNER JOIN exams e ON ar.exam_id = e.id
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY ${validSortBy} ${validSortOrder}
+        LIMIT ?, ?`,
+        [...queryParams, offset, limit]
+      )
+
+      const [totalRows] = await pool.query(
+        `SELECT COUNT(*) as total
+        FROM assessment_results ar
+        WHERE ${whereClauses.join(' AND ')}`,
+        queryParams
+      )
+
+      const total = totalRows[0].total
+
+      return {
+        success: true,
+        message: '获取我的考试记录成功',
+        data: {
+          page: parseInt(page),
+          pageSize: limit,
+          total,
+          results: results.map(r => ({
+            id: r.id,
+            plan_id: r.plan_id,
+            plan_title: r.plan_title,
+            exam_id: r.exam_id,
+            exam_title: r.exam_title,
+            attempt_number: r.attempt_number,
+            start_time: r.start_time,
+            submit_time: r.submit_time,
+            duration: r.duration,
+            user_score: parseFloat(r.score),
+            exam_total_score: parseFloat(r.exam_total_score),
+            pass_score: parseFloat(r.pass_score),
+            is_passed: r.is_passed === 1,
+            status: r.status
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('获取我的考试记录失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '获取我的考试记录失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
+
+  // 获取所有考试记录（管理员）
+  // GET /api/assessment-results
+  // 支持多条件筛选：user_id, exam_id, plan_id, 时间范围
+  // 支持分页和排序
+  // 返回详细成绩信息
+  // 包含用户和试卷信息
+  fastify.get('/api/assessment-results', async (request, reply) => {
+    try {
+      // 验证用户身份和权限（管理员）
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      if (decoded.role !== 'admin') {
+        return reply.code(403).send({ success: false, message: '无权访问此资源' })
+      }
+
+      const {
+        page = 1,
+        pageSize = 10,
+        user_id,
+        exam_id,
+        plan_id,
+        status,
+        start_date,
+        end_date,
+        sortBy = 'submit_time',
+        sortOrder = 'DESC'
+      } = request.query
+
+      const offset = (page - 1) * pageSize
+      const limit = parseInt(pageSize)
+
+      let whereClauses = []
+      let queryParams = []
+
+      if (user_id) {
+        whereClauses.push(`ar.user_id = ?`)
+        queryParams.push(user_id)
+      }
+      if (exam_id) {
+        whereClauses.push(`ar.exam_id = ?`)
+        queryParams.push(exam_id)
+      }
+      if (plan_id) {
+        whereClauses.push(`ar.plan_id = ?`)
+        queryParams.push(plan_id)
+      }
+      if (status) {
+        whereClauses.push(`ar.status = ?`)
+        queryParams.push(status)
+      }
+      if (start_date) {
+        whereClauses.push(`ar.submit_time >= ?`)
+        queryParams.push(start_date)
+      }
+      if (end_date) {
+        whereClauses.push(`ar.submit_time <= ?`)
+        queryParams.push(end_date)
+      }
+
+      const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''
+
+      const orderByMapping = {
+        submit_time: 'ar.submit_time',
+        score: 'ar.score',
+        status: 'ar.status',
+        exam_title: 'e.title',
+        plan_title: 'ap.title',
+        user_id: 'ar.user_id'
+      }
+
+      const validSortBy = orderByMapping[sortBy] || orderByMapping.submit_time
+      const validSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
+
+      const [results] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.plan_id,
+          ar.exam_id,
+          ar.user_id,
+          ar.attempt_number,
+          ar.start_time,
+          ar.submit_time,
+          ar.duration,
+          ar.score,
+          ar.is_passed,
+          ar.status,
+          ap.title as plan_title,
+          e.title as exam_title,
+          e.total_score as exam_total_score,
+          e.pass_score,
+          u.username as user_username,
+          u.email as user_email
+        FROM assessment_results ar
+        INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
+        INNER JOIN exams e ON ar.exam_id = e.id
+        LEFT JOIN users u ON ar.user_id = u.id
+        ${whereString}
+        ORDER BY ${validSortBy} ${validSortOrder}
+        LIMIT ?, ?`,
+        [...queryParams, offset, limit]
+      )
+
+      const [totalRows] = await pool.query(
+        `SELECT COUNT(*) as total
+        FROM assessment_results ar
+        LEFT JOIN users u ON ar.user_id = u.id
+        ${whereString}`,
+        queryParams
+      )
+
+      const total = totalRows[0].total
+
+      return {
+        success: true,
+        message: '获取所有考试记录成功',
+        data: {
+          page: parseInt(page),
+          pageSize: limit,
+          total,
+          results: results.map(r => ({
+            id: r.id,
+            plan_id: r.plan_id,
+            plan_title: r.plan_title,
+            exam_id: r.exam_id,
+            exam_title: r.exam_title,
+            user_id: r.user_id,
+            user_username: r.user_username,
+            user_email: r.user_email,
+            attempt_number: r.attempt_number,
+            start_time: r.start_time,
+            submit_time: r.submit_time,
+            duration: r.duration,
+            user_score: parseFloat(r.score),
+            exam_total_score: parseFloat(r.exam_total_score),
+            pass_score: parseFloat(r.pass_score),
+            is_passed: r.is_passed === 1,
+            status: r.status
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('获取所有考试记录失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '获取所有考试记录失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
+
+  // 人工评分（主观题）
+  // PUT /api/assessment-results/:id/grade
+  // 验证管理员权限
+  // 参数：question_id, score, is_correct
+  // 更新 answer_records 的分数
+  // 重新计算总分
+  // 更新 is_passed 状态
+  // 更新考试状态为 'graded'
+  fastify.put('/api/assessment-results/:id/grade', async (request, reply) => {
+    const connection = await pool.getConnection()
+    try {
+      await connection.beginTransaction()
+
+      // 验证用户身份和权限（管理员）
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        await connection.rollback()
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        await connection.rollback()
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      if (decoded.role !== 'admin') {
+        await connection.rollback()
+        return reply.code(403).send({ success: false, message: '无权访问此资源' })
+      }
+
+      const resultId = parseInt(request.params.id)
+      const { question_id, score, is_correct } = request.body
+
+      // 验证必填字段和格式
+      if (isNaN(resultId) || resultId <= 0) {
+        await connection.rollback()
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
+      }
+      if (isNaN(question_id) || question_id <= 0) {
+        await connection.rollback()
+        return reply.code(400).send({ success: false, message: '题目ID无效' })
+      }
+      if (typeof score !== 'number' || score < 0) {
+        await connection.rollback()
+        return reply.code(400).send({ success: false, message: '分数必须是非负数字' })
+      }
+      if (is_correct === undefined || (is_correct !== 0 && is_correct !== 1 && is_correct !== null)) {
+        await connection.rollback()
+        return reply.code(400).send({ success: false, message: 'is_correct 必须是 0, 1 或 null' })
+      }
+
+      // 获取考核结果信息
+      const [resultRows] = await connection.query(
+        `SELECT
+          ar.id,
+          ar.exam_id,
+          ar.pass_score,
+          ar.status
+        FROM assessment_results ar
+        WHERE ar.id = ? FOR UPDATE`, // Lock row for update
+        [resultId]
+      )
+
+      if (resultRows.length === 0) {
+        await connection.rollback()
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+      const result = resultRows[0]
+
+      // 获取题目信息
+      const [questionRows] = await connection.query(
+        `SELECT id, type, score as max_score FROM questions WHERE id = ? AND exam_id = ?`,
+        [question_id, result.exam_id]
+      )
+      if (questionRows.length === 0) {
+        await connection.rollback()
+        return reply.code(404).send({ success: false, message: '题目不存在或不属于该试卷' })
+      }
+      const question = questionRows[0]
+
+      // 验证评分的分数不超过题目最大分数
+      if (score > parseFloat(question.max_score)) {
+        await connection.rollback()
+        return reply.code(400).send({ success: false, message: `评分不能超过题目最大分数 ${question.max_score}` })
+      }
+
+      // 更新 answer_records
+      const [updateAnswerResult] = await connection.query(
+        `UPDATE answer_records
+        SET score = ?, is_correct = ?, updated_at = NOW()
+        WHERE assessment_result_id = ? AND question_id = ?`,
+        [score, is_correct, resultId, question_id]
+      )
+
+      if (updateAnswerResult.affectedRows === 0) {
+        await connection.rollback()
+        return reply.code(404).send({ success: false, message: '未找到对应的答题记录' })
+      }
+
+      // 重新计算总分和通过状态
+      const [allAnswers] = await connection.query(
+        `SELECT score, is_correct FROM answer_records WHERE assessment_result_id = ?`,
+        [resultId]
+      )
+
+      let newTotalScore = 0
+      let allGraded = true
+      for (const ans of allAnswers) {
+        if (ans.score !== null) {
+          newTotalScore += parseFloat(ans.score)
+        }
+        if (ans.is_correct === null) { // Still has questions pending manual grading
+          allGraded = false
+        }
+      }
+
+      const newIsPassed = newTotalScore >= parseFloat(result.pass_score) ? 1 : 0
+      const newStatus = allGraded ? 'graded' : 'submitted' // If all are graded, status becomes 'graded'
+
+      // 更新 assessment_results
+      await connection.query(
+        `UPDATE assessment_results
+        SET
+          score = ?,
+          is_passed = ?,
+          status = ?,
+          updated_at = NOW()
+        WHERE id = ?`,
+        [newTotalScore, newIsPassed, newStatus, resultId]
+      )
+
+      await connection.commit()
+
+      return {
+        success: true,
+        message: '评分成功',
+        data: {
+          result_id: resultId,
+          question_id: question_id,
+          new_question_score: score,
+          new_is_correct: is_correct,
+          new_total_score: newTotalScore,
+          new_is_passed: newIsPassed === 1,
+          new_status: newStatus
+        }
+      }
+    } catch (error) {
+      await connection.rollback()
+      console.error('人工评分失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '人工评分失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    } finally {
+      connection.release()
+    }
+  })
+
+  // 获取答题详情
+  // GET /api/assessment-results/:id/answers
+  // 返回所有题目和用户答案
+  // 显示正确答案和解析
+  // 显示每题得分和正确性
+  // 验证用户权限
+  fastify.get('/api/assessment-results/:id/answers', async (request, reply) => {
+    try {
+      // 验证用户身份
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+
+      const userId = decoded.id
+      const resultId = parseInt(request.params.id)
+
+      // 验证 resultId 格式
+      if (isNaN(resultId) || resultId <= 0) {
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
+      }
+
+      // 获取考核结果信息
+      const [resultRows] = await pool.query(
+        `SELECT
+          ar.id,
+          ar.exam_id,
+          ar.user_id
+        FROM assessment_results ar
+        WHERE ar.id = ?`,
+        [resultId]
+      )
+
+      if (resultRows.length === 0) {
+        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+      }
+
+      const result = resultRows[0]
+
+      // 权限验证：只能查看自己的或管理员可以查看
+      if (result.user_id !== userId && decoded.role !== 'admin') {
+        return reply.code(403).send({ success: false, message: '无权查看此答题详情' })
+      }
+
+      // 获取所有题目（包含正确答案和解析）
+      const [questions] = await pool.query(
+        `SELECT
+          id,
+          type,
+          content,
+          options,
+          correct_answer,
+          explanation,
+          score as question_max_score
+        FROM questions
+        WHERE exam_id = ?
+        ORDER BY order_num ASC`,
+        [result.exam_id]
+      )
+
+      // 获取用户已保存的答案和评分结果
+      const [answerRecords] = await pool.query(
+        `SELECT
+          question_id,
+          user_answer,
+          score as user_score,
+          is_correct
+        FROM answer_records
+        WHERE assessment_result_id = ?`,
+        [resultId]
+      )
+
+      const answerMap = answerRecords.reduce((acc, curr) => {
+        acc[curr.question_id] = curr
+        return acc
+      }, {})
+
+      const detailedAnswers = questions.map(q => {
+        const userAnswerData = answerMap[q.id] || {}
+        let parsedOptions = null
+        if (q.options) {
+          try {
+            parsedOptions = JSON.parse(q.options)
+          } catch (error) {
+            console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
+            parsedOptions = q.options
+          }
+        }
+
+        let parsedCorrectAnswer = null
+        if (q.correct_answer) {
+          try {
+            parsedCorrectAnswer = JSON.parse(q.correct_answer)
+          } catch (error) {
+            parsedCorrectAnswer = q.correct_answer
+          }
+        }
+
+        let parsedUserAnswer = null
+        if (userAnswerData.user_answer) {
+          try {
+            parsedUserAnswer = JSON.parse(userAnswerData.user_answer)
+          } catch (error) {
+            parsedUserAnswer = userAnswerData.user_answer
+          }
+          // Handle cases where user_answer might be a string for fill_blank or essay
+          if (typeof parsedUserAnswer === 'string' && (q.type === 'fill_blank' || q.type === 'essay')) {
+            parsedUserAnswer = userAnswerData.user_answer;
+          }
+        }
+
+        return {
+          question_id: q.id,
+          type: q.type,
+          content: q.content,
+          options: parsedOptions,
+          correct_answer: parsedCorrectAnswer,
+          explanation: q.explanation,
+          question_max_score: parseFloat(q.question_max_score),
+          user_answer: parsedUserAnswer,
+          user_score: userAnswerData.user_score !== undefined ? parseFloat(userAnswerData.user_score) : null,
+          is_correct: userAnswerData.is_correct
+        }
+      })
+
+      return {
+        success: true,
+        message: '获取答题详情成功',
+        data: {
+          result_id: resultId,
+          exam_id: result.exam_id,
+          user_id: result.user_id,
+          answers: detailedAnswers
+        }
+      }
+    } catch (error) {
+      console.error('获取答题详情失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '获取答题详情失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
+    }
+  })
 }
