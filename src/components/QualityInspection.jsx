@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-toastify'
 import { qualityAPI } from '../api'
 import Modal from './Modal'
+import ImportSessionModal from './ImportSessionModal'
 
 const QualityInspection = () => {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading] = useState(true)
   const [isInspectOpen, setIsInspectOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [sessionMessages, setSessionMessages] = useState([]); // New state for session messages
   const [inspectionData, setInspectionData] = useState({
@@ -22,6 +24,7 @@ const QualityInspection = () => {
     total: 0,
     totalPages: 0,
   });
+  const chatHistoryRef = useRef(null);
   const [filters, setFilters] = useState({
     search: '',
     customerServiceId: '',
@@ -34,6 +37,12 @@ const QualityInspection = () => {
   useEffect(() => {
     loadInspections();
   }, [pagination.page, pagination.pageSize, filters]); // Reload inspections when page, pageSize, or filters change
+
+  useEffect(() => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
+    }
+  }, [sessionMessages]);
 
   const loadInspections = async () => {
     try {
@@ -186,6 +195,12 @@ const QualityInspection = () => {
               onChange={handleFilterChange}
               className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Import
+            </button>
             {/* Add more filters like customerServiceId, channel if needed */}
           </div>
         </div>
@@ -197,6 +212,8 @@ const QualityInspection = () => {
                 <th className="px-4 py-3 text-left rounded-tl-lg">会话ID</th>
                 <th className="px-4 py-3 text-left">客服</th>
                 <th className="px-4 py-3 text-left">沟通渠道</th>
+                <th className="px-4 py-3 text-left">平台</th>
+                <th className="px-4 py-3 text-left">店铺</th>
                 <th className="px-4 py-3 text-left">评分</th>
                 <th className="px-4 py-3 text-left">状态</th>
                 <th className="px-4 py-3 text-left">日期</th>
@@ -206,7 +223,7 @@ const QualityInspection = () => {
             <tbody>
               {inspections.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="px-4 py-8 text-center text-gray-500">
                     暂无数据
                   </td>
                 </tr>
@@ -216,6 +233,8 @@ const QualityInspection = () => {
                     <td className="px-4 py-3 font-medium">#{inspection.session_code}</td>
                     <td className="px-4 py-3">{inspection.customer_service_name}</td>
                     <td className="px-4 py-3">{inspection.communication_channel}</td>
+                    <td className="px-4 py-3">{inspection.platform}</td>
+                    <td className="px-4 py-3">{inspection.shop}</td>
                     <td className="px-4 py-3">
                       {inspection.score ? (
                         <span className={`font-semibold ${
@@ -293,6 +312,8 @@ const QualityInspection = () => {
         )}
       </div>
 
+      <ImportSessionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
+
       <Modal isOpen={isInspectOpen} onClose={() => setIsInspectOpen(false)} title="质检评分">
         {selectedInspection && (
           <div className="space-y-6">
@@ -309,25 +330,30 @@ const QualityInspection = () => {
             </div>
 
             {/* Chat History Display */}
-            <div className="bg-gray-100 rounded-lg p-4 h-48 overflow-y-auto">
+            <div ref={chatHistoryRef} className="bg-gray-100 rounded-lg p-4 h-48 overflow-y-auto custom-scrollbar">
                 <h4 className="font-semibold mb-2">会话消息</h4>
                 {sessionMessages.length === 0 ? (
                     <p className="text-sm text-gray-600">暂无会话消息</p>
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-4 pt-2">
                         {sessionMessages.map((message) => {
                             const isAgent = message.sender_type === 'agent' || message.sender_type === 'customer_service';
                             return (
-                            <div key={message.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[70%] p-2 rounded-lg ${
-                                    isAgent ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800'
-                                }`}>
-                                    <p className="text-xs font-semibold">{isAgent ? '客服' : '客户'}</p>
-                                    <p className="text-sm">{message.message_content}</p>
-                                    <p className="text-xs text-right mt-1">{new Date(message.sent_at).toLocaleTimeString()}</p>
+                                <div key={message.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`flex flex-col max-w-[80%] ${isAgent ? 'items-end' : 'items-start'}`}>
+                                        <div className="text-xs text-gray-500 mb-1">
+                                            {isAgent ? '客服' : '客户'} • {new Date(message.sent_at).toLocaleTimeString()}
+                                        </div>
+                                        <div className={`p-3 rounded-xl ${
+                                            isAgent
+                                                ? 'bg-blue-500 text-white rounded-br-none'
+                                                : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                                        } shadow-sm`}>
+                                            <p className="text-sm break-words">{message.message_content}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )})}
+                            )})}
                     </div>
                 )}
             </div>

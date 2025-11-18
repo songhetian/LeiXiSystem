@@ -439,8 +439,8 @@ module.exports = async function (fastify, opts) {
             }
             return { success: true, message: 'Quality rule deleted successfully.' };
         } catch (error) {
-            console.error('Error deleting quality rule:', error);
-            reply.code(500).send({ success: false, message: 'Failed to delete quality rule.' });
+            console.error('Error deleting rule:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete rule.' });
         }
     });
 
@@ -1436,10 +1436,14 @@ module.exports = async function (fastify, opts) {
         }
 
         const headerRow = worksheet.getRow(1);
+        if (!headerRow || headerRow.actualCellCount === 0) {
+            throw new Error('Excel文件中缺少标题行。');
+        }
         const headers = [];
         headerRow.eachCell((cell) => {
             headers.push(cell.value);
         });
+        console.log('Excel file headers:', headers); // Log headers
 
         // Define system fields to map
         const SYSTEM_FIELDS = [
@@ -1456,7 +1460,13 @@ module.exports = async function (fastify, opts) {
                     if (fileColumnName) {
                         const cellIndex = headers.indexOf(fileColumnName);
                         if (cellIndex !== -1) {
-                            sessionData[systemField] = row.getCell(cellIndex + 1).value;
+                            // Ensure cell value is safely retrieved and handled
+                            let cellValue = row.getCell(cellIndex + 1).value;
+                            // Convert RichText object to string if necessary
+                            if (typeof cellValue === 'object' && cellValue !== null && cellValue.richText) {
+                                cellValue = cellValue.richText.map(textItem => textItem.text).join('');
+                            }
+                            sessionData[systemField] = cellValue;
                         }
                     }
                 });
@@ -1465,13 +1475,18 @@ module.exports = async function (fastify, opts) {
                 sessionData.platform = platform;
                 sessionData.shop = shop;
 
+                console.log(`Processing row ${rowNumber}:`, sessionData); // Log processed row data
+                
                 // Basic validation for required fields
                 if (sessionData.session_code && sessionData.customer_service_id) {
                     sessionsToInsert.push(sessionData);
+                } else {
+                    console.warn(`Row ${rowNumber} skipped due to missing session_code or customer_service_id:`, sessionData);
                 }
             }
         });
 
+        console.log('Final sessionsToInsert length:', sessionsToInsert.length); // Log final array length
         if (sessionsToInsert.length === 0) {
             return reply.code(400).send({ success: false, message: 'No valid data found in the file based on mappings.' });
         }
