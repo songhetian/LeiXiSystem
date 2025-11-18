@@ -1,0 +1,461 @@
+import React, { useState, useEffect, useRef } from 'react';
+import Modal from './Modal';
+import { toast } from 'react-toastify';
+import { qualityAPI } from '../api';
+import ExcelJS from 'exceljs';
+import { CloudUploadOutlined } from '@ant-design/icons'; // For upload icon
+
+const ImportSessionModal = ({ isOpen, onClose }) => {
+    const [currentStep, setCurrentStep] = useState(1);
+    const [platforms, setPlatforms] = useState([]);
+    const [shops, setShops] = useState([]);
+    const [selectedPlatform, setSelectedPlatform] = useState('');
+    const [selectedShop, setSelectedShop] = useState('');
+    const [file, setFile] = useState(null);
+    const [fileColumns, setFileColumns] = useState([]);
+    const [columnMap, setColumnMap] = useState({});
+    const [previewData, setPreviewData] = useState([]);
+    const [isDragging, setIsDragging] = useState(false);
+    const [importError, setImportError] = useState(''); // New state for prominent error display
+
+    const fileInputRef = useRef(null);
+
+    const SYSTEM_FIELDS = [
+        'session_code', 'customer_service_id', 'customer_info', 
+        'communication_channel', 'duration', 'message_count'
+    ];
+
+    const SYSTEM_FIELD_LABELS_ZH = {
+        'session_code': '会话编号',
+        'customer_service_id': '客服ID',
+        'customer_info': '客户信息',
+        'communication_channel': '沟通渠道',
+        'duration': '时长',
+        'message_count': '消息数量'
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            // 重置状态
+            setCurrentStep(1);
+            setSelectedPlatform('');
+            setSelectedShop('');
+            setFile(null);
+            setFileColumns([]);
+            setColumnMap({});
+            setPreviewData([]);
+            setImportError(''); // Reset error on modal open
+
+            const fetchPlatforms = async () => {
+                try {
+                    const response = await qualityAPI.getPlatforms();
+                    setPlatforms(response.data.data);
+                } catch (error) {
+                    toast.error('加载平台列表失败。');
+                    setImportError('加载平台列表失败，请稍后再试。');
+                }
+            };
+            fetchPlatforms();
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (selectedPlatform) {
+            const fetchShops = async () => {
+                try {
+                    const response = await qualityAPI.getShopsByPlatform(selectedPlatform);
+                    setShops(response.data.data);
+                    setSelectedShop(''); // 重置店铺选择
+                } catch (error) {
+                    toast.error('加载店铺列表失败。');
+                    setImportError('加载店铺列表失败，请稍后再试。');
+                }
+            };
+            fetchShops();
+        } else {
+            setShops([]);
+        }
+    }, [selectedPlatform]);
+
+    const processFile = async (selectedFile) => {
+        setImportError(''); // Clear previous errors
+        if (!selectedFile) return;
+
+        setFile(selectedFile);
+        const workbook = new ExcelJS.Workbook();
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(selectedFile);
+        reader.onload = async () => {
+            try {
+                const buffer = reader.result;
+                await workbook.xlsx.load(buffer);
+                const worksheet = workbook.getWorksheet(1);
+                if (!worksheet) {
+                    throw new Error('Excel文件中未找到工作表。');
+                }
+                const headerRow = worksheet.getRow(1);
+                if (!headerRow || headerRow.actualCellCount === 0) {
+                    throw new Error('Excel文件缺少标题行。');
+                }
+                const headers = [];
+                headerRow.eachCell((cell) => {
+                    headers.push(cell.value);
+                });
+                setFileColumns(headers);
+
+                const rows = [];
+                worksheet.eachRow((row, rowNumber) => {
+                    if (rowNumber > 1 && rowNumber <= 6) { // 跳过标题行，取最多5行数据用于预览
+                        const rowData = {};
+                        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                            rowData[headers[colNumber - 1]] = cell.value;
+                        });
+                        rows.push(rowData);
+                    }
+                });
+                setPreviewData(rows);
+            } catch (error) {
+                toast.error(`解析 Excel 文件失败：${error.message}`);
+                setImportError(`解析 Excel 文件失败：${error.message}`);
+                console.error(error);
+                setFile(null); // 错误时清除文件
+                setFileColumns([]);
+                setColumnMap({});
+                setPreviewData([]);
+            }
+        };
+        reader.onerror = (error) => {
+            toast.error('读取文件失败。');
+            setImportError('读取文件失败。');
+            console.error('File reader error:', error);
+            setFile(null);
+            setFileColumns([]);
+            setColumnMap({});
+            setPreviewData([]);
+        };
+    };
+
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files[0];
+        processFile(selectedFile);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            processFile(e.dataTransfer.files[0]);
+            e.dataTransfer.clearData();
+        }
+    };
+
+    const handleDownloadTemplate = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('会话数据');
+        
+        // 使用中文标题作为模板
+        worksheet.columns = SYSTEM_FIELDS.map(field => ({ 
+            header: SYSTEM_FIELD_LABELS_ZH[field] || field, 
+            key: field, 
+            width: 20 
+        }));
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '会话导入模板.xlsx';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+    
+    const handleColumnMapChange = (systemField, fileColumn) => {
+        setColumnMap(prev => ({ ...prev, [systemField]: fileColumn }));
+    };
+
+    const handleNext = () => {
+        setImportError(''); // 清除错误信息
+        if (currentStep === 1) {
+            if (!selectedPlatform || !selectedShop) {
+                const msg = '请选择平台和店铺。';
+                toast.warn(msg);
+                setImportError(msg);
+                return;
+            }
+        } else if (currentStep === 2) {
+            if (!file) {
+                const msg = '请上传文件。';
+                toast.warn(msg);
+                setImportError(msg);
+                return;
+            }
+            const requiredFieldsMapped = ['session_code', 'customer_service_id'].every(field => columnMap[field]);
+            if (!requiredFieldsMapped) {
+                const msg = '请至少映射 会话编号 和 客服ID。';
+                toast.warn(msg);
+                setImportError(msg);
+                return;
+            }
+        }
+        setCurrentStep(currentStep + 1);
+    };
+
+    const handleBack = () => {
+        setImportError(''); // 清除错误信息
+        setCurrentStep(currentStep - 1);
+    };
+
+    const handleImport = async () => {
+        setImportError(''); // 清除之前的错误信息
+        if (!file || !selectedPlatform || !selectedShop) {
+            const msg = '导入缺少必要信息。';
+            toast.error(msg);
+            setImportError(msg);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('platform', selectedPlatform);
+        formData.append('shop', selectedShop);
+        formData.append('columnMap', JSON.stringify(columnMap));
+
+        try {
+            const response = await qualityAPI.importSessions(formData);
+            toast.success(response.data.message);
+            onClose();
+        } catch (error) {
+            const msg = error.response?.data?.message || '导入失败。';
+            toast.error(msg);
+            setImportError(msg);
+        }
+    };
+
+    const getStepClass = (step) => {
+        if (currentStep === step) {
+            return 'text-white bg-primary-600';
+        }
+        if (currentStep > step) {
+            return 'text-white bg-green-500';
+        }
+        return 'text-gray-500 bg-gray-200';
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="导入会话">
+            <div className="p-6 min-w-[600px]">
+                {/* Stepper */}
+                <div className="flex items-center justify-center mb-8">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepClass(1)}`}>
+                        <span>1</span>
+                    </div>
+                    <div className={`flex-auto border-t-2 transition-all duration-500 ${currentStep > 1 ? 'border-primary-600' : 'border-gray-200'}`}></div>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepClass(2)}`}>
+                        <span>2</span>
+                    </div>
+                    <div className={`flex-auto border-t-2 transition-all duration-500 ${currentStep > 2 ? 'border-primary-600' : 'border-gray-200'}`}></div>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepClass(3)}`}>
+                        <span>3</span>
+                    </div>
+                </div>
+                <div className="flex justify-around mb-4 text-sm font-medium">
+                    <span className={currentStep >= 1 ? 'text-primary-700' : 'text-gray-500'}>选择平台与店铺</span>
+                    <span className={currentStep >= 2 ? 'text-primary-700' : 'text-gray-500'}>上传与映射</span>
+                    <span className={currentStep >= 3 ? 'text-primary-700' : 'text-gray-500'}>预览与确认</span>
+                </div>
+
+                {/* Step Content */}
+                <div>
+                    {importError && (
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                            <strong className="font-bold">导入错误：</strong>
+                            <span className="block sm:inline">{importError}</span>
+                        </div>
+                    )}
+
+                    {currentStep === 1 && (
+                        <div className="mt-8">
+                            <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-6 text-center">第一步：选择平台和店铺</h3>
+                            <div className="space-y-6">
+                                <div>
+                                    <label htmlFor="platform" className="block text-sm font-medium text-gray-700">平台</label>
+                                    <select
+                                        id="platform"
+                                        name="platform"
+                                        value={selectedPlatform}
+                                        onChange={(e) => setSelectedPlatform(e.target.value)}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
+                                    >
+                                        <option value="">请选择平台</option>
+                                        {platforms.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="shop" className="block text-sm font-medium text-gray-700">店铺</label>
+                                    <select
+                                        id="shop"
+                                        name="shop"
+                                        value={selectedShop}
+                                        onChange={(e) => setSelectedShop(e.target.value)}
+                                        disabled={!selectedPlatform}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm disabled:bg-gray-100"
+                                    >
+                                        <option value="">请选择店铺</option>
+                                        {shops.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {currentStep === 2 && (
+                        <div className="mt-8">
+                            <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-6 text-center">第二步：上传文件并映射列</h3>
+                            <div className="space-y-6">
+                                <div>
+                                    <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700">上传 Excel 文件</label>
+                                    <div
+                                        className={`mt-2 flex justify-center px-6 pt-5 pb-6 border-2 rounded-md ${isDragging ? 'border-primary-500 bg-primary-50 border-solid' : 'border-gray-300 border-dashed'}`}
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
+                                    >
+                                        <div className="space-y-1 text-center">
+                                            <CloudUploadOutlined className="mx-auto h-12 w-12 text-gray-400" style={{ fontSize: '48px' }} />
+                                            <div className="flex text-sm text-gray-600">
+                                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500">
+                                                    <span>{file ? file.name : '拖拽文件到此处 或 点击上传'}</span>
+                                                    <input id="file-upload" name="file-upload" type="file" accept=".xlsx, .xls" className="sr-only" onChange={handleFileChange} ref={fileInputRef} />
+                                                </label>
+                                            </div>
+                                            <p className="text-xs text-gray-500">支持 XLSX, XLS 格式</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-center mt-4">
+                                        <button onClick={handleDownloadTemplate} className="text-sm font-medium text-primary-600 hover:underline">下载模板</button>
+                                    </div>
+                                </div>
+                                {fileColumns.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h4 className="text-md font-medium text-gray-800">映射列</h4>
+                                        {SYSTEM_FIELDS.map(field => (
+                                            <div key={field} className="grid grid-cols-2 gap-4 items-center">
+                                                <label className="text-sm font-medium text-gray-700">{SYSTEM_FIELD_LABELS_ZH[field] || field}</label>
+                                                <select
+                                                    value={columnMap[field] || ''}
+                                                    onChange={(e) => handleColumnMapChange(field, e.target.value)}
+                                                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
+                                                >
+                                                    <option value="">选择列</option>
+                                                    {fileColumns.map(col => (
+                                                        <option key={col} value={col}>{col}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {currentStep === 3 && (
+                         <div className="mt-8">
+                            <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-6 text-center">第三步：预览并确认</h3>
+                            <div className="space-y-2 mb-4 bg-gray-50 p-4 rounded-lg">
+                                <p className="text-sm text-gray-700">
+                                    <span className="font-medium">已选平台：</span> {platforms.find(p => p.id === selectedPlatform)?.name || 'N/A'}
+                                </p>
+                                <p className="text-sm text-gray-700">
+                                    <span className="font-medium">已选店铺：</span> {shops.find(s => s.id === selectedShop)?.name || 'N/A'}
+                                </p>
+                            </div>
+                            {previewData.length > 0 ? (
+                                <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-primary-100 text-primary-800">
+                                                {SYSTEM_FIELDS.map((field, index) => (
+                                                    <th
+                                                        key={field}
+                                                        scope="col"
+                                                        className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider
+                                                            ${index === 0 ? 'rounded-tl-lg' : ''}
+                                                            ${index === SYSTEM_FIELDS.length - 1 ? 'rounded-tr-lg' : ''}`
+                                                        }
+                                                    >
+                                                        {SYSTEM_FIELD_LABELS_ZH[field] || field}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {previewData.map((row, rowIndex) => (
+                                                <tr key={rowIndex} className={`border-b border-primary-100
+                                                    ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'}
+                                                    hover:bg-primary-100/50 transition-colors`}>
+                                                    {SYSTEM_FIELDS.map(field => (
+                                                        <td key={field} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                            {row[columnMap[field]] || row[field] || ''}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="mt-4 text-center text-sm text-gray-600">无数据可预览，或文件未正确上传/解析。</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Navigation */}
+                <div className="mt-8 pt-5">
+                    <div className="flex justify-between">
+                         <button
+                            onClick={handleBack}
+                            disabled={currentStep === 1}
+                            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            上一步
+                        </button>
+                        {currentStep < 3 ? (
+                            <button
+                                onClick={handleNext}
+                                className="px-6 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md shadow-sm hover:bg-primary-700"
+                            >
+                                下一步
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleImport}
+                                className="px-6 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700"
+                            >
+                                确认导入
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+export default ImportSessionModal;

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import { sessionAPI } from '../api'
 import Modal from './Modal'
+import ImportSessionModal from './ImportSessionModal'; // Import the new modal
 
 const SessionManagement = () => {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedSession, setSelectedSession] = useState(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State for the import modal
 
   useEffect(() => {
     loadSessions()
@@ -55,6 +57,13 @@ const SessionManagement = () => {
             <p className="text-gray-500 text-sm mt-1">共 {sessions.length} 个会话</p>
           </div>
           <div className="flex gap-3">
+             <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+            >
+              <span className="text-xl">↑</span>
+              <span>导入会话</span>
+            </button>
             <select className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option>全部状态</option>
               <option>进行中</option>
@@ -160,6 +169,8 @@ const SessionManagement = () => {
           </div>
         )}
       </Modal>
+
+      <ImportSessionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
     </div>
   )
 }

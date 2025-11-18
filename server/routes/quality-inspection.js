@@ -1,18 +1,151 @@
+const ExcelJS = require('exceljs');
 module.exports = async function (fastify, opts) {
     const pool = fastify.mysql;
 
+    // GET /api/platforms - Get all platforms
+    fastify.get('/api/platforms', async (request, reply) => {
+        try {
+            const [rows] = await pool.query('SELECT * FROM platforms ORDER BY name ASC');
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching platforms:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch platforms.' });
+        }
+    });
+
+    // GET /api/platforms/:id/shops - Get shops for a platform
+    fastify.get('/api/platforms/:id/shops', async (request, reply) => {
+        const { id } = request.params;
+        try {
+            const [rows] = await pool.query('SELECT * FROM shops WHERE platform_id = ? ORDER BY name ASC', [id]);
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching shops:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch shops.' });
+        }
+    });
+
+    // POST /api/platforms - Create a new platform
+    fastify.post('/api/platforms', async (request, reply) => {
+        const { name } = request.body;
+        if (!name) {
+            return reply.code(400).send({ success: false, message: 'Platform name is required.' });
+        }
+        try {
+            const [result] = await pool.query('INSERT INTO platforms (name) VALUES (?)', [name]);
+            return { success: true, id: result.insertId };
+        } catch (error) {
+            console.error('Error creating platform:', error);
+            reply.code(500).send({ success: false, message: 'Failed to create platform.' });
+        }
+    });
+
+    // PUT /api/platforms/:id - Update a platform
+    fastify.put('/api/platforms/:id', async (request, reply) => {
+        const { id } = request.params;
+        const { name } = request.body;
+        if (!name) {
+            return reply.code(400).send({ success: false, message: 'Platform name is required.' });
+        }
+        try {
+            const [result] = await pool.query('UPDATE platforms SET name = ? WHERE id = ?', [name, id]);
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Platform not found.' });
+            }
+            return { success: true, message: 'Platform updated successfully.' };
+        } catch (error) {
+            console.error('Error updating platform:', error);
+            reply.code(500).send({ success: false, message: 'Failed to update platform.' });
+        }
+    });
+
+    // DELETE /api/platforms/:id - Delete a platform and its shops
+    fastify.delete('/api/platforms/:id', async (request, reply) => {
+        const { id } = request.params;
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            // Delete shops associated with the platform
+            await connection.query('DELETE FROM shops WHERE platform_id = ?', [id]);
+            // Delete the platform
+            const [result] = await connection.query('DELETE FROM platforms WHERE id = ?', [id]);
+            await connection.commit();
+            
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Platform not found.' });
+            }
+            return { success: true, message: 'Platform and associated shops deleted successfully.' };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error deleting platform:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete platform.' });
+        } finally {
+            connection.release();
+        }
+    });
+
+    // POST /api/shops - Create a new shop for a platform
+    fastify.post('/api/shops', async (request, reply) => {
+        const { name, platform_id } = request.body;
+        if (!name || !platform_id) {
+            return reply.code(400).send({ success: false, message: 'Shop name and platform ID are required.' });
+        }
+        try {
+            const [result] = await pool.query('INSERT INTO shops (name, platform_id) VALUES (?, ?)', [name, platform_id]);
+            return { success: true, id: result.insertId };
+        } catch (error) {
+            console.error('Error creating shop:', error);
+            reply.code(500).send({ success: false, message: 'Failed to create shop.' });
+        }
+    });
+
+    // PUT /api/shops/:id - Update a shop
+    fastify.put('/api/shops/:id', async (request, reply) => {
+        const { id } = request.params;
+        const { name } = request.body;
+        if (!name) {
+            return reply.code(400).send({ success: false, message: 'Shop name is required.' });
+        }
+        try {
+            const [result] = await pool.query('UPDATE shops SET name = ? WHERE id = ?', [name, id]);
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Shop not found.' });
+            }
+            return { success: true, message: 'Shop updated successfully.' };
+        } catch (error) {
+            console.error('Error updating shop:', error);
+            reply.code(500).send({ success: false, message: 'Failed to update shop.' });
+        }
+    });
+
+    // DELETE /api/shops/:id - Delete a shop
+    fastify.delete('/api/shops/:id', async (request, reply) => {
+        const { id } = request.params;
+        try {
+            const [result] = await pool.query('DELETE FROM shops WHERE id = ?', [id]);
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Shop not found.' });
+            }
+            return { success: true, message: 'Shop deleted successfully.' };
+        } catch (error) {
+            console.error('Error deleting shop:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete shop.' });
+        }
+    });
+
+
     // POST /api/quality/sessions - Create quality session
     fastify.post('/api/quality/sessions', async (request, reply) => {
-        const { session_code, customer_service_id, customer_info, communication_channel, duration, message_count } = request.body;
+        const { session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count } = request.body;
         try {
-            if (!session_code || !customer_service_id) {
-                return reply.code(400).send({ success: false, message: 'Session code and customer service ID are required.' });
+            if (!session_code || !customer_service_id || !platform || !shop) {
+                return reply.code(400).send({ success: false, message: 'Session code, customer service ID, platform, and shop are required.' });
             }
 
             const [result] = await pool.query(
-                `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, duration, message_count)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [session_code, customer_service_id, JSON.stringify(customer_info), communication_channel, duration, message_count]
+                `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [session_code, customer_service_id, JSON.stringify(customer_info), communication_channel, platform, shop, duration, message_count]
             );
             return { success: true, id: result.insertId };
         } catch (error) {
@@ -1253,6 +1386,123 @@ module.exports = async function (fastify, opts) {
         } catch (error) {
             console.error('Error generating summary quality report:', error);
             reply.code(500).send({ success: false, message: 'Failed to generate summary quality report.' });
+        }
+    });
+
+    // POST /api/quality/sessions/import - Import sessions from Excel
+    fastify.post('/api/quality/sessions/import', async (request, reply) => {
+        const data = await request.file();
+        if (!data) {
+            return reply.code(400).send({ success: false, message: 'No file uploaded.' });
+        }
+
+        const platform = data.fields.platform;
+        const shop = data.fields.shop;
+        const columnMapRaw = data.fields.columnMap; // Get the raw value, which is already an object or undefined
+
+        console.log('Backend received data.fields:', data.fields);
+        console.log('Backend received columnMapRaw:', columnMapRaw); // Log the raw columnMap
+
+        // If columnMapRaw is an object, use it directly. Otherwise, it might be undefined or some other type.
+        // We expect it to be an object due to Fastify's multipart parsing for JSON-like fields.
+        let columnMap;
+        if (typeof columnMapRaw === 'object' && columnMapRaw !== null) {
+            columnMap = columnMapRaw;
+        } else {
+            console.error('columnMap received is not an object:', columnMapRaw);
+            return reply.code(400).send({ success: false, message: 'Invalid column map format: Expected an object.' });
+        }
+        
+        // Use columnMap here, and ensure platform, shop are present
+        if (!platform || !shop || Object.keys(columnMap).length === 0) { // Check if columnMap is empty as well
+            return reply.code(400).send({ success: false, message: 'Platform, shop, and column map are required.' });
+        }
+
+        console.log('Successfully processed columnMap:', columnMap);
+
+        const workbook = new ExcelJS.Workbook();
+        try {
+            const buffer = await data.toBuffer();
+            await workbook.xlsx.load(buffer);
+        } catch (error) {
+            console.error('Error parsing Excel file:', error);
+            return reply.code(400).send({ success: false, message: 'Invalid Excel file format.' });
+        }
+        
+
+        const worksheet = workbook.getWorksheet(1);
+        if (!worksheet) {
+            return reply.code(400).send({ success: false, message: 'No worksheet found in the Excel file.' });
+        }
+
+        const headerRow = worksheet.getRow(1);
+        const headers = [];
+        headerRow.eachCell((cell) => {
+            headers.push(cell.value);
+        });
+
+        // Define system fields to map
+        const SYSTEM_FIELDS = [
+            'session_code', 'customer_service_id', 'customer_info', 
+            'communication_channel', 'duration', 'message_count'
+        ];
+
+        const sessionsToInsert = [];
+        worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+            if (rowNumber > 1) { // Skip header row
+                const sessionData = {};
+                SYSTEM_FIELDS.forEach(systemField => {
+                    const fileColumnName = columnMap[systemField];
+                    if (fileColumnName) {
+                        const cellIndex = headers.indexOf(fileColumnName);
+                        if (cellIndex !== -1) {
+                            sessionData[systemField] = row.getCell(cellIndex + 1).value;
+                        }
+                    }
+                });
+                
+                // Add platform and shop from request body
+                sessionData.platform = platform;
+                sessionData.shop = shop;
+
+                // Basic validation for required fields
+                if (sessionData.session_code && sessionData.customer_service_id) {
+                    sessionsToInsert.push(sessionData);
+                }
+            }
+        });
+
+        if (sessionsToInsert.length === 0) {
+            return reply.code(400).send({ success: false, message: 'No valid data found in the file based on mappings.' });
+        }
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            for (const session of sessionsToInsert) {
+                await connection.query(
+                    `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        session.session_code,
+                        session.customer_service_id,
+                        JSON.stringify(session.customer_info), // Assuming customer_info might be an object
+                        session.communication_channel,
+                        session.platform,
+                        session.shop,
+                        session.duration,
+                        session.message_count
+                    ]
+                );
+            }
+            await connection.commit();
+            return { success: true, message: `${sessionsToInsert.length} sessions imported successfully.` };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error importing sessions:', error);
+            reply.code(500).send({ success: false, message: 'Failed to import sessions.' });
+        } finally {
+            connection.release();
         }
     });
 };

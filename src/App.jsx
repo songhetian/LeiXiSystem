@@ -28,6 +28,11 @@ const Win11KnowledgeBase = lazy(() => import('./components/Win11KnowledgeBase'))
 const Win11MyKnowledgeBase = lazy(() => import('./components/Win11MyKnowledgeBase'));
 const Win11KnowledgeFolderView = lazy(() => import('./components/Win11KnowledgeFolderView'));
 const AssessmentManagement = lazy(() => import('./components/AssessmentManagement'));
+const ExamManagement = lazy(() => import('./components/ExamManagement'));
+const AssessmentPlanManagement = lazy(() => import('./components/AssessmentPlanManagement'));
+const CategoryManagement = lazy(() => import('./components/CategoryManagement'));
+const ExamResultsManagement = lazy(() => import('./components/ExamResultsManagement'));
+const DragDropExamBuilder = lazy(() => import('./components/DragDropExamBuilder'));
 const MyExamList = lazy(() => import('./components/MyExamList'));
 const ExamTaking = lazy(() => import('./components/ExamTaking'));
 const ExamResult = lazy(() => import('./components/ExamResult'));
@@ -44,6 +49,7 @@ const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
 const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
 
 // Lazy-loaded Attendance Management Pages
 const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
@@ -205,6 +211,8 @@ function App() {
         return <QualityRuleManagementPage />
       case 'quality-score':
         return <QualityInspection />
+      case 'quality-platform-shop':
+        return <PlatformShopManagement />
       case 'quality-report':
         return <QualityStatisticsPage />
       case 'quality-report-summary': // New case for QualityReportPage
@@ -229,6 +237,16 @@ function App() {
         return <Win11MyKnowledgeBase />
 
       // 考核系统
+      case 'assessment-exams':
+        return <ExamManagement />
+      case 'assessment-plans':
+        return <AssessmentPlanManagement />
+      case 'assessment-categories':
+        return <CategoryManagement />
+      case 'assessment-results':
+        return <ExamResultsManagement />
+      case 'assessment-drag-drop-builder':
+        return <DragDropExamBuilder />
       case 'my-exams':
         return <MyExamList onStartExam={(examId, planId) => handleSetActiveTab('exam-taking', { examId, planId })} />
       case 'exam-taking':

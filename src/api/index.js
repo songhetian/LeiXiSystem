@@ -42,6 +42,16 @@ export const sessionAPI = {
 
 // 质检相关 API
 export const qualityAPI = {
+  // Platforms and Shops
+  getPlatforms: () => api.get('/platforms'),
+  getShopsByPlatform: (platformId) => api.get(`/platforms/${platformId}/shops`),
+  createPlatform: (data) => api.post('/platforms', data),
+  updatePlatform: (id, data) => api.put(`/platforms/${id}`, data),
+  deletePlatform: (id) => api.delete(`/platforms/${id}`),
+  createShop: (data) => api.post('/shops', data),
+  updateShop: (id, data) => api.put(`/shops/${id}`, data),
+  deleteShop: (id) => api.delete(`/shops/${id}`),
+
   // Session Management
   getAllSessions: (params) => api.get('/quality/sessions', { params }),
   getSessionById: (id) => api.get(`/quality/sessions/${id}`),
@@ -50,6 +60,11 @@ export const qualityAPI = {
   deleteSession: (id) => api.delete(`/quality/sessions/${id}`),
   getSessionMessages: (id) => api.get(`/quality/sessions/${id}/messages`),
   submitReview: (id, data) => api.post(`/quality/sessions/${id}/review`, data),
+  importSessions: (formData) => api.post('/quality/sessions/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
 
   // Rule Management
   getAllRules: () => api.get('/quality/rules'),
