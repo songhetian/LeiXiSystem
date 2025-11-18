@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 import { toast } from 'react-toastify'
 import api from '../api'
 import Modal from './Modal'
 import { getApiUrl } from '../utils/apiConfig'
+import debounce from 'lodash.debounce'
 
 
 const ExamManagement = () => {
@@ -19,6 +21,31 @@ const ExamManagement = () => {
   const [bankSearchTerm, setBankSearchTerm] = useState('')
   const [editingQuestion, setEditingQuestion] = useState(null)
   const [showEditQuestionModal, setShowEditQuestionModal] = useState(false)
+  const [selectedQuestionId, setSelectedQuestionId] = useState(null)
+  const typePalette = [
+    { id: 'single_choice', label: '单选题' },
+    { id: 'multiple_choice', label: '多选题' },
+    { id: 'true_false', label: '判断题' },
+    { id: 'fill_blank', label: '填空题' },
+    { id: 'short_answer', label: '简答题' }
+  ]
+  const [showRecycleBin, setShowRecycleBin] = useState(false)
+  const [deletedExams, setDeletedExams] = useState([])
+  const [deletedSearch, setDeletedSearch] = useState('')
+  const [deletedPage, setDeletedPage] = useState(1)
+  const [deletedTotal, setDeletedTotal] = useState(0)
+  const deletedPageSize = 10
+  const [isDraggingOverExam, setIsDraggingOverExam] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState(null)
+  const [history, setHistory] = useState([])
+  const [autoSave, setAutoSave] = useState(true)
+
+  const showStatus = (type, message) => {
+    try { toast.dismiss() } catch (e) {}
+    if (type === 'success') return toast.success(message)
+    return toast.error(message)
+  }
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
@@ -45,11 +72,22 @@ const ExamManagement = () => {
     explanation: ''
   })
 
+  const filteredExams = React.useMemo(() => {
+    return exams.filter(exam =>
+      exam.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exam.category?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [exams, searchTerm])
+
   useEffect(() => {
     if (filteredExams) {
       setTotalPages(Math.ceil(filteredExams.length / pageSize))
     }
   }, [filteredExams, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
@@ -76,7 +114,6 @@ const ExamManagement = () => {
       const response = await api.get('/question-bank')
       setQuestionBank(response.data || [])
     } catch (error) {
-      console.error('获取题库失败:', error)
       setQuestionBank([])
     }
   }
@@ -85,7 +122,13 @@ const ExamManagement = () => {
     setLoading(true)
     try {
       const response = await api.get('/exams')
-      setExams(response.data || [])
+      const payload = response?.data
+      const list = Array.isArray(payload?.data?.exams)
+        ? payload.data.exams
+        : Array.isArray(payload?.exams)
+        ? payload.exams
+        : []
+      setExams(list)
     } catch (error) {
       console.error('获取试卷失败:', error)
       toast.error('获取试卷列表失败')
@@ -95,10 +138,29 @@ const ExamManagement = () => {
     }
   }
 
+  const fetchDeletedExams = async (page = 1, title = '') => {
+    try {
+      const response = await api.get('/exams/deleted', { params: { page, pageSize: deletedPageSize, title } })
+      const payload = response?.data?.data || {}
+      setDeletedExams(Array.isArray(payload.exams) ? payload.exams : [])
+      setDeletedTotal(payload.total || 0)
+    } catch (error) {
+      console.error('获取回收站试卷失败:', error)
+      setDeletedExams([])
+      setDeletedTotal(0)
+    }
+  }
+
   const fetchQuestions = async (examId) => {
     try {
       const response = await api.get(`/exams/${examId}/questions`)
-      setQuestions(response.data || [])
+      const payload = response?.data
+      const list = Array.isArray(payload?.data?.questions)
+        ? payload.data.questions
+        : Array.isArray(payload)
+        ? payload
+        : []
+      setQuestions(list)
     } catch (error) {
       console.error('获取题目失败:', error)
       toast.error('获取题目失败')
@@ -151,29 +213,39 @@ const ExamManagement = () => {
       const data = {
         ...newQuestion,
         exam_id: selectedExam.id,
-        options: newQuestion.type.includes('choice') ? JSON.stringify(newQuestion.options.filter(opt => opt.trim())) : null,
+        options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
         order_num: questions.length + 1
       }
 
-      await api.post(`/exams/${selectedExam.id}/questions`, data)
-      toast.success('题目添加成功')
+      const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
+      showStatus('success', '题目添加成功')
+      const newId = res?.data?.data?.id
       resetQuestionForm()
-      fetchQuestions(selectedExam.id)
+      await fetchQuestions(selectedExam.id)
+      if (newId) {
+        const q = Array.isArray(questions) ? questions.find((x) => x.id === newId) : null
+        if (q) setEditingQuestion(q)
+      }
     } catch (error) {
       console.error('添加题目失败:', error)
-      toast.error('添加题目失败')
+      showStatus('error', '添加题目失败')
     }
   }
 
-  const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm('确定要删除这道题目吗？')) return
+  const handleDeleteQuestion = (questionId) => {
+    setDeleteTargetId(questionId)
+    setShowDeleteConfirm(true)
+  }
 
+  const confirmDeleteQuestion = async () => {
+    if (!deleteTargetId) return
     try {
-      await api.delete(`/questions/${questionId}`)
+      await api.delete(`/questions/${deleteTargetId}`)
+      setShowDeleteConfirm(false)
+      setDeleteTargetId(null)
       toast.success('题目删除成功')
       fetchQuestions(selectedExam.id)
     } catch (error) {
-      console.error('删除题目失败:', error)
       toast.error('删除题目失败')
     }
   }
@@ -188,7 +260,6 @@ const ExamManagement = () => {
       score: question.score,
       explanation: question.explanation || ''
     })
-    setShowEditQuestionModal(true)
   }
 
   const handleUpdateQuestion = async () => {
@@ -213,21 +284,20 @@ const ExamManagement = () => {
       const data = {
         type: newQuestion.type,
         content: newQuestion.content,
-        options: newQuestion.type.includes('choice') ? JSON.stringify(newQuestion.options.filter(opt => opt.trim())) : null,
+        options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
         correct_answer: newQuestion.correct_answer,
         score: newQuestion.score,
         explanation: newQuestion.explanation
       }
 
       await api.put(`/questions/${editingQuestion.id}`, data)
-      toast.success('题目更新成功')
-      setShowEditQuestionModal(false)
+      showStatus('success', '题目更新成功')
       setEditingQuestion(null)
       resetQuestionForm()
       fetchQuestions(selectedExam.id)
     } catch (error) {
       console.error('更新题目失败:', error)
-      toast.error('更新题目失败')
+      showStatus('error', '更新题目失败')
     }
   }
 
@@ -236,11 +306,28 @@ const ExamManagement = () => {
 
     try {
       await api.delete(`/exams/${examId}`)
-      toast.success('试卷删除成功')
+      toast.success('试卷已移入回收站')
       fetchExams()
+      setShowRecycleBin(true)
+      setDeletedPage(1)
+      setDeletedSearch('')
+      fetchDeletedExams(1, '')
     } catch (error) {
       console.error('删除试卷失败:', error)
       toast.error('删除试卷失败')
+    }
+  }
+
+  const handleRestoreExam = async (examId) => {
+    if (!window.confirm('确定要还原该试卷吗？')) return
+    try {
+      await api.put(`/exams/${examId}/restore`)
+      toast.success('试卷已还原')
+      fetchExams()
+      fetchDeletedExams(deletedPage, deletedSearch)
+    } catch (error) {
+      console.error('还原试卷失败:', error)
+      toast.error('还原试卷失败')
     }
   }
 
@@ -259,10 +346,12 @@ const ExamManagement = () => {
   const handleDragOver = (e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
+    setIsDraggingOverExam(true)
   }
 
   const handleDrop = async (e, targetIndex) => {
     e.preventDefault()
+    setIsDraggingOverExam(false)
 
     if (!draggedQuestion) {
       return
@@ -283,12 +372,17 @@ const ExamManagement = () => {
           order_num: targetIndex + 1
         }
 
-        await api.post(`/exams/${selectedExam.id}/questions`, data)
-        toast.success('题目已添加到试卷')
-        fetchQuestions(selectedExam.id)
+        const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
+        showStatus('success', '题目已添加到试卷')
+        const newId = res?.data?.data?.id
+        await fetchQuestions(selectedExam.id)
+        if (newId) {
+          const q = Array.isArray(questions) ? questions.find((x) => x.id === newId) : null
+          if (q) setEditingQuestion(q)
+        }
       } catch (error) {
         console.error('添加题目失败:', error)
-        toast.error('添加题目失败')
+        showStatus('error', '添加题目失败')
       }
       setDraggedQuestion(null)
       return
@@ -300,6 +394,7 @@ const ExamManagement = () => {
       return
     }
 
+    setHistory((prev) => [...prev, questions])
     const newQuestions = [...questions]
     const [removed] = newQuestions.splice(draggedQuestion.index, 1)
     newQuestions.splice(targetIndex, 0, removed)
@@ -314,11 +409,23 @@ const ExamManagement = () => {
       }))
 
       await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
+      showStatus('success', '题目顺序已更新')
+    } catch (error) {
+      console.error('更新顺序失败:', error)
+      showStatus('error', '更新顺序失败')
+      fetchQuestions(selectedExam.id)
+    }
+  }
+
+  const saveOrder = async () => {
+    if (!selectedExam) return
+    try {
+      const updates = questions.map((q, idx) => ({ id: q.id, order_num: idx + 1 }))
+      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
       toast.success('题目顺序已更新')
     } catch (error) {
       console.error('更新顺序失败:', error)
       toast.error('更新顺序失败')
-      fetchQuestions(selectedExam.id)
     }
   }
 
@@ -347,6 +454,14 @@ const ExamManagement = () => {
     })
   }
 
+  const debouncedSave = useMemo(() => debounce(async (payload) => {
+    try {
+      await api.put(`/questions/${editingQuestion.id}`, payload)
+    } catch (e) {
+      toast.error('自动保存失败')
+    }
+  }, 300), [editingQuestion])
+
   const getQuestionTypeLabel = (type) => {
     const types = {
       single_choice: '单选题',
@@ -356,6 +471,41 @@ const ExamManagement = () => {
       short_answer: '简答题'
     }
     return types[type] || type
+  }
+
+  const createTypeTemplate = (type) => {
+    if (type === 'single_choice') {
+      return { type, content: '新题目', options: JSON.stringify(['选项A', '选项B']), correct_answer: 'A', score: 10, explanation: '' }
+    }
+    if (type === 'multiple_choice') {
+      return { type, content: '新题目', options: JSON.stringify(['选项A', '选项B', '选项C']), correct_answer: 'AB', score: 10, explanation: '' }
+    }
+    if (type === 'true_false') {
+      return { type, content: '新题目', options: JSON.stringify(['正确', '错误']), correct_answer: 'A', score: 10, explanation: '' }
+    }
+    if (type === 'fill_blank') {
+      return { type, content: '请填写答案', options: null, correct_answer: '', score: 10, explanation: '' }
+    }
+    if (type === 'short_answer') {
+      return { type, content: '请作答', options: null, correct_answer: '', score: 10, explanation: '' }
+    }
+    return { type, content: '新题目', options: null, correct_answer: '', score: 10, explanation: '' }
+  }
+
+  const undoLast = async () => {
+    if (!history.length || !selectedExam) return
+    const prev = history[history.length - 1]
+    setHistory((h) => h.slice(0, -1))
+    if (Array.isArray(prev) && Array.isArray(questions)) {
+      setQuestions(prev)
+      try {
+        const updates = prev.map((q, idx) => ({ id: q.id, order_num: idx + 1 }))
+        await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
+        toast.success('已撤销排序')
+      } catch (e) {
+        toast.error('撤销失败')
+      }
+    }
   }
 
   const getDifficultyBadge = (difficulty) => {
@@ -394,13 +544,7 @@ const ExamManagement = () => {
     )
   }
 
-  const filteredExams = React.useMemo(() => {
-    setCurrentPage(1); // Reset page when filters change
-    return exams.filter(exam =>
-      exam.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exam.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [exams, searchTerm]);
+  
 
   return (
     <div className="p-0">
@@ -421,6 +565,17 @@ const ExamManagement = () => {
             >
               <span className="text-xl">+</span>
               <span>新建试卷</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowRecycleBin(true)
+                setDeletedPage(1)
+                setDeletedSearch('')
+                fetchDeletedExams(1, '')
+              }}
+              className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+            >
+              回收站
             </button>
           </div>
         </div>
@@ -691,6 +846,93 @@ const ExamManagement = () => {
         </form>
       </Modal>
 
+      <Modal
+        isOpen={showRecycleBin}
+        onClose={() => setShowRecycleBin(false)}
+        title="回收站"
+        size="custom800"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={deletedSearch}
+              onChange={(e) => { setDeletedSearch(e.target.value); setDeletedPage(1); fetchDeletedExams(1, e.target.value) }}
+              placeholder="按试卷标题搜索..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+            />
+          </div>
+
+          <div className="border rounded-lg">
+            <table className="w-full table-auto">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">试卷标题</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">删除时间</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedExams.length === 0 ? (
+                  <tr><td colSpan="3" className="px-4 py-6 text-center text-gray-500">暂无删除的试卷</td></tr>
+                ) : (
+                  deletedExams.map((exam) => (
+                    <tr key={exam.id} className="border-b">
+                      <td className="px-4 py-3">{exam.title}</td>
+                      <td className="px-4 py-3 text-gray-600">{exam.delete_time}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleRestoreExam(exam.id)}
+                          className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                        >
+                          还原
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">共 {deletedTotal} 条</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { const p = Math.max(1, deletedPage - 1); setDeletedPage(p); fetchDeletedExams(p, deletedSearch) }}
+                disabled={deletedPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >上一页</button>
+              <span className="text-sm">第 {deletedPage} 页</span>
+              <button
+                onClick={() => { const totalPages = Math.ceil(deletedTotal / deletedPageSize); const p = Math.min(totalPages || 1, deletedPage + 1); setDeletedPage(p); fetchDeletedExams(p, deletedSearch) }}
+                disabled={deletedPage >= Math.ceil(deletedTotal / deletedPageSize)}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >下一页</button>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button onClick={() => setShowRecycleBin(false)} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">关闭</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => { setShowDeleteConfirm(false); setDeleteTargetId(null) }}
+        title="确认删除题目"
+        size="small"
+        footer={(
+          <div className="w-full flex items-center justify-end gap-2">
+            <button onClick={() => { setShowDeleteConfirm(false); setDeleteTargetId(null) }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">取消</button>
+            <button onClick={confirmDeleteQuestion} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">确认删除</button>
+          </div>
+        )}
+      >
+        <div className="text-gray-700">确定要删除这道题目吗？删除后将无法撤销。</div>
+      </Modal>
+
       {/* 拖拽编辑器Modal */}
       <Modal
         isOpen={showEditorModal && selectedExam}
@@ -701,6 +943,23 @@ const ExamManagement = () => {
         }}
         title={selectedExam ? `${selectedExam.title} - 题目编辑` : '题目编辑'}
         size="xlarge"
+        footer={(
+          <>
+            <div className="text-sm text-gray-600">雷犀® 考核系统 · © 2025 LeiXi</div>
+            <div className="flex items-center gap-2">
+              <button onClick={saveOrder} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">保存顺序</button>
+              <button onClick={undoLast} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">撤销</button>
+              <button
+                onClick={() => {
+                  setShowEditorModal(false)
+                  setSelectedExam(null)
+                  setQuestions([])
+                }}
+                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+              >关闭编辑</button>
+            </div>
+          </>
+        )}
       >
         <div className="flex-1 overflow-hidden flex">
           {/* 左侧：题目列表 */}
@@ -712,7 +971,15 @@ const ExamManagement = () => {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className={`relative flex-1 overflow-y-auto p-4 ${isDraggingOverExam ? 'ring-2 ring-primary-300 rounded-lg' : ''}`}
+                 onDragEnter={() => setIsDraggingOverExam(true)}
+                 onDragOver={handleDragOver}
+                 onDragLeave={() => setIsDraggingOverExam(false)}>
+              {isDraggingOverExam && (
+                <div className="mb-3 px-3 py-2 bg-primary-50 text-primary-700 rounded border border-primary-200 text-sm">
+                  释放以添加到此处
+                </div>
+              )}
               {questions.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   暂无题目，请在右侧添加题目
@@ -730,7 +997,7 @@ const ExamManagement = () => {
                         draggedQuestion?.index === index
                           ? 'border-primary-500 opacity-50'
                           : 'border-gray-200 hover:border-primary-300'
-                      }`}
+                      } ${editingQuestion?.id === question.id ? 'ring-2 ring-primary-400' : ''}`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0">
@@ -739,11 +1006,14 @@ const ExamManagement = () => {
                           </div>
                         </div>
 
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0" onClick={() => handleEditQuestion(question)}>
                           <div className="flex items-center gap-2 mb-2">
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
                               {getQuestionTypeLabel(question.type)}
                             </span>
+                            {editingQuestion?.id === question.id && (
+                              <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs font-medium">编辑中</span>
+                            )}
                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
                               {question.score}分
                             </span>
@@ -755,7 +1025,7 @@ const ExamManagement = () => {
 
                           {question.type.includes('choice') && question.options && (
                             <div className="space-y-1 text-sm">
-                              {JSON.parse(question.options).map((option, idx) => (
+                              {(Array.isArray(question.options) ? question.options : (() => { try { return JSON.parse(question.options) } catch { return [] } })()).map((option, idx) => (
                                 <div
                                   key={idx}
                                   className={`flex items-center gap-2 ${
@@ -811,6 +1081,23 @@ const ExamManagement = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">题型选择</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {typePalette.map((t) => (
+                    <div
+                      key={t.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, createTypeTemplate(t.id), 0, 'bank')}
+                      onClick={() => setNewQuestion({ ...newQuestion, type: t.id })}
+                      className="border-2 border-primary-100 hover:border-primary-300 rounded-lg p-3 bg-primary-50/50 hover:bg-primary-100 cursor-move select-none flex items-center justify-between"
+                    >
+                      <span className="text-primary-700 font-medium">{t.label}</span>
+                      <span className="text-xs text-primary-600">拖拽到左侧</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
               {/* 题目类型 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">题目类型</label>
@@ -832,7 +1119,7 @@ const ExamManagement = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">题目内容 *</label>
                 <textarea
                   value={newQuestion.content}
-                  onChange={(e) => setNewQuestion({ ...newQuestion, content: e.target.value })}
+                  onChange={(e) => { setNewQuestion({ ...newQuestion, content: e.target.value }); if (editingQuestion && autoSave) { debouncedSave({ content: e.target.value }) } }}
                   rows="3"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                   placeholder="输入题目内容"
@@ -856,6 +1143,10 @@ const ExamManagement = () => {
                             const newOptions = [...newQuestion.options]
                             newOptions[index] = e.target.value
                             setNewQuestion({ ...newQuestion, options: newOptions })
+                            if (editingQuestion && autoSave) {
+                              const filtered = newOptions.filter(opt => opt.trim())
+                              debouncedSave({ options: filtered })
+                            }
                           }}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                           placeholder={`选项 ${String.fromCharCode(65 + index)}`}
@@ -914,14 +1205,14 @@ const ExamManagement = () => {
                     <input
                       type="text"
                       value={newQuestion.correct_answer}
-                      onChange={(e) => setNewQuestion({ ...newQuestion, correct_answer: e.target.value.toUpperCase() })}
+                      onChange={(e) => { const v = e.target.value.toUpperCase(); setNewQuestion({ ...newQuestion, correct_answer: v }); if (editingQuestion && autoSave) { debouncedSave({ correct_answer: v }) } }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                       placeholder="如：ABC（多个答案）"
                     />
                   ) : (
                     <select
                       value={newQuestion.correct_answer}
-                      onChange={(e) => setNewQuestion({ ...newQuestion, correct_answer: e.target.value })}
+                      onChange={(e) => { setNewQuestion({ ...newQuestion, correct_answer: e.target.value }); if (editingQuestion && autoSave) { debouncedSave({ correct_answer: e.target.value }) } }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                     >
                       <option value="">请选择</option>
@@ -951,7 +1242,7 @@ const ExamManagement = () => {
                   type="number"
                   min="1"
                   value={newQuestion.score}
-                  onChange={(e) => setNewQuestion({ ...newQuestion, score: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => { const v = parseInt(e.target.value) || 0; setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
@@ -961,7 +1252,7 @@ const ExamManagement = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">答案解析</label>
                 <textarea
                   value={newQuestion.explanation}
-                  onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
+                  onChange={(e) => { setNewQuestion({ ...newQuestion, explanation: e.target.value }); if (editingQuestion && autoSave) { debouncedSave({ explanation: e.target.value }) } }}
                   rows="3"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                   placeholder="输入答案解析（可选）"
@@ -969,10 +1260,10 @@ const ExamManagement = () => {
               </div>
 
               <button
-                onClick={handleAddQuestion}
+                onClick={editingQuestion ? handleUpdateQuestion : handleAddQuestion}
                 className="w-full px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
               >
-                ➕ 添加题目
+                {editingQuestion ? '更新题目' : '➕ 添加题目'}
               </button>
             </div>
           </div>
