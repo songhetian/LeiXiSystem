@@ -12,11 +12,21 @@ const Win11KnowledgeFolderView = () => {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null);
   const [folderSearchTerm, setFolderSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(30);
-  const [sortBy, setSortBy] = useState('name');
+  const [currentPage, setCurrentPage] = useState(1); // For articles
+  const [pageSize, setPageSize] = useState(30); // For articles
+  const [articleTotalPages, setArticleTotalPages] = useState(1); // New state for article total pages
+  const [totalArticleItems, setTotalArticleItems] = useState(0); // New state for total article items
+
+  const [sortBy, setSortBy] = useState('asc');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useState('card'); // For articles
+  const [categoryViewMode, setCategoryViewMode] = useState('card'); // For categories
+
+  // Category Pagination
+  const [categoryCurrentPage, setCategoryCurrentPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(10); // Default page size for categories
+  const [categoryTotalPages, setCategoryTotalPages] = useState(1);
+  const [totalCategoryItems, setTotalCategoryItems] = useState(0); // New state for total items
 
   // 新建分类状态
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
@@ -64,8 +74,11 @@ const Win11KnowledgeFolderView = () => {
   });
 
   // 添加调整弹出框宽高的状态
-  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-6xl');
+  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-4xl');
   const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]');
+  const [attachmentToPreview, setAttachmentToPreview] = useState(null);
+  const [nonPreviewableFile, setNonPreviewableFile] = useState(null);
+
 
   // 回收站
   const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
@@ -84,7 +97,7 @@ const Win11KnowledgeFolderView = () => {
   useEffect(() => {
     fetchCategories();
     fetchArticles();
-  }, []);
+  }, [categoryCurrentPage, categoryPageSize]);
 
   const getToken = () => {
     return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -136,21 +149,35 @@ const Win11KnowledgeFolderView = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/knowledge/categories'));
+      const response = await axios.get(getApiUrl(`/api/knowledge/categories?page=${categoryCurrentPage}&pageSize=${categoryPageSize}`));
       console.log('Folder Categories API Response:', response.data); // 调试信息
       // 确保返回的是数组
       let categoriesData = response.data || [];
-      if (!Array.isArray(categoriesData) && categoriesData.data && Array.isArray(categoriesData.data)) {
-        // 如果是分页数据结构 { data: [...], pagination: {...} }
-        categoriesData = categoriesData.data;
+      let totalItems = 0;
+
+      if (response.data && Array.isArray(response.data.data)) {
+        // If it's a paginated structure { data: [...], total: ..., page: ... }
+        categoriesData = response.data.data;
+        totalItems = response.data.total || categoriesData.length; // Ensure totalItems is set
+      } else if (Array.isArray(response.data)) {
+        // If it's a direct array (non-paginated from API, but we'll paginate client-side)
+        categoriesData = response.data;
+        totalItems = categoriesData.length;
       }
+
       const uid = getCurrentUserId();
       const filtered = (categoriesData || []).filter(c => {
         const t = String(c?.type || '').toLowerCase();
         const notDeleted = !c.deleted_at && c.status !== 'deleted' && c.is_deleted !== 1;
         return isOwnedBy(c, uid) && t === 'common' && isPublished(c) && notDeleted;
       });
+
       setCategories(filtered);
+      setTotalCategoryItems(totalItems); // Set total items
+      const calculatedTotalPages = Math.ceil(totalItems / categoryPageSize);
+      setCategoryTotalPages(calculatedTotalPages);
+      console.log('Pagination Debug: totalItems =', totalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
+
     } catch (error) {
       console.error('获取分类失败:', error);
     }
@@ -202,15 +229,15 @@ const Win11KnowledgeFolderView = () => {
 
   const getFileIcon = (type) => {
     if (!type) return '📄';
-    if (type.startsWith('image/')) return '🖼️';
-    if (type.startsWith('video/')) return '🎬';
-    if (type.startsWith('audio/')) return '🎵';
-    if (type.includes('pdf')) return '�';
-    if (type.includes('word') || type.includes('document')) return '�';
-    if (type.includes('excel') || type.includes('sheet')) return '�';
-    if (type.includes('powerpoint') || type.includes('presentation')) return '📙';
-    if (type.includes('zip') || type.includes('compressed')) return '�️';
-    if (type.includes('text') || type.includes('plain')) return '�';
+    if (type.startsWith('image/')) return '📷';
+    if (type.startsWith('video/')) return '🎥';
+    if (type.startsWith('audio/')) return '🎧';
+    if (type.includes('pdf')) return '📕';
+    if (type.includes('word') || type.includes('document')) return '📝';
+    if (type.includes('excel') || type.includes('sheet')) return '📈';
+    if (type.includes('powerpoint') || type.includes('presentation')) return '🖥️';
+    if (type.includes('zip') || type.includes('compressed')) return '📦';
+    if (type.includes('text') || type.includes('plain')) return '🗒️';
     if (type.includes('json')) return '📋';
     if (type.includes('xml')) return '📊';
     if (type.includes('html')) return '🌐';
@@ -350,6 +377,10 @@ const Win11KnowledgeFolderView = () => {
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
+
+    // Set total article items and total pages for articles
+    setTotalArticleItems(filtered.length);
+    setArticleTotalPages(Math.ceil(filtered.length / pageSize));
 
     return filtered;
   };
@@ -676,9 +707,23 @@ const Win11KnowledgeFolderView = () => {
       }
     } else if (contextMenu.type === 'file') {
       switch (item.actionType) {
-        case 'preview':
-          setPreviewFile(contextMenu.data);
+        case 'preview': {
+          const article = contextMenu.data;
+          const attachments = parseAttachments(article.attachments);
+          if (attachments.length === 1) {
+            const file = attachments[0];
+            const fileType = inferFileType(file);
+            const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+            if (isPreviewable) {
+              setAttachmentToPreview(file);
+            } else {
+              setNonPreviewableFile(file);
+            }
+          } else {
+            setPreviewFile(article);
+          }
           break;
+        }
         case 'move':
           toast.info('移动功能待实现');
           break;
@@ -829,85 +874,97 @@ const Win11KnowledgeFolderView = () => {
     <div className="p-6 h-full flex flex-col bg-gray-100">
       {/* 顶部操作栏 */}
       <div className="mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <span className="text-2xl">📁</span>
-              知识文档
-            </h1>
-            
-            {/* 搜索框和操作按钮 */}
-            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 items-stretch">
-              {/* 搜索框 */}
-              <div className="relative flex-1 min-w-[250px]">
-                <input
-                  type="text"
-                  placeholder={currentFolderCategory 
-                    ? `在 ${currentFolderCategory.name} 中搜索...` 
-                    : '搜索所有文档...'}
-                  value={currentFolderCategory ? folderSearchTerm : searchTerm}
-                  onChange={(e) => {
-                    if (currentFolderCategory) {
-                      setFolderSearchTerm(e.target.value);
-                    } else {
-                      setSearchTerm(e.target.value);
-                    }
-                  }}
-                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
-                />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  🔍
-                </div>
-              </div>
-              
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (currentFolderCategory) {
-                      setShowCreateArticleModal(true);
-                      setCreatingCategory(currentFolderCategory);
-                    } else {
-                      setShowCreateCategoryModal(true);
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 whitespace-nowrap"
-                >
-                  <span>{currentFolderCategory ? '📄' : '📁'}</span>
-                  <span>{currentFolderCategory ? '添加文档' : '添加分类'}</span>
-                </button>
-                
-                <button
-                  onClick={openRecycleBin}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="回收站"
-                >
-                  🗑️
-                </button>
-                
-                {/* 视图切换按钮 - 仅在分类视图中显示 */}
-                {currentFolderCategory && (
-                  <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => setViewMode('card')}
-                      className={`p-2 ${viewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-                      title="卡片视图"
-                    >
-                      🟦
-                    </button>
-                    <button
-                      onClick={() => setViewMode('list')}
-                      className={`p-2 border-l border-gray-200 ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-                      title="列表视图"
-                    >
-                      📋
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="bg-green-50 rounded-lg shadow-sm p-4">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-start"> {/* Changed justify-between to justify-start */}
+                        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2 flex-shrink-0">
+                          <div className="w-12 h-12 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-3xl">📂</div>
+                          知识文档
+                        </h1>
+                        
+                        {/* 搜索框和操作按钮 */}
+                        <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 items-stretch ml-4"> {/* Added ml-4 for spacing */}
+                          {/* 搜索框 */}
+                          <div className="relative flex-1 min-w-[250px]">
+                            <input
+                              type="text"
+                              placeholder={currentFolderCategory 
+                                ? `在 ${currentFolderCategory.name} 中搜索...` 
+                                : '搜索所有文档...'}
+                              value={currentFolderCategory ? folderSearchTerm : searchTerm}
+                              onChange={(e) => {
+                                if (currentFolderCategory) {
+                                  setFolderSearchTerm(e.target.value);
+                                } else {
+                                  setSearchTerm(e.target.value);
+                                }
+                              }}
+                              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
+                            />
+                            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                              🔍
+                            </div>
+                          </div>
+                          
+                          {/* 操作按钮 */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                if (currentFolderCategory) {
+                                  setShowCreateArticleModal(true);
+                                  setCreatingCategory(currentFolderCategory);
+                                } else {
+                                  setShowCreateCategoryModal(true);
+                                }
+                              }}
+                              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm whitespace-nowrap"
+                            >
+                              {currentFolderCategory ? '添加文档' : '添加分类'}
+                            </button>
+                            
+                            <button
+                              onClick={openRecycleBin}
+                              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                            >
+                              回收站
+                            </button>
+                            
+                            {/* 视图切换按钮 - 仅在分类视图中显示 */}
+                            {!currentFolderCategory && ( // Only show for categories
+                              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                                <button
+                                  onClick={() => setCategoryViewMode('card')}
+                                  className={`px-3 py-2 text-sm ${categoryViewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                  卡片视图
+                                </button>
+                                <button
+                                  onClick={() => setCategoryViewMode('list')}
+                                  className={`px-3 py-2 text-sm border-l border-gray-200 ${categoryViewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                  列表视图
+                                </button>
+                              </div>
+                            )}
+          
+                            {currentFolderCategory && ( // Only show for articles
+                              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                                <button
+                                  onClick={() => setViewMode('card')}
+                                  className={`px-3 py-2 text-sm ${viewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                  卡片视图
+                                </button>
+                                <button
+                                  onClick={() => setViewMode('list')}
+                                  className={`px-3 py-2 text-sm border-l border-gray-200 ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                  列表视图
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>        </div>
       </div>
 
       {/* 主内容区域 */}
@@ -925,7 +982,7 @@ const Win11KnowledgeFolderView = () => {
                 >
                   <span className="hidden sm:inline">返回</span>
                 </button>
-                <span className="text-2xl">📁</span>
+                <div className="w-14 h-14 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-4xl flex-shrink-0">📂</div>
                 <h2 className="text-xl font-semibold">{currentFolderCategory.name}</h2>
               </div>
             </div>
@@ -957,9 +1014,23 @@ const Win11KnowledgeFolderView = () => {
                           key={article.id}
                           className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center border border-gray-200 rounded-lg shadow-sm"
                           onContextMenu={(e) => handleContextMenu(e, 'file', article)}
-                          onClick={() => setPreviewFile(article)}
+                          onClick={() => {
+                            const attachments = parseAttachments(article.attachments);
+                            if (attachments.length === 1) {
+                                const file = attachments[0];
+                                const fileType = inferFileType(file);
+                                const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+                                if (isPreviewable) {
+                                    setAttachmentToPreview(file);
+                                } else {
+                                    setNonPreviewableFile(file);
+                                }
+                            } else {
+                                setPreviewFile(article);
+                            }
+                          }}
                         >
-                          <div className="text-7xl mb-3 transform hover:scale-110 transition-transform duration-200">
+                          <div className="text-5xl mb-3 transform hover:scale-110 transition-transform duration-200">
                             {getFileIcon(resolvedType)}
                           </div>
                           <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
@@ -989,9 +1060,23 @@ const Win11KnowledgeFolderView = () => {
                           key={article.id}
                           className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm"
                           onContextMenu={(e) => handleContextMenu(e, 'file', article)}
-                          onClick={() => setPreviewFile(article)}
+                          onClick={() => {
+                            const attachments = parseAttachments(article.attachments);
+                            if (attachments.length === 1) {
+                                const file = attachments[0];
+                                const fileType = inferFileType(file);
+                                const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+                                if (isPreviewable) {
+                                    setAttachmentToPreview(file);
+                                } else {
+                                    setNonPreviewableFile(file);
+                                }
+                            } else {
+                                setPreviewFile(article);
+                            }
+                          }}
                         >
-                          <div className="text-3xl flex-shrink-0 transform hover:scale-110 transition-transform duration-200">
+                          <div className="text-2xl flex-shrink-0 transform hover:scale-110 transition-transform duration-200">
                             {getFileIcon(resolvedType)}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1019,11 +1104,23 @@ const Win11KnowledgeFolderView = () => {
             </div>
 
             {/* 分页 */}
-            {getTotalPages() > 1 && (
+            {articleTotalPages > 1 && (
               <div className="p-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm text-gray-600">
-                    共 {getCurrentFolderArticles().length} 个文档，第 {currentPage} / {getTotalPages()} 页
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      共 {totalArticleItems} 个文档，第 {currentPage} / {articleTotalPages} 页
+                    </div>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                    >
+                      <option value={10}>10 / 页</option>
+                      <option value={20}>20 / 页</option>
+                      <option value={30}>30 / 页</option>
+                      <option value={50}>50 / 页</option>
+                    </select>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
@@ -1041,9 +1138,9 @@ const Win11KnowledgeFolderView = () => {
                       上一页
                     </button>
 
-                    {[...Array(Math.min(5, getTotalPages()))].map((_, i) => {
+                    {[...Array(Math.min(5, articleTotalPages))].map((_, i) => {
                       let pageNum;
-                      const totalPages = getTotalPages();
+                      const totalPages = articleTotalPages;
                       if (totalPages <= 5) {
                         pageNum = i + 1;
                       } else if (currentPage <= 3) {
@@ -1058,11 +1155,9 @@ const Win11KnowledgeFolderView = () => {
                         <button
                           key={i}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 border rounded text-sm ${
-                            currentPage === pageNum
+                          className={`px-3 py-1 border rounded text-sm ${ currentPage === pageNum
                               ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-gray-300 hover:bg-gray-100'
-                          }`}
+                              : 'border-gray-300 hover:bg-gray-100'}`}
                         >
                           {pageNum}
                         </button>
@@ -1070,15 +1165,15 @@ const Win11KnowledgeFolderView = () => {
                     })}
 
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
-                      disabled={currentPage === getTotalPages()}
+                      onClick={() => setCurrentPage(p => Math.min(articleTotalPages, p + 1))}
+                      disabled={currentPage === articleTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       下一页
                     </button>
                     <button
-                      onClick={() => setCurrentPage(getTotalPages())}
-                      disabled={currentPage === getTotalPages()}
+                      onClick={() => setCurrentPage(articleTotalPages)}
+                      disabled={currentPage === articleTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       末页
@@ -1109,7 +1204,7 @@ const Win11KnowledgeFolderView = () => {
                   </p>
                 </div>
               ) : (
-                viewMode === 'card' ? (
+                categoryViewMode === 'card' ? ( // Use categoryViewMode here
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {/* 分类文件夹 */}
                     {filteredCategories
@@ -1120,7 +1215,7 @@ const Win11KnowledgeFolderView = () => {
                         return (
                           <div
                             key={category.id}
-                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-200 rounded-lg shadow-sm"
+                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
                             onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                             onClick={() => handleOpenFolder(category)}
                           >
@@ -1149,7 +1244,7 @@ const Win11KnowledgeFolderView = () => {
                                 🗑️
                               </button>
                             </div>
-                            <div className="text-7xl mb-3">📁</div>
+                            <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
                             <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">{category.name}</h3>
                           </div>
                         );
@@ -1158,7 +1253,7 @@ const Win11KnowledgeFolderView = () => {
                     {/* 未分类文档 */}
                     {uncategorizedArticles.length > 0 && (
                       <div
-                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-200 rounded-lg shadow-sm"
+                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
                         onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂' })}
                         onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂' })}
                       >
@@ -1174,7 +1269,7 @@ const Win11KnowledgeFolderView = () => {
                             🔒
                           </button>
                         </div>
-                        <div className="text-7xl mb-3">📁</div>
+                        <div className="text-7xl mb-3">📂</div>
                         <h3 className="font-medium text-gray-900 text-center text-base">未分类</h3>
                       </div>
                     )}
@@ -1190,14 +1285,14 @@ const Win11KnowledgeFolderView = () => {
                         return (
                           <div
                             key={category.id}
-                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm relative"
+                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg relative"
                             onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                             onClick={() => handleOpenFolder(category)}
                           >
                             {category.is_hidden === 1 && (
                               <div className="absolute inset-0 bg-white/50 rounded-lg pointer-events-none" />
                             )}
-                            <div className="text-3xl flex-shrink-0">📁</div>
+                            <div className="text-5xl flex-shrink-0">📂</div>
                             <div className="flex-1 min-w-0">
                               <h3 className="font-medium text-gray-900 truncate">{category.name}</h3>
                             </div>
@@ -1208,11 +1303,11 @@ const Win11KnowledgeFolderView = () => {
                     {/* 未分类文档 */}
                     {uncategorizedArticles.length > 0 && (
                       <div
-                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm"
+                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg"
                         onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂' })}
                         onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂' })}
                       >
-                        <div className="text-3xl flex-shrink-0">📁</div>
+                        <div className="text-4xl flex-shrink-0">📂</div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-gray-900 truncate">未分类</h3>
                         </div>
@@ -1222,6 +1317,86 @@ const Win11KnowledgeFolderView = () => {
                 )
               )}
             </div>
+
+            {/* Category Pagination */}
+            {categoryTotalPages > 1 && (
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      共 {totalCategoryItems} 个分类，第 {categoryCurrentPage} / {categoryTotalPages} 页
+                    </div>
+                    <select
+                      value={categoryPageSize}
+                      onChange={(e) => setCategoryPageSize(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                    >
+                      <option value={5}>5 / 页</option>
+                      <option value={10}>10 / 页</option>
+                      <option value={20}>20 / 页</option>
+                      <option value={30}>30 / 页</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setCategoryCurrentPage(1)}
+                      disabled={categoryCurrentPage === 1}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      首页
+                    </button>
+                    <button
+                      onClick={() => setCategoryCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={categoryCurrentPage === 1}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      上一页
+                    </button>
+
+                    {[...Array(Math.min(5, categoryTotalPages))].map((_, i) => {
+                      let pageNum;
+                      const totalPages = categoryTotalPages;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (categoryCurrentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (categoryCurrentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = categoryCurrentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setCategoryCurrentPage(pageNum)}
+                          className={`px-3 py-1 border rounded text-sm ${ categoryCurrentPage === pageNum
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-gray-300 hover:bg-gray-100'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      onClick={() => setCategoryCurrentPage(p => Math.min(categoryTotalPages, p + 1))}
+                      disabled={categoryCurrentPage === categoryTotalPages}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      下一页
+                    </button>
+                    <button
+                      onClick={() => setCategoryCurrentPage(categoryTotalPages)}
+                      disabled={categoryCurrentPage === categoryTotalPages}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      末页
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1244,7 +1419,7 @@ const Win11KnowledgeFolderView = () => {
                 <div className="flex gap-1">
                   <button
                     onClick={() => {
-                      const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl'];
+                      const widths = ['max-w-2xl', 'max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl', 'w-full'];
                       const currentIndex = widths.indexOf(previewModalWidth);
                       const nextIndex = (currentIndex + 1) % widths.length;
                       setPreviewModalWidth(widths[nextIndex]);
@@ -1256,7 +1431,7 @@ const Win11KnowledgeFolderView = () => {
                   </button>
                   <button
                     onClick={() => {
-                      const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]'];
+                      const heights = ['max-h-[70vh]', 'max-h-[80vh]', 'max-h-[90vh]', 'max-h-[95vh]', 'h-full'];
                       const currentIndex = heights.indexOf(previewModalHeight);
                       const nextIndex = (currentIndex + 1) % heights.length;
                       setPreviewModalHeight(heights[nextIndex]);
@@ -1265,6 +1440,16 @@ const Win11KnowledgeFolderView = () => {
                     title="调整高度"
                   >
                     ↕️
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPreviewModalWidth('w-full');
+                      setPreviewModalHeight('h-full');
+                    }}
+                    className="px-3 py-1 text-sm rounded-lg bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md"
+                    title="全屏"
+                  >
+                    全屏
                   </button>
                 </div>
                 <button
@@ -1311,35 +1496,43 @@ const Win11KnowledgeFolderView = () => {
                 <div className="mt-8 pt-6 border-t border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {parseAttachments(previewFile.attachments).map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
-                        onClick={() => {
-                          // 根据文件类型决定是预览还是下载
-                          const link = document.createElement('a');
-                          link.href = getAttachmentUrl(file.url);
-                          link.target = '_blank';
-                          link.download = file.name;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}
-                      >
-                        <div className="text-2xl">
-                          {getFileIcon(inferFileType(file))}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{file.name}</div>
-                          <div className="text-sm text-gray-600">
-                            {formatFileSize(file.size)}
+                    {parseAttachments(previewFile.attachments).map((file, index) => {
+                      const fileType = inferFileType(file);
+                      const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                          onClick={() => {
+                            if (isPreviewable) {
+                              setAttachmentToPreview(file);
+                            } else {
+                              const link = document.createElement('a');
+                              link.href = getAttachmentUrl(file.url);
+                              link.target = '_blank';
+                              link.download = file.name;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }
+                          }}
+                        >
+                          <div className="text-2xl">
+                            {getFileIcon(fileType)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{file.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {formatFileSize(file.size)}
+                            </div>
+                          </div>
+                          <div className="text-blue-600">
+                            {isPreviewable ? '👁️' : '📥'}
                           </div>
                         </div>
-                        <div className="text-blue-600">
-                          📥
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1356,6 +1549,60 @@ const Win11KnowledgeFolderView = () => {
           </div>
         </div>
       )}
+
+            {/* Attachment Preview Modal */}
+
+            {attachmentToPreview && (
+
+              <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[1002] p-4" onClick={() => setAttachmentToPreview(null)}>
+
+                <div className="bg-white rounded-lg shadow-2xl flex flex-col w-full h-full" onClick={(e) => e.stopPropagation()}>
+
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+
+                    <h2 className="text-lg font-bold text-gray-900 truncate">{attachmentToPreview.name}</h2>
+
+                    <button
+
+                      onClick={() => setAttachmentToPreview(null)}
+
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+
+                    >
+
+                      ✕
+
+                    </button>
+
+                  </div>
+
+                  <div className="flex-1 overflow-auto bg-gray-200 flex items-center justify-center">
+
+                    {inferFileType(attachmentToPreview).startsWith('image/') && (
+
+                      <img src={getAttachmentUrl(attachmentToPreview.url)} alt={attachmentToPreview.name} className="w-full h-full object-contain" />
+
+                    )}
+
+                    {inferFileType(attachmentToPreview).startsWith('video/') && (
+
+                      <video src={getAttachmentUrl(attachmentToPreview.url)} controls autoPlay className="w-full h-full object-contain" />
+
+                    )}
+
+                    {inferFileType(attachmentToPreview).includes('pdf') && (
+
+                      <iframe src={getAttachmentUrl(attachmentToPreview.url)} className="w-full h-full" title={attachmentToPreview.name} />
+
+                    )}
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            )}
 
       {/* Win11风格右键菜单 */}
       <Win11ContextMenu
@@ -1509,16 +1756,15 @@ const Win11KnowledgeFolderView = () => {
                       toast.error('清空回收站失败');
                     }
                   }}
-                  className="px-4 py-2 text-sm rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
                 >
-                  <span>🧹</span>
-                  <span>清空回收站</span>
+                  清空回收站
                 </button>
                 <button
                   onClick={closeRecycleBin}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+                  className="px-4 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
                 >
-                  ✕
+                  关闭
                 </button>
               </div>
             </div>
@@ -1526,21 +1772,17 @@ const Win11KnowledgeFolderView = () => {
             <div className="px-6 pt-4 flex items-center gap-3 border-b border-gray-200 bg-gray-50">
               <button
                 onClick={() => setRecycleTab('categories')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  recycleTab === 'categories'
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ recycleTab === 'categories'
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
-                }`}
+                    : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'}`}
               >
                 分类 ({recycleCategories.length})
               </button>
               <button
                 onClick={() => setRecycleTab('articles')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  recycleTab === 'articles'
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ recycleTab === 'articles'
                     ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
-                }`}
+                    : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'}`}
               >
                 文档 ({recycleArticles.length})
               </button>
@@ -1565,8 +1807,8 @@ const Win11KnowledgeFolderView = () => {
                         className="group bg-white/80 rounded-lg border border-gray-200 px-4 py-3 cursor-default hover:bg-blue-50/60 hover:border-blue-200 flex items-center gap-4"
                         onContextMenu={(e) => handleRecycleContextMenu(e, 'category', cat)}
                       >
-                        <div className="w-10 h-10 flex items-center justify-center rounded-md bg-blue-50 text-blue-500 text-xl flex-shrink-0">
-                          📁
+                        <div className="w-14 h-14 flex items-center justify-center rounded-md bg-gray-50 text-gray-600 text-3xl flex-shrink-0">
+                          📂
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -1640,6 +1882,52 @@ const Win11KnowledgeFolderView = () => {
         </div>
       )}
 
+      {/* Non-Previewable File Modal */}
+      {nonPreviewableFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">文件操作</h2>
+              <button
+                onClick={() => setNonPreviewableFile(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="text-5xl">
+                {getFileIcon(inferFileType(nonPreviewableFile))}
+              </div>
+              <p className="font-medium text-gray-900 truncate">{nonPreviewableFile.name}</p>
+              <p className="text-sm text-gray-500">此文件不支持在线预览。</p>
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = getAttachmentUrl(nonPreviewableFile.url);
+                  link.target = '_blank';
+                  link.download = nonPreviewableFile.name;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setNonPreviewableFile(null);
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>📥</span>
+                <span>下载文件</span>
+              </button>
+              <button
+                onClick={() => setNonPreviewableFile(null)}
+                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 重命名分类模态框 */}
       {showRenameCategoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
@@ -1666,7 +1954,7 @@ const Win11KnowledgeFolderView = () => {
                 <input
                   type="text"
                   value={renameCategoryName}
-                  onChange={(e) => setRenameCategoryName(e.target.value)}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="请输入新的分类名称"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   autoFocus

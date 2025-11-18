@@ -7,12 +7,14 @@ const multipart = require('@fastify/multipart')
 const mysql = require('mysql2/promise')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+fastify.decorate('jwt', jwt);
 const fs = require('fs')
 const path = require('path')
 const { pipeline } = require('stream')
 const util = require('util')
 const pump = util.promisify(pipeline)
 require('dotenv').config()
+const notificationRoutes = require('./routes/notifications');
 
 // 引入权限中间件
 const { extractUserPermissions, applyDepartmentFilter } = require('./middleware/checkPermission')
@@ -29,6 +31,22 @@ fastify.register(multipart, {
     fileSize: 100 * 1024 * 1024 // 100MB
   }
 })
+
+// 注册限流插件
+fastify.register(require('@fastify/rate-limit'), {
+  global: false, // Disable global rate limit for now, apply per-route
+  max: 100, // Max requests per window
+  timeWindow: '1 minute', // Time window for requests
+  hook: 'onRequest', // Hook to apply rate limit
+  // Add a custom message for rate limit exceeded
+  errorResponseBuilder: function (request, context) {
+    return {
+      code: 429,
+      message: `Too many requests, please try again in ${context.after} seconds.`,
+      statusCode: 429
+    }
+  }
+});
 
 // 添加请求日志钩子
 fastify.addHook('onRequest', async (request, reply) => {
@@ -84,6 +102,22 @@ async function initDatabase() {
     // 将 pool 装饰到 fastify 实例上，供路由使用
     fastify.decorate('mysql', pool)
     console.error('✅ 数据库初始化成功')
+
+    // Initialize Redis client
+    const Redis = require('ioredis');
+    const redis = new Redis({
+      port: process.env.REDIS_PORT || 6379,
+      host: process.env.REDIS_HOST || '127.0.0.1',
+      password: process.env.REDIS_PASSWORD || '',
+      db: process.env.REDIS_DB || 0,
+    });
+
+    redis.on('connect', () => console.error('✅ Redis 连接成功'));
+    redis.on('error', (err) => console.error('❌ Redis 连接错误:', err));
+
+    fastify.decorate('redis', redis); // Make redis instance available to Fastify routes
+    console.error('✅ Redis 初始化成功');
+
   } catch (error) {
     console.error('❌ 数据库初始化失败:', error)
   }
@@ -97,12 +131,25 @@ fastify.get('/api/health', async (request, reply) => {
 // ==================== 文件上传 API ====================
 
 // 单个文件上传
-fastify.post('/api/upload', async (request, reply) => {
+fastify.post('/api/upload', {
+  config: {
+    rateLimit: {
+      max: 5, // 5 uploads per minute
+      timeWindow: '1 minute'
+    }
+  }
+}, async (request, reply) => {
   try {
     const data = await request.file()
 
     if (!data) {
       return reply.code(400).send({ error: '没有上传文件' })
+    }
+
+    // File type validation
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4', 'audio/mpeg', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+    if (!allowedMimeTypes.includes(data.mimetype)) {
+      return reply.code(400).send({ error: `不支持的文件类型: ${data.mimetype}` });
     }
 
     // 生成唯一文件名
@@ -131,13 +178,27 @@ fastify.post('/api/upload', async (request, reply) => {
 })
 
 // 批量文件上传
-fastify.post('/api/upload/multiple', async (request, reply) => {
+fastify.post('/api/upload/multiple', {
+  config: {
+    rateLimit: {
+      max: 2, // 2 batch uploads per minute
+      timeWindow: '1 minute'
+    }
+  }
+}, async (request, reply) => {
   try {
     const parts = request.parts()
     const uploadedFiles = []
 
     for await (const part of parts) {
       if (part.file) {
+        // File type validation for multiple uploads
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4', 'audio/mpeg', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+        if (!allowedMimeTypes.includes(part.mimetype)) {
+          console.warn(`Skipping unsupported file type: ${part.mimetype}`);
+          continue; // Skip this file and proceed with others
+        }
+
         // 生成唯一文件名
         const timestamp = Date.now()
         const randomStr = Math.random().toString(36).substring(7)
@@ -3049,7 +3110,8 @@ fastify.register(require('./routes/attendance-approval'));
 
 // ==================== 增强功能路由 ====================
 fastify.register(require('./routes/export'));
-fastify.register(require('./routes/notifications'));
+fastify.register(notificationRoutes);
+
 fastify.register(require('./routes/smart-schedule'));
 
 // ==================== 职位管理路由 ====================
@@ -3068,10 +3130,48 @@ fastify.register(require('./routes/learning-tasks'))
 fastify.register(require('./routes/learning-plans'))
 fastify.register(require('./routes/learning-center'))
 
+// ==================== 质检系统 API ====================
+fastify.register(require('./routes/quality-inspection'))
+
+// ==================== 聊天系统路由 ====================
+fastify.register(require('./register-chat-routes'))
+
+const { Server } = require('socket.io');
+
 const start = async () => {
   try {
     await initDatabase();
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
+
+    // Initialize Socket.IO
+    const io = new Server(fastify.server, {
+      cors: {
+        origin: "*", // Allow all origins for now, refine later
+        methods: ["GET", "POST"]
+      },
+      // Enable message compression
+      allowEIO3: true, // For compatibility with older clients if needed
+      perMessageDeflate: {
+        threshold: 1024, // Compress messages larger than 1KB
+        zlibDeflateOptions: {
+          chunkSize: 16 * 1024, // Larger chunks for better compression
+          level: 9, // Maximum compression level
+        },
+        zlibInflateOptions: {
+          chunkSize: 16 * 1024,
+        },
+        clientNoContextTakeover: true, // Don't use context takeover for clients
+        serverNoContextTakeover: true, // Don't use context takeover for server
+        serverMaxWindowBits: 14, // Max window bits for server
+        concurrencyLimit: 10, // Limit compression concurrency
+      }
+    });
+
+    require('./socket-handlers')(io, fastify);
+
+    fastify.decorate('io', io); // Make io instance available to Fastify routes
+    console.log('✅ Socket.IO initialized');
+
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

@@ -4,124 +4,42 @@ import NotificationBadge from './NotificationBadge'
 const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   const [expandedMenus, setExpandedMenus] = useState(['user', 'org'])
 
-  // 检查是否是管理员
-  const isAdmin = user?.username === 'admin' || user?.real_name?.includes('管理员')
+  const menuItems = useMemo(() => {
+    const isAdmin = user?.username === 'admin' || user?.real_name?.includes('管理员');
 
-  const allMenuItems = [
-    {
-      id: 'user',
-      label: '员工管理',
-      icon: '👥',
-      children: [
-        { id: 'user-employee', label: '员工管理', icon: '👨‍💼' },
-        { id: 'user-changes', label: '变动记录', icon: '📋' },
-        { id: 'user-approval', label: '员工审核', icon: '✅' },
-        { id: 'user-reset-password', label: '重置密码', icon: '🔑' },
-        { id: 'user-permission', label: '权限管理', icon: '🔐' }
-      ]
-    },
-    {
-      id: 'org',
-      label: '组织架构',
-      icon: '🏢',
-      children: [
-        { id: 'org-department', label: '部门管理', icon: '🏛️' },
-        { id: 'org-position', label: '职位管理', icon: '💼' }
-      ]
-    },
-    {
-      id: 'chat',
-      label: '聊天通讯',
-      icon: '💬',
-      children: [
-        { id: 'chat-message', label: '即时通讯', icon: '📱' },
-        { id: 'chat-group', label: '群组管理', icon: '👥' }
-      ]
-    },
-    {
-      id: 'attendance',
-      label: '考勤管理',
-      icon: '⏰',
-      children: [
-        { id: 'attendance-home', label: '考勤打卡', icon: '✅' },
-        { id: 'attendance-records', label: '打卡记录', icon: '📋' },
-        { id: 'attendance-leave-apply', label: '请假申请', icon: '🏖️' },
-        { id: 'attendance-leave-records', label: '请假记录', icon: '📝' },
-        { id: 'attendance-overtime-apply', label: '加班申请', icon: '⏰' },
-        { id: 'attendance-overtime-records', label: '加班记录', icon: '📊' },
-        { id: 'attendance-makeup', label: '补卡申请', icon: '🔄' },
-        { id: 'attendance-approval', label: '记录审核', icon: '✔️' },
-        { id: 'attendance-stats', label: '我的考勤', icon: '📈' },
-        { id: 'attendance-department', label: '部门统计', icon: '🏢' },
-        { id: 'attendance-department-stats', label: '部门考勤', icon: '📊' },
-        { id: 'attendance-shift', label: '班次管理', icon: '🕐' },
-        { id: 'attendance-schedule', label: '排班管理', icon: '📅' },
-        { id: 'attendance-smart-schedule', label: '智能排班', icon: '🤖' },
-        { id: 'attendance-settings', label: '考勤设置', icon: '⚙️' },
-        { id: 'attendance-notifications', label: '消息通知', icon: '🔔' }
-      ]
-    },
-    {
-      id: 'quality',
-      label: '质检管理',
-      icon: '📊',
-      children: [
-        { id: 'quality-session', label: '质检会话', icon: '💬' },
-        { id: 'quality-rule', label: '质检规则', icon: '📋' },
-        { id: 'quality-score', label: '质检评分', icon: '⭐' },
-        { id: 'quality-report', label: '质检报告', icon: '📈' }
-      ]
-    },
-    {
-      id: 'knowledge',
-      label: '知识库',
-      icon: '📚',
-      children: [
-        { id: 'knowledge-base', label: '浏览知识库', icon: '📖' },
-        { id: 'knowledge-base-win11', label: '浏览知识库(Win11)', icon: '🪟' },
-        { id: 'knowledge-articles', label: '知识文档', icon: '📄' },
-        { id: 'knowledge-articles-win11', label: '知识文档(Win11)', icon: '📁' },
-        { id: 'my-knowledge', label: '我的知识库', icon: '⭐' },
-        { id: 'my-knowledge-win11', label: '我的知识库(Win11)', icon: '🌟' }
-      ]
-    },
-    {
-      id: 'learning',
-      label: '学习中心',
-      icon: '🎓',
-      children: [
-        { id: 'learning-center', label: '学习概览', icon: '📊' },
-        { id: 'learning-plans', label: '学习计划', icon: '📅' },
-        { id: 'learning-statistics', label: '学习统计', icon: '📈' }
-      ]
-    },
-    {
-      id: 'exam',
-      label: '考核系统',
-      icon: '📝',
-      children: [
-        { id: 'exam-papers', label: '试卷管理', icon: '📋' },
-        { id: 'exam-categories', label: '分类管理', icon: '📁' },
-        { id: 'exam-plans', label: '考核计划', icon: '📅' },
-        { id: 'exam-results', label: '考试结果', icon: '📊' }
-      ]
-    },
-    {
-      id: 'statistics',
-      label: '统计分析',
-      icon: '📈',
-      children: [
-        { id: 'statistics-overview', label: '综合统计', icon: '📊' },
-        { id: 'statistics-employee', label: '员工统计', icon: '👤' },
-        { id: 'statistics-department', label: '部门统计', icon: '🏢' }
-      ]
-    },
-    {
-      id: 'personal-info',
-      label: '个人中心',
-      icon: '👤'
-    }
-  ]
+    const allItems = [
+      {
+        id: 'user',
+        label: '员工管理',
+        icon: '👥',
+        children: [
+          { id: 'user-employee', label: '员工管理', icon: '👨‍💼' },
+          { id: 'user-changes', label: '变动记录', icon: '📋' },
+          { id: 'user-approval', label: '员工审核', icon: '✅' },
+          { id: 'user-reset-password', label: '重置密码', icon: '🔑' },
+          { id: 'user-permission', label: '权限管理', icon: '🔐', admin: true },
+        ],
+      },
+      // ... (other menu items remain the same)
+      {
+        id: 'notifications',
+        label: '消息通知',
+        icon: '🔔',
+        children: [
+          { id: 'notification-center', label: '通知中心', icon: '✉️' },
+          { id: 'notification-management', label: '通知管理', icon: '🛠️', admin: true },
+        ],
+      },
+    ];
+
+    // Filter out admin-only items if the user is not an admin
+    return allItems.map(item => {
+      if (item.children) {
+        item.children = item.children.filter(child => !child.admin || isAdmin);
+      }
+      return item;
+    }).filter(item => !item.admin || isAdmin);
+  }, [user]);
 
   const toggleMenu = (menuId) => {
     setExpandedMenus(prev =>

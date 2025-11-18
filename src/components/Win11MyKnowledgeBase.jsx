@@ -12,8 +12,21 @@ const Win11MyKnowledgeBase = () => {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null);
   const [folderSearchTerm, setFolderSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1); // For articles
+  const [pageSize, setPageSize] = useState(30); // For articles
+  const [articleTotalPages, setArticleTotalPages] = useState(1);
+  const [totalArticleItems, setTotalArticleItems] = useState(0);
+
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [viewMode, setViewMode] = useState('card'); // For articles
+  const [categoryViewMode, setCategoryViewMode] = useState('card'); // For categories
+
+  // Category Pagination
+  const [categoryCurrentPage, setCategoryCurrentPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(10);
+  const [categoryTotalPages, setCategoryTotalPages] = useState(1);
+  const [totalCategoryItems, setTotalCategoryItems] = useState(0);
 
   // 新建分类状态
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
@@ -21,6 +34,10 @@ const Win11MyKnowledgeBase = () => {
 
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null);
+  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-4xl');
+  const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]');
+  const [attachmentToPreview, setAttachmentToPreview] = useState(null);
+  const [nonPreviewableFile, setNonPreviewableFile] = useState(null);
 
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState({
@@ -31,14 +48,13 @@ const Win11MyKnowledgeBase = () => {
     data: null
   });
 
-  // 添加调整弹出框宽高的状态
-  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-6xl');
-  const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]');
-
   useEffect(() => {
     fetchCategories();
+  }, [categoryCurrentPage, categoryPageSize]);
+
+  useEffect(() => {
     fetchArticles();
-  }, []);
+  }, [currentPage, pageSize]);
 
   const getToken = () => {
     return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -81,17 +97,26 @@ const Win11MyKnowledgeBase = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/categories'));
+      const response = await axios.get(getApiUrl(`/api/my-knowledge/categories?page=${categoryCurrentPage}&pageSize=${categoryPageSize}`));
       console.log('My Categories API Response:', response.data); // 调试信息
-      // 确保返回的是数组
       let categoriesData = response.data || [];
-      if (!Array.isArray(categoriesData) && categoriesData.data && Array.isArray(categoriesData.data)) {
-        // 如果是分页数据结构 { data: [...], pagination: {...} }
-        categoriesData = categoriesData.data;
+      let totalItems = 0;
+
+      if (response.data && Array.isArray(response.data.data)) {
+        categoriesData = response.data.data;
+        totalItems = response.data.total || categoriesData.length;
+      } else if (Array.isArray(response.data)) {
+        categoriesData = response.data;
+        totalItems = categoriesData.length;
       }
+
       const uid = getCurrentUserId();
       const filtered = (categoriesData || []).filter(c => isPersonal(c) && isOwnedBy(c, uid) && isNotDeleted(c));
       setCategories(filtered);
+      setTotalCategoryItems(totalItems);
+      const calculatedTotalPages = Math.ceil(totalItems / categoryPageSize);
+      setCategoryTotalPages(calculatedTotalPages);
+      console.log('Pagination Debug: totalItems =', totalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
     } catch (error) {
       console.error('获取分类失败:', error);
     }
@@ -100,24 +125,27 @@ const Win11MyKnowledgeBase = () => {
   const fetchArticles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/articles'));
+      const response = await axios.get(getApiUrl(`/api/my-knowledge/articles?page=${currentPage}&pageSize=${pageSize}`));
       console.log('My Articles API Response:', response.data); // 调试信息
-      // 确保返回的是数组
       let articlesData = response.data || [];
-      if (Array.isArray(articlesData)) {
-        // 数据是数组，直接使用
-      } else if (articlesData.data && Array.isArray(articlesData.data)) {
-        // 如果是分页数据结构 { data: [...], pagination: {...} }
-        articlesData = articlesData.data;
-      } else if (typeof articlesData === 'object' && !Array.isArray(articlesData)) {
-        // 如果是分页对象结构 { data: [...], total: ..., page: ... }
+      let totalItems = 0;
+
+      if (response.data && Array.isArray(response.data.data)) {
+        articlesData = response.data.data;
+        totalItems = response.data.total || articlesData.length;
+      } else if (Array.isArray(articlesData)) {
+        articlesData = response.data;
+        totalItems = articlesData.length;
+      } else if (typeof articlesData === 'object') {
         articlesData = articlesData.data || [];
-      } else {
-        articlesData = [];
+        totalItems = articlesData.total || articlesData.length;
       }
+
       const uid = getCurrentUserId();
       const filtered = (articlesData || []).filter(a => isPersonal(a) && isOwnedBy(a, uid) && isNotDeleted(a));
       setArticles(filtered);
+      setTotalArticleItems(totalItems);
+      setArticleTotalPages(Math.ceil(totalItems / pageSize));
     } catch (error) {
       console.error('获取文档失败:', error);
       toast.error('获取文档失败');
@@ -139,15 +167,85 @@ const Win11MyKnowledgeBase = () => {
     return [];
   };
 
+  const inferFileType = (file) => {
+    if (!file) return '';
+    const t = (file.type || '').toLowerCase();
+    // If backend returns a generic type, still try to infer by extension
+    if (t && t !== 'application/octet-stream') return t;
+    const src = String(file.url || file.path || file.name || '').toLowerCase();
+    const ext = src.split('?')[0].split('#')[0].split('.').pop();
+    if (!ext || ext === src) return '';
+    switch (ext) {
+      case 'pdf': return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp': return 'image/*';
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+      case 'mkv': return 'video/*';
+      case 'mp3':
+      case 'wav':
+      case 'aac': return 'audio/*';
+      case 'doc':
+      case 'docx': return 'application/word';
+      case 'xls':
+      case 'xlsx': return 'application/excel';
+      case 'ppt':
+      case 'pptx': return 'application/presentation';
+      case 'zip':
+      case 'rar':
+      case '7z': return 'application/zip';
+      case 'txt': return 'text/plain';
+      case 'json': return 'application/json';
+      case 'xml': return 'application/xml';
+      case 'html': return 'text/html';
+      case 'css': return 'text/css';
+      case 'js': return 'application/javascript';
+      default: return '';
+    }
+  }
+
+  const getFileTypeName = (type) => {
+    if (!type) return '未知文件';
+    if (type.startsWith('image/')) return '图片文件';
+    if (type.startsWith('video/')) return '视频文件';
+    if (type.startsWith('audio/')) return '音频文件';
+    if (type.includes('pdf')) return 'PDF文档';
+    if (type.includes('word') || type.includes('document')) return 'Word文档';
+    if (type.includes('excel') || type.includes('sheet')) return 'Excel表格';
+    if (type.includes('powerpoint') || type.includes('presentation')) return '演示文稿';
+    if (type.includes('zip') || type.includes('compressed')) return '压缩文件';
+    if (type.includes('text') || type.includes('plain')) return '文本文件';
+    if (type.includes('json')) return 'JSON文件';
+    if (type.includes('xml')) return 'XML文件';
+    if (type.includes('html')) return 'HTML文件';
+    if (type.includes('css')) return 'CSS文件';
+    if (type.includes('javascript') || type.includes('js')) return 'JS文件';
+    return '文件';
+  };
+
   const getFileIcon = (type) => {
-    if (type.startsWith('image/')) return '🖼️';
-    if (type.startsWith('video/')) return '🎬';
-    if (type.startsWith('audio/')) return '🎵';
-    if (type.includes('pdf')) return '📄';
+    if (!type) return '📄';
+    if (type.startsWith('image/')) return '📷';
+    if (type.startsWith('video/')) return '🎥';
+    if (type.startsWith('audio/')) return '🎧';
+    if (type.includes('pdf')) return '📕';
     if (type.includes('word') || type.includes('document')) return '📝';
-    if (type.includes('excel') || type.includes('sheet')) return '📊';
-    if (type.includes('powerpoint') || type.includes('presentation')) return '📽️';
-    return '📎';
+    if (type.includes('excel') || type.includes('sheet')) return '📈';
+    if (type.includes('powerpoint') || type.includes('presentation')) return '🖥️';
+    if (type.includes('zip') || type.includes('compressed')) {
+      return '📦';
+    }
+    if (type.includes('text') || type.includes('plain')) return '🗒️';
+    if (type.includes('json')) return '📋';
+    if (type.includes('xml')) return '📊';
+    if (type.includes('html')) return '🌐';
+    if (type.includes('css')) return '🎨';
+    if (type.includes('javascript') || type.includes('js')) return '📜';
+    return '📄';
   };
 
   const formatFileSize = (bytes) => {
@@ -190,26 +288,44 @@ const Win11MyKnowledgeBase = () => {
       ? articles.filter(a => !a.category_id)
       : articles.filter(a => a.category_id == currentFolderCategory.id);
 
-    return categoryArticles.filter(article => {
+    let filtered = categoryArticles.filter(article => {
       const matchesSearch = article.title.toLowerCase().includes(folderSearchTerm.toLowerCase()) ||
                            article.summary?.toLowerCase().includes(folderSearchTerm.toLowerCase());
       return matchesSearch;
     });
+
+    // 排序
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      switch (sortBy) {
+        case 'name':
+          aValue = String(a.title || '').toLowerCase();
+          bValue = String(b.title || '').toLowerCase();
+          break;
+        case 'date':
+          aValue = new Date(a.created_at);
+          bValue = new Date(b.created_at);
+          break;
+        case 'views':
+          aValue = a.view_count || 0;
+          bValue = b.view_count || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Set total article items and total pages for articles
+    setTotalArticleItems(filtered.length);
+    setArticleTotalPages(Math.ceil(filtered.length / pageSize));
+
+    return filtered;
   };
 
-  // 分页计算
-  const getPaginatedArticles = () => {
-    const filtered = getCurrentFolderArticles();
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filtered.slice(startIndex, endIndex);
-  };
-
-  const getTotalPages = () => {
-    const filtered = getCurrentFolderArticles();
-    return Math.ceil(filtered.length / pageSize);
-  };
-
+  // 分页计算 (logic moved to getCurrentFolderArticles and state variables)
   // 新建分类处理函数
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -349,9 +465,23 @@ const Win11MyKnowledgeBase = () => {
       }
     } else if (contextMenu.type === 'file') {
       switch (item.actionType) {
-        case 'preview':
-          setPreviewFile(contextMenu.data);
+        case 'preview': {
+          const article = contextMenu.data;
+          const attachments = parseAttachments(article.attachments);
+          if (attachments.length === 1) {
+            const file = attachments[0];
+            const fileType = inferFileType(file);
+            const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+            if (isPreviewable) {
+              setAttachmentToPreview(file);
+            } else {
+              setNonPreviewableFile(file);
+            }
+          } else {
+            setPreviewFile(article);
+          }
           break;
+        }
         case 'delete':
           // 这里可以添加删除逻辑
           toast.info('删除功能待实现');
@@ -383,64 +513,169 @@ const Win11MyKnowledgeBase = () => {
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-100">
-      {/* 顶部标题栏 */}
+      {/* 顶部操作栏 */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <span className="text-2xl">⭐</span>
-          我的知识库
-        </h1>
-      </div>
+        <div className="bg-green-50 rounded-lg shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-start">
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2 flex-shrink-0">
+              <div className="w-12 h-12 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-3xl">⭐</div>
+              我的知识库
+            </h1>
 
-      {/* 搜索栏 */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="搜索文档..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <div className="absolute left-3 top-2.5 text-gray-400">
-              🔍
+            {/* 搜索框和操作按钮 */}
+            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 items-stretch ml-4">
+              {/* 搜索框 */}
+              <div className="relative flex-1 min-w-[250px]">
+                <input
+                  type="text"
+                  placeholder={currentFolderCategory
+                    ? `在 ${currentFolderCategory.name} 中搜索...`
+                    : '搜索所有文档...'}
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    // Reset pagination for articles when search term changes
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  🔍
+                </div>
+              </div>
+
+              {/* 操作按钮 */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowCreateCategoryModal(true)}
+                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm whitespace-nowrap"
+                >
+                  添加分类
+                </button>
+
+                {/* View mode buttons for categories */}
+                {!currentFolderCategory && (
+                  <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setCategoryViewMode('card')}
+                      className={`px-3 py-2 text-sm ${categoryViewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      卡片视图
+                    </button>
+                    <button
+                      onClick={() => setCategoryViewMode('list')}
+                      className={`px-3 py-2 text-sm border-l border-gray-200 ${categoryViewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      列表视图
+                    </button>
+                  </div>
+                )}
+
+                {/* View mode buttons for articles inside a folder */}
+                {currentFolderCategory && (
+                  <>
+                    <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => setViewMode('card')}
+                        className={`px-3 py-2 text-sm ${viewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        卡片视图
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`px-3 py-2 text-sm border-l border-gray-200 ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        列表视图
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-700 whitespace-nowrap">排序:</span>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => {
+                          setSortBy(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[120px]"
+                      >
+                        <option value="name">名称</option>
+                        <option value="date">日期</option>
+                        <option value="views">浏览量</option>
+                      </select>
+
+                      <button
+                        onClick={() => {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        title={sortOrder === 'asc' ? '升序' : '降序'}
+                      >
+                        {sortOrder === 'asc' ? '↑' : '↓'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-700 whitespace-nowrap">每页:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[100px]"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={30}>30</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* Items per page for categories */}
+                {!currentFolderCategory && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-700 whitespace-nowrap">每页:</span>
+                    <select
+                      value={categoryPageSize}
+                      onChange={(e) => {
+                        setCategoryPageSize(Number(e.target.value));
+                        setCategoryCurrentPage(1);
+                      }}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[100px]"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={30}>30</option>
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden" onContextMenu={handleBackgroundContextMenu}>
+      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden">
         {currentFolderCategory ? (
           // 文件夹内容视图
-          <div className="flex-1 flex flex-col h-full" onContextMenu={handleBackgroundContextMenu}>
+          <div className="flex-1 flex flex-col h-full">
             {/* 文件夹头部 */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={closeFolderView}
-                  className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
-                  title="返回上一级"
-                >
-                  ←
-                </button>
-                <span className="text-2xl">📁</span>
-                <h2 className="text-xl font-semibold">{currentFolderCategory.name}</h2>
-              </div>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="搜索..."
-                    value={folderSearchTerm}
-                    onChange={(e) => setFolderSearchTerm(e.target.value)}
-                    className="px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="absolute left-3 top-2.5 text-gray-400">
-                    🔍
-                  </div>
-                </div>
-              </div>
+            <div className="p-4 border-b border-gray-200 flex items-center gap-3 bg-gray-50">
+              <button
+                onClick={closeFolderView}
+                className="p-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                title="返回上一级"
+              >
+                <span className="hidden sm:inline">返回</span>
+              </button>
+              <div className="w-14 h-14 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-4xl flex-shrink-0">📂</div>
+              <h2 className="text-xl font-semibold">{currentFolderCategory.name}</h2>
             </div>
 
             {/* 文件列表 */}
@@ -452,60 +687,245 @@ const Win11MyKnowledgeBase = () => {
                     <p className="mt-2 text-gray-600">加载中...</p>
                   </div>
                 </div>
-              ) : getPaginatedArticles().length === 0 ? (
+              ) : totalArticleItems === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <div className="text-6xl mb-4">📭</div>
                   <p className="text-gray-500">
-                    {folderSearchTerm ? '没有找到匹配的文档' : '此文件夹为空'}
+                    {searchTerm ? '没有找到匹配的文档' : '此文件夹为空'}
                   </p>
                 </div>
-              ) : (
+              ) : viewMode === 'card' ? (
+                // 卡片视图
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {getPaginatedArticles().map(article => (
-                    <div
-                      key={article.id}
-                      className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center"
-                      onContextMenu={(e) => handleContextMenu(e, 'file', article)}
-                      onClick={() => setPreviewFile(article)}
-                    >
-                      <div className="text-7xl mb-3">
-                        {getFileIcon(article.attachments?.[0]?.type) || '📄'}
-                      </div>
-                      <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
-                        {article.title}
-                      </h3>
-                      {article.notes && (
-                        <div className="mt-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                          💡 有笔记
+                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                    const firstAttachment = parseAttachments(article.attachments)[0];
+                    const resolvedType = inferFileType(firstAttachment);
+                    return (
+                      <div
+                        key={article.id}
+                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center border border-gray-200 rounded-lg shadow-sm"
+                        onClick={() => {
+                          const attachments = parseAttachments(article.attachments);
+                          if (attachments.length === 1) {
+                            const file = attachments[0];
+                            const fileType = inferFileType(file);
+                            const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+                            if (isPreviewable) {
+                              setAttachmentToPreview(file);
+                            } else {
+                              setNonPreviewableFile(file);
+                            }
+                          } else {
+                            setPreviewFile(article);
+                          }
+                        }}
+                        onContextMenu={(e) => handleContextMenu(e, 'file', article)}
+                      >
+                        <div className="text-5xl mb-3 transform hover:scale-110 transition-transform duration-200">
+                          {getFileIcon(resolvedType)}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
+                          {article.title}
+                        </h3>
+                        {firstAttachment && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {getFileTypeName(resolvedType)}
+                          </div>
+                        )}
+                        {article.notes && (
+                          <div className="mt-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                            💡 有笔记
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              // ) : (
+                // 列表视图 - placeholder for future implementation
+                // <div className="space-y-3">
+                //   {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                //     const firstAttachment = parseAttachments(article.attachments)[0];
+                //     const resolvedType = inferFileType(firstAttachment);
+                //     return (
+                //       <div
+                //         key={article.id}
+                //         className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm"
+                //         onClick={() => {
+                //            const attachments = parseAttachments(article.attachments);
+                //            if (attachments.length === 1) {
+                //                const file = attachments[0];
+                //                const fileType = inferFileType(file);
+                //                const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+                //                if (isPreviewable) {
+                //                    setAttachmentToPreview(file);
+                //                } else {
+                //                    setNonPreviewableFile(file);
+                //                }
+                //            } else {
+                //                setPreviewFile(article);
+                //            }
+                //         }}
+                //         onContextMenu={(e) => handleContextMenu(e, 'file', article)}
+                //       >
+                //         <div className="text-2xl flex-shrink-0 transform hover:scale-110 transition-transform duration-200">
+                //           {getFileIcon(resolvedType)}
+                //         </div>
+                //         <div className="flex-1 min-w-0">
+                //           <h3 className="font-medium text-gray-900 truncate">
+                //             {article.title}
+                //           </h3>
+                //           {article.summary && (
+                //             <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                //               {article.summary}
+                //             </p>
+                //           )}
+                //           <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                //             <span>👁️ {article.view_count || 0}</span>
+                //             <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                //           </div>
+                //           {firstAttachment && (
+                //             <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                //               <span>{getFileIcon(resolvedType)}</span>
+                //               <span>{getFileTypeName(resolvedType)}</span>
+                //             </div>
+                //           )}
+                //         </div>
+                //       </div>
+                //     );
+                //   })}
+                // </div>
+              ) : (
+                // List view for articles
+                <div className="space-y-3">
+                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                    const firstAttachment = parseAttachments(article.attachments)[0];
+                    const resolvedType = inferFileType(firstAttachment);
+                    return (
+                      <div
+                        key={article.id}
+                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm"
+                        onClick={() => {
+                           const attachments = parseAttachments(article.attachments);
+                           if (attachments.length === 1) {
+                               const file = attachments[0];
+                               const fileType = inferFileType(file);
+                               const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+                               if (isPreviewable) {
+                                   setAttachmentToPreview(file);
+                               } else {
+                                   setNonPreviewableFile(file);
+                               }
+                           } else {
+                               setPreviewFile(article);
+                           }
+                        }}
+                        onContextMenu={(e) => handleContextMenu(e, 'file', article)}
+                      >
+                        <div className="text-2xl flex-shrink-0 transform hover:scale-110 transition-transform duration-200">
+                          {getFileIcon(resolvedType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {article.title}
+                          </h3>
+                          {article.summary && (
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                              {article.summary}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                            <span>👁️ {article.view_count || 0}</span>
+                            <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                          </div>
+                          {firstAttachment && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                              <span>{getFileIcon(resolvedType)}</span>
+                              <span>{getFileTypeName(resolvedType)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* 分页 */}
-            {getTotalPages() > 1 && (
+            {/* 文章分页 */}
+            {articleTotalPages > 1 && (
               <div className="p-4 border-t border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    第 {currentPage} / {getTotalPages()} 页
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      共 {totalArticleItems} 个文档，第 {currentPage} / {articleTotalPages} 页
+                    </div>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                    >
+                      <option value={10}>10 / 页</option>
+                      <option value={20}>20 / 页</option>
+                      <option value={30}>30 / 页</option>
+                      <option value={50}>50 / 页</option>
+                    </select>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      首页
+                    </button>
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ← 上一页
+                      上一页
                     </button>
+
+                    {[...Array(Math.min(5, articleTotalPages))].map((_, i) => {
+                      let pageNum;
+                      const totalPages = articleTotalPages;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-1 border rounded text-sm ${ currentPage === pageNum
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-gray-300 hover:bg-gray-100'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
-                      disabled={currentPage === getTotalPages()}
+                      onClick={() => setCurrentPage(p => Math.min(articleTotalPages, p + 1))}
+                      disabled={currentPage === articleTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      下一页 →
+                      下一页
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(articleTotalPages)}
+                      disabled={currentPage === articleTotalPages}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      末页
                     </button>
                   </div>
                 </div>
@@ -514,7 +934,7 @@ const Win11MyKnowledgeBase = () => {
           </div>
         ) : (
           // 主文件夹视图
-          <div className="flex-1 flex flex-col" onContextMenu={handleBackgroundContextMenu}>
+          <div className="flex-1 flex flex-col">
             {/* 文件夹网格 */}
             <div className="flex-1 overflow-y-auto p-4">
               {loading ? (
@@ -524,27 +944,105 @@ const Win11MyKnowledgeBase = () => {
                     <p className="mt-2 text-gray-600">加载中...</p>
                   </div>
                 </div>
-              ) : categories.length === 0 && uncategorizedArticles.length === 0 ? (
+              ) : totalCategoryItems === 0 && uncategorizedArticles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <div className="text-6xl mb-4">📁</div>
-                  <p className="text-gray-500">暂无文件夹</p>
+                  <p className="text-gray-500">{searchTerm ? '没有找到匹配的文件夹或文档' : '暂无文件夹'}</p>
                   <p className="text-sm text-gray-400 mt-2">
-                    在浏览知识库中点击"收藏"按钮即可添加到我的知识库
+                    在知识库中找到文档并点击"保存到我的知识库"将其添加到此处。
                   </p>
                 </div>
-              ) : (
+              ) : categoryViewMode === 'card' ? (
+                // 卡片视图
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {/* 分类文件夹 */}
                   {categories
-                    .filter(cat => cat.status !== 'draft') // 只显示已发布的分类
+                    .filter(cat => cat.status !== 'draft')
+                    .slice((categoryCurrentPage - 1) * categoryPageSize, categoryCurrentPage * categoryPageSize)
                     .map(category => {
                       const categoryArticles = articlesByCategory[category.id] || [];
-                      if (categoryArticles.length === 0 && searchTerm) return null;
-
+                      if (searchTerm && categoryArticles.length === 0 && !String(category.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())) return null;
                       return (
                         <div
                           key={category.id}
-                          className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative"
+                          className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
+                          onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
+                          onClick={() => handleOpenFolder(category)}
+                        >
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleCategoryVisibility(category.id, category.is_hidden === 1 ? 0 : 1);
+                              }}
+                              className="text-xs p-1 rounded hover:bg-gray-200"
+                              title={category.is_hidden === 1 ? '公开分类' : '不公开分类'}
+                            >
+                              {category.is_hidden === 1 ? '🌐' : '🔒'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCategory(category.id);
+                              }}
+                              className="text-xs p-1 rounded hover:bg-gray-200 text-red-500"
+                              title="删除分类"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                          <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
+                          <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">{category.name}</h3>
+                        </div>
+                      );
+                    })}
+
+                  {/* 未分类文档 */}
+                  {uncategorizedArticles.length > 0 && (
+                    <div
+                      className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
+                      onClick={() => handleOpenFolder({
+                        id: 'uncategorized',
+                        name: '未分类',
+                        icon: '📂'
+                      })}
+                      onContextMenu={(e) => handleContextMenu(e, 'folder', {
+                        id: 'uncategorized',
+                        name: '未分类',
+                        icon: '📂'
+                      })}
+                    >
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toast.info('未分类文件夹不能隐藏');
+                          }}
+                          className="text-xs p-1 rounded hover:bg-gray-200 cursor-not-allowed"
+                          title="未分类文件夹不能隐藏"
+                        >
+                          🔒
+                        </button>
+                      </div>
+                      <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
+                      <h3 className="font-medium text-gray-900 text-center text-base">未分类</h3>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // 列表视图
+                <div className="space-y-3">
+                  {/* 分类文件夹 */}
+                  {categories
+                    .filter(cat => cat.status !== 'draft')
+                    .slice((categoryCurrentPage - 1) * categoryPageSize, categoryCurrentPage * categoryPageSize)
+                    .map(category => {
+                      const categoryArticles = articlesByCategory[category.id] || [];
+                      if (searchTerm && categoryArticles.length === 0 && !String(category.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())) return null;
+                      return (
+                        <div
+                          key={category.id}
+                          className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg relative"
                           onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
                           onClick={() => handleOpenFolder(category)}
                         >
@@ -570,14 +1068,9 @@ const Win11MyKnowledgeBase = () => {
                               🗑️
                             </button>
                           </div>
-                          <div className="text-7xl mb-3">
-                            {category.icon || '📁'}
-                          </div>
-                          <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
-                            {category.name}
-                          </h3>
-                          <div className="text-xs text-gray-500 mt-1">
-                            📄 {categoryArticles.length}
+                          <div className="text-5xl flex-shrink-0">📂</div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-gray-900 truncate">{category.name}</h3>
                           </div>
                         </div>
                       );
@@ -586,7 +1079,7 @@ const Win11MyKnowledgeBase = () => {
                   {/* 未分类文档 */}
                   {uncategorizedArticles.length > 0 && (
                     <div
-                      className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative"
+                      className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg"
                       onClick={() => handleOpenFolder({
                         id: 'uncategorized',
                         name: '未分类',
@@ -610,20 +1103,98 @@ const Win11MyKnowledgeBase = () => {
                           🔒
                         </button>
                       </div>
-                      <div className="text-7xl mb-3">📂</div>
-                      <h3 className="font-medium text-gray-900 text-center text-base">未分类</h3>
-                      <div className="text-xs text-gray-500 mt-1">
-                        📄 {uncategorizedArticles.length}
+                      <div className="text-4xl flex-shrink-0">📂</div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 truncate">未分类</h3>
                       </div>
                     </div>
                   )}
                 </div>
               )}
             </div>
+
+            {/* Category Pagination */}
+            {categoryTotalPages > 1 && (
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      共 {totalCategoryItems} 个分类，第 {categoryCurrentPage} / {categoryTotalPages} 页
+                    </div>
+                    <select
+                      value={categoryPageSize}
+                      onChange={(e) => setCategoryPageSize(Number(e.target.value))}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+                    >
+                      <option value={5}>5 / 页</option>
+                      <option value={10}>10 / 页</option>
+                      <option value={20}>20 / 页</option>
+                      <option value={30}>30 / 页</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setCategoryCurrentPage(1)}
+                      disabled={categoryCurrentPage === 1}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      首页
+                    </button>
+                    <button
+                      onClick={() => setCategoryCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={categoryCurrentPage === 1}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      上一页
+                    </button>
+
+                    {[...Array(Math.min(5, categoryTotalPages))].map((_, i) => {
+                      let pageNum;
+                      const totalPages = categoryTotalPages;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (categoryCurrentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (categoryCurrentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = categoryCurrentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setCategoryCurrentPage(pageNum)}
+                          className={`px-3 py-1 border rounded text-sm ${ categoryCurrentPage === pageNum
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-gray-300 hover:bg-gray-100'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      onClick={() => setCategoryCurrentPage(p => Math.min(categoryTotalPages, p + 1))}
+                      disabled={categoryCurrentPage === categoryTotalPages}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      下一页
+                    </button>
+                    <button
+                      onClick={() => setCategoryCurrentPage(categoryTotalPages)}
+                      disabled={categoryCurrentPage === categoryTotalPages}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      末页
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
-
       {/* 文档预览模态框 */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-4">
@@ -642,7 +1213,7 @@ const Win11MyKnowledgeBase = () => {
                 <div className="flex gap-1">
                   <button
                     onClick={() => {
-                      const widths = ['max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl'];
+                      const widths = ['max-w-2xl', 'max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl', 'w-full'];
                       const currentIndex = widths.indexOf(previewModalWidth);
                       const nextIndex = (currentIndex + 1) % widths.length;
                       setPreviewModalWidth(widths[nextIndex]);
@@ -654,7 +1225,7 @@ const Win11MyKnowledgeBase = () => {
                   </button>
                   <button
                     onClick={() => {
-                      const heights = ['max-h-[90vh]', 'max-h-[95vh]', 'max-h-[98vh]'];
+                      const heights = ['max-h-[70vh]', 'max-h-[80vh]', 'max-h-[90vh]', 'max-h-[95vh]', 'h-full'];
                       const currentIndex = heights.indexOf(previewModalHeight);
                       const nextIndex = (currentIndex + 1) % heights.length;
                       setPreviewModalHeight(heights[nextIndex]);
@@ -663,6 +1234,16 @@ const Win11MyKnowledgeBase = () => {
                     title="调整高度"
                   >
                     ↕️
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPreviewModalWidth('w-full');
+                      setPreviewModalHeight('h-full');
+                    }}
+                    className="px-3 py-1 text-sm rounded-lg bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md"
+                    title="全屏"
+                  >
+                    全屏
                   </button>
                 </div>
                 <button
@@ -709,35 +1290,43 @@ const Win11MyKnowledgeBase = () => {
                 <div className="mt-8 pt-6 border-t border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {parseAttachments(previewFile.attachments).map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
-                        onClick={() => {
-                          // 根据文件类型决定是预览还是下载
-                          const link = document.createElement('a');
-                          link.href = getAttachmentUrl(file.url);
-                          link.target = '_blank';
-                          link.download = file.name;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}
-                      >
-                        <div className="text-2xl">
-                          {getFileIcon(file.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{file.name}</div>
-                          <div className="text-sm text-gray-600">
-                            {formatFileSize(file.size)}
+                    {parseAttachments(previewFile.attachments).map((file, index) => {
+                      const fileType = inferFileType(file);
+                      const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                          onClick={() => {
+                            if (isPreviewable) {
+                              setAttachmentToPreview(file);
+                            } else {
+                              const link = document.createElement('a');
+                              link.href = getAttachmentUrl(file.url);
+                              link.target = '_blank';
+                              link.download = file.name;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }
+                          }}
+                        >
+                          <div className="text-2xl">
+                            {getFileIcon(fileType)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{file.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {formatFileSize(file.size)}
+                            </div>
+                          </div>
+                          <div className="text-blue-600">
+                            {isPreviewable ? '👁️' : '📥'}
                           </div>
                         </div>
-                        <div className="text-blue-600">
-                          📥
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -749,6 +1338,80 @@ const Win11MyKnowledgeBase = () => {
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {/* Attachment Preview Modal */}
+            {attachmentToPreview && (
+              <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[1002] p-4" onClick={() => setAttachmentToPreview(null)}>
+                <div className="bg-white rounded-lg shadow-2xl flex flex-col w-full h-full" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900 truncate">{attachmentToPreview.name}</h2>
+                    <button
+                      onClick={() => setAttachmentToPreview(null)}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-auto bg-gray-200 flex items-center justify-center">
+                    {inferFileType(attachmentToPreview).startsWith('image/') && (
+                      <img src={getAttachmentUrl(attachmentToPreview.url)} alt={attachmentToPreview.name} className="w-full h-full object-contain" />
+                    )}
+                    {inferFileType(attachmentToPreview).startsWith('video/') && (
+                      <video src={getAttachmentUrl(attachmentToPreview.url)} controls autoPlay className="w-full h-full object-contain" />
+                    )}
+                    {inferFileType(attachmentToPreview).includes('pdf') && (
+                      <iframe src={getAttachmentUrl(attachmentToPreview.url)} className="w-full h-full" title={attachmentToPreview.name} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+      {/* Non-Previewable File Modal */}
+      {nonPreviewableFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">文件操作</h2>
+              <button
+                onClick={() => setNonPreviewableFile(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="text-5xl">
+                {getFileIcon(inferFileType(nonPreviewableFile))}
+              </div>
+              <p className="font-medium text-gray-900 truncate">{nonPreviewableFile.name}</p>
+              <p className="text-sm text-gray-500">此文件不支持在线预览。</p>
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = getAttachmentUrl(nonPreviewableFile.url);
+                  link.target = '_blank';
+                  link.download = nonPreviewableFile.name;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setNonPreviewableFile(null);
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>📥</span>
+                <span>下载文件</span>
+              </button>
+              <button
+                onClick={() => setNonPreviewableFile(null)}
+                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
               </button>
             </div>
           </div>
@@ -783,6 +1446,7 @@ const Win11MyKnowledgeBase = () => {
             : []
         }
       />
+
 
       {/* 新建分类模态框 */}
       {showCreateCategoryModal && (

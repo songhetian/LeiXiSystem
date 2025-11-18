@@ -5,7 +5,7 @@ import './NotificationBadge.css';
 
 const NotificationBadge = ({ onNavigate }) => {
   const [unreadCount, setUnreadCount] = useState(0);
-  const userId = localStorage.getItem('userId') || 1;
+
 
   useEffect(() => {
     loadUnreadCount();
@@ -18,10 +18,15 @@ const NotificationBadge = ({ onNavigate }) => {
 
   const loadUnreadCount = async () => {
     try {
-      const response = await axios.get(
-        getApiUrl(`/api/notifications/unread-count?userId=${userId}`)
-      );
-      setUnreadCount(response.data.count);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await axios.get(getApiUrl('/api/notifications/unread'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setUnreadCount(response.data.unread_count);
     } catch (error) {
       console.error('加载未读数量失败:', error);
     }
@@ -29,7 +34,7 @@ const NotificationBadge = ({ onNavigate }) => {
 
   const handleClick = () => {
     if (onNavigate) {
-      onNavigate('attendance-notifications');
+      onNavigate('notification-center');
     }
   };
 

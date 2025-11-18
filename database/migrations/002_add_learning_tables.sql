@@ -136,26 +136,42 @@ CREATE TABLE IF NOT EXISTS learning_statistics (
 -- ============================================
 -- 添加阅读次数字段
 ALTER TABLE knowledge_articles
-ADD COLUMN IF NOT EXISTS read_count INT NOT NULL DEFAULT 0 COMMENT '阅读次数';
+ADD COLUMN read_count INT NOT NULL DEFAULT 0 COMMENT '阅读次数';
 
 -- 添加平均阅读时长字段
 ALTER TABLE knowledge_articles
-ADD COLUMN IF NOT EXISTS avg_read_duration INT NOT NULL DEFAULT 0 COMMENT '平均阅读时长(秒)';
+ADD COLUMN avg_read_duration INT NOT NULL DEFAULT 0 COMMENT '平均阅读时长(秒)';
 
 -- 添加收藏次数字段
 ALTER TABLE knowledge_articles
-ADD COLUMN IF NOT EXISTS collect_count INT NOT NULL DEFAULT 0 COMMENT '收藏次数';
+ADD COLUMN collect_count INT NOT NULL DEFAULT 0 COMMENT '收藏次数';
 
 -- 添加评论次数字段
 ALTER TABLE knowledge_articles
-ADD COLUMN IF NOT EXISTS comment_count INT NOT NULL DEFAULT 0 COMMENT '评论次数';
+ADD COLUMN comment_count INT NOT NULL DEFAULT 0 COMMENT '评论次数';
 
 -- 添加索引优化查询性能
 ALTER TABLE knowledge_articles
-ADD INDEX IF NOT EXISTS idx_read_count (read_count);
+ADD INDEX idx_read_count (read_count);
 
 ALTER TABLE knowledge_articles
-ADD INDEX IF NOT EXISTS idx_collect_count (collect_count);
+ADD INDEX idx_collect_count (collect_count);
+
+-- ============================================
+-- 8. 创建收藏夹表 (collection_folders)
+-- ============================================
+CREATE TABLE IF NOT EXISTS collection_folders (
+  id INT PRIMARY KEY AUTO_INCREMENT COMMENT '收藏夹ID',
+  user_id INT NOT NULL COMMENT '用户ID',
+  name VARCHAR(100) NOT NULL COMMENT '收藏夹名称',
+  description TEXT COMMENT '收藏夹描述',
+  is_public BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否公开',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id),
+  INDEX idx_created_at (created_at)
+) COMMENT = '收藏夹表';
 
 -- ============================================
 -- 7. 创建文章收藏表 (article_collections)
@@ -177,22 +193,6 @@ CREATE TABLE IF NOT EXISTS article_collections (
   INDEX idx_folder_id (folder_id),
   INDEX idx_created_at (created_at)
 ) COMMENT = '文章收藏表';
-
--- ============================================
--- 8. 创建收藏夹表 (collection_folders)
--- ============================================
-CREATE TABLE IF NOT EXISTS collection_folders (
-  id INT PRIMARY KEY AUTO_INCREMENT COMMENT '收藏夹ID',
-  user_id INT NOT NULL COMMENT '用户ID',
-  name VARCHAR(100) NOT NULL COMMENT '收藏夹名称',
-  description TEXT COMMENT '收藏夹描述',
-  is_public BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否公开',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_user_id (user_id),
-  INDEX idx_created_at (created_at)
-) COMMENT = '收藏夹表';
 
 -- ============================================
 -- 9. 创建文章评论表 (article_comments)
