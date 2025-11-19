@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  conversation_id BIGINT UNSIGNED NOT NULL,
+  sender_id INT NOT NULL,
+  recipient_id INT DEFAULT NULL,
+  content TEXT NOT NULL,
+  message_type VARCHAR(50) NOT NULL,
+  file_url VARCHAR(255) DEFAULT NULL,
+  file_name VARCHAR(255) DEFAULT NULL,
+  file_size INT DEFAULT NULL,
+  reply_to_message_id BIGINT UNSIGNED DEFAULT NULL,
+  is_recalled TINYINT(1) DEFAULT 0,
+  recalled_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_conversation_id (conversation_id),
+  KEY idx_sender_id (sender_id),
+  KEY idx_recipient_id (recipient_id),
+  KEY idx_reply_to_message_id (reply_to_message_id),
+  CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT fk_messages_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_messages_reply_to FOREIGN KEY (reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
