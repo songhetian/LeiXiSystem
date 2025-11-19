@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import api from '../api'
 import axios from 'axios'
@@ -1001,7 +1002,7 @@ const KnowledgeBase = () => {
                           {parseAttachments(article.attachments).length > 0 && (
                             <span>📎 {parseAttachments(article.attachments).length} 个附件</span>
                           )}
-                          <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                          <span>📅 {formatDate(article.created_at)}</span>
                         </div>
                       </div>
 
@@ -1102,7 +1103,7 @@ const KnowledgeBase = () => {
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <span>👁️ {selectedArticle.view_count || 0} 浏览</span>
                   <span>❤️ {selectedArticle.like_count || 0} 点赞</span>
-                  <span>📅 {new Date(selectedArticle.created_at).toLocaleDateString()}</span>
+                  <span>📅 {formatDate(selectedArticle.created_at)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1287,7 +1288,7 @@ const KnowledgeBase = () => {
                 <div className="flex flex-wrap items-center gap-4 mt-3 text-base text-gray-700">
                   <span className="flex items-center gap-2 text-lg">📁 {previewFile.category_name || '未分类'}</span>
                   <span className="flex items-center gap-2 text-lg">👤 {previewFile.author_name || '未知'}</span>
-                  <span className="flex items-center gap-2 text-lg">📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-2 text-lg">📅 {formatDate(previewFile.created_at)}</span>
                   <span className="flex items-center gap-2 text-lg">👁️ {previewFile.view_count || 0} 浏览</span>
                   <span className="flex items-center gap-2 text-lg">❤️ {previewFile.like_count || 0} 点赞</span>
                 </div>

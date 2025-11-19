@@ -121,72 +121,72 @@ const QualityRuleManagementPage = () => {
   }
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
+    <div className="p-6">
+      <div className="business-card">
+        <div className="business-card-header">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">质检规则管理</h2>
+            <h2 className="business-card-title">质检规则管理</h2>
             <p className="text-gray-500 text-sm mt-1">共 {rules.length} 条规则</p>
           </div>
           <button
             onClick={openCreateModal}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="business-btn business-btn-primary"
           >
             新增规则
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="business-table">
             <thead>
-              <tr className="bg-primary-100 text-primary-800">
-                <th className="px-4 py-3 text-left rounded-tl-lg">规则名称</th>
-                <th className="px-4 py-3 text-left">分类</th>
-                <th className="px-4 py-3 text-left">权重</th>
-                <th className="px-4 py-3 text-left">启用状态</th>
-                <th className="px-4 py-3 text-center rounded-tr-lg">操作</th>
+              <tr>
+                <th>规则名称</th>
+                <th>分类</th>
+                <th>权重</th>
+                <th>启用状态</th>
+                <th className="text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {rules.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="5" className="text-center py-8 text-gray-500">
                     暂无规则数据
                   </td>
                 </tr>
               ) : (
-                rules.map((rule, index) => (
-                  <tr key={rule.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
-                    <td className="px-4 py-3 font-medium">{rule.rule_name}</td>
-                    <td className="px-4 py-3">{rule.category}</td>
-                    <td className="px-4 py-3">{rule.weight}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
+                rules.map((rule) => (
+                  <tr key={rule.id}>
+                    <td className="font-medium">{rule.rule_name}</td>
+                    <td>{rule.category}</td>
+                    <td>{rule.weight}</td>
+                    <td>
+                      <span className={`business-badge ${
                         rule.is_enabled
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
+                          ? 'business-badge-success'
+                          : 'business-badge-error'
                       }`}>
                         {rule.is_enabled ? '已启用' : '已禁用'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center space-x-2">
+                    <td className="text-center space-x-2">
                       <button
                         onClick={() => openEditModal(rule)}
-                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                        className="business-btn business-btn-secondary business-btn-sm"
                       >
                         编辑
                       </button>
                       <button
                         onClick={() => handleToggleEnable(rule)}
-                        className={`px-3 py-1.5 rounded-lg transition-colors text-sm ${
-                          rule.is_enabled ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'
-                        } text-white`}
+                        className={`business-btn business-btn-sm ${
+                          rule.is_enabled ? 'business-btn-warning' : 'business-btn-success'
+                        }`}
                       >
                         {rule.is_enabled ? '禁用' : '启用'}
                       </button>
                       <button
                         onClick={() => handleDelete(rule.id)}
-                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+                        className="business-btn business-btn-danger business-btn-sm"
                       >
                         删除
                       </button>
@@ -202,43 +202,43 @@ const QualityRuleManagementPage = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentRule ? '编辑质检规则' : '新增质检规则'}>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">规则名称</label>
+            <label className="business-label">规则名称</label>
             <input
               type="text"
               name="rule_name"
               value={ruleForm.rule_name}
               onChange={handleFormChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">分类</label>
+            <label className="business-label">分类</label>
             <input
               type="text"
               name="category"
               value={ruleForm.category}
               onChange={handleFormChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">权重</label>
+            <label className="business-label">权重</label>
             <input
               type="number"
               name="weight"
               value={ruleForm.weight}
               onChange={handleFormChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">评分标准 (JSON)</label>
+            <label className="business-label">评分标准 (JSON)</label>
             <textarea
               name="scoring_standard"
               value={ruleForm.scoring_standard}
               onChange={handleFormChange}
               rows="6"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              className="business-textarea font-mono text-sm"
             ></textarea>
           </div>
           <div className="flex items-center">
@@ -254,13 +254,13 @@ const QualityRuleManagementPage = () => {
           <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="business-btn business-btn-secondary"
             >
               取消
             </button>
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+              className="business-btn business-btn-primary"
             >
               {currentRule ? '更新' : '创建'}
             </button>

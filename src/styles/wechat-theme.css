@@ -1,0 +1,316 @@
+/* WeChat Theme Styles */
+:root {
+  /* WeChat Colors */
+  --wechat-green: #07C160;
+  --wechat-green-dark: #06AD56;
+  --wechat-green-light: #95EC69;
+  --wechat-bg: #EDEDED;
+  --wechat-white: #FFFFFF;
+  --wechat-gray-light: #F7F7F7;
+  --wechat-gray: #E5E5E5;
+  --wechat-gray-dark: #B2B2B2;
+  --wechat-text: #353535;
+  --wechat-text-light: #999999;
+
+  /* Message Bubble */
+  --bubble-radius: 6px;
+  --bubble-spacing: 10px;
+  --bubble-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+
+  /* Dimensions */
+  --header-height: 56px;
+  --input-max-height: 15vh;
+}
+
+/* WeChat-style message bubbles */
+.wechat-message-bubble {
+  padding: 10px 12px;
+  border-radius: var(--bubble-radius);
+  max-width: 70%;
+  word-wrap: break-word;
+  box-shadow: var(--bubble-shadow);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wechat-message-bubble.sender {
+  background-color: var(--wechat-green-light);
+  color: var(--wechat-text);
+  border-top-right-radius: 2px;
+}
+
+.wechat-message-bubble.receiver {
+  background-color: var(--wechat-white);
+  color: var(--wechat-text);
+  border-top-left-radius: 2px;
+}
+
+/* Message container */
+.wechat-message-container {
+  display: flex;
+  margin-bottom: var(--bubble-spacing);
+  animation: fadeIn 0.2s ease-in;
+}
+
+.wechat-message-container.sender {
+  justify-content: flex-end;
+}
+
+.wechat-message-container.receiver {
+  justify-content: flex-start;
+}
+
+/* Chat window */
+.wechat-chat-window {
+  background-color: var(--wechat-bg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.wechat-header {
+  height: var(--header-height);
+  background-color: var(--wechat-white);
+  border-bottom: 1px solid var(--wechat-gray);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.wechat-header-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--wechat-text);
+  flex: 1;
+  text-align: center;
+}
+
+/* Input area */
+.wechat-input-container {
+  background-color: var(--wechat-gray-light);
+  border-top: 1px solid var(--wechat-gray);
+  padding: 8px 12px;
+  max-height: var(--input-max-height);
+}
+
+.wechat-input-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.wechat-input-toolbar button {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--wechat-text-light);
+  transition: color 0.2s;
+}
+
+.wechat-input-toolbar button:hover {
+  color: var(--wechat-text);
+}
+
+.wechat-input-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.wechat-input-box textarea {
+  flex: 1;
+  border: 1px solid var(--wechat-gray);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  resize: none;
+  background-color: var(--wechat-white);
+  color: var(--wechat-text);
+  max-height: 100px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.wechat-input-box textarea:focus {
+  outline: none;
+  border-color: var(--wechat-green);
+}
+
+.wechat-send-button {
+  background-color: var(--wechat-green);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.wechat-send-button:hover:not(:disabled) {
+  background-color: var(--wechat-green-dark);
+}
+
+.wechat-send-button:disabled {
+  background-color: var(--wechat-gray-dark);
+  cursor: not-allowed;
+}
+
+/* Messages area */
+.wechat-messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar styling */
+.wechat-messages-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wechat-messages-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wechat-messages-area::-webkit-scrollbar-thumb {
+  background: var(--wechat-gray-dark);
+  border-radius: 3px;
+}
+
+.wechat-messages-area::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Back to bottom button */
+.wechat-back-to-bottom {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  background-color: var(--wechat-white);
+  border: 1px solid var(--wechat-gray);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+}
+
+.wechat-back-to-bottom:hover {
+  background-color: var(--wechat-gray-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Unread badge */
+.wechat-unread-badge {
+  background-color: #FA5151;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 12px;
+  min-width: 18px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Timestamp */
+.wechat-timestamp {
+  font-size: 12px;
+  color: var(--wechat-text-light);
+  margin-top: 4px;
+  display: block;
+}
+
+/* Reply indicator */
+.wechat-reply-indicator {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-left: 3px solid var(--wechat-green);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+  font-size: 12px;
+  color: var(--wechat-text-light);
+}
+
+/* Message actions */
+.wechat-message-actions {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  gap: 8px;
+  background-color: var(--wechat-white);
+  padding: 4px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.wechat-message-container:hover .wechat-message-actions {
+  display: flex;
+}
+
+.wechat-message-actions button {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--wechat-text-light);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.wechat-message-actions button:hover {
+  color: var(--wechat-text);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading skeleton */
+.wechat-loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .wechat-message-bubble {
+    max-width: 80%;
+  }
+
+  .wechat-header-title {
+    font-size: 15px;
+  }
+
+  .wechat-input-container {
+    padding: 6px 10px;
+  }
+}

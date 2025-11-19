@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from '../../utils/date'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
@@ -82,9 +83,7 @@ export default function OvertimeRecords() {
     )
   }
 
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('zh-CN')
-  }
+  
 
   const formatTime = (dateTimeStr) => {
     if (!dateTimeStr) return '--:--'

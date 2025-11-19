@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, InputNumber, Select, Button, Space, message, Card } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Form, Input, InputNumber, Select, Button, Space, message, Card, Tag } from 'antd';
+import { SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useFormAutoSave } from '../../hooks/useFormAutoSave';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -11,6 +14,7 @@ const ExamForm = () => {
   const navigate = useNavigate();
   const { id } = useParams(); // For editing existing exam
   const [loading, setLoading] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
   const [examCategories, setExamCategories] = useState([]);
 
   useEffect(() => {
@@ -100,12 +104,59 @@ const ExamForm = () => {
     });
   };
 
+  // Auto-save draft function
+  const autoSaveDraft = useCallback(async (values) => {
+    if (!id) return; // Only auto-save for existing exams
+
+    try {
+      const payload = {
+        ...values,
+        category_id: values.category,
+        status: 'draft',
+      };
+
+      await axios.put(`/api/exams/${id}`, payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      throw error;
+    }
+  }, [id]);
+
+  // Use auto-save hook with 3 second debounce
+  const { triggerSave, isSaving, saveStatus } = useFormAutoSave(autoSaveDraft, 3000, id && formChanged);
+
+  // Handle form value changes
+  const handleFormChange = useCallback(() => {
+    setFormChanged(true);
+    if (id) {
+      const values = form.getFieldsValue();
+      triggerSave(values);
+    }
+  }, [id, form, triggerSave]);
+
   return (
     <div style={{ padding: 24 }}>
-      <Card title={id ? '编辑试卷' : '创建试卷'} loading={loading}>
+      <Card
+        title={
+          <Space>
+            <span>{id ? '编辑试卷' : '创建试卷'}</span>
+            {id && (
+              <>
+                {isSaving && <Tag icon={<SaveOutlined spin />} color="processing">保存中...</Tag>}
+                {saveStatus === 'success' && <Tag icon={<CheckCircleOutlined />} color="success">已保存</Tag>}
+                {saveStatus === 'error' && <Tag icon={<CloseCircleOutlined />} color="error">保存失败</Tag>}
+              </>
+            )}
+          </Space>
+        }
+        loading={loading}
+      >
         <Form
           form={form}
           layout="vertical"
+          onValuesChange={handleFormChange}
           onFinish={onFinish}
           initialValues={{
             difficulty: 'medium',

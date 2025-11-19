@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from '../../utils/date'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
@@ -78,9 +79,7 @@ export default function LeaveRecords() {
     return types[type] || type
   }
 
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('zh-CN')
-  }
+  
 
   return (
     <div className="p-6">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../utils/apiConfig'
 
@@ -408,7 +409,7 @@ function EmployeeChanges() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-semibold text-gray-900">
-                        {new Date(change.change_date).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        {formatDate(change.change_date)}
                       </div>
                     </div>
                   </td>

@@ -91,16 +91,56 @@ module.exports = async function (fastify, opts) {
     const { approver_id } = request.body
 
     try {
-      await pool.query(
-        `UPDATE overtime_records
-        SET status = 'approved', approver_id = ?, approved_at = NOW()
-        WHERE id = ?`,
-        [approver_id, id]
-      )
+      const connection = await pool.getConnection()
+      await connection.beginTransaction()
 
-      return {
-        success: true,
-        message: '审批通过'
+      try {
+        // 获取加班记录
+        const [overtimeRecords] = await connection.query(
+          'SELECT * FROM overtime_records WHERE id = ?',
+          [id]
+        )
+
+        if (overtimeRecords.length === 0) {
+          await connection.rollback()
+          connection.release()
+          return reply.code(404).send({ success: false, message: '加班记录不存在' })
+        }
+
+        const overtimeRecord = overtimeRecords[0]
+
+        // 更新加班记录状态
+        await connection.query(
+          `UPDATE overtime_records
+          SET status = 'approved', approver_id = ?, approved_at = NOW()
+          WHERE id = ?`,
+          [approver_id, id]
+        )
+
+        // 累计加班时长到假期余额（使用装饰器函数）
+        if (fastify.accumulateOvertimeHours) {
+          const year = new Date(overtimeRecord.overtime_date).getFullYear()
+          await fastify.accumulateOvertimeHours(
+            overtimeRecord.employee_id,
+            overtimeRecord.user_id,
+            overtimeRecord.hours,
+            year,
+            approver_id,
+            request.ip
+          )
+        }
+
+        await connection.commit()
+        connection.release()
+
+        return {
+          success: true,
+          message: '审批通过'
+        }
+      } catch (error) {
+        await connection.rollback()
+        connection.release()
+        throw error
       }
     } catch (error) {
       console.error('审批加班失败:', error)

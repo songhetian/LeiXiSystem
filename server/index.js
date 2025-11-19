@@ -3099,6 +3099,11 @@ fastify.register(require('./routes/schedules'));
 fastify.register(require('./routes/schedule-excel'));
 fastify.register(require('./routes/attendance-approval'));
 
+// ==================== 假期管理路由 ====================
+fastify.register(require('./routes/vacation-balance'));
+fastify.register(require('./routes/compensatory-leave'));
+fastify.register(require('./routes/vacation-stats'));
+
 // ==================== 增强功能路由 ====================
 fastify.register(require('./routes/export'));
 fastify.register(notificationRoutes);

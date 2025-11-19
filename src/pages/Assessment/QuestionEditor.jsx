@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, Button, Space, message, Card, Radio, InputNumber, Checkbox } from 'antd';
-import { MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Form, Input, Select, Button, Space, message, Card, Radio, InputNumber, Checkbox, Tag } from 'antd';
+import { MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { useFormAutoSave } from '../../hooks/useFormAutoSave';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -15,6 +16,7 @@ const QuestionEditor = () => {
   const { examId, questionId } = useParams(); // examId for new question, questionId for editing
   const [loading, setLoading] = useState(false);
   const [questionType, setQuestionType] = useState('single_choice');
+  const [formChanged, setFormChanged] = useState(false);
 
   useEffect(() => {
     if (questionId) {
@@ -115,12 +117,56 @@ const QuestionEditor = () => {
     }
   };
 
+  // Auto-save draft function
+  const autoSaveDraft = useCallback(async (values) => {
+    if (!questionId) return;
+
+    try {
+      const payload = { ...values, exam_id: examId };
+      if (payload.options) payload.options = JSON.stringify(payload.options);
+      if (payload.correct_answer) payload.correct_answer = JSON.stringify(payload.correct_answer);
+      if (payload.fill_blanks) payload.fill_blanks = JSON.stringify(payload.fill_blanks);
+
+      await axios.put(`/api/questions/${questionId}`, payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      throw error;
+    }
+  }, [questionId, examId]);
+
+  const { triggerSave, isSaving, saveStatus } = useFormAutoSave(autoSaveDraft, 3000, questionId && formChanged);
+
+  const handleFormChange = useCallback(() => {
+    setFormChanged(true);
+    if (questionId) {
+      const values = form.getFieldsValue();
+      triggerSave(values);
+    }
+  }, [questionId, form, triggerSave]);
+
   return (
     <div style={{ padding: 24 }}>
-      <Card title={questionId ? '编辑题目' : '创建题目'} loading={loading}>
+      <Card
+        title={
+          <Space>
+            <span>{questionId ? '编辑题目' : '创建题目'}</span>
+            {questionId && (
+              <>
+                {isSaving && <Tag icon={<SaveOutlined spin />} color="processing">保存中...</Tag>}
+                {saveStatus === 'success' && <Tag icon={<CheckCircleOutlined />} color="success">已保存</Tag>}
+                {saveStatus === 'error' && <Tag icon={<CloseCircleOutlined />} color="error">保存失败</Tag>}
+              </>
+            )}
+          </Space>
+        }
+        loading={loading}
+      >
         <Form
           form={form}
           layout="vertical"
+          onValuesChange={handleFormChange}
           onFinish={onFinish}
         >
           <Form.Item

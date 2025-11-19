@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { formatDate } from '../utils/date'
 
 const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWidth, setModalWidth, modalHeight, setModalHeight }) => {
   if (!file) return null;
@@ -63,7 +64,7 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
                 {getFileIcon ? getFileIcon(file.type) : '📄'} {file.type}
               </span>
               <span className="flex items-center gap-2 text-lg">
-                📅 {new Date().toLocaleDateString()}
+                📅 {formatDate(new Date())}
               </span>
               <span className="flex items-center gap-2 text-lg">
                 � {formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}

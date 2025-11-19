@@ -1,6 +1,7 @@
 // 试卷管理 API
 const { extractUserPermissions } = require('../middleware/checkPermission')
 const jwt = require('jsonwebtoken')
+const ExcelJS = require('exceljs')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
@@ -666,6 +667,143 @@ module.exports = async function (fastify, opts) {
     }
   })
 
+  fastify.post('/api/exams/:examId/import', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+      try { jwt.verify(token, JWT_SECRET) } catch { return reply.code(401).send({ success: false, message: '无效的认证令牌' }) }
+      const { examId } = request.params
+      const [examRows] = await pool.query('SELECT id, status FROM exams WHERE id = ?', [examId])
+      if (examRows.length === 0) return reply.code(404).send({ success: false, message: '试卷不存在' })
+      if (examRows[0].status === 'published') return reply.code(403).send({ success: false, message: '已发布的试卷不允许导入题目' })
+
+      const data = await request.file()
+      if (!data) return reply.code(400).send({ success: false, message: '未接收到文件' })
+      const mimetype = data.mimetype || ''
+      let content = ''
+      if (mimetype === 'text/plain' || (data.filename || '').toLowerCase().endsWith('.txt')) {
+        content = await data.toBuffer()
+        content = content.toString('utf-8')
+      } else {
+        return reply.code(400).send({ success: false, message: '当前仅支持 txt 文件导入' })
+      }
+
+      const blocks = content.split(/\n-{3,}\n|\r?\n\s*---\s*\r?\n/).map(s => s.trim()).filter(Boolean)
+      const connection = await pool.getConnection()
+      let successCount = 0
+      let failedCount = 0
+      const errors = []
+      try {
+        await connection.beginTransaction()
+        for (const b of blocks) {
+          try {
+            const lines = b.split(/\r?\n/)
+            let type = 'single_choice'
+            let qContent = ''
+            const options = []
+            let answer = ''
+            let score = 10
+            for (const line of lines) {
+              if (line.startsWith('#')) type = line.replace('#','').trim()
+              else if (/^[A-J]\.\s*/.test(line)) options.push(line.replace(/^[A-J]\.\s*/, '').trim())
+              else if (/^答案\s*:/i.test(line)) answer = line.split(':')[1].trim().toUpperCase()
+              else if (/^分值\s*:/i.test(line)) { const v = parseFloat(line.split(':')[1]); if (!isNaN(v)) score = v }
+              else qContent += (qContent ? '\n' : '') + line.trim()
+            }
+            const normalizedType = type === 'short_answer' ? 'essay' : type
+            let optionsJson = null
+            if (['single_choice','multiple_choice'].includes(normalizedType)) optionsJson = JSON.stringify(options)
+            if (normalizedType === 'true_false') { optionsJson = JSON.stringify(['正确','错误']); if (!answer) answer = 'A' }
+            const [result] = await connection.query(
+              `INSERT INTO questions (exam_id,type,content,options,correct_answer,score,order_num) VALUES (?,?,?,?,?,?,
+               (SELECT COALESCE(MAX(order_num),0)+1 FROM questions WHERE exam_id = ?))`,
+              [examId, normalizedType, qContent, optionsJson, answer || null, score, examId]
+            )
+            await connection.query(
+              `UPDATE exams SET question_count = question_count + 1, total_score = total_score + ?, updated_at = NOW() WHERE id = ?`,
+              [score, examId]
+            )
+            successCount += 1
+          } catch (e) {
+            failedCount += 1
+            errors.push({ message: e.message })
+          }
+        }
+        await connection.commit()
+      } catch (e) {
+        await connection.rollback()
+        throw e
+      } finally {
+        connection.release()
+      }
+
+      global.__exam_import_logs = global.__exam_import_logs || []
+      global.__exam_import_logs.unshift({ exam_id: parseInt(examId), time: new Date().toISOString(), success_count: successCount, failed_count: failedCount })
+      if (global.__exam_import_logs.length > 50) global.__exam_import_logs.pop()
+
+      return { success: true, message: '导入完成', data: { success_count: successCount, failed_count: failedCount, errors } }
+    } catch (error) {
+      console.error('试题导入失败:', error)
+      return reply.code(500).send({ success: false, message: '导入失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
+    }
+  })
+
+  fastify.get('/api/exams/:examId/import/history', async (request, reply) => {
+    try {
+      const { examId } = request.params
+      const logs = (global.__exam_import_logs || []).filter(l => String(l.exam_id) === String(examId))
+      return { success: true, data: { logs } }
+    } catch (error) {
+      return reply.code(500).send({ success: false, message: '获取失败' })
+    }
+  })
+
+  fastify.get('/api/exams/import/template.xlsx', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+      try { jwt.verify(token, JWT_SECRET) } catch { return reply.code(401).send({ success: false, message: '无效的认证令牌' }) }
+
+      const workbook = new ExcelJS.Workbook()
+      const sheet = workbook.addWorksheet('试题模板')
+      sheet.columns = [
+        { header: '题型', key: 'type', width: 16 },
+        { header: '题目内容', key: 'content', width: 60 },
+        { header: '选项A', key: 'optA', width: 20 },
+        { header: '选项B', key: 'optB', width: 20 },
+        { header: '选项C', key: 'optC', width: 20 },
+        { header: '选项D', key: 'optD', width: 20 },
+        { header: '正确答案', key: 'answer', width: 14 },
+        { header: '分值', key: 'score', width: 10 },
+        { header: '答案解析', key: 'explanation', width: 40 }
+      ]
+
+      sheet.addRow({ type: 'single_choice', content: '下列哪项是HTTP方法？', optA: 'GET', optB: 'FETCH', optC: 'RECEIVE', optD: 'OBTAIN', answer: 'A', score: 10, explanation: 'GET/POST/PUT/DELETE 等' })
+      sheet.addRow({ type: 'multiple_choice', content: '以下哪些是数组方法？', optA: 'map', optB: 'filter', optC: 'reduce', optD: 'assign', answer: 'ABC', score: 10, explanation: 'map/filter/reduce 属于数组方法' })
+      sheet.addRow({ type: 'true_false', content: 'HTTP 是无状态协议。', optA: '正确', optB: '错误', answer: 'A', score: 5, explanation: '' })
+      sheet.addRow({ type: 'fill_blank', content: '请填写命令：_____ install', score: 10, explanation: '' })
+      sheet.addRow({ type: 'essay', content: '简述事件循环原理。', score: 20, explanation: '' })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const now = new Date()
+      const yyyy = String(now.getFullYear())
+      const mm = String(now.getMonth() + 1).padStart(2, '0')
+      const dd = String(now.getDate()).padStart(2, '0')
+      const filename = `试题导入模板_${yyyy}${mm}${dd}.xlsx`
+
+      reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      reply.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)
+      return reply.send(buffer)
+    } catch (error) {
+      console.error('生成模板失败:', error)
+      return reply.code(500).send({ success: false, message: '生成模板失败' })
+    }
+  })
+
   // 获取试卷题目列表
   // GET /api/exams/:examId/questions
   // 按 order_num 升序排列
@@ -1025,18 +1163,20 @@ module.exports = async function (fastify, opts) {
 
       const { examId } = request.params
       const { type, content, options, correct_answer, score, explanation } = request.body
+      const normalizedType = type === 'short_answer' ? 'essay' : type
 
       // 必填字段验证
-      if (!type || !content || !correct_answer || score === undefined || score === null) {
+      if (!normalizedType || !content || score === undefined || score === null ||
+          ((normalizedType === 'single_choice' || normalizedType === 'multiple_choice' || normalizedType === 'true_false') && !correct_answer)) {
         return reply.code(400).send({
           success: false,
-          message: '缺少必填字段：type, content, correct_answer, score'
+          message: '缺少必填字段：type, content, score；客观题需提供 correct_answer'
         })
       }
 
       // 验证题型
       const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'fill_blank', 'essay']
-      if (!validTypes.includes(type)) {
+      if (!validTypes.includes(normalizedType)) {
         return reply.code(400).send({
           success: false,
           message: '无效的题型，必须是 single_choice, multiple_choice, true_false, fill_blank 或 essay'
@@ -1076,7 +1216,7 @@ module.exports = async function (fastify, opts) {
 
       // 验证选项格式（选择题必填）
       let optionsJson = null
-      if (type === 'single_choice' || type === 'multiple_choice') {
+      if (normalizedType === 'single_choice' || normalizedType === 'multiple_choice') {
         if (!options) {
           return reply.code(400).send({
             success: false,
@@ -1119,13 +1259,13 @@ module.exports = async function (fastify, opts) {
 
         // 转换为 JSON 字符串
         optionsJson = JSON.stringify(options)
-      } else if (type === 'true_false') {
+      } else if (normalizedType === 'true_false') {
         // 判断题自动设置选项
         optionsJson = JSON.stringify(['正确', '错误'])
       }
 
       // 验证正确答案格式
-      if (type === 'single_choice') {
+      if (normalizedType === 'single_choice') {
         // 单选题答案应该是 A, B, C, D 等
         const validAnswerPattern = /^[A-J]$/
         if (!validAnswerPattern.test(correct_answer)) {
@@ -1143,7 +1283,7 @@ module.exports = async function (fastify, opts) {
             message: `答案 ${correct_answer} 超出选项范围（共 ${options.length} 个选项）`
           })
         }
-      } else if (type === 'multiple_choice') {
+      } else if (normalizedType === 'multiple_choice') {
         // 多选题答案应该是 AB, ABC, ACD 等
         const validAnswerPattern = /^[A-J]+$/
         if (!validAnswerPattern.test(correct_answer)) {
@@ -1180,7 +1320,7 @@ module.exports = async function (fastify, opts) {
             })
           }
         }
-      } else if (type === 'true_false') {
+      } else if (normalizedType === 'true_false') {
         // 判断题答案应该是 A（正确）或 B（错误）
         if (correct_answer !== 'A' && correct_answer !== 'B') {
           return reply.code(400).send({
@@ -1216,7 +1356,7 @@ module.exports = async function (fastify, opts) {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             examId,
-            type,
+            normalizedType,
             content,
             optionsJson,
             correct_answer,
@@ -1341,14 +1481,15 @@ module.exports = async function (fastify, opts) {
       if (type !== undefined) {
         // 验证题型
         const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'fill_blank', 'essay']
-        if (!validTypes.includes(type)) {
+        const normalizedType = type === 'short_answer' ? 'essay' : type
+        if (!validTypes.includes(normalizedType)) {
           return reply.code(400).send({
             success: false,
             message: '无效的题型，必须是 single_choice, multiple_choice, true_false, fill_blank 或 essay'
           })
         }
         updateFields.push('type = ?')
-        updateValues.push(type)
+        updateValues.push(normalizedType)
       }
 
       if (content !== undefined) {
@@ -1406,14 +1547,25 @@ module.exports = async function (fastify, opts) {
       }
 
       if (correct_answer !== undefined) {
-        if (!correct_answer || correct_answer.trim() === '') {
-          return reply.code(400).send({
-            success: false,
-            message: '正确答案不能为空'
-          })
+        const currentType = (type !== undefined) ? (type === 'short_answer' ? 'essay' : type) : undefined
+        const effectiveType = currentType || (await (async () => {
+          const [rows] = await pool.query('SELECT type FROM questions WHERE id = ?', [id])
+          return rows.length ? rows[0].type : null
+        })())
+        const isObjective = ['single_choice', 'multiple_choice', 'true_false'].includes(effectiveType)
+        if (!isObjective && (!correct_answer || correct_answer.trim() === '')) {
+          updateFields.push('correct_answer = ?')
+          updateValues.push(null)
+        } else {
+          if (!correct_answer || correct_answer.trim() === '') {
+            return reply.code(400).send({
+              success: false,
+              message: '正确答案不能为空'
+            })
+          }
+          updateFields.push('correct_answer = ?')
+          updateValues.push(correct_answer)
         }
-        updateFields.push('correct_answer = ?')
-        updateValues.push(correct_answer)
       }
 
       if (score !== undefined) {
@@ -1955,12 +2107,14 @@ module.exports = async function (fastify, opts) {
       // 获取查询参数
       const {
         page = 1,
-        limit = 10,
+        limit = 20,
         status,
         start_time_from,
         start_time_to,
         end_time_from,
-        end_time_to
+        end_time_to,
+        department_id,
+        keyword
       } = request.query
 
       // 验证分页参数
@@ -2014,10 +2168,16 @@ module.exports = async function (fastify, opts) {
           e.difficulty as exam_difficulty,
           e.duration as exam_duration,
           e.total_score as exam_total_score,
-          e.pass_score as exam_pass_score
+          e.pass_score as exam_pass_score,
+          u.real_name as creator_name,
+          u.username as creator_username,
+          u.department_id as creator_department_id,
+          d.name as creator_department_name
         FROM assessment_plans ap
         INNER JOIN exams e ON ap.exam_id = e.id
-        WHERE 1=1
+        INNER JOIN users u ON ap.created_by = u.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        WHERE 1=1 AND e.status = 'published'
       `
       const params = []
 
@@ -2117,6 +2277,10 @@ module.exports = async function (fastify, opts) {
           created_by: plan.created_by,
           created_at: plan.created_at,
           updated_at: plan.updated_at,
+          target_department: {
+            id: plan.creator_department_id,
+            name: plan.creator_department_name
+          },
           participation_stats: {
             total_users: totalUsers,
             completed_count: completedCount,
@@ -2149,3 +2313,16 @@ module.exports = async function (fastify, opts) {
     }
   })
 }
+      // 默认部门筛选（从 JWT）
+      const deptId = department_id ? parseInt(department_id) : (decoded.department_id || null)
+      if (deptId) {
+        query += ' AND u.department_id = ?'
+        params.push(deptId)
+      }
+
+      // 人员关键词筛选（姓名/用户名模糊）
+      if (keyword && keyword.trim()) {
+        const kw = `%${keyword.trim()}%`
+        query += ' AND (COALESCE(u.real_name, "") LIKE ? OR COALESCE(u.username, "") LIKE ? )'
+        params.push(kw, kw)
+      }

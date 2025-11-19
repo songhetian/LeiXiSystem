@@ -32,7 +32,6 @@ const ExamManagement = lazy(() => import('./components/ExamManagement'));
 const AssessmentPlanManagement = lazy(() => import('./components/AssessmentPlanManagement'));
 const CategoryManagement = lazy(() => import('./components/CategoryManagement'));
 const ExamResultsManagement = lazy(() => import('./components/ExamResultsManagement'));
-const DragDropExamBuilder = lazy(() => import('./components/DragDropExamBuilder'));
 const MyExamList = lazy(() => import('./components/MyExamList'));
 const ExamTaking = lazy(() => import('./components/ExamTaking'));
 const ExamResult = lazy(() => import('./components/ExamResult'));
@@ -49,12 +48,6 @@ const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
 const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
-const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
-
-// Lazy-loaded Attendance Management Pages
-const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
-const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
-const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
 const LeaveRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveRecords })));
 const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeApply })));
 const OvertimeRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeRecords })));
@@ -68,6 +61,16 @@ const Notifications = lazy(() => import('./pages/Attendance').then(module => ({ 
 const SmartSchedule = lazy(() => import('./pages/Attendance').then(module => ({ default: module.SmartSchedule })));
 const ApprovalManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ApprovalManagement })));
 const AttendanceSettings = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceSettings })));
+const CompensatoryApply = lazy(() => import('./components/CompensatoryApply'));
+const VacationDetails = lazy(() => import('./components/VacationDetails'));
+const VacationSummary = lazy(() => import('./components/VacationSummary'));
+const CompensatoryApproval = lazy(() => import('./components/CompensatoryApproval'));
+const VacationQuotaSettings = lazy(() => import('./components/VacationQuotaSettings'));
+const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
+const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
+const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
+const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
+
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -204,6 +207,19 @@ function App() {
       case 'attendance-settings':
         return <AttendanceSettings />
 
+      // 假期管理
+      case 'compensatory-apply':
+        return <CompensatoryApply />
+      case 'vacation-details':
+        return <VacationDetails />
+      case 'vacation-summary':
+        return <VacationSummary />
+      case 'compensatory-approval':
+        return <CompensatoryApproval />
+      case 'vacation-quota-settings':
+        return <VacationQuotaSettings />
+
+
       // 质检管理
       case 'quality-session':
         return <SessionManagement />
@@ -245,8 +261,7 @@ function App() {
         return <CategoryManagement />
       case 'assessment-results':
         return <ExamResultsManagement />
-      case 'assessment-drag-drop-builder':
-        return <DragDropExamBuilder />
+      // 已移除拖拽组卷功能，创建试卷在试卷管理中进行
       case 'my-exams':
         return <MyExamList onStartExam={(examId, planId) => handleSetActiveTab('exam-taking', { examId, planId })} />
       case 'exam-taking':
@@ -272,10 +287,6 @@ function App() {
       case 'statistics-viewing':
         return <ViewingStatistics />
 
-      // 个人中心
-      case 'personal-info':
-        return <PersonalInfo />
-
       // 消息通知
       case 'notification-center':
         return <NotificationCenter />
@@ -283,6 +294,10 @@ function App() {
         return <NotificationSender />
       case 'notification-settings': // New case for NotificationSettings
         return <NotificationSettings />
+
+      // 个人中心
+      case 'personal-info':
+        return <PersonalInfo />
 
       default:
         return <EmployeeManagement />

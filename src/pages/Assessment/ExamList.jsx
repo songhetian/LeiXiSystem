@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, PublishOutlined, ArchiveOutlined, SwapOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import '../../styles/assessment-business.css';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -227,7 +229,7 @@ const ExamList = () => {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="assessment-business" style={{ padding: 24 }}>
       <Card
         title="试卷列表"
         extra={

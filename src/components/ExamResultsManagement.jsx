@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
+import debounce from 'lodash.debounce';
 
 const ExamResultsManagement = () => {
   const [results, setResults] = useState([]);
@@ -20,17 +21,38 @@ const ExamResultsManagement = () => {
     fetchAvailableExams();
   }, []);
 
+  const filteredResults = useMemo(() => {
+    if (!Array.isArray(results)) return [];
+    return results.filter(result => {
+      const matchesSearch =
+        result.exam_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        result.user_real_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        result.user_employee_no?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = filterStatus === '' ||
+        (filterStatus === 'passed' && result.passed) ||
+        (filterStatus === 'failed' && !result.passed);
+
+      const matchesExam = filterExam === '' || result.exam_id === parseInt(filterExam);
+
+      return matchesSearch && matchesStatus && matchesExam;
+    });
+  }, [results, searchTerm, filterStatus, filterExam]);
+
   useEffect(() => {
     if (filteredResults) {
       setTotalPages(Math.ceil(filteredResults.length / pageSize));
+      setCurrentPage(1); // Reset to first page on filter change
     }
   }, [filteredResults, pageSize]);
 
   const fetchResults = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/assessment-results'); // Assuming API endpoint for all results
-      setResults(response.data || []);
+      const response = await api.get('/assessment-results');
+      // Handle response structure: { success: true, data: { results: [...] } } or { success: true, data: [...] }
+      const resultsData = response.data?.data?.results || response.data?.data || [];
+      setResults(Array.isArray(resultsData) ? resultsData : []);
     } catch (error) {
       console.error('获取考试结果失败:', error);
       toast.error('获取考试结果列表失败');
@@ -43,7 +65,9 @@ const ExamResultsManagement = () => {
   const fetchAvailableExams = async () => {
     try {
       const response = await api.get('/exams');
-      setAvailableExams(response.data || []);
+      // Handle response structure: { success: true, data: { exams: [...] } }
+      const exams = response.data?.data?.exams || response.data?.data || [];
+      setAvailableExams(Array.isArray(exams) ? exams : []);
     } catch (error) {
       console.error('获取可用试卷失败:', error);
       toast.error('获取可用试卷列表失败');
@@ -56,24 +80,6 @@ const ExamResultsManagement = () => {
       ? <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">通过</span>
       : <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">未通过</span>;
   };
-
-  const filteredResults = useMemo(() => {
-    setCurrentPage(1); // Reset page when filters change
-    return results.filter(result => {
-      const matchesSearch =
-        result.exam_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        result.user_real_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        result.user_employee_no.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = filterStatus === '' ||
-        (filterStatus === 'passed' && result.passed) ||
-        (filterStatus === 'failed' && !result.passed);
-
-      const matchesExam = filterExam === '' || result.exam_id === parseInt(filterExam);
-
-      return matchesSearch && matchesStatus && matchesExam;
-    });
-  }, [results, searchTerm, filterStatus, filterExam]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -88,6 +94,11 @@ const ExamResultsManagement = () => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return filteredResults.slice(startIndex, endIndex);
+  };
+
+  // Debounced search handler
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
   };
 
   return (
@@ -107,7 +118,7 @@ const ExamResultsManagement = () => {
             type="text"
             placeholder="按试卷标题、考生姓名、工号搜索..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
           />
           <select

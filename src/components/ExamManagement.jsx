@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { formatDate } from '../utils/date'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 import { toast } from 'react-toastify'
 import api from '../api'
@@ -40,6 +41,31 @@ const ExamManagement = () => {
   const [deleteTargetId, setDeleteTargetId] = useState(null)
   const [history, setHistory] = useState([])
   const [autoSave, setAutoSave] = useState(true)
+  const dragCounter = useRef(0)
+  const examListRef = useRef(null)
+  const [scoreModalOpen, setScoreModalOpen] = useState(false)
+  const [scoreInfo, setScoreInfo] = useState({ currentSum: 0, examTotal: 0 })
+  const [showExamInfo, setShowExamInfo] = useState(false)
+  const [examInfo, setExamInfo] = useState(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [importResult, setImportResult] = useState(null)
+  const [importHistory, setImportHistory] = useState([])
+  const [downloadingTpl, setDownloadingTpl] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templates, setTemplates] = useState(() => {
+    try { const raw = localStorage.getItem('question_templates'); return raw ? JSON.parse(raw) : [] } catch { return [] }
+  })
+
+  const getCurrentTotalScore = () => {
+    try {
+      return (questions || []).reduce((sum, q) => sum + (parseFloat(q.score) || 0), 0)
+    } catch {
+      return 0
+    }
+  }
 
   const showStatus = (type, message) => {
     try { toast.dismiss() } catch (e) {}
@@ -173,11 +199,22 @@ const ExamManagement = () => {
     setLoading(true)
 
     try {
+      const { status, ...basic } = formData
+      if (editingExam || selectedExam) {
+        const total = getCurrentTotalScore()
+        const examTotal = basic.total_score
+        if (parseFloat(examTotal) < total) {
+          setScoreInfo({ currentSum: total, examTotal })
+          setScoreModalOpen(true)
+          setLoading(false)
+          return
+        }
+      }
       if (editingExam) {
-        await api.put(`/exams/${editingExam.id}`, formData)
+        await api.put(`/exams/${editingExam.id}`, basic)
         toast.success('试卷更新成功')
       } else {
-        await api.post('/exams', formData)
+        await api.post('/exams', basic)
         toast.success('试卷创建成功')
       }
       setShowModal(false)
@@ -185,7 +222,8 @@ const ExamManagement = () => {
       fetchExams()
     } catch (error) {
       console.error('提交失败:', error)
-      toast.error(editingExam ? '更新失败' : '创建失败')
+      const errorMsg = error.response?.data?.message || error.message
+      toast.error(editingExam ? `更新失败: ${errorMsg}` : `创建失败: ${errorMsg}`)
     } finally {
       setLoading(false)
     }
@@ -215,6 +253,14 @@ const ExamManagement = () => {
         exam_id: selectedExam.id,
         options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
         order_num: questions.length + 1
+      }
+      const total = getCurrentTotalScore()
+      const examTotal = selectedExam.total_score
+      const newScore = parseFloat(data.score) || 0
+      if (total + newScore > (parseFloat(examTotal) || 0)) {
+        setScoreInfo({ currentSum: total + newScore, examTotal })
+        setScoreModalOpen(true)
+        return
       }
 
       const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
@@ -289,6 +335,16 @@ const ExamManagement = () => {
         score: newQuestion.score,
         explanation: newQuestion.explanation
       }
+      const total = getCurrentTotalScore()
+      const oldScore = parseFloat(editingQuestion?.score) || 0
+      const newScore = parseFloat(data.score) || 0
+      const examTotal = selectedExam.total_score
+      const projected = total - oldScore + newScore
+      if (projected > (parseFloat(examTotal) || 0)) {
+        setScoreInfo({ currentSum: projected, examTotal })
+        setScoreModalOpen(true)
+        return
+      }
 
       await api.put(`/questions/${editingQuestion.id}`, data)
       showStatus('success', '题目更新成功')
@@ -337,6 +393,116 @@ const ExamManagement = () => {
     setShowEditorModal(true)
   }
 
+  const openExamInfo = async (exam) => {
+    try {
+      const res = await api.get(`/exams/${exam.id}`)
+      const data = res?.data?.data || res?.data || null
+      setExamInfo(data)
+      setSelectedExam(exam)
+      setShowExamInfo(true)
+      const h = await api.get(`/exams/${exam.id}/import/history`)
+      setImportHistory(h?.data?.data?.logs || [])
+    } catch {
+      setExamInfo(null)
+      setShowExamInfo(true)
+    }
+  }
+
+  const handleFileImport = async (file) => {
+    if (!selectedExam || !file) return
+    setImporting(true)
+    setImportProgress(0)
+    setImportResult(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await api.post(`/exams/${selectedExam.id}/import`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => { if (e.total) setImportProgress(Math.round((e.loaded / e.total) * 100)) }
+      })
+      const payload = res?.data?.data || {}
+      setImportResult({ success: payload.success_count || 0, failed: payload.failed_count || 0, errors: payload.errors || [] })
+      const h = await api.get(`/exams/${selectedExam.id}/import/history`)
+      setImportHistory(h?.data?.data?.logs || [])
+      fetchQuestions(selectedExam.id)
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message
+      toast.error(`导入失败: ${msg}`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const saveTemplates = (list) => {
+    setTemplates(list)
+    try { localStorage.setItem('question_templates', JSON.stringify(list)) } catch {}
+  }
+
+  const exportTemplates = () => {
+    try {
+      const blob = new Blob([JSON.stringify(templates, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'question-templates.json'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('模板已导出')
+    } catch {
+      toast.error('导出失败')
+    }
+  }
+
+  const importTemplates = (file) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const list = JSON.parse(reader.result)
+        if (Array.isArray(list)) {
+          saveTemplates(list)
+          toast.success('模板导入成功')
+        } else {
+          toast.error('文件格式不正确')
+        }
+      } catch {
+        toast.error('解析失败')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const downloadTemplateXlsx = async () => {
+    try {
+      setDownloadingTpl(true)
+      setDownloadProgress(0)
+      const res = await api.get('/exams/import/template.xlsx', {
+        responseType: 'blob',
+        onDownloadProgress: (e) => { if (e.total) setDownloadProgress(Math.round((e.loaded / e.total) * 100)) }
+      })
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const disposition = res.headers?.['content-disposition'] || ''
+      let filename = '试题导入模板.xlsx'
+      const m = /filename\*=UTF-8''([^;]+)/.exec(disposition)
+      if (m && m[1]) filename = decodeURIComponent(m[1])
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('模板下载完成')
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message
+      toast.error(`模板下载失败: ${msg}`)
+    } finally {
+      setDownloadingTpl(false)
+    }
+  }
+
   // 拖拽相关函数
   const handleDragStart = (e, question, index, source = 'exam') => {
     setDraggedQuestion({ question, index, source })
@@ -346,7 +512,6 @@ const ExamManagement = () => {
   const handleDragOver = (e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setIsDraggingOverExam(true)
   }
 
   const handleDrop = async (e, targetIndex) => {
@@ -364,14 +529,21 @@ const ExamManagement = () => {
         const data = {
           type: bankQuestion.type,
           content: bankQuestion.content,
-          options: bankQuestion.options,
+          options: typeof bankQuestion.options === 'string' ? JSON.parse(bankQuestion.options) : bankQuestion.options,
           correct_answer: bankQuestion.correct_answer,
           score: bankQuestion.score || 10,
           explanation: bankQuestion.explanation || '',
           exam_id: selectedExam.id,
           order_num: targetIndex + 1
         }
-
+        const total = getCurrentTotalScore()
+        const examTotal = selectedExam.total_score
+        if (total + (parseFloat(data.score) || 0) > (parseFloat(examTotal) || 0)) {
+          setScoreInfo({ currentSum: total + (parseFloat(data.score) || 0), examTotal: examTotal })
+          setScoreModalOpen(true)
+          setDraggedQuestion(null)
+          return
+        }
         const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
         showStatus('success', '题目已添加到试卷')
         const newId = res?.data?.data?.id
@@ -381,14 +553,20 @@ const ExamManagement = () => {
           if (q) setEditingQuestion(q)
         }
       } catch (error) {
-        console.error('添加题目失败:', error)
-        showStatus('error', '添加题目失败')
+        console.error('添加题目失败:', error);
+        const errorMsg = error.response?.data?.message || error.message;
+        showStatus('error', `添加题目失败: ${errorMsg}`);
       }
       setDraggedQuestion(null)
       return
     }
 
     // 试卷内拖拽排序
+    if (selectedExam?.status === 'published') {
+      showStatus('error', '已发布的试卷不允许调整题目顺序')
+      setDraggedQuestion(null)
+      return
+    }
     if (draggedQuestion.index === targetIndex) {
       setDraggedQuestion(null)
       return
@@ -403,12 +581,8 @@ const ExamManagement = () => {
     setDraggedQuestion(null)
 
     try {
-      const updates = newQuestions.map((q, idx) => ({
-        id: q.id,
-        order_num: idx + 1
-      }))
-
-      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
+      const ids = newQuestions.map(q => q.id)
+      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
       showStatus('success', '题目顺序已更新')
     } catch (error) {
       console.error('更新顺序失败:', error)
@@ -416,12 +590,59 @@ const ExamManagement = () => {
       fetchQuestions(selectedExam.id)
     }
   }
+  const handleContainerDragEnter = (e) => {
+    dragCounter.current += 1
+    if (dragCounter.current === 1) {
+      setIsDraggingOverExam(true)
+    }
+  }
+  const handleContainerDragLeave = (e) => {
+    dragCounter.current = Math.max(0, dragCounter.current - 1)
+    if (dragCounter.current === 0) {
+      setIsDraggingOverExam(false)
+    }
+  }
+  const handleContainerDragOver = (e) => {
+    e.preventDefault()
+  }
+  const handleDropToContainer = (e) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    setIsDraggingOverExam(false)
+    if (!draggedQuestion) return
+    let targetIndex = questions.length
+    const container = examListRef.current
+    if (container) {
+      const children = Array.from(container.querySelectorAll('[data-index]'))
+      const y = e.clientY
+      let bestIdx = null
+      let minDist = Infinity
+      children.forEach((el) => {
+        const rect = el.getBoundingClientRect()
+        const center = rect.top + rect.height / 2
+        const idx = parseInt(el.getAttribute('data-index'), 10)
+        const dist = Math.abs(y - center)
+        if (dist < minDist) {
+          minDist = dist
+          bestIdx = idx
+        }
+      })
+      if (bestIdx !== null) {
+        targetIndex = bestIdx
+      }
+    }
+    handleDrop(e, targetIndex)
+  }
 
   const saveOrder = async () => {
     if (!selectedExam) return
     try {
-      const updates = questions.map((q, idx) => ({ id: q.id, order_num: idx + 1 }))
-      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
+      if (selectedExam.status === 'published') {
+        toast.error('已发布的试卷不允许调整题目顺序')
+        return
+      }
+      const ids = questions.map(q => q.id)
+      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
       toast.success('题目顺序已更新')
     } catch (error) {
       console.error('更新顺序失败:', error)
@@ -468,7 +689,8 @@ const ExamManagement = () => {
       multiple_choice: '多选题',
       true_false: '判断题',
       fill_blank: '填空题',
-      short_answer: '简答题'
+      short_answer: '简答题',
+      essay: '简答题'
     }
     return types[type] || type
   }
@@ -499,8 +721,12 @@ const ExamManagement = () => {
     if (Array.isArray(prev) && Array.isArray(questions)) {
       setQuestions(prev)
       try {
-        const updates = prev.map((q, idx) => ({ id: q.id, order_num: idx + 1 }))
-        await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questions: updates })
+        if (selectedExam.status === 'published') {
+          toast.error('已发布的试卷不允许调整题目顺序')
+          return
+        }
+        const ids = prev.map(q => q.id)
+        await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
         toast.success('已撤销排序')
       } catch (e) {
         toast.error('撤销失败')
@@ -544,7 +770,38 @@ const ExamManagement = () => {
     )
   }
 
-  
+  const updateExamStatus = async (examId, currentStatus, nextStatus) => {
+    try {
+      if (!['draft','published','archived'].includes(nextStatus)) {
+        toast.error('无效的状态值')
+        return
+      }
+      if (currentStatus === nextStatus) {
+        toast.info('状态未变化')
+        return
+      }
+      const validTransitions = {
+        draft: ['published'],
+        published: ['archived'],
+        archived: ['published']
+      }
+      const statusLabel = (s) => ({ draft: '草稿', published: '已发布', archived: '已归档' }[s] || s)
+      if (!validTransitions[currentStatus]?.includes(nextStatus)) {
+        toast.error(`不允许从 ${statusLabel(currentStatus)} 切换到 ${statusLabel(nextStatus)}`)
+        return
+      }
+      await api.put(`/exams/${examId}/status`, { status: nextStatus })
+      toast.success(`试卷状态已更新为 ${statusLabel(nextStatus)}`)
+      fetchExams()
+      setShowModal(false)
+      setEditingExam(null)
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message
+      toast.error(`更新状态失败: ${msg}`)
+    }
+  }
+
+
 
   return (
     <div className="p-0">
@@ -566,6 +823,10 @@ const ExamManagement = () => {
               <span className="text-xl">+</span>
               <span>新建试卷</span>
             </button>
+            <button
+              onClick={() => setShowTemplateModal(true)}
+              className="px-6 py-2.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors shadow-md hover:shadow-lg"
+            >试题模板</button>
             <button
               onClick={() => {
                 setShowRecycleBin(true)
@@ -623,7 +884,7 @@ const ExamManagement = () => {
                 getCurrentPageData().map((exam, index) => (
                   <tr key={exam.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{exam.title}</div>
+                      <button onClick={() => openExamInfo(exam)} className="font-medium text-gray-900 text-left hover:text-primary-700">{exam.title}</button>
                       <div className="text-xs text-gray-500">{exam.description}</div>
                     </td>
                     <td className="px-4 py-3 text-center text-gray-600">{exam.category || '-'}</td>
@@ -818,10 +1079,18 @@ const ExamManagement = () => {
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             >
-              <option value="draft">草稿</option>
-              <option value="published">已发布</option>
-              <option value="archived">已归档</option>
+              <option value="draft" disabled={editingExam?.status !== 'draft'}>草稿</option>
+              <option value="published" disabled={editingExam?.status === 'published'}>已发布</option>
+              <option value="archived" disabled={editingExam?.status !== 'published'}>已归档</option>
             </select>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => updateExamStatus(editingExam?.id || selectedExam?.id, editingExam?.status || selectedExam?.status, formData.status)}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >更新状态</button>
+              <span className="text-xs text-gray-500 self-center">允许：草稿→已发布，已发布→已归档，已归档→已发布</span>
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -879,7 +1148,7 @@ const ExamManagement = () => {
                   deletedExams.map((exam) => (
                     <tr key={exam.id} className="border-b">
                       <td className="px-4 py-3">{exam.title}</td>
-                      <td className="px-4 py-3 text-gray-600">{exam.delete_time}</td>
+                      <td className="px-4 py-3 text-gray-600">{formatDate(exam.delete_time)}</td>
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => handleRestoreExam(exam.id)}
@@ -919,10 +1188,104 @@ const ExamManagement = () => {
       </Modal>
 
       <Modal
+        isOpen={showExamInfo}
+        onClose={() => { setShowExamInfo(false); setExamInfo(null) }}
+        title="试卷信息"
+        size="medium"
+        footer={(
+          <div className="flex items-center justify-end gap-2 w-full">
+            <button onClick={() => setShowImportModal(true)} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">试题导入</button>
+            <button onClick={() => { setShowExamInfo(false); setExamInfo(null) }} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">关闭</button>
+          </div>
+        )}
+      >
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2"><span className="text-gray-600">标题</span><span className="font-medium">{examInfo?.title || selectedExam?.title}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">总分</span><span className="font-medium">{examInfo?.total_score ?? selectedExam?.total_score}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">题量</span><span className="font-medium">{examInfo?.question_count ?? '-'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">分类</span><span className="font-medium">{examInfo?.category ?? '-'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">难度</span><span className="font-medium">{examInfo?.difficulty ?? '-'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">时长</span><span className="font-medium">{examInfo?.duration ?? '-'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-gray-600">创建时间</span><span className="font-medium">{examInfo?.created_at ? formatDate(examInfo.created_at) : (selectedExam?.created_at ? formatDate(selectedExam.created_at) : '-')}</span></div>
+          <div className="mt-3">
+            <div className="text-gray-700 font-medium mb-1">导入历史</div>
+            {importHistory?.length ? (
+              <div className="space-y-1">
+                {importHistory.map((l, i) => (
+                  <div key={i} className="text-xs text-gray-600">{formatDate(l.time)} · 成功 {l.success_count} · 失败 {l.failed_count}</div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400">暂无导入记录</div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => { setShowImportModal(false); setImportResult(null); setImportProgress(0) }}
+        title="试题导入"
+        size="large"
+      >
+        <div className="space-y-4">
+          <div className="border-2 border-dashed rounded-lg p-6 text-center bg-gray-50" onDragOver={(e)=>{e.preventDefault()}} onDrop={(e)=>{e.preventDefault(); const f=e.dataTransfer.files?.[0]; if(f) handleFileImport(f)}}>
+            <div className="text-gray-700 mb-2">拖拽文件到此处，或点击选择文件</div>
+            <input type="file" accept=".txt,.docx,.pdf" onChange={(e) => e.target.files?.[0] && handleFileImport(e.target.files[0])} className="hidden" id="import-file-input" />
+            <label htmlFor="import-file-input" className="inline-block px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 cursor-pointer">选择文件</label>
+            {importing && (
+              <div className="mt-3 w-full bg-gray-200 rounded h-2">
+                <div className="bg-primary-600 h-2 rounded" style={{ width: `${importProgress}%` }}></div>
+              </div>
+            )}
+            {importResult && (
+              <div className="mt-3 text-sm text-gray-700">成功 {importResult.success} · 失败 {importResult.failed}</div>
+            )}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button onClick={downloadTemplateXlsx} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">下载Excel模板</button>
+              {downloadingTpl && (
+                <div className="w-32 bg-gray-200 rounded h-2"><div className="bg-primary-600 h-2 rounded" style={{ width: `${downloadProgress}%` }}></div></div>
+              )}
+            </div>
+          </div>
+          <div className="text-xs text-gray-500">支持 .txt、.docx、.pdf。当前版本优先支持文本格式。</div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        title="试题模板管理"
+        size="large"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <button onClick={exportTemplates} className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700">导出模板</button>
+            <label className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded hover:bg-primary-100 cursor-pointer">
+              导入模板
+              <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && importTemplates(e.target.files[0])} />
+            </label>
+          </div>
+          <div className="space-y-3">
+            {templates.map((t, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <span className="w-24 text-sm text-gray-700">{getQuestionTypeLabel(t.type)}</span>
+                <input type="text" value={t.content || ''} onChange={(e) => { const list = [...templates]; list[idx] = { ...list[idx], content: e.target.value }; saveTemplates(list) }} className="flex-1 px-3 py-2 border border-gray-300 rounded" placeholder="模板内容示例" />
+                <input type="number" value={t.score || 10} onChange={(e) => { const list = [...templates]; list[idx] = { ...list[idx], score: parseInt(e.target.value)||0 }; saveTemplates(list) }} className="w-24 px-3 py-2 border border-gray-300 rounded" />
+                <button onClick={() => { const list = templates.filter((_, i) => i !== idx); saveTemplates(list) }} className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700">删除</button>
+              </div>
+            ))}
+            <button onClick={() => saveTemplates([...templates, { type: 'single_choice', content: '新题模板', score: 10 }])} className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700">新增模板</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={showDeleteConfirm}
         onClose={() => { setShowDeleteConfirm(false); setDeleteTargetId(null) }}
         title="确认删除题目"
         size="small"
+        zIndex={2000}
         footer={(
           <div className="w-full flex items-center justify-end gap-2">
             <button onClick={() => { setShowDeleteConfirm(false); setDeleteTargetId(null) }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">取消</button>
@@ -942,7 +1305,7 @@ const ExamManagement = () => {
           setQuestions([])
         }}
         title={selectedExam ? `${selectedExam.title} - 题目编辑` : '题目编辑'}
-        size="xlarge"
+        size="wide"
         footer={(
           <>
             <div className="text-sm text-gray-600">雷犀® 考核系统 · © 2025 LeiXi</div>
@@ -961,7 +1324,7 @@ const ExamManagement = () => {
           </>
         )}
       >
-        <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden flex flex-row gap-4">
           {/* 左侧：题目列表 */}
           <div className="w-2/3 border-r border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -972,9 +1335,11 @@ const ExamManagement = () => {
             </div>
 
             <div className={`relative flex-1 overflow-y-auto p-4 ${isDraggingOverExam ? 'ring-2 ring-primary-300 rounded-lg' : ''}`}
-                 onDragEnter={() => setIsDraggingOverExam(true)}
-                 onDragOver={handleDragOver}
-                 onDragLeave={() => setIsDraggingOverExam(false)}>
+                 ref={examListRef}
+                 onDragEnter={handleContainerDragEnter}
+                 onDragOver={handleContainerDragOver}
+                 onDragLeave={handleContainerDragLeave}
+                 onDrop={handleDropToContainer}>
               {isDraggingOverExam && (
                 <div className="mb-3 px-3 py-2 bg-primary-50 text-primary-700 rounded border border-primary-200 text-sm">
                   释放以添加到此处
@@ -991,8 +1356,7 @@ const ExamManagement = () => {
                       key={question.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, question, index)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, index)}
+                      data-index={index}
                       className={`bg-white border-2 rounded-lg p-4 cursor-move hover:shadow-md transition-all ${
                         draggedQuestion?.index === index
                           ? 'border-primary-500 opacity-50'
@@ -1075,8 +1439,8 @@ const ExamManagement = () => {
           </div>
 
           {/* 右侧：添加题目 */}
-          <div className="w-1/3 flex flex-col">
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="w-1/3 min-w-[280px] flex flex-col">
+            <div className="p-4 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
               <h3 className="font-semibold text-gray-800">➕ 添加题目</h3>
             </div>
 
@@ -1266,6 +1630,24 @@ const ExamManagement = () => {
                 {editingQuestion ? '更新题目' : '➕ 添加题目'}
               </button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={scoreModalOpen}
+        onClose={() => setScoreModalOpen(false)}
+        title="总分超出限制"
+        size="medium"
+      >
+        <div className="space-y-3">
+          <div className="text-red-600 font-semibold">试卷题目累计总分超过试卷设置总分</div>
+          <div className="text-sm text-gray-700">
+            当前总分：<span className="font-bold text-red-600">{scoreInfo.currentSum}</span>，试卷设置总分：<span className="font-bold">{scoreInfo.examTotal}</span>
+          </div>
+          <div className="text-sm text-gray-600">请调整题目分值或数量，使累计总分不超过试卷设置总分。</div>
+          <div className="pt-2">
+            <button onClick={() => setScoreModalOpen(false)} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">确认</button>
           </div>
         </div>
       </Modal>

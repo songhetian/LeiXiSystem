@@ -1,4 +1,5 @@
-﻿﻿﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿﻿import React, { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
@@ -993,7 +994,7 @@ const Win11KnowledgeBase = () => {
                           )}
                           <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
                             <span>👁️ {article.view_count || 0}</span>
-                            <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                            <span>📅 {formatDate(article.created_at)}</span>
                           </div>
                           {firstAttachment && (
                             <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
@@ -1290,7 +1291,7 @@ const Win11KnowledgeBase = () => {
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-700">
                   <span className="flex items-center gap-1">📁 {previewFile.category_name || '未分类'}</span>
                   <span className="flex items-center gap-1">👤 {previewFile.author_name || '未知'}</span>
-                  <span className="flex items-center gap-1">📅 {new Date(previewFile.created_at).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1">📅 {formatDate(previewFile.created_at)}</span>
                   <span className="flex items-center gap-1">👁️ {previewFile.view_count || 0}</span>
                 </div>
               </div>

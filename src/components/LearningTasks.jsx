@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify';
 import api from '../api';
 import { getApiUrl } from '../utils/apiConfig';
@@ -174,10 +175,10 @@ const LearningTasks = () => {
                       <p className="text-gray-600 mt-2 text-sm">{task.description}</p>
                     )}
                     <div className="mt-2 flex items-center text-sm text-gray-500">
-                      <span>创建时间: {new Date(task.created_at).toLocaleDateString()}</span>
+                      <span>创建时间: {formatDate(task.created_at)}</span>
                       {task.due_date && (
                         <span className="ml-4">
-                          截止时间: {new Date(task.due_date).toLocaleDateString()}
+                          截止时间: {formatDate(task.due_date)}
                         </span>
                       )}
                     </div>

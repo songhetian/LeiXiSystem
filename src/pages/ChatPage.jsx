@@ -12,8 +12,10 @@ import FileMessage from '../components/Chat/Messages/FileMessage';
 import VoiceMessage from '../components/Chat/Messages/VoiceMessage';
 import VideoMessage from '../components/Chat/Messages/VideoMessage';
 import SystemMessage from '../components/Chat/Messages/SystemMessage';
+import CollectedMessagesSidebar from '../components/Chat/CollectedMessagesSidebar';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
+import { detectSensitiveWords, showSensitiveWordWarning } from '../utils/sensitiveWords';
 
 const ChatPage = () => {
   const [conversations, setConversations] = useState([]);
@@ -225,39 +227,56 @@ const ChatPage = () => {
     return sensitiveKeywords.some((kw) => String(text).includes(kw));
   };
 
-  const handleSendMessage = (messageData) => {
+  const handleSendMessage = async (messageData) => {
+    // 敏感词检测
+    if (messageData.message_type === 'text') {
+      const detection = detectSensitiveWords(messageData.content);
+      if (detection.hasSensitive) {
+        const confirmed = await showSensitiveWordWarning(detection.words);
+        if (!confirmed) {
+          return; // 用户取消发送
+        }
+      }
+    }
+
     const messageToSend = {
       conversation_id: selectedConversation.id,
       sender_id: userId,
-      recipient_id: selectedConversation.type === 'single' ? selectedConversation.id : null, // For single chat
-      reply_to_message_id: replyToMessage ? replyToMessage.id : null, // Add reply_to_message_id
+      recipient_id: selectedConversation.type === 'single' ? selectedConversation.id : null,
+      reply_to_message_id: replyToMessage ? replyToMessage.id : null,
       ...messageData,
       created_at: new Date(),
     };
-    if (messageData.message_type === 'text' && containsSensitive(messageData.content)) {
-      setErrorMessage('消息可能包含敏感词，请确认后再发送');
-      return;
-    }
+
     emitSocketEvent('message:send', messageToSend);
-    setMessages((prevMessages) => [...prevMessages, messageToSend]); // Optimistically add message to UI
-    setIsTyping(false); // Reset typing status after sending message
+    setMessages((prevMessages) => [...prevMessages, messageToSend]);
+    setIsTyping(false);
     emitSocketEvent('message:typing', { conversationId: selectedConversation.id, userId, isTyping: false });
-    setReplyToMessage(null); // Clear replyToMessage after sending
-    setErrorMessage(null); // Clear any previous error messages
+    setReplyToMessage(null);
+    setErrorMessage(null);
   };
 
-  const handleSendRoomMessage = (messageData) => {
+  const handleSendRoomMessage = async (messageData) => {
     if (!selectedChatRoom) return;
+
+    // 敏感词检测
+    if (messageData.message_type === 'text') {
+      const detection = detectSensitiveWords(messageData.content);
+      if (detection.hasSensitive) {
+        const confirmed = await showSensitiveWordWarning(detection.words);
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
     const payload = {
       room_id: selectedChatRoom.id,
       sender_id: userId,
       ...messageData,
       created_at: new Date()
     };
-    if (messageData.message_type === 'text' && containsSensitive(messageData.content)) {
-      setErrorMessage('消息可能包含敏感词，请确认后再发送');
-      return;
-    }
+
     emitSocketEvent('room:message', payload);
   };
 
@@ -606,7 +625,7 @@ const ChatPage = () => {
 
           </div>
 
-  
+
 
           {/* Chat Window */}
 
@@ -648,7 +667,7 @@ const ChatPage = () => {
 
           </div>
 
-  
+
 
           {showCollectedMessages && (
 

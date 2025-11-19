@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import Modal from './Modal'
 import RoleDepartmentModal from './RoleDepartmentModal'
@@ -799,7 +800,7 @@ function PermissionManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center text-sm text-gray-500">
-                      {user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '-'}
+                      {user.created_at ? formatDate(user.created_at) : '-'}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button

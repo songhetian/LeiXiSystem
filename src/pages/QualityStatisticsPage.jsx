@@ -78,8 +78,8 @@ const QualityStatisticsPage = () => {
       {
         label: '会话状态分布',
         data: statistics.statusDistribution.map(s => s.count),
-        backgroundColor: ['#4CAF50', '#FFC107', '#2196F3', '#F44336'],
-        borderColor: ['#4CAF50', '#FFC107', '#2196F3', '#F44336'],
+        backgroundColor: ['#22c55e', '#eab308', '#3b82f6', '#ef4444'],
+        borderColor: ['#22c55e', '#eab308', '#3b82f6', '#ef4444'],
         borderWidth: 1,
       },
     ],
@@ -91,57 +91,59 @@ const QualityStatisticsPage = () => {
       {
         label: '客服平均分',
         data: statistics.topCustomerService.map(cs => cs.average_score),
-        backgroundColor: '#36A2EB',
-        borderColor: '#36A2EB',
+        backgroundColor: '#0ea5e9',
+        borderColor: '#0ea5e9',
         borderWidth: 1,
       },
     ],
   };
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">质检统计分析</h2>
-        <div className="flex gap-3 mb-6">
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            onClick={() => handleExport('sessions')}
-          >
-            导出质检会话
-          </button>
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            onClick={() => handleExport('cases')}
-          >
-            导出案例数据
-          </button>
+    <div className="p-6">
+      <div className="business-card">
+        <div className="business-card-header">
+          <h2 className="business-card-title">质检统计分析</h2>
+          <div className="flex gap-3">
+            <button
+              className="business-btn business-btn-primary"
+              onClick={() => handleExport('sessions')}
+            >
+              导出质检会话
+            </button>
+            <button
+              className="business-btn business-btn-success"
+              onClick={() => handleExport('cases')}
+            >
+              导出案例数据
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-primary-50 rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-500">总质检会话数</p>
-            <p className="text-3xl font-bold text-primary-700">{statistics.totalSessions}</p>
+          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
+            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">总质检会话数</p>
+            <p className="text-4xl font-bold text-primary-800 mt-2">{statistics.totalSessions}</p>
           </div>
-          <div className="bg-primary-50 rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-500">平均质检分数</p>
-            <p className="text-3xl font-bold text-primary-700">{statistics.averageScore ? statistics.averageScore.toFixed(2) : 'N/A'}</p>
+          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
+            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">平均质检分数</p>
+            <p className="text-4xl font-bold text-primary-800 mt-2">{statistics.averageScore ? statistics.averageScore.toFixed(2) : 'N/A'}</p>
           </div>
-          <div className="bg-primary-50 rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-500">待补充指标</p>
-            <p className="text-3xl font-bold text-primary-700">...</p>
+          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
+            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">待补充指标</p>
+            <p className="text-4xl font-bold text-primary-800 mt-2">...</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">会话状态分布</h3>
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">会话状态分布</h3>
             <div className="h-80">
               <Pie data={statusDistributionData} options={{ maintainAspectRatio: false }} />
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">客服平均分排名 (Top 5)</h3>
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">客服平均分排名 (Top 5)</h3>
             <div className="h-80">
               <Bar data={topCustomerServiceData} options={{ maintainAspectRatio: false }} />
             </div>

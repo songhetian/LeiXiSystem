@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { categoryIcons } from '../utils/iconOptions'
@@ -864,7 +865,7 @@ const MyKnowledgeBase = () => {
                   {selectedArticle.title}
                 </h2>
                 <div className="flex items-center gap-4 text-sm text-gray-500">
-                  <span>📅 {new Date(selectedArticle.created_at).toLocaleDateString()}</span>
+                  <span>📅 {formatDate(selectedArticle.created_at)}</span>
                   {selectedArticle.category_name && (
                     <span>📁 {selectedArticle.category_name}</span>
                   )}

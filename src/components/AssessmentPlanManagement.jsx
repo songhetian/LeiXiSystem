@@ -1,22 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 import Modal from './Modal';
 import { getApiUrl } from '../utils/apiConfig';
+import { formatDate } from '../utils/date';
+import { getCurrentUserDepartmentId } from '../utils/auth';
 
 const AssessmentPlanManagement = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [keyword, setKeyword] = useState('');
   const [availableExams, setAvailableExams] = useState([]);
-  const [availableEmployees, setAvailableEmployees] = useState([]); // New state for available employees
+  const [availableEmployees, setAvailableEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState(getCurrentUserDepartmentId());
 
-  // Pagination state
+  // Server pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -32,19 +37,37 @@ const AssessmentPlanManagement = () => {
   useEffect(() => {
     fetchPlans();
     fetchAvailableExams();
-    fetchAvailableEmployees(); // Fetch available employees on mount
+    fetchAvailableEmployees();
+    fetchDepartments();
   }, []);
 
   useEffect(() => {
-    if (filteredPlans) {
-      setTotalPages(Math.ceil(filteredPlans.length / pageSize));
+    fetchPlans();
+  }, [currentPage, pageSize, selectedDepartment, keyword]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch(getApiUrl('/api/departments/list'), {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.success ? data.data : []);
+      setDepartments(list);
+      if (!selectedDepartment && list.length > 0) {
+        setSelectedDepartment(getCurrentUserDepartmentId() || list[0].id);
+      }
+    } catch (error) {
+      console.error('获取部门列表失败:', error);
+      setDepartments([]);
     }
-  }, [filteredPlans, pageSize]);
+  };
 
   const fetchAvailableExams = async () => {
     try {
       const response = await api.get('/exams');
-      setAvailableExams(response.data.filter(exam => exam.status === 'published') || []);
+      // Handle response structure: { success: true, data: { exams: [...] } }
+      const exams = response.data?.data?.exams || response.data?.data || [];
+      setAvailableExams(Array.isArray(exams) ? exams.filter(exam => exam.status === 'published') : []);
     } catch (error) {
       console.error('获取可用试卷失败:', error);
       toast.error('获取可用试卷列表失败');
@@ -54,8 +77,10 @@ const AssessmentPlanManagement = () => {
 
   const fetchAvailableEmployees = async () => {
     try {
-      const response = await api.get('/employees'); // Assuming this endpoint returns all employees
-      setAvailableEmployees(response.data || []);
+      const response = await api.get('/employees');
+      // Handle response structure: { success: true, data: [...] } or { success: true, data: { employees: [...] } }
+      const employees = response.data?.data?.employees || response.data?.data || [];
+      setAvailableEmployees(Array.isArray(employees) ? employees : []);
     } catch (error) {
       console.error('获取可用员工失败:', error);
       toast.error('获取可用员工列表失败');
@@ -66,8 +91,21 @@ const AssessmentPlanManagement = () => {
   const fetchPlans = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/assessment-plans');
-      setPlans(response.data || []);
+      const response = await api.get('/assessment-plans', {
+        params: {
+          page: currentPage,
+          limit: pageSize,
+          department_id: selectedDepartment || undefined,
+          keyword: keyword || undefined
+        }
+      });
+      const plansData = response.data?.data || [];
+      const pagination = response.data?.pagination || response.data?.data?.pagination;
+      setPlans(Array.isArray(plansData) ? plansData : []);
+      if (pagination) {
+        setTotalCount(pagination.total || 0);
+        setTotalPages(pagination.totalPages || 0);
+      }
     } catch (error) {
       console.error('获取考核计划失败:', error);
       toast.error('获取考核计划列表失败');
@@ -149,14 +187,6 @@ const AssessmentPlanManagement = () => {
     );
   };
 
-  const filteredPlans = useMemo(() => {
-    setCurrentPage(1); // Reset page when filters change
-    return plans.filter(plan =>
-      plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [plans, searchTerm]);
-
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -166,10 +196,12 @@ const AssessmentPlanManagement = () => {
     setCurrentPage(1);
   };
 
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredPlans.slice(startIndex, endIndex);
+  const getCurrentPageData = () => plans;
+
+  // Debounced search handler
+  const handleKeywordChange = (e) => {
+    setKeyword(e.target.value);
+    setCurrentPage(1);
   };
 
   return (
@@ -179,7 +211,7 @@ const AssessmentPlanManagement = () => {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">考核计划管理</h2>
-            <p className="text-gray-500 text-sm mt-1">共 {filteredPlans.length} 份考核计划</p>
+            <p className="text-gray-500 text-sm mt-1">共 {totalCount} 份考核计划</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -197,13 +229,31 @@ const AssessmentPlanManagement = () => {
 
         {/* 搜索筛选区 */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <input
-            type="text"
-            placeholder="按计划标题、描述搜索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">部门</label>
+              <select
+                value={selectedDepartment || ''}
+                onChange={(e) => { setSelectedDepartment(e.target.value ? parseInt(e.target.value) : null); setCurrentPage(1); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+              >
+                <option value="">全部部门（按权限）</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-gray-600 mb-1">人员搜索（姓名/账号）</label>
+              <input
+                type="text"
+                placeholder="输入人员姓名或账号，支持模糊搜索"
+                value={keyword}
+                onChange={handleKeywordChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
         </div>
 
         {/* 表格 */}
@@ -212,9 +262,9 @@ const AssessmentPlanManagement = () => {
             <thead className="bg-primary-50 border-b border-primary-100">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">计划标题</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">关联试卷</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">开始时间</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">结束时间</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">目标部门</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">试卷名称</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">创建时间</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
               </tr>
@@ -240,9 +290,9 @@ const AssessmentPlanManagement = () => {
                       <div className="font-medium text-gray-900">{plan.title}</div>
                       <div className="text-xs text-gray-500">{plan.description}</div>
                     </td>
-                    <td className="px-4 py-3 text-center text-gray-600">{plan.exam_title || '-'}</td> {/* Assuming exam_title is available */}
-                    <td className="px-4 py-3 text-center text-gray-600">{new Date(plan.start_time).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{new Date(plan.end_time).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{plan.target_department?.name || '-'}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{plan.exam_title || '-'}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{formatDate(plan.created_at)}</td>
                     <td className="px-4 py-3 text-center">{getStatusBadge(plan.status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
@@ -253,8 +303,8 @@ const AssessmentPlanManagement = () => {
                               title: plan.title,
                               description: plan.description || '',
                               exam_id: plan.exam_id,
-                              start_time: plan.start_time.split('.')[0], // Format for datetime-local input
-                              end_time: plan.end_time.split('.')[0],     // Format for datetime-local input
+                              start_time: plan.start_time.split('.')[0],
+                              end_time: plan.end_time.split('.')[0],
                               target_users: plan.target_users || [],
                               max_attempts: plan.max_attempts,
                               status: plan.status,
@@ -280,7 +330,7 @@ const AssessmentPlanManagement = () => {
           </table>
         </div>
         {/* 分页组件 */}
-        {filteredPlans.length > 0 && (
+        {totalCount > 0 && (
           <div className="mt-4 flex items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">每页显示</span>
@@ -289,7 +339,6 @@ const AssessmentPlanManagement = () => {
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                 className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value={10}>10</option>
                 <option value={20}>20</option>
                 <option value={50}>50</option>
               </select>
@@ -314,6 +363,19 @@ const AssessmentPlanManagement = () => {
               >
                 下一页
               </button>
+              <input
+                type="number"
+                min="1"
+                max={totalPages || 1}
+                placeholder="跳转页码"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = Number(e.currentTarget.value)
+                    if (val >= 1 && val <= totalPages) setCurrentPage(val)
+                  }
+                }}
+                className="ml-2 w-24 px-2 py-1 border border-gray-300 rounded-lg text-sm"
+              />
             </div>
           </div>
         )}
@@ -395,7 +457,7 @@ const AssessmentPlanManagement = () => {
             <select
               multiple
               required
-              value={formData.target_users.map(String)} // Convert numbers to strings for select value
+              value={formData.target_users.map(String)}
               onChange={(e) =>
                 setFormData({
                   ...formData,

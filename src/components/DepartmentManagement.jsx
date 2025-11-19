@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import Modal from './Modal'
 import { getApiUrl } from '../utils/apiConfig'
@@ -370,7 +371,7 @@ function DepartmentManagement() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-center text-sm text-gray-600">
-                  {new Date(dept.created_at).toLocaleDateString()}
+                  {formatDate(dept.created_at)}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-center gap-2">
@@ -464,7 +465,7 @@ function DepartmentManagement() {
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="text-gray-600">{new Date(dept.created_at).toLocaleDateString()}</span>
+                  <span className="text-gray-600">{formatDate(dept.created_at)}</span>
                 </div>
               </div>
 
@@ -685,7 +686,7 @@ function DepartmentManagement() {
                 </div>
                 <div>
                   <span className="text-gray-600">创建时间：</span>
-                  <span className="text-gray-900">{new Date(viewingDept.created_at).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(viewingDept.created_at)}</span>
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from '../../utils/date'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
@@ -272,14 +273,7 @@ export default function AttendanceHome({ onNavigate }) {
     return date.toLocaleTimeString('zh-CN', { hour12: false })
   }
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long'
-    })
-  }
+  
 
   const formatDateTime = (dateTimeStr) => {
     if (!dateTimeStr) return '--:--'

@@ -48,6 +48,7 @@
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "lodash.debounce": "^4.0.8",
+    "lucide-react": "^0.554.0",
     "mysql2": "^3.6.5",
     "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",

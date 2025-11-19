@@ -70,7 +70,7 @@ module.exports = async function (fastify, opts) {
             // Delete the platform
             const [result] = await connection.query('DELETE FROM platforms WHERE id = ?', [id]);
             await connection.commit();
-            
+
             if (result.affectedRows === 0) {
                 return reply.code(404).send({ success: false, message: 'Platform not found.' });
             }
@@ -961,65 +961,7 @@ module.exports = async function (fastify, opts) {
         }
     });
 
-    // DELETE /api/quality/cases/:id - Delete case
-    fastify.delete('/api/quality/cases/:id', async (request, reply) => {
-        const { id } = request.params;
-        try {
-            const [result] = await pool.query('DELETE FROM quality_cases WHERE id = ?', [id]);
-            if (result.affectedRows === 0) {
-                return reply.code(404).send({ success: false, message: 'Quality case not found.' });
-            }
-            return { success: true, message: 'Quality case deleted successfully.' };
-        } catch (error) {
-            console.error('Error deleting quality case:', error);
-            reply.code(500).send({ success: false, message: 'Failed to delete quality case.' });
-        }
-    });
 
-    // GET /api/quality/cases/hot - Get hot cases
-    fastify.get('/api/quality/cases/hot', async (request, reply) => {
-        const { limit = 10 } = request.query;
-        try {
-            const [rows] = await pool.query(
-                `SELECT
-                    qc.*,
-                    qs.session_code
-                FROM quality_cases qc
-                LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
-                ORDER BY qc.views DESC, qc.likes DESC
-                LIMIT ?`,
-                [parseInt(limit)]
-            );
-            return { success: true, data: rows };
-        } catch (error) {
-            console.error('Error fetching hot quality cases:', error);
-            reply.code(500).send({ success: false, message: 'Failed to fetch hot quality cases.' });
-        }
-    });
-
-    // GET /api/quality/cases/recommended - Get recommended cases
-    fastify.get('/api/quality/cases/recommended', async (request, reply) => {
-        const { limit = 10, user_id } = request.query; // Assuming recommendation logic might involve user preferences
-        try {
-            // This is a placeholder for actual recommendation logic.
-            // In a real scenario, this would involve more complex algorithms
-            // based on user history, case categories, popularity, etc.
-            const [rows] = await pool.query(
-                `SELECT
-                    qc.*,
-                    qs.session_code
-                FROM quality_cases qc
-                LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
-                ORDER BY RAND()
-                LIMIT ?`,
-                [parseInt(limit)]
-            );
-            return { success: true, data: rows };
-        } catch (error) {
-            console.error('Error fetching recommended quality cases:', error);
-            reply.code(500).send({ success: false, message: 'Failed to fetch recommended quality cases.' });
-        }
-    });
 
     // POST /api/quality/cases/:id/favorite - Add case to favorites
     fastify.post('/api/quality/cases/:id/favorite', async (request, reply) => {
@@ -1412,7 +1354,7 @@ module.exports = async function (fastify, opts) {
             console.error('columnMap received is not an object:', columnMapRaw);
             return reply.code(400).send({ success: false, message: 'Invalid column map format: Expected an object.' });
         }
-        
+
         // Use columnMap here, and ensure platform, shop are present
         if (!platform || !shop || Object.keys(columnMap).length === 0) { // Check if columnMap is empty as well
             return reply.code(400).send({ success: false, message: 'Platform, shop, and column map are required.' });
@@ -1428,7 +1370,7 @@ module.exports = async function (fastify, opts) {
             console.error('Error parsing Excel file:', error);
             return reply.code(400).send({ success: false, message: 'Invalid Excel file format.' });
         }
-        
+
 
         const worksheet = workbook.getWorksheet(1);
         if (!worksheet) {
@@ -1437,7 +1379,7 @@ module.exports = async function (fastify, opts) {
 
         const headerRow = worksheet.getRow(1);
         if (!headerRow || headerRow.actualCellCount === 0) {
-            throw new Error('Excel文件中缺少标题行。');
+            throw new Error('Excel文件中缺少标题行�?');
         }
         const headers = [];
         headerRow.eachCell((cell) => {
@@ -1447,7 +1389,7 @@ module.exports = async function (fastify, opts) {
 
         // Define system fields to map
         const SYSTEM_FIELDS = [
-            'session_code', 'customer_service_id', 'customer_info', 
+            'session_code', 'customer_service_id', 'customer_info',
             'communication_channel', 'duration', 'message_count'
         ];
 
@@ -1470,13 +1412,13 @@ module.exports = async function (fastify, opts) {
                         }
                     }
                 });
-                
+
                 // Add platform and shop from request body
                 sessionData.platform = platform;
                 sessionData.shop = shop;
 
                 console.log(`Processing row ${rowNumber}:`, sessionData); // Log processed row data
-                
+
                 // Basic validation for required fields
                 if (sessionData.session_code && sessionData.customer_service_id) {
                     sessionsToInsert.push(sessionData);
@@ -1520,4 +1462,94 @@ module.exports = async function (fastify, opts) {
             connection.release();
         }
     });
+
+    // DELETE /api/quality/cases/:id - Delete case with cascade
+    fastify.delete('/api/quality/cases/:id', async (request, reply) => {
+        const { id } = request.params;
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Delete related data first (cascade)
+            await connection.query('DELETE FROM case_comments WHERE case_id = ?', [id]);
+            await connection.query('DELETE FROM case_attachments WHERE case_id = ?', [id]);
+            await connection.query('DELETE FROM case_tags WHERE case_id = ?', [id]);
+
+            // Delete the case itself
+            const [result] = await connection.query('DELETE FROM quality_cases WHERE id = ?', [id]);
+
+            await connection.commit();
+
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Quality case not found.' });
+            }
+            return { success: true, message: 'Quality case and related data deleted successfully.' };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error deleting quality case:', error);
+            reply.code(500).send({ success: false, message: 'Failed to delete quality case.' });
+        } finally {
+            connection.release();
+        }
+    });
+
+    // GET /api/quality/cases/hot - Get hot/trending cases
+    fastify.get('/api/quality/cases/hot', async (request, reply) => {
+        const { limit = 10 } = request.query;
+        try {
+            // Calculate hot score based on views, likes, comments, and recency
+            // Formula: (view_count * 0.3 + like_count * 0.5 + comment_count * 0.2) * recency_weight
+            const [rows] = await pool.query(`
+                SELECT
+                    qc.*,
+                    qs.session_code,
+                    (SELECT COUNT(*) FROM case_comments WHERE case_id = qc.id) as comment_count,
+                    (
+                        (COALESCE(qc.view_count, 0) * 0.3 + COALESCE(qc.like_count, 0) * 0.5 +
+                        (SELECT COUNT(*) FROM case_comments WHERE case_id = qc.id) * 0.2) *
+                        (1 + GREATEST(0, (7 - DATEDIFF(NOW(), qc.created_at)) / 7))
+                    ) as hot_score
+                FROM quality_cases qc
+                LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
+                WHERE DATEDIFF(NOW(), qc.created_at) <= 30
+                ORDER BY hot_score DESC
+                LIMIT ?
+            `, [parseInt(limit)]);
+
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching hot quality cases:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch hot quality cases.' });
+        }
+    });
+
+    // GET /api/quality/cases/recommended - Get recommended cases
+    fastify.get('/api/quality/cases/recommended', async (request, reply) => {
+        const { user_id, limit = 10 } = request.query;
+        try {
+            // Recommendation algorithm:
+            // 1. Prioritize good cases (case_type = 'good')
+            // 2. Calculate popularity score (views + likes * 2)
+            // 3. Include comment count for engagement
+            // 4. Order by popularity and recency
+            const [rows] = await pool.query(`
+                SELECT
+                    qc.*,
+                    qs.session_code,
+                    (COALESCE(qc.view_count, 0) + COALESCE(qc.like_count, 0) * 2) as popularity_score,
+                    (SELECT COUNT(*) FROM case_comments WHERE case_id = qc.id) as comment_count
+                FROM quality_cases qc
+                LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
+                WHERE qc.case_type = 'good'
+                ORDER BY popularity_score DESC, qc.created_at DESC
+                LIMIT ?
+            `, [parseInt(limit)]);
+
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching recommended quality cases:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch recommended quality cases.' });
+        }
+    });
+
 };

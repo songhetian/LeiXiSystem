@@ -3,7 +3,7 @@ import ExamManagement from './ExamManagement';
 import AssessmentPlanManagement from './AssessmentPlanManagement';
 import CategoryManagement from './CategoryManagement';
 import ExamResultsManagement from './ExamResultsManagement';
-import DragDropExamBuilder from './DragDropExamBuilder';
+// 拖拽组卷功能已移除，创建试卷在试卷管理中进行
 
 const ComingSoon = ({ title }) => (
   <div className="p-8 text-center">
@@ -26,7 +26,7 @@ function AssessmentManagement() {
       case 'results':
         return <ExamResultsManagement />;
       case 'drag-drop-builder':
-        return <DragDropExamBuilder />;
+        return <ExamManagement />;
       default:
         return <ExamManagement />;
     }
@@ -77,16 +77,7 @@ function AssessmentManagement() {
             >
               考试结果
             </button>
-            <button
-              onClick={() => setActiveSubTab('drag-drop-builder')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSubTab === 'drag-drop-builder'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              拖拽组卷
-            </button>
+            {/* 拖拽组卷标签已移除 */}
           </nav>
         </div>
         <div className="p-6">

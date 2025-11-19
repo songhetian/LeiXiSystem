@@ -135,16 +135,57 @@ module.exports = async function (fastify, opts) {
     const { approver_id, approval_note } = request.body
 
     try {
-      await pool.query(
-        `UPDATE leave_records
-        SET status = 'approved', approver_id = ?, approved_at = NOW(), approval_note = ?
-        WHERE id = ?`,
-        [approver_id, approval_note || null, id]
-      )
+      const connection = await pool.getConnection()
+      await connection.beginTransaction()
 
-      return {
-        success: true,
-        message: '审批通过'
+      try {
+        // 获取请假记录
+        const [leaveRecords] = await connection.query(
+          'SELECT * FROM leave_records WHERE id = ?',
+          [id]
+        )
+
+        if (leaveRecords.length === 0) {
+          await connection.rollback()
+          connection.release()
+          return reply.code(404).send({ success: false, message: '请假记录不存在' })
+        }
+
+        const leaveRecord = leaveRecords[0]
+
+        // 更新请假记录状态
+        await connection.query(
+          `UPDATE leave_records
+          SET status = 'approved', approver_id = ?, approved_at = NOW(), approval_note = ?
+          WHERE id = ?`,
+          [approver_id, approval_note || null, id]
+        )
+
+        // 扣减假期余额（使用装饰器函数）
+        if (fastify.deductLeaveBalance) {
+          const year = new Date(leaveRecord.start_date).getFullYear()
+          await fastify.deductLeaveBalance(
+            leaveRecord.employee_id,
+            leaveRecord.user_id,
+            leaveRecord.leave_type,
+            leaveRecord.days,
+            year,
+            approver_id,
+            request.ip
+          )
+        }
+
+        await connection.commit()
+        connection.release()
+
+        return {
+          success: true,
+          message: '审批通过'
+        }
+      } catch (error) {
+        await connection.rollback()
+        connection.release()
+        throw error
       }
     } catch (error) {
       console.error('审批请假失败:', error)

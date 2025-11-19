@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import { qualityAPI } from '../api'
 import Modal from './Modal'
@@ -155,11 +156,11 @@ const QualityInspection = () => {
   }
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
+    <div className="p-6">
+      <div className="business-card">
+        <div className="business-card-header">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">质检管理</h2>
+            <h2 className="business-card-title">质检管理</h2>
             <p className="text-gray-500 text-sm mt-1">共 {pagination.total} 条质检记录</p>
           </div>
           <div className="flex gap-3">
@@ -169,13 +170,13 @@ const QualityInspection = () => {
               placeholder="搜索会话编号/客户信息..."
               value={filters.search}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input w-64"
             />
             <select
               name="status"
               value={filters.status}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-select w-40"
             >
               <option value="">全部状态</option>
               <option value="pending">待质检</option>
@@ -186,56 +187,55 @@ const QualityInspection = () => {
               name="startDate"
               value={filters.startDate}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input w-40"
             />
             <input
               type="date"
               name="endDate"
               value={filters.endDate}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input w-40"
             />
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="business-btn business-btn-success"
             >
-              Import
+              导入会话
             </button>
-            {/* Add more filters like customerServiceId, channel if needed */}
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="business-table">
             <thead>
-              <tr className="bg-primary-100 text-primary-800">
-                <th className="px-4 py-3 text-left rounded-tl-lg">会话ID</th>
-                <th className="px-4 py-3 text-left">客服</th>
-                <th className="px-4 py-3 text-left">沟通渠道</th>
-                <th className="px-4 py-3 text-left">平台</th>
-                <th className="px-4 py-3 text-left">店铺</th>
-                <th className="px-4 py-3 text-left">评分</th>
-                <th className="px-4 py-3 text-left">状态</th>
-                <th className="px-4 py-3 text-left">日期</th>
-                <th className="px-4 py-3 text-center rounded-tr-lg">操作</th>
+              <tr>
+                <th>会话ID</th>
+                <th>客服</th>
+                <th>沟通渠道</th>
+                <th>平台</th>
+                <th>店铺</th>
+                <th>评分</th>
+                <th>状态</th>
+                <th>日期</th>
+                <th className="text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {inspections.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="text-center py-8 text-gray-500">
                     暂无数据
                   </td>
                 </tr>
               ) : (
                 inspections.map((inspection) => (
-                  <tr key={inspection.id} className={`border-b ${inspection.id % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
-                    <td className="px-4 py-3 font-medium">#{inspection.session_code}</td>
-                    <td className="px-4 py-3">{inspection.customer_service_name}</td>
-                    <td className="px-4 py-3">{inspection.communication_channel}</td>
-                    <td className="px-4 py-3">{inspection.platform}</td>
-                    <td className="px-4 py-3">{inspection.shop}</td>
-                    <td className="px-4 py-3">
+                  <tr key={inspection.id}>
+                    <td className="font-medium">#{inspection.session_code}</td>
+                    <td>{inspection.customer_service_name}</td>
+                    <td>{inspection.communication_channel}</td>
+                    <td>{inspection.platform}</td>
+                    <td>{inspection.shop}</td>
+                    <td>
                       {inspection.score ? (
                         <span className={`font-semibold ${
                           inspection.score >= 90 ? 'text-green-600' :
@@ -246,28 +246,28 @@ const QualityInspection = () => {
                         </span>
                       ) : '-'}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
+                    <td>
+                      <span className={`business-badge ${
                         inspection.quality_status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
+                          ? 'business-badge-success'
+                          : 'business-badge-warning'
                       }`}>
                         {inspection.quality_status === 'completed' ? '已完成' : '待质检'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{new Date(inspection.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td>{formatDate(inspection.created_at)}</td>
+                    <td className="text-center">
                       {inspection.quality_status === 'pending' ? (
                         <button
                           onClick={() => handleInspect(inspection)}
-                          className="px-4 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                          className="business-btn business-btn-primary business-btn-sm"
                         >
                           开始质检
                         </button>
                       ) : (
                         <button
                           onClick={() => handleInspect(inspection)}
-                          className="px-4 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                          className="business-btn business-btn-secondary business-btn-sm"
                         >
                           查看详情
                         </button>
@@ -286,7 +286,7 @@ const QualityInspection = () => {
             <button
               onClick={() => handlePageChange(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              className="business-btn business-btn-secondary business-btn-sm"
             >
               上一页
             </button>
@@ -294,8 +294,8 @@ const QualityInspection = () => {
               <button
                 key={p}
                 onClick={() => handlePageChange(p)}
-                className={`px-3 py-1 border rounded-lg ${
-                  pagination.page === p ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                className={`business-btn business-btn-sm ${
+                  pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
                 }`}
               >
                 {p}
@@ -304,7 +304,7 @@ const QualityInspection = () => {
             <button
               onClick={() => handlePageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              className="business-btn business-btn-secondary business-btn-sm"
             >
               下一页
             </button>
@@ -317,23 +317,23 @@ const QualityInspection = () => {
       <Modal isOpen={isInspectOpen} onClose={() => setIsInspectOpen(false)} title="质检评分">
         {selectedInspection && (
           <div className="space-y-6">
-            <div className="bg-primary-50 rounded-lg p-4">
-              <h3 className="font-semibold mb-2">会话信息</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="bg-primary-50 rounded-lg p-4 border border-primary-100">
+              <h3 className="font-semibold mb-2 text-primary-800">会话信息</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm text-primary-700">
                 <div>会话ID: #{selectedInspection.session_code}</div>
                 <div>客服: {selectedInspection.customer_service_name}</div>
                 <div>渠道: {selectedInspection.communication_channel}</div>
                 <div>时长: {selectedInspection.duration}s</div>
                 <div>消息数: {selectedInspection.message_count}</div>
-                <div>创建日期: {new Date(selectedInspection.created_at).toLocaleDateString()}</div>
+                <div>创建日期: {formatDate(selectedInspection.created_at)}</div>
               </div>
             </div>
 
             {/* Chat History Display */}
-            <div ref={chatHistoryRef} className="bg-gray-100 rounded-lg p-4 h-48 overflow-y-auto custom-scrollbar">
-                <h4 className="font-semibold mb-2">会话消息</h4>
+            <div ref={chatHistoryRef} className="bg-gray-50 rounded-lg p-4 h-64 overflow-y-auto border border-gray-200">
+                <h4 className="font-semibold mb-2 text-gray-700">会话消息</h4>
                 {sessionMessages.length === 0 ? (
-                    <p className="text-sm text-gray-600">暂无会话消息</p>
+                    <p className="text-sm text-gray-500 text-center py-4">暂无会话消息</p>
                 ) : (
                     <div className="space-y-4 pt-2">
                         {sessionMessages.map((message) => {
@@ -346,8 +346,8 @@ const QualityInspection = () => {
                                         </div>
                                         <div className={`p-3 rounded-xl ${
                                             isAgent
-                                                ? 'bg-blue-500 text-white rounded-br-none'
-                                                : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                                                ? 'bg-blue-100 text-blue-900 rounded-br-none'
+                                                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
                                         } shadow-sm`}>
                                             <p className="text-sm break-words">{message.message_content}</p>
                                         </div>
@@ -386,20 +386,20 @@ const QualityInspection = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">评价意见</label>
+              <label className="business-label">评价意见</label>
               <textarea
                 value={inspectionData.comment}
                 onChange={(e) => setInspectionData({...inspectionData, comment: e.target.value})}
-                className="w-full px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="business-textarea"
                 rows="4"
                 placeholder="请输入评价意见和改进建议..."
               />
             </div>
 
-            <div className="bg-primary-100 rounded-lg p-4">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div className="text-center">
                 <div className="text-sm text-gray-600 mb-1">综合得分</div>
-                <div className="text-3xl font-bold text-primary-700">
+                <div className="text-3xl font-bold text-primary-600">
                   {Math.round(
                     inspectionData.attitude * 0.3 +
                     inspectionData.professional * 0.3 +
@@ -410,16 +410,16 @@ const QualityInspection = () => {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setIsInspectOpen(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="business-btn business-btn-secondary"
                >
                 取消
               </button>
               <button
                 onClick={handleSubmitInspection}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+                className="business-btn business-btn-primary"
               >
                 提交质检
               </button>

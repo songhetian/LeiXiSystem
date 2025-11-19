@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 import Modal from './Modal';
+import debounce from 'lodash.debounce';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
@@ -22,8 +23,10 @@ const CategoryManagement = () => {
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/categories'); // Assuming API endpoint for categories
-      setCategories(response.data || []);
+      const response = await api.get('/categories');
+      // Handle response structure: { success: true, data: { categories: [...] } } or { success: true, data: [...] }
+      const categoriesData = response.data?.data?.categories || response.data?.data || [];
+      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (error) {
       console.error('获取分类失败:', error);
       toast.error('获取分类列表失败');
@@ -78,11 +81,17 @@ const CategoryManagement = () => {
   };
 
   const filteredCategories = useMemo(() => {
+    if (!Array.isArray(categories)) return [];
     return categories.filter(category =>
       category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       category.description?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [categories, searchTerm]);
+
+  // Debounced search handler
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
 
   return (
     <div className="p-0">
@@ -113,7 +122,7 @@ const CategoryManagement = () => {
             type="text"
             placeholder="按分类名称、描述搜索..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
           />
         </div>

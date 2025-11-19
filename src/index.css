@@ -1,4 +1,7 @@
 /* src/index.css */
+/* 导入微信主题样式 - 必须在最前面 */
+@import './styles/wechat-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

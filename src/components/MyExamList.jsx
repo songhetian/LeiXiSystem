@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 import { getApiUrl } from '../utils/apiConfig';
+import debounce from 'lodash.debounce';
 
 const MyExamList = ({ onStartExam, onViewResult }) => {
   const [myExams, setMyExams] = useState([]);
@@ -17,17 +18,29 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
     fetchMyExams();
   }, []);
 
+  const filteredMyExams = useMemo(() => {
+    if (!Array.isArray(myExams)) return [];
+    return myExams.filter(exam =>
+      exam.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exam.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exam.category?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [myExams, searchTerm]);
+
   useEffect(() => {
     if (filteredMyExams) {
       setTotalPages(Math.ceil(filteredMyExams.length / pageSize));
+      setCurrentPage(1); // Reset to first page on filter change
     }
   }, [filteredMyExams, pageSize]);
 
   const fetchMyExams = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/my-exams'); // API to get exams for the current user
-      setMyExams(response.data || []);
+      const response = await api.get('/my-exams');
+      // Handle response structure: { success: true, data: { exams: [...] } }
+      const examsData = response.data?.data?.exams || response.data?.data || [];
+      setMyExams(Array.isArray(examsData) ? examsData : []);
     } catch (error) {
       console.error('获取我的考试列表失败:', error);
       toast.error('获取我的考试列表失败');
@@ -57,15 +70,6 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
     );
   };
 
-  const filteredMyExams = useMemo(() => {
-    setCurrentPage(1); // Reset page when filters change
-    return myExams.filter(exam =>
-      exam.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exam.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exam.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [myExams, searchTerm]);
-
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -79,6 +83,11 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return filteredMyExams.slice(startIndex, endIndex);
+  };
+
+  // Debounced search handler
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
   };
 
   return (
@@ -98,7 +107,7 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
             type="text"
             placeholder="按考试标题、描述、分类搜索..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
           />
         </div>

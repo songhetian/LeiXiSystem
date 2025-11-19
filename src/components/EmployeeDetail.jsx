@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import Modal from './Modal'
 import { getApiUrl } from '../utils/apiConfig'
 
@@ -205,7 +206,7 @@ function EmployeeDetail({ employee, isOpen, onClose, departments }) {
             <div className="flex">
               <span className="text-gray-600 w-28 flex-shrink-0">入职日期</span>
               <span className="text-gray-900 font-medium">
-                {employee.hire_date ? new Date(employee.hire_date).toLocaleDateString() : '-'}
+                {employee.hire_date ? formatDate(employee.hire_date) : '-'}
               </span>
             </div>
             <div className="flex">
@@ -260,7 +261,7 @@ function EmployeeDetail({ employee, isOpen, onClose, departments }) {
                       <div>
                         <h5 className="font-bold text-gray-900 text-lg">{dept.name}</h5>
                         <p className="text-sm text-gray-600 mt-1">
-                          {new Date(dept.date).toLocaleDateString()}
+                          {formatDate(dept.date)}
                           {dept.type === 'hire' && ' · 入职'}
                           {dept.type === 'transfer' && ' · 调动'}
                           {dept.isCurrent && (
@@ -399,7 +400,7 @@ function EmployeeDetail({ employee, isOpen, onClose, departments }) {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="text-sm font-bold text-gray-900">
-                                    {new Date(change.change_date).toLocaleDateString()}
+                                    {formatDate(change.change_date)}
                                   </div>
                                   {segmentTenure && (
                                     <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">

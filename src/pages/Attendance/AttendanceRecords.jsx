@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from '../../utils/date'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
@@ -160,10 +161,7 @@ export default function AttendanceRecordsOptimized() {
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
   }
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-  }
+  
 
   const getStatusText = (status) => {
     const statusMap = {
@@ -392,14 +390,7 @@ export default function AttendanceRecordsOptimized() {
               <div className="flex-1 bg-gray-50 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="font-semibold text-lg text-gray-800">
-                      {new Date(record.record_date).toLocaleDateString('zh-CN', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        weekday: 'long'
-                      })}
-                    </div>
+                      <div className="font-semibold text-lg text-gray-800">{formatDate(record.record_date)}</div>
                     <div className="text-sm text-gray-500 mt-1">
                       工作时长: {record.work_hours ? `${record.work_hours}小时` : '未完成'}
                     </div>
@@ -508,9 +499,7 @@ export default function AttendanceRecordsOptimized() {
                           <div className="text-sm font-medium text-gray-900">
                             {formatDate(record.record_date)}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(record.record_date).toLocaleDateString('zh-CN', { weekday: 'short' })}
-                          </div>
+                          
                         </div>
                       </div>
                     </td>
@@ -622,14 +611,7 @@ export default function AttendanceRecordsOptimized() {
           <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 flex items-center justify-between">
             <div>
               <h3 className="text-xl font-bold">打卡详情</h3>
-              <p className="text-sm opacity-90 mt-1">
-                {new Date(selectedRecord.record_date).toLocaleDateString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  weekday: 'long'
-                })}
-              </p>
+              <p className="text-sm opacity-90 mt-1">{formatDate(selectedRecord.record_date)}</p>
             </div>
             <button
               onClick={() => setShowDetailModal(false)}

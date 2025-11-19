@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { qualityAPI } from '../api'; // Assuming qualityAPI is correctly configured
+import { qualityAPI } from '../api';
 
 const CaseLibraryPage = () => {
   const [cases, setCases] = useState([]);
@@ -107,30 +107,29 @@ const CaseLibraryPage = () => {
   }
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
+    <div className="p-6">
+      <div className="business-card">
+        <div className="business-card-header">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">案例库</h2>
+            <h2 className="business-card-title">案例库</h2>
             <p className="text-gray-500 text-sm mt-1">共 {pagination.total} 条案例</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <input
               type="text"
               name="search"
               placeholder="搜索案例..."
               value={filters.search}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-input w-48"
             />
             <select
               name="category"
               value={filters.category}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-select w-32"
             >
               <option value="">全部分类</option>
-              {/* Add dynamic categories here */}
               <option value="服务态度">服务态度</option>
               <option value="专业能力">专业能力</option>
             </select>
@@ -138,7 +137,7 @@ const CaseLibraryPage = () => {
               name="difficulty"
               value={filters.difficulty}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-select w-32"
             >
               <option value="">全部难度</option>
               <option value="简单">简单</option>
@@ -149,7 +148,7 @@ const CaseLibraryPage = () => {
               name="sortBy"
               value={filters.sortBy}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-select w-32"
             >
               <option value="created_at">最新</option>
               <option value="view_count">最热</option>
@@ -159,31 +158,19 @@ const CaseLibraryPage = () => {
               name="sortOrder"
               value={filters.sortOrder}
               onChange={handleFilterChange}
-              className="px-4 py-2 border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="business-select w-32"
             >
               <option value="desc">降序</option>
               <option value="asc">升序</option>
             </select>
-            <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+            <button className="business-btn business-btn-primary">
               新增案例
             </button>
             <button
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              className="business-btn business-btn-secondary"
               onClick={handleExportCases}
             >
-              导出案例数据
-            </button>
-            <button
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              onClick={() => toast.info('导出功能待实现')} // Placeholder for export
-            >
-              导出
-            </button>
-            <button
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              onClick={() => window.print()} // Browser print functionality
-            >
-              打印
+              导出数据
             </button>
           </div>
         </div>
@@ -193,46 +180,58 @@ const CaseLibraryPage = () => {
             <div className="col-span-full text-center text-gray-500 py-8">暂无案例数据</div>
           ) : (
             cases.map((caseItem) => (
-              <div key={caseItem.id} className="bg-primary-50 rounded-lg shadow-sm hover:shadow-md transition-shadow p-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">{caseItem.title}</h3>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{caseItem.description}</p>
-                <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span>分类: {caseItem.category}</span>
-                  <span>难度: {caseItem.difficulty_level}</span>
-                  <span>
-                    <i className="fas fa-eye mr-1"></i> {caseItem.view_count || 0}
-                  </span>
-                  <span>
-                    <i className="fas fa-thumbs-up mr-1"></i> {caseItem.like_count || 0}
-                  </span>
+              <div key={caseItem.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-all duration-200 flex flex-col h-full">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="text-lg font-semibold text-gray-800 line-clamp-1" title={caseItem.title}>{caseItem.title}</h3>
                   <span
-                    className="cursor-pointer"
+                    className="cursor-pointer p-1 hover:bg-gray-100 rounded-full transition-colors"
                     onClick={() => handleFavoriteToggle(caseItem.id, caseItem.isFavorited)}
                   >
-                    <i className={`${caseItem.isFavorited ? 'fas text-yellow-500' : 'far'} fa-star mr-1`}></i>
+                    <i className={`${caseItem.isFavorited ? 'fas text-yellow-500' : 'far text-gray-400'} fa-star`}></i>
                   </span>
                 </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    className="text-primary-600 hover:text-primary-800 text-sm"
-                    onClick={() => {
-                      const caseUrl = `${window.location.origin}/case/${caseItem.id}`; // Example URL, adjust as needed
-                      navigator.clipboard.writeText(caseUrl);
-                      toast.success('案例链接已复制到剪贴板');
-                    }}
-                  >
-                    分享
-                  </button>
-                  <button
-                    className="text-primary-600 hover:text-primary-800 text-sm"
-                    onClick={() => {
-                      qualityAPI.startLearningCase(caseItem.id, currentUserId); // Record learning start
-                      toast.info(`开始学习案例: ${caseItem.title}`);
-                      // TODO: Implement actual navigation to CaseDetailPage or open a modal
-                    }}
-                  >
-                    查看详情
-                  </button>
+
+                <p className="text-sm text-gray-600 mb-4 line-clamp-3 flex-grow">{caseItem.description}</p>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="px-2 py-1 bg-primary-50 text-primary-700 text-xs rounded-md border border-primary-100">
+                    {caseItem.category}
+                  </span>
+                  <span className={`px-2 py-1 text-xs rounded-md border ${
+                    caseItem.difficulty_level === '简单' ? 'bg-green-50 text-green-700 border-green-100' :
+                    caseItem.difficulty_level === '中等' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                    'bg-red-50 text-red-700 border-red-100'
+                  }`}>
+                    {caseItem.difficulty_level}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-gray-100 text-xs text-gray-500">
+                  <div className="flex gap-3">
+                    <span><i className="fas fa-eye mr-1"></i>{caseItem.view_count || 0}</span>
+                    <span><i className="fas fa-thumbs-up mr-1"></i>{caseItem.like_count || 0}</span>
+                  </div>
+                  <div className="flex gap-2">
+                     <button
+                      className="text-primary-600 hover:text-primary-800 font-medium transition-colors"
+                      onClick={() => {
+                        const caseUrl = `${window.location.origin}/case/${caseItem.id}`;
+                        navigator.clipboard.writeText(caseUrl);
+                        toast.success('链接已复制');
+                      }}
+                    >
+                      分享
+                    </button>
+                    <button
+                      className="text-primary-600 hover:text-primary-800 font-medium transition-colors"
+                      onClick={() => {
+                        qualityAPI.startLearningCase(caseItem.id, currentUserId);
+                        toast.info(`开始学习: ${caseItem.title}`);
+                      }}
+                    >
+                      详情
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -241,11 +240,11 @@ const CaseLibraryPage = () => {
 
         {/* Pagination */}
         {pagination.totalPages > 1 && (
-          <div className="flex justify-center items-center mt-6 space-x-2">
+          <div className="flex justify-center items-center mt-8 space-x-2">
             <button
               onClick={() => handlePageChange(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              className="business-btn business-btn-secondary business-btn-sm"
             >
               上一页
             </button>
@@ -253,8 +252,8 @@ const CaseLibraryPage = () => {
               <button
                 key={p}
                 onClick={() => handlePageChange(p)}
-                className={`px-3 py-1 border rounded-lg ${
-                  pagination.page === p ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                className={`business-btn business-btn-sm ${
+                  pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
                 }`}
               >
                 {p}
@@ -263,7 +262,7 @@ const CaseLibraryPage = () => {
             <button
               onClick={() => handlePageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              className="business-btn business-btn-secondary business-btn-sm"
             >
               下一页
             </button>

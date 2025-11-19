@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
@@ -173,17 +174,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
     }
   }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  
 
   if (!isOpen) return null
 
@@ -299,7 +290,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
                                 <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                                   <span>📄 {category.article_count || 0} 篇文档</span>
                                   <span className="hidden sm:inline">🗑️ {formatDate(category.deleted_at)}</span>
-                                  <span className="sm:hidden">🗑️ {new Date(category.deleted_at).toLocaleDateString()}</span>
+                                  <span className="sm:hidden">🗑️ {formatDate(category.deleted_at)}</span>
                                   {category.deleted_by_name && (
                                     <span>👤 {category.deleted_by_name}</span>
                                   )}
@@ -360,7 +351,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
                                     <span>📁 {article.category_name}</span>
                                   )}
                                   <span className="hidden sm:inline">🗑️ {formatDate(article.deleted_at)}</span>
-                                  <span className="sm:hidden">🗑️ {new Date(article.deleted_at).toLocaleDateString()}</span>
+                                  <span className="sm:hidden">🗑️ {formatDate(article.deleted_at)}</span>
                                   {article.author_name && (
                                     <span>👤 {article.author_name}</span>
                                   )}

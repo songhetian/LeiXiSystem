@@ -41,7 +41,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   // Memoized and filtered menu items based on user role
   const menuItems = useMemo(() => {
     const isAdmin = user?.username === 'admin' || user?.real_name?.includes('管理员');
-    
+
     // Filter admin-only items immutably (without changing the original allMenuItems array)
     return allMenuItems
       .filter(item => !item.admin || isAdmin)
@@ -141,13 +141,13 @@ const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMen
               <button
                 key={child.id}
                 onClick={() => setActiveTab(child.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all text-left ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
                   activeTab === child.id
-                    ? 'bg-blue-100 text-blue-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-blue-50 text-blue-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
-                {child.icon}
+                <span className="text-base">{child.icon}</span>
                 <span>{child.label}</span>
               </button>
             ))}
@@ -229,6 +229,18 @@ const allMenuItems = [
     ],
   },
   {
+    id: 'vacation',
+    label: '假期管理',
+    icon: <CalendarOutlined />,
+    children: [
+      { id: 'compensatory-apply', label: '申请调休', icon: <FormOutlined /> },
+      { id: 'vacation-details', label: '假期明细', icon: <FileTextOutlined /> },
+      { id: 'vacation-summary', label: '假期汇总', icon: <BarChartOutlined /> },
+      { id: 'compensatory-approval', label: '调休审批', icon: <CheckCircleOutlined /> },
+      { id: 'vacation-quota-settings', label: '额度配置', icon: <SettingOutlined /> },
+    ],
+  },
+  {
     id: 'quality',
     label: '质检管理',
     icon: <SearchOutlined />,
@@ -253,19 +265,18 @@ const allMenuItems = [
       { id: 'my-knowledge', label: '我的知识库', icon: <StarOutlined /> },
     ],
   },
-  {
-    id: 'assessment',
-    label: '考核系统',
-    icon: <FormOutlined />,
-    children: [
-      { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined /> },
-      { id: 'assessment-plans', label: '考核计划', icon: <CalendarOutlined /> },
-      { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined /> },
-      { id: 'assessment-results', label: '考试结果', icon: <EyeOutlined /> },
-      { id: 'assessment-drag-drop-builder', label: '拖拽组卷', icon: <FormOutlined /> },
-      { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },
-    ],
-  },
+      {
+        id: 'assessment',
+        label: '考核系统',
+        icon: <FormOutlined />,
+        children: [
+          { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined /> },
+          { id: 'assessment-plans', label: '考核计划', icon: <CalendarOutlined /> },
+          { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined /> },
+          { id: 'assessment-results', label: '考试结果', icon: <EyeOutlined /> },
+          { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },
+        ],
+      },
   {
     id: 'statistics',
     label: '统计分析',

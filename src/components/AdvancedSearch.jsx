@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { useDebounce } from '../hooks/useDebounce'
@@ -624,7 +625,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
                           <span>👤 {article.author_name || '未知'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span>📅 {new Date(article.created_at).toLocaleDateString()}</span>
+                          <span>📅 {formatDate(article.created_at)}</span>
                         </div>
                         {parseAttachments(article.attachments).length > 0 && (
                           <div className="flex items-center gap-2">

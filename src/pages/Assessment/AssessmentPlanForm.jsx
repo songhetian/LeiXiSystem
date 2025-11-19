@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, Button, Space, message, Card, DatePicker, InputNumber, Transfer, TreeSelect } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Form, Input, Select, Button, Space, message, Card, DatePicker, InputNumber, Transfer, TreeSelect, Tag } from 'antd';
+import { SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { useFormAutoSave } from '../../hooks/useFormAutoSave';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -17,6 +19,7 @@ const AssessmentPlanForm = () => {
   const [users, setUsers] = useState([]); // All users for selection
   const [departments, setDepartments] = useState([]); // All departments for selection
   const [targetUsers, setTargetUsers] = useState([]); // Users selected for the plan
+  const [formChanged, setFormChanged] = useState(false);
 
   useEffect(() => {
     fetchPublishedExams();
@@ -159,12 +162,60 @@ const AssessmentPlanForm = () => {
     }
   };
 
+  // Auto-save draft function
+  const autoSaveDraft = useCallback(async (values) => {
+    if (!id) return;
+
+    try {
+      const payload = {
+        ...values,
+        start_time: values.time_range?.[0]?.toISOString(),
+        end_time: values.time_range?.[1]?.toISOString(),
+        target_users: JSON.stringify(targetUsers.map(Number)),
+        status: 'draft',
+      };
+      delete payload.time_range;
+
+      await axios.put(`/api/assessment-plans/${id}`, payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      throw error;
+    }
+  }, [id, targetUsers]);
+
+  const { triggerSave, isSaving, saveStatus } = useFormAutoSave(autoSaveDraft, 3000, id && formChanged);
+
+  const handleFormChange = useCallback(() => {
+    setFormChanged(true);
+    if (id) {
+      const values = form.getFieldsValue();
+      triggerSave(values);
+    }
+  }, [id, form, triggerSave]);
+
   return (
     <div style={{ padding: 24 }}>
-      <Card title={id ? '编辑考核计划' : '创建考核计划'} loading={loading}>
+      <Card
+        title={
+          <Space>
+            <span>{id ? '编辑考核计划' : '创建考核计划'}</span>
+            {id && (
+              <>
+                {isSaving && <Tag icon={<SaveOutlined spin />} color="processing">保存中...</Tag>}
+                {saveStatus === 'success' && <Tag icon={<CheckCircleOutlined />} color="success">已保存</Tag>}
+                {saveStatus === 'error' && <Tag icon={<CloseCircleOutlined />} color="error">保存失败</Tag>}
+              </>
+            )}
+          </Space>
+        }
+        loading={loading}
+      >
         <Form
           form={form}
           layout="vertical"
+          onValuesChange={handleFormChange}
           onFinish={onFinish}
           initialValues={{
             max_attempts: 1,
