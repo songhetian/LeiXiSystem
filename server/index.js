@@ -3104,41 +3104,6 @@ fastify.register(require('./routes/vacation-balance'));
 fastify.register(require('./routes/compensatory-leave'));
 fastify.register(require('./routes/vacation-stats'));
 
-// ==================== 增强功能路由 ====================
-fastify.register(require('./routes/export'));
-fastify.register(notificationRoutes);
-fastify.register(require('./routes/notification-settings'));
-fastify.register(require('./routes/notification-stats'));
-fastify.register(require('./routes/knowledge-reading'));
-fastify.register(require('./routes/knowledge-stats'));
-
-fastify.register(require('./routes/smart-schedule'));
-
-// ==================== 职位管理路由 ====================
-fastify.register(require('./routes/positions'))
-
-// ==================== 部门管理路由 ====================
-fastify.register(require('./routes/departments'))
-
-// ==================== 考核系统路由 ====================
-fastify.register(require('./routes/exams'))
-fastify.register(require('./routes/assessment-plans'))
-fastify.register(require('./routes/assessment-results'))
-fastify.register(require('./routes/statistics'))
-
-// ==================== 学习中心路由 ====================
-fastify.register(require('./routes/learning-tasks'))
-fastify.register(require('./routes/learning-plans'))
-fastify.register(require('./routes/learning-center'))
-
-// ==================== 质检系统 API ====================
-fastify.register(require('./routes/quality-inspection'))
-
-// ==================== 聊天系统路由 ====================
-fastify.register(require('./register-chat-routes'))
-
-const { Server } = require('socket.io');
-
 const start = async () => {
   try {
     await initDatabase();

@@ -8,6 +8,7 @@ const SmartSchedule = () => {
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [restShiftId, setRestShiftId] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedMonth, setSelectedMonth] = useState({
     year: new Date().getFullYear(),
@@ -27,6 +28,7 @@ const SmartSchedule = () => {
 
   useEffect(() => {
     loadDepartments();
+    loadRestShift();
   }, []);
 
   // 当月份改变时，更新开始和结束日期
@@ -128,6 +130,19 @@ const SmartSchedule = () => {
     }
   };
 
+  const loadRestShift = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await axios.get(getApiUrl('/api/shifts/rest'), { headers });
+      if (response.data.success) {
+        setRestShiftId(response.data.data.id);
+      }
+    } catch (error) {
+      console.error('获取休息班次失败:', error);
+    }
+  };
+
   const addRule = () => {
     setScheduleRules([...scheduleRules, {
       id: Date.now(),
@@ -179,7 +194,7 @@ const SmartSchedule = () => {
       let shift = null;
       let action = '休息';
 
-      if (rule.shift_id && rule.shift_id !== 'rest') {
+      if (rule.shift_id && rule.shift_id != restShiftId) {
         shift = shifts.find(s => s.id == rule.shift_id);
         action = shift?.name || '休息';
       }
@@ -441,7 +456,6 @@ const SmartSchedule = () => {
                       onChange={(e) => updateRule(rule.id, 'shift_id', e.target.value)}
                     >
                       <option value="">请选择班次</option>
-                      <option value="rest">休息</option>
                       {shifts.map(shift => (
                         <option key={shift.id} value={shift.id}>
                           {shift.name}

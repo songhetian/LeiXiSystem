@@ -30,31 +30,95 @@ import {
   SettingOutlined,
   RightOutlined,
   ShopOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 
 // --- Component Definition ---
 
 const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
-  // State to manage which top-level menus are expanded
+  // State to manage which menus are expanded
   const [expandedMenus, setExpandedMenus] = useState(['user', 'org', 'chat']);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Recursive function to filter children based on admin status
+  const filterChildren = (children, isAdmin) => {
+    return children
+      .filter(child => !child.admin || isAdmin)
+      .map(child => {
+        if (!child.children) {
+          return child;
+        }
+        const filteredGrandChildren = filterChildren(child.children, isAdmin);
+        return { ...child, children: filteredGrandChildren };
+      });
+  };
 
   // Memoized and filtered menu items based on user role
   const menuItems = useMemo(() => {
     const isAdmin = user?.username === 'admin' || user?.real_name?.includes('管理员');
 
-    // Filter admin-only items immutably (without changing the original allMenuItems array)
+    // Filter admin-only items immutably
     return allMenuItems
       .filter(item => !item.admin || isAdmin)
       .map(item => {
         if (!item.children) {
           return item;
         }
-        // Filter children if they have admin restrictions
-        const filteredChildren = item.children.filter(child => !child.admin || isAdmin);
-        // Return a new item object to ensure immutability
+        // Recursively filter children
+        const filteredChildren = filterChildren(item.children, isAdmin);
         return { ...item, children: filteredChildren };
       });
   }, [user]);
+
+  // Search filter logic
+  const filteredMenuItems = useMemo(() => {
+    if (!searchQuery.trim()) return menuItems;
+
+    const query = searchQuery.toLowerCase();
+
+    const filterRecursive = (items) => {
+      return items.map(item => {
+        const labelMatch = item.label.toLowerCase().includes(query);
+
+        if (!item.children) {
+          return labelMatch ? item : null;
+        }
+
+        // If parent label matches, include all children
+        if (labelMatch) {
+          return item;
+        }
+
+        // Otherwise, only include children that match
+        const filteredChildren = filterRecursive(item.children).filter(Boolean);
+
+        if (filteredChildren.length > 0) {
+          return { ...item, children: filteredChildren };
+        }
+
+        return null;
+      }).filter(Boolean);
+    };
+
+    const filtered = filterRecursive(menuItems);
+
+    // Auto-expand all menus when searching
+    if (searchQuery.trim()) {
+      const allIds = [];
+      const collectIds = (items) => {
+        items.forEach(item => {
+          if (item.children && item.children.length > 0) {
+            allIds.push(item.id);
+            collectIds(item.children);
+          }
+        });
+      };
+      collectIds(filtered);
+      setExpandedMenus(allIds);
+    }
+
+    return filtered;
+  }, [searchQuery, menuItems]);
 
   // Handler to toggle the expanded/collapsed state of a menu
   const toggleMenu = (menuId) => {
@@ -65,18 +129,30 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
     );
   };
 
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setExpandedMenus(['user', 'org', 'chat']);
+  };
+
   return (
     <aside className="w-64 bg-white border-r border-gray-200 shadow-sm flex flex-col">
       {/* Scrollable Main Area */}
       <div className="flex-1 overflow-y-auto p-6">
         <SidebarHeader />
+        <SearchBox
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          clearSearch={clearSearch}
+        />
         <UserInfo user={user} onNavigate={setActiveTab} />
         <MainMenu
-          menuItems={menuItems}
+          menuItems={filteredMenuItems}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           expandedMenus={expandedMenus}
           toggleMenu={toggleMenu}
+          searchQuery={searchQuery}
         />
       </div>
 
@@ -89,9 +165,32 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
 // --- Sub-components for Clarity ---
 
 const SidebarHeader = () => (
-  <div className="mb-6 pb-4 border-b border-gray-200">
+  <div className="mb-4 pb-4 border-b border-gray-200">
     <h1 className="text-xl font-bold text-gray-800">雷犀客服系统</h1>
     <p className="text-gray-500 text-xs mt-1">Desktop Edition</p>
+  </div>
+);
+
+const SearchBox = ({ searchQuery, setSearchQuery, clearSearch }) => (
+  <div className="mb-4">
+    <div className="relative">
+      <SearchOutlined className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+      <input
+        type="text"
+        placeholder="搜索功能..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
+      />
+      {searchQuery && (
+        <button
+          onClick={clearSearch}
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <CloseCircleOutlined className="text-sm" />
+        </button>
+      )}
+    </div>
   </div>
 );
 
@@ -112,51 +211,120 @@ const UserInfo = ({ user, onNavigate }) => (
   </div>
 );
 
-const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMenu }) => (
+const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery }) => (
   <nav className="space-y-1">
     {menuItems.map(item => (
-      <div key={item.id}>
-        {/* Level 1 Menu Item */}
-        <button
-          onClick={() => (item.children ? toggleMenu(item.id) : setActiveTab(item.id))}
-          className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-all text-gray-700"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-lg">{item.icon}</span>
-            <span className="font-medium text-sm">{item.label}</span>
-          </div>
-          {item.children && (
-            <RightOutlined
-              className={`text-xs transition-transform text-gray-400 ${
-                expandedMenus.includes(item.id) ? 'rotate-90' : ''
-              }`}
-            />
-          )}
-        </button>
-
-        {/* Level 2 Menu Items */}
-        {item.children && expandedMenus.includes(item.id) && (
-          <div className="ml-4 mt-1 pl-2 border-l border-gray-200 space-y-1">
-            {item.children.map(child => (
-              <button
-                key={child.id}
-                onClick={() => setActiveTab(child.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                  activeTab === child.id
-                    ? 'bg-blue-50 text-blue-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <span className="text-base">{child.icon}</span>
-                <span>{child.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <MenuItem
+        key={item.id}
+        item={item}
+        level={1}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        expandedMenus={expandedMenus}
+        toggleMenu={toggleMenu}
+        searchQuery={searchQuery}
+      />
     ))}
   </nav>
 );
+
+// Recursive MenuItem component
+const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery }) => {
+  const isExpanded = expandedMenus.includes(item.id);
+  const hasChildren = item.children && item.children.length > 0;
+  const isActive = activeTab === item.id;
+
+  // Styling based on level
+  const getLevelStyles = () => {
+    switch (level) {
+      case 1:
+        return {
+          container: '',
+          button: 'px-4 py-3 text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 font-semibold rounded-xl transition-all duration-200',
+          icon: 'text-lg',
+          text: 'text-sm',
+        };
+      case 2:
+        return {
+          container: 'ml-4 pl-4 border-l-2 border-blue-100',
+          button: `px-4 py-2.5 rounded-lg transition-all duration-200 ${
+            isActive
+              ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-200 font-medium'
+              : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+          }`,
+          icon: 'text-base',
+          text: 'text-sm',
+        };
+      default:
+        return {
+          container: '',
+          button: 'px-3 py-2',
+          icon: 'text-base',
+          text: 'text-sm',
+        };
+    }
+  };
+
+  const styles = getLevelStyles();
+
+  // Highlight search matches
+  const highlightText = (text) => {
+    if (!searchQuery.trim()) return text;
+
+    const query = searchQuery.toLowerCase();
+    const index = text.toLowerCase().indexOf(query);
+
+    if (index === -1) return text;
+
+    return (
+      <>
+        {text.substring(0, index)}
+        <span className="bg-yellow-200 text-gray-900">{text.substring(index, index + searchQuery.length)}</span>
+        {text.substring(index + searchQuery.length)}
+      </>
+    );
+  };
+
+  return (
+    <div>
+      {/* Menu Item Button */}
+      <button
+        onClick={() => (hasChildren ? toggleMenu(item.id) : setActiveTab(item.id))}
+        className={`w-full flex items-center justify-between rounded-lg transition-all ${styles.button}`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={styles.icon}>{item.icon}</span>
+          <span className={styles.text}>{highlightText(item.label)}</span>
+        </div>
+        {hasChildren && (
+          <RightOutlined
+            className={`text-xs transition-transform duration-200 text-gray-400 ${
+              isExpanded ? 'rotate-90' : ''
+            }`}
+          />
+        )}
+      </button>
+
+      {/* Children Menu Items */}
+      {hasChildren && isExpanded && (
+        <div className={`mt-1 space-y-1 ${styles.container}`}>
+          {item.children.map(child => (
+            <MenuItem
+              key={child.id}
+              item={child}
+              level={level + 1}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              expandedMenus={expandedMenus}
+              toggleMenu={toggleMenu}
+              searchQuery={searchQuery}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SidebarFooter = ({ onLogout }) => (
   <div className="p-4 border-t border-gray-200 space-y-2">
@@ -172,7 +340,7 @@ const SidebarFooter = ({ onLogout }) => (
   </div>
 );
 
-// --- Menu Item Definitions ---
+// --- Menu Item Definitions with Three-Level Structure ---
 
 const allMenuItems = [
   {
@@ -212,19 +380,19 @@ const allMenuItems = [
     children: [
       { id: 'attendance-home', label: '考勤主页', icon: <HomeOutlined /> },
       { id: 'attendance-records', label: '考勤记录', icon: <FileTextOutlined /> },
+      { id: 'attendance-makeup', label: '补卡申请', icon: <FormOutlined /> },
       { id: 'attendance-leave-apply', label: '请假申请', icon: <FormOutlined /> },
       { id: 'attendance-leave-records', label: '请假记录', icon: <FileTextOutlined /> },
       { id: 'attendance-overtime-apply', label: '加班申请', icon: <FormOutlined /> },
       { id: 'attendance-overtime-records', label: '加班记录', icon: <FileTextOutlined /> },
-      { id: 'attendance-makeup', label: '补卡申请', icon: <FormOutlined /> },
       { id: 'attendance-stats', label: '考勤统计', icon: <BarChartOutlined /> },
       { id: 'attendance-department', label: '部门考勤', icon: <ApartmentOutlined /> },
-      { id: 'attendance-department-stats', label: '部门考勤统计', icon: <LineChartOutlined /> },
+      { id: 'attendance-department-stats', label: '部门统计', icon: <LineChartOutlined /> },
       { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined /> },
       { id: 'attendance-schedule', label: '排班管理', icon: <CalendarOutlined /> },
-      { id: 'attendance-notifications', label: '考勤通知', icon: <BellOutlined /> },
       { id: 'attendance-smart-schedule', label: '智能排班', icon: <ThunderboltOutlined /> },
       { id: 'attendance-approval', label: '审批管理', icon: <CheckCircleOutlined /> },
+      { id: 'attendance-notifications', label: '考勤通知', icon: <BellOutlined /> },
       { id: 'attendance-settings', label: '考勤设置', icon: <SettingOutlined /> },
     ],
   },
@@ -235,9 +403,10 @@ const allMenuItems = [
     children: [
       { id: 'compensatory-apply', label: '申请调休', icon: <FormOutlined /> },
       { id: 'vacation-details', label: '假期明细', icon: <FileTextOutlined /> },
+      { id: 'quota-config', label: '额度配置', icon: <SettingOutlined /> },
       { id: 'vacation-summary', label: '假期汇总', icon: <BarChartOutlined /> },
       { id: 'compensatory-approval', label: '调休审批', icon: <CheckCircleOutlined /> },
-      { id: 'vacation-quota-settings', label: '额度配置', icon: <SettingOutlined /> },
+      { id: 'vacation-permissions', label: '权限管理', icon: <SafetyOutlined />, admin: true },
     ],
   },
   {
@@ -246,11 +415,11 @@ const allMenuItems = [
     icon: <SearchOutlined />,
     children: [
       { id: 'quality-session', label: '会话管理', icon: <MessageOutlined /> },
-      { id: 'quality-platform-shop', label: '平台与店铺管理', icon: <ShopOutlined /> },
+      { id: 'quality-platform-shop', label: '平台店铺', icon: <ShopOutlined /> },
       { id: 'quality-rule', label: '规则管理', icon: <FileSearchOutlined /> },
       { id: 'quality-score', label: '质检评分', icon: <StarOutlined /> },
       { id: 'quality-report', label: '质检报告', icon: <BarChartOutlined /> },
-      { id: 'quality-report-summary', label: '质检综合报告', icon: <LineChartOutlined /> },
+      { id: 'quality-report-summary', label: '综合报告', icon: <LineChartOutlined /> },
       { id: 'quality-case-library', label: '案例库', icon: <FolderOpenOutlined /> },
       { id: 'quality-recommendation', label: '案例推荐', icon: <StarOutlined /> },
     ],
@@ -265,18 +434,18 @@ const allMenuItems = [
       { id: 'my-knowledge', label: '我的知识库', icon: <StarOutlined /> },
     ],
   },
-      {
-        id: 'assessment',
-        label: '考核系统',
-        icon: <FormOutlined />,
-        children: [
-          { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined /> },
-          { id: 'assessment-plans', label: '考核计划', icon: <CalendarOutlined /> },
-          { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined /> },
-          { id: 'assessment-results', label: '考试结果', icon: <EyeOutlined /> },
-          { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },
-        ],
-      },
+  {
+    id: 'assessment',
+    label: '考核系统',
+    icon: <FormOutlined />,
+    children: [
+      { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined /> },
+      { id: 'assessment-plans', label: '考核计划', icon: <CalendarOutlined /> },
+      { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined /> },
+      { id: 'assessment-results', label: '考试结果', icon: <EyeOutlined /> },
+      { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },
+    ],
+  },
   {
     id: 'statistics',
     label: '统计分析',

@@ -78,12 +78,14 @@ module.exports = async function (fastify, opts) {
 
       const balance = await getOrCreateVacationBalance(employee_id, employees[0].user_id, year)
 
+
       // 计算剩余天数
       const data = {
         ...balance,
         annual_leave_remaining: parseFloat(balance.annual_leave_total) - parseFloat(balance.annual_leave_used),
         sick_leave_remaining: parseFloat(balance.sick_leave_total) - parseFloat(balance.sick_leave_used),
         compensatory_leave_remaining: parseFloat(balance.compensatory_leave_total) - parseFloat(balance.compensatory_leave_used),
+        overtime_leave_remaining: parseFloat(balance.overtime_leave_total || 0) - parseFloat(balance.overtime_leave_used || 0),
         overtime_hours_remaining: parseFloat(balance.overtime_hours_total) - parseFloat(balance.overtime_hours_converted)
       }
 
@@ -110,6 +112,7 @@ module.exports = async function (fastify, opts) {
           (vb.annual_leave_total - vb.annual_leave_used) as annual_leave_remaining,
           (vb.sick_leave_total - vb.sick_leave_used) as sick_leave_remaining,
           (vb.compensatory_leave_total - vb.compensatory_leave_used) as compensatory_leave_remaining,
+          (COALESCE(vb.overtime_leave_total, 0) - COALESCE(vb.overtime_leave_used, 0)) as overtime_leave_remaining,
           (vb.overtime_hours_total - vb.overtime_hours_converted) as overtime_hours_remaining
         FROM vacation_balances vb
         LEFT JOIN employees e ON vb.employee_id = e.id
@@ -301,6 +304,9 @@ module.exports = async function (fastify, opts) {
     }
   })
 
+  // 暴露获取余额函数供其他模块调用
+  fastify.decorate('getVacationBalance', getOrCreateVacationBalance)
+
   // 扣减假期余额（内部函数，供其他模块调用）
   fastify.decorate('deductLeaveBalance', async function(employeeId, userId, leaveType, days, year, operatorId, ipAddress) {
     const connection = await pool.getConnection()
@@ -314,7 +320,8 @@ module.exports = async function (fastify, opts) {
       const fieldMap = {
         'annual': 'annual_leave_used',
         'sick': 'sick_leave_used',
-        'compensatory': 'compensatory_leave_used'
+        'compensatory': 'compensatory_leave_used',
+        'overtime_leave': 'overtime_leave_used'
       }
 
       const field = fieldMap[leaveType]

@@ -277,7 +277,7 @@ const AssessmentPlanManagement = () => {
                     <p className="mt-2 text-gray-600">加载中...</p>
                   </td>
                 </tr>
-              ) : filteredPlans.length === 0 ? (
+              ) : plans.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
                     暂无考核计划

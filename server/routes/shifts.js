@@ -3,6 +3,46 @@
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
 
+  // 获取或创建"休息"班次的辅助函数
+  fastify.decorate('getRestShift', async function() {
+    const [shifts] = await pool.query(
+      'SELECT * FROM work_shifts WHERE name = ? AND department_id IS NULL',
+      ['休息']
+    )
+
+    if (shifts.length > 0) {
+      return shifts[0]
+    }
+
+    // 如果不存在，创建一个
+    const [result] = await pool.query(
+      `INSERT INTO work_shifts
+       (name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['休息', '00:00:00', '00:00:00', 0, 0, 0, 1, null, '休息日班次']
+    )
+
+    return {
+      id: result.insertId,
+      name: '休息',
+      start_time: '00:00:00',
+      end_time: '00:00:00',
+      work_hours: 0,
+      is_active: 1
+    }
+  })
+
+  // 获取休息班次的API端点
+  fastify.get('/api/shifts/rest', async (request, reply) => {
+    try {
+      const restShift = await fastify.getRestShift();
+      return { success: true, data: restShift };
+    } catch (error) {
+      console.error('获取休息班次失败:', error);
+      return reply.code(500).send({ success: false, message: '获取失败' });
+    }
+  })
+
   // 获取班次列表（支持分页和筛选）
   fastify.get('/api/shifts', async (request, reply) => {
     const { page = 1, limit = 10, department_id, is_active, keyword } = request.query

@@ -421,8 +421,8 @@ const CompensatoryApproval = () => {
         {requests.length > 0 && (
           <div className="bg-white px-6 py-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between mt-4">
             <div className="text-sm text-gray-600">
-              显示第 <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到 <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> 条，
-              共 <span className="font-medium">{pagination.total}</span> 条记录
+              显示第 <span className="font-medium">{((Number(pagination.page || 1) - 1) * Number(pagination.limit || 10)) + 1}</span> 到 <span className="font-medium">{Math.min(Number(pagination.page || 1) * Number(pagination.limit || 10), Number(pagination.total || 0))}</span> 条，
+              共 <span className="font-medium">{Number(pagination.total || 0)}</span> 条记录
             </div>
             <div className="flex gap-2">
               <button

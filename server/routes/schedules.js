@@ -328,4 +328,63 @@ module.exports = async function (fastify, opts) {
       return reply.code(500).send({ success: false, message: '复制失败' })
     }
   })
+  // 自动更新排班（供请假审批调用）
+  fastify.decorate('updateScheduleForLeave', async function(leaveRecord) {
+    const { employee_id, start_date, end_date, leave_type } = leaveRecord;
+
+    // 计算日期范围内的所有日期
+    const dates = [];
+    let currentDate = new Date(start_date);
+    const end = new Date(end_date);
+
+    while (currentDate <= end) {
+      dates.push(new Date(currentDate).toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (dates.length === 0) return;
+
+    // 获取 "休息" 班次 ID (假设 getRestShift 已注册)
+    let restShiftId = null;
+    if (fastify.getRestShift) {
+       const restShift = await fastify.getRestShift();
+       restShiftId = restShift.id;
+    }
+
+    // 批量更新排班
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      for (const date of dates) {
+        // 检查已有排班
+        const [existing] = await connection.query(
+          'SELECT id FROM shift_schedules WHERE employee_id = ? AND schedule_date = ?',
+          [employee_id, date]
+        );
+
+        if (existing.length > 0) {
+          // 更新为休息，并标记为请假
+          await connection.query(
+             'UPDATE shift_schedules SET shift_id = ?, is_rest_day = 1 WHERE id = ?',
+             [restShiftId, existing[0].id]
+          );
+        } else {
+          // 创建休息排班
+          await connection.query(
+            'INSERT INTO shift_schedules (employee_id, shift_id, schedule_date, is_rest_day) VALUES (?, ?, ?, 1)',
+            [employee_id, restShiftId, date]
+          );
+        }
+      }
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      console.error('自动更新排班失败:', error);
+      // 不抛出错误，以免影响审批流程
+    } finally {
+      connection.release();
+    }
+  });
 }

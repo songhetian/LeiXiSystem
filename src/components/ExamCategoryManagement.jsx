@@ -2,17 +2,25 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 
 
 const ExamCategoryManagement = () => {
   const [categories, setCategories] = useState([])
+  const [tree, setTree] = useState([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [usageStats, setUsageStats] = useState({})
+  const [dragging, setDragging] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
+    code: '',
+    weight: 0,
+    status: 'active',
+    parent_id: null,
     description: '',
     icon: '📚'
   })
@@ -24,12 +32,29 @@ const ExamCategoryManagement = () => {
   const fetchCategories = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/exam-categories'))
-      setCategories(response.data || [])
+      const [treeRes, statsRes] = await Promise.all([
+        axios.get(getApiUrl('/api/exam-categories/tree'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
+        axios.get(getApiUrl('/api/exam-categories/usage-stats'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      ])
+      const tdata = treeRes.data?.data || []
+      setTree(Array.isArray(tdata) ? tdata : [])
+      const statsArr = statsRes.data?.data || []
+      const stats = {}
+      statsArr.forEach(s => { stats[s.id] = s.exam_count || 0 })
+      setUsageStats(stats)
+      const flatten = (nodes, depth = 0, acc = []) => {
+        nodes.forEach(n => {
+          acc.push({ ...n, depth })
+          if (Array.isArray(n.children) && n.children.length) flatten(n.children, depth + 1, acc)
+        })
+        return acc
+      }
+      setCategories(flatten(tdata))
     } catch (error) {
       console.error('获取分类失败:', error)
       toast.error('获取分类列表失败')
       setCategories([])
+      setTree([])
     } finally {
       setLoading(false)
     }
@@ -40,11 +65,12 @@ const ExamCategoryManagement = () => {
     setLoading(true)
 
     try {
+      const payload = { ...formData, weight: Number(formData.weight) }
       if (editingCategory) {
-        await axios.put(getApiUrl(`/api/exam-categories/${editingCategory.id}`), formData)
+        await axios.put(getApiUrl(`/api/exam-categories/${editingCategory.id}`), payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
         toast.success('分类更新成功')
       } else {
-        await axios.post(getApiUrl('/api/exam-categories'), formData)
+        await axios.post(getApiUrl('/api/exam-categories'), payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
         toast.success('分类创建成功')
       }
       setShowModal(false)
@@ -62,7 +88,7 @@ const ExamCategoryManagement = () => {
     if (!window.confirm('确定要删除这个分类吗？')) return
 
     try {
-      await axios.delete(getApiUrl(`/api/exam-categories/${id}`))
+      await axios.delete(getApiUrl(`/api/exam-categories/${id}`), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       toast.success('分类删除成功')
       fetchCategories()
     } catch (error) {
@@ -82,8 +108,32 @@ const ExamCategoryManagement = () => {
 
   const filteredCategories = categories.filter(cat =>
     cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cat.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    (cat.code || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const handleDragEnd = async (result) => {
+    setDragging(false)
+    const { destination, source, draggableId } = result
+    if (!destination) return
+    if (destination.index === source.index) return
+    const item = filteredCategories[source.index]
+    const target = filteredCategories[destination.index]
+    if (!item || !target) return
+    if ((item.parent_id || null) !== (target.parent_id || null)) {
+      toast.error('仅支持同级拖拽排序')
+      return
+    }
+    try {
+      const siblings = filteredCategories.filter(c => (c.parent_id || null) === (item.parent_id || null))
+      const newOrder = destination.index < source.index ? Math.max(1, (item.order_num || 1) - 1) : (item.order_num || 1) + 1
+      await axios.put(getApiUrl('/api/exam-categories/reorder'), {
+        moves: [{ id: item.id, parent_id: item.parent_id || null, order_num: newOrder }]
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      fetchCategories()
+    } catch (e) {
+      toast.error('拖拽排序失败')
+    }
+  }
 
   return (
     <div className="p-6">
@@ -104,6 +154,45 @@ const ExamCategoryManagement = () => {
           >
             ➕ 新建分类
           </button>
+          <button
+            onClick={async () => {
+              try {
+                const res = await axios.get(getApiUrl('/api/exam-categories/export.xlsx'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, responseType: 'blob' })
+                const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = '考试分类.xlsx'
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+                toast.success('导出成功')
+              } catch (e) {
+                toast.error('导出失败')
+              }
+            }}
+            className="px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+          >
+            ⬇️ 导出
+          </button>
+          <label className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 cursor-pointer">
+            ⬆️ 导入
+            <input type="file" className="hidden" accept=".xlsx" onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                const form = new FormData()
+                form.append('file', file)
+                const res = await axios.post(getApiUrl('/api/exam-categories/import.xlsx'), form, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                toast.success(`导入完成：成功 ${res.data?.data?.success_count || 0}`)
+                fetchCategories()
+              } catch (err) {
+                toast.error('导入失败')
+              }
+              e.target.value = ''
+            }} />
+          </label>
           <input
             type="text"
             placeholder="搜索分类..."
@@ -125,53 +214,108 @@ const ExamCategoryManagement = () => {
           <p className="text-gray-500">暂无分类</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredCategories.map(category => (
-            <div key={category.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all border border-gray-200">
-              <div className="flex items-start justify-between mb-3">
-                <div className="text-4xl">{category.icon}</div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingCategory(category)
-                      setFormData({
-                        name: category.name,
-                        description: category.description || '',
-                        icon: category.icon || '📚'
-                      })
-                      setShowModal(true)
-                    }}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                    title="编辑"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => handleDelete(category.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="删除"
-                  >
-                    🗑️
-                  </button>
-                </div>
+        <DragDropContext onDragStart={() => setDragging(true)} onDragEnd={handleDragEnd}>
+          <Droppable droppableId="category-list" direction="vertical">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredCategories.map((category, index) => (
+                  <Draggable key={category.id} draggableId={String(category.id)} index={index}>
+                    {(dragProvided, snapshot) => (
+                      <div
+                        ref={dragProvided.innerRef}
+                        {...dragProvided.draggableProps}
+                        {...dragProvided.dragHandleProps}
+                        className={`bg-white rounded-lg shadow-sm p-6 transition-all border ${snapshot.isDragging ? 'border-primary-500 shadow-lg' : 'border-gray-200 hover:shadow-md'}`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="text-4xl">{category.icon || '📁'}</div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingCategory(category)
+                                setFormData({
+                                  name: category.name,
+                                  code: category.code || '',
+                                  weight: category.weight || 0,
+                                  status: category.status || 'active',
+                                  parent_id: category.parent_id || null,
+                                  description: category.description || '',
+                                  icon: category.icon || '📚'
+                                })
+                                setShowModal(true)
+                              }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="编辑"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDelete(category.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="删除"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+
+                        <h3 className="font-semibold text-gray-900 text-lg mb-2">
+                          <span style={{ paddingLeft: `${category.depth * 16}px` }}>
+                            {category.name}
+                          </span>
+                        </h3>
+
+                        {category.description && (
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                            {category.description}
+                          </p>
+                        )}
+
+                        <div className="text-sm text-gray-500">
+                          <div className="flex items-center gap-3">
+                            <span>编码：{category.code}</span>
+                            <span>权重：{category.weight}</span>
+                            <span>状态：{category.status === 'active' ? '启用' : category.status === 'inactive' ? '停用' : '已删除'}</span>
+                            <span>📋 {usageStats[category.id] || 0} 份试卷</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button className="px-2 py-1 text-xs bg-gray-100 rounded" onClick={async () => {
+                              try {
+                                const moves = [{ id: category.id, parent_id: category.parent_id, order_num: (category.order_num || 1) - 1 }]
+                                await axios.put(getApiUrl('/api/exam-categories/reorder'), { moves }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                fetchCategories()
+                              } catch { toast.error('上移失败') }
+                            }}>上移</button>
+                            <button className="px-2 py-1 text-xs bg-gray-100 rounded" onClick={async () => {
+                              try {
+                                const moves = [{ id: category.id, parent_id: category.parent_id, order_num: (category.order_num || 1) + 1 }]
+                                await axios.put(getApiUrl('/api/exam-categories/reorder'), { moves }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                fetchCategories()
+                              } catch { toast.error('下移失败') }
+                            }}>下移</button>
+                            <select className="px-2 py-1 text-xs border rounded" value={category.parent_id || ''} onChange={async (e) => {
+                              const newParent = e.target.value ? parseInt(e.target.value, 10) : null
+                              try {
+                                await axios.put(getApiUrl(`/api/exam-categories/${category.id}`), { parent_id: newParent }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                fetchCategories()
+                              } catch { toast.error('调整父级失败') }
+                            }}>
+                              <option value="">置为顶级</option>
+                              {categories.filter(c => c.id !== category.id).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
               </div>
-
-              <h3 className="font-semibold text-gray-900 text-lg mb-2">
-                {category.name}
-              </h3>
-
-              {category.description && (
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                  {category.description}
-                </p>
-              )}
-
-              <div className="text-sm text-gray-500">
-                📋 {category.exam_count || 0} 份试卷
-              </div>
-            </div>
-          ))}
-        </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
 
       {/* 创建/编辑Modal */}
@@ -204,6 +348,58 @@ const ExamCategoryManagement = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   placeholder="如：产品知识、技能考核"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">编码 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="如：KNOWLEDGE_BASIC"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">权重</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.weight}
+                    onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="如：10"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">状态</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="active">启用</option>
+                    <option value="inactive">停用</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">父级分类</label>
+                  <select
+                    value={formData.parent_id || ''}
+                    onChange={(e) => setFormData({ ...formData, parent_id: e.target.value ? parseInt(e.target.value, 10) : null })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">置为顶级</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>

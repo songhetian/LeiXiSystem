@@ -19,6 +19,7 @@ export default function AttendanceHome({ onNavigate }) {
   const [timeoutMessage, setTimeoutMessage] = useState('')
   const [refreshKey, setRefreshKey] = useState(0) // 用于强制刷新
   const [attendanceRules, setAttendanceRules] = useState(null) // 考勤规则
+  const [restShiftId, setRestShiftId] = useState(null) // 休息班次ID
 
   // 导航函数
   const navigate = (tab) => {
@@ -64,6 +65,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 获取考勤设置（只需获取一次）
   useEffect(() => {
     fetchAttendanceSettings()
+    loadRestShift()
   }, [])
 
   // 获取今日打卡状态和排班信息
@@ -98,6 +100,17 @@ export default function AttendanceHome({ onNavigate }) {
         clock_in_advance: 60,
         clock_out_delay: 120
       })
+    }
+  }
+
+  const loadRestShift = async () => {
+    try {
+      const response = await axios.get(getApiUrl('/api/shifts/rest'))
+      if (response.data.success) {
+        setRestShiftId(response.data.data.id)
+      }
+    } catch (error) {
+      console.error('获取休息班次失败:', error)
     }
   }
 
@@ -273,7 +286,7 @@ export default function AttendanceHome({ onNavigate }) {
     return date.toLocaleTimeString('zh-CN', { hour12: false })
   }
 
-  
+
 
   const formatDateTime = (dateTimeStr) => {
     if (!dateTimeStr) return '--:--'
@@ -300,7 +313,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 检查是否在打卡时间范围内（上班）
   const checkClockInTime = () => {
     // 休息日不允许打卡
-    if (todaySchedule?.is_rest_day) {
+    if (todaySchedule && todaySchedule.shift_id == restShiftId) {
       return { allowed: false, message: '今日为休息日，无需打卡' }
     }
     // 无排班/无开始时间
@@ -337,7 +350,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 检查是否在打卡时间范围内（下班）
   const checkClockOutTime = () => {
     // 休息日不允许打卡
-    if (todaySchedule?.is_rest_day) {
+    if (todaySchedule && todaySchedule.shift_id == restShiftId) {
       return { allowed: false, message: '今日为休息日，无需打卡' }
     }
     // 无排班/无结束时间
@@ -374,7 +387,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 检查打卡状态
   const clockInCheck = checkClockInTime()
   const clockOutCheck = checkClockOutTime()
-  const isRestDay = !!todaySchedule?.is_rest_day
+  const isRestDay = todaySchedule && todaySchedule.shift_id == restShiftId
 
   return (
     <div className="p-6 max-w-4xl mx-auto">

@@ -30,9 +30,9 @@ module.exports = async function (fastify, opts) {
 
       const [result] = await pool.query(
         `INSERT INTO leave_records
-        (employee_id, user_id, leave_type, start_date, end_date, days, reason, attachments, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-        [employee_id, user_id, leave_type, start_date, end_date, days, reason, attachmentsJson]
+        (employee_id, user_id, leave_type, start_date, end_date, days, reason, attachments, status, use_converted_leave)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        [employee_id, user_id, leave_type, start_date, end_date, days, reason, attachmentsJson, request.body.use_converted_leave ? 1 : 0]
       )
 
       return {
@@ -164,15 +164,54 @@ module.exports = async function (fastify, opts) {
         // 扣减假期余额（使用装饰器函数）
         if (fastify.deductLeaveBalance) {
           const year = new Date(leaveRecord.start_date).getFullYear()
+
+          // 检查是否使用转换假期
+          let leaveTypeToDeduct = leaveRecord.leave_type;
+          let daysToDeduct = leaveRecord.days;
+
+          if (leaveRecord.use_converted_leave) {
+             // 获取当前余额
+             const balance = await fastify.getVacationBalance(leaveRecord.employee_id, leaveRecord.user_id, year);
+             const convertedRemaining = parseFloat(balance.overtime_leave_total || 0) - parseFloat(balance.overtime_leave_used || 0);
+
+             if (convertedRemaining > 0) {
+               if (convertedRemaining >= daysToDeduct) {
+                 // 转换假期足够，全部使用转换假期
+                 leaveTypeToDeduct = 'overtime_leave';
+               } else {
+                 // 转换假期不足，部分使用
+                 // 1. 扣除所有剩余转换假期
+                 await fastify.deductLeaveBalance(
+                    leaveRecord.employee_id,
+                    leaveRecord.user_id,
+                    'overtime_leave',
+                    convertedRemaining,
+                    year,
+                    approver_id,
+                    request.ip
+                 );
+
+                 // 2. 剩余部分使用原申请类型
+                 daysToDeduct = daysToDeduct - convertedRemaining;
+                 // leaveTypeToDeduct 保持原值 (e.g. 'annual')
+               }
+             }
+          }
+
           await fastify.deductLeaveBalance(
             leaveRecord.employee_id,
             leaveRecord.user_id,
-            leaveRecord.leave_type,
-            leaveRecord.days,
+            leaveTypeToDeduct,
+            daysToDeduct,
             year,
             approver_id,
             request.ip
           )
+        }
+
+        // 自动更新排班
+        if (fastify.updateScheduleForLeave) {
+           await fastify.updateScheduleForLeave(leaveRecord);
         }
 
         await connection.commit()

@@ -11,10 +11,10 @@ module.exports = async function (fastify, opts) {
   // 获取试卷列表
   // GET /api/exams
   // 支持分页参数（page, pageSize）
-  // 支持筛选（category, difficulty, status）
+  // 支持筛选（category, difficulty, status, creator_id）
   // 支持搜索（title 模糊查询）
-  // 返回字段：id, title, category, difficulty, duration, total_score, pass_score, question_count, status, created_at
-  // 按创建时间倒序排列
+  // 支持排序（sort_by: created_at|title, order: asc|desc）
+  // 返回字段：基础字段 + 创建人信息（creator_id, creator_name, creator_username）
   fastify.get('/api/exams', async (request, reply) => {
     try {
       const token = request.headers.authorization?.replace('Bearer ', '')
@@ -40,7 +40,10 @@ module.exports = async function (fastify, opts) {
         category,
         difficulty,
         status,
-        title
+        title,
+        creator_id,
+        sort_by = 'created_at',
+        order = 'desc'
       } = request.query
 
       const pageNum = parseInt(page)
@@ -76,22 +79,34 @@ module.exports = async function (fastify, opts) {
         params.push(status)
       }
       if (title) {
-        whereClauses.push('title LIKE ?')
+        whereClauses.push('e.title LIKE ?')
         params.push(`%${title}%`)
+      }
+      if (creator_id) {
+        const cid = parseInt(creator_id)
+        if (!isNaN(cid)) {
+          whereClauses.push('e.created_by = ?')
+          params.push(cid)
+        }
       }
 
       const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''
 
-      const countSql = `SELECT COUNT(*) as total FROM exams ${whereSql}`
+      const countSql = `SELECT COUNT(*) as total FROM exams e ${whereSql}`
       const [countRows] = await pool.query(countSql, params)
       const total = countRows[0]?.total || 0
 
       const offset = (pageNum - 1) * limitNum
+      const sortField = ['created_at', 'title'].includes(String(sort_by)) ? String(sort_by) : 'created_at'
+      const sortOrder = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
       const listSql = `
-        SELECT id, title, category, difficulty, duration, total_score, pass_score, question_count, status, created_at
-        FROM exams
+        SELECT 
+          e.id, e.title, e.category, e.difficulty, e.duration, e.total_score, e.pass_score, e.question_count, e.status, e.created_at,
+          u.id as creator_id, u.real_name as creator_name, u.username as creator_username
+        FROM exams e
+        LEFT JOIN users u ON e.created_by = u.id
         ${whereSql}
-        ORDER BY created_at DESC
+        ORDER BY e.${sortField} ${sortOrder}
         LIMIT ? OFFSET ?
       `
       const [rows] = await pool.query(listSql, [...params, limitNum, offset])
@@ -109,7 +124,8 @@ module.exports = async function (fastify, opts) {
             pass_score: parseFloat(r.pass_score),
             question_count: r.question_count,
             status: r.status,
-            created_at: r.created_at
+            created_at: r.created_at,
+            creator: r.creator_id ? { id: r.creator_id, name: r.creator_name, username: r.creator_username } : null
           })),
           page: pageNum,
           pageSize: limitNum,
@@ -118,6 +134,29 @@ module.exports = async function (fastify, opts) {
       }
     } catch (error) {
       console.error('获取试卷列表失败:', error)
+      return reply.code(500).send({ success: false, message: '获取失败' })
+    }
+  })
+
+  // 获取试卷创建人列表（下拉筛选用）
+  // GET /api/exams/creators
+  fastify.get('/api/exams/creators', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+      try { jwt.verify(token, JWT_SECRET) } catch { return reply.code(401).send({ success: false, message: '无效的认证令牌' }) }
+
+      const [rows] = await pool.query(
+        `SELECT DISTINCT u.id, COALESCE(u.real_name, u.username) AS name, u.username
+         FROM exams e
+         INNER JOIN users u ON e.created_by = u.id
+         ORDER BY name ASC`
+      )
+      return { success: true, data: rows }
+    } catch (error) {
+      console.error('获取创建人列表失败:', error)
       return reply.code(500).send({ success: false, message: '获取失败' })
     }
   })
@@ -722,8 +761,8 @@ module.exports = async function (fastify, opts) {
               [examId, normalizedType, qContent, optionsJson, answer || null, score, examId]
             )
             await connection.query(
-              `UPDATE exams SET question_count = question_count + 1, total_score = total_score + ?, updated_at = NOW() WHERE id = ?`,
-              [score, examId]
+              `UPDATE exams SET question_count = question_count + 1, updated_at = NOW() WHERE id = ?`,
+              [examId]
             )
             successCount += 1
           } catch (e) {
@@ -750,16 +789,8 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  fastify.get('/api/exams/:examId/import/history', async (request, reply) => {
-    try {
-      const { examId } = request.params
-      const logs = (global.__exam_import_logs || []).filter(l => String(l.exam_id) === String(examId))
-      return { success: true, data: { logs } }
-    } catch (error) {
-      return reply.code(500).send({ success: false, message: '获取失败' })
-    }
-  })
-
+  // 试题导入模板下载（Excel）
+  // GET /api/exams/import/template.xlsx
   fastify.get('/api/exams/import/template.xlsx', async (request, reply) => {
     try {
       const token = request.headers.authorization?.replace('Bearer ', '')
@@ -772,7 +803,7 @@ module.exports = async function (fastify, opts) {
       const sheet = workbook.addWorksheet('试题模板')
       sheet.columns = [
         { header: '题型', key: 'type', width: 16 },
-        { header: '题目内容', key: 'content', width: 60 },
+        { header: '题干', key: 'content', width: 60 },
         { header: '选项A', key: 'optA', width: 20 },
         { header: '选项B', key: 'optB', width: 20 },
         { header: '选项C', key: 'optC', width: 20 },
@@ -782,11 +813,29 @@ module.exports = async function (fastify, opts) {
         { header: '答案解析', key: 'explanation', width: 40 }
       ]
 
-      sheet.addRow({ type: 'single_choice', content: '下列哪项是HTTP方法？', optA: 'GET', optB: 'FETCH', optC: 'RECEIVE', optD: 'OBTAIN', answer: 'A', score: 10, explanation: 'GET/POST/PUT/DELETE 等' })
-      sheet.addRow({ type: 'multiple_choice', content: '以下哪些是数组方法？', optA: 'map', optB: 'filter', optC: 'reduce', optD: 'assign', answer: 'ABC', score: 10, explanation: 'map/filter/reduce 属于数组方法' })
-      sheet.addRow({ type: 'true_false', content: 'HTTP 是无状态协议。', optA: '正确', optB: '错误', answer: 'A', score: 5, explanation: '' })
-      sheet.addRow({ type: 'fill_blank', content: '请填写命令：_____ install', score: 10, explanation: '' })
-      sheet.addRow({ type: 'essay', content: '简述事件循环原理。', score: 20, explanation: '' })
+      const typeList = '单选题,多选题,判断题,填空题,简答题'
+      for (let row = 2; row <= 1000; row++) {
+        sheet.getCell(`A${row}`).dataValidation = {
+          type: 'list',
+          allowBlank: false,
+          formulae: [`"${typeList}"`]
+        }
+      }
+
+      sheet.addRow({ type: '单选题', content: '下列哪项是HTTP方法？', optA: 'GET', optB: 'FETCH', optC: 'RECEIVE', optD: 'OBTAIN', answer: 'A', score: 10, explanation: 'GET/POST/PUT/DELETE 等' })
+      sheet.addRow({ type: '多选题', content: '以下哪些是数组方法？', optA: 'map', optB: 'filter', optC: 'reduce', optD: 'assign', answer: 'ABC', score: 10, explanation: 'map/filter/reduce 属于数组方法' })
+      sheet.addRow({ type: '判断题', content: 'HTTP 是无状态协议。', optA: '正确', optB: '错误', answer: 'A', score: 5, explanation: '' })
+      sheet.addRow({ type: '填空题', content: '请填写命令：_____ install', score: 10, explanation: '' })
+      sheet.addRow({ type: '简答题', content: '简述事件循环原理。', score: 20, explanation: '' })
+
+      const guide = workbook.addWorksheet('使用说明')
+      guide.getCell('A1').value = '试题导入模板使用说明'
+      guide.getCell('A2').value = '1. 题型请使用下拉框选择：单选题/多选题/判断题/填空题/简答题'
+      guide.getCell('A3').value = '2. 单选/多选题需填写选项A-D；判断题选项固定为“正确/错误”'
+      guide.getCell('A4').value = '3. 正确答案：单选/判断题用 A/B；多选题用如 ABC；填空/简答无需填写'
+      guide.getCell('A5').value = '4. 分值为正整数；建议每题 5~20 分'
+      guide.getCell('A6').value = '5. 保存为 .xlsx 格式后，在试题管理页面的“试题导入”中上传'
+      guide.getCell('A8').value = { text: '查看详细使用文档', hyperlink: 'http://localhost:5173/#/knowledge-base', tooltip: '打开知识库' }
 
       const buffer = await workbook.xlsx.writeBuffer()
       const now = new Date()
@@ -1184,7 +1233,8 @@ module.exports = async function (fastify, opts) {
       }
 
       // 验证分值
-      if (typeof score !== 'number' || score <= 0) {
+      const numericScore = Number(score)
+      if (!Number.isFinite(numericScore) || numericScore <= 0) {
         return reply.code(400).send({
           success: false,
           message: '分值必须是大于0的数字'
@@ -1360,20 +1410,18 @@ module.exports = async function (fastify, opts) {
             content,
             optionsJson,
             correct_answer,
-            score,
+            numericScore,
             explanation || null,
             nextOrderNum
           ]
         )
 
-        // 更新试卷的 question_count 和 total_score
         await connection.query(
           `UPDATE exams
           SET question_count = question_count + 1,
-              total_score = total_score + ?,
               updated_at = NOW()
           WHERE id = ?`,
-          [score, examId]
+          [examId]
         )
 
         await connection.commit()
@@ -1569,16 +1617,16 @@ module.exports = async function (fastify, opts) {
       }
 
       if (score !== undefined) {
-        // 验证分值
-        if (typeof score !== 'number' || score <= 0) {
+        const s = Number(score)
+        if (!Number.isFinite(s) || s <= 0) {
           return reply.code(400).send({
             success: false,
             message: '分值必须是大于0的数字'
           })
         }
-        newScore = score
+        newScore = s
         updateFields.push('score = ?')
-        updateValues.push(score)
+        updateValues.push(s)
       }
 
       if (explanation !== undefined) {
@@ -1607,17 +1655,7 @@ module.exports = async function (fastify, opts) {
         const updateQuery = `UPDATE questions SET ${updateFields.join(', ')} WHERE id = ?`
         await connection.query(updateQuery, updateValues)
 
-        // 如果分值发生变化，重新计算试卷总分
-        if (newScore !== oldScore) {
-          const scoreDifference = newScore - oldScore
-          await connection.query(
-            `UPDATE exams
-            SET total_score = total_score + ?,
-                updated_at = NOW()
-            WHERE id = ?`,
-            [scoreDifference, question.exam_id]
-          )
-        }
+        
 
         await connection.commit()
 
@@ -1745,14 +1783,12 @@ module.exports = async function (fastify, opts) {
           [id]
         )
 
-        // 更新试卷的 question_count 和 total_score
         await connection.query(
           `UPDATE exams
           SET question_count = question_count - 1,
-              total_score = total_score - ?,
               updated_at = NOW()
           WHERE id = ?`,
-          [questionScore, examId]
+          [examId]
         )
 
         // 重新排序剩余题目的 order_num（将被删除题目后面的题目序号减1）
@@ -2209,6 +2245,22 @@ module.exports = async function (fastify, opts) {
         params.push(end_time_to)
       }
 
+      // 部门筛选（按创建人部门，前端默认传当前用户部门）
+      if (department_id) {
+        const deptId = parseInt(department_id)
+        if (!isNaN(deptId)) {
+          query += ' AND u.department_id = ?'
+          params.push(deptId)
+        }
+      }
+
+      // 人员关键词筛选（姓名/用户名模糊）
+      if (keyword && keyword.trim()) {
+        const kw = `%${keyword.trim()}%`
+        query += ' AND (COALESCE(u.real_name, "") LIKE ? OR COALESCE(u.username, "") LIKE ? )'
+        params.push(kw, kw)
+      }
+
       // 获取总数
       const countQuery = query.replace(
         /SELECT[\s\S]*FROM/,
@@ -2313,16 +2365,3 @@ module.exports = async function (fastify, opts) {
     }
   })
 }
-      // 默认部门筛选（从 JWT）
-      const deptId = department_id ? parseInt(department_id) : (decoded.department_id || null)
-      if (deptId) {
-        query += ' AND u.department_id = ?'
-        params.push(deptId)
-      }
-
-      // 人员关键词筛选（姓名/用户名模糊）
-      if (keyword && keyword.trim()) {
-        const kw = `%${keyword.trim()}%`
-        query += ' AND (COALESCE(u.real_name, "") LIKE ? OR COALESCE(u.username, "") LIKE ? )'
-        params.push(kw, kw)
-      }

@@ -16,6 +16,7 @@ export default function MakeupApply() {
   const [user, setUser] = useState(null)
   const [isRestDay, setIsRestDay] = useState(false)
   const [checkingSchedule, setCheckingSchedule] = useState(false)
+  const [restShiftId, setRestShiftId] = useState(null)
 
   // 获取当前登录用户与员工信息
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function MakeupApply() {
       setUser(userData)
       fetchEmployeeInfo(userData.id)
     }
+    loadRestShift()
   }, [])
 
   const fetchEmployeeInfo = async (userId) => {
@@ -37,6 +39,17 @@ export default function MakeupApply() {
       }
     } catch (e) {
       toast.error('获取员工信息失败')
+    }
+  }
+
+  const loadRestShift = async () => {
+    try {
+      const response = await axios.get(getApiUrl('/api/shifts/rest'))
+      if (response.data.success) {
+        setRestShiftId(response.data.data.id)
+      }
+    } catch (error) {
+      console.error('获取休息班次失败:', error)
     }
   }
 
@@ -55,7 +68,7 @@ export default function MakeupApply() {
         })
         if (res.data.success && res.data.data.length > 0) {
           const schedule = res.data.data[0]
-          setIsRestDay(!!schedule.is_rest_day)
+          setIsRestDay(schedule.shift_id == restShiftId)
         } else {
           // 无排班，按非休息处理，允许提交（如需改为不允许可置为 true）
           setIsRestDay(false)

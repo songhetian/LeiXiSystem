@@ -650,8 +650,6 @@ export default function ScheduleManagement() {
                   })}
                   className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">休息日</option>
-
                   {/* 全公司通用班次 */}
                   {shifts.filter(s => !s.department_id).length > 0 && (
                     <optgroup label="━━ 全公司通用班次 ━━">
@@ -746,8 +744,6 @@ export default function ScheduleManagement() {
                     onChange={(e) => setBatchData({ ...batchData, shift_id: e.target.value })}
                     className="w-full border rounded px-3 py-2"
                   >
-                    <option value="">休息日</option>
-
                     {/* 全公司通用班次 */}
                     {shifts.filter(s => !s.department_id).length > 0 && (
                       <optgroup label="━━ 全公司通用班次 ━━">

@@ -22,7 +22,8 @@ export default function LeaveApply() {
 
   const fetchBalance = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/leave/balance'), {
+      // Use the new vacation balance API which includes overtime/converted leave
+      const response = await axios.get(getApiUrl('/api/vacation/balance'), {
         params: { employee_id: employee.id }
       })
       if (response.data.success) {
@@ -52,13 +53,17 @@ export default function LeaveApply() {
     }
 
     // 检查余额
-    if (formData.leave_type === 'annual' && balance && days > balance.annual.remaining) {
-      toast.error(`年假余额不足，剩余 ${balance.annual.remaining} 天`)
-      return
+    if (formData.leave_type === 'annual' && balance) {
+      // If using converted leave, check combined balance or logic
+      // For now, basic check. The backend will handle complex deduction logic.
+      if (!formData.use_converted_leave && days > balance.annual_leave_remaining) {
+        toast.error(`年假余额不足，剩余 ${balance.annual_leave_remaining} 天`)
+        return
+      }
     }
 
-    if (formData.leave_type === 'sick' && balance && days > balance.sick.remaining) {
-      toast.error(`病假余额不足，剩余 ${balance.sick.remaining} 天`)
+    if (formData.leave_type === 'sick' && balance && days > balance.sick_leave_remaining) {
+      toast.error(`病假余额不足，剩余 ${balance.sick_leave_remaining} 天`)
       return
     }
 
@@ -79,7 +84,8 @@ export default function LeaveApply() {
           start_date: '',
           end_date: '',
           reason: '',
-          attachments: []
+          attachments: [],
+          use_converted_leave: false
         })
         fetchBalance()
       }
@@ -110,17 +116,17 @@ export default function LeaveApply() {
       {balance && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">请假余额</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="border rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-600">年假</span>
                 <span className="text-2xl">🏖️</span>
               </div>
               <div className="text-2xl font-bold text-blue-600">
-                {balance.annual.remaining} 天
+                {balance.annual_leave_remaining} 天
               </div>
               <div className="text-sm text-gray-500 mt-1">
-                总额 {balance.annual.total} 天，已用 {balance.annual.used} 天
+                总额 {balance.annual_leave_total} 天，已用 {balance.annual_leave_used} 天
               </div>
             </div>
             <div className="border rounded-lg p-4">
@@ -129,10 +135,22 @@ export default function LeaveApply() {
                 <span className="text-2xl">🤒</span>
               </div>
               <div className="text-2xl font-bold text-green-600">
-                {balance.sick.remaining} 天
+                {balance.sick_leave_remaining} 天
               </div>
               <div className="text-sm text-gray-500 mt-1">
-                总额 {balance.sick.total} 天，已用 {balance.sick.used} 天
+                总额 {balance.sick_leave_total} 天，已用 {balance.sick_leave_used} 天
+              </div>
+            </div>
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-600">加班转换假期</span>
+                <span className="text-2xl">🔄</span>
+              </div>
+              <div className="text-2xl font-bold text-purple-600">
+                {balance.overtime_leave_remaining || 0} 天
+              </div>
+              <div className="text-sm text-gray-500 mt-1">
+                可用于抵扣年假或调休
               </div>
             </div>
           </div>
@@ -164,6 +182,22 @@ export default function LeaveApply() {
                 </button>
               ))}
             </div>
+
+            {/* 自动转换假期选项 */}
+            {balance && balance.overtime_leave_remaining > 0 && (
+              <div className="mt-4 p-3 bg-purple-50 border border-purple-100 rounded-lg flex items-center">
+                <input
+                  type="checkbox"
+                  id="use_converted_leave"
+                  checked={formData.use_converted_leave || false}
+                  onChange={(e) => setFormData(prev => ({ ...prev, use_converted_leave: e.target.checked }))}
+                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                />
+                <label htmlFor="use_converted_leave" className="ml-2 block text-sm text-gray-900">
+                  优先使用加班转换假期 (剩余 {balance.overtime_leave_remaining} 天)
+                </label>
+              </div>
+            )}
           </div>
 
           {/* 日期范围 */}

@@ -66,6 +66,9 @@ const VacationDetails = lazy(() => import('./components/VacationDetails'));
 const VacationSummary = lazy(() => import('./components/VacationSummary'));
 const CompensatoryApproval = lazy(() => import('./components/CompensatoryApproval'));
 const VacationQuotaSettings = lazy(() => import('./components/VacationQuotaSettings'));
+const VacationManagement = lazy(() => import('./components/VacationManagement'));
+const VacationPermissions = lazy(() => import('./components/VacationPermissions'));
+const QuotaConfigLayout = lazy(() => import('./components/QuotaConfigLayout'));
 const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
 const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
 const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
@@ -171,13 +174,15 @@ function App() {
       case 'chat-message':
         return <ChatPage />
       case 'chat-group':
-        return <ChatPage />
+        return <ComingSoon title="群组管理" />
 
       // 考勤管理
       case 'attendance-home':
-        return <AttendanceHome onNavigate={handleSetActiveTab} />
+        return <AttendanceHome />
       case 'attendance-records':
         return <AttendanceRecords />
+      case 'attendance-makeup':
+        return <MakeupApply />
       case 'attendance-leave-apply':
         return <LeaveApply />
       case 'attendance-leave-records':
@@ -186,8 +191,6 @@ function App() {
         return <OvertimeApply />
       case 'attendance-overtime-records':
         return <OvertimeRecords />
-      case 'attendance-makeup':
-        return <MakeupApply />
       case 'attendance-stats':
         return <AttendanceStats />
       case 'attendance-department':
@@ -212,12 +215,14 @@ function App() {
         return <CompensatoryApply />
       case 'vacation-details':
         return <VacationDetails />
+      case 'quota-config':
+        return <QuotaConfigLayout />
       case 'vacation-summary':
         return <VacationSummary />
       case 'compensatory-approval':
         return <CompensatoryApproval />
-      case 'vacation-quota-settings':
-        return <VacationQuotaSettings />
+      case 'vacation-permissions':
+        return <VacationPermissions />
 
 
       // 质检管理

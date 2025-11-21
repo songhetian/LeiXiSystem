@@ -112,8 +112,8 @@ module.exports = async function (fastify, opts) {
           s2.end_time as new_end_time,
           u.real_name as approver_name
         FROM compensatory_leave_requests clr
-        LEFT JOIN shifts s1 ON clr.original_shift_id = s1.id
-        LEFT JOIN shifts s2 ON clr.new_shift_id = s2.id
+        LEFT JOIN work_shifts s1 ON clr.original_shift_id = s1.id
+        LEFT JOIN work_shifts s2 ON clr.new_shift_id = s2.id
         LEFT JOIN users u ON clr.approver_id = u.id
         WHERE clr.employee_id = ?
       `
@@ -327,6 +327,16 @@ module.exports = async function (fastify, opts) {
         if (requestData.new_schedule_date && requestData.new_shift_id) {
           console.log('Creating new schedule:', requestData.new_schedule_date, 'Shift:', requestData.new_shift_id)
 
+          // 验证 shift_id 是否存在
+          const [shiftExists] = await connection.query(
+            'SELECT id FROM work_shifts WHERE id = ?',
+            [requestData.new_shift_id]
+          )
+
+          if (shiftExists.length === 0) {
+            throw new Error(`班次 ID ${requestData.new_shift_id} 不存在，无法创建排班`)
+          }
+
           // 检查新日期是否已有排班
           const [existing] = await connection.query(
             'SELECT id FROM schedules WHERE user_id = ? AND schedule_date = ?',
@@ -344,6 +354,9 @@ module.exports = async function (fastify, opts) {
               [requestData.new_shift_id, requestData.user_id, requestData.new_schedule_date]
             )
           }
+        } else if (requestData.new_schedule_date && !requestData.new_shift_id) {
+          // 如果没有指定新班次，记录警告但不创建排班
+          console.warn('Warning: new_schedule_date provided but new_shift_id is null, skipping schedule creation')
         }
       }
 

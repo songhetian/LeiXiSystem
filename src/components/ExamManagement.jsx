@@ -51,13 +51,13 @@ const ExamManagement = () => {
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
   const [importResult, setImportResult] = useState(null)
-  const [importHistory, setImportHistory] = useState([])
+  const [viewMode, setViewMode] = useState('card')
   const [downloadingTpl, setDownloadingTpl] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
-  const [templates, setTemplates] = useState(() => {
-    try { const raw = localStorage.getItem('question_templates'); return raw ? JSON.parse(raw) : [] } catch { return [] }
-  })
+  const [creatorOptions, setCreatorOptions] = useState([])
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const [creatorId, setCreatorId] = useState('')
 
   const getCurrentTotalScore = () => {
     try {
@@ -115,6 +115,10 @@ const ExamManagement = () => {
     setCurrentPage(1)
   }, [searchTerm])
 
+  useEffect(() => {
+    fetchExams()
+  }, [searchTerm, sortBy, sortOrder, creatorId])
+
   const handlePageChange = (page) => {
     setCurrentPage(page)
   }
@@ -133,6 +137,7 @@ const ExamManagement = () => {
   useEffect(() => {
     fetchExams()
     fetchQuestionBank()
+    fetchCreators()
   }, [])
 
   const fetchQuestionBank = async () => {
@@ -147,7 +152,16 @@ const ExamManagement = () => {
   const fetchExams = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/exams')
+      const response = await api.get('/exams', {
+        params: {
+          page: 1,
+          pageSize: 100,
+          title: searchTerm || undefined,
+          creator_id: creatorId || undefined,
+          sort_by: sortBy,
+          order: sortOrder
+        }
+      })
       const payload = response?.data
       const list = Array.isArray(payload?.data?.exams)
         ? payload.data.exams
@@ -161,6 +175,16 @@ const ExamManagement = () => {
       setExams([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCreators = async () => {
+    try {
+      const res = await api.get('/exams/creators')
+      const data = res?.data?.data || []
+      setCreatorOptions(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setCreatorOptions([])
     }
   }
 
@@ -250,6 +274,7 @@ const ExamManagement = () => {
     try {
       const data = {
         ...newQuestion,
+        score: Number(newQuestion.score),
         exam_id: selectedExam.id,
         options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
         order_num: questions.length + 1
@@ -332,7 +357,7 @@ const ExamManagement = () => {
         content: newQuestion.content,
         options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
         correct_answer: newQuestion.correct_answer,
-        score: newQuestion.score,
+        score: Number(newQuestion.score),
         explanation: newQuestion.explanation
       }
       const total = getCurrentTotalScore()
@@ -400,8 +425,6 @@ const ExamManagement = () => {
       setExamInfo(data)
       setSelectedExam(exam)
       setShowExamInfo(true)
-      const h = await api.get(`/exams/${exam.id}/import/history`)
-      setImportHistory(h?.data?.data?.logs || [])
     } catch {
       setExamInfo(null)
       setShowExamInfo(true)
@@ -433,44 +456,17 @@ const ExamManagement = () => {
     }
   }
 
-  const saveTemplates = (list) => {
-    setTemplates(list)
-    try { localStorage.setItem('question_templates', JSON.stringify(list)) } catch {}
-  }
-
-  const exportTemplates = () => {
+  const publishExam = async (exam) => {
     try {
-      const blob = new Blob([JSON.stringify(templates, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'question-templates.json'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      toast.success('模板已导出')
-    } catch {
-      toast.error('导出失败')
+      const res = await api.put(`/exams/${exam.id}/status`, { status: 'published' })
+      toast.success('试卷发布成功')
+      fetchExams()
+      return res?.data
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message
+      toast.error(`发布失败: ${msg}`)
+      return null
     }
-  }
-
-  const importTemplates = (file) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const list = JSON.parse(reader.result)
-        if (Array.isArray(list)) {
-          saveTemplates(list)
-          toast.success('模板导入成功')
-        } else {
-          toast.error('文件格式不正确')
-        }
-      } catch {
-        toast.error('解析失败')
-      }
-    }
-    reader.readAsText(file)
   }
 
   const downloadTemplateXlsx = async () => {
@@ -823,10 +819,22 @@ const ExamManagement = () => {
               <span className="text-xl">+</span>
               <span>新建试卷</span>
             </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setViewMode('card')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${viewMode==='card'?'bg-primary-600 text-white':'bg-primary-50 text-primary-700 hover:bg-primary-100'}`}
+              >卡片视图</button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1.5 rounded-lg text-sm ${viewMode==='list'?'bg-primary-600 text-white':'bg-primary-50 text-primary-700 hover:bg-primary-100'}`}
+              >列表视图</button>
+            </div>
             <button
-              onClick={() => setShowTemplateModal(true)}
-              className="px-6 py-2.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors shadow-md hover:shadow-lg"
-            >试题模板</button>
+              onClick={downloadTemplateXlsx}
+              className="px-6 py-2.5 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 transition-colors flex items-center gap-2"
+            >
+              {downloadingTpl ? `下载中 ${downloadProgress}%` : '下载导入模板'}
+            </button>
             <button
               onClick={() => {
                 setShowRecycleBin(true)
@@ -842,17 +850,51 @@ const ExamManagement = () => {
         </div>
 
         {/* 搜索筛选区 */}
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <input
-            type="text"
-            placeholder="按试卷标题、分类搜索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-          />
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              type="text"
+              placeholder="关键字（标题/分类）"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            />
+            <select
+              value={creatorId}
+              onChange={(e) => setCreatorId(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            >
+              <option value="">创建人（全部）</option>
+              {creatorOptions.map((u) => (
+                <option key={u.id} value={u.id}>{u.name || u.username}</option>
+              ))}
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            >
+              <option value="created_at">按创建时间</option>
+              <option value="title">按试卷名称</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            >
+              <option value="asc">升序</option>
+              <option value="desc">降序</option>
+            </select>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={fetchExams}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >应用筛选</button>
+          </div>
         </div>
 
-        {/* 表格 */}
+        {viewMode === 'list' ? (
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
             <thead className="bg-primary-50 border-b border-primary-100">
@@ -920,6 +962,12 @@ const ExamManagement = () => {
                           编辑信息
                         </button>
                         <button
+                          onClick={() => publishExam(exam)}
+                          className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                        >
+                          发布试卷
+                        </button>
+                        <button
                           onClick={() => handleDeleteExam(exam.id)}
                           className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
                         >
@@ -933,6 +981,50 @@ const ExamManagement = () => {
             </tbody>
           </table>
         </div>
+        ) : (
+          <div>
+            {loading ? (
+              <div className="py-12 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                <p className="mt-2 text-gray-600">加载中...</p>
+              </div>
+            ) : filteredExams.length === 0 ? (
+              <div className="px-4 py-8 text-center text-gray-500">暂无试卷</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getCurrentPageData().map((exam) => (
+                  <div key={exam.id} className="bg-white" style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-lg font-semibold text-gray-900">{exam.title}</div>
+                          <div className="text-xs text-gray-500 mt-1">{exam.description || '无描述'}</div>
+                        </div>
+                        <div className="text-right">
+                          <div>{getStatusBadge(exam.status)}</div>
+                          {exam.creator?.name && <div className="mt-1 text-xs text-gray-500">创建人：{exam.creator.name}</div>}
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-700">
+                        <div>分类：{exam.category || '-'}</div>
+                        <div>难度：{getDifficultyBadge(exam.difficulty)}</div>
+                        <div>时长：{exam.duration} 分钟</div>
+                        <div>总分：{exam.total_score}</div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-2">
+                        <button onClick={() => openExamInfo(exam)} className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded hover:bg-primary-100">查看信息</button>
+                        <button onClick={() => handleOpenEditor(exam)} className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded hover:bg-primary-100">编辑题目</button>
+                        <button onClick={() => { setEditingExam(exam); setFormData({ title: exam.title, description: exam.description || '', category: exam.category || '', difficulty: exam.difficulty, duration: exam.duration, total_score: exam.total_score, pass_score: exam.pass_score, status: exam.status }); setShowModal(true) }} className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">编辑信息</button>
+                        <button onClick={() => publishExam(exam)} className="px-3 py-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100">发布试卷</button>
+                        <button onClick={() => handleDeleteExam(exam.id)} className="px-3 py-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100">删除</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {/* 分页组件 */}
         {filteredExams.length > 0 && (
           <div className="mt-4 flex items-center justify-between px-4">
@@ -1194,6 +1286,9 @@ const ExamManagement = () => {
         size="medium"
         footer={(
           <div className="flex items-center justify-end gap-2 w-full">
+            <button onClick={downloadTemplateXlsx} className="px-4 py-2 border border-primary-300 text-primary-700 rounded hover:bg-primary-50">
+              {downloadingTpl ? `下载中 ${downloadProgress}%` : '下载导入模板'}
+            </button>
             <button onClick={() => setShowImportModal(true)} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">试题导入</button>
             <button onClick={() => { setShowExamInfo(false); setExamInfo(null) }} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">关闭</button>
           </div>
@@ -1207,18 +1302,7 @@ const ExamManagement = () => {
           <div className="flex items-center gap-2"><span className="text-gray-600">难度</span><span className="font-medium">{examInfo?.difficulty ?? '-'}</span></div>
           <div className="flex items-center gap-2"><span className="text-gray-600">时长</span><span className="font-medium">{examInfo?.duration ?? '-'}</span></div>
           <div className="flex items-center gap-2"><span className="text-gray-600">创建时间</span><span className="font-medium">{examInfo?.created_at ? formatDate(examInfo.created_at) : (selectedExam?.created_at ? formatDate(selectedExam.created_at) : '-')}</span></div>
-          <div className="mt-3">
-            <div className="text-gray-700 font-medium mb-1">导入历史</div>
-            {importHistory?.length ? (
-              <div className="space-y-1">
-                {importHistory.map((l, i) => (
-                  <div key={i} className="text-xs text-gray-600">{formatDate(l.time)} · 成功 {l.success_count} · 失败 {l.failed_count}</div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-gray-400">暂无导入记录</div>
-            )}
-          </div>
+          
         </div>
       </Modal>
 
@@ -1241,44 +1325,16 @@ const ExamManagement = () => {
             {importResult && (
               <div className="mt-3 text-sm text-gray-700">成功 {importResult.success} · 失败 {importResult.failed}</div>
             )}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <button onClick={downloadTemplateXlsx} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">下载Excel模板</button>
-              {downloadingTpl && (
-                <div className="w-32 bg-gray-200 rounded h-2"><div className="bg-primary-600 h-2 rounded" style={{ width: `${downloadProgress}%` }}></div></div>
-              )}
+            <div className="mt-4 text-sm">
+              <button onClick={downloadTemplateXlsx} className="px-3 py-1.5 border border-primary-300 text-primary-700 rounded hover:bg-primary-50">下载导入模板</button>
+              <a href="#/knowledge-base" target="_blank" className="ml-3 text-primary-700 hover:underline">模板使用说明</a>
             </div>
           </div>
           <div className="text-xs text-gray-500">支持 .txt、.docx、.pdf。当前版本优先支持文本格式。</div>
         </div>
       </Modal>
 
-      <Modal
-        isOpen={showTemplateModal}
-        onClose={() => setShowTemplateModal(false)}
-        title="试题模板管理"
-        size="large"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <button onClick={exportTemplates} className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700">导出模板</button>
-            <label className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded hover:bg-primary-100 cursor-pointer">
-              导入模板
-              <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && importTemplates(e.target.files[0])} />
-            </label>
-          </div>
-          <div className="space-y-3">
-            {templates.map((t, idx) => (
-              <div key={idx} className="flex items-center gap-3">
-                <span className="w-24 text-sm text-gray-700">{getQuestionTypeLabel(t.type)}</span>
-                <input type="text" value={t.content || ''} onChange={(e) => { const list = [...templates]; list[idx] = { ...list[idx], content: e.target.value }; saveTemplates(list) }} className="flex-1 px-3 py-2 border border-gray-300 rounded" placeholder="模板内容示例" />
-                <input type="number" value={t.score || 10} onChange={(e) => { const list = [...templates]; list[idx] = { ...list[idx], score: parseInt(e.target.value)||0 }; saveTemplates(list) }} className="w-24 px-3 py-2 border border-gray-300 rounded" />
-                <button onClick={() => { const list = templates.filter((_, i) => i !== idx); saveTemplates(list) }} className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700">删除</button>
-              </div>
-            ))}
-            <button onClick={() => saveTemplates([...templates, { type: 'single_choice', content: '新题模板', score: 10 }])} className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700">新增模板</button>
-          </div>
-        </div>
-      </Modal>
+      
 
       <Modal
         isOpen={showDeleteConfirm}
@@ -1332,6 +1388,14 @@ const ExamManagement = () => {
               <p className="text-sm text-gray-600 mt-1">
                 拖拽题目可调整顺序 · 共 {questions.length} 道题
               </p>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm">
+                  当前总分：{getCurrentTotalScore()} / 试卷总分：{selectedExam?.total_score}
+                </div>
+                <div className="w-1/2 h-2 bg-gray-200 rounded overflow-hidden">
+                  <div className="h-2 bg-green-500" style={{ width: `${Math.min(100, Math.round(((getCurrentTotalScore() || 0) / (selectedExam?.total_score || 1)) * 100))}%` }}></div>
+                </div>
+              </div>
             </div>
 
             <div className={`relative flex-1 overflow-y-auto p-4 ${isDraggingOverExam ? 'ring-2 ring-primary-300 rounded-lg' : ''}`}
@@ -1599,16 +1663,44 @@ const ExamManagement = () => {
                 </div>
               )}
 
-              {/* 分值 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">分值 *</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newQuestion.score}
-                  onChange={(e) => { const v = parseInt(e.target.value) || 0; setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    onClick={() => { const v = Math.max(1, (parseInt(newQuestion.score, 10) || 0) - 1); setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={newQuestion.score}
+                    onChange={(e) => { const v = parseInt(e.target.value, 10) || 0; setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    onClick={() => { const v = (parseInt(newQuestion.score, 10) || 0) + 1; setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[5, 10, 15, 20].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      className={`px-3 py-1.5 rounded border ${newQuestion.score === v ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                      onClick={() => { setNewQuestion({ ...newQuestion, score: v }); if (editingQuestion && autoSave) { debouncedSave({ score: v }) } }}
+                    >
+                      {v}分
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* 解析 */}
