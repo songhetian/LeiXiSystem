@@ -13,7 +13,7 @@ import {
   Legend, ResponsiveContainer
 } from 'recharts';
 import { getApiBaseUrl } from '../utils/apiConfig';
-import ConversionRulesSettings from './ConversionRulesSettings';
+import VacationQuotaWizard from './VacationQuotaWizard';
 import VacationTypeManagement from './VacationTypeManagement';
 import BalanceChangeHistory from './BalanceChangeHistory';
 import VacationQuotaEditModal from './VacationQuotaEditModal';
@@ -36,7 +36,7 @@ const VacationManagement = () => {
   });
 
   // Modals state
-  const [rulesModalVisible, setRulesModalVisible] = useState(false);
+  const [wizardVisible, setWizardVisible] = useState(false);
   const [typesModalVisible, setTypesModalVisible] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
   const [quotaModalVisible, setQuotaModalVisible] = useState(false);
@@ -390,7 +390,7 @@ const VacationManagement = () => {
             </Button.Group>
           )}
 
-          <Button icon={<SettingOutlined />} onClick={() => setRulesModalVisible(true)}>转换规则</Button>
+          <Button icon={<SettingOutlined />} onClick={() => setWizardVisible(true)}>假期配置向导</Button>
           <Button icon={<SettingOutlined />} onClick={() => setTypesModalVisible(true)}>假期类型</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出全部</Button>
         </Space>
@@ -537,9 +537,10 @@ const VacationManagement = () => {
       </Row>
 
       {/* Modals */}
-      <ConversionRulesSettings
-        visible={rulesModalVisible}
-        onClose={() => setRulesModalVisible(false)}
+      <VacationQuotaWizard
+        visible={wizardVisible}
+        onClose={() => setWizardVisible(false)}
+        onSuccess={loadData}
       />
 
       <VacationTypeManagement

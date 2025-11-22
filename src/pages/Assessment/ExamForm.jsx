@@ -3,6 +3,7 @@ import { Form, Input, InputNumber, Select, Button, Space, message, Card, Tag } f
 import { SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { getApiUrl } from '../../utils/apiConfig';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useFormAutoSave } from '../../hooks/useFormAutoSave';
 
@@ -26,10 +27,15 @@ const ExamForm = () => {
 
   const fetchExamCategories = async () => {
     try {
-      const response = await axios.get('/api/exam-categories', {
+      const response = await axios.get(getApiUrl('/api/exam-categories'), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setExamCategories(response.data);
+      const list = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+        ? response.data
+        : []
+      setExamCategories(list);
     } catch (error) {
       message.error('获取考试分类失败');
       console.error('Failed to fetch exam categories:', error);

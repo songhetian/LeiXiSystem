@@ -17,21 +17,38 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
   const [loading, setLoading] = useState(false);
   const [balanceData, setBalanceData] = useState(null);
   const [historyData, setHistoryData] = useState([]);
+  const [vacationTypes, setVacationTypes] = useState([]);
 
   useEffect(() => {
     if (visible && employee) {
+      loadVacationTypes();
       loadData();
     }
   }, [visible, employee, year]);
+
+  const loadVacationTypes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${getApiBaseUrl()}/vacation/types`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        setVacationTypes(result.data);
+      }
+    } catch (error) {
+      console.error('加载假期类型失败:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
 
-      // 加载余额数据
+      // 加载动态类型余额数据
       const balanceRes = await fetch(
-        `${getApiBaseUrl()}/vacation/balance?employee_id=${employee.employee_id}&year=${year}`,
+        `${getApiBaseUrl()}/vacation/type-balances/${employee.employee_id}?year=${year}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const balanceResult = await balanceRes.json();
@@ -42,7 +59,7 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
 
       // 加载历史记录
       const historyRes = await fetch(
-        `${getApiBaseUrl()}/vacation/balance-changes?employee_id=${employee.employee_id}&year=${year}`,
+        `${getApiBaseUrl()}/vacation/balance/history?employee_id=${employee.employee_id}&page=1&limit=100`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const historyResult = await historyRes.json();
@@ -55,6 +72,18 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTypeColor = (typeCode) => {
+    const colorMap = {
+      'annual_leave': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600' },
+      'sick_leave': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-600' },
+      'overtime_leave': { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-600' },
+      'personal_leave': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-600' },
+      'marriage_leave': { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-600' },
+      'maternity_leave': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600' }
+    };
+    return colorMap[typeCode] || { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-600' };
   };
 
   const getLeaveTypeTag = (type) => {
@@ -96,13 +125,14 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
       width: 100,
       render: (type) => getChangeTypeTag(type)
     },
-    {
-      title: '假期类型',
-      dataIndex: 'leave_type',
-      key: 'leave_type',
-      width: 100,
-      render: (type) => getLeaveTypeTag(type)
-    },
+    // 移除假期类型列，统一显示
+    // {
+    //   title: '假期类型',
+    //   dataIndex: 'leave_type',
+    //   key: 'leave_type',
+    //   width: 100,
+    //   render: (type) => getLeaveTypeTag(type)
+    // },
     {
       title: '变更数量',
       dataIndex: 'amount',
@@ -120,6 +150,19 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
       key: 'balance_after',
       width: 120,
       render: (val) => val != null ? `${val} 天` : '-'
+    },
+    {
+      title: '操作人',
+      dataIndex: 'operator_name',
+      key: 'operator_name',
+      width: 100
+    },
+    {
+      title: '审批单号',
+      dataIndex: 'approval_no',
+      key: 'approval_no',
+      width: 120,
+      render: (val) => val || '-'
     },
     {
       title: '原因',
@@ -167,66 +210,37 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
                   </Descriptions.Item>
                 </Descriptions>
 
-                {/* 假期余额 */}
+                {/* 假期余额概览 */}
                 <div>
                   <h4 className="text-lg font-semibold mb-3 flex items-center gap-2">
                     <FileTextOutlined className="text-blue-600" />
-                    假期余额明细
+                    假期余额概览
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* 年假 */}
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                      <div className="text-sm text-gray-600 mb-1">年假</div>
-                      <div className="text-2xl font-bold text-blue-600">
-                        {(balanceData.annual_leave_total - balanceData.annual_leave_used).toFixed(1)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        总额: {balanceData.annual_leave_total} | 已用: {balanceData.annual_leave_used}
-                      </div>
-                    </div>
 
-                    {/* 加班假 */}
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <div className="text-sm text-gray-600 mb-1">加班假</div>
-                      <div className="text-2xl font-bold text-green-600">
-                        {((balanceData.overtime_leave_total || 0) - (balanceData.overtime_leave_used || 0)).toFixed(1)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        总额: {balanceData.overtime_leave_total || 0} | 已用: {balanceData.overtime_leave_used || 0}
-                      </div>
-                    </div>
+                  {(() => {
+                    const totalStats = balanceData?.balances?.reduce((acc, curr) => ({
+                      total: acc.total + parseFloat(curr.total || 0),
+                      used: acc.used + parseFloat(curr.used || 0),
+                      remaining: acc.remaining + parseFloat(curr.remaining || 0)
+                    }), { total: 0, used: 0, remaining: 0 });
 
-                    {/* 病假 */}
-                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                      <div className="text-sm text-gray-600 mb-1">病假</div>
-                      <div className="text-2xl font-bold text-orange-600">
-                        {(balanceData.sick_leave_total - balanceData.sick_leave_used).toFixed(1)}
+                    return (
+                      <div className="grid grid-cols-3 gap-6 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <div className="text-gray-500 mb-1">总额度</div>
+                          <div className="text-2xl font-bold text-blue-600">{totalStats?.total.toFixed(1)} <span className="text-sm font-normal text-gray-500">天</span></div>
+                        </div>
+                        <div className="text-center p-4 bg-orange-50 rounded-lg">
+                          <div className="text-gray-500 mb-1">已使用</div>
+                          <div className="text-2xl font-bold text-orange-600">{totalStats?.used.toFixed(1)} <span className="text-sm font-normal text-gray-500">天</span></div>
+                        </div>
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-gray-500 mb-1">剩余</div>
+                          <div className="text-2xl font-bold text-green-600">{totalStats?.remaining.toFixed(1)} <span className="text-sm font-normal text-gray-500">天</span></div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        总额: {balanceData.sick_leave_total} | 已用: {balanceData.sick_leave_used}
-                      </div>
-                    </div>
-
-                    {/* 加班时长 */}
-                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                      <div className="text-sm text-gray-600 mb-1">加班时长</div>
-                      <div className="text-2xl font-bold text-purple-600">
-                        {(balanceData.overtime_hours_total - balanceData.overtime_hours_converted).toFixed(1)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        总计: {balanceData.overtime_hours_total}h | 已转: {balanceData.overtime_hours_converted}h
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 总假期额度 */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white p-6 rounded-lg">
-                  <div className="text-sm opacity-90 mb-2">总假期额度 (不含调休)</div>
-                  <div className="text-4xl font-bold">{balanceData.total_days || 0} 天</div>
-                  <div className="text-sm opacity-75 mt-2">
-                    包含: 年假 + 加班假 + 其他假期类型
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -262,35 +276,8 @@ const VacationDetailModal = ({ visible, onClose, employee, year }) => {
             key="trend"
           >
             <div className="space-y-6">
-              <VacationTrendChart employeeId={employee?.employee_id} />
-              <VacationTypeComparisonChart data={balanceData} />
+              <VacationTrendChart employeeId={employee?.employee_id} year={year} />
             </div>
-          </TabPane>
-
-          {/* 月度视图 */}
-          <TabPane
-            tab={
-              <span>
-                <CalendarOutlined />
-                月度视图
-              </span>
-            }
-            key="monthly"
-          >
-            <VacationMonthlyView employeeId={employee?.employee_id} year={year} />
-          </TabPane>
-
-          {/* 年度视图 */}
-          <TabPane
-            tab={
-              <span>
-                <CalendarOutlined />
-                年度视图
-              </span>
-            }
-            key="yearly"
-          >
-            <VacationYearlyView employeeId={employee?.employee_id} year={year} />
           </TabPane>
         </Tabs>
       </Spin>

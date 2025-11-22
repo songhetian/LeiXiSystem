@@ -84,7 +84,15 @@ function EmployeeManagement() {
       setEmployees(data)
       setFilteredEmployees(data)
     } catch (error) {
-      toast.error('获取员工列表失败')
+      // 检查是否是连接错误
+      if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+        toast.error('无法连接到后端服务器,请确保后端服务已启动 (npm run server)', {
+          autoClose: 5000
+        })
+      } else {
+        toast.error('获取员工列表失败')
+      }
+      console.error('获取员工列表失败:', error)
     } finally {
       setLoading(false)
     }
@@ -234,10 +242,17 @@ function EmployeeManagement() {
           'Authorization': `Bearer ${token}`
         }
       })
-      const data = await response.json()
-      setRoles(data)
+      const result = await response.json()
+      if (Array.isArray(result)) {
+        setRoles(result)
+      } else if (result.success && Array.isArray(result.data)) {
+        setRoles(result.data)
+      } else {
+        setRoles([])
+      }
     } catch (error) {
-      console.error('获取角色列表失败')
+      console.error('获取角色列表失败', error)
+      setRoles([])
     }
   }
 

@@ -289,9 +289,69 @@ module.exports = async function (fastify, opts) {
         [employee_id]
       )
 
+      // Process records to flatten structure for frontend
+      const formattedRecords = records.map(record => {
+        const detail = typeof record.operation_detail === 'string'
+          ? JSON.parse(record.operation_detail)
+          : record.operation_detail;
+
+        const balanceAfter = typeof record.balance_after === 'string'
+          ? JSON.parse(record.balance_after)
+          : record.balance_after;
+
+        let changeType = 'adjustment';
+        let leaveType = 'general';
+        let amount = 0;
+        let reason = detail.reason || '-';
+
+        switch (record.operation_type) {
+          case 'leave_approve':
+            changeType = 'deduction';
+            leaveType = detail.leaveType;
+            amount = -detail.days;
+            reason = '请假扣减';
+            break;
+          case 'overtime_approve':
+            changeType = 'addition';
+            leaveType = 'overtime_hours';
+            amount = detail.hours;
+            reason = '加班累计';
+            break;
+          case 'overtime_convert':
+            changeType = 'conversion';
+            leaveType = 'compensatory_leave';
+            amount = detail.days;
+            reason = `加班转调休 (${detail.hours}小时 -> ${detail.days}天)`;
+            break;
+          case 'balance_adjust':
+          case 'batch_adjust':
+            changeType = 'adjustment';
+            // Try to find what changed
+            if (detail.adjustments) {
+              const adj = detail.adjustments;
+              if (adj.annual_leave_total) { leaveType = 'annual_leave'; amount = adj.annual_leave_total; }
+              else if (adj.sick_leave_total) { leaveType = 'sick_leave'; amount = adj.sick_leave_total; }
+              else if (adj.compensatory_leave_total) { leaveType = 'compensatory_leave'; amount = adj.compensatory_leave_total; }
+            }
+            break;
+        }
+
+        return {
+          id: record.id,
+          created_at: record.created_at,
+          operator_name: record.operator_name,
+          change_type: changeType,
+          leave_type: leaveType,
+          amount: amount,
+          balance_after: balanceAfter ? (balanceAfter.annual_leave_total || balanceAfter.total_days) : null, // Simplified
+          reason: reason,
+          full_detail: detail // Keep full detail just in case
+        };
+      });
+
       return {
         success: true,
-        data: records,
+        data: formattedRecords,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -412,93 +472,7 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 加班转调休
-  fastify.post('/api/vacation/overtime/convert', async (request, reply) => {
-    const { employee_id, overtime_record_id, hours } = request.body
-
-    try {
-      // 获取转换比例配置
-      const [settings] = await pool.query(
-        'SELECT setting_value FROM vacation_settings WHERE setting_key = "overtime_to_leave_ratio"'
-      )
-      const ratio = parseFloat(settings[0]?.setting_value || 8)
-      const days = (hours / ratio).toFixed(2)
-
-      const connection = await pool.getConnection()
-      await connection.beginTransaction()
-
-      try {
-        // 获取员工信息
-        const [employees] = await connection.query(
-          'SELECT user_id FROM employees WHERE id = ?',
-          [employee_id]
-        )
-
-        if (employees.length === 0) {
-          await connection.rollback()
-          connection.release()
-          return reply.code(404).send({ success: false, message: '员工不存在' })
-        }
-
-        const userId = employees[0].user_id
-        const year = parseInt(getBeijingNow().substring(0, 4))
-
-        // 获取转换前的余额
-        const balanceBefore = await getOrCreateVacationBalance(employee_id, userId, year)
-
-        // 更新加班已转换时长和调休总额度
-        await connection.query(
-          `UPDATE vacation_balances
-           SET overtime_hours_converted = overtime_hours_converted + ?,
-               compensatory_leave_total = compensatory_leave_total + ?
-           WHERE employee_id = ? AND year = ?`,
-          [hours, days, employee_id, year]
-        )
-
-        // 标记加班记录为已转换
-        await connection.query(
-          'UPDATE overtime_records SET is_compensated = 1, compensated_at = NOW() WHERE id = ?',
-          [overtime_record_id]
-        )
-
-        // 获取转换后的余额
-        const [balanceAfterRows] = await connection.query(
-          'SELECT * FROM vacation_balances WHERE employee_id = ? AND year = ?',
-          [employee_id, year]
-        )
-        const balanceAfter = balanceAfterRows[0]
-
-        // 创建审计日志
-        await createAuditLog(
-          connection,
-          employee_id,
-          userId,
-          'overtime_convert',
-          { overtime_record_id, hours, days, ratio },
-          balanceBefore,
-          balanceAfter,
-          userId,
-          request.ip
-        )
-
-        await connection.commit()
-        connection.release()
-
-        return {
-          success: true,
-          message: `已转换${hours}小时加班为${days}天调休`,
-          data: { days, balanceAfter }
-        }
-      } catch (error) {
-        await connection.rollback()
-        connection.release()
-        throw error
-      }
-    } catch (error) {
-      console.error('加班转调休失败:', error)
-      return reply.code(500).send({ success: false, message: '转换失败' })
-    }
-  })
+  
 
   // 批量调整假期额度
   fastify.post('/api/vacation/balance/batch-adjust', async (request, reply) => {

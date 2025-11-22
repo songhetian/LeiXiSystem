@@ -1,6 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { ToastContainer, toast } from 'react-toastify'
-import { connectSocket, disconnectSocket, listenSocketEvent, removeSocketListener } from './utils/socket'
 import { showNotificationToast } from './utils/notificationUtils';
 import 'react-toastify/dist/ReactToastify.css'
 import { useTokenVerification } from './hooks/useTokenVerification'
@@ -38,16 +37,14 @@ const ExamResult = lazy(() => import('./components/ExamResult'));
 const Statistics = lazy(() => import('./components/Statistics'));
 const ComingSoon = lazy(() => import('./components/ComingSoon'));
 const PersonalInfo = lazy(() => import('./components/PersonalInfo'));
-const NotificationCenter = lazy(() => import('./components/NotificationCenter'));
-const NotificationSender = lazy(() => import('./components/NotificationSender'));
-const NotificationSettings = lazy(() => import('./components/NotificationSettings'));
+
 const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'));
 const QualityRuleManagementPage = lazy(() => import('./pages/QualityRuleManagementPage'));
 const QualityStatisticsPage = lazy(() => import('./pages/QualityStatisticsPage'));
 const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
 const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
+
 const LeaveRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveRecords })));
 const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeApply })));
 const OvertimeRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeRecords })));
@@ -63,11 +60,11 @@ const ApprovalManagement = lazy(() => import('./pages/Attendance').then(module =
 const AttendanceSettings = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceSettings })));
 const CompensatoryApply = lazy(() => import('./components/CompensatoryApply'));
 const VacationDetails = lazy(() => import('./components/VacationDetails'));
+const VacationDetailsNew = lazy(() => import('./components/VacationDetailsNew'));
 const VacationSummary = lazy(() => import('./components/VacationSummary'));
 const CompensatoryApproval = lazy(() => import('./components/CompensatoryApproval'));
 const VacationQuotaSettings = lazy(() => import('./components/VacationQuotaSettings'));
 const VacationManagement = lazy(() => import('./components/VacationManagement'));
-const VacationPermissions = lazy(() => import('./components/VacationPermissions'));
 const QuotaConfigLayout = lazy(() => import('./components/QuotaConfigLayout'));
 const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
 const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
@@ -91,33 +88,14 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    if (isLoggedIn && user) {
-      const token = localStorage.getItem('token')
-      connectSocket(user.id, token)
-      const onNew = (notification) => {
-        showNotificationToast(notification)
-      }
-      const onConnectError = (err) => {
-        console.error('Socket.IO connection error:', err)
-      }
-      listenSocketEvent('notification:new', onNew)
-      listenSocketEvent('connect_error', onConnectError)
 
-      return () => {
-        removeSocketListener('notification:new', onNew)
-        removeSocketListener('connect_error', onConnectError)
-        disconnectSocket()
-      }
-    }
-  }, [isLoggedIn, user])
 
   const handleLoginSuccess = (userData) => {
     setIsLoggedIn(true)
     setUser(userData)
   }
 
-  const handleLogout = async () => {
+  const handleLogout = React.useCallback(async () => {
     const token = localStorage.getItem('token')
 
     // 如果有token，调用后端API清除session
@@ -141,7 +119,7 @@ function App() {
     setIsLoggedIn(false)
     setUser(null)
     toast.info('已退出登录')
-  }
+  }, [])
 
   // 使用token验证hook，实现单设备登录
   useTokenVerification(handleLogout, user?.id)
@@ -170,11 +148,7 @@ function App() {
       case 'org-position':
         return <PositionManagement />
 
-      // 聊天通讯
-      case 'chat-message':
-        return <ChatPage />
-      case 'chat-group':
-        return <ComingSoon title="群组管理" />
+
 
       // 考勤管理
       case 'attendance-home':
@@ -214,7 +188,7 @@ function App() {
       case 'compensatory-apply':
         return <CompensatoryApply />
       case 'vacation-details':
-        return <VacationDetails />
+        return <VacationDetailsNew />
       case 'quota-config':
         return <QuotaConfigLayout />
       case 'vacation-summary':

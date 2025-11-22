@@ -45,10 +45,11 @@ export const useTokenVerification = (onLogout) => {
             draggable: true,
           })
         } else {
-          toast.warning('登录已过期，请重新登录', {
-            position: 'top-center',
-            autoClose: 3000,
-          })
+          // 不需要这个提醒，直接退出即可
+          // toast.warning('登录已过期，请重新登录', {
+          //   position: 'top-center',
+          //   autoClose: 3000,
+          // })
         }
 
         // 停止检查
@@ -63,7 +64,11 @@ export const useTokenVerification = (onLogout) => {
         }
       }
     } catch (error) {
-      console.error('Token验证失败:', error)
+      // 静默处理网络错误,避免在后端未启动时频繁报错
+      // 只在非网络错误时记录
+      if (error.name !== 'TypeError' && !error.message.includes('Failed to fetch')) {
+        console.error('Token验证失败:', error)
+      }
       // 网络错误不退出登录，避免误判
     } finally {
       isCheckingRef.current = false

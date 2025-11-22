@@ -12,12 +12,31 @@ const VacationMonthlyView = ({ employeeId, year: initialYear }) => {
   const [year, setYear] = useState(initialYear || dayjs().year());
   const [month, setMonth] = useState(dayjs().month() + 1);
   const [conversionModalVisible, setConversionModalVisible] = useState(false);
+  const [holidays, setHolidays] = useState([]);
 
   useEffect(() => {
     if (employeeId) {
       loadMonthlyData();
     }
+    fetchHolidays();
   }, [employeeId, year, month]);
+
+  const fetchHolidays = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${getApiBaseUrl()}/vacation/holidays?year=${year}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        // Filter for current month
+        const currentMonthHolidays = result.data.filter(h => dayjs(h.date).month() + 1 === month);
+        setHolidays(currentMonthHolidays);
+      }
+    } catch (error) {
+      console.error('Failed to fetch holidays', error);
+    }
+  };
 
   const loadMonthlyData = async () => {
     setLoading(true);
@@ -81,13 +100,13 @@ const VacationMonthlyView = ({ employeeId, year: initialYear }) => {
       width: 100,
       render: (type) => getChangeTypeTag(type)
     },
-    {
-      title: '假期类型',
-      dataIndex: 'leave_type',
-      key: 'leave_type',
-      width: 100,
-      render: (type) => getLeaveTypeTag(type)
-    },
+    // {
+    //   title: '假期类型',
+    //   dataIndex: 'leave_type',
+    //   key: 'leave_type',
+    //   width: 100,
+    //   render: (type) => getLeaveTypeTag(type)
+    // },
     {
       title: '变更数量',
       dataIndex: 'amount',
@@ -166,17 +185,35 @@ const VacationMonthlyView = ({ employeeId, year: initialYear }) => {
       className="shadow-sm"
     >
       {/* Summary Row */}
-      <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between">
-        <div>
-          <span className="text-sm text-gray-600">本月统计：</span>
-          <span className="ml-4 text-green-600 font-semibold">新增 {summary.totalAdded.toFixed(1)} 天</span>
-          <span className="ml-4 text-red-600 font-semibold">使用 {summary.totalUsed.toFixed(1)} 天</span>
-          <span className="ml-4 text-blue-600 font-semibold">
-            净变化 {(summary.totalAdded - summary.totalUsed).toFixed(1)} 天
-          </span>
-        </div>
-        <div className="text-sm text-gray-500">
-          共 {data.length} 条记录
+      <div className="mb-4 space-y-4">
+        {/* Special Dates Alert */}
+        {holidays.length > 0 && (
+          <div className="p-3 bg-orange-50 border border-orange-100 rounded-lg flex flex-wrap gap-4 items-center">
+            <span className="text-sm font-medium text-orange-800">本月特殊日期:</span>
+            {holidays.map(h => (
+              <div key={h.date} className="flex items-center gap-1 text-sm">
+                <span className="text-gray-600">{dayjs(h.date).format('MM-DD')}</span>
+                <span className="font-medium text-gray-800">{h.name}</span>
+                <Tag color={h.type === 'holiday' ? 'red' : 'blue'}>
+                  {h.type === 'holiday' ? '休' : '班'}
+                </Tag>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="p-4 bg-blue-50 rounded-lg flex items-center justify-between">
+          <div>
+            <span className="text-sm text-gray-600">本月统计：</span>
+            <span className="ml-4 text-green-600 font-semibold">新增 {summary.totalAdded.toFixed(1)} 天</span>
+            <span className="ml-4 text-red-600 font-semibold">使用 {summary.totalUsed.toFixed(1)} 天</span>
+            <span className="ml-4 text-blue-600 font-semibold">
+              净变化 {(summary.totalAdded - summary.totalUsed).toFixed(1)} 天
+            </span>
+          </div>
+          <div className="text-sm text-gray-500">
+            共 {data.length} 条记录
+          </div>
         </div>
       </div>
 

@@ -126,7 +126,73 @@ const permissionRoutes = async (fastify, options) => {
     }
   });
 
-  // Update user roles
+  // Get roles for a specific user
+  fastify.get('/api/users/:id/roles', async (request, reply) => {
+    const { id } = request.params;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      const [roles] = await connection.query(`
+        SELECT r.id, r.name, r.description
+        FROM roles r
+        JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = ?
+        ORDER BY r.id
+      `, [id]);
+
+      return roles;
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Add a role to a user
+  fastify.post('/api/users/:id/roles', async (request, reply) => {
+    const { id } = request.params;
+    const { role_id } = request.body;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      // Check if user already has this role
+      const [existing] = await connection.query(
+        'SELECT * FROM user_roles WHERE user_id = ? AND role_id = ?',
+        [id, role_id]
+      );
+
+      if (existing.length > 0) {
+        return { success: false, message: '用户已拥有此角色' };
+      }
+
+      await connection.query(
+        'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+        [id, role_id]
+      );
+
+      return { success: true, message: '角色分配成功' };
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Remove a role from a user
+  fastify.delete('/api/users/:id/roles/:roleId', async (request, reply) => {
+    const { id, roleId } = request.params;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      const [result] = await connection.query(
+        'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
+        [id, roleId]
+      );
+
+      if (result.affectedRows === 0) {
+        return { success: false, message: '用户没有此角色' };
+      }
+
+      return { success: true, message: '角色移除成功' };
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Update user roles (batch update)
   fastify.put('/api/users/:id/roles', async (request, reply) => {
     const { id } = request.params;
     const { roleIds } = request.body;

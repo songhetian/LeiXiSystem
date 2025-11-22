@@ -7,14 +7,12 @@ const multipart = require('@fastify/multipart')
 const mysql = require('mysql2/promise')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-fastify.decorate('jwt', jwt);
 const fs = require('fs')
 const path = require('path')
 const { pipeline } = require('stream')
 const util = require('util')
 const pump = util.promisify(pipeline)
 require('dotenv').config()
-const notificationRoutes = require('./routes/notifications');
 
 // 引入权限中间件
 const { extractUserPermissions, applyDepartmentFilter } = require('./middleware/checkPermission')
@@ -31,8 +29,6 @@ fastify.register(multipart, {
     fileSize: 100 * 1024 * 1024 // 100MB
   }
 })
-
-// 限流插件暂不启用
 
 // 添加请求日志钩子
 fastify.addHook('onRequest', async (request, reply) => {
@@ -88,22 +84,6 @@ async function initDatabase() {
     // 将 pool 装饰到 fastify 实例上，供路由使用
     fastify.decorate('mysql', pool)
     console.error('✅ 数据库初始化成功')
-
-    // Initialize Redis client
-    const Redis = require('ioredis');
-    const redis = new Redis({
-      port: process.env.REDIS_PORT || 6379,
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      password: process.env.REDIS_PASSWORD || '',
-      db: process.env.REDIS_DB || 0,
-    });
-
-    redis.on('connect', () => console.error('✅ Redis 连接成功'));
-    redis.on('error', (err) => console.error('❌ Redis 连接错误:', err));
-
-    fastify.decorate('redis', redis); // Make redis instance available to Fastify routes
-    console.error('✅ Redis 初始化成功');
-
   } catch (error) {
     console.error('❌ 数据库初始化失败:', error)
   }
@@ -114,33 +94,15 @@ fastify.get('/api/health', async (request, reply) => {
   return { status: 'ok', message: '服务正常' }
 })
 
-// 服务器时间同步
-fastify.get('/api/time/server', async (request, reply) => {
-  return { success: true, serverTime: new Date().toISOString() }
-})
-
 // ==================== 文件上传 API ====================
 
 // 单个文件上传
-fastify.post('/api/upload', {
-  config: {
-    rateLimit: {
-      max: 5, // 5 uploads per minute
-      timeWindow: '1 minute'
-    }
-  }
-}, async (request, reply) => {
+fastify.post('/api/upload', async (request, reply) => {
   try {
     const data = await request.file()
 
     if (!data) {
       return reply.code(400).send({ error: '没有上传文件' })
-    }
-
-    // File type validation
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4', 'audio/mpeg', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
-    if (!allowedMimeTypes.includes(data.mimetype)) {
-      return reply.code(400).send({ error: `不支持的文件类型: ${data.mimetype}` });
     }
 
     // 生成唯一文件名
@@ -169,27 +131,13 @@ fastify.post('/api/upload', {
 })
 
 // 批量文件上传
-fastify.post('/api/upload/multiple', {
-  config: {
-    rateLimit: {
-      max: 2, // 2 batch uploads per minute
-      timeWindow: '1 minute'
-    }
-  }
-}, async (request, reply) => {
+fastify.post('/api/upload/multiple', async (request, reply) => {
   try {
     const parts = request.parts()
     const uploadedFiles = []
 
     for await (const part of parts) {
       if (part.file) {
-        // File type validation for multiple uploads
-        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4', 'audio/mpeg', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
-        if (!allowedMimeTypes.includes(part.mimetype)) {
-          console.warn(`Skipping unsupported file type: ${part.mimetype}`);
-          continue; // Skip this file and proceed with others
-        }
-
         // 生成唯一文件名
         const timestamp = Date.now()
         const randomStr = Math.random().toString(36).substring(7)
@@ -290,14 +238,14 @@ fastify.post('/api/auth/check-session', async (request, reply) => {
   }
 })
 
-// 用户登录
+// 用户登录 (Updated to include department_id)
 fastify.post('/api/auth/login', async (request, reply) => {
   const { username, password, forceLogin } = request.body
 
   try {
     // 查询用户
     const [users] = await pool.query(
-      'SELECT id, username, password_hash, real_name, email, phone, status FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, real_name, email, phone, status, department_id FROM users WHERE username = ?',
       [username]
     )
 
@@ -726,7 +674,6 @@ fastify.post('/api/quality-inspections', async (request, reply) => {
 })
 
 // ==================== 部门管理 API ====================
-
 // 获取部门列表
 fastify.get('/api/departments', async (request, reply) => {
   try {
@@ -747,7 +694,7 @@ fastify.get('/api/departments', async (request, reply) => {
     // 如果是用于管理目的（如配置角色部门权限），则返回所有部门
     // 否则应用正常的权限控制
     if (forManagement !== 'true') {
-
+      // 不管是不是超级管理员，都根据JWT中的部门来显示
       // 使用部门权限逻辑：能看到的部门只和配置有关，和身份无关
       if (!permissions) {
         // 没有权限信息（未登录或无角色），不显示任何部门
@@ -766,6 +713,7 @@ fastify.get('/api/departments', async (request, reply) => {
         query += ' AND 1=0';
       }
     }
+    // 如果 permissions.canViewAllDepartments 为 true，则不添加任何过滤条件
 
     query += ' ORDER BY sort_order, created_at DESC';
 
@@ -813,6 +761,8 @@ fastify.put('/api/departments/:id', async (request, reply) => {
       const [employees] = await pool.query(`
         SELECT e.id, e.user_id
         FROM employees e
+
+
         LEFT JOIN users u ON e.user_id = u.id
         WHERE u.department_id = ?
       `, [id]);
@@ -1513,12 +1463,17 @@ fastify.post('/api/employee-changes/create', async (request, reply) => {
     });
   }
 });
+
+// 保持在文件末尾调�?start()
+
+// ==================== 知识库管�?API ====================
+
+// 获取知识库分类列�?
 fastify.get('/api/knowledge/categories', async (request, reply) => {
   try {
     const [rows] = await pool.query(`
-      SELECT *
-      FROM knowledge_categories
-      WHERE is_deleted = 0
+      SELECT * FROM knowledge_categories
+      WHERE is_deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `);
     return rows;
@@ -1528,21 +1483,17 @@ fastify.get('/api/knowledge/categories', async (request, reply) => {
   }
 });
 
-// 创建知识库分类
+// 创建知识库分�?
 fastify.post('/api/knowledge/categories', async (request, reply) => {
-  const { name, description, icon, owner_id, type, is_public } = request.body;
+  const { name, description, icon } = request.body;
   try {
     if (!name) {
       return reply.code(400).send({ error: 'Category name is required' });
     }
 
-    const ownerId = owner_id || null;
-    const catType = type || 'common';
-    const isPublic = typeof is_public === 'number' ? is_public : 1;
-
     const [result] = await pool.query(
-      'INSERT INTO knowledge_categories (name, description, icon, owner_id, type, is_public) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, description || null, icon || '', ownerId, catType, isPublic]
+      'INSERT INTO knowledge_categories (name, description, icon) VALUES (?, ?, ?)',
+      [name, description || null, icon || '📁']
     );
 
     return { success: true, id: result.insertId };
@@ -1671,35 +1622,19 @@ fastify.post('/api/knowledge/categories/:id/toggle-visibility', async (request, 
 
 // 创建知识文章
 fastify.post('/api/knowledge/articles', async (request, reply) => {
-  const { title, category_id, summary, content, type, status, icon, attachments, is_public } = request.body;
+  const { title, category_id, summary, content, type, status, icon, attachments } = request.body;
   try {
     const attachmentsJson = attachments && attachments.length > 0 ? JSON.stringify(attachments) : null;
-    const userId = request.user?.id || null;
-    const articleType = type || 'common';
-    const articleStatus = status || 'published';
-    const isPublic = typeof is_public === 'number' ? is_public : 0; // 默认不公开
 
     const [result] = await pool.query(
       `INSERT INTO knowledge_articles
-      (title, category_id, summary, content, attachments, type, status, icon, created_by, owner_id, is_public)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        category_id || null,
-        summary || null,
-        content || '',
-        attachmentsJson,
-        articleType,
-        articleStatus,
-        icon || '📄',
-        userId,
-        userId,
-        isPublic
-      ]
+      (title, category_id, summary, content, attachments, type, status, icon, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, category_id || null, summary || null, content, attachmentsJson, type, status, icon || '📄', request.user?.id || null]
     );
     return { success: true, id: result.insertId };
   } catch (error) {
-    console.error('Failed to create knowledge article:', error);
+    console.error(error);
     reply.code(500).send({ error: 'Failed to create knowledge article' });
   }
 });
@@ -2091,77 +2026,6 @@ fastify.post('/api/knowledge/recycle-bin/empty', async (request, reply) => {
   }
 });
 
-// ==================== 考试分类管理 API ====================
-
-// 获取考试分类列表
-fastify.get('/api/exam-categories', async (request, reply) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        ec.*,
-        COUNT(e.id) as exam_count
-      FROM exam_categories ec
-      LEFT JOIN exams e ON ec.id = e.category_id
-      GROUP BY ec.id
-      ORDER BY ec.created_at DESC
-    `);
-    return rows;
-  } catch (error) {
-    console.error('获取考试分类失败:', error);
-    reply.code(500).send({ error: '获取考试分类失败' });
-  }
-});
-
-// 创建考试分类
-fastify.post('/api/exam-categories', async (request, reply) => {
-  const { name, description, icon } = request.body;
-
-  try {
-    const [result] = await pool.query(
-      'INSERT INTO exam_categories (name, description, icon) VALUES (?, ?, ?)',
-      [name, description || null, icon || '📁']
-    );
-    return { success: true, id: result.insertId };
-  } catch (error) {
-    console.error('创建考试分类失败:', error);
-    reply.code(500).send({ error: '创建考试分类失败' });
-  }
-});
-
-// 更新考试分类
-fastify.put('/api/exam-categories/:id', async (request, reply) => {
-  const { id } = request.params;
-  const { name, description, icon } = request.body;
-
-  try {
-    await pool.query(
-      'UPDATE exam_categories SET name = ?, description = ?, icon = ? WHERE id = ?',
-      [name, description || null, icon || '📁', id]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error('更新考试分类失败:', error);
-    reply.code(500).send({ error: '更新考试分类失败' });
-  }
-});
-
-// 删除考试分类
-fastify.delete('/api/exam-categories/:id', async (request, reply) => {
-  const { id } = request.params;
-
-  try {
-    // 将关联的考试�?category_id 设置�?NULL
-    await pool.query('UPDATE exams SET category_id = NULL WHERE category_id = ?', [id]);
-
-    // 删除分类
-    await pool.query('DELETE FROM exam_categories WHERE id = ?', [id]);
-
-    return { success: true };
-  } catch (error) {
-    console.error('删除考试分类失败:', error);
-    reply.code(500).send({ error: '删除考试分类失败' });
-  }
-});
 
 // 增加文档浏览量
 fastify.post('/api/knowledge/articles/:id/view', async (request, reply) => {
@@ -2371,24 +2235,24 @@ fastify.get('/api/knowledge/articles/:id/collected', async (request, reply) => {
   }
 });
 
-// 获取我的分类（用户创建的分类，按新知识库表结构）
+// 获取我的分类（用户创建的分类）
 fastify.get('/api/my-knowledge/categories', async (request, reply) => {
   try {
-    // 如果没有用户认证，返回所有未删除分类
+    // 如果没有用户认证，返回所有分类
     const userId = request.user?.id || null;
 
     let query = `
       SELECT * FROM knowledge_categories
-      WHERE is_deleted = 0
+      WHERE deleted_at IS NULL
     `;
     const params = [];
 
     if (userId) {
-      query += ` AND owner_id = ?`;
+      query += ` AND created_by = ?`;
       params.push(userId);
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ` ORDER BY sort_order, created_at DESC`;
 
     const [rows] = await pool.query(query, params);
     return rows;
@@ -2720,150 +2584,9 @@ fastify.post('/api/knowledge/articles/search', async (request, reply) => {
   }
 });
 
-// ==================== 权限管理 API ====================
 
-// 获取所有角色列表
-fastify.get('/api/roles', async (request, reply) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        r.*,
-        COUNT(DISTINCT ur.user_id) as user_count,
-        COUNT(DISTINCT rp.permission_id) as permission_count
-      FROM roles r
-      LEFT JOIN user_roles ur ON r.id = ur.role_id
-      LEFT JOIN role_permissions rp ON r.id = rp.role_id
-      GROUP BY r.id
-      ORDER BY r.level DESC, r.created_at DESC
-    `);
-    return rows;
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to fetch roles' });
-  }
-});
 
-// 创建角色
-fastify.post('/api/roles', async (request, reply) => {
-  const { name, description, level, can_view_all_departments } = request.body;
-  try {
-    const [result] = await pool.query(
-      'INSERT INTO roles (name, description, level, is_system, can_view_all_departments) VALUES (?, ?, ?, 0, ?)',
-      [name, description || null, level || 1, can_view_all_departments || 0]
-    );
-    return { success: true, id: result.insertId };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to create role' });
-  }
-});
 
-// 更新角色
-fastify.put('/api/roles/:id', async (request, reply) => {
-  const { id } = request.params;
-  const { name, description, level, can_view_all_departments } = request.body;
-  try {
-    // 检查是否为系统角色
-    const [roleRows] = await pool.query('SELECT is_system FROM roles WHERE id = ?', [id]);
-
-    if (roleRows.length > 0 && roleRows[0].is_system === 1) {
-      // 系统角色只允许修改 can_view_all_departments 字段
-      await pool.query(
-        'UPDATE roles SET can_view_all_departments = ? WHERE id = ?',
-        [can_view_all_departments || 0, id]
-      );
-      return { success: true, message: '系统角色只能修改部门查看权限' };
-    }
-
-    // 非系统角色可以修改所有字段
-    await pool.query(
-      'UPDATE roles SET name = ?, description = ?, level = ?, can_view_all_departments = ? WHERE id = ?',
-      [name, description || null, level || 1, can_view_all_departments || 0, id]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to update role' });
-  }
-});
-
-// 删除角色
-fastify.delete('/api/roles/:id', async (request, reply) => {
-  const { id } = request.params;
-  try {
-    // 检查是否为系统角色
-    const [roleRows] = await pool.query('SELECT is_system FROM roles WHERE id = ?', [id]);
-    if (roleRows.length > 0 && roleRows[0].is_system === 1) {
-      return reply.code(403).send({ error: 'Cannot delete system role' });
-    }
-
-    await pool.query('DELETE FROM roles WHERE id = ?', [id]);
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to delete role' });
-  }
-});
-
-// 获取所有权限列表
-fastify.get('/api/permissions', async (request, reply) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM permissions ORDER BY module, id');
-    return rows;
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to fetch permissions' });
-  }
-});
-
-// 获取角色的权限列表
-fastify.get('/api/roles/:id/permissions', async (request, reply) => {
-  const { id } = request.params;
-  try {
-    const [rows] = await pool.query(`
-      SELECT p.*
-      FROM permissions p
-      INNER JOIN role_permissions rp ON p.id = rp.permission_id
-      WHERE rp.role_id = ?
-      ORDER BY p.module, p.id
-    `, [id]);
-    return rows;
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to fetch role permissions' });
-  }
-});
-
-// 为角色添加权限
-fastify.post('/api/roles/:id/permissions', async (request, reply) => {
-  const { id } = request.params;
-  const { permission_id } = request.body;
-  try {
-    await pool.query(
-      'INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
-      [id, permission_id]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to add permission' });
-  }
-});
-
-// 移除角色的权限
-fastify.delete('/api/roles/:roleId/permissions/:permissionId', async (request, reply) => {
-  const { roleId, permissionId } = request.params;
-  try {
-    await pool.query(
-      'DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?',
-      [roleId, permissionId]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to remove permission' });
-  }
-});
 
 // ==================== 角色部门权限管理 API ====================
 
@@ -2999,54 +2722,6 @@ fastify.get('/api/users-with-roles', async (request, reply) => {
   }
 });
 
-// 获取用户的角色列表
-fastify.get('/api/users/:id/roles', async (request, reply) => {
-  const { id } = request.params;
-  try {
-    const [rows] = await pool.query(`
-      SELECT r.*
-      FROM roles r
-      INNER JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = ?
-      ORDER BY r.level DESC
-    `, [id]);
-    return rows;
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to fetch user roles' });
-  }
-});
-
-// 为用户分配角色
-fastify.post('/api/users/:id/roles', async (request, reply) => {
-  const { id } = request.params;
-  const { role_id } = request.body;
-  try {
-    await pool.query(
-      'INSERT IGNORE INTO user_roles (user_id, role_id, assigned_by) VALUES (?, ?, ?)',
-      [id, role_id, request.user?.id || null]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to assign role' });
-  }
-});
-
-// 移除用户的角色
-fastify.delete('/api/users/:userId/roles/:roleId', async (request, reply) => {
-  const { userId, roleId } = request.params;
-  try {
-    await pool.query(
-      'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
-      [userId, roleId]
-    );
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to remove role' });
-  }
-});
 
 // 获取用户的所有权限（通过角色）
 fastify.get('/api/users/:id/permissions', async (request, reply) => {
@@ -3099,45 +2774,42 @@ fastify.register(require('./routes/schedules'));
 fastify.register(require('./routes/schedule-excel'));
 fastify.register(require('./routes/attendance-approval'));
 
+// ==================== 增强功能路由 ====================
+fastify.register(require('./routes/export'));
+fastify.register(require('./routes/smart-schedule'));
+
+// ==================== 职位管理路由 ====================
+fastify.register(require('./routes/positions'))
+
+// ==================== 权限管理路由 ====================
+fastify.register(require('./routes/permissions'))
+
+// ==================== 部门管理路由 ====================
+fastify.register(require('./routes/departments'))
+
+// ==================== 考核系统路由 ====================
+fastify.register(require('./routes/exams'))
+fastify.register(require('./routes/exam-categories'))
+fastify.register(require('./routes/assessment-plans'))
+fastify.register(require('./routes/assessment-results'))
+
+// ==================== 学习中心路由 ====================
+fastify.register(require('./routes/learning-tasks'))
+fastify.register(require('./routes/learning-plans'))
+fastify.register(require('./routes/learning-center'))
+
 // ==================== 假期管理路由 ====================
-fastify.register(require('./routes/vacation-balance'));
-fastify.register(require('./routes/compensatory-leave'));
-fastify.register(require('./routes/vacation-stats'));
+fastify.register(require('./routes/vacation-settings'))
+fastify.register(require('./routes/holidays'))
+fastify.register(require('./routes/conversion-rules'))
+fastify.register(require('./routes/vacation-balance'))
+fastify.register(require('./routes/compensatory-leave'))
+fastify.register(require('./routes/vacation-type-balances'))
 
 const start = async () => {
   try {
     await initDatabase();
-
-    // 初始化 Socket.IO（需在启动前装饰到 fastify）
-    const io = new Server(fastify.server, {
-      cors: {
-        origin: "*", // Allow all origins for now, refine later
-        methods: ["GET", "POST"]
-      },
-      // Enable message compression
-      allowEIO3: true, // For compatibility with older clients if needed
-      perMessageDeflate: {
-        threshold: 1024, // Compress messages larger than 1KB
-        zlibDeflateOptions: {
-          chunkSize: 16 * 1024, // Larger chunks for better compression
-          level: 9, // Maximum compression level
-        },
-        zlibInflateOptions: {
-          chunkSize: 16 * 1024,
-        },
-        clientNoContextTakeover: true, // Don't use context takeover for clients
-        serverNoContextTakeover: true, // Don't use context takeover for server
-        serverMaxWindowBits: 14, // Max window bits for server
-        concurrencyLimit: 10, // Limit compression concurrency
-      }
-    });
-    fastify.decorate('io', io);
-    require('./socket-handlers')(io, fastify);
-    console.log('✅ Socket.IO initialized');
-
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
-    console.log('✅ Fastify server listening on http://localhost:3001')
-
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

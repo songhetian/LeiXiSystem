@@ -1,3 +1,0 @@
-ALTER TABLE quality_sessions
-ADD COLUMN platform VARCHAR(255) NOT NULL COMMENT '平台来源',
-ADD COLUMN shop VARCHAR(255) NOT NULL COMMENT '店铺名称';

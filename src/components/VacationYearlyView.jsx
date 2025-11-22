@@ -107,22 +107,14 @@ const VacationYearlyView = ({ employeeId, year: initialYear }) => {
       >
         <div className="space-y-4">
           {/* Monthly Summary */}
-          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <div className="text-xs text-gray-500 mb-1">年假使用</div>
-              <div className="text-lg font-bold text-blue-600">{monthData.annualUsed.toFixed(1)} 天</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 mb-1">加班假使用</div>
-              <div className="text-lg font-bold text-green-600">{monthData.overtimeUsed.toFixed(1)} 天</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 mb-1">病假使用</div>
-              <div className="text-lg font-bold text-orange-600">{monthData.sickUsed.toFixed(1)} 天</div>
-            </div>
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
             <div>
               <div className="text-xs text-gray-500 mb-1">总使用</div>
               <div className="text-lg font-bold text-gray-800">{monthData.totalUsed.toFixed(1)} 天</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">总增加</div>
+              <div className="text-lg font-bold text-green-600">{monthData.totalAdded.toFixed(1)} 天</div>
             </div>
           </div>
 
@@ -205,24 +197,14 @@ const VacationYearlyView = ({ employeeId, year: initialYear }) => {
         <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
           <div className="text-lg font-semibold text-gray-800 mb-4">{year}年度汇总</div>
           <div className="grid grid-cols-5 gap-4">
-            <div className="text-center">
-              <div className="text-xs text-gray-600 mb-2">年假使用</div>
-              <div className="text-2xl font-bold text-blue-600">{yearlySummary.annualUsed.toFixed(1)}</div>
-              <div className="text-xs text-gray-500 mt-1">天</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-600 mb-2">加班假使用</div>
-              <div className="text-2xl font-bold text-green-600">{yearlySummary.overtimeUsed.toFixed(1)}</div>
-              <div className="text-xs text-gray-500 mt-1">天</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-600 mb-2">病假使用</div>
-              <div className="text-2xl font-bold text-orange-600">{yearlySummary.sickUsed.toFixed(1)}</div>
-              <div className="text-xs text-gray-500 mt-1">天</div>
-            </div>
-            <div className="text-center">
+            <div className="text-center col-span-2">
               <div className="text-xs text-gray-600 mb-2">总使用</div>
               <div className="text-2xl font-bold text-gray-800">{yearlySummary.totalUsed.toFixed(1)}</div>
+              <div className="text-xs text-gray-500 mt-1">天</div>
+            </div>
+            <div className="text-center col-span-2">
+              <div className="text-xs text-gray-600 mb-2">总增加</div>
+              <div className="text-2xl font-bold text-green-600">{yearlySummary.totalAdded.toFixed(1)}</div>
               <div className="text-xs text-gray-500 mt-1">天</div>
             </div>
             <div className="text-center">

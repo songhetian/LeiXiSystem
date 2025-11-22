@@ -82,6 +82,8 @@ function PermissionManagement() {
 
   // 快速权限模板
   const [selectedTemplate, setSelectedTemplate] = useState('custom')
+  // 角色分配模态框搜索
+  const [roleSearchKeyword, setRoleSearchKeyword] = useState('')
 
   useEffect(() => {
     fetchData()
@@ -273,32 +275,57 @@ function PermissionManagement() {
   const fetchRoles = async () => {
     try {
       const response = await fetch(getApiUrl('/api/roles'))
-      const data = await response.json()
-      setRoles(data)
-      setFilteredRoles(data)
+      const result = await response.json()
+      let rolesData = []
+      if (Array.isArray(result)) {
+        rolesData = result
+      } else if (result.success && Array.isArray(result.data)) {
+        rolesData = result.data
+      }
+      setRoles(rolesData)
+      setFilteredRoles(rolesData)
     } catch (error) {
+      console.error('获取角色列表失败', error)
       toast.error('获取角色列表失败')
+      setRoles([])
+      setFilteredRoles([])
     }
   }
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch(getApiUrl('/api/users-with-roles'))
-      const data = await response.json()
-      setUsers(data)
-      setFilteredUsers(data)
+      const response = await fetch(getApiUrl('/api/users/roles')) // Changed endpoint to match backend
+      const result = await response.json()
+      let usersData = []
+      if (Array.isArray(result)) {
+        usersData = result
+      } else if (result.success && Array.isArray(result.data)) {
+        usersData = result.data
+      }
+      setUsers(usersData)
+      setFilteredUsers(usersData)
     } catch (error) {
+      console.error('获取用户列表失败', error)
       toast.error('获取用户列表失败')
+      setUsers([])
+      setFilteredUsers([])
     }
   }
 
   const fetchPermissions = async () => {
     try {
       const response = await fetch(getApiUrl('/api/permissions'))
-      const data = await response.json()
-      setPermissions(data)
+      const result = await response.json()
+      let permissionsData = []
+      if (Array.isArray(result)) {
+        permissionsData = result
+      } else if (result.success && Array.isArray(result.data)) {
+        permissionsData = result.data
+      }
+      setPermissions(permissionsData)
     } catch (error) {
-      console.error('获取权限列表失败')
+      console.error('获取权限列表失败', error)
+      setPermissions([])
     }
   }
 
@@ -486,16 +513,13 @@ function PermissionManagement() {
     }
   }
 
-  const handleToggleUserRole = async (roleId, hasRole) => {
+  const handleSetUserRole = async (roleId) => {
     try {
-      const url = hasRole
-        ? getApiUrl(`/api/users/${selectedUser.id}/roles/${roleId}`)
-        : getApiUrl(`/api/users/${selectedUser.id}/roles`)
-
-      const response = await fetch(url, {
-        method: hasRole ? 'DELETE' : 'POST',
+      // 使用 PUT 方法替换用户的所有角色
+      const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}/roles`), {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: hasRole ? undefined : JSON.stringify({ role_id: roleId })
+        body: JSON.stringify({ roleIds: [roleId] })
       })
 
       if (response.ok) {
@@ -503,14 +527,17 @@ function PermissionManagement() {
         const data = await res.json()
         setSelectedUser({ ...selectedUser, userRoles: data })
         fetchUsers()
-        toast.success(hasRole ? '角色已移除' : '角色已分配')
+        toast.success('角色已更新')
 
         // 如果修改的是当前用户，刷新权限
         const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
         if (currentUser.id === selectedUser.id) {
           refreshCurrentUserPermissions()
-          toast.info('您的权限已更新，部分功能可能需要刷新页面才能生效')
+          // 移除提示信息，避免打扰
         }
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.message || '操作失败')
       }
     } catch (error) {
       toast.error('操作失败')
@@ -664,7 +691,8 @@ function PermissionManagement() {
         {activeTab === 'users' && (
           <div>
             {/* 筛选条件 */}
-            <div className="grid grid-cols-5 gap-4 mb-4">
+            {/* 筛选条件 */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <select
                 value={userFilters.department}
                 onChange={(e) => {
@@ -787,28 +815,44 @@ function PermissionManagement() {
                         {user.position || '-'}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1 justify-center">
                           {user.roles && user.roles.length > 0 ? (
-                            user.roles.map(role => (
-                              <span key={role.id} className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-700">
-                                {role.name}
-                              </span>
-                            ))
-                        ) : (
-                          <span className="text-sm text-gray-400">未分配角色</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-500">
-                      {user.created_at ? formatDate(user.created_at) : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleManageUserRoles(user)}
-                        className="px-4 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm"
-                      >
-                        管理角色
-                      </button>
+                            <>
+                              {user.roles.slice(0, 2).map(role => (
+                                <span key={role.id} className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-700 border border-primary-200">
+                                  {role.name}
+                                </span>
+                              ))}
+                              {user.roles.length > 2 && (
+                                <div className="relative group">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600 border border-gray-200 cursor-help">
+                                    +{user.roles.length - 2}
+                                  </span>
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-48 bg-gray-800 text-white text-xs rounded p-2 shadow-lg">
+                                    <div className="space-y-1">
+                                      {user.roles.slice(2).map(role => (
+                                        <div key={role.id}>{role.name}</div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-400">未分配角色</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center text-sm text-gray-500">
+                        {user.created_at ? formatDate(user.created_at) : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => handleManageUserRoles(user)}
+                          className="px-4 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm"
+                        >
+                          管理角色
+                        </button>
                     </td>
                   </tr>
                 ))}
@@ -1112,39 +1156,65 @@ function PermissionManagement() {
       {/* 用户角色管理模态框 */}
       <Modal
         isOpen={isUserRoleModalOpen}
-        onClose={() => setIsUserRoleModalOpen(false)}
+        onClose={() => {
+          setIsUserRoleModalOpen(false)
+          setRoleSearchKeyword('')
+        }}
         title={`管理角色 - ${selectedUser?.real_name}`}
+        size="large"
       >
         <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
             <div className="text-sm text-gray-600 space-y-1">
               <div><span className="font-medium">用户名：</span>{selectedUser?.username}</div>
               <div><span className="font-medium">部门：</span>{selectedUser?.department_name || '-'}</div>
             </div>
+            <div className="w-64">
+               <input
+                type="text"
+                placeholder="搜索角色..."
+                value={roleSearchKeyword}
+                onChange={(e) => setRoleSearchKeyword(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            {roles.map(role => {
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-1">
+            {roles
+              .filter(role => role.name.toLowerCase().includes(roleSearchKeyword.toLowerCase()))
+              .map(role => {
               const hasRole = selectedUser?.userRoles?.some(r => r.id === role.id)
               return (
-                <label key={role.id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-3 rounded border">
+                <label key={role.id} className={`flex items-start gap-3 cursor-pointer p-3 rounded-lg border transition-all ${
+                  hasRole ? 'bg-primary-50 border-primary-200 ring-1 ring-primary-200' : 'hover:bg-gray-50 border-gray-200'
+                }`}>
                   <input
-                    type="checkbox"
+                    type="radio"
+                    name="userRole"
                     checked={hasRole}
-                    onChange={() => handleToggleUserRole(role.id, hasRole)}
-                    className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                    onChange={() => handleSetUserRole(role.id)}
+                    className="w-4 h-4 text-primary-600 focus:ring-primary-500 mt-1"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">{role.name}</div>
-                    <div className="text-xs text-gray-500">{role.description}</div>
+                    <div className="flex items-center justify-between">
+                        <div className={`text-sm font-medium ${hasRole ? 'text-primary-900' : 'text-gray-900'}`}>{role.name}</div>
+                        <span className={`px-1.5 py-0.5 text-xs rounded ${hasRole ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                            Lv.{role.level}
+                        </span>
+                    </div>
+                    <div className={`text-xs mt-1 ${hasRole ? 'text-primary-700' : 'text-gray-500'}`}>{role.description || '暂无描述'}</div>
                   </div>
-                  <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-                    级别 {role.level}
-                  </span>
                 </label>
               )
             })}
           </div>
+
+          {roles.filter(role => role.name.toLowerCase().includes(roleSearchKeyword.toLowerCase())).length === 0 && (
+             <div className="text-center py-8 text-gray-500">
+                没有找到匹配的角色
+             </div>
+          )}
         </div>
       </Modal>
 

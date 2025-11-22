@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Modal, Input, InputNumber, Select, message, Empty, Spin, Tag, AutoComplete, Checkbox } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CalendarOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Card, Button, Modal, InputNumber, Select, message, Empty, Spin, Tag } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CalendarOutlined } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import dayjs from 'dayjs';
 
@@ -13,33 +13,16 @@ const HolidayConfig = () => {
   const [monthlySummary, setMonthlySummary] = useState([]);
   const [vacationTypes, setVacationTypes] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState(null);
-  const [recentNames, setRecentNames] = useState([]);
   const [form, setForm] = useState({
-    name: '',
     days: 1,
     month: 1,
     vacation_type_id: null
-  });
-  const [batchForm, setBatchForm] = useState({
-    name: '',
-    days: 1,
-    months: []
   });
 
   useEffect(() => {
     loadData();
     loadVacationTypes();
-    // 加载最近使用的假期名称
-    const saved = localStorage.getItem('recentHolidayNames');
-    if (saved) {
-      try {
-        setRecentNames(JSON.parse(saved));
-      } catch (e) {
-        setRecentNames([]);
-      }
-    }
   }, [year]);
 
   const loadData = async () => {
@@ -88,16 +71,21 @@ const HolidayConfig = () => {
     }
   };
 
+  // 根据假期类型名称查找类型ID
+  const findVacationTypeByName = (typeName) => {
+    const type = vacationTypes.find(t => t.name === typeName);
+    return type?.id || null;
+  };
+
   const handleAdd = (month) => {
     setEditingHoliday(null);
-    setForm({ name: '', days: 1, month, vacation_type_id: null });
+    setForm({ days: 1, month, vacation_type_id: null });
     setModalVisible(true);
   };
 
   const handleEdit = (holiday) => {
     setEditingHoliday(holiday);
     setForm({
-      name: holiday.name,
       days: holiday.days,
       month: holiday.month,
       vacation_type_id: holiday.vacation_type_id || null
@@ -132,18 +120,18 @@ const HolidayConfig = () => {
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.days || !form.month) {
-      message.error('请填写完整信息');
-      return;
-    }
-
-    if (form.name.length > 20) {
-      message.error('假期名称不能超过20个字符');
+    if (!form.vacation_type_id || !form.days || !form.month) {
+      message.error('请选择假期类型并填写完整信息');
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
+
+      // 获取假期类型名称作为name
+      const selectedType = vacationTypes.find(t => t.id === form.vacation_type_id);
+      const name = selectedType?.name || '假期';
+
       const url = editingHoliday
         ? `${getApiBaseUrl()}/holidays/${editingHoliday.id}`
         : `${getApiBaseUrl()}/holidays`;
@@ -155,9 +143,11 @@ const HolidayConfig = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ...form,
+          name,
+          days: form.days,
+          month: form.month,
           year: editingHoliday ? undefined : year,
-          vacation_type_id: form.vacation_type_id || null
+          vacation_type_id: form.vacation_type_id
         })
       });
 
@@ -165,14 +155,6 @@ const HolidayConfig = () => {
 
       if (result.success) {
         message.success(editingHoliday ? '更新成功' : '创建成功');
-
-        // 记忆假期名称
-        if (!editingHoliday && form.name && !recentNames.includes(form.name)) {
-          const newRecentNames = [form.name, ...recentNames.slice(0, 9)];
-          setRecentNames(newRecentNames);
-          localStorage.setItem('recentHolidayNames', JSON.stringify(newRecentNames));
-        }
-
         setModalVisible(false);
         loadData();
       } else {
@@ -183,73 +165,35 @@ const HolidayConfig = () => {
     }
   };
 
-  const handleBatchSubmit = async () => {
-    if (!batchForm.name || !batchForm.days || batchForm.months.length === 0) {
-      message.error('请填写完整信息并选择至少一个月份');
-      return;
-    }
-
+  const handleQuickAdd = async (typeName, days, month) => {
     try {
       const token = localStorage.getItem('token');
-      let successCount = 0;
 
-      for (const month of batchForm.months) {
-        const response = await fetch(`${getApiBaseUrl()}/holidays`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: batchForm.name,
-            days: batchForm.days,
-            month: month,
-            year: year
-          })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          successCount++;
-        }
+      // 查找假期类型,如果不存在则提示
+      const typeId = findVacationTypeByName(typeName);
+      if (!typeId) {
+        message.warning(`假期类型"${typeName}"不存在,请先在假期类型管理中创建该类型`);
+        return;
       }
 
-      if (successCount > 0) {
-        message.success(`成功添加 ${successCount} 个节假日`);
-
-        // 记忆假期名称
-        if (!recentNames.includes(batchForm.name)) {
-          const newRecentNames = [batchForm.name, ...recentNames.slice(0, 9)];
-          setRecentNames(newRecentNames);
-          localStorage.setItem('recentHolidayNames', JSON.stringify(newRecentNames));
-        }
-
-        setBatchModalVisible(false);
-        setBatchForm({ name: '', days: 1, months: [] });
-        loadData();
-      } else {
-        message.error('批量添加失败');
-      }
-    } catch (error) {
-      message.error('批量添加失败');
-    }
-  };
-
-  const handleQuickAdd = async (name, days, month) => {
-    try {
-      const token = localStorage.getItem('token');
       const response = await fetch(`${getApiBaseUrl()}/holidays`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name, days, month, year })
+        body: JSON.stringify({
+          name: typeName,
+          days,
+          month,
+          year,
+          vacation_type_id: typeId
+        })
       });
 
       const result = await response.json();
       if (result.success) {
-        message.success(`已添加${name}`);
+        message.success(`已添加${typeName}`);
         loadData();
       } else {
         message.error(result.message || '添加失败');
@@ -315,9 +259,6 @@ const HolidayConfig = () => {
         <Button icon={<PlusOutlined />} onClick={() => handleQuickAdd('国庆节', 7, 10)}>
           快速添加国庆节
         </Button>
-        <Button type="primary" icon={<AppstoreOutlined />} onClick={() => setBatchModalVisible(true)}>
-          批量配置
-        </Button>
       </div>
 
       {/* 月度卡片视图 */}
@@ -366,7 +307,7 @@ const HolidayConfig = () => {
                         className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex-1">
-                          <div className="font-medium text-gray-800">{holiday.name}</div>
+                          <div className="font-medium text-gray-800">{holiday.vacation_type_name || holiday.name}</div>
                           <div className="text-sm text-gray-500">{holiday.days} 天</div>
                         </div>
                         <div className="flex gap-1">
@@ -406,10 +347,10 @@ const HolidayConfig = () => {
         <div className="space-y-4 py-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              假期类型
+              假期类型 <span className="text-red-500">*</span>
             </label>
             <Select
-              placeholder="选择假期类型（可选）"
+              placeholder="选择假期类型"
               value={form.vacation_type_id}
               onChange={(value) => {
                 const selectedType = vacationTypes.find(t => t.id === value);
@@ -420,30 +361,14 @@ const HolidayConfig = () => {
                   days: selectedType?.base_days > 0 ? selectedType.base_days : form.days
                 });
               }}
-              allowClear
               className="w-full"
             >
               {vacationTypes.map(type => (
                 <Option key={type.id} value={type.id}>
-                  {type.name} {type.base_days > 0 && `(${type.base_days}天)`}
+                  {type.name}
                 </Option>
               ))}
             </Select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              假期名称 <span className="text-red-500">*</span>
-            </label>
-            <AutoComplete
-              value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
-              options={recentNames.map(name => ({ value: name }))}
-              placeholder="输入假期名称或选择最近使用（最多20字符）"
-              filterOption={(inputValue, option) =>
-                option.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-              }
-              className="w-full"
-            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -472,70 +397,6 @@ const HolidayConfig = () => {
                 </Option>
               ))}
             </Select>
-          </div>
-        </div>
-      </Modal>
-
-      {/* 批量配置模态框 */}
-      <Modal
-        title="批量配置节假日"
-        open={batchModalVisible}
-        onCancel={() => setBatchModalVisible(false)}
-        onOk={handleBatchSubmit}
-        okText="批量添加"
-        cancelText="取消"
-        width={600}
-      >
-        <div className="space-y-4 py-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              假期名称 <span className="text-red-500">*</span>
-            </label>
-            <AutoComplete
-              value={batchForm.name}
-              onChange={(value) => setBatchForm({ ...batchForm, name: value })}
-              options={recentNames.map(name => ({ value: name }))}
-              placeholder="输入假期名称或选择最近使用"
-              filterOption={(inputValue, option) =>
-                option.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-              }
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              天数 <span className="text-red-500">*</span>
-            </label>
-            <InputNumber
-              min={1}
-              max={31}
-              value={batchForm.days}
-              onChange={(value) => setBatchForm({ ...batchForm, days: value })}
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              应用月份 <span className="text-red-500">*</span>
-            </label>
-            <Checkbox.Group
-              value={batchForm.months}
-              onChange={(values) => setBatchForm({ ...batchForm, months: values })}
-              className="w-full"
-            >
-              <div className="grid grid-cols-4 gap-2">
-                {monthNames.map((name, index) => (
-                  <Checkbox key={index + 1} value={index + 1}>
-                    {name}
-                  </Checkbox>
-                ))}
-              </div>
-            </Checkbox.Group>
-            <p className="text-sm text-gray-500 mt-2">
-              选择的月份将批量添加该节假日
-            </p>
           </div>
         </div>
       </Modal>

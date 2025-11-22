@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import NotificationBadge from './NotificationBadge';
+
 import {
   UserOutlined,
   TeamOutlined,
@@ -37,7 +37,7 @@ import {
 
 const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   // State to manage which menus are expanded
-  const [expandedMenus, setExpandedMenus] = useState(['user', 'org', 'chat']);
+  const [expandedMenus, setExpandedMenus] = useState(['user', 'org']);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Recursive function to filter children based on admin status
@@ -201,7 +201,7 @@ const UserInfo = ({ user, onNavigate }) => (
         <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-lg text-white font-semibold">
           {user?.real_name?.charAt(0) || '用户'}
         </div>
-        <NotificationBadge onNavigate={onNavigate} />
+
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate text-gray-800">{user?.real_name || '用户'}</p>
@@ -365,15 +365,6 @@ const allMenuItems = [
     ],
   },
   {
-    id: 'chat',
-    label: '聊天通讯',
-    icon: <MessageOutlined />,
-    children: [
-      { id: 'chat-message', label: '即时通讯', icon: <MessageOutlined /> },
-      { id: 'chat-group', label: '群组管理', icon: <TeamOutlined /> },
-    ],
-  },
-  {
     id: 'attendance',
     label: '考勤管理',
     icon: <ClockCircleOutlined />,
@@ -406,7 +397,6 @@ const allMenuItems = [
       { id: 'quota-config', label: '额度配置', icon: <SettingOutlined /> },
       { id: 'vacation-summary', label: '假期汇总', icon: <BarChartOutlined /> },
       { id: 'compensatory-approval', label: '调休审批', icon: <CheckCircleOutlined /> },
-      { id: 'vacation-permissions', label: '权限管理', icon: <SafetyOutlined />, admin: true },
     ],
   },
   {
@@ -463,16 +453,6 @@ const allMenuItems = [
     icon: <UserOutlined />,
     children: [
       { id: 'personal-info', label: '个人信息', icon: <IdcardOutlined /> },
-    ],
-  },
-  {
-    id: 'notifications',
-    label: '消息通知',
-    icon: <BellOutlined />,
-    children: [
-      { id: 'notification-center', label: '通知中心', icon: <BellOutlined /> },
-      { id: 'notification-sender', label: '通知发送', icon: <SendOutlined />, admin: true },
-      { id: 'notification-settings', label: '通知设置', icon: <SettingOutlined /> },
     ],
   },
 ];

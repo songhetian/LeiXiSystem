@@ -6,12 +6,11 @@ const jwt = require('jsonwebtoken')
  */
 async function getUserPermissions(pool, userId) {
   try {
-    // 获取用户基本信息
-    const [users] = await pool.query(`
-      SELECT id, username, department_id
-      FROM users
-      WHERE id = ?
-    `, [userId])
+    // 获取用户信息
+    const [users] = await pool.query(
+      'SELECT id, username, department_id FROM users WHERE id = ?',
+      [userId]
+    )
 
     if (users.length === 0) return null
 
@@ -25,6 +24,9 @@ async function getUserPermissions(pool, userId) {
       WHERE ur.user_id = ?
     `, [userId])
 
+    // 不管是不是超级管理员，都根据JWT中的部门来显示
+    const canViewAllDepartments = false
+
     // 获取用户角色可以查看的所有部门ID
     const [roleDepartments] = await pool.query(`
       SELECT DISTINCT rd.department_id
@@ -35,8 +37,8 @@ async function getUserPermissions(pool, userId) {
 
     const viewableDepartmentIds = roleDepartments.map(rd => rd.department_id)
 
-    // 如果没有配置角色部门权限，默认只能查看自己的部门
-    if (viewableDepartmentIds.length === 0 && user.department_id) {
+    // 如果没有配置角色部门权限，且没有查看所有部门权限，默认只能查看自己的部门
+    if (!canViewAllDepartments && viewableDepartmentIds.length === 0 && user.department_id) {
       viewableDepartmentIds.push(user.department_id)
     }
 
@@ -45,6 +47,7 @@ async function getUserPermissions(pool, userId) {
       username: user.username,
       departmentId: user.department_id,
       viewableDepartmentIds: viewableDepartmentIds, // 可查看的部门ID列表
+      canViewAllDepartments: canViewAllDepartments, // 是否可以查看所有部门
       roles: roles
     }
   } catch (error) {
@@ -82,6 +85,11 @@ function applyDepartmentFilter(permissions, query, params, departmentField = 'u.
   // 如果没有权限信息（未登录或无角色），限制为看不到任何数据
   if (!permissions) {
     query += ` AND 1=0`
+    return { query, params }
+  }
+
+  // 如果有查看所有部门的权限，不进行过滤
+  if (permissions.canViewAllDepartments) {
     return { query, params }
   }
 

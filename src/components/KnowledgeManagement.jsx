@@ -184,7 +184,7 @@ const KnowledgeManagement = () => {
                           try {
                             setLoading(true)
                             const response = await axios.post(
-                              `${API_URL}/knowledge/categories/${cat.id}/toggle-visibility`,
+                              getApiUrl(`/api/knowledge/categories/${cat.id}/toggle-visibility`),
                               { is_hidden: cat.is_hidden === 1 ? 0 : 1 }
                             )
                             toast.success(response.data.message || '操作成功')
