@@ -4,6 +4,7 @@ import { showNotificationToast } from './utils/notificationUtils';
 import 'react-toastify/dist/ReactToastify.css'
 import { useTokenVerification } from './hooks/useTokenVerification'
 import { getApiUrl } from './utils/apiConfig'
+import { tokenManager, apiPost } from './utils/apiClient'
 import { Spin } from 'antd'; // Import Spin for fallback
 
 // Lazy-loaded components
@@ -44,6 +45,7 @@ const QualityStatisticsPage = lazy(() => import('./pages/QualityStatisticsPage')
 const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
 const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
+const Diagnostics = lazy(() => import('./components/Diagnostics'));
 
 const LeaveRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveRecords })));
 const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeApply })));
@@ -51,7 +53,7 @@ const OvertimeRecords = lazy(() => import('./pages/Attendance').then(module => (
 const MakeupApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.MakeupApply })));
 const AttendanceStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceStats })));
 const DepartmentStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.DepartmentStats })));
-const DepartmentAttendanceStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.DepartmentAttendanceStats })));
+
 const ShiftManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ShiftManagement })));
 const ScheduleManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ScheduleManagement })));
 const Notifications = lazy(() => import('./pages/Attendance').then(module => ({ default: module.Notifications })));
@@ -70,7 +72,7 @@ const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({
 const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
 const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
 const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
-
+import DatabaseCheck from './components/DatabaseCheck';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -96,26 +98,29 @@ function App() {
   }
 
   const handleLogout = React.useCallback(async () => {
-    const token = localStorage.getItem('token')
-
-    // 如果有token，调用后端API清除session
-    if (token) {
-      try {
-        await fetch(getApiUrl('/api/auth/logout'), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-      } catch (error) {
-        console.error('退出登录API调用失败:', error)
-        // 即使API调用失败，也继续清除本地存储
-      }
+    // 调用后端API清除session
+    try {
+      await apiPost('/api/auth/logout')
+    } catch (error) {
+      console.error('退出登录API调用失败:', error)
+      // 即使API调用失败，也继续清除本地存储
     }
 
-    // 清除本地存储
-    localStorage.removeItem('token')
+    // 清除本地存储 - 更彻底的清理
+    tokenManager.clearTokens()
     localStorage.removeItem('user')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('userInfo')
+    // 清除所有可能的会话数据
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.startsWith('attendance_') || key.startsWith('exam_') || key.startsWith('cache_'))) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+
     setIsLoggedIn(false)
     setUser(null)
     toast.info('已退出登录')
@@ -169,8 +174,7 @@ function App() {
         return <AttendanceStats />
       case 'attendance-department':
         return <DepartmentStats />
-      case 'attendance-department-stats':
-        return <DepartmentAttendanceStats />
+
       case 'attendance-shift':
         return <ShiftManagement />
       case 'attendance-schedule':
@@ -266,6 +270,10 @@ function App() {
       case 'statistics-viewing':
         return <ViewingStatistics />
 
+      // 系统诊断
+      case 'diagnostics-info':
+        return <Diagnostics />
+
       // 消息通知
       case 'notification-center':
         return <NotificationCenter />
@@ -288,32 +296,34 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar
-        activeTab={activeTab.name}
-        setActiveTab={handleSetActiveTab}
-        user={user}
-        onLogout={handleLogout}
-      />
-      <main className="flex-1 overflow-auto bg-gray-50">
-        <Suspense fallback={<div className="flex justify-center items-center h-full"><Spin size="large" /></div>}>
-          {renderContent()}
-        </Suspense>
-      </main>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        limit={3}
-      />
-    </div>
+    <DatabaseCheck>
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar
+          activeTab={activeTab.name}
+          setActiveTab={handleSetActiveTab}
+          user={user}
+          onLogout={handleLogout}
+        />
+        <main className="flex-1 overflow-auto bg-gray-50">
+          <Suspense fallback={<div className="flex justify-center items-center h-full"><Spin size="large" /></div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          limit={3}
+        />
+      </div>
+    </DatabaseCheck>
   )
 }
 

@@ -83,11 +83,25 @@ module.exports = async function (fastify, opts) {
 
   // 部门考勤统计
   fastify.get('/api/attendance/department-stats', async (request, reply) => {
-    const { department_id, year, month, page = 1, limit = 10 } = request.query
+    const { department_id, year, month, start_date, end_date, keyword, page = 1, limit = 10 } = request.query
 
     try {
-      const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+      let startDate, endDate
+      if (start_date && end_date) {
+        startDate = start_date
+        endDate = end_date
+      } else {
+        startDate = `${year}-${String(month).padStart(2, '0')}-01`
+        endDate = new Date(year, month, 0).toISOString().split('T')[0]
+      }
+
+      let keywordClause = ''
+      const queryParams = [startDate, endDate, startDate, endDate, department_id]
+
+      if (keyword) {
+        keywordClause = ' AND (u.real_name LIKE ? OR e.employee_no LIKE ?)'
+        queryParams.push(`%${keyword}%`, `%${keyword}%`)
+      }
 
       // 先获取所有员工统计（用于计算部门整体数据）
       const [allStats] = await pool.query(
@@ -108,9 +122,10 @@ module.exports = async function (fastify, opts) {
         LEFT JOIN attendance_records ar ON e.id = ar.employee_id
           AND ar.record_date BETWEEN ? AND ?
         WHERE u.department_id = ? AND e.status = 'active'
+        ${keywordClause}
         GROUP BY e.id, u.id, u.real_name, e.employee_no
         ORDER BY u.real_name`,
-        [startDate, endDate, startDate, endDate, department_id]
+        [startDate, endDate, ...queryParams]
       )
 
       // 计算部门整体统计
@@ -120,8 +135,22 @@ module.exports = async function (fastify, opts) {
       const totalEarlyCount = allStats.reduce((sum, item) => sum + item.early_count, 0)
       const totalAbsentCount = allStats.reduce((sum, item) => sum + item.absent_count, 0)
 
-      // 计算工作日天数
-      const workDays = 22 // 简化处理，实际应该计算实际工作日
+      // 计算工作日天数 (简单估算，如果跨月可能不准确，但作为概览尚可)
+      // 如果是自定义日期范围，计算实际天数
+      let workDays = 22
+      if (start_date && end_date) {
+          const start = new Date(startDate)
+          const end = new Date(endDate)
+          const diffTime = Math.abs(end - start)
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+          // 简单排除周末
+          let weekdays = 0
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+              const day = d.getDay()
+              if (day !== 0 && day !== 6) weekdays++
+          }
+          workDays = weekdays
+      }
 
       // 分页处理
       const offset = (page - 1) * limit

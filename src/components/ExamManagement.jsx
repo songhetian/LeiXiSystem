@@ -58,6 +58,7 @@ const ExamManagement = () => {
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
   const [creatorId, setCreatorId] = useState('')
+  const [showPublishedWarning, setShowPublishedWarning] = useState(false)
 
   const getCurrentTotalScore = () => {
     try {
@@ -413,6 +414,12 @@ const ExamManagement = () => {
   }
 
   const handleOpenEditor = async (exam) => {
+    // 检查试卷是否已发布
+    if (exam.status === 'published') {
+      setSelectedExam(exam)
+      setShowPublishedWarning(true)
+      return
+    }
     setSelectedExam(exam)
     await fetchQuestions(exam.id)
     setShowEditorModal(true)
@@ -1302,7 +1309,7 @@ const ExamManagement = () => {
           <div className="flex items-center gap-2"><span className="text-gray-600">难度</span><span className="font-medium">{examInfo?.difficulty ?? '-'}</span></div>
           <div className="flex items-center gap-2"><span className="text-gray-600">时长</span><span className="font-medium">{examInfo?.duration ?? '-'}</span></div>
           <div className="flex items-center gap-2"><span className="text-gray-600">创建时间</span><span className="font-medium">{examInfo?.created_at ? formatDate(examInfo.created_at) : (selectedExam?.created_at ? formatDate(selectedExam.created_at) : '-')}</span></div>
-          
+
         </div>
       </Modal>
 
@@ -1334,7 +1341,7 @@ const ExamManagement = () => {
         </div>
       </Modal>
 
-      
+
 
       <Modal
         isOpen={showDeleteConfirm}
@@ -1740,6 +1747,50 @@ const ExamManagement = () => {
           <div className="text-sm text-gray-600">请调整题目分值或数量，使累计总分不超过试卷设置总分。</div>
           <div className="pt-2">
             <button onClick={() => setScoreModalOpen(false)} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">确认</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 已发布试卷编辑警告模态框 */}
+      <Modal
+        isOpen={showPublishedWarning}
+        onClose={() => setShowPublishedWarning(false)}
+        title="无法编辑已发布的试卷"
+        size="medium"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <span className="text-3xl">⚠️</span>
+            <div>
+              <div className="font-semibold text-yellow-800">该试卷已发布</div>
+              <div className="text-sm text-yellow-700 mt-1">
+                已发布的试卷不允许编辑，以确保考试的公平性和一致性。
+              </div>
+            </div>
+          </div>
+
+          {selectedExam && (
+            <div className="text-sm text-gray-600 space-y-1">
+              <div><span className="font-medium">试卷名称：</span>{selectedExam.title}</div>
+              <div><span className="font-medium">发布状态：</span><span className="text-green-600 font-semibold">已发布</span></div>
+            </div>
+          )}
+
+          <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded">
+            <div className="font-medium mb-1">💡 建议：</div>
+            <ul className="list-disc list-inside space-y-1">
+              <li>如需修改，请先将试卷归档</li>
+              <li>或者创建一个新的试卷副本进行编辑</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setShowPublishedWarning(false)}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              我知道了
+            </button>
           </div>
         </div>
       </Modal>

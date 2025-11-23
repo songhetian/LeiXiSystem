@@ -3,6 +3,62 @@
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
 
+  // 生成随机颜色的辅助函数
+  const generateRandomColor = () => {
+    const colors = [
+      '#3B82F6', // blue
+      '#10B981', // green
+      '#8B5CF6', // purple
+      '#F59E0B', // orange
+      '#EC4899', // pink
+      '#6366F1', // indigo
+      '#14B8A6', // teal
+      '#06B6D4', // cyan
+      '#EF4444', // red
+      '#F97316', // orange-600
+      '#84CC16', // lime
+      '#22C55E', // green-500
+      '#0EA5E9', // sky
+      '#A855F7', // purple-500
+      '#D946EF', // fuchsia
+      '#F43F5E'  // rose
+    ]
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  // 检查颜色是否已被使用的辅助函数
+  const isColorUsed = async (color, excludeId = null) => {
+    let query = 'SELECT COUNT(*) as count FROM work_shifts WHERE color = ? AND is_active = 1'
+    const params = [color]
+
+    if (excludeId) {
+      query += ' AND id != ?'
+      params.push(excludeId)
+    }
+
+    const [rows] = await pool.query(query, params)
+    return rows[0].count > 0
+  }
+
+  // 生成唯一颜色的辅助函数
+  const generateUniqueColor = async (excludeId = null) => {
+    let color
+    let attempts = 0
+    const maxAttempts = 50
+
+    do {
+      color = generateRandomColor()
+      attempts++
+    } while (await isColorUsed(color, excludeId) && attempts < maxAttempts)
+
+    // 如果所有预定义颜色都被使用，生成一个随机HEX颜色
+    if (attempts >= maxAttempts) {
+      color = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
+    }
+
+    return color
+  }
+
   // 获取或创建"休息"班次的辅助函数
   fastify.decorate('getRestShift', async function() {
     const [shifts] = await pool.query(
@@ -17,9 +73,9 @@ module.exports = async function (fastify, opts) {
     // 如果不存在，创建一个
     const [result] = await pool.query(
       `INSERT INTO work_shifts
-       (name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['休息', '00:00:00', '00:00:00', 0, 0, 0, 1, null, '休息日班次']
+       (name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description, color)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['休息', '00:00:00', '00:00:00', 0, 0, 0, 1, null, '休息日班次', '#9CA3AF'] // 灰色
     )
 
     return {
@@ -28,7 +84,8 @@ module.exports = async function (fastify, opts) {
       start_time: '00:00:00',
       end_time: '00:00:00',
       work_hours: 0,
-      is_active: 1
+      is_active: 1,
+      color: '#9CA3AF'
     }
   })
 
@@ -139,7 +196,7 @@ module.exports = async function (fastify, opts) {
 
   // 创建班次
   fastify.post('/api/shifts', async (request, reply) => {
-    const { name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description } = request.body
+    const { name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description, color } = request.body
 
     try {
       // 验证必填字段
@@ -163,17 +220,29 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: '班次名称已存在' })
       }
 
+      // 生成或使用提供的颜色
+      let shiftColor = color
+      if (!shiftColor) {
+        shiftColor = await generateUniqueColor()
+      } else {
+        // 如果提供了颜色，检查是否重复
+        if (await isColorUsed(shiftColor)) {
+           // 如果重复，生成新的
+           shiftColor = await generateUniqueColor()
+        }
+      }
+
       const [result] = await pool.query(
         `INSERT INTO work_shifts
-        (name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, start_time, end_time, work_hours, late_threshold || 30, early_threshold || 30, is_active !== false ? 1 : 0, department_id || null, description || null]
+        (name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description, color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, start_time, end_time, work_hours, late_threshold || 30, early_threshold || 30, is_active !== false ? 1 : 0, department_id || null, description || null, shiftColor]
       )
 
       return {
         success: true,
         message: '班次创建成功',
-        data: { id: result.insertId }
+        data: { id: result.insertId, color: shiftColor }
       }
     } catch (error) {
       console.error('创建班次失败:', error)
@@ -184,7 +253,7 @@ module.exports = async function (fastify, opts) {
   // 更新班次
   fastify.put('/api/shifts/:id', async (request, reply) => {
     const { id } = request.params
-    const { name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description } = request.body
+    const { name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active, department_id, description, color } = request.body
 
     try {
       // 检查班次是否存在
@@ -209,8 +278,8 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: '班次名称已存在' })
       }
 
-      await pool.query(
-        `UPDATE work_shifts SET
+      // 构建更新查询
+      let updateQuery = `UPDATE work_shifts SET
           name = ?,
           start_time = ?,
           end_time = ?,
@@ -219,10 +288,20 @@ module.exports = async function (fastify, opts) {
           early_threshold = ?,
           is_active = ?,
           department_id = ?,
-          description = ?
-        WHERE id = ?`,
-        [name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active ? 1 : 0, department_id || null, description || null, id]
-      )
+          description = ?`
+
+      const updateParams = [name, start_time, end_time, work_hours, late_threshold, early_threshold, is_active ? 1 : 0, department_id || null, description || null]
+
+      // 如果提供了颜色，更新颜色
+      if (color) {
+        updateQuery += `, color = ?`
+        updateParams.push(color)
+      }
+
+      updateQuery += ` WHERE id = ?`
+      updateParams.push(id)
+
+      await pool.query(updateQuery, updateParams)
 
       return {
         success: true,

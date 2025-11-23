@@ -103,12 +103,20 @@ module.exports = async function (fastify, opts) {
 
   fastify.get('/api/exam-categories/tree', async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      jwt.verify(token, JWT_SECRET)
+      const permissions = await extractUserPermissions(request, pool)
+      if (!permissions) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      // 检查用户是否有权限查看分类（任何登录用户都应该可以查看分类）
+      if (!permissions.roles || permissions.roles.length === 0) {
+        return reply.code(403).send({ success: false, message: '无权限查看分类' })
+      }
+
+      // 注意：数据库中没有status字段，所以移除了status条件
       const [rows] = await pool.query(
-        `SELECT id, parent_id, name, code, weight, status, order_num, path, level
-         FROM exam_categories WHERE status != 'deleted' ORDER BY level ASC, order_num ASC`
+        `SELECT id, parent_id, name, code, weight, order_num, path, level
+         FROM exam_categories ORDER BY level ASC, order_num ASC`
       )
       const byId = new Map()
       rows.forEach(r => byId.set(r.id, { ...r, children: [] }))
@@ -123,26 +131,36 @@ module.exports = async function (fastify, opts) {
       })
       return { success: true, data: roots }
     } catch (error) {
+      console.error('获取分类树失败:', error)
       return reply.code(500).send({ success: false, message: '获取失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
     }
   })
 
   fastify.get('/api/exam-categories', async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      jwt.verify(token, JWT_SECRET)
+      const permissions = await extractUserPermissions(request, pool)
+      if (!permissions) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      // 检查用户是否有权限查看分类（任何登录用户都应该可以查看分类）
+      if (!permissions.roles || permissions.roles.length === 0) {
+        return reply.code(403).send({ success: false, message: '无权限查看分类' })
+      }
+
       const { page = 1, pageSize = 50, keyword = '', status } = request.query
       const offset = (parseInt(page) - 1) * parseInt(pageSize)
-      let where = `status != 'deleted'`
+      // 注意：数据库中没有status字段，所以移除了status条件
+      let where = `1=1`  // 使用1=1作为基础条件，方便添加其他条件
       const params = []
-      if (keyword) { where += ' AND (name LIKE ? OR code LIKE ? )'; params.push(`%${keyword}%`, `%${keyword}%`) }
-      if (status) { where += ' AND status = ?'; params.push(status) }
+      if (keyword) { where += ' AND (name LIKE ? OR code LIKE ?)'; params.push(`%${keyword}%`, `%${keyword}%`) }
+      // 忽略status参数，因为数据库中没有这个字段
       const [rows] = await pool.query(`SELECT SQL_CALC_FOUND_ROWS * FROM exam_categories WHERE ${where} ORDER BY level, order_num LIMIT ? OFFSET ?`, [...params, parseInt(pageSize), offset])
       const [countRows] = await pool.query('SELECT FOUND_ROWS() as total')
       return { success: true, data: rows, page: parseInt(page), pageSize: parseInt(pageSize), total: countRows[0].total }
     } catch (error) {
-      return reply.code(500).send({ success: false, message: '获取失败' })
+      console.error('获取分类列表失败:', error)
+      return reply.code(500).send({ success: false, message: '获取失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
     }
   })
 
@@ -152,12 +170,12 @@ module.exports = async function (fastify, opts) {
     try {
       const { name, code, weight = 0, status = 'active', parent_id = null, description = '' } = request.body
       if (!name || !code) return reply.code(400).send({ success: false, message: '缺少必填字段：name, code' })
-      const [exists] = await pool.query('SELECT id FROM exam_categories WHERE code = ? AND status != "deleted"', [code])
+      const [exists] = await pool.query('SELECT id FROM exam_categories WHERE code = ?', [code])
       if (exists.length) return reply.code(400).send({ success: false, message: '分类编码已存在' })
       let level = 1
       let path = '/'
       if (parent_id) {
-        const [pRows] = await pool.query('SELECT id, path, level FROM exam_categories WHERE id = ? AND status != "deleted"', [parent_id])
+        const [pRows] = await pool.query('SELECT id, path, level FROM exam_categories WHERE id = ?', [parent_id])
         if (!pRows.length) return reply.code(400).send({ success: false, message: '父级分类不存在' })
         level = pRows[0].level + 1
         path = `${pRows[0].path}${parent_id}/`
@@ -170,10 +188,11 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: '同级分类权重之和不能超过100' })
       }
 
+      // 注意：数据库中没有status字段，所以移除了status字段
       const [res] = await pool.query(
-        `INSERT INTO exam_categories (parent_id, name, code, weight, status, order_num, path, level, description, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [parent_id || null, name, code, newWeight, status, order_num, path, level, description || null, permissions.userId]
+        `INSERT INTO exam_categories (parent_id, name, code, weight, order_num, path, level, description, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [parent_id || null, name, code, newWeight, order_num, path, level, description || null, permissions.userId]
       )
       await logOperation(res.insertId, permissions.userId, 'create', { name, code })
       if (parent_id) {
@@ -261,10 +280,11 @@ module.exports = async function (fastify, opts) {
       if (hasChildren && !['true', true, '1', 1].includes(cascade)) {
         return reply.code(400).send({ success: false, message: '存在子分类，不能删除（请使用级联删除）' })
       }
+      // 注意：数据库中没有status字段，所以使用DELETE语句直接删除
       if (hasChildren) {
-        await pool.query("UPDATE exam_categories SET status = 'deleted', updated_at = NOW() WHERE path LIKE ?", [`%/${id}/%`])
+        await pool.query("DELETE FROM exam_categories WHERE path LIKE ?", [`%/${id}/%`])
       }
-      await pool.query("UPDATE exam_categories SET status = 'deleted', updated_at = NOW() WHERE id = ?", [id])
+      await pool.query("DELETE FROM exam_categories WHERE id = ?", [id])
       await logOperation(id, permissions.userId, 'delete', { cascade: !!cascade })
       const parentId = rows[0].parent_id
       if (parentId) { const connection = await pool.getConnection(); try { await recalcAncestorsWeight(connection, parentId) } finally { connection.release() } }
@@ -321,21 +341,29 @@ module.exports = async function (fastify, opts) {
 
   fastify.get('/api/exam-categories/usage-stats', async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      jwt.verify(token, JWT_SECRET)
+      const permissions = await extractUserPermissions(request, pool)
+      if (!permissions) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+
+      // 检查用户是否有权限查看分类（任何登录用户都应该可以查看分类）
+      if (!permissions.roles || permissions.roles.length === 0) {
+        return reply.code(403).send({ success: false, message: '无权限查看分类' })
+      }
+
+      // 注意：数据库中没有status字段，所以移除了status条件
       const [rows] = await pool.query(`
         SELECT c.id, c.name, c.code,
                COUNT(e.id) AS exam_count
         FROM exam_categories c
         LEFT JOIN exams e ON e.category = c.name
-        WHERE c.status != 'deleted'
         GROUP BY c.id, c.name, c.code
         ORDER BY c.level, c.order_num
       `)
       return { success: true, data: rows }
     } catch (error) {
-      return reply.code(500).send({ success: false, message: '统计失败' })
+      console.error('获取分类使用统计失败:', error)
+      return reply.code(500).send({ success: false, message: '统计失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
     }
   })
 

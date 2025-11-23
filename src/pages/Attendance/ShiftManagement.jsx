@@ -35,7 +35,8 @@ export default function ShiftManagement() {
     early_threshold: 30,
     is_active: true,
     department_id: '',
-    description: ''
+    description: '',
+    color: '#3B82F6'
   })
 
   useEffect(() => {
@@ -116,8 +117,10 @@ export default function ShiftManagement() {
       late_threshold: 30,
       early_threshold: 30,
       is_active: true,
+
       department_id: '',
-      description: ''
+      description: '',
+      color: '#3B82F6'
     })
     setShowModal(true)
   }
@@ -133,7 +136,8 @@ export default function ShiftManagement() {
       early_threshold: shift.early_threshold,
       is_active: shift.is_active === 1,
       department_id: shift.department_id || '',
-      description: shift.description || ''
+      description: shift.description || '',
+      color: shift.color || '#3B82F6'
     })
     setShowModal(true)
   }
@@ -274,9 +278,11 @@ export default function ShiftManagement() {
               {shifts.map((shift) => (
                 <div
                   key={shift.id}
-                  className={`border-2 rounded-lg p-6 ${
-                    shift.is_active ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50'
-                  }`}
+                  className="border-2 rounded-lg p-6 transition-all hover:shadow-md"
+                  style={{
+                    borderColor: shift.color || '#e5e7eb',
+                    backgroundColor: shift.color ? `${shift.color}10` : '#f9fafb'
+                  }}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
@@ -526,6 +532,23 @@ export default function ShiftManagement() {
                     rows="3"
                     placeholder="可选，描述班次的特点或适用场景"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    班次颜色
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      className="h-10 w-20 p-1 rounded border cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-500">
+                      选择在排班表中显示的颜色
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center">

@@ -656,6 +656,55 @@ export default function AttendanceHome({ onNavigate }) {
         </button>
       </div>
 
+      {/* 测试功能按钮 - 仅用于开发测试 */}
+      <div className="mt-6 bg-red-50 border-2 border-red-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-red-600 text-lg">🔧</span>
+          <h3 className="text-sm font-semibold text-red-800">测试功能（仅删除当天记录）</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            onClick={async () => {
+              if (!window.confirm('确定要删除今天的打卡记录吗？此操作不可恢复！')) return
+              try {
+                const today = new Date().toISOString().split('T')[0]
+                await axios.delete(getApiUrl('/api/attendance/today'), {
+                  params: { employee_id: employee?.id, date: today }
+                })
+                toast.success('今日打卡记录已删除')
+                fetchTodayRecord()
+              } catch (error) {
+                toast.error('删除失败: ' + (error.response?.data?.message || error.message))
+              }
+            }}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            🗑️ 删除打卡记录
+          </button>
+
+          <button
+            onClick={async () => {
+              if (!window.confirm('确定要删除今天的班次安排吗？此操作不可恢复！')) return
+              try {
+                const today = new Date().toISOString().split('T')[0]
+                await axios.delete(getApiUrl('/api/schedules/today'), {
+                  params: { employee_id: employee?.id, date: today }
+                })
+                toast.success('今日班次已删除')
+                setTodaySchedule(null)
+                fetchTodaySchedule()
+              } catch (error) {
+                toast.error('删除失败: ' + (error.response?.data?.message || error.message))
+              }
+            }}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            🗑️ 删除班次
+          </button>
+        </div>
+        <p className="text-xs text-red-600 mt-2">⚠️ 警告：这些按钮仅用于测试，只会删除当天的记录</p>
+      </div>
+
       {/* 选择班次模态框 */}
       {showShiftModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

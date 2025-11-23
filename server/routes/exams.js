@@ -100,7 +100,7 @@ module.exports = async function (fastify, opts) {
       const sortField = ['created_at', 'title'].includes(String(sort_by)) ? String(sort_by) : 'created_at'
       const sortOrder = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
       const listSql = `
-        SELECT 
+        SELECT
           e.id, e.title, e.category, e.difficulty, e.duration, e.total_score, e.pass_score, e.question_count, e.status, e.created_at,
           u.id as creator_id, u.real_name as creator_name, u.username as creator_username
         FROM exams e
@@ -835,7 +835,9 @@ module.exports = async function (fastify, opts) {
       guide.getCell('A4').value = '3. 正确答案：单选/判断题用 A/B；多选题用如 ABC；填空/简答无需填写'
       guide.getCell('A5').value = '4. 分值为正整数；建议每题 5~20 分'
       guide.getCell('A6').value = '5. 保存为 .xlsx 格式后，在试题管理页面的“试题导入”中上传'
-      guide.getCell('A8').value = { text: '查看详细使用文档', hyperlink: 'http://localhost:5173/#/knowledge-base', tooltip: '打开知识库' }
+      const host = request.hostname.split(':')[0]
+      const frontendUrl = `http://${host}:5173/#/knowledge-base`
+      guide.getCell('A8').value = { text: '查看详细使用文档', hyperlink: frontendUrl, tooltip: '打开知识库' }
 
       const buffer = await workbook.xlsx.writeBuffer()
       const now = new Date()
@@ -1655,7 +1657,7 @@ module.exports = async function (fastify, opts) {
         const updateQuery = `UPDATE questions SET ${updateFields.join(', ')} WHERE id = ?`
         await connection.query(updateQuery, updateValues)
 
-        
+
 
         await connection.commit()
 

@@ -377,8 +377,7 @@ const allMenuItems = [
       { id: 'attendance-overtime-apply', label: '加班申请', icon: <FormOutlined /> },
       { id: 'attendance-overtime-records', label: '加班记录', icon: <FileTextOutlined /> },
       { id: 'attendance-stats', label: '考勤统计', icon: <BarChartOutlined /> },
-      { id: 'attendance-department', label: '部门考勤', icon: <ApartmentOutlined /> },
-      { id: 'attendance-department-stats', label: '部门统计', icon: <LineChartOutlined /> },
+      { id: 'attendance-department', label: '部门考勤统计', icon: <ApartmentOutlined /> },
       { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined /> },
       { id: 'attendance-schedule', label: '排班管理', icon: <CalendarOutlined /> },
       { id: 'attendance-smart-schedule', label: '智能排班', icon: <ThunderboltOutlined /> },
@@ -453,6 +452,14 @@ const allMenuItems = [
     icon: <UserOutlined />,
     children: [
       { id: 'personal-info', label: '个人信息', icon: <IdcardOutlined /> },
+    ],
+  },
+  {
+    id: 'diagnostics',
+    label: '系统诊断',
+    icon: <DatabaseOutlined />,
+    children: [
+      { id: 'diagnostics-info', label: '诊断信息', icon: <FileSearchOutlined /> },
     ],
   },
 ];

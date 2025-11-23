@@ -27,7 +27,8 @@ module.exports = async function (fastify, opts) {
           d.name as department_name,
           s.name as shift_name,
           s.start_time,
-          s.end_time
+          s.end_time,
+          s.color
         FROM shift_schedules ss
         LEFT JOIN employees e ON ss.employee_id = e.id
         LEFT JOIN users u ON e.user_id = u.id
@@ -387,4 +388,21 @@ module.exports = async function (fastify, opts) {
       connection.release();
     }
   });
+
+  // 删除今日排班（测试用）
+  fastify.delete('/api/schedules/today', async (request, reply) => {
+    const { employee_id, date } = request.query
+
+    try {
+      await pool.query(
+        'DELETE FROM shift_schedules WHERE employee_id = ? AND DATE(schedule_date) = ?',
+        [employee_id, date]
+      )
+
+      return { success: true, message: '今日排班已删除' }
+    } catch (error) {
+      console.error('删除排班失败:', error)
+      return reply.code(500).send({ success: false, message: '删除失败' })
+    }
+  })
 }

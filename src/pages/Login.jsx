@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
+import { tokenManager } from '../utils/apiClient'
 
 const Login = ({ onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
@@ -50,7 +51,10 @@ const Login = ({ onLoginSuccess }) => {
       })
 
       if (response.data.success) {
-        localStorage.setItem('token', response.data.token)
+        tokenManager.setToken(response.data.token, response.data.expiresIn || 3600)
+        if (response.data.refresh_token) {
+          tokenManager.setRefreshToken(response.data.refresh_token)
+        }
         localStorage.setItem('user', JSON.stringify(response.data.user))
 
         // 处理记住密码

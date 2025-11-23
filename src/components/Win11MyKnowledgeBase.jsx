@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify';
-import axios from 'axios';
+
 import { getApiUrl } from '../utils/apiConfig';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient';
 import Win11ContextMenu from './Win11ContextMenu';
 import useReadingTracker from '../hooks/useReadingTracker';
 
@@ -34,6 +35,15 @@ const Win11MyKnowledgeBase = () => {
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
+  // 新建文档状态
+  const [showCreateArticleModal, setShowCreateArticleModal] = useState(false);
+  const [newArticle, setNewArticle] = useState({ title: '', content: '', summary: '' });
+
+  // 移动文档状态
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [selectedArticleToMove, setSelectedArticleToMove] = useState(null);
+  const [targetMoveCategory, setTargetMoveCategory] = useState('');
+
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null);
   const [previewModalWidth, setPreviewModalWidth] = useState('max-w-4xl');
@@ -57,6 +67,20 @@ const Win11MyKnowledgeBase = () => {
     type: '', // 'folder', 'file' or 'background'
     data: null
   });
+
+  // 删除确认模态框状态
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    visible: false,
+    type: '', // 'category' or 'article'
+    id: null,
+    id: null,
+    title: ''
+  });
+
+  // 回收站状态
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [recycleBinItems, setRecycleBinItems] = useState({ categories: [], articles: [] });
+  const [recycleBinLoading, setRecycleBinLoading] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -89,46 +113,140 @@ const Win11MyKnowledgeBase = () => {
     return userId ? String(owner) === String(userId) : false;
   };
 
+  const getCurrentUserId = () => {
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+      if (!token) return null;
+      const jwt = token.startsWith('Bearer ') ? token.slice(7) : token;
+      const parts = jwt.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.userId || payload.user_id || payload.sub || payload.id || null;
+    } catch {
+      return null;
+    }
+  };
+
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl(`/api/my-knowledge/categories?page=${categoryCurrentPage}&pageSize=${categoryPageSize}`));
-      console.log('My Categories API Response:', response.data); // 调试信息
-      let categoriesData = response.data || [];
+      const userId = getCurrentUserId();
+      const response = await apiGet(`/api/my-knowledge/categories?userId=${userId}&page=${categoryCurrentPage}&pageSize=${categoryPageSize}`);
+      console.log('My Categories API Response:', response); // 调试信息
+      let categoriesData = response || [];
       let totalItems = 0;
 
-      if (response.data && Array.isArray(response.data.data)) {
-        categoriesData = response.data.data;
-        totalItems = response.data.total || categoriesData.length;
-      } else if (Array.isArray(response.data)) {
+      if (response && Array.isArray(response.data)) {
         categoriesData = response.data;
+        totalItems = response.total || categoriesData.length;
+      } else if (Array.isArray(response)) {
+        categoriesData = response;
         totalItems = categoriesData.length;
       }
 
       const uid = getCurrentUserId();
-      const filtered = (categoriesData || []).filter(c => isPersonal(c) && isOwnedBy(c, uid) && isNotDeleted(c));
+      // 逻辑: 我的知识库 用户id匹配且未删除 (放宽类型检查，因为有些旧数据可能没有type)
+      const filtered = (categoriesData || []).filter(c => {
+        const isMine = c.owner_id && String(c.owner_id) === String(uid);
+        return isMine && isNotDeleted(c);
+      });
       setCategories(filtered);
-      setTotalCategoryItems(totalItems);
-      const calculatedTotalPages = Math.ceil(totalItems / categoryPageSize);
+      // 使用过滤后的数据长度计算分页
+      const filteredTotalItems = filtered.length;
+      setTotalCategoryItems(filteredTotalItems);
+      const calculatedTotalPages = Math.ceil(filteredTotalItems / categoryPageSize);
       setCategoryTotalPages(calculatedTotalPages);
-      console.log('Pagination Debug: totalItems =', totalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
+      console.log('Pagination Debug: filteredTotalItems =', filteredTotalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
     } catch (error) {
       console.error('获取分类失败:', error);
+    }
+  };
+
+  // 获取回收站内容
+  const fetchRecycleBinItems = async () => {
+    setRecycleBinLoading(true);
+    try {
+      const userId = getCurrentUserId();
+      const [categoriesRes, articlesRes] = await Promise.all([
+        apiGet(`/api/knowledge/recycle-bin/categories?userId=${userId}`),
+        apiGet(`/api/knowledge/recycle-bin/articles?userId=${userId}`)
+      ]);
+
+      setRecycleBinItems({
+        categories: Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes.data || []),
+        articles: Array.isArray(articlesRes) ? articlesRes : (articlesRes.data || [])
+      });
+    } catch (error) {
+      console.error('获取回收站内容失败:', error);
+      toast.error('获取回收站内容失败');
+    } finally {
+      setRecycleBinLoading(false);
+    }
+  };
+
+  // 恢复回收站项目
+  const handleRestore = async (type, id) => {
+    try {
+      if (type === 'category') {
+        await apiPost(`/api/knowledge/recycle-bin/categories/${id}/restore`, { restoreArticles: true });
+      } else {
+        await apiPost(`/api/knowledge/recycle-bin/articles/${id}/restore`);
+      }
+      toast.success('恢复成功');
+      fetchRecycleBinItems();
+      fetchCategories();
+      fetchArticles();
+    } catch (error) {
+      console.error('恢复失败:', error);
+      toast.error('恢复失败');
+    }
+  };
+
+  // 永久删除项目
+  const handlePermanentDelete = async (type, id) => {
+    if (!window.confirm('确定要永久删除吗？此操作不可撤销！')) return;
+
+    try {
+      if (type === 'category') {
+        await apiDelete(`/api/knowledge/recycle-bin/categories/${id}/permanent`);
+      } else {
+        await apiDelete(`/api/knowledge/recycle-bin/articles/${id}/permanent`);
+      }
+      toast.success('永久删除成功');
+      fetchRecycleBinItems();
+    } catch (error) {
+      console.error('永久删除失败:', error);
+      toast.error('永久删除失败');
+    }
+  };
+
+  // 清空回收站
+  const handleEmptyRecycleBin = async () => {
+    if (!window.confirm('确定要清空回收站吗？所有项目将被永久删除！')) return;
+
+    try {
+      await apiPost('/api/knowledge/recycle-bin/empty', { type: 'all' });
+      toast.success('回收站已清空');
+      fetchRecycleBinItems();
+    } catch (error) {
+      console.error('清空回收站失败:', error);
+      toast.error('清空回收站失败');
     }
   };
 
   const fetchArticles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(getApiUrl(`/api/my-knowledge/articles?page=${currentPage}&pageSize=${pageSize}`));
-      console.log('My Articles API Response:', response.data); // 调试信息
-      let articlesData = response.data || [];
+      const userId = getCurrentUserId();
+      const response = await apiGet(`/api/my-knowledge/articles?userId=${userId}&page=${currentPage}&pageSize=${pageSize}`);
+      console.log('My Articles API Response:', response); // 调试信息
+      let articlesData = response || [];
       let totalItems = 0;
 
-      if (response.data && Array.isArray(response.data.data)) {
-        articlesData = response.data.data;
-        totalItems = response.data.total || articlesData.length;
-      } else if (Array.isArray(articlesData)) {
+      if (response && Array.isArray(response.data)) {
         articlesData = response.data;
+        totalItems = response.total || articlesData.length;
+      } else if (Array.isArray(articlesData)) {
+        articlesData = response;
         totalItems = articlesData.length;
       } else if (typeof articlesData === 'object') {
         articlesData = articlesData.data || [];
@@ -136,10 +254,16 @@ const Win11MyKnowledgeBase = () => {
       }
 
       const uid = getCurrentUserId();
-      const filtered = (articlesData || []).filter(a => isPersonal(a) && isOwnedBy(a, uid) && isNotDeleted(a));
+      // 逻辑: 我的知识库 未删除 (不区分类型)
+      const filtered = (articlesData || []).filter(a => {
+        const isMine = a.owner_id && String(a.owner_id) === String(uid); // 或者是 created_by
+        return isMine && isNotDeleted(a);
+      });
       setArticles(filtered);
-      setTotalArticleItems(totalItems);
-      setArticleTotalPages(Math.ceil(totalItems / pageSize));
+      // 使用过滤后的数据长度计算分页
+      const filteredTotalItems = filtered.length;
+      setTotalArticleItems(filteredTotalItems);
+      setArticleTotalPages(Math.ceil(filteredTotalItems / pageSize));
     } catch (error) {
       console.error('获取文档失败:', error);
       toast.error('获取文档失败');
@@ -275,8 +399,8 @@ const Win11MyKnowledgeBase = () => {
     setCurrentPage(1);
   };
 
-  // 获取当前文件夹的文档
-  const getCurrentFolderArticles = () => {
+  // 获取当前文件夹的文档 - 使用 useMemo
+  const folderArticles = React.useMemo(() => {
     if (!currentFolderCategory) return [];
 
     const categoryArticles = currentFolderCategory.id === 'uncategorized'
@@ -313,12 +437,12 @@ const Win11MyKnowledgeBase = () => {
       return 0;
     });
 
-    // Set total article items and total pages for articles
-    setTotalArticleItems(filtered.length);
-    setArticleTotalPages(Math.ceil(filtered.length / pageSize));
-
     return filtered;
-  };
+  }, [currentFolderCategory, articles, folderSearchTerm, sortBy, sortOrder]);
+
+  // 计算分页数据
+  const folderTotalItems = folderArticles.length;
+  const folderTotalPages = Math.ceil(folderTotalItems / pageSize);
 
   // 分页计算 (logic moved to getCurrentFolderArticles and state variables)
   // 新建分类处理函数
@@ -330,13 +454,17 @@ const Win11MyKnowledgeBase = () => {
 
     try {
       setLoading(true);
-      const response = await axios.post(getApiUrl('/api/my-knowledge/categories'), {
-        name: newCategoryName.trim(), // 确保去除空格
+      const userId = getCurrentUserId();
+      const response = await apiPost('/api/my-knowledge/categories', {
+        name: newCategoryName.trim(),
         description: '',
-        icon: '📁'
+        icon: '📁',
+        type: 'personal',
+        is_public: 0,
+        owner_id: userId
       });
 
-      if (response.data && response.data.id) {
+      if (response && response.id) {
         toast.success('分类创建成功');
         setShowCreateCategoryModal(false);
         setNewCategoryName(''); // 清空输入框
@@ -368,31 +496,39 @@ const Win11MyKnowledgeBase = () => {
     // 获取该分类下的文档数量
     const categoryArticles = articles.filter(a => a.category_id == categoryId);
 
-    // 如果分类下有文档，需要用户确认
-    if (categoryArticles.length > 0) {
-      if (!window.confirm(`该分类下有 ${categoryArticles.length} 篇文档，删除分类后这些文档将变为未分类。确定要删除吗？`)) {
-        return;
-      }
-    } else {
-      if (!window.confirm('确定要删除这个分类吗？')) {
-        return;
-      }
-    }
+    setDeleteConfirm({
+      visible: true,
+      type: 'category',
+      id: categoryId,
+      title: categoryArticles.length > 0
+        ? `该分类下有 ${categoryArticles.length} 篇文档，删除分类后这些文档将变为未分类。确定要删除吗？`
+        : '确定要删除这个分类吗？'
+    });
+  };
 
+  // 确认删除
+  const confirmDelete = async () => {
     try {
-      await axios.delete(getApiUrl(`/api/my-knowledge/categories/${categoryId}`));
-      toast.success('分类删除成功');
-      fetchCategories(); // 重新获取分类列表
+      if (deleteConfirm.type === 'category') {
+        await apiDelete(`/api/my-knowledge/categories/${deleteConfirm.id}`);
+        toast.success('分类删除成功');
+        fetchCategories();
+      } else if (deleteConfirm.type === 'article') {
+        await apiDelete(`/api/knowledge/articles/${deleteConfirm.id}`);
+        toast.success('删除成功');
+        fetchArticles();
+      }
+      setDeleteConfirm({ visible: false, type: '', id: null, title: '' });
     } catch (error) {
-      console.error('删除分类失败:', error);
-      toast.error('删除分类失败: ' + (error.response?.data?.message || error.message));
+      console.error('删除失败:', error);
+      toast.error('删除失败: ' + (error.response?.data?.message || error.message));
     }
   };
 
   // 处理分类显示/隐藏
   const handleToggleCategoryVisibility = async (categoryId, isHidden) => {
     try {
-      await axios.put(getApiUrl(`/api/my-knowledge/categories/${categoryId}/visibility`), { is_hidden: isHidden });
+      await apiPut(`/api/my-knowledge/categories/${categoryId}/visibility`, { is_hidden: isHidden });
       toast.success(isHidden === 1 ? '分类已隐藏' : '分类已显示');
       // 重新获取分类列表
       fetchCategories();
@@ -400,6 +536,72 @@ const Win11MyKnowledgeBase = () => {
       console.error('更新分类可见性失败:', error);
       toast.error('操作失败');
     }
+  };
+
+  const handleCreateArticle = async () => {
+    if (!newArticle.title.trim() || !newArticle.content.trim()) {
+      toast.error('请输入标题和内容');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const userId = getCurrentUserId();
+      await apiPost('/api/knowledge/articles', {
+        ...newArticle,
+        category_id: currentFolderCategory ? currentFolderCategory.id : null,
+        type: 'personal',
+        is_public: 0,
+        owner_id: userId,
+        status: 'published'
+      });
+
+      toast.success('文档创建成功');
+      setShowCreateArticleModal(false);
+      setNewArticle({ title: '', content: '', summary: '' });
+      fetchArticles();
+    } catch (error) {
+      console.error('创建文档失败:', error);
+      toast.error('创建文档失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMoveArticle = async () => {
+    if (!selectedArticleToMove || !targetMoveCategory) return;
+    setLoading(true);
+    try {
+      // 先获取文章详情
+      const articleData = await apiGet(`/api/knowledge/articles/${selectedArticleToMove.id}`);
+
+      // 更新分类ID
+      await apiPut(`/api/knowledge/articles/${selectedArticleToMove.id}`, {
+        ...articleData,
+        category_id: targetMoveCategory,
+        owner_id: getCurrentUserId() // 确保所有权正确
+      });
+
+      toast.success('移动成功');
+      setShowMoveModal(false);
+      setSelectedArticleToMove(null);
+      setTargetMoveCategory('');
+      fetchArticles(); // 刷新列表
+    } catch (error) {
+      console.error('移动失败:', error);
+      toast.error('移动失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteArticle = async (articleId) => {
+    setDeleteConfirm({
+      visible: true,
+      type: 'article',
+      id: articleId,
+      title: '确定要删除这篇文档吗？'
+    });
   };
 
   // 按分类分组文档
@@ -478,8 +680,11 @@ const Win11MyKnowledgeBase = () => {
           break;
         }
         case 'delete':
-          // 这里可以添加删除逻辑
-          toast.info('删除功能待实现');
+          handleDeleteArticle(contextMenu.data.id);
+          break;
+        case 'move':
+          setSelectedArticleToMove(contextMenu.data);
+          setShowMoveModal(true);
           break;
         default:
           break;
@@ -498,6 +703,12 @@ const Win11MyKnowledgeBase = () => {
   // 处理背景右键菜单
   const handleBackgroundContextMenu = (e) => {
     handleContextMenu(e, 'background', null);
+  };
+
+  // 处理背景点击
+  const handleBackgroundClick = () => {
+    setContextMenu({ ...contextMenu, visible: false });
+    setSelectedArticle(null);
   };
 
   // 关闭文件夹视图
@@ -541,12 +752,15 @@ const Win11MyKnowledgeBase = () => {
 
               {/* 操作按钮 */}
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowCreateCategoryModal(true)}
-                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm whitespace-nowrap"
-                >
-                  添加分类
-                </button>
+                {/* 我的知识库文档都是从公共知识库添加来的,不需要添加文档和回收站按钮 */}
+                {!currentFolderCategory && (
+                  <button
+                    onClick={() => setShowCreateCategoryModal(true)}
+                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm whitespace-nowrap"
+                  >
+                    添加分类
+                  </button>
+                )}
 
                 {/* View mode buttons for categories */}
                 {!currentFolderCategory && (
@@ -656,8 +870,113 @@ const Win11MyKnowledgeBase = () => {
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden">
-        {currentFolderCategory ? (
+      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden" onClick={handleBackgroundClick}>
+        {showRecycleBin ? (
+          // 回收站视图
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <span className="text-2xl">🗑️</span>
+                回收站
+              </h2>
+              <button
+                onClick={handleEmptyRecycleBin}
+                className="px-3 py-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 text-sm flex items-center gap-1 border border-red-200 transition-colors"
+              >
+                🗑️ 清空回收站
+              </button>
+            </div>
+
+            {recycleBinLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <>
+                {/* 已删除的分类 */}
+                {recycleBinItems.categories.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的分类</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {recycleBinItems.categories.map(category => (
+                        <div key={category.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm opacity-75 hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-2xl">{category.icon || '📁'}</span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{category.name}</h4>
+                              <p className="text-xs text-gray-500">
+                                删除时间: {formatDate(category.deleted_at)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
+                            <button
+                              onClick={() => handleRestore('category', category.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                            >
+                              恢复
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDelete('category', category.id)}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+                            >
+                              彻底删除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 已删除的文档 */}
+                {recycleBinItems.articles.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的文档</h3>
+                    <div className="space-y-2">
+                      {recycleBinItems.articles.map(article => (
+                        <div key={article.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <span className="text-xl">{article.icon || '📄'}</span>
+                            <div className="min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{article.title}</h4>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>原分类: {article.category_name || '未分类'}</span>
+                                <span>•</span>
+                                <span>删除时间: {formatDate(article.deleted_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              onClick={() => handleRestore('article', article.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                            >
+                              恢复
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDelete('article', article.id)}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+                            >
+                              彻底删除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recycleBinItems.categories.length === 0 && recycleBinItems.articles.length === 0 && (
+                  <div className="text-center py-20 text-gray-400">
+                    <span className="text-6xl block mb-4 opacity-50">🗑️</span>
+                    <p className="text-lg">回收站是空的</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : currentFolderCategory ? (
           // 文件夹内容视图
           <div className="flex-1 flex flex-col h-full">
             {/* 文件夹头部 */}
@@ -692,7 +1011,7 @@ const Win11MyKnowledgeBase = () => {
               ) : viewMode === 'card' ? (
                 // 卡片视图
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                  {folderArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
                     const firstAttachment = parseAttachments(article.attachments)[0];
                     const resolvedType = inferFileType(firstAttachment);
                     return (
@@ -793,7 +1112,7 @@ const Win11MyKnowledgeBase = () => {
               ) : (
                 // List view for articles
                 <div className="space-y-3">
-                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                  {folderArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
                     const firstAttachment = parseAttachments(article.attachments)[0];
                     const resolvedType = inferFileType(firstAttachment);
                     return (
@@ -848,12 +1167,12 @@ const Win11MyKnowledgeBase = () => {
             </div>
 
             {/* 文章分页 */}
-            {articleTotalPages > 1 && (
+            {folderTotalPages > 1 && (
               <div className="p-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="text-sm text-gray-600">
-                      共 {totalArticleItems} 个文档，第 {currentPage} / {articleTotalPages} 页
+                      共 {folderTotalItems} 个文档，第 {currentPage} / {folderTotalPages} 页
                     </div>
                     <select
                       value={pageSize}
@@ -882,9 +1201,9 @@ const Win11MyKnowledgeBase = () => {
                       上一页
                     </button>
 
-                    {[...Array(Math.min(5, articleTotalPages))].map((_, i) => {
+                    {[...Array(Math.min(5, folderTotalPages))].map((_, i) => {
                       let pageNum;
-                      const totalPages = articleTotalPages;
+                      const totalPages = folderTotalPages;
                       if (totalPages <= 5) {
                         pageNum = i + 1;
                       } else if (currentPage <= 3) {
@@ -909,15 +1228,15 @@ const Win11MyKnowledgeBase = () => {
                     })}
 
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(articleTotalPages, p + 1))}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(p => Math.min(folderTotalPages, p + 1))}
+                      disabled={currentPage === folderTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       下一页
                     </button>
                     <button
-                      onClick={() => setCurrentPage(articleTotalPages)}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(folderTotalPages)}
+                      disabled={currentPage === folderTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       末页
@@ -1424,14 +1743,13 @@ const Win11MyKnowledgeBase = () => {
           contextMenu.type === 'folder'
             ? [
                 { icon: '📂', label: '打开', actionType: 'open' },
-                { icon: '🗑️', label: '删除', actionType: 'delete' },
-                contextMenu.data && contextMenu.data.is_hidden === 1
-                  ? { icon: '👁️', label: '显示', actionType: 'toggleVisibility' }
-                  : { icon: '🙈', label: '隐藏', actionType: 'toggleVisibility' }
+                { icon: contextMenu.data?.is_hidden ? '👁️' : '🙈', label: contextMenu.data?.is_hidden ? '显示' : '隐藏', actionType: 'toggleVisibility' },
+                { icon: '🗑️', label: '删除', actionType: 'delete' }
               ]
             : contextMenu.type === 'file'
             ? [
                 { icon: '👁️', label: '预览', actionType: 'preview' },
+                { icon: '➡️', label: '移动到...', actionType: 'move' },
                 { icon: '🗑️', label: '删除', actionType: 'delete' }
               ]
             : contextMenu.type === 'background'
@@ -1441,7 +1759,6 @@ const Win11MyKnowledgeBase = () => {
             : []
         }
       />
-
 
       {/* 新建分类模态框 */}
       {showCreateCategoryModal && (
@@ -1493,6 +1810,170 @@ const Win11MyKnowledgeBase = () => {
                   {loading ? '创建中...' : '创建'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新建文档模态框 */}
+      {showCreateArticleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">新建文档</h2>
+              <button
+                onClick={() => {
+                  setShowCreateArticleModal(false);
+                  setNewArticle({ title: '', content: '', summary: '' });
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  文档标题 *
+                </label>
+                <input
+                  type="text"
+                  value={newArticle.title}
+                  onChange={(e) => setNewArticle({ ...newArticle, title: e.target.value })}
+                  placeholder="请输入文档标题"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  摘要
+                </label>
+                <input
+                  type="text"
+                  value={newArticle.summary}
+                  onChange={(e) => setNewArticle({ ...newArticle, summary: e.target.value })}
+                  placeholder="请输入文档摘要"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  内容 *
+                </label>
+                <textarea
+                  value={newArticle.content}
+                  onChange={(e) => setNewArticle({ ...newArticle, content: e.target.value })}
+                  placeholder="请输入文档内容"
+                  rows={8}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowCreateArticleModal(false);
+                    setNewArticle({ title: '', content: '', summary: '' });
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleCreateArticle}
+                  disabled={loading || !newArticle.title.trim() || !newArticle.content.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? '创建中...' : '创建'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 移动文档模态框 */}
+      {showMoveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">移动文档</h2>
+              <button
+                onClick={() => {
+                  setShowMoveModal(false);
+                  setSelectedArticleToMove(null);
+                  setTargetMoveCategory('');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择目标分类
+                </label>
+                <select
+                  value={targetMoveCategory}
+                  onChange={(e) => setTargetMoveCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">未分类</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowMoveModal(false);
+                    setSelectedArticleToMove(null);
+                    setTargetMoveCategory('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleMoveArticle}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? '移动中...' : '确认移动'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认模态框 */}
+      {deleteConfirm.visible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">确认删除</h3>
+            <p className="text-gray-600 mb-6">{deleteConfirm.title}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm({ visible: false, type: '', id: null, title: '' })}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                删除
+              </button>
             </div>
           </div>
         </div>

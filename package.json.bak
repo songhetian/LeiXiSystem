@@ -1,0 +1,113 @@
+{
+  "name": "customer-service-desktop",
+  "version": "1.0.0",
+  "description": "客服管理系统 - 桌面版",
+  "main": "electron/main.js",
+  "author": "Leixi Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run dev\"",
+    "server": "node server/index.js",
+    "dev": "vite",
+    "dev:all": "concurrently \"npm run dev:server\" \"npm run dev:react\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "dev:server": "nodemon server/index.js",
+    "dev:server:normal": "node server/index.js",
+    "dev:react": "vite",
+    "dev:electron": "electron .",
+    "test": "node tests/test-db.js",
+    "test:db": "node tests/test-db.js",
+    "db:init": "node scripts/init-database.js",
+    "db:import": "node scripts/import-test-data.js",
+    "db:import-complete": "node scripts/import-database.js",
+    "db:migrate": "node scripts/run-migrations.js",
+    "db:setup": "node setup-database.js",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prod": "concurrently \"npm run server\" \"npm run preview\"",
+    "prod:server": "cross-env NODE_ENV=production node server/index.js",
+    "prod:build": "npm run build && npm run prod",
+    "package": "cross-env NODE_ENV=production npm run build && electron-builder",
+    "package:win": "cross-env NODE_ENV=production npm run build && electron-builder --win",
+    "package:mac": "cross-env NODE_ENV=production npm run build && electron-builder --mac",
+    "package:linux": "cross-env NODE_ENV=production npm run build && electron-builder --linux",
+    "package:dev": "cross-env NODE_ENV=development npm run build && electron-builder",
+    "package:dev:win": "cross-env NODE_ENV=development npm run build && electron-builder --win",
+    "package:dev:mac": "cross-env NODE_ENV=development npm run build && electron-builder --mac",
+    "package:dev:linux": "cross-env NODE_ENV=development npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@fastify/cors": "^8.4.0",
+    "@fastify/multipart": "^7.7.3",
+    "@fastify/rate-limit": "^6.0.0",
+    "@fastify/static": "^6.12.0",
+    "@heroicons/react": "^2.2.0",
+    "antd": "^5.29.0",
+    "axios": "^1.6.0",
+    "bcrypt": "^5.1.1",
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.6.1",
+    "emoji-mart": "^5.6.0",
+    "exceljs": "^4.4.0",
+    "fastify": "^4.25.0",
+
+    "jsonwebtoken": "^9.0.2",
+    "lodash.debounce": "^4.0.8",
+    "lucide-react": "^0.554.0",
+    "mysql2": "^3.6.5",
+    "react": "^18.2.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^18.2.0",
+    "react-toastify": "^9.1.3",
+    "recharts": "^3.4.1",
+
+    "zustand": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "nodemon": "^3.1.10",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.leixi.customer-service",
+    "productName": "客服管理系统",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "dist-react/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/content-management-system_64x64.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png"
+    },
+    "npmRebuild": false
+  }
+}

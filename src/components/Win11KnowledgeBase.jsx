@@ -46,6 +46,11 @@ const Win11KnowledgeBase = () => {
   // 新建分类状态
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
 
+  // 移动文档状态
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [selectedArticleToMove, setSelectedArticleToMove] = useState(null);
+  const [targetMoveCategory, setTargetMoveCategory] = useState('');
+
   // 预览文档
   const [previewFile, setPreviewFile] = useState(null);
   const [previewModalWidth, setPreviewModalWidth] = useState('max-w-4xl');
@@ -109,10 +114,9 @@ const Win11KnowledgeBase = () => {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(getApiUrl(`/api/knowledge/categories?page=${categoryCurrentPage}&pageSize=${categoryPageSize}`));
-      console.log('Categories API Response:', response.data); // 调试信息
+      console.log('Categories API Response:', response.data);
       let categoriesData = response.data || [];
       let totalItems = 0;
-
       if (response.data && Array.isArray(response.data.data)) {
         categoriesData = response.data.data;
         totalItems = response.data.total || categoriesData.length;
@@ -120,19 +124,43 @@ const Win11KnowledgeBase = () => {
         categoriesData = response.data;
         totalItems = categoriesData.length;
       }
-
+      const uid = getCurrentUserId();
       const filtered = (categoriesData || []).filter(c => {
         const t = String(c?.type || '').toLowerCase();
         const notDeleted = !c.deleted_at && c.status !== 'deleted' && c.is_deleted !== 1;
-        return t === 'common' && c.is_public === 1 && isPublished(c) && notDeleted;
+        return t === 'common' && notDeleted && c.is_public === 1 && isPublished(c);
       });
       setCategories(filtered);
-      setTotalCategoryItems(totalItems);
-      const calculatedTotalPages = Math.ceil(totalItems / categoryPageSize);
+      // 使用过滤后的数据长度计算分页
+      const filteredTotalItems = filtered.length;
+      setTotalCategoryItems(filteredTotalItems);
+      const calculatedTotalPages = Math.ceil(filteredTotalItems / categoryPageSize);
       setCategoryTotalPages(calculatedTotalPages);
       console.log('Pagination Debug: totalItems =', totalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
     } catch (error) {
       console.error('获取分类失败:', error);
+    }
+  };
+  const handleMoveArticle = async () => {
+    if (!selectedArticleToMove || !targetMoveCategory) return;
+    setLoading(true);
+    try {
+      const articleRes = await axios.get(getApiUrl(`/api/knowledge/articles/${selectedArticleToMove.id}`));
+      const articleData = articleRes.data;
+      await axios.put(getApiUrl(`/api/knowledge/articles/${selectedArticleToMove.id}`), {
+        ...articleData,
+        category_id: targetMoveCategory
+      });
+      toast.success('移动成功');
+      setShowMoveModal(false);
+      setSelectedArticleToMove(null);
+      setTargetMoveCategory('');
+      fetchArticles();
+    } catch (error) {
+      console.error('移动失败:', error);
+      toast.error('移动失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -140,7 +168,7 @@ const Win11KnowledgeBase = () => {
     setLoading(true);
     try {
       const response = await axios.get(getApiUrl(`/api/knowledge/articles?page=${currentPage}&pageSize=${pageSize}`));
-      console.log('Articles API Response:', response.data); // 调试信息
+      console.log('Articles API Response:', response.data);
       let articlesData = response.data || [];
       let totalItems = 0;
 
@@ -155,10 +183,15 @@ const Win11KnowledgeBase = () => {
         totalItems = articlesData.total || articlesData.length;
       }
 
-      const filtered = (articlesData || []).filter(a => a.is_public === 1 && isPublished(a) && isNotDeleted(a));
+      const filtered = (articlesData || []).filter(a => {
+        // 只显示公开的文档 (is_public === 1)
+        return a.is_public === 1 && isPublished(a) && isNotDeleted(a);
+      });
       setArticles(filtered);
-      setTotalArticleItems(totalItems);
-      setArticleTotalPages(Math.ceil(totalItems / pageSize));
+      // 使用过滤后的数据长度计算分页
+      const filteredTotalItems = filtered.length;
+      setTotalArticleItems(filteredTotalItems);
+      setArticleTotalPages(Math.ceil(filteredTotalItems / pageSize));
     } catch (error) {
       console.error('获取文档失败:', error);
       toast.error('获取文档失败');
@@ -310,8 +343,8 @@ const Win11KnowledgeBase = () => {
     setCurrentPage(1);
   };
 
-  // 获取当前文件夹的文档
-  const getCurrentFolderArticles = () => {
+  // 获取当前文件夹的文档 - 使用 useMemo
+  const folderArticles = React.useMemo(() => {
     if (!currentFolderCategory) return [];
 
     const categoryArticles = currentFolderCategory.id === 'uncategorized'
@@ -351,12 +384,12 @@ const Win11KnowledgeBase = () => {
       return 0;
     });
 
-    // Set total article items and total pages for articles
-    setTotalArticleItems(filtered.length);
-    setArticleTotalPages(Math.ceil(filtered.length / pageSize));
-
     return filtered;
-  };
+  }, [currentFolderCategory, articles, searchTerm, sortBy, sortOrder]);
+
+  // 计算分页数据
+  const folderTotalItems = folderArticles.length;
+  const folderTotalPages = Math.ceil(folderTotalItems / pageSize);
 
   // 分页计算 (logic moved to getCurrentFolderArticles and state variables)
 
@@ -372,10 +405,10 @@ const Win11KnowledgeBase = () => {
       const response = await axios.post(getApiUrl('/api/knowledge/categories'), {
         name: newCategoryName,
         description: '',
-        icon: '📁', // Using '📁' for consistency with existing Win11KnowledgeBase
-        owner_id: getCurrentUserId(), // Assign current user as owner
-        type: 'common', // Mark as common type
-        is_public: 1 // Mark as public
+        icon: '📁',
+        // 公共分类不设置owner_id,这样才不会在"我的知识库"中显示
+        type: 'common',
+        is_public: 1
       });
 
       if (response.data && response.data.id) {
@@ -431,48 +464,56 @@ const Win11KnowledgeBase = () => {
     }
   };
 
-  // 按分类分组文档
-  const articlesByCategory = {};
-  const uncategorizedArticles = [];
+ // 按分类分组文档并排序 - 合并到一个 useMemo 避免循环依赖
+  const { articlesByCategory, uncategorizedArticles, sortedCategories, filteredCategories } = React.useMemo(() => {
+    // 1. 先分组文档
+    const byCategory = {};
+    const uncategorized = [];
 
-  // 排序分类
-  const sortedCategories = [...categories].sort((a, b) => {
-    if (sortBy === 'name') {
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
-      return sortOrder === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName);
-    }
-    return 0;
-  });
-
-  // 对主文件夹视图也应用搜索过滤
-  const filteredCategories = sortedCategories.filter(category => {
-    const categoryArticles = articlesByCategory[category.id] || [];
-    // 如果有搜索词，只显示包含匹配文档的分类
-    if (searchTerm) {
-      return category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             categoryArticles.some(article =>
-               article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
-             );
-    }
-    return true;
-  });
-
-  articles.forEach(article => {
-    const matchesSearch = article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         article.summary?.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return;
-
-    if (article.category_id) {
-      if (!articlesByCategory[article.category_id]) {
-        articlesByCategory[article.category_id] = [];
+    articles.forEach(article => {
+      const matchesSearch = article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           article.summary?.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return;
+      if (article.category_id) {
+        if (!byCategory[article.category_id]) {
+          byCategory[article.category_id] = [];
+        }
+        byCategory[article.category_id].push(article);
+      } else {
+        uncategorized.push(article);
       }
-      articlesByCategory[article.category_id].push(article);
-    } else {
-      uncategorizedArticles.push(article);
-    }
-  });
+    });
+
+    // 2. 排序分类
+    const sorted = [...categories].sort((a, b) => {
+      if (sortBy === 'name') {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        return sortOrder === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName);
+      }
+      return 0;
+    });
+
+    // 3. 过滤分类
+    const filtered = sorted.filter(category => {
+      const categoryArticles = byCategory[category.id] || [];
+      if (searchTerm) {
+        return category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               categoryArticles.some(article =>
+                 article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                 article.summary?.toLowerCase().includes(searchTerm.toLowerCase())
+               );
+      }
+      return true;
+    });
+
+    return {
+      articlesByCategory: byCategory,
+      uncategorizedArticles: uncategorized,
+      sortedCategories: sorted,
+      filteredCategories: filtered
+    };
+  }, [articles, categories, searchTerm, sortBy, sortOrder]);
 
   // 右键菜单处理函数
   const handleContextMenu = (e, type, data) => {
@@ -539,8 +580,14 @@ const Win11KnowledgeBase = () => {
   // 获取我的知识库分类
   const fetchMyKnowledgeCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/knowledge/categories'));
-      setMyKnowledgeCategories(response.data || []);
+      const userId = getCurrentUserId();
+      const response = await axios.get(getApiUrl(`/api/my-knowledge/categories?userId=${userId}`));
+      // 过滤只显示我的分类
+      const myCategories = (response.data || []).filter(c => {
+        const isMine = c.owner_id && String(c.owner_id) === String(userId);
+        return isMine && isNotDeleted(c);
+      });
+      setMyKnowledgeCategories(myCategories);
     } catch (error) {
       console.error('获取我的知识库分类失败:', error);
     }
@@ -557,10 +604,14 @@ const Win11KnowledgeBase = () => {
       // 如果选择了新建分类
       if (targetCategory === 'new' && newCategoryName.trim()) {
         // 创建新分类
+        const userId = getCurrentUserId();
         const categoryResponse = await axios.post(getApiUrl('/api/my-knowledge/categories'), {
           name: newCategoryName.trim(),
           description: '',
-          icon: '📁'
+          icon: '📁',
+          type: 'personal',
+          is_public: 0,
+          owner_id: userId
         });
         categoryId = categoryResponse.data.id;
 
@@ -571,10 +622,12 @@ const Win11KnowledgeBase = () => {
       }
 
       // 保存文档到我的知识库
+      const userId = getCurrentUserId();
       const response = await axios.post(getApiUrl('/api/my-knowledge/articles/save'), {
         articleId: selectedArticleToSave.id,
         categoryId: categoryId !== 'new' ? categoryId : null,
-        notes: '' // 暂时留空，可以根据需要添加备注功能
+        notes: '', // 暂时留空，可以根据需要添加备注功能
+        userId: userId
       });
 
       if (response.data.success) {
@@ -758,12 +811,7 @@ const Win11KnowledgeBase = () => {
 
               {/* 操作按钮 */}
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowCreateCategoryModal(true)}
-                  className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm whitespace-nowrap"
-                >
-                  添加分类
-                </button>
+                {/* 公共知识库不需要添加分类和添加文档功能 */}
 
                 {/* View mode buttons for categories */}
                 {!currentFolderCategory && (
@@ -909,7 +957,7 @@ const Win11KnowledgeBase = () => {
               ) : viewMode === 'card' ? (
                 // 卡片视图
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                  {folderArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
                     const firstAttachment = parseAttachments(article.attachments)[0];
                     const resolvedType = inferFileType(firstAttachment);
                     return (
@@ -956,7 +1004,7 @@ const Win11KnowledgeBase = () => {
               ) : (
                 // 列表视图
                 <div className="space-y-3">
-                  {getCurrentFolderArticles().slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
+                  {folderArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(article => {
                     const firstAttachment = parseAttachments(article.attachments)[0];
                     const resolvedType = inferFileType(firstAttachment);
                     return (
@@ -1011,12 +1059,12 @@ const Win11KnowledgeBase = () => {
             </div>
 
             {/* 文章分页 */}
-            {articleTotalPages > 1 && (
+            {folderTotalPages > 1 && (
               <div className="p-4 border-t border-gray-200 bg-gray-50">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="text-sm text-gray-600">
-                      共 {totalArticleItems} 个文档，第 {currentPage} / {articleTotalPages} 页
+                      共 {folderTotalItems} 个文档，第 {currentPage} / {folderTotalPages} 页
                     </div>
                     <select
                       value={pageSize}
@@ -1045,9 +1093,9 @@ const Win11KnowledgeBase = () => {
                       上一页
                     </button>
 
-                    {[...Array(Math.min(5, articleTotalPages))].map((_, i) => {
+                    {[...Array(Math.min(5, folderTotalPages))].map((_, i) => {
                       let pageNum;
-                      const totalPages = articleTotalPages;
+                      const totalPages = folderTotalPages;
                       if (totalPages <= 5) {
                         pageNum = i + 1;
                       } else if (currentPage <= 3) {
@@ -1072,15 +1120,15 @@ const Win11KnowledgeBase = () => {
                     })}
 
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(articleTotalPages, p + 1))}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(p => Math.min(folderTotalPages, p + 1))}
+                      disabled={currentPage === folderTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       下一页
                     </button>
                     <button
-                      onClick={() => setCurrentPage(articleTotalPages)}
-                      disabled={currentPage === articleTotalPages}
+                      onClick={() => setCurrentPage(folderTotalPages)}
+                      disabled={currentPage === folderTotalPages}
                       className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       末页
@@ -1550,12 +1598,16 @@ const Win11KnowledgeBase = () => {
         items={
           contextMenu.type === 'folder'
             ? [
-                { icon: '📂', label: '打开', action: () => handleOpenFolder(contextMenu.data) },
-                { icon: '🗑️', label: '删除', action: () => handleDeleteCategory(contextMenu.data.id) }
+                { icon: '📂', label: '打开', action: () => handleOpenFolder(contextMenu.data) }
               ]
             : contextMenu.type === 'file'
             ? [
                 { icon: '👁️', label: '预览', action: () => handleContextMenuAction({ action: 'preview' }) },
+                { icon: '➡️', label: '移动到...', action: () => {
+                    setSelectedArticleToMove(contextMenu.data);
+                    setShowMoveModal(true);
+                  }
+                },
                 { icon: '💾', label: '保存到我的知识库', action: () => {
                     setSelectedArticleToSave(contextMenu.data);
                     setShowSaveToMyKnowledgeModal(true);
@@ -1618,6 +1670,67 @@ const Win11KnowledgeBase = () => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {loading ? '创建中...' : '创建'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 移动文档模态框 */}
+      {showMoveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">移动文档</h2>
+              <button
+                onClick={() => {
+                  setShowMoveModal(false);
+                  setSelectedArticleToMove(null);
+                  setTargetMoveCategory('');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择目标分类
+                </label>
+                <select
+                  value={targetMoveCategory}
+                  onChange={(e) => setTargetMoveCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">请选择分类...</option>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowMoveModal(false);
+                    setSelectedArticleToMove(null);
+                    setTargetMoveCategory('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleMoveArticle}
+                  disabled={loading || !targetMoveCategory}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? '移动中...' : '移动'}
                 </button>
               </div>
             </div>

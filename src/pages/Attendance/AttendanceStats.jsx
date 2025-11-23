@@ -89,17 +89,17 @@ export default function AttendanceStats() {
   }
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
-      <div className="mb-4">
+    <div className="p-3 max-w-7xl mx-auto">
+      <div className="mb-3">
         <h1 className="text-xl font-bold text-gray-800">我的考勤统计</h1>
-        <p className="text-sm text-gray-600 mt-1">查看个人考勤数据</p>
+        <p className="text-sm text-gray-600">查看个人考勤数据</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-3 mb-4">
+      <div className="bg-white rounded-lg shadow p-2.5 mb-3">
         <div className="flex items-center justify-between">
-          <button onClick={handlePrevMonth} className="px-3 py-1.5 border rounded hover:bg-gray-50 text-sm">← 上月</button>
+          <button onClick={handlePrevMonth} className="px-2.5 py-1.5 border rounded hover:bg-gray-50 text-sm">← 上月</button>
           <div className="font-semibold text-sm">{selectedMonth.year}年 {selectedMonth.month}月</div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <button
               onClick={() => {
                 if (employee) {
@@ -108,11 +108,11 @@ export default function AttendanceStats() {
                   window.open(getApiUrl(`/api/export/attendance/${employee.id}?startDate=${startDate}&endDate=${endDate}`), '_blank')
                 }
               }}
-              className="px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+              className="px-2.5 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
             >
               📥 导出
             </button>
-            <button onClick={handleNextMonth} className="px-3 py-1.5 border rounded hover:bg-gray-50 text-sm">下月 →</button>
+            <button onClick={handleNextMonth} className="px-2.5 py-1.5 border rounded hover:bg-gray-50 text-sm">下月 →</button>
           </div>
         </div>
       </div>
@@ -123,96 +123,96 @@ export default function AttendanceStats() {
         <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 text-sm">暂无数据</div>
       ) : (
         <>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow p-4 mb-4 text-white">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow p-3 mb-3 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm opacity-90 mb-1">本月出勤率</div>
-                <div className="text-3xl font-bold">{calculateAttendanceRate()}%</div>
+                <div className="text-xs opacity-90 mb-0.5">本月出勤率</div>
+                <div className="text-2xl font-bold">{calculateAttendanceRate()}%</div>
               </div>
-              <div className="text-right text-sm opacity-90">
+              <div className="text-right text-xs opacity-90">
                 <div>打卡 {report.attendance.clock_in_days} 天</div>
                 <div>工作日 22 天</div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="bg-white rounded-lg shadow p-3">
-              <div className="flex items-center justify-between mb-1">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+            <div className="bg-white rounded-lg shadow p-2.5">
+              <div className="flex items-center justify-between mb-0.5">
                 <span className="text-xs text-gray-600">正常</span>
-                <span className="text-lg">✅</span>
+                <span className="text-base">✅</span>
               </div>
-              <div className="text-xl font-bold text-green-600">{report.attendance.normal_days}</div>
+              <div className="text-lg font-bold text-green-600">{report.attendance.normal_days}</div>
               <div className="text-xs text-gray-500">天</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-3">
-              <div className="flex items-center justify-between mb-1">
+            <div className="bg-white rounded-lg shadow p-2.5">
+              <div className="flex items-center justify-between mb-0.5">
                 <span className="text-xs text-gray-600">迟到</span>
-                <span className="text-lg">⏰</span>
+                <span className="text-base">⏰</span>
               </div>
-              <div className="text-xl font-bold text-red-600">{report.attendance.late_days}</div>
+              <div className="text-lg font-bold text-red-600">{report.attendance.late_days}</div>
               <div className="text-xs text-gray-500">次</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-3">
-              <div className="flex items-center justify-between mb-1">
+            <div className="bg-white rounded-lg shadow p-2.5">
+              <div className="flex items-center justify-between mb-0.5">
                 <span className="text-xs text-gray-600">早退</span>
-                <span className="text-lg">🏃</span>
+                <span className="text-base">🏃</span>
               </div>
-              <div className="text-xl font-bold text-orange-600">{report.attendance.early_days}</div>
+              <div className="text-lg font-bold text-orange-600">{report.attendance.early_days}</div>
               <div className="text-xs text-gray-500">次</div>
             </div>
-            <div className="bg-white rounded-lg shadow p-3">
-              <div className="flex items-center justify-between mb-1">
+            <div className="bg-white rounded-lg shadow p-2.5">
+              <div className="flex items-center justify-between mb-0.5">
                 <span className="text-xs text-gray-600">缺勤</span>
-                <span className="text-lg">❌</span>
+                <span className="text-base">❌</span>
               </div>
-              <div className="text-xl font-bold text-gray-600">{report.attendance.absent_days}</div>
+              <div className="text-lg font-bold text-gray-600">{report.attendance.absent_days}</div>
               <div className="text-xs text-gray-500">天</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-sm font-semibold mb-3 text-gray-700">工作时长</h3>
-              <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            <div className="bg-white rounded-lg shadow p-3">
+              <h3 className="text-sm font-semibold mb-2 text-gray-700">工作时长</h3>
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-600">总时长</span>
-                  <span className="text-lg font-bold text-blue-600">{report.attendance.total_work_hours.toFixed(1)}h</span>
+                  <span className="text-base font-bold text-blue-600">{report.attendance.total_work_hours.toFixed(1)}h</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-600">日均</span>
-                  <span className="text-lg font-bold text-green-600">
+                  <span className="text-base font-bold text-green-600">
                     {report.attendance.clock_in_days > 0 ? (report.attendance.total_work_hours / report.attendance.clock_in_days).toFixed(1) : 0}h
                   </span>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-sm font-semibold mb-3 text-gray-700">请假统计</h3>
-              <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-white rounded-lg shadow p-3">
+              <h3 className="text-sm font-semibold mb-2 text-gray-700">请假统计</h3>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
                 {[
                   { key: 'annual', label: '年假', icon: '🏖️' },
                   { key: 'sick', label: '病假', icon: '🤒' },
                   { key: 'personal', label: '事假', icon: '📋' }
                 ].map((type) => (
                   <div key={type.key}>
-                    <div className="text-lg">{type.icon}</div>
+                    <div className="text-base">{type.icon}</div>
                     <div className="text-xs text-gray-600">{type.label}</div>
                     <div className="text-sm font-bold text-gray-800">{report.leave[type.key] || 0}天</div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-sm font-semibold mb-3 text-gray-700">加班统计</h3>
-              <div className="space-y-2">
+            <div className="bg-white rounded-lg shadow p-3">
+              <h3 className="text-sm font-semibold mb-2 text-gray-700">加班统计</h3>
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-600">加班次数</span>
-                  <span className="text-lg font-bold text-purple-600">{report.overtime.count}次</span>
+                  <span className="text-base font-bold text-purple-600">{report.overtime.count}次</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-600">加班时长</span>
-                  <span className="text-lg font-bold text-purple-600">{report.overtime.total_hours.toFixed(1)}h</span>
+                  <span className="text-base font-bold text-purple-600">{report.overtime.total_hours.toFixed(1)}h</span>
                 </div>
               </div>
             </div>

@@ -8,7 +8,7 @@ export { default as OvertimeRecords } from './OvertimeRecords'
 export { default as MakeupApply } from './MakeupApply'
 export { default as AttendanceStats } from './AttendanceStats'
 export { default as DepartmentStats } from './DepartmentStats'
-export { default as DepartmentAttendanceStats } from './DepartmentAttendanceStats'
+
 export { default as ShiftManagement } from './ShiftManagement'
 export { default as ScheduleManagement } from './ScheduleManagement'
 export { default as Notifications } from './Notifications'

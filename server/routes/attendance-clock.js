@@ -227,4 +227,21 @@ module.exports = async function (fastify, opts) {
       return reply.code(500).send({ success: false, message: '获取失败' })
     }
   })
+
+  // 删除今日打卡记录（测试用）
+  fastify.delete('/api/attendance/today', async (request, reply) => {
+    const { employee_id, date } = request.query
+
+    try {
+      await pool.query(
+        'DELETE FROM attendance_records WHERE employee_id = ? AND record_date = ?',
+        [employee_id, date]
+      )
+
+      return { success: true, message: '今日打卡记录已删除' }
+    } catch (error) {
+      console.error('删除打卡记录失败:', error)
+      return reply.code(500).send({ success: false, message: '删除失败' })
+    }
+  })
 }

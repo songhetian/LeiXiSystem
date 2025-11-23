@@ -23,7 +23,7 @@ const CategoryManagement = () => {
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/categories');
+      const response = await api.get('/exam-categories');
       // Handle response structure: { success: true, data: { categories: [...] } } or { success: true, data: [...] }
       const categoriesData = response.data?.data?.categories || response.data?.data || [];
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
@@ -42,10 +42,10 @@ const CategoryManagement = () => {
 
     try {
       if (editingCategory) {
-        await api.put(`/categories/${editingCategory.id}`, formData);
+        await api.put(`/exam-categories/${editingCategory.id}`, formData);
         toast.success('分类更新成功');
       } else {
-        await api.post('/categories', formData);
+        await api.post('/exam-categories', formData);
         toast.success('分类创建成功');
       }
       setShowModal(false);
@@ -63,7 +63,7 @@ const CategoryManagement = () => {
     if (!window.confirm('确定要删除这个分类吗？')) return;
 
     try {
-      await api.delete(`/categories/${categoryId}`);
+      await api.delete(`/exam-categories/${categoryId}`);
       toast.success('分类删除成功');
       fetchCategories();
     } catch (error) {

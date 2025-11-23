@@ -5,23 +5,35 @@ import { getCurrentUser, isSystemAdmin } from '../../utils/auth'
 import { getApiUrl } from '../../utils/apiConfig'
 
 
-// 为班次生成颜色
-const getShiftColor = (shiftId) => {
-  const colors = [
-    { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-    { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
-    { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
-    { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
-    { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
-    { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' },
-    { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300' },
-    { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300' },
-  ]
+// 班次颜色样式生成器
+const getShiftStyle = (color) => {
+  if (!color) return {}
 
-  if (!shiftId) return { bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-300' }
+  // 计算颜色亮度的辅助函数
+  const getContrastColor = (hexColor) => {
+    // 移除 # 号
+    const hex = hexColor.replace('#', '')
 
-  const index = (shiftId - 1) % colors.length
-  return colors[index]
+    // 解析 RGB
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+
+    // 计算亮度 (YIQ 公式)
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000
+
+    // 如果亮度高（浅色），返回深色文字；否则返回浅色文字
+    // 这里我们使用稍微柔和一点的黑白色
+    return yiq >= 128 ? '#1f2937' : '#ffffff'
+  }
+
+  return {
+    backgroundColor: color, // 使用实色背景，或者可以使用 `${color}CC` 增加一点透明度
+    color: getContrastColor(color), // 自动计算对比色文字
+    borderColor: color,
+    fontWeight: '500',
+    textShadow: '0 1px 2px rgba(0,0,0,0.1)' // 增加一点文字阴影提高可读性
+  }
 }
 
 export default function ScheduleManagement() {
@@ -418,26 +430,26 @@ export default function ScheduleManagement() {
   const daysInMonth = getDaysInMonth()
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       {/* 头部 */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">排班管理</h1>
-          <p className="text-gray-600 mt-1">管理员工的工作排班</p>
+          <h1 className="text-xl font-bold text-gray-800">排班管理</h1>
+          <p className="text-gray-600 text-sm">管理员工的工作排班</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <button
             onClick={handleDownloadTemplate}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-sm"
             title="下载Excel导入模板"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             下载模板
           </button>
-          <label className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <label className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
             导入Excel
@@ -450,16 +462,16 @@ export default function ScheduleManagement() {
           </label>
           <button
             onClick={handleExportExcel}
-            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-sm"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             导出Excel
           </button>
           <button
             onClick={handleBatchSchedule}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
           >
             批量排班
           </button>
@@ -467,8 +479,8 @@ export default function ScheduleManagement() {
       </div>
 
       {/* 筛选器 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-white rounded-lg shadow p-3 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* 部门选择 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -564,18 +576,18 @@ export default function ScheduleManagement() {
       {/* 排班日历 */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">加载中...</div>
+          <div className="p-6 text-center text-gray-500 text-sm">加载中...</div>
         ) : employees.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">该部门暂无员工</div>
+          <div className="p-6 text-center text-gray-500 text-sm">该部门暂无员工</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-700 border-r">
+                <th className="px-3 py-2 text-left font-medium text-gray-700 border-r">
                   员工
                 </th>
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                  <th key={day} className="px-2 py-3 text-center font-medium text-gray-700 border-r">
+                  <th key={day} className="px-1.5 py-2 text-center font-medium text-gray-700 border-r">
                     {day}
                   </th>
                 ))}
@@ -584,24 +596,25 @@ export default function ScheduleManagement() {
             <tbody>
               {employees.map((employee) => (
                 <tr key={employee.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-800 border-r whitespace-nowrap">
+                  <td className="px-3 py-2 font-medium text-gray-800 border-r whitespace-nowrap">
                     {employee.real_name}
                   </td>
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                     const schedule = getSchedule(employee.id, day)
-                    const shiftColor = schedule?.shift_id ? getShiftColor(schedule.shift_id) : null
+                    const shiftStyle = schedule?.color ? getShiftStyle(schedule.color) : {}
 
                     return (
                       <td
                         key={day}
                         onClick={() => handleCellClick(employee, day)}
-                        className={`px-2 py-3 text-center border-r cursor-pointer transition-all ${
+                        className={`px-1.5 py-2 text-center border-r cursor-pointer transition-all ${
                           schedule?.is_rest_day
                             ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            : schedule && shiftColor
-                            ? `${shiftColor.bg} ${shiftColor.text} hover:opacity-80 font-medium`
+                            : schedule
+                            ? 'hover:opacity-80 font-medium'
                             : 'hover:bg-blue-50'
                         }`}
+                        style={schedule && !schedule.is_rest_day ? shiftStyle : {}}
                       >
                         {schedule?.is_rest_day ? '休' : schedule?.shift_name || '-'}
                       </td>

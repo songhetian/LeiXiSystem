@@ -35,3 +35,7 @@ yarn-error.log*
 tests/coverage/
 tests/results/
 *.test.log
+
+
+#打包文件
+dist-app/

@@ -27,6 +27,8 @@ function EmployeeManagement() {
     changeDate: new Date().toISOString().split('T')[0],
     reason: ''
   })
+  const [dbError, setDbError] = useState(false);
+  const [dbErrorMessage, setDbErrorMessage] = useState('');
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
@@ -80,19 +82,35 @@ function EmployeeManagement() {
           'Authorization': `Bearer ${token}`
         }
       })
+
+      // 检查响应状态
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json()
       setEmployees(data)
       setFilteredEmployees(data)
+      setDbError(false);
+      setDbErrorMessage('');
     } catch (error) {
       // 检查是否是连接错误
       if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
-        toast.error('无法连接到后端服务器,请确保后端服务已启动 (npm run server)', {
+        const errorMsg = '无法连接到后端服务器,请确保后端服务已启动 (npm run server)';
+        toast.error(errorMsg, {
           autoClose: 5000
         })
+        setDbError(true);
+        setDbErrorMessage(errorMsg);
       } else {
         toast.error('获取员工列表失败')
+        setDbError(true);
+        setDbErrorMessage('获取员工列表失败');
       }
       console.error('获取员工列表失败:', error)
+      // 在无法获取数据时显示友好的提示信息
+      setEmployees([])
+      setFilteredEmployees([])
     } finally {
       setLoading(false)
     }
@@ -548,6 +566,26 @@ function EmployeeManagement() {
         <div className="text-primary-600 text-xl">加载中...</div>
       </div>
     )
+  }
+
+  if (dbError) {
+    return (
+      <div className="p-8 text-center">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl mx-auto">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-2">数据库连接问题</h2>
+          <p className="text-yellow-700 mb-4">{dbErrorMessage}</p>
+          <div className="bg-white p-4 rounded border text-left">
+            <h3 className="font-medium mb-2">解决方案：</h3>
+            <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+              <li>确保已复制整个项目文件夹，而不仅仅是exe文件</li>
+              <li>在项目根目录运行 <code className="bg-gray-100 px-1 rounded">npm run server</code> 启动后端服务</li>
+              <li>检查.env文件中的数据库配置是否正确</li>
+              <li>确认MySQL数据库服务正在运行</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

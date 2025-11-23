@@ -89,7 +89,7 @@ const Win11KnowledgeFolderView = () => {
 
 
   // 回收站
-  const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [recycleCategories, setRecycleCategories] = useState([]);
   const [recycleArticles, setRecycleArticles] = useState([]);
   const [recycleLoading, setRecycleLoading] = useState(false);
@@ -177,14 +177,17 @@ const Win11KnowledgeFolderView = () => {
       const filtered = (categoriesData || []).filter(c => {
         const t = String(c?.type || '').toLowerCase();
         const notDeleted = !c.deleted_at && c.status !== 'deleted' && c.is_deleted !== 1;
-        return isOwnedBy(c, uid) && t === 'personal' && isPublished(c) && notDeleted;
+        // 逻辑: 用户ID匹配 + common + 未删除
+        return isOwnedBy(c, uid) && t === 'common' && notDeleted;
       });
 
       setCategories(filtered);
-      setTotalCategoryItems(totalItems); // Set total items
-      const calculatedTotalPages = Math.ceil(totalItems / categoryPageSize);
+      // 使用过滤后的数据长度计算分页
+      const filteredTotalItems = filtered.length;
+      setTotalCategoryItems(filteredTotalItems);
+      const calculatedTotalPages = Math.ceil(filteredTotalItems / categoryPageSize);
       setCategoryTotalPages(calculatedTotalPages);
-      console.log('Pagination Debug: totalItems =', totalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
+      console.log('Pagination Debug: filteredTotalItems =', filteredTotalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
 
     } catch (error) {
       console.error('获取分类失败:', error);
@@ -198,17 +201,6 @@ const Win11KnowledgeFolderView = () => {
       console.log('Folder Articles API Response:', response.data); // 调试信息
       // 确保返回的是数组
       let articlesData = response.data || [];
-      if (Array.isArray(articlesData)) {
-        // 数据是数组
-      } else if (articlesData.data && Array.isArray(articlesData.data)) {
-        // 如果是分页数据结构 { data: [...], pagination: {...} }
-        articlesData = articlesData.data;
-      } else if (typeof articlesData === 'object' && !Array.isArray(articlesData)) {
-        // 如果是分页对象结构 { data: [...], total: ..., page: ... }
-        articlesData = articlesData.data || [];
-      } else {
-        articlesData = [];
-      }
       const filtered = (articlesData || []).filter(a => {
         // 这里只过滤掉已删除的文档，其余全部交给前端视图按分类/搜索再筛选
         return !a.deleted_at && a.status !== 'deleted' && a.is_deleted !== 1;
@@ -313,15 +305,16 @@ const Win11KnowledgeFolderView = () => {
     if (!articleToMove) return;
     try {
       setLoading(true);
+      // 先获取最新文章数据以确保字段完整
+      const articleRes = await axios.get(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`));
+      const articleData = articleRes.data;
+
       const updated = {
-        title: articleToMove.title,
+        ...articleData,
         category_id: moveTargetCategory || null,
-        summary: articleToMove.summary || null,
-        content: articleToMove.content || '',
-        attachments: articleToMove.attachments || null,
-        type: articleToMove.type || 'personal',
-        status: articleToMove.status || 'published',
-        icon: articleToMove.icon || '📄'
+        // 确保关键字段不丢失
+        owner_id: articleData.owner_id || articleData.user_id || getCurrentUserId(),
+        is_public: articleData.is_public
       };
       await axios.put(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`), updated);
       toast.success('文档已移动到目标分类');
@@ -644,8 +637,8 @@ const Win11KnowledgeFolderView = () => {
         // 现在不需要摘要和正文内容，后端字段保持为空字符串
         summary: '',
         content: '',
-        // 文档类型为个人知识库
-        type: 'personal',
+        // 文档类型为common，与当前视图过滤逻辑一致
+        type: 'common',
         status: articleFormData.status || 'published',
         // 图标优先使用分类图标，否则使用默认图标
         icon: creatingCategory?.icon || '📄',
@@ -693,7 +686,7 @@ const Win11KnowledgeFolderView = () => {
         description: '',
         icon: '\ud83d\udcc1',
         owner_id: getCurrentUserId(),
-        type: 'personal',
+        type: 'common',
         is_public: 0
       });
 
@@ -764,17 +757,44 @@ const Win11KnowledgeFolderView = () => {
     }
   };
 
+  /// 处理文档公开/不公开
+  const handleToggleArticlePublic = async (article, isPublic) => {
+    try {
+      const articleRes = await axios.get(getApiUrl(`/api/knowledge/articles/${article.id}`));
+      const articleData = articleRes.data;
+
+      // 只验证 title,content 可以为空(文档可能只有附件)
+      if (!articleData.title) {
+        toast.error('文档数据不完整,无法更新');
+        return;
+      }
+
+      // 确保 content 字段存在(即使为空字符串)
+      if (articleData.content === undefined || articleData.content === null) {
+        articleData.content = '';
+      }
+
+      await axios.put(getApiUrl(`/api/knowledge/articles/${article.id}`), {
+        ...articleData,
+        is_public: isPublic
+      });
+      toast.success(isPublic === 1 ? '文档已公开' : '文档已设为不公开');
+      fetchArticles();
+    } catch (error) {
+      console.error('更新文档公开状态失败:', error);
+      console.error('Error response:', error.response?.data);
+      toast.error('操作失败: ' + (error.response?.data?.error || error.message));
+    }
+  };
   // 按分类分组文档
   const articlesByCategory = {};
   const uncategorizedArticles = [];
-
   articles.forEach(article => {
     const t = String(article.title || '').toLowerCase();
     const s = String(article.summary || '').toLowerCase();
     const q = String(searchTerm || '').toLowerCase();
     const matchesSearch = t.includes(q) || s.includes(q);
     if (!matchesSearch) return;
-
     if (article.category_id) {
       if (!articlesByCategory[article.category_id]) {
         articlesByCategory[article.category_id] = [];
@@ -784,7 +804,6 @@ const Win11KnowledgeFolderView = () => {
       uncategorizedArticles.push(article);
     }
   });
-
   // 右键菜单处理函数
   const handleContextMenu = (e, type, data) => {
     e.preventDefault();
@@ -861,6 +880,12 @@ const Win11KnowledgeFolderView = () => {
           setShowDeleteArticleModal(true);
           break;
         }
+        case 'togglePublic': {
+          const article = contextMenu.data;
+          if (!article) break;
+          handleToggleArticlePublic(article, article.is_public === 1 ? 0 : 1);
+          break;
+        }
         default:
           break;
       }
@@ -898,8 +923,8 @@ const Win11KnowledgeFolderView = () => {
         axios.get(getApiUrl('/api/knowledge/recycle-bin/categories')),
         axios.get(getApiUrl('/api/knowledge/recycle-bin/articles'))
       ]);
-      setRecycleCategories(catRes.data?.data || []);
-      setRecycleArticles(artRes.data?.data || []);
+      setRecycleCategories(Array.isArray(catRes.data) ? catRes.data : (catRes.data?.data || []));
+      setRecycleArticles(Array.isArray(artRes.data) ? artRes.data : (artRes.data?.data || []));
     } catch (error) {
       console.error('加载回收站数据失败:', error);
       toast.error('加载回收站数据失败');
@@ -909,12 +934,12 @@ const Win11KnowledgeFolderView = () => {
   };
 
   const openRecycleBin = () => {
-    setShowRecycleBinModal(true);
+    setShowRecycleBin(true);
     fetchRecycleBinData();
   };
 
   const closeRecycleBin = () => {
-    setShowRecycleBinModal(false);
+    setShowRecycleBin(false);
     setRecycleContextMenu({ visible: false, x: 0, y: 0, type: '', data: null });
   };
 
@@ -1007,15 +1032,15 @@ const Win11KnowledgeFolderView = () => {
                           <div className="w-12 h-12 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-3xl">📂</div>
                           知识文档
                         </h1>
-                        
+
                         {/* 搜索框和操作按钮 */}
                         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 items-stretch ml-4"> {/* Added ml-4 for spacing */}
                           {/* 搜索框 */}
                           <div className="relative flex-1 min-w-[250px]">
                             <input
                               type="text"
-                              placeholder={currentFolderCategory 
-                                ? `在 ${currentFolderCategory.name} 中搜索...` 
+                              placeholder={currentFolderCategory
+                                ? `在 ${currentFolderCategory.name} 中搜索...`
                                 : '搜索所有文档...'}
                               value={currentFolderCategory ? folderSearchTerm : searchTerm}
                               onChange={(e) => {
@@ -1031,7 +1056,7 @@ const Win11KnowledgeFolderView = () => {
                               🔍
                             </div>
                           </div>
-                          
+
                           {/* 操作按钮 */}
                           <div className="flex items-center gap-2">
                             <button
@@ -1047,14 +1072,22 @@ const Win11KnowledgeFolderView = () => {
                             >
                               {currentFolderCategory ? '添加文档' : '添加分类'}
                             </button>
-                            
+
                             <button
-                              onClick={openRecycleBin}
-                              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                              onClick={() => {
+                                setShowRecycleBin(!showRecycleBin);
+                                if (!showRecycleBin) fetchRecycleBinData();
+                              }}
+                              className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
+                                showRecycleBin
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
                             >
+                              <span>🗑️</span>
                               回收站
                             </button>
-                            
+
                             {/* 视图切换按钮 - 仅在分类视图中显示 */}
                             {!currentFolderCategory && ( // Only show for categories
                               <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
@@ -1072,7 +1105,7 @@ const Win11KnowledgeFolderView = () => {
                                 </button>
                               </div>
                             )}
-          
+
                             {currentFolderCategory && ( // Only show for articles
                               <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
                                 <button
@@ -1096,7 +1129,166 @@ const Win11KnowledgeFolderView = () => {
 
       {/* 主内容区域 */}
       <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden" onContextMenu={handleBackgroundContextMenu}>
-        {currentFolderCategory ? (
+        {showRecycleBin ? (
+          // 回收站视图
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <span className="text-2xl">🗑️</span>
+                回收站
+              </h2>
+              <button
+                onClick={async () => {
+                  if (!window.confirm('清空回收站后数据将无法恢复，确定要继续吗？')) return;
+                  try {
+                    await axios.post(getApiUrl('/api/knowledge/recycle-bin/empty'), { type: 'all' });
+                    toast.success('已清空回收站');
+                    await fetchRecycleBinData();
+                    await fetchCategories();
+                    await fetchArticles();
+                  } catch (error) {
+                    console.error('清空回收站失败:', error);
+                    toast.error('清空回收站失败');
+                  }
+                }}
+                className="px-3 py-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 text-sm flex items-center gap-1 border border-red-200 transition-colors"
+              >
+                🗑️ 清空回收站
+              </button>
+            </div>
+
+            {recycleLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <>
+                {/* 已删除的分类 */}
+                {recycleCategories.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的分类</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {recycleCategories.map(category => (
+                        <div key={category.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm opacity-75 hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-2xl">{category.icon || '📁'}</span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{category.name}</h4>
+                              <p className="text-xs text-gray-500">
+                                删除时间: {formatDate(category.deleted_at)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await axios.post(getApiUrl(`/api/knowledge/recycle-bin/categories/${category.id}/restore`), { restoreArticles: true });
+                                  toast.success('分类及其文档已还原');
+                                  fetchRecycleBinData();
+                                  fetchCategories();
+                                  fetchArticles();
+                                } catch (error) {
+                                  console.error('还原失败:', error);
+                                  toast.error('还原失败');
+                                }
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                            >
+                              恢复
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('确定要永久删除吗？此操作不可撤销！')) return;
+                                try {
+                                  await axios.delete(getApiUrl(`/api/knowledge/recycle-bin/categories/${category.id}/permanent`));
+                                  toast.success('永久删除成功');
+                                  fetchRecycleBinData();
+                                } catch (error) {
+                                  console.error('永久删除失败:', error);
+                                  toast.error('永久删除失败');
+                                }
+                              }}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+                            >
+                              彻底删除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 已删除的文档 */}
+                {recycleArticles.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的文档</h3>
+                    <div className="space-y-2">
+                      {recycleArticles.map(article => (
+                        <div key={article.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <span className="text-xl">{article.icon || '📄'}</span>
+                            <div className="min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{article.title}</h4>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>原分类: {article.category_name || '未分类'}</span>
+                                <span>•</span>
+                                <span>删除时间: {formatDate(article.deleted_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await axios.post(getApiUrl(`/api/knowledge/recycle-bin/articles/${article.id}/restore`));
+                                  toast.success('文档已还原');
+                                  fetchRecycleBinData();
+                                  fetchCategories();
+                                  fetchArticles();
+                                } catch (error) {
+                                  console.error('还原失败:', error);
+                                  toast.error('还原失败');
+                                }
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                            >
+                              恢复
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('确定要永久删除吗？此操作不可撤销！')) return;
+                                try {
+                                  await axios.delete(getApiUrl(`/api/knowledge/recycle-bin/articles/${article.id}/permanent`));
+                                  toast.success('永久删除成功');
+                                  fetchRecycleBinData();
+                                } catch (error) {
+                                  console.error('永久删除失败:', error);
+                                  toast.error('永久删除失败');
+                                }
+                              }}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+                            >
+                              彻底删除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recycleCategories.length === 0 && recycleArticles.length === 0 && (
+                  <div className="text-center py-20 text-gray-400">
+                    <span className="text-6xl block mb-4 opacity-50">🗑️</span>
+                    <p className="text-lg">回收站是空的</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : currentFolderCategory ? (
           // 文件夹内容视图
           <div className="flex-1 flex flex-col h-full" onContextMenu={handleBackgroundContextMenu}>
             {/* 文件夹头部 */}
@@ -1139,7 +1331,11 @@ const Win11KnowledgeFolderView = () => {
                       return (
                         <div
                           key={article.id}
-                          className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center border border-gray-200 rounded-lg shadow-sm"
+                          className={`p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center border rounded-lg shadow-sm ${
+                            article.is_public === 1
+                              ? 'bg-green-50 border-green-200'
+                              : 'bg-white border-gray-200'
+                          }`}
                           onContextMenu={(e) => handleContextMenu(e, 'file', article)}
                           onClick={() => {
                             const attachments = parseAttachments(article.attachments);
@@ -1203,25 +1399,24 @@ const Win11KnowledgeFolderView = () => {
                             }
                           }}
                         >
-                          <div className="text-2xl flex-shrink-0 transform hover:scale-110 transition-transform duration-200">
-                            {getFileIcon(resolvedType)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-gray-900 truncate">{article.title}</h3>
-                            {article.summary && (
-                              <p className="text-sm text-gray-500 mt-1 line-clamp-1">{article.summary}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                              <span>👁️ {article.view_count || 0}</span>
-                              <span>📅 {formatDate(article.created_at)}</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="text-xl flex-shrink-0">{article.icon || getFileIcon(article.type)}</span>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-medium text-gray-900 truncate text-sm flex items-center gap-2">
+                              {article.title}
+                              {article.is_public === 1 ? (
+                                <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex-shrink-0" title="已公开">🌐 公开</span>
+                              ) : (
+                                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 flex-shrink-0" title="未公开">🔒 私有</span>
+                              )}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                              <span>{formatFileSize(article.size || 0)}</span>
+                              <span>•</span>
+                              <span>{formatDate(article.created_at)}</span>
                             </div>
-                            {firstAttachment && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                                <span>{getFileIcon(resolvedType)}</span>
-                                <span>{getFileTypeName(resolvedType)}</span>
-                              </div>
-                            )}
                           </div>
+                        </div>
                         </div>
                       );
                     })}
@@ -1770,6 +1965,9 @@ const Win11KnowledgeFolderView = () => {
             : contextMenu.type === 'file'
             ? [
               { icon: '👁️', label: '预览', actionType: 'preview' },
+              contextMenu.data && contextMenu.data.is_public === 1
+                ? { icon: '🔒', label: '设为不公开', actionType: 'togglePublic' }
+                : { icon: '🌐', label: '设为公开', actionType: 'togglePublic' },
               { icon: '📂', label: '移动到', actionType: 'move' },
               { icon: '🗑️', label: '删除', actionType: 'delete' }
             ]
@@ -1870,160 +2068,6 @@ const Win11KnowledgeFolderView = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 回收站模态框 */}
-      {showRecycleBinModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[96vh] flex flex-col border border-gray-200">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <span>🗑️</span>
-                  回收站
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">右键分类或文档可执行还原操作，支持清空回收站进行彻底删除。</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={async () => {
-                    if (!window.confirm('清空回收站后数据将无法恢复，确定要继续吗？')) return;
-                    try {
-                      const res = await axios.post(getApiUrl('/api/knowledge/recycle-bin/empty'), { type: 'all' });
-                      toast.success('已清空回收站');
-                      // 重新加载回收站和主列表
-                      await fetchRecycleBinData();
-                      await fetchCategories();
-                      await fetchArticles();
-                    } catch (error) {
-                      console.error('清空回收站失败:', error);
-                      toast.error('清空回收站失败');
-                    }
-                  }}
-                  className="px-4 py-2 text-sm rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
-                >
-                  清空回收站
-                </button>
-                <button
-                  onClick={closeRecycleBin}
-                  className="px-4 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-
-            <div className="px-6 pt-4 flex items-center gap-3 border-b border-gray-200 bg-gray-50">
-              <button
-                onClick={() => setRecycleTab('categories')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ recycleTab === 'categories'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'}`}
-              >
-                分类 ({recycleCategories.length})
-              </button>
-              <button
-                onClick={() => setRecycleTab('articles')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ recycleTab === 'articles'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'}`}
-              >
-                文档 ({recycleArticles.length})
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-              {recycleLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-                    <p className="mt-2 text-gray-600">加载中...</p>
-                  </div>
-                </div>
-              ) : recycleTab === 'categories' ? (
-                recycleCategories.length === 0 ? (
-                  <div className="text-center text-gray-500 py-16">暂无已删除的分类</div>
-                ) : (
-                  <div className="space-y-2">
-                    {recycleCategories.map(cat => (
-                      <div
-                        key={cat.id}
-                        className="group bg-white/80 rounded-lg border border-gray-200 px-4 py-3 cursor-default hover:bg-blue-50/60 hover:border-blue-200 flex items-center gap-4"
-                        onContextMenu={(e) => handleRecycleContextMenu(e, 'category', cat)}
-                      >
-                        <div className="w-14 h-14 flex items-center justify-center rounded-md bg-gray-50 text-gray-600 text-3xl flex-shrink-0">
-                          📂
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-gray-900 truncate max-w-xs">{cat.name}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">分类</span>
-                          </div>
-                          <div className="text-xs text-gray-500 flex flex-wrap gap-4">
-                            <span>包含 {cat.article_count} 篇文档</span>
-                            {cat.deleted_at && (
-                              <span>删除时间：{new Date(cat.deleted_at).toLocaleString()}</span>
-                            )}
-                            {cat.deleted_by_name && (
-                              <span>操作人：{cat.deleted_by_name}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              ) : recycleArticles.length === 0 ? (
-                <div className="text-center text-gray-500 py-16">暂无已删除的文档</div>
-              ) : (
-                <div className="space-y-2">
-                  {recycleArticles.map(article => (
-                    <div
-                      key={article.id}
-                      className="group bg-white/80 rounded-lg border border-gray-200 px-4 py-3 hover:bg-emerald-50/60 hover:border-emerald-200 cursor-default flex items-center gap-4"
-                      onContextMenu={(e) => handleRecycleContextMenu(e, 'article', article)}
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center rounded-md bg-emerald-50 text-emerald-500 text-xl flex-shrink-0">
-                        {article.icon || '📄'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900 truncate max-w-sm">{article.title}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">文档</span>
-                        </div>
-                        <div className="text-xs text-gray-500 flex flex-wrap gap-4">
-                          <span>分类：{article.category_name || '未分类'}</span>
-                          {article.deleted_at && (
-                            <span>删除时间：{new Date(article.deleted_at).toLocaleString()}</span>
-                          )}
-                          {article.deleted_by_name && (
-                            <span>操作人：{article.deleted_by_name}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 回收站右键菜单 */}
-            <Win11ContextMenu
-              x={recycleContextMenu.x}
-              y={recycleContextMenu.y}
-              visible={recycleContextMenu.visible}
-              onClose={handleRecycleContextMenuClose}
-              onAction={handleRecycleContextMenuAction}
-              items={
-                recycleContextMenu.type
-                  ? [
-                      { icon: '↩️', label: '还原', actionType: 'restore' }
-                    ]
-                  : []
-              }
-            />
           </div>
         </div>
       )}

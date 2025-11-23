@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'react-toastify'
 import { getApiBaseUrl } from '../utils/apiConfig'
+import { apiGet } from '../utils/apiClient'
 
 /**
  * Token验证Hook - 实现单设备登录
@@ -19,15 +20,11 @@ export const useTokenVerification = (onLogout) => {
 
     try {
       isCheckingRef.current = true
-      const API_BASE_URL = getApiBaseUrl()
 
-      const response = await fetch(`${API_BASE_URL}/auth/verify-token`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      // 使用apiGet，并跳过自动刷新，避免死循环
+      const data = await apiGet('/api/auth/verify-token', {
+        skipRefresh: true
       })
-
-      const data = await response.json()
 
       if (!data.valid) {
         // Token无效，清除本地存储
@@ -44,12 +41,6 @@ export const useTokenVerification = (onLogout) => {
             pauseOnHover: true,
             draggable: true,
           })
-        } else {
-          // 不需要这个提醒，直接退出即可
-          // toast.warning('登录已过期，请重新登录', {
-          //   position: 'top-center',
-          //   autoClose: 3000,
-          // })
         }
 
         // 停止检查
@@ -64,12 +55,23 @@ export const useTokenVerification = (onLogout) => {
         }
       }
     } catch (error) {
-      // 静默处理网络错误,避免在后端未启动时频繁报错
-      // 只在非网络错误时记录
-      if (error.name !== 'TypeError' && !error.message.includes('Failed to fetch')) {
-        console.error('Token验证失败:', error)
+      // 401错误会被apiClient抛出，我们需要捕获它
+      if (error.response && error.response.status === 401) {
+         // Token无效，清除本地存储
+         localStorage.removeItem('token')
+         localStorage.removeItem('user')
+
+         // 如果是被踢出
+         if (error.response.data && error.response.data.kicked) {
+            toast.error('您的账号已在其他设备登录，当前设备已退出', {
+              position: 'top-center',
+              autoClose: 5000
+            })
+         }
+
+         if (onLogout) onLogout()
       }
-      // 网络错误不退出登录，避免误判
+      // 静默处理其他错误
     } finally {
       isCheckingRef.current = false
     }

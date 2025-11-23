@@ -12,14 +12,18 @@ const path = require('path')
 const { pipeline } = require('stream')
 const util = require('util')
 const pump = util.promisify(pipeline)
-require('dotenv').config()
+// 显式指定 .env 文件路径以确保正确加载
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 
 // 引入权限中间件
 const { extractUserPermissions, applyDepartmentFilter } = require('./middleware/checkPermission')
 
 // 注册 CORS
 fastify.register(cors, {
-  origin: '*'
+  origin: '*',
+  methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 })
 
 // 注册文件上传
@@ -41,10 +45,37 @@ fastify.addHook('preHandler', async (request, reply) => {
   }
 })
 
+// 加载数据库配置
+const dbConfigPath = path.join(__dirname, '../config/db-config.json')
+let dbConfigJson = {}
+try {
+  if (fs.existsSync(dbConfigPath)) {
+    dbConfigJson = JSON.parse(fs.readFileSync(dbConfigPath, 'utf8'))
+  }
+} catch (error) {
+  console.error('加载数据库配置失败:', error)
+}
+
 // 创建上传目录
-const uploadDir = path.join(__dirname, '../uploads')
+// 优先使用配置文件中的 sharedDirectory，否则使用默认的 uploads 目录
+let uploadDir = path.join(__dirname, '../uploads')
+if (dbConfigJson.upload && dbConfigJson.upload.sharedDirectory) {
+  uploadDir = dbConfigJson.upload.sharedDirectory
+  console.log('使用配置的上传目录:', uploadDir)
+}
+
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true })
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true })
+  } catch (error) {
+    console.error('创建上传目录失败:', error)
+    // 如果创建失败（可能是权限问题），回退到默认目录
+    uploadDir = path.join(__dirname, '../uploads')
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+    console.log('回退到默认上传目录:', uploadDir)
+  }
 }
 
 // 静态文件服务
@@ -55,11 +86,12 @@ fastify.register(require('@fastify/static'), {
 
 // JWT 密钥
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
 
 // 数据库配置
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
+  user: process.env.DB_USER || 'tian',
   password: process.env.DB_PASSWORD || 'root',
   database: process.env.DB_NAME || 'leixin_customer_service',
   port: process.env.DB_PORT || 3306,
@@ -91,7 +123,61 @@ async function initDatabase() {
 
 // 健康检查
 fastify.get('/api/health', async (request, reply) => {
-  return { status: 'ok', message: '服务正常' }
+  try {
+    // 测试数据库连接
+    if (pool) {
+      const connection = await pool.getConnection();
+      await connection.ping(); // 测试连接
+      connection.release();
+
+      // 测试查询
+      const [result] = await pool.query('SELECT 1 as connected');
+
+      return {
+        status: 'ok',
+        message: '服务正常',
+        database: 'connected',
+        dbTest: result[0].connected === 1
+      };
+    } else {
+      return {
+        status: 'warning',
+        message: '服务运行中但数据库未初始化',
+        database: 'not initialized'
+      };
+    }
+  } catch (error) {
+    console.error('健康检查失败:', error);
+    return {
+      status: 'error',
+      message: '数据库连接失败',
+      database: 'disconnected',
+      error: error.message
+    };
+  }
+})
+
+// 添加根路径处理程序
+fastify.get('/', async (request, reply) => {
+  return {
+    message: '客服管理系统后端服务正在运行',
+    version: '1.0.0',
+    documentation: '请访问前端应用或使用API接口',
+    api_docs: '/api/health'
+  }
+})
+
+// 添加API根路径
+fastify.get('/api', async (request, reply) => {
+  return {
+    message: '客服管理系统API服务',
+    version: '1.0.0',
+    endpoints: [
+      'GET /api/health - 健康检查',
+      'POST /api/auth/login - 用户登录',
+      'GET /api/employees - 获取员工列表'
+    ]
+  }
 })
 
 // ==================== 文件上传 API ====================
@@ -115,8 +201,16 @@ fastify.post('/api/upload', async (request, reply) => {
     // 保存文件
     await pump(data.file, fs.createWriteStream(filepath))
 
-    // 返回文件URL
-    const fileUrl = `http://localhost:3001/uploads/${filename}`
+    // 返回文件URL - 使用配置的publicUrl或动态生成
+    let baseUrl;
+    if (dbConfigJson.upload && dbConfigJson.upload.publicUrl) {
+      baseUrl = dbConfigJson.upload.publicUrl;
+    } else {
+      const protocol = request.protocol;
+      const host = request.headers.host || request.hostname;
+      baseUrl = `${protocol}://${host}`;
+    }
+    const fileUrl = `${baseUrl}/uploads/${filename}`;
 
     return {
       success: true,
@@ -148,9 +242,19 @@ fastify.post('/api/upload/multiple', async (request, reply) => {
         // 保存文件
         await pump(part.file, fs.createWriteStream(filepath))
 
+        // 生成文件URL
+        let baseUrl;
+        if (dbConfigJson.upload && dbConfigJson.upload.publicUrl) {
+          baseUrl = dbConfigJson.upload.publicUrl;
+        } else {
+          const protocol = request.protocol;
+          const host = request.headers.host || request.hostname;
+          baseUrl = `${protocol}://${host}`;
+        }
+
         // 收集结果
         uploadedFiles.push({
-          url: `http://localhost:3001/uploads/${filename}`,
+          url: `${baseUrl}/uploads/${filename}`,
           filename: part.filename,
           size: fs.statSync(filepath).size
         })
@@ -275,7 +379,14 @@ fastify.post('/api/auth/login', async (request, reply) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, sessionId },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '1h' } // Access token有效期1小时
+    )
+
+    // 生成 Refresh Token
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' } // Refresh token有效期7天
     )
 
     // 更新最后登录时间和session_token（实现单设备登录）
@@ -291,6 +402,8 @@ fastify.post('/api/auth/login', async (request, reply) => {
       success: true,
       message: '登录成功',
       token,
+      refresh_token: refreshToken,
+      expiresIn: 3600,
       user: userInfo
     }
   } catch (error) {
@@ -326,6 +439,62 @@ fastify.post('/api/auth/logout', async (request, reply) => {
       success: true,
       message: '退出登录成功'
     }
+  }
+})
+
+// 刷新Token
+fastify.post('/api/auth/refresh', async (request, reply) => {
+  const { refresh_token } = request.body
+
+  if (!refresh_token) {
+    return reply.code(400).send({ error: 'Refresh token is required' })
+  }
+
+  try {
+    // 验证refresh token
+    const decoded = jwt.verify(refresh_token, JWT_REFRESH_SECRET)
+
+    // 检查用户是否存在且状态正常
+    const [users] = await pool.query(
+      'SELECT id, username, status, session_token FROM users WHERE id = ?',
+      [decoded.id]
+    )
+
+    if (users.length === 0 || users[0].status !== 'active') {
+      return reply.code(401).send({ error: 'User not found or inactive' })
+    }
+
+    const user = users[0]
+
+    // 生成新的access token
+    const sessionId = `${user.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const newToken = jwt.sign(
+      { id: user.id, username: user.username, sessionId },
+      JWT_SECRET,
+      { expiresIn: '1h' } // Access token有效期1小时
+    )
+
+    // 生成新的refresh token (可选，这里选择轮换)
+    const newRefreshToken = jwt.sign(
+      { id: user.id },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' } // Refresh token有效期7天
+    )
+
+    // 更新session_token
+    await pool.query(
+      'UPDATE users SET session_token = ?, session_created_at = NOW() WHERE id = ?',
+      [newToken, user.id]
+    )
+
+    return {
+      token: newToken,
+      refresh_token: newRefreshToken,
+      expiresIn: 3600
+    }
+  } catch (error) {
+    console.error('Token刷新失败:', error)
+    return reply.code(401).send({ error: 'Invalid refresh token' })
   }
 })
 
@@ -380,7 +549,12 @@ fastify.get('/api/auth/verify-token', async (request, reply) => {
       return reply.code(401).send({ success: false, message: '未登录', valid: false })
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET)
+    let decoded
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (err) {
+      return reply.code(401).send({ success: false, message: 'Token无效或已过期', valid: false })
+    }
 
     // 检查数据库中的session_token是否匹配
     const [users] = await pool.query(
@@ -1483,17 +1657,17 @@ fastify.get('/api/knowledge/categories', async (request, reply) => {
   }
 });
 
-// 创建知识库分�?
+// 创建知识库分类
 fastify.post('/api/knowledge/categories', async (request, reply) => {
-  const { name, description, icon } = request.body;
+  const { name, description, icon, owner_id, type, is_public } = request.body;
   try {
     if (!name) {
       return reply.code(400).send({ error: 'Category name is required' });
     }
 
     const [result] = await pool.query(
-      'INSERT INTO knowledge_categories (name, description, icon) VALUES (?, ?, ?)',
-      [name, description || null, icon || '📁']
+      'INSERT INTO knowledge_categories (name, description, icon, owner_id, type, is_public) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, description || null, icon || '📁', owner_id || null, type || 'common', is_public !== undefined ? is_public : 1]
     );
 
     return { success: true, id: result.insertId };
@@ -1503,10 +1677,11 @@ fastify.post('/api/knowledge/categories', async (request, reply) => {
   }
 })
 
+
 // 更新知识库分�?
 fastify.put('/api/knowledge/categories/:id', async (request, reply) => {
   const { id } = request.params;
-  const { name, description, icon, is_hidden, is_published } = request.body;
+  const { name, description, icon, is_hidden, is_published, is_public } = request.body;
   try {
     // 构建更新语句
     const updates = [];
@@ -1531,6 +1706,10 @@ fastify.put('/api/knowledge/categories/:id', async (request, reply) => {
     if (is_published !== undefined) {
       updates.push('is_published = ?');
       values.push(is_published ? 1 : 0);
+    }
+    if (is_public !== undefined) {
+      updates.push('is_public = ?');
+      values.push(is_public ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -1622,27 +1801,113 @@ fastify.post('/api/knowledge/categories/:id/toggle-visibility', async (request, 
 
 // 创建知识文章
 fastify.post('/api/knowledge/articles', async (request, reply) => {
-  const { title, category_id, summary, content, type, status, icon, attachments } = request.body;
+  // 检查数据库连接
+  if (!pool) {
+    console.error('❌ 数据库未连接,无法创建知识文章');
+    return reply.code(500).send({
+      error: 'Database connection failed',
+      message: '请检查数据库配置并确保数据库服务正在运行'
+    });
+  }
+
+  const { title, category_id, summary, content, type, status, icon, attachments, is_public, owner_id } = request.body;
   try {
     const attachmentsJson = attachments && attachments.length > 0 ? JSON.stringify(attachments) : null;
 
     const [result] = await pool.query(
       `INSERT INTO knowledge_articles
-      (title, category_id, summary, content, attachments, type, status, icon, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, category_id || null, summary || null, content, attachmentsJson, type, status, icon || '📄', request.user?.id || null]
+      (title, category_id, summary, content, attachments, type, status, icon, is_public, owner_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, category_id || null, summary || null, content || '', attachmentsJson, type || 'common', status || 'published', icon || '📄', is_public !== undefined ? is_public : 1, owner_id || null, request.user?.id || null]
     );
     return { success: true, id: result.insertId };
   } catch (error) {
-    console.error(error);
-    reply.code(500).send({ error: 'Failed to create knowledge article' });
+    console.error('创建知识文章失败:', error);
+    console.error('SQL状态:', error.sqlState);
+    console.error('SQL信息:', error.sqlMessage);
+    reply.code(500).send({
+      error: 'Failed to create knowledge article',
+      message: error.message,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+  }
+});
+
+// 获取知识文章列表
+fastify.get('/api/knowledge/articles', async (request, reply) => {
+  try {
+    const { type, category_id, owner_id, is_public } = request.query;
+
+    let query = `
+      SELECT * FROM knowledge_articles
+      WHERE is_deleted = 0 AND deleted_at IS NULL
+    `;
+    const params = [];
+
+    // 根据类型过滤
+    if (type && type !== 'all') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+
+    // 根据分类过滤
+    if (category_id) {
+      query += ' AND category_id = ?';
+      params.push(category_id);
+    }
+
+    // 根据所有者过滤
+    if (owner_id) {
+      query += ' AND owner_id = ?';
+      params.push(owner_id);
+    }
+
+    // 根据公开状态过滤
+    if (is_public !== undefined) {
+      query += ' AND is_public = ?';
+      params.push(is_public);
+    }
+
+    // 只返回已发布的文章
+    query += ' AND status = ?';
+    params.push('published');
+
+    query += ' ORDER BY created_at DESC';
+
+    const [rows] = await pool.query(query, params);
+    return rows;
+  } catch (error) {
+    console.error('获取知识文章列表失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch knowledge articles' });
+  }
+});
+
+// 获取单篇知识文章
+fastify.get('/api/knowledge/articles/:id', async (request, reply) => {
+  const { id } = request.params;
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM knowledge_articles
+       WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return reply.code(404).send({ error: 'Article not found' });
+    }
+
+    return rows[0];
+  } catch (error) {
+    console.error('获取知识文章失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch knowledge article' });
   }
 });
 
 // 更新知识文章
 fastify.put('/api/knowledge/articles/:id', async (request, reply) => {
   const { id } = request.params;
-  const { title, category_id, summary, content, type, status, icon, attachments } = request.body;
+  const { title, category_id, summary, content, type, status, icon, attachments, is_public } = request.body;
   try {
     // 验证必要字段
     if (!title || title.trim() === '') {
@@ -1650,10 +1915,9 @@ fastify.put('/api/knowledge/articles/:id', async (request, reply) => {
       return reply.code(400).send({ error: 'Title is required' });
     }
 
-    if (!content || content.trim() === '') {
-      console.error('× content 字段为空');
-      return reply.code(400).send({ error: 'Content is required' });
-    }
+    // content 可以为空,因为文档可能只有附件
+    // 如果 content 未定义,设置为空字符串
+    const finalContent = content !== undefined && content !== null ? content : '';
 
     // 处理附件数据
     let attachmentsJson = null;
@@ -1663,7 +1927,7 @@ fastify.put('/api/knowledge/articles/:id', async (request, reply) => {
       } else if (typeof attachments === 'string') {
         attachmentsJson = attachments;
       } else {
-        console.warn('attachments 类型不正�?', typeof attachments, attachments);
+        console.warn('attachments 类型不正确', typeof attachments, attachments);
         attachmentsJson = JSON.stringify(attachments);
       }
     }
@@ -1678,15 +1942,16 @@ fastify.put('/api/knowledge/articles/:id', async (request, reply) => {
         type = ?,
         status = ?,
         icon = ?,
+        is_public = ?,
         updated_by = ?
       WHERE id = ?`,
-      [title, category_id || null, summary || null, content, attachmentsJson, type, status, icon || '📄', request.user?.id || null, id]
+      [title, category_id || null, summary || null, finalContent, attachmentsJson, type, status, icon || '📄', is_public !== undefined ? is_public : null, request.user?.id || null, id]
     );
     return { success: true };
   } catch (error) {
     console.error('Failed to update knowledge article:', error);
     console.error('Failed to update knowledge article:', error.message);
-    console.error('SQL状�?', error.sqlState);
+    console.error('SQL状态', error.sqlState);
     console.error('SQL信息:', error.sqlMessage);
     reply.code(500).send({ error: 'Failed to update knowledge article: ' + error.message });
   }
@@ -1758,12 +2023,12 @@ fastify.post('/api/knowledge/categories/:id/soft-delete', async (request, reply)
       throw error;
     }
   } catch (error) {
-    console.error('软删除分类失�?', error);
+    console.error('软删除分类失败:', error);
     reply.code(500).send({ error: 'Failed to soft delete category: ' + error.message });
   }
 });
 
-// 软删除文�?
+// 软删除文档
 fastify.post('/api/knowledge/articles/:id/soft-delete', async (request, reply) => {
   const { id } = request.params;
   const userId = request.user?.id || null;
@@ -1791,63 +2056,53 @@ fastify.post('/api/knowledge/articles/:id/soft-delete', async (request, reply) =
       message: 'Article soft deleted'
     };
   } catch (error) {
-    console.error('软删除文档失�?', error);
+    console.error('软删除文档失败:', error);
     reply.code(500).send({ error: 'Failed to soft delete article: ' + error.message });
   }
 });
 
-// 获取回收站中的分�?
+// 获取回收站中的分类
 fastify.get('/api/knowledge/recycle-bin/categories', async (request, reply) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        kc.*,
-        u.real_name as deleted_by_name,
-        (SELECT COUNT(*) FROM knowledge_articles WHERE category_id = kc.id AND status = 'deleted') as article_count
-      FROM knowledge_categories kc
-      LEFT JOIN users u ON kc.deleted_by = u.id
-      WHERE kc.deleted_at IS NOT NULL
-      ORDER BY kc.deleted_at DESC
-    `);
+  const { userId } = request.query;
 
-    return {
-      success: true,
-      data: rows
-    };
+  try {
+    const [categories] = await pool.query(
+      `SELECT * FROM knowledge_categories
+       WHERE deleted_at IS NOT NULL
+       ${userId ? 'AND deleted_by = ?' : ''}
+       ORDER BY deleted_at DESC`,
+      userId ? [userId] : []
+    );
+
+    return categories || [];
   } catch (error) {
-    console.error('获取回收站分类失�?', error);
-    reply.code(500).send({ error: 'Failed to fetch recycle bin categories: ' + error.message });
+    console.error('获取回收站分类失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch deleted categories: ' + error.message });
   }
 });
 
-// 获取回收站中的文�?
+// 获取回收站中的文档
 fastify.get('/api/knowledge/recycle-bin/articles', async (request, reply) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        ka.*,
-        kc.name as category_name,
-        u1.real_name as author_name,
-        u2.real_name as deleted_by_name
-      FROM knowledge_articles ka
-      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
-      LEFT JOIN users u1 ON ka.created_by = u1.id
-      LEFT JOIN users u2 ON ka.deleted_by = u2.id
-      WHERE ka.status = 'deleted'
-      ORDER BY ka.deleted_at DESC
-    `);
+  const { userId } = request.query;
 
-    return {
-      success: true,
-      data: rows
-    };
+  try {
+    const [articles] = await pool.query(
+      `SELECT a.*, c.name as category_name
+       FROM knowledge_articles a
+       LEFT JOIN knowledge_categories c ON a.category_id = c.id
+       WHERE a.status = 'deleted' AND a.deleted_at IS NOT NULL
+       ${userId ? 'AND a.deleted_by = ?' : ''}
+       ORDER BY a.deleted_at DESC`,
+      userId ? [userId] : []
+    );
+
+    return articles || [];
   } catch (error) {
-    console.error('获取回收站文档失�?', error);
-    reply.code(500).send({ error: 'Failed to fetch recycle bin articles: ' + error.message });
+    console.error('获取回收站文档失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch deleted articles: ' + error.message });
   }
 });
 
-// 恢复分类
 fastify.post('/api/knowledge/recycle-bin/categories/:id/restore', async (request, reply) => {
   const { id } = request.params;
   const { restoreArticles } = request.body;
@@ -1917,6 +2172,8 @@ fastify.post('/api/knowledge/recycle-bin/articles/:id/restore', async (request, 
     reply.code(500).send({ error: 'Failed to restore article: ' + error.message });
   }
 });
+
+
 
 // 永久删除分类
 fastify.delete('/api/knowledge/recycle-bin/categories/:id/permanent', async (request, reply) => {
@@ -2026,6 +2283,122 @@ fastify.post('/api/knowledge/recycle-bin/empty', async (request, reply) => {
   }
 });
 
+
+// ==================== 我的知识库 API ====================
+
+// 获取我的知识库分类列表
+fastify.get('/api/my-knowledge/categories', async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.query.userId;
+
+    const [rows] = await pool.query(`
+      SELECT * FROM knowledge_categories
+      WHERE owner_id = ? AND is_deleted = 0 AND deleted_at IS NULL
+      ORDER BY created_at DESC
+    `, [userId]);
+
+    return rows;
+  } catch (error) {
+    console.error('获取我的知识库分类失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch my knowledge categories' });
+  }
+});
+
+// 创建我的知识库分类
+fastify.post('/api/my-knowledge/categories', async (request, reply) => {
+  const { name, description, icon } = request.body;
+  const userId = request.user?.id || request.body.owner_id;
+
+  try {
+    if (!name) {
+      return reply.code(400).send({ error: 'Category name is required' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO knowledge_categories (name, description, icon, owner_id, type, is_public) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, description || null, icon || '📁', userId, 'personal', 0]
+    );
+
+    return { success: true, id: result.insertId };
+  } catch (error) {
+    console.error('创建我的知识库分类失败:', error);
+    reply.code(500).send({ error: 'Failed to create my knowledge category: ' + error.message });
+  }
+});
+
+// 获取我的知识库文章列表
+fastify.get('/api/my-knowledge/articles', async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.query.userId;
+    const { category_id } = request.query;
+
+    let query = `
+      SELECT * FROM knowledge_articles
+      WHERE owner_id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status != 'deleted'
+    `;
+    const params = [userId];
+
+    if (category_id) {
+      query += ' AND category_id = ?';
+      params.push(category_id);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const [rows] = await pool.query(query, params);
+    return rows;
+  } catch (error) {
+    console.error('获取我的知识库文章失败:', error);
+    reply.code(500).send({ error: 'Failed to fetch my knowledge articles' });
+  }
+});
+
+// 保存文章到我的知识库 (从公共知识库复制)
+fastify.post('/api/my-knowledge/articles/save', async (request, reply) => {
+  const { articleId, categoryId, notes } = request.body;
+  const userId = request.user?.id || request.body.userId;
+
+  try {
+    // 获取原文章信息
+    const [articles] = await pool.query(
+      'SELECT * FROM knowledge_articles WHERE id = ?',
+      [articleId]
+    );
+
+    if (articles.length === 0) {
+      return reply.code(404).send({ error: 'Article not found' });
+    }
+
+    const article = articles[0];
+
+    // 创建副本到我的知识库
+    const [result] = await pool.query(
+      `INSERT INTO knowledge_articles
+      (title, category_id, summary, content, attachments, type, status, icon, owner_id, original_article_id, notes, is_public, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        article.title,
+        categoryId || null,
+        article.summary,
+        article.content,
+        article.attachments,
+        'personal',
+        'published',
+        article.icon || '📄',
+        userId,
+        articleId,
+        notes || null,
+        0,
+        userId
+      ]
+    );
+
+    return { success: true, id: result.insertId };
+  } catch (error) {
+    console.error('保存到我的知识库失败:', error);
+    reply.code(500).send({ error: 'Failed to save to my knowledge: ' + error.message });
+  }
+});
 
 // 增加文档浏览量
 fastify.post('/api/knowledge/articles/:id/view', async (request, reply) => {
@@ -2232,214 +2605,6 @@ fastify.get('/api/knowledge/articles/:id/collected', async (request, reply) => {
   } catch (error) {
     console.error('检查收藏状态失败:', error);
     return { collected: false };
-  }
-});
-
-// 获取我的分类（用户创建的分类）
-fastify.get('/api/my-knowledge/categories', async (request, reply) => {
-  try {
-    // 如果没有用户认证，返回所有分类
-    const userId = request.user?.id || null;
-
-    let query = `
-      SELECT * FROM knowledge_categories
-      WHERE deleted_at IS NULL
-    `;
-    const params = [];
-
-    if (userId) {
-      query += ` AND created_by = ?`;
-      params.push(userId);
-    }
-
-    query += ` ORDER BY sort_order, created_at DESC`;
-
-    const [rows] = await pool.query(query, params);
-    return rows;
-  } catch (error) {
-    console.error('获取我的分类失败:', error);
-    reply.code(500).send({ error: 'Failed to fetch my categories' });
-  }
-});
-
-// 获取我的文档（用户创建的文档）
-fastify.get('/api/my-knowledge/articles', async (request, reply) => {
-  try {
-    // 如果没有用户认证，返回所有文档
-    const userId = request.user?.id || null;
-
-    let query = `
-      SELECT
-        ka.*,
-        kc.name as category_name,
-        u.real_name as author_name
-      FROM knowledge_articles ka
-      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
-      LEFT JOIN users u ON ka.created_by = u.id
-      WHERE ka.status != 'deleted'
-    `;
-    const params = [];
-
-    if (userId) {
-      query += ` AND ka.created_by = ?`;
-      params.push(userId);
-    }
-
-    query += ` ORDER BY ka.created_at DESC`;
-
-    const [rows] = await pool.query(query, params);
-    return rows;
-  } catch (error) {
-    console.error('获取我的文档失败:', error);
-    reply.code(500).send({ error: 'Failed to fetch my articles' });
-  }
-});
-
-// 获取单个知识文章
-fastify.get('/api/knowledge/articles/:id', async (request, reply) => {
-  try {
-    const { id } = request.params;
-
-    const [rows] = await pool.query(`
-      SELECT
-        ka.*,
-        kc.name as category_name,
-        u.real_name as author_name
-      FROM knowledge_articles ka
-      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
-      LEFT JOIN users u ON ka.created_by = u.id
-      WHERE ka.id = ? AND ka.status != 'deleted'
-    `, [id]);
-
-    if (rows.length === 0) {
-      return reply.code(404).send({ error: 'Article not found' });
-    }
-
-    return rows[0];
-  } catch (error) {
-    console.error('Failed to fetch knowledge article:', error);
-    reply.code(500).send({ error: 'Failed to fetch knowledge article' });
-  }
-});
-
-// 获取知识文章列表（支持分页和搜索）
-fastify.get('/api/knowledge/articles', async (request, reply) => {
-  try {
-    const { page = 1, pageSize = 20, search = '' } = request.query;
-    const offset = (page - 1) * pageSize;
-
-    // 构建查询条件
-    let whereClause = 'WHERE ka.status != "deleted"';
-    const params = [];
-
-    if (search) {
-      whereClause += ' AND (ka.title LIKE ? OR ka.summary LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
-    }
-
-    // 获取文章总数
-    const [countResult] = await pool.query(`
-      SELECT COUNT(*) as total
-      FROM knowledge_articles ka
-      ${whereClause}
-    `, params);
-
-    const total = countResult[0].total;
-
-    // 获取分页文章数据
-    const [rows] = await pool.query(`
-      SELECT
-        ka.*,
-        kc.name as category_name,
-        u.real_name as author_name
-      FROM knowledge_articles ka
-      LEFT JOIN knowledge_categories kc ON ka.category_id = kc.id
-      LEFT JOIN users u ON ka.created_by = u.id
-      ${whereClause}
-      ORDER BY ka.created_at DESC
-      LIMIT ? OFFSET ?
-    `, [...params, parseInt(pageSize), parseInt(offset)]);
-
-    return {
-      success: true,
-      data: rows,
-      pagination: {
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
-        total,
-        totalPages: Math.ceil(total / pageSize)
-      }
-    };
-  } catch (error) {
-    console.error('获取知识文章列表失败:', error);
-    reply.code(500).send({ error: 'Failed to fetch knowledge articles' });
-  }
-});
-
-// 保存文档到我的知识库
-fastify.post('/api/my-knowledge/articles/save', async (request, reply) => {
-  const { articleId, categoryId, notes } = request.body;
-  const userId = request.user?.id || null; // 如果没有用户ID，设为 null 而不是 'anonymous'
-
-  try {
-    // 获取原文档
-    const [articles] = await pool.query(
-      'SELECT * FROM knowledge_articles WHERE id = ?',
-      [articleId]
-    );
-
-    if (articles.length === 0) {
-      return reply.code(404).send({ error: 'Article not found' });
-    }
-
-    const originalArticle = articles[0];
-
-    // 处理 attachments 字段 - 确保是有效的 JSON 字符串
-    let attachmentsJson = null;
-    if (originalArticle.attachments) {
-      if (typeof originalArticle.attachments === 'string') {
-        // 如果已经是字符串，验证是否是有效 JSON
-        try {
-          JSON.parse(originalArticle.attachments);
-          attachmentsJson = originalArticle.attachments;
-        } catch (e) {
-          console.error('Invalid JSON in attachments:', originalArticle.attachments);
-          attachmentsJson = null;
-        }
-      } else if (typeof originalArticle.attachments === 'object') {
-        // 如果是对象，转换为 JSON 字符串
-        attachmentsJson = JSON.stringify(originalArticle.attachments);
-      }
-    }
-
-    // 创建副本到我的知识库
-    const [result] = await pool.query(
-      `INSERT INTO knowledge_articles
-      (title, category_id, summary, content, attachments, type, status, icon, created_by, notes, original_article_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        originalArticle.title,
-        categoryId || null,
-        originalArticle.summary,
-        originalArticle.content,
-        attachmentsJson,
-        'personal', // 保存为个人知识
-        'published',
-        originalArticle.icon || '📄',
-        userId,
-        notes || null,
-        articleId // 记录原文档ID
-      ]
-    );
-
-    return {
-      success: true,
-      message: '已保存到我的知识库',
-      id: result.insertId
-    };
-  } catch (error) {
-    console.error('保存文档失败:', error);
-    reply.code(500).send({ error: 'Failed to save article' });
   }
 });
 
@@ -2806,14 +2971,32 @@ fastify.register(require('./routes/vacation-balance'))
 fastify.register(require('./routes/compensatory-leave'))
 fastify.register(require('./routes/vacation-type-balances'))
 
+// ==================== 知识库路由 ====================
+fastify.register(require('./routes/knowledge-reading'))
+fastify.register(require('./routes/knowledge-stats'))
+
 const start = async () => {
   try {
     await initDatabase();
+    // 尝试多种绑定方式确保网络访问
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
+    console.log(`🚀 服务器启动成功！`);
+    console.log(`   本地访问: http://localhost:3001`);
+    if (dbConfigJson.upload && dbConfigJson.upload.publicUrl) {
+       console.log(`   公共访问: ${dbConfigJson.upload.publicUrl}`);
+    }
+    console.log(`   网络访问: http://[您的IP地址]:3001`);
   } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
+    console.error('❌ 服务器启动失败:', err);
+    // 如果0.0.0.0失败，尝试绑定到所有接口
+    try {
+      await fastify.listen(3001);
+      console.log('🚀 服务器已启动 (备用模式)');
+    } catch (fallbackErr) {
+      fastify.log.error(fallbackErr);
+      process.exit(1);
+    }
   }
 };
 
-start()
+start();

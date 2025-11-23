@@ -116,40 +116,16 @@ export default function LeaveApply() {
       {balance && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">请假余额</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">年假</span>
-                <span className="text-2xl">🏖️</span>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="border rounded-lg p-6 bg-gradient-to-r from-purple-50 to-indigo-50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-gray-700 font-medium">加班转换假期</span>
+                <span className="text-3xl">🔄</span>
               </div>
-              <div className="text-2xl font-bold text-blue-600">
-                {balance.annual_leave_remaining} 天
-              </div>
-              <div className="text-sm text-gray-500 mt-1">
-                总额 {balance.annual_leave_total} 天，已用 {balance.annual_leave_used} 天
-              </div>
-            </div>
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">病假</span>
-                <span className="text-2xl">🤒</span>
-              </div>
-              <div className="text-2xl font-bold text-green-600">
-                {balance.sick_leave_remaining} 天
-              </div>
-              <div className="text-sm text-gray-500 mt-1">
-                总额 {balance.sick_leave_total} 天，已用 {balance.sick_leave_used} 天
-              </div>
-            </div>
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">加班转换假期</span>
-                <span className="text-2xl">🔄</span>
-              </div>
-              <div className="text-2xl font-bold text-purple-600">
+              <div className="text-3xl font-bold text-purple-600 mb-2">
                 {balance.overtime_leave_remaining || 0} 天
               </div>
-              <div className="text-sm text-gray-500 mt-1">
+              <div className="text-sm text-gray-600">
                 可用于抵扣年假或调休
               </div>
             </div>

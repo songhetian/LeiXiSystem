@@ -201,8 +201,115 @@ module.exports = async function (fastify, opts) {
     }
   })
 
+
+  // 删除今日打卡记录（测试用）
+  fastify.delete('/api/attendance/today', async (request, reply) => {
+    const { employee_id, date } = request.query
+
+    try {
+      await pool.query(
+        'DELETE FROM attendance_records WHERE employee_id = ? AND record_date = ?',
+        [employee_id, date]
+      )
+
+      return { success: true, message: '今日打卡记录已删除' }
+    } catch (error) {
+      console.error('删除打卡记录失败:', error)
+      return reply.code(500).send({ success: false, message: '删除失败' })
+    }
+  })
+
+  // 删除今日补卡记录（测试用）
+  fastify.delete('/api/attendance/makeup/today', async (request, reply) => {
+    const { employee_id, date } = request.query
+
+    try {
+      await pool.query(
+        'DELETE FROM attendance_makeup WHERE employee_id = ? AND attendance_date = ?',
+        [employee_id, date]
+      )
+
+      return { success: true, message: '今日补卡记录已删除' }
+    } catch (error) {
+      console.error('删除补卡记录失败:', error)
+      return reply.code(500).send({ success: false, message: '删除失败' })
+    }
+  })
+
   // 下班打卡
   fastify.post('/api/attendance/clock-out', async (request, reply) => {
     const { employee_id, location } = request.body
 
+
     try {
+      const today = new Date().toISOString().split('T')[0]
+
+      // 检查今天是否已经打过上班卡
+      const [clockInRecord] = await pool.query(
+        'SELECT id, clock_in_time FROM attendance_records WHERE employee_id = ? AND record_date = ? AND clock_in_time IS NOT NULL',
+        [employee_id, today]
+      )
+
+      if (clockInRecord.length === 0) {
+        return reply.code(400).send({
+          success: false,
+          message: '请先打上班卡'
+        })
+      }
+
+      // 检查是否已经打过下班卡
+      const [clockOutRecord] = await pool.query(
+        'SELECT id FROM attendance_records WHERE employee_id = ? AND record_date = ? AND clock_out_time IS NOT NULL',
+        [employee_id, today]
+      )
+
+      if (clockOutRecord.length > 0) {
+        return reply.code(400).send({
+          success: false,
+          message: '今天已经打过下班卡了'
+        })
+      }
+
+      const clockOutTime = new Date()
+      let status = 'normal'
+
+      // 获取班次信息判断是否早退
+      const [shifts] = await pool.query(
+        'SELECT * FROM work_shifts WHERE is_active = 1 LIMIT 1'
+      )
+
+      if (shifts.length > 0) {
+        const shift = shifts[0]
+        const shiftEndTime = new Date(`${today} ${shift.end_time}`)
+        const earlyThreshold = shift.early_threshold * 60 * 1000 // 转换为毫秒
+
+        if (shiftEndTime - clockOutTime > earlyThreshold) {
+          status = 'early'
+        }
+      }
+
+      // 更新打卡记录
+      await pool.query(
+        `UPDATE attendance_records
+         SET clock_out_time = ?, clock_out_location = ?, status = CASE WHEN status = 'late' AND ? = 'early' THEN 'late_early' WHEN status = 'normal' AND ? = 'early' THEN 'early' ELSE status END
+         WHERE id = ?`,
+        [clockOutTime, location || null, status, status, clockInRecord[0].id]
+      )
+
+      return {
+        success: true,
+        message: status === 'early' ? '打卡成功，但您早退了' : '打卡成功',
+        data: {
+          clock_out_time: clockOutTime,
+          status
+        }
+      }
+    } catch (error) {
+      console.error('下班打卡失败:', error)
+      return reply.code(500).send({
+        success: false,
+        message: '打卡失败'
+      })
+    }
+  })
+}
