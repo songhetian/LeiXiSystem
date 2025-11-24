@@ -157,7 +157,7 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
                         {exam.status === 'not_started' && (
                           <button
                             onClick={() => onStartExam(exam.id, exam.plan_id)}
-                            className="px-3 py-1.5 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 whitespace-nowrap shadow-md hover:shadow-lg"
                           >
                             开始考试
                           </button>
@@ -165,7 +165,7 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
                         {exam.status === 'in_progress' && (
                           <button
                             onClick={() => alert(`继续考试: ${exam.title}`)} // TODO: Implement continue exam logic
-                            className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 whitespace-nowrap shadow-md hover:shadow-lg"
                           >
                             继续考试
                           </button>

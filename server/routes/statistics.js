@@ -29,7 +29,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 
@@ -104,7 +110,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 
@@ -258,8 +270,16 @@ module.exports = async function (fastify, opts) {
       }
 
       // 权限检查：管理员可以查看所有用户统计，普通用户只能查看自己的
-      if (decoded.role !== 'admin' && decoded.id !== targetUserId) {
-        return reply.code(403).send({ success: false, message: '无权访问此资源' })
+      // 检查是否是管理员或访问自己的数据
+      if (decoded.id !== targetUserId) {
+        const [adminUser] = await pool.query(
+          'SELECT id FROM users WHERE id = ? AND username = "admin"',
+          [decoded.id]
+        );
+
+        if (adminUser.length === 0) {
+          return reply.code(403).send({ success: false, message: '无权访问此资源' })
+        }
       }
 
       // 获取用户信息
@@ -370,7 +390,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 
@@ -457,7 +483,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 
@@ -554,7 +586,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 

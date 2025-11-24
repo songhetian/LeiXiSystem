@@ -56,3 +56,8 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// 导出各个模块的API
+export { default as qualityAPI } from './api/qualityAPI.js';
+export { default as sessionAPI } from './api/sessionAPI.js';
+export { default as customerAPI } from './api/customerAPI.js';

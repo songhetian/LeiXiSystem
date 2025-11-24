@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { toast } from 'react-toastify';
-import qualityAPI from './api/qualityAPI';
+import qualityAPI from './api/qualityAPI.js';
 import ExcelJS from 'exceljs';
 import { CloudUploadOutlined } from '@ant-design/icons'; // For upload icon
 

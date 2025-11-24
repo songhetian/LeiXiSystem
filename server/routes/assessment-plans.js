@@ -446,12 +446,15 @@ module.exports = async function (fastify, opts) {
       }
 
       if (now > endTime) {
+        const endedDuration = Math.floor((now - endTime) / 1000 / 60 / 60 / 24)
         return reply.code(400).send({
           success: false,
-          message: '考核计划已结束，无法修改',
+          message: `考核计划已于 ${endedDuration} 天前结束,无法修改。如需调整,请联系管理员创建新的考核计划。`,
           data: {
             plan_id: existingPlan.id,
-            end_time: existingPlan.end_time
+            plan_title: existingPlan.title,
+            end_time: existingPlan.end_time,
+            ended_days_ago: endedDuration
           }
         })
       }

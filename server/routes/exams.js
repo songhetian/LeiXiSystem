@@ -101,10 +101,11 @@ module.exports = async function (fastify, opts) {
       const sortOrder = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC'
       const listSql = `
         SELECT
-          e.id, e.title, e.category, e.difficulty, e.duration, e.total_score, e.pass_score, e.question_count, e.status, e.created_at,
+          e.id, e.title, e.category, e.category_id, ec.name as category_name, e.difficulty, e.duration, e.total_score, e.pass_score, e.question_count, e.status, e.created_at,
           u.id as creator_id, u.real_name as creator_name, u.username as creator_username
         FROM exams e
         LEFT JOIN users u ON e.created_by = u.id
+        LEFT JOIN exam_categories ec ON e.category_id = ec.id
         ${whereSql}
         ORDER BY e.${sortField} ${sortOrder}
         LIMIT ? OFFSET ?
@@ -117,7 +118,8 @@ module.exports = async function (fastify, opts) {
           exams: rows.map(r => ({
             id: r.id,
             title: r.title,
-            category: r.category,
+            category: r.category_name || r.category, // 优先使用关联的分类名称
+            category_id: r.category_id,
             difficulty: r.difficulty,
             duration: parseFloat(r.duration),
             total_score: parseFloat(r.total_score),
@@ -190,7 +192,7 @@ module.exports = async function (fastify, opts) {
         })
       }
 
-      const { title, description, category, difficulty, duration, total_score, pass_score } = request.body
+      const { title, description, category, category_id, difficulty, duration, total_score, pass_score } = request.body
 
       // 必填字段验证
       if (!title || !duration || !total_score || !pass_score) {
@@ -243,6 +245,7 @@ module.exports = async function (fastify, opts) {
           title,
           description,
           category,
+          category_id,
           difficulty,
           duration,
           total_score,
@@ -250,11 +253,12 @@ module.exports = async function (fastify, opts) {
           question_count,
           status,
           created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title,
           description || null,
-          category || null,
+          category || null, // 仍然保存文本以备不时之需，或者可以传 null
+          category_id || null,
           difficulty || 'medium',
           duration,
           total_score,
@@ -312,7 +316,7 @@ module.exports = async function (fastify, opts) {
       }
 
       const { id } = request.params
-      const { title, description, category, difficulty, duration, total_score, pass_score } = request.body
+      const { title, description, category, category_id, difficulty, duration, total_score, pass_score } = request.body
 
       // 检查试卷是否存在
       const [examRows] = await pool.query(
@@ -360,6 +364,11 @@ module.exports = async function (fastify, opts) {
       if (category !== undefined) {
         updateFields.push('category = ?')
         updateValues.push(category || null)
+      }
+
+      if (category_id !== undefined) {
+        updateFields.push('category_id = ?')
+        updateValues.push(category_id || null)
       }
 
       if (difficulty !== undefined) {
@@ -416,6 +425,37 @@ module.exports = async function (fastify, opts) {
         updateValues.push(pass_score)
       }
 
+      // 更新题目列表 (JSON)
+      const { questions } = request.body
+      if (questions !== undefined) {
+        let questionsJson = '[]'
+        let questionCount = 0
+
+        if (Array.isArray(questions)) {
+          // 验证题目格式并重新计算 order_num
+          const formattedQuestions = questions.map((q, index) => ({
+            id: q.id || require('crypto').randomUUID(), // 如果没有ID则生成
+            type: q.type,
+            content: q.content,
+            options: q.options,
+            correct_answer: q.correct_answer,
+            score: parseFloat(q.score) || 0,
+            explanation: q.explanation || '',
+            order_num: index + 1
+          }))
+
+          questionsJson = JSON.stringify(formattedQuestions)
+          questionCount = formattedQuestions.length
+        }
+
+        updateFields.push('questions = ?')
+        updateValues.push(questionsJson)
+
+        // 同时更新题目数量
+        updateFields.push('question_count = ?')
+        updateValues.push(questionCount)
+      }
+
       // 如果没有任何字段需要更新
       if (updateFields.length === 0) {
         return reply.code(400).send({
@@ -439,8 +479,6 @@ module.exports = async function (fastify, opts) {
       }
     } catch (error) {
       console.error('更新试卷失败:', error)
-      console.error('错误详情:', error.message)
-      console.error('错误堆栈:', error.stack)
       return reply.code(500).send({
         success: false,
         message: '更新失败',
@@ -451,9 +489,7 @@ module.exports = async function (fastify, opts) {
 
   // 获取试卷详情
   // GET /api/exams/:id
-  // 返回试卷完整信息，包含题目数量统计（按题型分组）
-  // 不包含题目内容和答案（防止泄题）
-  // 包含创建人信息
+  // 返回试卷完整信息，包含题目列表 (从 JSON 字段读取)
   fastify.get('/api/exams/:id', async (request, reply) => {
     const { id } = request.params
 
@@ -465,11 +501,14 @@ module.exports = async function (fastify, opts) {
           e.title,
           e.description,
           e.category,
+          e.category_id,
+          ec.name as category_name,
           e.difficulty,
           e.duration,
           e.total_score,
           e.pass_score,
           e.question_count,
+          e.questions,
           e.status,
           e.created_at,
           e.updated_at,
@@ -478,6 +517,7 @@ module.exports = async function (fastify, opts) {
           u.real_name as creator_name
         FROM exams e
         LEFT JOIN users u ON e.created_by = u.id
+        LEFT JOIN exam_categories ec ON e.category_id = ec.id
         WHERE e.id = ?`,
         [id]
       )
@@ -491,19 +531,16 @@ module.exports = async function (fastify, opts) {
 
       const exam = examRows[0]
 
-      // 获取题目数量统计（按题型分组）
-      const [questionStats] = await pool.query(
-        `SELECT
-          type,
-          COUNT(*) as count,
-          SUM(score) as total_score
-        FROM questions
-        WHERE exam_id = ?
-        GROUP BY type`,
-        [id]
-      )
+      // 解析题目 JSON
+      let questions = []
+      try {
+        questions = typeof exam.questions === 'string' ? JSON.parse(exam.questions) : (exam.questions || [])
+      } catch (e) {
+        console.error('解析题目 JSON 失败:', e)
+        questions = []
+      }
 
-      // 格式化题目统计数据
+      // 计算题目统计
       const questionStatistics = {
         single_choice: { count: 0, total_score: 0 },
         multiple_choice: { count: 0, total_score: 0 },
@@ -512,10 +549,11 @@ module.exports = async function (fastify, opts) {
         essay: { count: 0, total_score: 0 }
       }
 
-      questionStats.forEach(stat => {
-        questionStatistics[stat.type] = {
-          count: stat.count,
-          total_score: parseFloat(stat.total_score)
+      questions.forEach(q => {
+        const type = q.type === 'short_answer' ? 'essay' : q.type
+        if (questionStatistics[type]) {
+          questionStatistics[type].count++
+          questionStatistics[type].total_score += (parseFloat(q.score) || 0)
         }
       })
 
@@ -524,12 +562,13 @@ module.exports = async function (fastify, opts) {
         id: exam.id,
         title: exam.title,
         description: exam.description,
-        category: exam.category,
+        category: exam.category_name || exam.category,
+        category_id: exam.category_id,
         difficulty: exam.difficulty,
         duration: exam.duration,
         total_score: parseFloat(exam.total_score),
         pass_score: parseFloat(exam.pass_score),
-        question_count: exam.question_count,
+        question_count: questions.length, // 使用实际题目数量
         status: exam.status,
         created_at: exam.created_at,
         updated_at: exam.updated_at,
@@ -538,6 +577,7 @@ module.exports = async function (fastify, opts) {
           username: exam.creator_username,
           name: exam.creator_name
         } : null,
+        questions: questions, // 返回题目列表
         question_statistics: questionStatistics
       }
 
@@ -556,9 +596,7 @@ module.exports = async function (fastify, opts) {
 
   // 更新试卷状态
   // PUT /api/exams/:id/status
-  // 支持状态转换：draft -> published, published -> archived
-  // 发布前验证：题目数量 > 0，总分匹配
-  // 记录状态变更日志
+  // ... (保持不变)
   fastify.put('/api/exams/:id/status', async (request, reply) => {
     try {
       // 验证用户身份
@@ -601,17 +639,7 @@ module.exports = async function (fastify, opts) {
 
       // 获取试卷当前信息
       const [examRows] = await pool.query(
-        `SELECT
-          e.id,
-          e.title,
-          e.status,
-          e.question_count,
-          e.total_score,
-          COALESCE(SUM(q.score), 0) as calculated_total_score
-        FROM exams e
-        LEFT JOIN questions q ON e.id = q.exam_id
-        WHERE e.id = ?
-        GROUP BY e.id`,
+        `SELECT id, title, status, questions, total_score FROM exams WHERE id = ?`,
         [id]
       )
 
@@ -624,7 +652,17 @@ module.exports = async function (fastify, opts) {
 
       const exam = examRows[0]
       const currentStatus = exam.status
-      const calculatedTotalScore = parseFloat(exam.calculated_total_score)
+
+      // 解析题目计算总分
+      let questions = []
+      try {
+        questions = typeof exam.questions === 'string' ? JSON.parse(exam.questions) : (exam.questions || [])
+      } catch (e) {
+        questions = []
+      }
+
+      const calculatedTotalScore = questions.reduce((sum, q) => sum + (parseFloat(q.score) || 0), 0)
+      const questionCount = questions.length
 
       // 验证状态转换规则
       const validTransitions = {
@@ -648,12 +686,12 @@ module.exports = async function (fastify, opts) {
       // 如果要发布试卷，进行发布前验证
       if (status === 'published') {
         // 验证题目数量 > 0
-        if (exam.question_count === 0) {
+        if (questionCount === 0) {
           return reply.code(400).send({
             success: false,
             message: '无法发布试卷：试卷必须至少包含一道题目',
             data: {
-              question_count: exam.question_count
+              question_count: questionCount
             }
           })
         }
@@ -679,9 +717,6 @@ module.exports = async function (fastify, opts) {
         [status, id]
       )
 
-      // 记录状态变更日志（插入到系统日志表，如果存在的话）
-      // 可在此处写入系统日志表
-
       return {
         success: true,
         message: `试卷状态已更新为 ${status}`,
@@ -696,8 +731,6 @@ module.exports = async function (fastify, opts) {
       }
     } catch (error) {
       console.error('更新试卷状态失败:', error)
-      console.error('错误详情:', error.message)
-      console.error('错误堆栈:', error.stack)
       return reply.code(500).send({
         success: false,
         message: '更新状态失败',
@@ -712,80 +745,227 @@ module.exports = async function (fastify, opts) {
       if (!token) {
         return reply.code(401).send({ success: false, message: '未提供认证令牌' })
       }
-      try { jwt.verify(token, JWT_SECRET) } catch { return reply.code(401).send({ success: false, message: '无效的认证令牌' }) }
-      const { examId } = request.params
-      const [examRows] = await pool.query('SELECT id, status FROM exams WHERE id = ?', [examId])
-      if (examRows.length === 0) return reply.code(404).send({ success: false, message: '试卷不存在' })
-      if (examRows[0].status === 'published') return reply.code(403).send({ success: false, message: '已发布的试卷不允许导入题目' })
 
-      const data = await request.file()
-      if (!data) return reply.code(400).send({ success: false, message: '未接收到文件' })
-      const mimetype = data.mimetype || ''
-      let content = ''
-      if (mimetype === 'text/plain' || (data.filename || '').toLowerCase().endsWith('.txt')) {
-        content = await data.toBuffer()
-        content = content.toString('utf-8')
-      } else {
-        return reply.code(400).send({ success: false, message: '当前仅支持 txt 文件导入' })
+      let decoded
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      const blocks = content.split(/\n-{3,}\n|\r?\n\s*---\s*\r?\n/).map(s => s.trim()).filter(Boolean)
-      const connection = await pool.getConnection()
+      const { examId } = request.params
+
+      // Check if exam exists and get current questions
+      const [examRows] = await pool.query(
+        'SELECT id, title, status, questions, total_score FROM exams WHERE id = ?',
+        [examId]
+      )
+
+      if (examRows.length === 0) {
+        return reply.code(404).send({ success: false, message: '试卷不存在' })
+      }
+
+      const exam = examRows[0]
+      if (exam.status === 'published') {
+        return reply.code(403).send({ success: false, message: '已发布的试卷不允许导入题目' })
+      }
+
+      // Get existing questions
+      let existingQuestions = []
+      try {
+        existingQuestions = exam.questions ? JSON.parse(exam.questions) : []
+      } catch (e) {
+        console.error('解析现有题目失败:', e)
+        existingQuestions = []
+      }
+
+      const data = await request.file()
+      if (!data) {
+        return reply.code(400).send({ success: false, message: '未接收到文件' })
+      }
+
+      const mimetype = data.mimetype || ''
+      const filename = (data.filename || '').toLowerCase()
+
+      let importedQuestions = []
       let successCount = 0
       let failedCount = 0
       const errors = []
-      try {
-        await connection.beginTransaction()
-        for (const b of blocks) {
+
+      // Parse TXT file
+      if (mimetype === 'text/plain' || filename.endsWith('.txt')) {
+        const content = (await data.toBuffer()).toString('utf-8')
+        const blocks = content.split(/\n-{3,}\n|\r?\n\s*---\s*\r?\n/).map(s => s.trim()).filter(Boolean)
+
+        for (let i = 0; i < blocks.length; i++) {
           try {
-            const lines = b.split(/\r?\n/)
+            const lines = blocks[i].split(/\r?\n/)
             let type = 'single_choice'
             let qContent = ''
             const options = []
             let answer = ''
             let score = 10
+            let explanation = ''
+
             for (const line of lines) {
-              if (line.startsWith('#')) type = line.replace('#','').trim()
-              else if (/^[A-J]\.\s*/.test(line)) options.push(line.replace(/^[A-J]\.\s*/, '').trim())
-              else if (/^答案\s*:/i.test(line)) answer = line.split(':')[1].trim().toUpperCase()
-              else if (/^分值\s*:/i.test(line)) { const v = parseFloat(line.split(':')[1]); if (!isNaN(v)) score = v }
-              else qContent += (qContent ? '\n' : '') + line.trim()
+              if (line.startsWith('#')) {
+                type = line.replace('#', '').trim()
+              } else if (/^[A-J]\.\s*/.test(line)) {
+                options.push(line.replace(/^[A-J]\.\s*/, '').trim())
+              } else if (/^答案\s*:/i.test(line)) {
+                answer = line.split(':')[1].trim().toUpperCase()
+              } else if (/^分值\s*:/i.test(line)) {
+                const v = parseFloat(line.split(':')[1])
+                if (!isNaN(v)) score = v
+              } else if (/^解析\s*:/i.test(line)) {
+                explanation = line.split(':')[1].trim()
+              } else {
+                qContent += (qContent ? '\n' : '') + line.trim()
+              }
             }
+
             const normalizedType = type === 'short_answer' ? 'essay' : type
-            let optionsJson = null
-            if (['single_choice','multiple_choice'].includes(normalizedType)) optionsJson = JSON.stringify(options)
-            if (normalizedType === 'true_false') { optionsJson = JSON.stringify(['正确','错误']); if (!answer) answer = 'A' }
-            const [result] = await connection.query(
-              `INSERT INTO questions (exam_id,type,content,options,correct_answer,score,order_num) VALUES (?,?,?,?,?,?,
-               (SELECT COALESCE(MAX(order_num),0)+1 FROM questions WHERE exam_id = ?))`,
-              [examId, normalizedType, qContent, optionsJson, answer || null, score, examId]
-            )
-            await connection.query(
-              `UPDATE exams SET question_count = question_count + 1, updated_at = NOW() WHERE id = ?`,
-              [examId]
-            )
-            successCount += 1
+            let questionOptions = null
+
+            if (['single_choice', 'multiple_choice'].includes(normalizedType)) {
+              questionOptions = options
+            } else if (normalizedType === 'true_false') {
+              questionOptions = ['正确', '错误']
+              if (!answer) answer = 'A'
+            }
+
+            const question = {
+              id: `temp_${Date.now()}_${i}`,
+              type: normalizedType,
+              content: qContent,
+              options: questionOptions,
+              correct_answer: answer || null,
+              score: score,
+              explanation: explanation || '',
+              order_num: existingQuestions.length + importedQuestions.length + 1
+            }
+
+            importedQuestions.push(question)
+            successCount++
           } catch (e) {
-            failedCount += 1
-            errors.push({ message: e.message })
+            failedCount++
+            errors.push({ index: i + 1, message: e.message })
           }
         }
-        await connection.commit()
-      } catch (e) {
-        await connection.rollback()
-        throw e
-      } finally {
-        connection.release()
+      }
+      // Parse Excel file
+      else if (mimetype.includes('spreadsheet') || filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+        const ExcelJS = require('exceljs')
+        const buffer = await data.toBuffer()
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(buffer)
+
+        const worksheet = workbook.getWorksheet('试题模板') || workbook.worksheets[0]
+        if (!worksheet) {
+          return reply.code(400).send({ success: false, message: 'Excel文件格式错误' })
+        }
+
+        // Skip header row, start from row 2
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return // Skip header
+
+          try {
+            const typeText = row.getCell(1).value?.toString().trim()
+            const content = row.getCell(2).value?.toString().trim()
+            const optA = row.getCell(3).value?.toString().trim()
+            const optB = row.getCell(4).value?.toString().trim()
+            const optC = row.getCell(5).value?.toString().trim()
+            const optD = row.getCell(6).value?.toString().trim()
+            const answer = row.getCell(7).value?.toString().trim().toUpperCase()
+            const score = parseFloat(row.getCell(8).value) || 10
+            const explanation = row.getCell(9).value?.toString().trim() || ''
+
+            if (!content) return // Skip empty rows
+
+            // Map Chinese type to English
+            const typeMap = {
+              '单选题': 'single_choice',
+              '多选题': 'multiple_choice',
+              '判断题': 'true_false',
+              '填空题': 'fill_blank',
+              '简答题': 'essay'
+            }
+
+            const type = typeMap[typeText] || 'single_choice'
+            let options = null
+
+            if (type === 'single_choice' || type === 'multiple_choice') {
+              options = [optA, optB, optC, optD].filter(opt => opt && opt.length > 0)
+            } else if (type === 'true_false') {
+              options = ['正确', '错误']
+            }
+
+            const question = {
+              id: `temp_${Date.now()}_${rowNumber}`,
+              type: type,
+              content: content,
+              options: options,
+              correct_answer: answer || null,
+              score: score,
+              explanation: explanation,
+              order_num: existingQuestions.length + importedQuestions.length + 1
+            }
+
+            importedQuestions.push(question)
+            successCount++
+          } catch (e) {
+            failedCount++
+            errors.push({ row: rowNumber, message: e.message })
+          }
+        })
+      } else {
+        return reply.code(400).send({
+          success: false,
+          message: '不支持的文件格式，请上传 .txt 或 .xlsx 文件'
+        })
       }
 
+      // Merge with existing questions (append mode)
+      const allQuestions = [...existingQuestions, ...importedQuestions]
+
+      // Update exam with new questions
+      await pool.query(
+        `UPDATE exams
+         SET questions = ?,
+             question_count = ?,
+             updated_at = NOW()
+         WHERE id = ?`,
+        [JSON.stringify(allQuestions), allQuestions.length, examId]
+      )
+
+      // Log import activity
       global.__exam_import_logs = global.__exam_import_logs || []
-      global.__exam_import_logs.unshift({ exam_id: parseInt(examId), time: new Date().toISOString(), success_count: successCount, failed_count: failedCount })
+      global.__exam_import_logs.unshift({
+        exam_id: parseInt(examId),
+        time: new Date().toISOString(),
+        success_count: successCount,
+        failed_count: failedCount,
+        user_id: decoded.id
+      })
       if (global.__exam_import_logs.length > 50) global.__exam_import_logs.pop()
 
-      return { success: true, message: '导入完成', data: { success_count: successCount, failed_count: failedCount, errors } }
+      return {
+        success: true,
+        message: '导入完成',
+        data: {
+          success_count: successCount,
+          failed_count: failedCount,
+          total_questions: allQuestions.length,
+          errors
+        }
+      }
     } catch (error) {
       console.error('试题导入失败:', error)
-      return reply.code(500).send({ success: false, message: '导入失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
+      return reply.code(500).send({
+        success: false,
+        message: '导入失败',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      })
     }
   })
 

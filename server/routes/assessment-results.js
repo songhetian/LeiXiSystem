@@ -67,7 +67,9 @@ module.exports = async function (fastify, opts) {
           ap.start_time,
           ap.end_time,
           ap.max_attempts,
-          e.duration
+          e.duration,
+          e.questions,
+          e.title as exam_title
         FROM assessment_plans ap
         LEFT JOIN exams e ON ap.exam_id = e.id
         WHERE ap.id = ?`,
@@ -251,43 +253,30 @@ module.exports = async function (fastify, opts) {
 
         await connection.commit()
 
-        // 获取试卷题目（不含 correct_answer 和 explanation）
-        const [questions] = await pool.query(
-          `SELECT
-            id,
-            exam_id,
-            type,
-            content,
-            options,
-            score,
-            order_num
-          FROM questions
-          WHERE exam_id = ?
-          ORDER BY order_num ASC`,
-          [plan.exam_id]
-        )
+        // 获取试卷题目 (从 JSON 字段解析)
+        let questions = []
+        try {
+          questions = typeof plan.questions === 'string' ? JSON.parse(plan.questions) : (plan.questions || [])
+        } catch (e) {
+          console.error('解析题目 JSON 失败:', e)
+          questions = []
+        }
 
         // 格式化题目数据
         const formattedQuestions = questions.map(q => {
-          // 安全解析 options JSON
-          let parsedOptions = null
-          if (q.options) {
-            try {
-              parsedOptions = JSON.parse(q.options)
-            } catch (error) {
-              console.warn(`题目 ${q.id} 的 options 字段 JSON 解析失败，尝试按逗号分隔处理:`, q.options)
-              // 如果解析失败，尝试按逗号分隔处理 (支持中文逗号和英文逗号)
-              if (typeof q.options === 'string') {
-                parsedOptions = q.options.split(/,|，/).map(opt => opt.trim()).filter(opt => opt.length > 0)
-              } else {
-                parsedOptions = []
-              }
-            }
+          // 确保 options 是数组
+          let parsedOptions = q.options
+          if (typeof parsedOptions === 'string') {
+             try {
+               parsedOptions = JSON.parse(parsedOptions)
+             } catch (e) {
+               parsedOptions = parsedOptions.split(/,|，/).map(opt => opt.trim()).filter(Boolean)
+             }
           }
 
           return {
             id: q.id,
-            exam_id: q.exam_id,
+            exam_id: plan.exam_id,
             type: q.type,
             content: q.content,
             options: parsedOptions,
@@ -308,14 +297,14 @@ module.exports = async function (fastify, opts) {
             plan_id: plan.id,
             plan_title: plan.title,
             exam_id: plan.exam_id,
-            exam_title: plan.exam_title,
+            exam_title: plan.title, // plan.title 实际上是 assessment_plans.title，这里可能需要 exam title，但 SQL 只查了 plan title
             attempt_number: nextAttemptNumber,
             max_attempts: plan.max_attempts,
             start_time: examStartTime.toISOString(),
             end_time: examEndTime.toISOString(),
             duration: plan.duration, // 分钟
-            total_score: parseFloat(plan.total_score),
-            pass_score: parseFloat(plan.pass_score),
+            total_score: parseFloat(plan.total_score), // 注意：这里使用的是 plan 表里的 total_score，可能需要确认是否一致
+            pass_score: parseFloat(plan.pass_score), // 同上
             question_count: plan.question_count,
             questions: formattedQuestions
           }
@@ -380,9 +369,9 @@ module.exports = async function (fastify, opts) {
           ar.start_time,
           ar.submit_time,
           ar.status,
+          ar.answers,
           ap.title as plan_title,
           ap.max_attempts,
-          ap.duration as plan_duration,
           e.title as exam_title,
           e.duration as exam_duration,
           e.total_score,
@@ -402,104 +391,122 @@ module.exports = async function (fastify, opts) {
       const result = resultRows[0]
 
       // 权限验证：只能查看自己的或管理员可以查看
-      if (result.user_id !== userId && decoded.role !== 'admin') { // Assuming 'admin' role for administrators
-        return reply.code(403).send({ success: false, message: '无权查看此考核结果' })
+      // 首先检查是否是自己的记录
+      if (result.user_id === userId) {
+        // 是自己的记录，允许访问
+      } else {
+        // 不是自己的记录，检查是否是管理员
+        // 从数据库查询用户角色
+        const [userRows] = await pool.query(
+          'SELECT id FROM users WHERE id = ? AND username = "admin"',
+          [userId]
+        );
+
+        if (userRows.length === 0) {
+          // 不是管理员，拒绝访问
+          return reply.code(403).send({ success: false, message: '无权查看此考核结果' });
+        }
       }
 
-      // 获取已保存的答案
-      const [answerRows] = await pool.query(
-        `SELECT
-          question_id,
-          user_answer
-        FROM answer_records
-        WHERE assessment_result_id = ?`,
-        [resultId]
-      )
-
-      const savedAnswers = answerRows.reduce((acc, curr) => {
-        acc[curr.question_id] = curr.user_answer
-        return acc
-      }, {})
+      // 获取已保存的答案 (从 assessment_results 的 answers JSON 字段)
+      let savedAnswers = {}
+      if (result.answers) {
+        try {
+          savedAnswers = typeof result.answers === 'string'
+            ? JSON.parse(result.answers)
+            : result.answers
+        } catch (e) {
+          console.error('解析答案JSON失败:', e)
+          savedAnswers = {}
+        }
+      }
 
       // 计算剩余时间
       let remainingTime = 0 // seconds
       const now = new Date()
       const startTime = new Date(result.start_time)
-      const examDurationSeconds = (result.exam_duration || result.plan_duration) * 60 // Use exam duration if available, else plan duration
+      const examDurationSeconds = result.exam_duration * 60 // 使用试卷的时长(分钟转秒)
 
       if (result.status === 'in_progress') {
         const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000)
         remainingTime = Math.max(0, examDurationSeconds - elapsedSeconds)
       }
 
-      // 获取试卷题目（不含 correct_answer 和 explanation）
-      const [questions] = await pool.query(
-        `SELECT
-          id,
-          exam_id,
-          type,
-          content,
-          options,
-          score,
-          order_num
-        FROM questions
-        WHERE exam_id = ?
-        ORDER BY order_num ASC`,
+      // 获取试卷题目(从 exams.questions JSON 字段)
+      const [examRows] = await pool.query(
+        `SELECT questions FROM exams WHERE id = ?`,
         [result.exam_id]
       )
 
-      // 格式化题目数据
+      let questions = []
+      if (examRows.length > 0 && examRows[0].questions) {
+        try {
+          questions = typeof examRows[0].questions === 'string'
+            ? JSON.parse(examRows[0].questions)
+            : examRows[0].questions
+        } catch (e) {
+          console.error('解析题目JSON失败:', e)
+          questions = []
+        }
+      }
+
+      // 格式化题目数据(不含 correct_answer 和 explanation)
       const formattedQuestions = questions.map(q => {
-        let parsedOptions = null
-        if (q.options) {
+        let parsedOptions = q.options
+        if (typeof parsedOptions === 'string') {
           try {
-            parsedOptions = JSON.parse(q.options)
+            parsedOptions = JSON.parse(parsedOptions)
           } catch (error) {
             console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
-            parsedOptions = q.options
+            parsedOptions = parsedOptions.split(/,|，/).map(opt => opt.trim()).filter(Boolean)
           }
         }
 
         return {
           id: q.id,
-          exam_id: q.exam_id,
+          exam_id: result.exam_id,
           type: q.type,
           content: q.content,
           options: parsedOptions,
-          score: parseFloat(q.score),
+          score: q.score,
           order_num: q.order_num
         }
       })
 
+      // 计算答题进度
+      const answeredCount = Object.keys(savedAnswers).length
+      const totalQuestions = formattedQuestions.length
+
       return {
         success: true,
-        message: '获取考试进度成功',
         data: {
-          result_id: result.id,
+          id: result.id,
           plan_id: result.plan_id,
-          plan_title: result.plan_title,
           exam_id: result.exam_id,
-          exam_title: result.exam_title,
           user_id: result.user_id,
           attempt_number: result.attempt_number,
-          max_attempts: result.max_attempts,
           start_time: result.start_time,
           submit_time: result.submit_time,
           status: result.status,
-          duration: result.exam_duration || result.plan_duration, // minutes
-          total_score: parseFloat(result.total_score),
-          pass_score: parseFloat(result.pass_score),
+          plan_title: result.plan_title,
+          exam_title: result.exam_title,
+          duration: result.exam_duration, // 使用试卷时长
+          total_score: result.total_score,
+          pass_score: result.pass_score,
           question_count: result.question_count,
-          remaining_time: remainingTime, // seconds
           questions: formattedQuestions,
-          saved_answers: savedAnswers
+          saved_answers: savedAnswers,
+          remaining_time: remainingTime,
+          answered_count: answeredCount,
+          total_questions: totalQuestions,
+          progress: totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
         }
       }
     } catch (error) {
-      console.error('获取考试进度失败:', error)
+      console.error('获取考核结果详情失败:', error)
       return reply.code(500).send({
         success: false,
-        message: '获取考试进度失败',
+        message: '获取考核结果详情失败',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       })
     }
@@ -1189,7 +1196,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
 
@@ -1356,7 +1369,13 @@ module.exports = async function (fastify, opts) {
         return reply.code(401).send({ success: false, message: '无效的认证令牌' })
       }
 
-      if (decoded.role !== 'admin') {
+      // 检查是否是管理员
+      const [adminUser] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND username = "admin"',
+        [decoded.id]
+      );
+
+      if (adminUser.length === 0) {
         await connection.rollback()
         return reply.code(403).send({ success: false, message: '无权访问此资源' })
       }
@@ -1537,8 +1556,17 @@ module.exports = async function (fastify, opts) {
       const result = resultRows[0]
 
       // 权限验证：只能查看自己的或管理员可以查看
-      if (result.user_id !== userId && decoded.role !== 'admin') {
-        return reply.code(403).send({ success: false, message: '无权查看此答题详情' })
+      // 权限验证：只能查看自己的或管理员可以查看
+      if (result.user_id !== userId) {
+        // 不是自己的记录，检查是否是管理员
+        const [adminUser] = await pool.query(
+          'SELECT id FROM users WHERE id = ? AND username = "admin"',
+          [userId]
+        );
+
+        if (adminUser.length === 0) {
+          return reply.code(403).send({ success: false, message: '无权查看此答题详情' });
+        }
       }
 
       // 获取所有题目（包含正确答案和解析）

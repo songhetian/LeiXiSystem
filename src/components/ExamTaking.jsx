@@ -4,6 +4,22 @@ import api from '../api';
 import Modal from './Modal'; // Assuming a generic Modal component exists
 import useAutoSave from '../hooks/useAutoSave'; // Import the useAutoSave hook
 
+// 安全解析选项的辅助函数
+const parseOptions = (options) => {
+  if (!options) return [];
+  if (Array.isArray(options)) return options;
+  if (typeof options === 'string') {
+    try {
+      // 尝试作为JSON解析
+      return JSON.parse(options);
+    } catch (e) {
+      // 如果不是JSON,按逗号分割
+      return options.split(/,|，/).map(opt => opt.trim()).filter(Boolean);
+    }
+  }
+  return [];
+};
+
 const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -89,12 +105,56 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
     };
   }, []);
 
+  // Helper function to parse options
+  const parseOptions = (options) => {
+    // Handle null or undefined options
+    if (!options) {
+      console.warn('Options is null or undefined');
+      return [];
+    }
+
+    // If options is already an array, return it directly
+    if (Array.isArray(options)) {
+      return options;
+    }
+
+    // If options is not a string, convert it to string
+    if (typeof options !== 'string') {
+      console.warn('Options is not a string:', options);
+      return [];
+    }
+
+    // Handle empty string
+    if (options.trim() === '') {
+      return [];
+    }
+
+    try {
+      // First try to parse as JSON
+      const parsed = JSON.parse(options);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      // If parsed result is not an array, treat as comma-separated string
+      return options.split(',').map(option => option.trim());
+    } catch (e) {
+      // If that fails, treat as comma-separated string
+      return options.split(',').map(option => option.trim());
+    }
+  };
+
   const fetchExamDetails = async () => {
     setLoading(true);
     try {
-      const endpoint = sourceType === 'assessment_plan'
+      // 默认使用 assessment_plan,因为目前所有考试都来自考核计划
+      const actualSourceType = sourceType || 'assessment_plan';
+      console.log('ExamTaking - sourceType:', sourceType, 'actualSourceType:', actualSourceType, 'resultId:', resultId);
+
+      const endpoint = actualSourceType === 'assessment_plan'
         ? `/assessment-results/${resultId}`
         : `/exam-records/${resultId}`;
+
+      console.log('ExamTaking - Fetching from endpoint:', endpoint);
 
       const response = await api.get(endpoint);
       const record = response.data.data;
@@ -331,7 +391,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
               <div className="space-y-4">
                 {currentQuestion.type === 'single_choice' && (
                   <div className="space-y-2">
-                    {JSON.parse(currentQuestion.options).map((option, index) => (
+                    {parseOptions(currentQuestion.options).map((option, index) => (
                       <label key={index} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
                         <input
                           type="radio"
@@ -352,7 +412,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
 
                 {currentQuestion.type === 'multiple_choice' && (
                   <div className="space-y-2">
-                    {JSON.parse(currentQuestion.options).map((option, index) => (
+                    {parseOptions(currentQuestion.options).map((option, index) => (
                       <label key={index} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
                         <input
                           type="checkbox"

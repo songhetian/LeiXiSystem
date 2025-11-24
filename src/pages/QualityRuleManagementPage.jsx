@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from '../components/api/qualityAPI';
+import qualityAPI from '../components/api/qualityAPI.js';
 import Modal from '../components/Modal'; // Assuming a generic Modal component exists
 
 const QualityRuleManagementPage = () => {

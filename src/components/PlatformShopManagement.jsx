@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from './api/qualityAPI';
+import qualityAPI from './api/qualityAPI.js';
 import Modal from './Modal';
 import PlatformShopForm from './PlatformShopForm';
 

@@ -264,6 +264,7 @@ function App() {
       case 'exam-taking':
         return <ExamTaking
           resultId={activeTab.params.resultId}
+          sourceType={activeTab.params.sourceType}
           onExamEnd={(resultId) => handleSetActiveTab('exam-result', { resultId })}
         />
       case 'exam-result':

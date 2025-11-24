@@ -64,7 +64,7 @@ const MyExams = ({ onNavigate }) => {
   const getActionButton = (exam) => {
     if (exam.can_start) {
       return (
-        <button onClick={() => handleStartExam(exam.plan_id, exam.source_type)} className="btn-primary">
+        <button onClick={() => handleStartExam(exam.plan_id, exam.source_type)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
           <span className="material-icons">play_arrow</span>
           开始考试
         </button>
@@ -73,7 +73,7 @@ const MyExams = ({ onNavigate }) => {
 
     if (exam.has_in_progress) {
       return (
-        <button onClick={() => onNavigate('exam-taking', { resultId: exam.in_progress_result_id, sourceType: exam.source_type })} className="btn-warning">
+        <button onClick={() => onNavigate('exam-taking', { resultId: exam.in_progress_result_id, sourceType: exam.source_type })} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
           <span className="material-icons">edit</span>
           继续答题
         </button>

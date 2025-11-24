@@ -12,6 +12,9 @@ const ExamManagement = () => {
   const [exams, setExams] = useState([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
+
+  // Ref to track latest questions state for debounced save
+  const questionsRef = useRef([])
   const [showEditorModal, setShowEditorModal] = useState(false)
   const [editingExam, setEditingExam] = useState(null)
   const [selectedExam, setSelectedExam] = useState(null)
@@ -39,6 +42,8 @@ const ExamManagement = () => {
   const [isDraggingOverExam, setIsDraggingOverExam] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState(null)
+  const [showDeleteExamModal, setShowDeleteExamModal] = useState(false)
+  const [examToDelete, setExamToDelete] = useState(null)
   const [history, setHistory] = useState([])
   const [autoSave, setAutoSave] = useState(true)
   const dragCounter = useRef(0)
@@ -83,6 +88,7 @@ const ExamManagement = () => {
     title: '',
     description: '',
     category: '',
+    category_id: '',
     difficulty: 'medium',
     duration: 60,
     total_score: 100,
@@ -135,11 +141,46 @@ const ExamManagement = () => {
     return filteredExams.slice(startIndex, endIndex)
   }
 
+  const [categories, setCategories] = useState([])
+
+  // Keep questionsRef in sync with questions state
+  useEffect(() => {
+    questionsRef.current = questions
+  }, [questions])
+
   useEffect(() => {
     fetchExams()
     fetchQuestionBank()
     fetchCreators()
+    fetchCategories()
   }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/exam-categories/tree')
+      setCategories(response.data?.data || [])
+    } catch (error) {
+      console.error('获取分类失败:', error)
+    }
+  }
+
+  // 扁平化分类树用于下拉选择
+  const flattenCategories = (nodes, level = 0, result = []) => {
+    nodes.forEach(node => {
+      result.push({
+        id: node.id,
+        name: node.name,
+        level: level,
+        displayName: '　'.repeat(level) + node.name
+      })
+      if (node.children && node.children.length > 0) {
+        flattenCategories(node.children, level + 1, result)
+      }
+    })
+    return result
+  }
+
+  const categoryOptions = useMemo(() => flattenCategories(categories), [categories])
 
   const fetchQuestionBank = async () => {
     try {
@@ -203,22 +244,27 @@ const ExamManagement = () => {
   }
 
   const fetchQuestions = async (examId) => {
-    try {
-      const response = await api.get(`/exams/${examId}/questions`)
-      const payload = response?.data
-      const list = Array.isArray(payload?.data?.questions)
-        ? payload.data.questions
-        : Array.isArray(payload)
-        ? payload
-        : []
-      setQuestions(list)
-    } catch (error) {
-      console.error('获取题目失败:', error)
-      toast.error('获取题目失败')
-      setQuestions([])
+    // 题目数据现在包含在试卷详情中，不需要单独获取
+    // 这里保留函数是为了兼容现有逻辑，但实际上应该直接使用 selectedExam.questions
+    if (selectedExam && selectedExam.id === examId && selectedExam.questions) {
+      setQuestions(selectedExam.questions)
+    } else {
+      // 如果 selectedExam 没有题目数据，重新获取试卷详情
+      try {
+        const response = await api.get(`/exams/${examId}`)
+        const examData = response?.data?.data
+        if (examData) {
+          setQuestions(examData.questions || [])
+          // 更新 selectedExam 以包含题目
+          setSelectedExam(prev => ({ ...prev, ...examData }))
+        }
+      } catch (error) {
+        console.error('获取题目失败:', error)
+        toast.error('获取题目失败')
+        setQuestions([])
+      }
     }
   }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -254,6 +300,22 @@ const ExamManagement = () => {
     }
   }
 
+  const saveExamQuestions = async (updatedQuestions) => {
+    if (!selectedExam) return
+    try {
+      await api.put(`/exams/${selectedExam.id}`, {
+        questions: updatedQuestions
+      })
+      // 更新本地状态
+      setQuestions(updatedQuestions)
+      setSelectedExam(prev => ({ ...prev, questions: updatedQuestions }))
+      toast.success('试卷保存成功')
+    } catch (error) {
+      console.error('保存试卷失败:', error)
+      toast.error('保存试卷失败')
+    }
+  }
+
   const handleAddQuestion = async () => {
     if (!newQuestion.content.trim()) {
       toast.error('请输入题目内容')
@@ -272,35 +334,32 @@ const ExamManagement = () => {
       }
     }
 
-    try {
-      const data = {
-        ...newQuestion,
-        score: Number(newQuestion.score),
-        exam_id: selectedExam.id,
-        options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
-        order_num: questions.length + 1
-      }
-      const total = getCurrentTotalScore()
-      const examTotal = selectedExam.total_score
-      const newScore = parseFloat(data.score) || 0
-      if (total + newScore > (parseFloat(examTotal) || 0)) {
-        setScoreInfo({ currentSum: total + newScore, examTotal })
-        setScoreModalOpen(true)
-        return
-      }
+    const newQ = {
+      ...newQuestion,
+      id: `temp_${Date.now()}`, // 临时ID，保存后后端会生成正式ID
+      score: Number(newQuestion.score),
+      options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
+      order_num: questions.length + 1
+    }
 
-      const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
-      showStatus('success', '题目添加成功')
-      const newId = res?.data?.data?.id
-      resetQuestionForm()
-      await fetchQuestions(selectedExam.id)
-      if (newId) {
-        const q = Array.isArray(questions) ? questions.find((x) => x.id === newId) : null
-        if (q) setEditingQuestion(q)
-      }
-    } catch (error) {
-      console.error('添加题目失败:', error)
-      showStatus('error', '添加题目失败')
+    const total = getCurrentTotalScore()
+    const examTotal = selectedExam.total_score
+    const newScore = parseFloat(newQ.score) || 0
+    if (total + newScore > (parseFloat(examTotal) || 0)) {
+      setScoreInfo({ currentSum: total + newScore, examTotal })
+      setScoreModalOpen(true)
+      return
+    }
+
+    const updatedQuestions = [...questions, newQ]
+    setQuestions(updatedQuestions)
+    resetQuestionForm()
+
+    // 自动保存
+    if (autoSave) {
+      await saveExamQuestions(updatedQuestions)
+    } else {
+      toast.success('题目已添加 (未保存)')
     }
   }
 
@@ -311,14 +370,16 @@ const ExamManagement = () => {
 
   const confirmDeleteQuestion = async () => {
     if (!deleteTargetId) return
-    try {
-      await api.delete(`/questions/${deleteTargetId}`)
-      setShowDeleteConfirm(false)
-      setDeleteTargetId(null)
-      toast.success('题目删除成功')
-      fetchQuestions(selectedExam.id)
-    } catch (error) {
-      toast.error('删除题目失败')
+
+    const updatedQuestions = questions.filter(q => q.id !== deleteTargetId)
+    setQuestions(updatedQuestions)
+    setShowDeleteConfirm(false)
+    setDeleteTargetId(null)
+
+    if (autoSave) {
+      await saveExamQuestions(updatedQuestions)
+    } else {
+      toast.success('题目已删除 (未保存)')
     }
   }
 
@@ -327,7 +388,7 @@ const ExamManagement = () => {
     setNewQuestion({
       type: question.type,
       content: question.content,
-      options: question.options ? JSON.parse(question.options) : ['', '', '', ''],
+      options: Array.isArray(question.options) ? question.options : (question.options ? JSON.parse(question.options) : ['', '', '', '']),
       correct_answer: question.correct_answer,
       score: question.score,
       explanation: question.explanation || ''
@@ -352,48 +413,54 @@ const ExamManagement = () => {
       }
     }
 
-    try {
-      const data = {
-        type: newQuestion.type,
-        content: newQuestion.content,
-        options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
-        correct_answer: newQuestion.correct_answer,
-        score: Number(newQuestion.score),
-        explanation: newQuestion.explanation
-      }
-      const total = getCurrentTotalScore()
-      const oldScore = parseFloat(editingQuestion?.score) || 0
-      const newScore = parseFloat(data.score) || 0
-      const examTotal = selectedExam.total_score
-      const projected = total - oldScore + newScore
-      if (projected > (parseFloat(examTotal) || 0)) {
-        setScoreInfo({ currentSum: projected, examTotal })
-        setScoreModalOpen(true)
-        return
-      }
+    const updatedQ = {
+      ...editingQuestion,
+      type: newQuestion.type,
+      content: newQuestion.content,
+      options: newQuestion.type.includes('choice') ? newQuestion.options.filter(opt => opt.trim()) : null,
+      correct_answer: newQuestion.correct_answer,
+      score: Number(newQuestion.score),
+      explanation: newQuestion.explanation
+    }
 
-      await api.put(`/questions/${editingQuestion.id}`, data)
-      showStatus('success', '题目更新成功')
-      setEditingQuestion(null)
-      resetQuestionForm()
-      fetchQuestions(selectedExam.id)
-    } catch (error) {
-      console.error('更新题目失败:', error)
-      showStatus('error', '更新题目失败')
+    const total = getCurrentTotalScore()
+    const oldScore = parseFloat(editingQuestion?.score) || 0
+    const newScore = parseFloat(updatedQ.score) || 0
+    const examTotal = selectedExam.total_score
+    const projected = total - oldScore + newScore
+
+    if (projected > (parseFloat(examTotal) || 0)) {
+      setScoreInfo({ currentSum: projected, examTotal })
+      setScoreModalOpen(true)
+      return
+    }
+
+    const updatedQuestions = questions.map(q => q.id === editingQuestion.id ? updatedQ : q)
+    setQuestions(updatedQuestions)
+    setEditingQuestion(null)
+    resetQuestionForm()
+
+    if (autoSave) {
+      await saveExamQuestions(updatedQuestions)
+    } else {
+      toast.success('题目已更新 (未保存)')
     }
   }
 
-  const handleDeleteExam = async (examId) => {
-    if (!window.confirm('确定要删除这份试卷吗？')) return
+  const handleDeleteExam = (exam) => {
+    setExamToDelete(exam)
+    setShowDeleteExamModal(true)
+  }
+
+  const confirmDeleteExam = async () => {
+    if (!examToDelete) return
 
     try {
-      await api.delete(`/exams/${examId}`)
+      await api.delete(`/exams/${examToDelete.id}`)
       toast.success('试卷已移入回收站')
+      setShowDeleteExamModal(false)
+      setExamToDelete(null)
       fetchExams()
-      setShowRecycleBin(true)
-      setDeletedPage(1)
-      setDeletedSearch('')
-      fetchDeletedExams(1, '')
     } catch (error) {
       console.error('删除试卷失败:', error)
       toast.error('删除试卷失败')
@@ -420,9 +487,19 @@ const ExamManagement = () => {
       setShowPublishedWarning(true)
       return
     }
-    setSelectedExam(exam)
-    await fetchQuestions(exam.id)
-    setShowEditorModal(true)
+
+    // 获取完整试卷信息（包含题目）
+    try {
+      const res = await api.get(`/exams/${exam.id}`)
+      const fullExam = res?.data?.data
+      if (fullExam) {
+        setSelectedExam(fullExam)
+        setQuestions(fullExam.questions || [])
+        setShowEditorModal(true)
+      }
+    } catch (e) {
+      toast.error('无法打开试卷编辑器')
+    }
   }
 
   const openExamInfo = async (exam) => {
@@ -450,11 +527,16 @@ const ExamManagement = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => { if (e.total) setImportProgress(Math.round((e.loaded / e.total) * 100)) }
       })
+      // 导入后重新获取试卷数据
+      const examRes = await api.get(`/exams/${selectedExam.id}`)
+      const fullExam = examRes?.data?.data
+      if (fullExam) {
+        setQuestions(fullExam.questions || [])
+        setSelectedExam(fullExam)
+      }
+
       const payload = res?.data?.data || {}
       setImportResult({ success: payload.success_count || 0, failed: payload.failed_count || 0, errors: payload.errors || [] })
-      const h = await api.get(`/exams/${selectedExam.id}/import/history`)
-      setImportHistory(h?.data?.data?.logs || [])
-      fetchQuestions(selectedExam.id)
     } catch (error) {
       const msg = error.response?.data?.message || error.message
       toast.error(`导入失败: ${msg}`)
@@ -527,39 +609,37 @@ const ExamManagement = () => {
 
     // 从题库拖入
     if (draggedQuestion.source === 'bank') {
-      try {
-        const bankQuestion = draggedQuestion.question
-        const data = {
-          type: bankQuestion.type,
-          content: bankQuestion.content,
-          options: typeof bankQuestion.options === 'string' ? JSON.parse(bankQuestion.options) : bankQuestion.options,
-          correct_answer: bankQuestion.correct_answer,
-          score: bankQuestion.score || 10,
-          explanation: bankQuestion.explanation || '',
-          exam_id: selectedExam.id,
-          order_num: targetIndex + 1
-        }
-        const total = getCurrentTotalScore()
-        const examTotal = selectedExam.total_score
-        if (total + (parseFloat(data.score) || 0) > (parseFloat(examTotal) || 0)) {
-          setScoreInfo({ currentSum: total + (parseFloat(data.score) || 0), examTotal: examTotal })
-          setScoreModalOpen(true)
-          setDraggedQuestion(null)
-          return
-        }
-        const res = await api.post(`/exams/${selectedExam.id}/questions`, data)
-        showStatus('success', '题目已添加到试卷')
-        const newId = res?.data?.data?.id
-        await fetchQuestions(selectedExam.id)
-        if (newId) {
-          const q = Array.isArray(questions) ? questions.find((x) => x.id === newId) : null
-          if (q) setEditingQuestion(q)
-        }
-      } catch (error) {
-        console.error('添加题目失败:', error);
-        const errorMsg = error.response?.data?.message || error.message;
-        showStatus('error', `添加题目失败: ${errorMsg}`);
+      const bankQuestion = draggedQuestion.question
+      const newQ = {
+        id: `temp_${Date.now()}`,
+        type: bankQuestion.type,
+        content: bankQuestion.content,
+        options: typeof bankQuestion.options === 'string' ? JSON.parse(bankQuestion.options) : bankQuestion.options,
+        correct_answer: bankQuestion.correct_answer,
+        score: bankQuestion.score || 10,
+        explanation: bankQuestion.explanation || '',
+        order_num: targetIndex + 1
       }
+
+      const total = getCurrentTotalScore()
+      const examTotal = selectedExam.total_score
+      if (total + (parseFloat(newQ.score) || 0) > (parseFloat(examTotal) || 0)) {
+        setScoreInfo({ currentSum: total + (parseFloat(newQ.score) || 0), examTotal: examTotal })
+        setScoreModalOpen(true)
+        setDraggedQuestion(null)
+        return
+      }
+
+      const updatedQuestions = [...questions]
+      updatedQuestions.splice(targetIndex, 0, newQ)
+      setQuestions(updatedQuestions)
+
+      if (autoSave) {
+        await saveExamQuestions(updatedQuestions)
+      } else {
+        toast.success('题目已添加 (未保存)')
+      }
+
       setDraggedQuestion(null)
       return
     }
@@ -583,14 +663,10 @@ const ExamManagement = () => {
     setQuestions(newQuestions)
     setDraggedQuestion(null)
 
-    try {
-      const ids = newQuestions.map(q => q.id)
-      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
-      showStatus('success', '题目顺序已更新')
-    } catch (error) {
-      console.error('更新顺序失败:', error)
-      showStatus('error', '更新顺序失败')
-      fetchQuestions(selectedExam.id)
+    if (autoSave) {
+      await saveExamQuestions(newQuestions)
+    } else {
+      toast.success('顺序已更新 (未保存)')
     }
   }
   const handleContainerDragEnter = (e) => {
@@ -644,9 +720,8 @@ const ExamManagement = () => {
         toast.error('已发布的试卷不允许调整题目顺序')
         return
       }
-      const ids = questions.map(q => q.id)
-      await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
-      toast.success('题目顺序已更新')
+      // Save the entire questions array with new order
+      await saveExamQuestions(questions)
     } catch (error) {
       console.error('更新顺序失败:', error)
       toast.error('更新顺序失败')
@@ -658,6 +733,7 @@ const ExamManagement = () => {
       title: '',
       description: '',
       category: '',
+      category_id: '',
       difficulty: 'medium',
       duration: 60,
       total_score: 100,
@@ -678,13 +754,28 @@ const ExamManagement = () => {
     })
   }
 
-  const debouncedSave = useMemo(() => debounce(async (payload) => {
+  const debouncedSave = useMemo(() => debounce(async (updatedFields) => {
+    if (!editingQuestion || !selectedExam) return
+
     try {
-      await api.put(`/questions/${editingQuestion.id}`, payload)
+      // Get the latest questions from ref
+      const currentQuestions = questionsRef.current
+
+      // Update the specific question with new fields
+      const updatedQuestions = currentQuestions.map(q =>
+        q.id === editingQuestion.id ? { ...q, ...updatedFields } : q
+      )
+
+      // Update local state
+      setQuestions(updatedQuestions)
+
+      // Save to backend
+      await api.put(`/exams/${selectedExam.id}`, { questions: updatedQuestions })
     } catch (e) {
+      console.error('自动保存失败:', e)
       toast.error('自动保存失败')
     }
-  }, 300), [editingQuestion])
+  }, 500), [editingQuestion, selectedExam])
 
   const getQuestionTypeLabel = (type) => {
     const types = {
@@ -728,8 +819,8 @@ const ExamManagement = () => {
           toast.error('已发布的试卷不允许调整题目顺序')
           return
         }
-        const ids = prev.map(q => q.id)
-        await api.put(`/exams/${selectedExam.id}/questions/reorder`, { questionIds: ids })
+        // Save the restored questions array
+        await saveExamQuestions(prev)
         toast.success('已撤销排序')
       } catch (e) {
         toast.error('撤销失败')
@@ -956,6 +1047,7 @@ const ExamManagement = () => {
                               title: exam.title,
                               description: exam.description || '',
                               category: exam.category || '',
+                              category_id: exam.category_id || '',
                               difficulty: exam.difficulty,
                               duration: exam.duration,
                               total_score: exam.total_score,
@@ -975,7 +1067,7 @@ const ExamManagement = () => {
                           发布试卷
                         </button>
                         <button
-                          onClick={() => handleDeleteExam(exam.id)}
+                          onClick={() => handleDeleteExam(exam)}
                           className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
                         >
                           删除
@@ -1023,7 +1115,7 @@ const ExamManagement = () => {
                         <button onClick={() => handleOpenEditor(exam)} className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded hover:bg-primary-100">编辑题目</button>
                         <button onClick={() => { setEditingExam(exam); setFormData({ title: exam.title, description: exam.description || '', category: exam.category || '', difficulty: exam.difficulty, duration: exam.duration, total_score: exam.total_score, pass_score: exam.pass_score, status: exam.status }); setShowModal(true) }} className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">编辑信息</button>
                         <button onClick={() => publishExam(exam)} className="px-3 py-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100">发布试卷</button>
-                        <button onClick={() => handleDeleteExam(exam.id)} className="px-3 py-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100">删除</button>
+                        <button onClick={() => handleDeleteExam(exam)} className="px-3 py-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100">删除</button>
                       </div>
                     </div>
                   </div>
@@ -1108,13 +1200,18 @@ const ExamManagement = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">分类</label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              <select
+                value={formData.category_id}
+                onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                placeholder="如：产品知识、技能考核"
-              />
+              >
+                <option value="">请选择分类</option>
+                {categoryOptions.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.displayName}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -1358,6 +1455,27 @@ const ExamManagement = () => {
       >
         <div className="text-gray-700">确定要删除这道题目吗？删除后将无法撤销。</div>
       </Modal>
+
+      {/* 删除试卷确认Modal */}
+      <Modal
+        isOpen={showDeleteExamModal}
+        onClose={() => { setShowDeleteExamModal(false); setExamToDelete(null) }}
+        title="确认删除试卷"
+        size="small"
+        zIndex={2000}
+        footer={(
+          <div className="w-full flex items-center justify-end gap-2">
+            <button onClick={() => { setShowDeleteExamModal(false); setExamToDelete(null) }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">取消</button>
+            <button onClick={confirmDeleteExam} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">确认删除</button>
+          </div>
+        )}
+      >
+        <div className="text-gray-700">
+          确定要删除试卷 <span className="font-semibold text-gray-900">"{examToDelete?.title}"</span> 吗？
+          <div className="mt-2 text-sm text-gray-600">删除后试卷将移入回收站,可以在回收站中恢复。</div>
+        </div>
+      </Modal>
+
 
       {/* 拖拽编辑器Modal */}
       <Modal
