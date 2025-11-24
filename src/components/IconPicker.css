@@ -41,6 +41,7 @@
   font-weight: 700;
   color: #1f2937;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -127,19 +128,18 @@
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
 }
 
-.icon-item.selected .material-icons {
-  color: white;
-}
-
-.icon-item .material-icons {
-  font-size: 32px;
-  color: #6b7280;
-  transition: all 0.3s;
-}
-
-.icon-item:hover .material-icons {
-  color: white;
+.icon-item.selected .emoji-icon {
   transform: scale(1.1);
+}
+
+.icon-item .emoji-icon {
+  font-size: 40px;
+  transition: all 0.3s;
+  user-select: none;
+}
+
+.icon-item:hover .emoji-icon {
+  transform: scale(1.15);
 }
 
 .no-results {
@@ -179,6 +179,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -189,6 +190,7 @@
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -226,8 +228,8 @@
     border-radius: 10px;
   }
 
-  .icon-item .material-icons {
-    font-size: 28px;
+  .icon-item .emoji-icon {
+    font-size: 36px;
   }
 
   .close-btn {

@@ -1128,6 +1128,7 @@ module.exports = async function (fastify, opts) {
         // 构建考试信息
         myExams.push({
           plan_id: plan.id,
+          source_type: 'assessment_plan',
           plan_title: plan.title,
           plan_description: plan.description,
           plan_status: plan.plan_status,

@@ -362,7 +362,7 @@ const AssessmentPlanManagement = () => {
                     onClick={() => {
                       setEditingPlan(plan);
                       const targetDeptIds = plan.target_department_ids ||
-                                          (Array.isArray(plan.target_departments) ? plan.target_departments.map(d => d.id) : []);
+                        (Array.isArray(plan.target_departments) ? plan.target_departments.map(d => d.id) : []);
 
                       setFormData({
                         title: plan.title,
@@ -598,43 +598,8 @@ const AssessmentPlanManagement = () => {
         onClose={() => {
           setShowDeleteModal(false);
           setPlanToDelete(null);
-        }}
-        title="确认删除"
-      >
-        <div className="delete-confirm-content">
-          <div className="confirm-icon">
-            <span className="material-icons warning">warning</span>
-          </div>
-          <p className="confirm-text">
-            确定要删除考核计划 "<strong>{planToDelete?.title}</strong>" 吗？
-            此操作无法撤销。
-          </p>
-          <div className="confirm-actions">
-            <button
-              onClick={() => {
-                setShowDeleteModal(false);
-                setPlanToDelete(null);
-              }}
-              className="btn-secondary"
-            >
-              取消
-            </button>
-            <button
-              onClick={confirmDeletePlan}
-              className="btn-danger"
-            >
-              确认删除
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  );
-};
 
-export default AssessmentPlanManagement;
-
-const styles = `
+          const styles = `
 .delete-confirm-content {
   padding: 24px;
   text-align: center;
@@ -700,9 +665,47 @@ const styles = `
 }
 `;
 
-// Inject styles into the document
-if (typeof document !== 'undefined') {
-  const styleElement = document.createElement('style');
-  styleElement.textContent = styles;
-  document.head.appendChild(styleElement);
-}
+          // Inject styles into the document
+          if (typeof document !== 'undefined') {
+            const styleElement = document.createElement('style');
+            styleElement.textContent = styles;
+            document.head.appendChild(styleElement);
+          }
+        }}
+        title="确认删除"
+      >
+        <div className="delete-confirm-content">
+          <div className="confirm-icon">⚠️</div>
+          <div className="confirm-text">
+            <p className="font-semibold text-lg mb-2">确定要删除此考核计划吗？</p>
+            <p className="text-gray-600">
+              {planToDelete?.title}
+            </p>
+            <p className="text-sm text-red-600 mt-2">此操作不可撤销</p>
+          </div>
+          <div className="confirm-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setPlanToDelete(null);
+              }}
+              className="btn-secondary"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeletePlan}
+              className="btn-danger"
+            >
+              确认删除
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default AssessmentPlanManagement;

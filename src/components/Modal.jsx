@@ -32,23 +32,17 @@ const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zInd
       ></div>
       <div
         className={`relative z-10 bg-white rounded-lg shadow-lg ${sizeClasses[size]} w-full mx-4 max-h-[90vh] overflow-hidden`}
-        onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-gray-800">{title}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
-            aria-label="关闭"
-          >
-            <span className="material-icons">close</span>
-          </button>
-        </div>
-        <div className="p-6 overflow-y-auto max-h-[65vh]">
+        {title && (
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+          </div>
+        )}
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-140px)]">
           {children}
         </div>
         {footer && (
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             {footer}
           </div>
         )}

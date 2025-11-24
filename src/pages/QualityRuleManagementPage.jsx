@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from '../components/api/qualityAPI.js';
+import qualityAPI from '../api/qualityAPI.js';
 import Modal from '../components/Modal'; // Assuming a generic Modal component exists
 
 const QualityRuleManagementPage = () => {
@@ -161,11 +161,10 @@ const QualityRuleManagementPage = () => {
                     <td>{rule.category}</td>
                     <td>{rule.weight}</td>
                     <td>
-                      <span className={`business-badge ${
-                        rule.is_enabled
+                      <span className={`business-badge ${rule.is_enabled
                           ? 'business-badge-success'
                           : 'business-badge-error'
-                      }`}>
+                        }`}>
                         {rule.is_enabled ? '已启用' : '已禁用'}
                       </span>
                     </td>
@@ -178,9 +177,8 @@ const QualityRuleManagementPage = () => {
                       </button>
                       <button
                         onClick={() => handleToggleEnable(rule)}
-                        className={`business-btn business-btn-sm ${
-                          rule.is_enabled ? 'business-btn-warning' : 'business-btn-success'
-                        }`}
+                        className={`business-btn business-btn-sm ${rule.is_enabled ? 'business-btn-warning' : 'business-btn-success'
+                          }`}
                       >
                         {rule.is_enabled ? '禁用' : '启用'}
                       </button>

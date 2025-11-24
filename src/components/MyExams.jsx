@@ -65,7 +65,7 @@ const MyExams = ({ onNavigate }) => {
     if (exam.can_start) {
       return (
         <button onClick={() => handleStartExam(exam.plan_id, exam.source_type)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
-          <span className="material-icons">play_arrow</span>
+          <span>▶️</span>
           开始考试
         </button>
       );
@@ -74,7 +74,7 @@ const MyExams = ({ onNavigate }) => {
     if (exam.has_in_progress) {
       return (
         <button onClick={() => onNavigate('exam-taking', { resultId: exam.in_progress_result_id, sourceType: exam.source_type })} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
-          <span className="material-icons">edit</span>
+          <span>✏️</span>
           继续答题
         </button>
       );
@@ -85,7 +85,7 @@ const MyExams = ({ onNavigate }) => {
       if (resultIdToView) {
         return (
           <button onClick={() => onNavigate('exam-result', { resultId: resultIdToView, sourceType: exam.source_type })} className="btn-secondary">
-            <span className="material-icons">assessment</span>
+            <span>📊</span>
             查看成绩
           </button>
         );
@@ -95,7 +95,7 @@ const MyExams = ({ onNavigate }) => {
     if (exam.exam_status === 'not_started') {
       return (
         <div className="exam-tip">
-          <span className="material-icons">schedule</span>
+          <span>⏱️</span>
           考试将于 {new Date(exam.start_time).toLocaleString('zh-CN')} 开始
         </div>
       );
@@ -104,7 +104,7 @@ const MyExams = ({ onNavigate }) => {
     if (exam.exam_status === 'ended') {
       return (
         <div className="exam-tip">
-          <span className="material-icons">check_circle</span>
+          <span>✅</span>
           考试已结束
         </div>
       );
@@ -139,11 +139,10 @@ const MyExams = ({ onNavigate }) => {
         {exams.map(exam => (
           <div key={exam.plan_id} className="exam-card-modern">
             {/* 卡片顶部状态条 */}
-            <div className={`card-top-bar ${
-              exam.exam_status === 'ongoing' ? 'bar-ongoing' :
-              exam.exam_status === 'not_started' ? 'bar-not-started' :
-              'bar-ended'
-            }`}></div>
+            <div className={`card-top-bar ${exam.exam_status === 'ongoing' ? 'bar-ongoing' :
+                exam.exam_status === 'not_started' ? 'bar-not-started' :
+                  'bar-ended'
+              }`}></div>
 
             {/* 卡片头部 */}
             <div className="card-header">
@@ -159,7 +158,7 @@ const MyExams = ({ onNavigate }) => {
             {/* 试卷信息 */}
             <div className="exam-details-grid">
               <div className="detail-item">
-                <span className="material-icons detail-icon">description</span>
+                <span className="detail-icon">📝</span>
                 <div className="detail-content">
                   <span className="detail-label">试卷名称</span>
                   <span className="detail-value">{exam.exam_title}</span>
@@ -167,7 +166,7 @@ const MyExams = ({ onNavigate }) => {
               </div>
 
               <div className="detail-item">
-                <span className="material-icons detail-icon">schedule</span>
+                <span className="detail-icon">⏱️</span>
                 <div className="detail-content">
                   <span className="detail-label">考试时长</span>
                   <span className="detail-value">{exam.exam_duration} 分钟</span>
@@ -175,7 +174,7 @@ const MyExams = ({ onNavigate }) => {
               </div>
 
               <div className="detail-item">
-                <span className="material-icons detail-icon">grade</span>
+                <span className="detail-icon">💯</span>
                 <div className="detail-content">
                   <span className="detail-label">总分</span>
                   <span className="detail-value">{exam.exam_total_score} 分</span>
@@ -183,7 +182,7 @@ const MyExams = ({ onNavigate }) => {
               </div>
 
               <div className="detail-item">
-                <span className="material-icons detail-icon">check_circle</span>
+                <span className="detail-icon">✅</span>
                 <div className="detail-content">
                   <span className="detail-label">及格分</span>
                   <span className="detail-value">{exam.exam_pass_score} 分</span>
@@ -191,7 +190,7 @@ const MyExams = ({ onNavigate }) => {
               </div>
 
               <div className="detail-item">
-                <span className="material-icons detail-icon">quiz</span>
+                <span className="detail-icon">📋</span>
                 <div className="detail-content">
                   <span className="detail-label">题目数量</span>
                   <span className="detail-value">{exam.exam_question_count} 题</span>
@@ -199,7 +198,7 @@ const MyExams = ({ onNavigate }) => {
               </div>
 
               <div className="detail-item">
-                <span className="material-icons detail-icon">replay</span>
+                <span className="detail-icon">🔄</span>
                 <div className="detail-content">
                   <span className="detail-label">尝试次数</span>
                   <span className="detail-value">{exam.attempt_count} / {exam.max_attempts}</span>

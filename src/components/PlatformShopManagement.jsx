@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from './api/qualityAPI.js';
+import qualityAPI from '../api/qualityAPI.js';
 import Modal from './Modal';
 import PlatformShopForm from './PlatformShopForm';
 
@@ -70,7 +70,7 @@ const PlatformShopManagement = () => {
             setIsPlatformModalOpen(false);
             loadPlatforms();
         } catch (error) {
-             toast.error(editingPlatform ? '平台更新失败' : '平台添加失败');
+            toast.error(editingPlatform ? '平台更新失败' : '平台添加失败');
         }
     };
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { toast } from 'react-toastify';
-import qualityAPI from './api/qualityAPI.js';
+import qualityAPI from '../api/qualityAPI.js';
 import ExcelJS from 'exceljs';
-import { CloudUploadOutlined } from '@ant-design/icons'; // For upload icon
+import { CloudUploadOutlined } from '@ant-design/icons';
 
 const ImportSessionModal = ({ isOpen, onClose }) => {
     const [currentStep, setCurrentStep] = useState(1);
@@ -16,7 +16,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     const [columnMap, setColumnMap] = useState({});
     const [previewData, setPreviewData] = useState([]);
     const [isDragging, setIsDragging] = useState(false);
-    const [importError, setImportError] = useState(''); // New state for prominent error display
+    const [importError, setImportError] = useState('');
 
     const fileInputRef = useRef(null);
 
@@ -36,7 +36,6 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (isOpen) {
-            // 重置状态
             setCurrentStep(1);
             setSelectedPlatform('');
             setSelectedShop('');
@@ -44,7 +43,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
             setFileColumns([]);
             setColumnMap({});
             setPreviewData([]);
-            setImportError(''); // Reset error on modal open
+            setImportError('');
 
             const fetchPlatforms = async () => {
                 try {
@@ -65,7 +64,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                 try {
                     const response = await qualityAPI.getShopsByPlatform(selectedPlatform);
                     setShops(response.data.data);
-                    setSelectedShop(''); // 重置店铺选择
+                    setSelectedShop('');
                 } catch (error) {
                     toast.error('加载店铺列表失败。');
                     setImportError('加载店铺列表失败，请稍后再试。');
@@ -78,7 +77,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     }, [selectedPlatform]);
 
     const processFile = async (selectedFile) => {
-        setImportError(''); // Clear previous errors
+        setImportError('');
         if (!selectedFile) return;
 
         setFile(selectedFile);
@@ -105,7 +104,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
 
                 const rows = [];
                 worksheet.eachRow((row, rowNumber) => {
-                    if (rowNumber > 1 && rowNumber <= 6) { // 跳过标题行，取最多5行数据用于预览
+                    if (rowNumber > 1 && rowNumber <= 6) {
                         const rowData = {};
                         row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                             rowData[headers[colNumber - 1]] = cell.value;
@@ -118,7 +117,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                 toast.error(`解析 Excel 文件失败：${error.message}`);
                 setImportError(`解析 Excel 文件失败：${error.message}`);
                 console.error(error);
-                setFile(null); // 错误时清除文件
+                setFile(null);
                 setFileColumns([]);
                 setColumnMap({});
                 setPreviewData([]);
@@ -166,7 +165,6 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('会话数据');
 
-        // 使用中文标题作为模板
         worksheet.columns = SYSTEM_FIELDS.map(field => ({
             header: SYSTEM_FIELD_LABELS_ZH[field] || field,
             key: field,
@@ -187,7 +185,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     };
 
     const handleNext = () => {
-        setImportError(''); // 清除错误信息
+        setImportError('');
         if (currentStep === 1) {
             if (!selectedPlatform || !selectedShop) {
                 const msg = '请选择平台和店铺。';
@@ -214,12 +212,12 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     };
 
     const handleBack = () => {
-        setImportError(''); // 清除错误信息
+        setImportError('');
         setCurrentStep(currentStep - 1);
     };
 
     const handleImport = async () => {
-        setImportError(''); // 清除之前的错误信息
+        setImportError('');
         if (!file || !selectedPlatform || !selectedShop) {
             const msg = '导入缺少必要信息。';
             toast.error(msg);
@@ -375,7 +373,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
                     {currentStep === 3 && (
-                         <div className="mt-8">
+                        <div className="mt-8">
                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-6 text-center">第三步：预览并确认</h3>
                             <div className="space-y-2 mb-4 bg-gray-50 p-4 rounded-lg">
                                 <p className="text-sm text-gray-700">
@@ -395,8 +393,8 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                                                         key={field}
                                                         scope="col"
                                                         className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider
-                                                            ${index === 0 ? 'rounded-tl-lg' : ''}
-                                                            ${index === SYSTEM_FIELDS.length - 1 ? 'rounded-tr-lg' : ''}`
+                                                                ${index === 0 ? 'rounded-tl-lg' : ''}
+                                                                ${index === SYSTEM_FIELDS.length - 1 ? 'rounded-tr-lg' : ''}`
                                                         }
                                                     >
                                                         {SYSTEM_FIELD_LABELS_ZH[field] || field}
@@ -407,8 +405,8 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                                         <tbody>
                                             {previewData.map((row, rowIndex) => (
                                                 <tr key={rowIndex} className={`border-b border-primary-100
-                                                    ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'}
-                                                    hover:bg-primary-100/50 transition-colors`}>
+                                                        ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'}
+                                                        hover:bg-primary-100/50 transition-colors`}>
                                                     {SYSTEM_FIELDS.map(field => (
                                                         <td key={field} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                                                             {row[columnMap[field]] || row[field] || ''}
@@ -429,7 +427,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                 {/* Navigation */}
                 <div className="mt-8 pt-5">
                     <div className="flex justify-between">
-                         <button
+                        <button
                             onClick={handleBack}
                             disabled={currentStep === 1}
                             className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50"

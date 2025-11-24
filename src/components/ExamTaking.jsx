@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
-import Modal from './Modal'; // Assuming a generic Modal component exists
-import useAutoSave from '../hooks/useAutoSave'; // Import the useAutoSave hook
+import Modal from './Modal';
+import useAutoSave from '../hooks/useAutoSave';
 
 // 安全解析选项的辅助函数
 const parseOptions = (options) => {
@@ -10,22 +10,20 @@ const parseOptions = (options) => {
   if (Array.isArray(options)) return options;
   if (typeof options === 'string') {
     try {
-      // 尝试作为JSON解析
       return JSON.parse(options);
     } catch (e) {
-      // 如果不是JSON,按逗号分割
       return options.split(/,|，/).map(opt => opt.trim()).filter(Boolean);
     }
   }
   return [];
 };
 
-const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
+const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => {
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState({}); // { questionId: answer }
-  const [timeLeft, setTimeLeft] = useState(0); // in seconds
+  const [userAnswers, setUserAnswers] = useState({});
+  const [timeLeft, setTimeLeft] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
@@ -33,25 +31,59 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
   const [showInstructions, setShowInstructions] = useState(true);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [visibilityChangeCount, setVisibilityChangeCount] = useState(0);
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
+  const [currentPage, setCurrentPage] = useState(1);
 
   const timerRef = useRef(null);
   const fiveMinWarningShown = useRef(false);
   const oneMinWarningShown = useRef(false);
 
-  // Define save function for the hook
+  // Revert to 10 for production
+  const ITEMS_PER_PAGE = 10;
+
+  // Define save function with status tracking
   const saveAnswersToBackend = async (id, answers) => {
-    const endpoint = sourceType === 'assessment_plan'
-      ? `/assessment-results/${id}/answer`
-      : `/exam-records/${id}/answer`;
-    await api.put(endpoint, { answers });
+    setSaveStatus('saving');
+    try {
+      // 统一使用 assessment-results 路由
+      await api.put(`/assessment-results/${id}/answer`, { answers });
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      setSaveStatus('error');
+      console.error('Auto-save failed:', error);
+      throw error;
+    }
   };
 
-  // Initialize auto-save hook
+  // Initialize auto-save hook with 30-second sync
   const { debouncedSave, saveToLocalStorage, loadFromLocalStorage } = useAutoSave(
     saveAnswersToBackend,
     resultId,
-    1000 // 1 second debounce
+    3000,  // 3 second debounce
+    30000  // 30 second sync interval
   );
+
+  // Manual save function
+  const handleManualSave = async () => {
+    if (!resultId || Object.keys(userAnswers).length === 0) {
+      toast.warning('没有需要保存的答案');
+      return;
+    }
+
+    setSaveStatus('saving');
+    try {
+      // 统一使用 assessment-results 路由
+      await api.put(`/assessment-results/${resultId}/answer`, { answers: userAnswers });
+      setSaveStatus('success');
+      toast.success('手动保存成功');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      setSaveStatus('error');
+      toast.error('手动保存失败，请重试');
+      console.error('Manual save failed:', error);
+    }
+  };
 
   useEffect(() => {
     if (resultId) {
@@ -60,16 +92,19 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
   }, [resultId]);
 
   useEffect(() => {
-    if (examStarted && timeLeft > 0) {
+    if (examStarted) {
+      // Clear any existing timer
+      if (timerRef.current) clearInterval(timerRef.current);
+
       timerRef.current = setInterval(() => {
         setTimeLeft((prevTime) => {
           if (prevTime <= 1) {
             clearInterval(timerRef.current);
-            handleSubmitExam(true); // Auto-submit on timeout
+            handleSubmitExam(true);
             return 0;
           }
 
-          // Time reminders
+          // Warnings
           if (prevTime === 300 && !fiveMinWarningShown.current) {
             toast.warn('考试剩余时间不足5分钟，请抓紧时间！');
             fiveMinWarningShown.current = true;
@@ -82,14 +117,13 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
           return prevTime - 1;
         });
       }, 1000);
-    } else if (timeLeft === 0 && examStarted) {
-      handleSubmitExam(true);
     }
 
-    return () => clearInterval(timerRef.current);
-  }, [examStarted, timeLeft]);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [examStarted]);
 
-  // Page visibility change detection
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -99,64 +133,25 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Helper function to parse options
-  const parseOptions = (options) => {
-    // Handle null or undefined options
-    if (!options) {
-      console.warn('Options is null or undefined');
-      return [];
-    }
-
-    // If options is already an array, return it directly
-    if (Array.isArray(options)) {
-      return options;
-    }
-
-    // If options is not a string, convert it to string
-    if (typeof options !== 'string') {
-      console.warn('Options is not a string:', options);
-      return [];
-    }
-
-    // Handle empty string
-    if (options.trim() === '') {
-      return [];
-    }
-
-    try {
-      // First try to parse as JSON
-      const parsed = JSON.parse(options);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      // If parsed result is not an array, treat as comma-separated string
-      return options.split(',').map(option => option.trim());
-    } catch (e) {
-      // If that fails, treat as comma-separated string
-      return options.split(',').map(option => option.trim());
-    }
-  };
+  // Auto-navigate to page containing current question
+  // IMPORTANT: Do NOT include currentPage in dependency array to avoid resetting page when user manually navigates
+  useEffect(() => {
+    const pageContainingCurrentQuestion = Math.floor(currentQuestionIndex / ITEMS_PER_PAGE) + 1;
+    // We can't easily check if page !== currentPage here without adding it to deps
+    // But setting state to the same value is generally safe in React (bailout)
+    // However, to be cleaner, we can use the functional update form or just set it.
+    // Since we want to force navigation when question changes, we just set it.
+    setCurrentPage(pageContainingCurrentQuestion);
+  }, [currentQuestionIndex, ITEMS_PER_PAGE]);
 
   const fetchExamDetails = async () => {
     setLoading(true);
     try {
-      // 默认使用 assessment_plan,因为目前所有考试都来自考核计划
-      const actualSourceType = sourceType || 'assessment_plan';
-      console.log('ExamTaking - sourceType:', sourceType, 'actualSourceType:', actualSourceType, 'resultId:', resultId);
-
-      const endpoint = actualSourceType === 'assessment_plan'
-        ? `/assessment-results/${resultId}`
-        : `/exam-records/${resultId}`;
-
-      console.log('ExamTaking - Fetching from endpoint:', endpoint);
-
-      const response = await api.get(endpoint);
+      // 统一使用 assessment-results 路由
+      const response = await api.get(`/assessment-results/${resultId}`);
       const record = response.data.data;
 
       setExam({
@@ -166,29 +161,38 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
         pass_score: record.pass_score,
         duration: record.duration,
       });
-      setQuestions(record.questions || []);
-
-      // Restore saved answers from backend first
-      let savedAnswers = {};
-
-      // Handle different answer formats
-      if (sourceType === 'assessment_plan') {
-         savedAnswers = record.saved_answers || {};
-      } else {
-         if (record.answers) {
-            try {
-              savedAnswers = typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers;
-            } catch (e) {
-              console.error('Failed to parse saved answers', e);
+      
+      // 处理题目数据，确保使用有效的题目ID
+      let formattedQuestions = [];
+      if (record.questions && Array.isArray(record.questions)) {
+        formattedQuestions = record.questions.map(q => {
+          // 确保题目有有效的ID
+          let id = q.id;
+          // 如果ID是字符串且以temp_开头，尝试转换为数字或保留原样
+          if (typeof id === 'string' && id.startsWith('temp_')) {
+            const numericPart = id.replace('temp_', '');
+            const parsedId = parseInt(numericPart);
+            // 只有当解析后的数字有效时才使用，否则保留原ID
+            if (!isNaN(parsedId) && parsedId > 0) {
+              id = parsedId;
             }
-         }
+          }
+          
+          return {
+            ...q,
+            id: id
+          };
+        });
       }
+      
+      setQuestions(formattedQuestions);
+
+      // 修复：统一从 saved_answers 获取已保存的答案
+      let savedAnswers = record.saved_answers || {};
 
       setUserAnswers(savedAnswers);
-      // Initialize local storage with fetched answers
       saveToLocalStorage(savedAnswers);
 
-      // Calculate time left
       const startTime = new Date(record.start_time);
       const now = new Date();
       const elapsedSeconds = Math.floor((now - startTime) / 1000);
@@ -197,13 +201,16 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
 
       setTimeLeft(remaining);
 
+      // 即使状态不是 in_progress，也允许继续考试，但需要重置状态
       if (record.status !== 'in_progress') {
-        setExamEnded(true);
-        toast.info('该考试已结束');
-        onExamEnd(resultId);
-        return;
+        // 如果状态是 graded 或其他非 in_progress 状态，显示警告但允许继续
+        if (record.status === 'graded') {
+          toast.warn('检测到考试状态异常，系统将自动修复。');
+        } else if (record.status !== 'in_progress') {
+          toast.warn(`考试状态为 ${record.status}，请继续作答。`);
+        }
+        // 不设置 examEnded 为 true，允许用户继续作答
       }
-
     } catch (error) {
       console.error('获取考试详情失败:', error);
       toast.error('获取考试详情失败');
@@ -237,18 +244,15 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
     clearInterval(timerRef.current);
 
     try {
-      const endpoint = sourceType === 'assessment_plan'
-        ? `/assessment-results/${resultId}/submit`
-        : `/exam-records/${resultId}/submit`;
-
-      await api.post(endpoint, { isTimeout });
+      // 统一使用 assessment-results 路由
+      await api.post(`/assessment-results/${resultId}/submit`, { isTimeout });
       toast.success(isTimeout ? '考试时间到，已自动提交！' : '考试提交成功！');
       setExamEnded(true);
       onExamEnd(resultId);
     } catch (error) {
       console.error('提交考试失败:', error);
       toast.error('提交考试失败');
-      setIsSubmitting(false); // Only reset if failed, otherwise we are done
+      setIsSubmitting(false);
     } finally {
       setShowConfirmSubmit(false);
     }
@@ -262,6 +266,12 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
       .map((v) => (v < 10 ? '0' + v : v))
       .filter((v, i) => v !== '00' || i > 0)
       .join(':');
+  };
+
+  const handlePageChange = (page) => {
+    const totalPages = Math.ceil(questions.length / ITEMS_PER_PAGE);
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
   };
 
   if (loading) {
@@ -281,13 +291,17 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
   }
 
   const currentQuestion = questions[currentQuestionIndex];
+  const totalPages = Math.ceil(questions.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, questions.length);
+  const currentPageQuestions = questions.slice(startIndex, endIndex);
 
   return (
     <div className="p-6 h-full flex flex-col">
       {showInstructions && (
         <Modal
           isOpen={showInstructions}
-          onClose={() => {}} // Instructions modal should not be closable by clicking outside
+          onClose={() => { }}
           title="考试须知"
         >
           <div className="space-y-4">
@@ -318,17 +332,36 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
 
       {!showInstructions && (
         <>
-          {/* 顶部考试信息和计时器 */}
           <div className="bg-white rounded-xl shadow-md p-4 mb-4 flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-800">{exam.title}</h2>
             <div className="flex items-center gap-4">
               <div className={`text-2xl font-bold ${timeLeft <= 300 ? 'text-red-500 animate-pulse' : 'text-primary-600'}`}>
                 剩余时间: {formatTime(timeLeft)}
               </div>
-              <span className="text-sm text-gray-500 flex items-center gap-1">
-                 {/* Auto-save indicator could be added here if exposed from hook */}
-                 答案自动保存中
-              </span>
+              {saveStatus === 'saving' && (
+                <span className="text-sm text-blue-600 flex items-center gap-1">
+                  <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                  保存中...
+                </span>
+              )}
+              {saveStatus === 'success' && (
+                <span className="text-sm text-green-600 flex items-center gap-1">
+                  <span>✓</span> 已保存
+                </span>
+              )}
+              {saveStatus === 'error' && (
+                <>
+                  <span className="text-sm text-red-600 flex items-center gap-1">
+                    <span>✗</span> 保存失败
+                  </span>
+                  <button
+                    onClick={handleManualSave}
+                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    手动保存
+                  </button>
+                </>
+              )}
             </div>
             <button
               onClick={() => setShowConfirmSubmit(true)}
@@ -340,213 +373,237 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
           </div>
 
           <div className="flex-1 flex overflow-hidden">
-            {/* 左侧题目导航 */}
-            <div className="w-1/4 bg-white rounded-xl shadow-md p-4 mr-4 overflow-y-auto">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">题目导航</h3>
-              <div className="grid grid-cols-5 gap-2">
-                {questions.map((q, index) => (
-                  <button
-                    key={q.id}
-                    onClick={() => setCurrentQuestionIndex(index)}
-                    disabled={examEnded}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium
-                      ${currentQuestionIndex === index ? 'bg-primary-500 text-white' :
-                        userAnswers[q.id] ? 'bg-green-100 text-green-700' :
-                        'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
+            <div style={{ width: '200px', minWidth: '200px' }} className="bg-white rounded-xl shadow-md p-3 mr-4 overflow-y-auto flex flex-col">
+              <h3 className="text-sm font-bold text-gray-800 mb-3">题目导航</h3>
+
+              <div className="grid grid-cols-2 gap-2 mb-3 flex-1">
+                {currentPageQuestions.map((q, pageIndex) => {
+                  const actualIndex = startIndex + pageIndex;
+                  const isAnswered = userAnswers[q.id];
+                  const isCurrent = currentQuestionIndex === actualIndex;
+
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => setCurrentQuestionIndex(actualIndex)}
+                      disabled={examEnded}
+                      className={`h-8 rounded flex items-center justify-center text-xs font-medium transition-colors
+                        ${isCurrent ? 'bg-primary-500 text-white' :
+                          isAnswered ? 'bg-green-100 text-green-700 hover:bg-green-200' :
+                            'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                      {actualIndex + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex flex-col gap-2 mb-3">
+                  <div className="flex justify-center gap-1">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ←
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-2 py-1 text-xs rounded ${page === currentPage
+                          ? 'bg-primary-500 text-white font-bold'
+                          : 'bg-gray-200 hover:bg-gray-300'
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      →
+                    </button>
+                  </div>
+                  <div className="text-center text-xs text-gray-500">
+                    第 {currentPage}/{totalPages} 页
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-auto pt-3 border-t border-gray-100">
+                <div className="flex justify-between text-xs text-gray-500 mb-2">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-500"></span>当前</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-100 border border-green-200"></span>已答</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-100 border border-gray-200"></span>未答</span>
+                </div>
               </div>
             </div>
 
-            {/* 右侧题目内容 */}
             <div className="flex-1 bg-white rounded-xl shadow-md p-6 overflow-y-auto">
-              {examEnded && (
-                <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center font-medium">
-                  考试已结束，无法继续作答。
-                </div>
-              )}
               <div className="mb-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-2">
-                  {currentQuestionIndex + 1}. {currentQuestion.content}
-                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium">
-                    {currentQuestion.type === 'single_choice' && '单选题'}
-                    {currentQuestion.type === 'multiple_choice' && '多选题'}
-                    {currentQuestion.type === 'true_false' && '判断题'}
-                    {currentQuestion.type === 'fill_blank' && '填空题'}
-                    {currentQuestion.type === 'short_answer' && '简答题'}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-lg font-bold text-gray-800">{currentQuestionIndex + 1}. {currentQuestion.content}</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium
+                    ${currentQuestion.type === 'single_choice' ? 'bg-blue-100 text-blue-700' :
+                      currentQuestion.type === 'multiple_choice' ? 'bg-purple-100 text-purple-700' :
+                        currentQuestion.type === 'true_false' ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-700'
+                    }`}>
+                    {currentQuestion.type === 'single_choice' ? '单选题' :
+                      currentQuestion.type === 'multiple_choice' ? '多选题' :
+                        currentQuestion.type === 'true_false' ? '判断题' :
+                          currentQuestion.type === 'fill_blank' ? '填空题' : '简答题'}
                   </span>
-                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded text-sm font-medium">
+                  <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-medium">
                     {currentQuestion.score}分
                   </span>
-                </h3>
-                {currentQuestion.description && (
-                  <p className="text-gray-600 text-sm mb-4">{currentQuestion.description}</p>
-                )}
-              </div>
+                </div>
 
-              {/* 答案区域 */}
-              <div className="space-y-4">
-                {currentQuestion.type === 'single_choice' && (
-                  <div className="space-y-2">
-                    {parseOptions(currentQuestion.options).map((option, index) => (
-                      <label key={index} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                <div className="space-y-3">
+                  {currentQuestion.type === 'single_choice' || currentQuestion.type === 'true_false' ? (
+                    parseOptions(currentQuestion.options).map((option, idx) => (
+                      <label
+                        key={idx}
+                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all
+                          ${userAnswers[currentQuestion.id] === option
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                          }`}
+                      >
                         <input
                           type="radio"
                           name={`question-${currentQuestion.id}`}
-                          value={String.fromCharCode(65 + index)}
-                          checked={userAnswers[currentQuestion.id] === String.fromCharCode(65 + index)}
-                          onChange={() => handleAnswerChange(currentQuestion.id, String.fromCharCode(65 + index))}
-                          className="form-radio h-4 w-4 text-primary-600"
+                          value={option}
+                          checked={userAnswers[currentQuestion.id] === option}
+                          onChange={() => handleAnswerChange(currentQuestion.id, option)}
                           disabled={examEnded}
+                          className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
                         />
-                        <span className="ml-3 text-gray-700">
-                          {String.fromCharCode(65 + index)}. {option}
-                        </span>
+                        <span className="ml-3 text-gray-700">{option}</span>
                       </label>
-                    ))}
-                  </div>
-                )}
-
-                {currentQuestion.type === 'multiple_choice' && (
-                  <div className="space-y-2">
-                    {parseOptions(currentQuestion.options).map((option, index) => (
-                      <label key={index} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          name={`question-${currentQuestion.id}`}
-                          value={String.fromCharCode(65 + index)}
-                          checked={userAnswers[currentQuestion.id]?.includes(String.fromCharCode(65 + index)) || false}
-                          onChange={(e) => {
-                            const currentSelection = userAnswers[currentQuestion.id] || '';
-                            let newSelection;
-                            if (e.target.checked) {
-                              newSelection = (currentSelection + e.target.value).split('').sort().join('');
-                            } else {
-                              newSelection = currentSelection.replace(e.target.value, '');
-                            }
-                            handleAnswerChange(currentQuestion.id, newSelection);
-                          }}
-                          className="form-checkbox h-4 w-4 text-primary-600"
-                          disabled={examEnded}
-                        />
-                        <span className="ml-3 text-gray-700">
-                          {String.fromCharCode(65 + index)}. {option}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {currentQuestion.type === 'true_false' && (
-                  <div className="space-y-2">
-                    <label key="true" className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name={`question-${currentQuestion.id}`}
-                        value="A"
-                        checked={userAnswers[currentQuestion.id] === 'A'}
-                        onChange={() => handleAnswerChange(currentQuestion.id, 'A')}
-                        className="form-radio h-4 w-4 text-primary-600"
-                        disabled={examEnded}
-                      />
-                      <span className="ml-3 text-gray-700">A. 正确</span>
-                    </label>
-                    <label key="false" className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name={`question-${currentQuestion.id}`}
-                        value="B"
-                        checked={userAnswers[currentQuestion.id] === 'B'}
-                        onChange={() => handleAnswerChange(currentQuestion.id, 'B')}
-                        className="form-radio h-4 w-4 text-primary-600"
-                        disabled={examEnded}
-                      />
-                      <span className="ml-3 text-gray-700">B. 错误</span>
-                    </label>
-                  </div>
-                )}
-
-                {currentQuestion.type === 'fill_blank' && (
-                  <div>
+                    ))
+                  ) : currentQuestion.type === 'multiple_choice' ? (
+                    parseOptions(currentQuestion.options).map((option, idx) => {
+                      const currentAnswers = userAnswers[currentQuestion.id] || [];
+                      const isChecked = currentAnswers.includes(option);
+                      return (
+                        <label
+                          key={idx}
+                          className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all
+                            ${isChecked
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const newAnswers = e.target.checked
+                                ? [...currentAnswers, option]
+                                : currentAnswers.filter(a => a !== option);
+                              handleAnswerChange(currentQuestion.id, newAnswers);
+                            }}
+                            disabled={examEnded}
+                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="ml-3 text-gray-700">{option}</span>
+                        </label>
+                      );
+                    })
+                  ) : (
                     <textarea
-                      rows="3"
                       value={userAnswers[currentQuestion.id] || ''}
                       onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      placeholder="请输入答案"
                       disabled={examEnded}
+                      rows={6}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      placeholder="请输入答案..."
                     />
-                  </div>
-                )}
-
-                {currentQuestion.type === 'short_answer' && (
-                  <div>
-                    <textarea
-                      rows="5"
-                      value={userAnswers[currentQuestion.id] || ''}
-                      onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      placeholder="请输入答案"
-                      disabled={examEnded}
-                    />
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
-              {/* 题目切换按钮 */}
-              <div className="flex justify-between mt-6 pt-4 border-t border-gray-200">
+              <div className="flex justify-between mt-8 pt-4 border-t border-gray-100">
                 <button
-                  onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                  disabled={currentQuestionIndex === 0 || examEnded}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    const prevIndex = currentQuestionIndex - 1;
+                    if (prevIndex >= 0) {
+                      setCurrentQuestionIndex(prevIndex);
+                    } else {
+                      toast.warning('已经是第一题');
+                    }
+                  }}
+                  disabled={currentQuestionIndex === 0}
+                  className={`px-6 py-2 rounded-lg transition-colors ${currentQuestionIndex === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-primary-500 text-white hover:bg-primary-600 shadow-md'
+                    }`}
                 >
                   上一题
                 </button>
                 <button
-                  onClick={() => setCurrentQuestionIndex(prev => Math.min(questions.length - 1, prev + 1))}
-                  disabled={currentQuestionIndex === questions.length - 1 || examEnded}
-                  className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                  onClick={() => {
+                    const nextIndex = currentQuestionIndex + 1;
+                    if (nextIndex < questions.length) {
+                      setCurrentQuestionIndex(nextIndex);
+                    } else {
+                      toast.warning('已经是最后一题');
+                    }
+                  }}
+                  disabled={currentQuestionIndex === questions.length - 1}
+                  className={`px-6 py-2 rounded-lg transition-colors ${currentQuestionIndex === questions.length - 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-primary-500 text-white hover:bg-primary-600 shadow-md'
+                    }`}
                 >
                   下一题
                 </button>
               </div>
             </div>
           </div>
-
-          {/* 提交确认Modal */}
-          <Modal
-            isOpen={showConfirmSubmit}
-            onClose={() => setShowConfirmSubmit(false)}
-            title="确认提交试卷"
-          >
-            <div className="space-y-4">
-              <p className="text-gray-700">您确定要提交试卷吗？提交后将无法修改。</p>
-              <p className="text-sm text-gray-500">
-                您还有 {questions.length - Object.keys(userAnswers).length} 道题未作答。
-              </p>
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmSubmit(false)}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSubmitExam(false)}
-                  disabled={isSubmitting || examEnded}
-                  className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                >
-                  {isSubmitting ? '提交中...' : '确认提交'}
-                </button>
-              </div>
-            </div>
-          </Modal>
         </>
+      )}
+
+      {showConfirmSubmit && (
+        <Modal
+          isOpen={showConfirmSubmit}
+          onClose={() => setShowConfirmSubmit(false)}
+          title="确认提交"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-800">您确定要提交试卷吗？提交后将无法修改答案。</p>
+            <div className="bg-yellow-50 p-3 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                已答题目: {Object.keys(userAnswers).length} / {questions.length}
+              </p>
+              {Object.keys(userAnswers).length < questions.length && (
+                <p className="text-sm text-red-600 font-medium mt-1">
+                  还有 {questions.length - Object.keys(userAnswers).length} 道题目未作答！
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={() => setShowConfirmSubmit(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                继续答题
+              </button>
+              <button
+                onClick={() => handleSubmitExam(false)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                确认提交
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

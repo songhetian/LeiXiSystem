@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
-import qualityAPI from './api/qualityAPI.js'
+import qualityAPI from '../api/qualityAPI.js'
 import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'
+import '../pages/Messaging/WeChatPage.css' // Ensure this path is correct relative to src/components/QualityInspection.jsx
 
 const QualityInspection = () => {
   const [inspections, setInspections] = useState([])
@@ -34,6 +35,14 @@ const QualityInspection = () => {
     startDate: '',
     endDate: '',
   });
+
+  // Helper to determine if timestamp should be shown
+  const shouldShowTimestamp = (currentMsg, prevMsg) => {
+    if (!prevMsg) return true;
+    const currentTime = new Date(currentMsg.sent_at).getTime();
+    const prevTime = new Date(prevMsg.sent_at).getTime();
+    return (currentTime - prevTime) / 1000 / 60 > 5; // Show if > 5 mins difference
+  };
 
   useEffect(() => {
     loadInspections();
@@ -237,21 +246,19 @@ const QualityInspection = () => {
                     <td>{inspection.shop}</td>
                     <td>
                       {inspection.score ? (
-                        <span className={`font-semibold ${
-                          inspection.score >= 90 ? 'text-green-600' :
+                        <span className={`font-semibold ${inspection.score >= 90 ? 'text-green-600' :
                           inspection.score >= 80 ? 'text-blue-600' :
-                          inspection.score >= 70 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
+                            inspection.score >= 70 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
                           {inspection.score}分
                         </span>
                       ) : '-'}
                     </td>
                     <td>
-                      <span className={`business-badge ${
-                        inspection.quality_status === 'completed'
-                          ? 'business-badge-success'
-                          : 'business-badge-warning'
-                      }`}>
+                      <span className={`business-badge ${inspection.quality_status === 'completed'
+                        ? 'business-badge-success'
+                        : 'business-badge-warning'
+                        }`}>
                         {inspection.quality_status === 'completed' ? '已完成' : '待质检'}
                       </span>
                     </td>
@@ -294,9 +301,8 @@ const QualityInspection = () => {
               <button
                 key={p}
                 onClick={() => handlePageChange(p)}
-                className={`business-btn business-btn-sm ${
-                  pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
-                }`}
+                className={`business-btn business-btn-sm ${pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
+                  }`}
               >
                 {p}
               </button>
@@ -329,58 +335,63 @@ const QualityInspection = () => {
               </div>
             </div>
 
-            {/* Chat History Display */}
-            <div ref={chatHistoryRef} className="bg-gray-50 rounded-lg p-4 h-64 overflow-y-auto border border-gray-200">
-                <h4 className="font-semibold mb-2 text-gray-700">会话消息</h4>
-                {sessionMessages.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">暂无会话消息</p>
-                ) : (
-                    <div className="space-y-4 pt-2">
-                        {sessionMessages.map((message) => {
-                            const isAgent = message.sender_type === 'agent' || message.sender_type === 'customer_service';
-                            return (
-                                <div key={message.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`flex flex-col max-w-[80%] ${isAgent ? 'items-end' : 'items-start'}`}>
-                                        <div className="text-xs text-gray-500 mb-1">
-                                            {isAgent ? '客服' : '客户'} • {new Date(message.sent_at).toLocaleTimeString()}
-                                        </div>
-                                        <div className={`p-3 rounded-xl ${
-                                            isAgent
-                                                ? 'bg-blue-100 text-blue-900 rounded-br-none'
-                                                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
-                                        } shadow-sm`}>
-                                            <p className="text-sm break-words">{message.message_content}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )})}
+            {/* Chat History Display - WeChat Style */}
+            <div ref={chatHistoryRef} className="wechat-messages bg-gray-100 rounded-lg h-96 overflow-y-auto border border-gray-200">
+              {sessionMessages.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">暂无会话消息</p>
+              ) : (
+                sessionMessages.map((message, index) => {
+                  const isAgent = message.sender_type === 'agent' || message.sender_type === 'customer_service';
+                  const msgType = isAgent ? 'sent' : 'received';
+                  const prevMsg = sessionMessages[index - 1];
+
+                  return (
+                    <div key={message.id}>
+                      {shouldShowTimestamp(message, prevMsg) && (
+                        <div className="message-timestamp">
+                          {new Date(message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      <div className={`message-wrapper ${msgType}`}>
+                        {msgType === 'received' && (
+                          <div className="message-avatar bg-blue-500">客</div>
+                        )}
+                        <div className={`message-bubble ${msgType}`}>
+                          <div className="message-content">{message.message_content}</div>
+                        </div>
+                        {msgType === 'sent' && (
+                          <div className="message-avatar sent">服</div>
+                        )}
+                      </div>
                     </div>
-                )}
+                  );
+                })
+              )}
             </div>
 
             <div className="space-y-4">
               <ScoreInput
                 label="服务态度"
                 value={inspectionData.attitude}
-                onChange={(v) => setInspectionData({...inspectionData, attitude: v})}
+                onChange={(v) => setInspectionData({ ...inspectionData, attitude: v })}
                 weight={30}
               />
               <ScoreInput
                 label="专业能力"
                 value={inspectionData.professional}
-                onChange={(v) => setInspectionData({...inspectionData, professional: v})}
+                onChange={(v) => setInspectionData({ ...inspectionData, professional: v })}
                 weight={30}
               />
               <ScoreInput
                 label="沟通技巧"
                 value={inspectionData.communication}
-                onChange={(v) => setInspectionData({...inspectionData, communication: v})}
+                onChange={(v) => setInspectionData({ ...inspectionData, communication: v })}
                 weight={20}
               />
               <ScoreInput
                 label="合规性"
                 value={inspectionData.compliance}
-                onChange={(v) => setInspectionData({...inspectionData, compliance: v})}
+                onChange={(v) => setInspectionData({ ...inspectionData, compliance: v })}
                 weight={20}
               />
             </div>
@@ -389,7 +400,7 @@ const QualityInspection = () => {
               <label className="business-label">评价意见</label>
               <textarea
                 value={inspectionData.comment}
-                onChange={(e) => setInspectionData({...inspectionData, comment: e.target.value})}
+                onChange={(e) => setInspectionData({ ...inspectionData, comment: e.target.value })}
                 className="business-textarea"
                 rows="4"
                 placeholder="请输入评价意见和改进建议..."
@@ -414,7 +425,7 @@ const QualityInspection = () => {
               <button
                 onClick={() => setIsInspectOpen(false)}
                 className="business-btn business-btn-secondary"
-               >
+              >
                 取消
               </button>
               <button

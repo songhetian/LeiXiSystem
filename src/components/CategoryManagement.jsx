@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 import Modal from './Modal';
-import IconPicker from './IconPicker';
 import './CategoryManagement.css';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showIconPicker, setShowIconPicker] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
@@ -20,8 +18,6 @@ const CategoryManagement = () => {
 
   const [formData, setFormData] = useState({
     name: '',
-    code: '',
-    icon: '',
     description: '',
     parent_id: null,
   });
@@ -149,8 +145,6 @@ const CategoryManagement = () => {
   const resetForm = () => {
     setFormData({
       name: '',
-      code: '',
-      icon: '',
       description: '',
       parent_id: null,
     });
@@ -181,16 +175,10 @@ const CategoryManagement = () => {
               className="expand-btn"
               onClick={() => toggleNode(node.id)}
             >
-              <span className="material-icons">
-                {isExpanded ? 'expand_more' : 'chevron_right'}
-              </span>
+              <span>{isExpanded ? '▼' : '▶'}</span>
             </button>
           )}
           {!hasChildren && <div className="expand-placeholder" />}
-
-          <span className="material-icons category-icon">
-            {node.icon || 'folder'}
-          </span>
 
           <span className="category-name">{node.name}</span>
 
@@ -199,8 +187,6 @@ const CategoryManagement = () => {
               onClick={() => {
                 setFormData({
                   name: '',
-                  code: '',
-                  icon: '',
                   description: '',
                   parent_id: node.id,
                 });
@@ -209,7 +195,7 @@ const CategoryManagement = () => {
               className="action-btn add-btn"
               title="添加子分类"
             >
-              <span className="material-icons">add</span>
+              <span>➕</span>
               <span className="action-text">添加</span>
             </button>
             <button
@@ -217,8 +203,6 @@ const CategoryManagement = () => {
                 setEditingCategory(node);
                 setFormData({
                   name: node.name,
-                  code: node.code || '',
-                  icon: node.icon || '',
                   description: node.description || '',
                   parent_id: node.parent_id,
                 });
@@ -227,7 +211,7 @@ const CategoryManagement = () => {
               className="action-btn edit-btn"
               title="编辑"
             >
-              <span className="material-icons">edit</span>
+              <span>✏️</span>
               <span className="action-text">编辑</span>
             </button>
             <button
@@ -235,7 +219,7 @@ const CategoryManagement = () => {
               className="action-btn delete-btn"
               title="删除"
             >
-              <span className="material-icons">delete</span>
+              <span>🗑️</span>
               <span className="action-text">删除</span>
             </button>
           </div>
@@ -273,7 +257,7 @@ const CategoryManagement = () => {
               }}
               className="btn-primary"
             >
-              <span className="material-icons">add</span>
+              <span>➕</span>
               新建分类
             </button>
           )}
@@ -286,14 +270,14 @@ const CategoryManagement = () => {
           onClick={() => setActiveTab('active')}
           className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
         >
-          <span className="material-icons">folder</span>
+          <span>📁</span>
           正常分类
         </button>
         <button
           onClick={() => setActiveTab('recycle')}
           className={`tab-btn ${activeTab === 'recycle' ? 'active' : ''}`}
         >
-          <span className="material-icons">delete</span>
+          <span>🗑️</span>
           回收站
         </button>
       </div>
@@ -309,7 +293,7 @@ const CategoryManagement = () => {
           <div className="category-tree">
             {categories.length === 0 ? (
               <div className="empty-state">
-                <span className="material-icons">folder_open</span>
+                <span>📂</span>
                 <p>暂无分类，点击"新建分类"开始创建</p>
               </div>
             ) : (
@@ -320,14 +304,13 @@ const CategoryManagement = () => {
           <div className="recycle-list">
             {categories.length === 0 ? (
               <div className="empty-state">
-                <span className="material-icons">delete_outline</span>
+                <span>🗑️</span>
                 <p>回收站为空</p>
               </div>
             ) : (
               <table className="recycle-table">
                 <thead>
                   <tr>
-                    <th>图标</th>
                     <th>分类名称</th>
                     <th>删除时间</th>
                     <th>删除人</th>
@@ -337,9 +320,6 @@ const CategoryManagement = () => {
                 <tbody>
                   {categories.map(category => (
                     <tr key={category.id}>
-                      <td>
-                        <span className="material-icons">{category.icon || 'folder'}</span>
-                      </td>
                       <td>{category.name}</td>
                       <td>{formatDate(category.deleted_at)}</td>
                       <td>{category.deleted_by_name || '-'}</td>
@@ -350,14 +330,14 @@ const CategoryManagement = () => {
                             className="action-btn restore-btn"
                             title="恢复"
                           >
-                            <span className="material-icons">restore</span>
+                            <span>♻️</span>
                           </button>
                           <button
                             onClick={() => handlePermanentDelete(category.id)}
                             className="action-btn permanent-delete-btn"
                             title="永久删除"
                           >
-                            <span className="material-icons">delete_forever</span>
+                            <span>❌</span>
                           </button>
                         </div>
                       </td>
@@ -390,45 +370,6 @@ const CategoryManagement = () => {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="输入分类名称"
               />
-            </div>
-
-            <div className="form-group">
-              <label>分类编码</label>
-              <input
-                type="text"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="留空自动生成"
-              />
-              <small>留空将自动生成唯一编码</small>
-            </div>
-
-            <div className="form-group">
-              <label>图标</label>
-              <div className="icon-input-group">
-                <div className="icon-preview">
-                  <span className="material-icons">
-                    {formData.icon || 'help_outline'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowIconPicker(true)}
-                  className="btn-secondary"
-                >
-                  选择图标
-                </button>
-                {formData.icon && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, icon: '' })}
-                    className="btn-text"
-                  >
-                    清除
-                  </button>
-                )}
-              </div>
-              <small>留空将随机分配图标</small>
             </div>
 
             <div className="form-group">
@@ -475,7 +416,7 @@ const CategoryManagement = () => {
       >
         <div className="delete-confirm-content">
           <div className="confirm-icon">
-            <span className="material-icons warning">warning</span>
+            <span className="warning">⚠️</span>
           </div>
           <p className="confirm-text">
             确定要删除分类 "<strong>{categoryToDelete?.name}</strong>" 吗？
@@ -512,7 +453,7 @@ const CategoryManagement = () => {
       >
         <div className="delete-confirm-content">
           <div className="confirm-icon danger">
-            <span className="material-icons">delete_forever</span>
+            <span>❌</span>
           </div>
           <p className="confirm-text danger">
             <strong>此操作将永久删除分类 "{categoryToDelete?.name}"，无法恢复！</strong>
@@ -539,18 +480,6 @@ const CategoryManagement = () => {
           </div>
         </div>
       </Modal>
-
-      {/* 图标选择器 */}
-      {showIconPicker && (
-        <IconPicker
-          value={formData.icon}
-          onChange={(icon) => {
-            setFormData({ ...formData, icon });
-            setShowIconPicker(false);
-          }}
-          onClose={() => setShowIconPicker(false)}
-        />
-      )}
     </div>
   );
 };

@@ -19,7 +19,7 @@ export const getApiBaseUrl = () => {
     // 忽略错误
   }
 
-  return import.meta.env.VITE_API_BASE_URL || 'http://192.168.110.83:3001/api';
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 }
 
 /**

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from '../components/api/qualityAPI.js';
+import qualityAPI from '../api/qualityAPI.js';
 
 const CaseRecommendationPage = () => {
   const [recommendedCases, setRecommendedCases] = useState([]);

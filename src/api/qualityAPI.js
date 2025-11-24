@@ -2,57 +2,87 @@ import api from '../api';
 
 // 质检管理相关API
 const qualityAPI = {
-  // 获取平台列表
-  getPlatforms: () => api.get('/api/platforms'),
+  // --- 平台与店铺 ---
+  getPlatforms: () => api.get('/platforms'),
+  getShopsByPlatform: (platformId) => api.get(`/platforms/${platformId}/shops`),
+  createPlatform: (data) => api.post('/platforms', data),
+  updatePlatform: (id, data) => api.put(`/platforms/${id}`, data),
+  deletePlatform: (id) => api.delete(`/platforms/${id}`),
+  createShop: (data) => api.post('/shops', data),
+  updateShop: (id, data) => api.put(`/shops/${id}`, data),
+  deleteShop: (id) => api.delete(`/shops/${id}`),
 
-  // 根据平台ID获取店铺列表
-  getShopsByPlatform: (platformId) => api.get(`/api/platforms/${platformId}/shops`),
-
+  // --- 质检会话 ---
   // 导入会话数据
-  importSessions: (formData) => api.post('/api/sessions/import', formData, {
+  importSessions: (formData) => api.post('/quality/sessions/import', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   }),
-
   // 获取会话列表
-  getSessions: (params) => api.get('/api/sessions', { params }),
-
+  getAllSessions: (params) => api.get('/quality/sessions', { params }),
   // 获取会话详情
-  getSessionDetail: (id) => api.get(`/api/sessions/${id}`),
-
+  getSessionDetail: (id) => api.get(`/quality/sessions/${id}`),
   // 更新会话
-  updateSession: (id, data) => api.put(`/api/sessions/${id}`, data),
-
+  updateSession: (id, data) => api.put(`/quality/sessions/${id}`, data),
   // 删除会话
-  deleteSession: (id) => api.delete(`/api/sessions/${id}`),
+  deleteSession: (id) => api.delete(`/quality/sessions/${id}`),
+  // 获取会话消息
+  getSessionMessages: (id) => api.get(`/quality/sessions/${id}/messages`),
 
+  // --- 质检规则 ---
   // 获取质检规则列表
-  getQualityRules: (params) => api.get('/api/quality-rules', { params }),
-
+  getAllRules: (params) => api.get('/quality/rules', { params }),
   // 创建质检规则
-  createQualityRule: (data) => api.post('/api/quality-rules', data),
-
+  createRule: (data) => api.post('/quality/rules', data),
   // 更新质检规则
-  updateQualityRule: (id, data) => api.put(`/api/quality-rules/${id}`, data),
-
+  updateRule: (id, data) => api.put(`/quality/rules/${id}`, data),
   // 删除质检规则
-  deleteQualityRule: (id) => api.delete(`/api/quality-rules/${id}`),
+  deleteRule: (id) => api.delete(`/quality/rules/${id}`),
+  // 切换规则启用状态
+  toggleRule: (id, is_enabled) => api.put(`/quality/rules/${id}/toggle`, { is_enabled }),
 
+  // --- 质检评分 ---
+  // 提交质检评分 (Review)
+  submitReview: (sessionId, data) => api.post(`/quality/sessions/${sessionId}/review`, data),
   // 获取质检评分列表
-  getQualityScores: (params) => api.get('/api/quality-scores', { params }),
+  getQualityScores: (params) => api.get('/quality/scores', { params }),
 
-  // 获取质检评分详情
-  getQualityScoreDetail: (id) => api.get(`/api/quality-scores/${id}`),
-
-  // 提交质检评分
-  submitQualityScore: (data) => api.post('/api/quality-scores', data),
-
-  // 获取质检报告
-  getQualityReports: (params) => api.get('/api/quality-reports', { params }),
-
+  // --- 统计与报表 ---
   // 获取质检统计
-  getQualityStatistics: (params) => api.get('/api/quality-statistics', { params }),
+  getStatistics: (params) => api.get('/quality/statistics', { params }),
+  // 获取质检报表摘要
+  getSummaryReport: (params) => api.get('/quality/reports/summary', { params }),
+  // 导出质检会话
+  exportSessions: () => api.get('/quality/export/sessions', { responseType: 'blob' }),
+  // 导出案例数据
+  exportCases: () => api.get('/quality/export/cases', { responseType: 'blob' }),
+
+  // --- 优秀案例 ---
+  // 获取所有案例
+  getAllCases: (params) => api.get('/quality/cases', { params }),
+  // 获取案例详情
+  getCaseDetail: (id) => api.get(`/quality/cases/${id}`),
+  // 创建案例
+  createCase: (data) => api.post('/quality/cases', data),
+  // 更新案例
+  updateCase: (id, data) => api.put(`/quality/cases/${id}`, data),
+  // 删除案例
+  deleteCase: (id) => api.delete(`/quality/cases/${id}`),
+  // 获取热门案例
+  getHotCases: (params) => api.get('/quality/cases/hot', { params }),
+  // 获取推荐案例
+  getRecommendedCases: (params) => api.get('/quality/cases/recommended', { params }),
+
+  // --- 案例互动 & 收藏 ---
+  // 添加收藏
+  addFavoriteCase: (caseId, userId) => api.post(`/quality/cases/${caseId}/favorite`, { user_id: userId }),
+  // 取消收藏
+  removeFavoriteCase: (caseId, userId) => api.delete(`/quality/cases/${caseId}/favorite`, { data: { user_id: userId } }),
+  // 获取用户收藏的案例
+  getUserFavoriteCases: (userId, params) => api.get(`/quality/users/${userId}/favorites`, { params }),
+  // 开始学习案例
+  startLearningCase: (caseId, userId) => api.post(`/quality/cases/${caseId}/learn/start`, { user_id: userId }),
 };
 
 export default qualityAPI;

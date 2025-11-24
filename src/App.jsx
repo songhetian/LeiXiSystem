@@ -270,6 +270,7 @@ function App() {
       case 'exam-result':
         return <ExamResult
           resultId={activeTab.params.resultId}
+          sourceType={activeTab.params.sourceType}
           onBackToMyExams={() => handleSetActiveTab('my-exams')}
         />
       case 'assessment-management':

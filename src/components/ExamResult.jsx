@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 
-const ExamResult = ({ resultId, onBackToMyExams, sourceType }) => {
+const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' }) => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,58 +30,58 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType }) => {
       let planTitle = '';
 
       if (sourceType === 'assessment_plan') {
-         // Assessment plan result structure
-         const summary = data.result_summary;
-         processedQuestions = data.detailed_questions.map(q => ({
-            ...q,
-            userAnswer: q.user_answer,
-            isCorrect: q.is_correct === 1 // Ensure boolean
-         }));
-         passed = summary.is_passed;
-         score = summary.user_score;
-         totalScore = summary.exam_total_score;
-         examTitle = summary.exam_title;
-         // planTitle might be missing in summary, check data root or summary
-         planTitle = summary.plan_title || ''; // API might need to return this in summary
+        // Assessment plan result structure
+        const summary = data.result_summary;
+        processedQuestions = data.detailed_questions.map(q => ({
+          ...q,
+          userAnswer: q.user_answer,
+          isCorrect: q.is_correct === 1 // Ensure boolean
+        }));
+        passed = summary.is_passed;
+        score = summary.user_score;
+        totalScore = summary.exam_total_score;
+        examTitle = summary.exam_title;
+        // planTitle might be missing in summary, check data root or summary
+        planTitle = summary.plan_title || ''; // API might need to return this in summary
       } else {
-          // Exam plan result structure
-          // Parse answers if needed
-          let userAnswers = {};
-          if (data.answers) {
-            try {
-              userAnswers = typeof data.answers === 'string' ? JSON.parse(data.answers) : data.answers;
-            } catch (e) {
-              console.error('Failed to parse answers', e);
-            }
+        // Exam plan result structure
+        // Parse answers if needed
+        let userAnswers = {};
+        if (data.answers) {
+          try {
+            userAnswers = typeof data.answers === 'string' ? JSON.parse(data.answers) : data.answers;
+          } catch (e) {
+            console.error('Failed to parse answers', e);
+          }
+        }
+
+        // Process questions to add user answer and correctness
+        processedQuestions = data.questions.map(q => {
+          const userAns = userAnswers[q.id];
+          let isCorrect = false;
+
+          if (q.type === 'single_choice' || q.type === 'true_false') {
+            isCorrect = userAns === q.correct_answer;
+          } else if (q.type === 'multiple_choice') {
+            const correct = q.correct_answer ? q.correct_answer.split('').sort().join('') : '';
+            const user = userAns ? userAns.split('').sort().join('') : '';
+            isCorrect = user === correct;
+          } else if (q.type === 'fill_blank') {
+            isCorrect = userAns && q.correct_answer && userAns.trim() === q.correct_answer.trim();
           }
 
-          // Process questions to add user answer and correctness
-          processedQuestions = data.questions.map(q => {
-            const userAns = userAnswers[q.id];
-            let isCorrect = false;
+          return {
+            ...q,
+            userAnswer: userAns,
+            isCorrect
+          };
+        });
 
-            if (q.type === 'single_choice' || q.type === 'true_false') {
-              isCorrect = userAns === q.correct_answer;
-            } else if (q.type === 'multiple_choice') {
-              const correct = q.correct_answer ? q.correct_answer.split('').sort().join('') : '';
-              const user = userAns ? userAns.split('').sort().join('') : '';
-              isCorrect = user === correct;
-            } else if (q.type === 'fill_blank') {
-              isCorrect = userAns && q.correct_answer && userAns.trim() === q.correct_answer.trim();
-            }
-
-            return {
-              ...q,
-              userAnswer: userAns,
-              isCorrect
-            };
-          });
-
-          passed = data.score >= data.pass_score;
-          score = data.score;
-          totalScore = data.total_score || data.exam_total_score;
-          examTitle = data.exam_title;
-          planTitle = data.plan_title;
+        passed = data.score >= data.pass_score;
+        score = data.score;
+        totalScore = data.total_score || data.exam_total_score;
+        examTitle = data.exam_title;
+        planTitle = data.plan_title;
       }
 
       setResult({

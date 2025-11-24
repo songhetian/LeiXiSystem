@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken')
 const ExcelJS = require('exceljs')
 const { extractUserPermissions } = require('../middleware/checkPermission')
-const { getRandomIcon, isValidIcon, getAllIcons } = require('../utils/materialIcons')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
@@ -45,7 +44,7 @@ module.exports = async function (fastify, opts) {
         'INSERT INTO exam_category_audit_logs (category_id, operator_id, operation, detail) VALUES (?,?,?,?)',
         [categoryId || null, operatorId || null, op, typeof detail === 'string' ? detail : JSON.stringify(detail || {})]
       )
-    } catch {}
+    } catch { }
   }
 
   /**
@@ -88,7 +87,7 @@ module.exports = async function (fastify, opts) {
       }
 
       const [rows] = await pool.query(
-        `SELECT id, parent_id, name, code, icon, description, path, level, order_num, status, created_by, created_at, updated_at
+        `SELECT id, parent_id, name, description, path, level, order_num, status, created_by, created_at, updated_at
          FROM exam_categories
          WHERE ${where}
          ORDER BY order_num ASC, id ASC`
@@ -122,8 +121,8 @@ module.exports = async function (fastify, opts) {
       const params = []
 
       if (keyword) {
-        where += ' AND (name LIKE ? OR code LIKE ?)'
-        params.push(`%${keyword}%`, `%${keyword}%`)
+        where += ' AND name LIKE ?'
+        params.push(`%${keyword}%`)
       }
 
       const [rows] = await pool.query(
@@ -154,32 +153,14 @@ module.exports = async function (fastify, opts) {
    * POST /api/exam-categories
    */
   fastify.post('/api/exam-categories', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
-      let { name, code, icon, parent_id = null, description = '', weight = 0 } = request.body
+      let { name, parent_id = null, description = '', weight = 0 } = request.body
 
       if (!name) {
         return reply.code(400).send({ success: false, message: '缺少必填字段：name' })
-      }
-
-      // 自动生成 code
-      if (!code) {
-        code = `CAT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      }
-
-      // 检查 code 是否已存在
-      const [exists] = await pool.query('SELECT id FROM exam_categories WHERE code = ?', [code])
-      if (exists.length) {
-        return reply.code(400).send({ success: false, message: '分类编码已存在' })
-      }
-
-      // 随机分配图标（如果未提供）
-      if (!icon) {
-        icon = getRandomIcon()
-      } else if (!isValidIcon(icon)) {
-        return reply.code(400).send({ success: false, message: '无效的图标名称' })
       }
 
       // 计算层级和路径
@@ -204,14 +185,14 @@ module.exports = async function (fastify, opts) {
       // 插入新分类
       const [res] = await pool.query(
         `INSERT INTO exam_categories
-         (parent_id, name, code, icon, description, path, level, order_num, weight, status, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [parent_id || null, name, code, icon, description || null, path, level, order_num, parseFloat(weight) || 0, 'active', permissions.userId]
+         (parent_id, name, description, path, level, order_num, weight, status, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [parent_id || null, name, description || null, path, level, order_num, parseFloat(weight) || 0, 'active', permissions.userId]
       )
 
-      await logOperation(res.insertId, permissions.userId, 'create', { name, code, icon })
+      await logOperation(res.insertId, permissions.userId, 'create', { name })
 
-      return { success: true, message: '创建成功', data: { id: res.insertId, icon } }
+      return { success: true, message: '创建成功', data: { id: res.insertId } }
     } catch (error) {
       console.error('创建分类失败:', error)
       return reply.code(500).send({ success: false, message: '创建失败', error: process.env.NODE_ENV === 'development' ? error.message : undefined })
@@ -223,37 +204,22 @@ module.exports = async function (fastify, opts) {
    * PUT /api/exam-categories/:id
    */
   fastify.put('/api/exam-categories/:id', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
       const { id } = request.params
-      const { name, code, icon, description, weight } = request.body
+      const { name, description, weight } = request.body
 
       const [rows] = await pool.query('SELECT * FROM exam_categories WHERE id = ? AND status != "deleted"', [id])
       if (!rows.length) {
         return reply.code(404).send({ success: false, message: '分类不存在或已删除' })
       }
 
-      // 验证图标
-      if (icon && !isValidIcon(icon)) {
-        return reply.code(400).send({ success: false, message: '无效的图标名称' })
-      }
-
-      // 验证 code 唯一性
-      if (code && code !== rows[0].code) {
-        const [exists] = await pool.query('SELECT id FROM exam_categories WHERE code = ? AND id != ?', [code, id])
-        if (exists.length) {
-          return reply.code(400).send({ success: false, message: '分类编码已存在' })
-        }
-      }
-
       const fields = []
       const values = []
 
       if (name !== undefined) { fields.push('name = ?'); values.push(name) }
-      if (code !== undefined) { fields.push('code = ?'); values.push(code) }
-      if (icon !== undefined) { fields.push('icon = ?'); values.push(icon) }
       if (description !== undefined) { fields.push('description = ?'); values.push(description || null) }
       if (weight !== undefined) { fields.push('weight = ?'); values.push(parseFloat(weight) || 0) }
 
@@ -265,7 +231,7 @@ module.exports = async function (fastify, opts) {
       values.push(id)
 
       await pool.query(`UPDATE exam_categories SET ${fields.join(', ')} WHERE id = ?`, values)
-      await logOperation(id, permissions.userId, 'update', { name, code, icon })
+      await logOperation(id, permissions.userId, 'update', { name })
 
       return { success: true, message: '更新成功' }
     } catch (error) {
@@ -279,7 +245,7 @@ module.exports = async function (fastify, opts) {
    * PUT /api/exam-categories/reorder
    */
   fastify.put('/api/exam-categories/reorder', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
@@ -346,7 +312,7 @@ module.exports = async function (fastify, opts) {
    * DELETE /api/exam-categories/:id
    */
   fastify.delete('/api/exam-categories/:id', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
@@ -404,8 +370,8 @@ module.exports = async function (fastify, opts) {
       const params = []
 
       if (keyword) {
-        where += ' AND (c.name LIKE ? OR c.code LIKE ?)'
-        params.push(`%${keyword}%`, `%${keyword}%`)
+        where += ' AND c.name LIKE ?'
+        params.push(`%${keyword}%`)
       }
 
       const [rows] = await pool.query(
@@ -441,7 +407,7 @@ module.exports = async function (fastify, opts) {
    * PUT /api/exam-categories/:id/restore
    */
   fastify.put('/api/exam-categories/:id/restore', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
@@ -515,7 +481,7 @@ module.exports = async function (fastify, opts) {
    * POST /api/exam-categories/batch
    */
   fastify.post('/api/exam-categories/batch', async (request, reply) => {
-    const permissions = await requireRole(request, reply, ['超级管理员','系统管理员','培训师','客服主管','考试管理员'])
+    const permissions = await requireRole(request, reply, ['超级管理员', '系统管理员', '培训师', '客服主管', '考试管理员'])
     if (!permissions) return
 
     try {
@@ -576,21 +542,5 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  /**
-   * 获取所有可用图标
-   * GET /api/exam-categories/icons
-   */
-  fastify.get('/api/exam-categories/icons', async (request, reply) => {
-    try {
-      const permissions = await extractUserPermissions(request, pool)
-      if (!permissions) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
 
-      return { success: true, data: getAllIcons() }
-    } catch (error) {
-      console.error('获取图标列表失败:', error)
-      return reply.code(500).send({ success: false, message: '获取失败' })
-    }
-  })
 }

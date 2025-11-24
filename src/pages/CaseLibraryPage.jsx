@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import qualityAPI from '../components/api/qualityAPI.js';
+import qualityAPI from '../api/qualityAPI.js';
 
 const CaseLibraryPage = () => {
   const [cases, setCases] = useState([]);
@@ -197,11 +197,10 @@ const CaseLibraryPage = () => {
                   <span className="px-2 py-1 bg-primary-50 text-primary-700 text-xs rounded-md border border-primary-100">
                     {caseItem.category}
                   </span>
-                  <span className={`px-2 py-1 text-xs rounded-md border ${
-                    caseItem.difficulty_level === '简单' ? 'bg-green-50 text-green-700 border-green-100' :
-                    caseItem.difficulty_level === '中等' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                    'bg-red-50 text-red-700 border-red-100'
-                  }`}>
+                  <span className={`px-2 py-1 text-xs rounded-md border ${caseItem.difficulty_level === '简单' ? 'bg-green-50 text-green-700 border-green-100' :
+                      caseItem.difficulty_level === '中等' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                        'bg-red-50 text-red-700 border-red-100'
+                    }`}>
                     {caseItem.difficulty_level}
                   </span>
                 </div>
@@ -212,7 +211,7 @@ const CaseLibraryPage = () => {
                     <span><i className="fas fa-thumbs-up mr-1"></i>{caseItem.like_count || 0}</span>
                   </div>
                   <div className="flex gap-2">
-                     <button
+                    <button
                       className="text-primary-600 hover:text-primary-800 font-medium transition-colors"
                       onClick={() => {
                         const caseUrl = `${window.location.origin}/case/${caseItem.id}`;
@@ -252,9 +251,8 @@ const CaseLibraryPage = () => {
               <button
                 key={p}
                 onClick={() => handlePageChange(p)}
-                className={`business-btn business-btn-sm ${
-                  pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
-                }`}
+                className={`business-btn business-btn-sm ${pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
+                  }`}
               >
                 {p}
               </button>
