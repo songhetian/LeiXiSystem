@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { qualityAPI } from '../api';
+import qualityAPI from './api/qualityAPI';
 import Modal from './Modal';
 import PlatformShopForm from './PlatformShopForm';
 
@@ -34,7 +34,7 @@ const PlatformShopManagement = () => {
             setLoading(false);
         }
     };
-    
+
     // Platform Handlers
     const handleAddPlatform = () => {
         setEditingPlatform(null);
@@ -171,7 +171,7 @@ const PlatformShopManagement = () => {
                     </div>
                 ))}
             </div>
-            
+
             {/* Platform Modal */}
             <Modal isOpen={isPlatformModalOpen} onClose={() => setIsPlatformModalOpen(false)} title={editingPlatform ? '编辑平台' : '添加平台'}>
                 <PlatformShopForm

@@ -63,52 +63,32 @@ module.exports = async function (fastify, opts) {
           ap.id,
           ap.title,
           ap.exam_id,
-          ap.target_users,
+          ap.target_departments,
           ap.start_time,
           ap.end_time,
           ap.max_attempts,
-          ap.status,
-          e.id as exam_id,
-          e.title as exam_title,
-          e.duration,
-          e.total_score,
-          e.pass_score,
-          e.question_count,
-          e.status as exam_status
+          e.duration
         FROM assessment_plans ap
-        INNER JOIN exams e ON ap.exam_id = e.id
+        LEFT JOIN exams e ON ap.exam_id = e.id
         WHERE ap.id = ?`,
         [plan_id]
-      )
+      );
 
       if (planRows.length === 0) {
         return reply.code(404).send({
           success: false,
           message: '考核计划不存在'
-        })
+        });
       }
 
-      const plan = planRows[0]
+      const plan = planRows[0];
 
-      // 验证考核计划状态（必须是 published 或 ongoing）
-      if (plan.status !== 'published' && plan.status !== 'ongoing') {
-        return reply.code(400).send({
-          success: false,
-          message: `考核计划状态为 ${plan.status}，无法开始考试`,
-          data: {
-            plan_id: plan.id,
-            plan_title: plan.title,
-            plan_status: plan.status,
-            allowed_statuses: ['published', 'ongoing']
-          }
-        })
-      }
+      // 当前时间，用于后续时间范围校验
+      const now = new Date();
 
-      // 验证考核时间范围
-      const now = new Date()
-      const startTime = new Date(plan.start_time)
-      const endTime = new Date(plan.end_time)
-
+      // 验证考核时间范围（只要在 start_time 与 end_time 之间即可）
+      const startTime = new Date(plan.start_time);
+      const endTime = new Date(plan.end_time);
       if (now < startTime) {
         return reply.code(400).send({
           success: false,
@@ -118,9 +98,8 @@ module.exports = async function (fastify, opts) {
             current_time: now.toISOString(),
             time_until_start: Math.ceil((startTime - now) / 1000 / 60) + ' 分钟'
           }
-        })
+        });
       }
-
       if (now > endTime) {
         return reply.code(400).send({
           success: false,
@@ -129,36 +108,59 @@ module.exports = async function (fastify, opts) {
             end_time: plan.end_time,
             current_time: now.toISOString()
           }
-        })
+        });
       }
 
-      // 验证用户在 target_users 中
-      let targetUserIds = []
-      if (plan.target_users) {
+      // 验证用户是否在目标部门列表中
+      let targetDeptIds = [];
+      if (plan.target_departments) {
         try {
-          targetUserIds = typeof plan.target_users === 'string'
-            ? JSON.parse(plan.target_users)
-            : plan.target_users
+          targetDeptIds = typeof plan.target_departments === 'string'
+            ? JSON.parse(plan.target_departments)
+            : plan.target_departments;
         } catch (error) {
-          console.error('解析 target_users 失败:', error)
+          console.error('解析 target_departments 失败:', error);
           return reply.code(500).send({
             success: false,
-            message: '考核计划配置错误'
-          })
+            message: '考核计划配置错误（部门数据）'
+          });
         }
       }
+      const [userRows] = await pool.query(
+        'SELECT department_id FROM users WHERE id = ?',
+        [userId]
+      );
+      if (userRows.length === 0) {
+        return reply.code(404).send({
+          success: false,
+          message: '用户不存在'
+        });
+      }
+      const userDeptId = userRows[0].department_id;
 
-      if (!Array.isArray(targetUserIds) || !targetUserIds.includes(userId)) {
+      // Debug logging for department validation
+      console.log('Checking department validation:', {
+        userId,
+        userDeptId,
+        planTargetDeptsRaw: plan.target_departments,
+        targetDeptIdsParsed: targetDeptIds
+      });
+
+      if (!Array.isArray(targetDeptIds) || !targetDeptIds.includes(userDeptId)) {
+        console.warn(`User ${userId} (Dept ${userDeptId}) not in target departments: ${JSON.stringify(targetDeptIds)}`);
         return reply.code(403).send({
           success: false,
-          message: '您不在此考核计划的目标用户列表中',
+          message: '您不在此考核计划的目标部门列表中',
           data: {
             user_id: userId,
+            user_department_id: userDeptId,
             plan_id: plan.id,
-            plan_title: plan.title
+            plan_title: plan.title,
+            target_departments: targetDeptIds
           }
-        })
+        });
       }
+
 
       // 验证尝试次数限制
       const [attemptRows] = await pool.query(
@@ -244,15 +246,8 @@ module.exports = async function (fastify, opts) {
 
         const resultId = resultInsert.insertId
 
-        // 如果计划状态是 published，自动更新为 ongoing
-        if (plan.status === 'published') {
-          await connection.query(
-            `UPDATE assessment_plans
-            SET status = 'ongoing', updated_at = NOW()
-            WHERE id = ?`,
-            [plan_id]
-          )
-        }
+        // 移除自动更新计划状态的逻辑 (status 字段已废弃，由时间自动控制)
+        // if (plan.status === 'published') { ... }
 
         await connection.commit()
 
@@ -280,8 +275,13 @@ module.exports = async function (fastify, opts) {
             try {
               parsedOptions = JSON.parse(q.options)
             } catch (error) {
-              console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
-              parsedOptions = q.options
+              console.warn(`题目 ${q.id} 的 options 字段 JSON 解析失败，尝试按逗号分隔处理:`, q.options)
+              // 如果解析失败，尝试按逗号分隔处理 (支持中文逗号和英文逗号)
+              if (typeof q.options === 'string') {
+                parsedOptions = q.options.split(/,|，/).map(opt => opt.trim()).filter(opt => opt.length > 0)
+              } else {
+                parsedOptions = []
+              }
             }
           }
 
@@ -507,7 +507,7 @@ module.exports = async function (fastify, opts) {
 
   // 保存答案
   // PUT /api/assessment-results/:id/answer
-  // 参数：question_id, user_answer
+  // 参数：question_id, user_answer OR answers (object)
   // 验证考试状态（in_progress）
   // 验证考试时间（未超时）
   // 创建或更新 answer_records
@@ -530,16 +530,16 @@ module.exports = async function (fastify, opts) {
 
       const userId = decoded.id
       const resultId = parseInt(request.params.id)
-      const { question_id, user_answer } = request.body
+      const { question_id, user_answer, answers } = request.body
 
       // 验证必填字段
-      if (!question_id || user_answer === undefined) {
-        return reply.code(400).send({ success: false, message: '缺少必填字段：question_id 或 user_answer' })
+      if ((!question_id || user_answer === undefined) && !answers) {
+        return reply.code(400).send({ success: false, message: '缺少必填字段：question_id/user_answer 或 answers' })
       }
 
-      // 验证 resultId 和 question_id 格式
-      if (isNaN(resultId) || resultId <= 0 || isNaN(question_id) || question_id <= 0) {
-        return reply.code(400).send({ success: false, message: '考核结果ID或题目ID无效' })
+      // 验证 resultId 格式
+      if (isNaN(resultId) || resultId <= 0) {
+        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
       }
 
       // 获取考核结果信息
@@ -593,37 +593,50 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: '考试已超时，无法保存答案' })
       }
 
-      // 验证 question_id 是否属于该试卷
-      const [questionRows] = await pool.query(
-        `SELECT id FROM questions WHERE id = ? AND exam_id = ?`,
-        [question_id, result.exam_id]
-      )
+      // Helper function to save a single answer
+      const saveSingleAnswer = async (qId, ans) => {
+        // 验证 question_id 是否属于该试卷
+        const [questionRows] = await pool.query(
+          `SELECT id FROM questions WHERE id = ? AND exam_id = ?`,
+          [qId, result.exam_id]
+        )
 
-      if (questionRows.length === 0) {
-        return reply.code(400).send({ success: false, message: '题目ID不属于当前试卷' })
+        if (questionRows.length === 0) {
+          // Skip invalid questions silently or log
+          return;
+        }
+
+        // 检查是否已存在答案记录
+        const [existingAnswerRows] = await pool.query(
+          `SELECT id FROM answer_records WHERE assessment_result_id = ? AND question_id = ?`,
+          [resultId, qId]
+        )
+
+        if (existingAnswerRows.length > 0) {
+          // 更新答案
+          await pool.query(
+            `UPDATE answer_records
+            SET user_answer = ?, updated_at = NOW()
+            WHERE assessment_result_id = ? AND question_id = ?`,
+            [ans, resultId, qId]
+          )
+        } else {
+          // 插入新答案
+          await pool.query(
+            `INSERT INTO answer_records (assessment_result_id, question_id, user_answer)
+            VALUES (?, ?, ?)`,
+            [resultId, qId, ans]
+          )
+        }
       }
 
-      // 检查是否已存在答案记录
-      const [existingAnswerRows] = await pool.query(
-        `SELECT id FROM answer_records WHERE assessment_result_id = ? AND question_id = ?`,
-        [resultId, question_id]
-      )
-
-      if (existingAnswerRows.length > 0) {
-        // 更新答案
-        await pool.query(
-          `UPDATE answer_records
-          SET user_answer = ?, updated_at = NOW()
-          WHERE assessment_result_id = ? AND question_id = ?`,
-          [user_answer, resultId, question_id]
-        )
+      if (answers) {
+        // Batch update
+        const promises = Object.entries(answers).map(([qId, ans]) => saveSingleAnswer(qId, ans));
+        await Promise.all(promises);
       } else {
-        // 插入新答案
-        await pool.query(
-          `INSERT INTO answer_records (assessment_result_id, question_id, user_answer)
-          VALUES (?, ?, ?)`,
-          [resultId, question_id, user_answer]
-        )
+        // Single update
+        await saveSingleAnswer(question_id, user_answer);
       }
 
       return { success: true, message: '答案保存成功' }
@@ -809,7 +822,7 @@ module.exports = async function (fastify, opts) {
             [earned, isCorrect, existing.id]
           )
         } else {
-          await connection.query(
+          await pool.query(
             `INSERT INTO answer_records (assessment_result_id, question_id, user_answer, score, is_correct) VALUES (?, ?, ?, ?, ?)`,
             [resultId, q.id, userAnsRaw, earned, isCorrect]
           )
@@ -899,12 +912,7 @@ module.exports = async function (fastify, opts) {
       const userId = decoded.id
       const resultId = parseInt(request.params.id)
 
-      // 验证 resultId 格式
-      if (isNaN(resultId) || resultId <= 0) {
-        return reply.code(400).send({ success: false, message: '考核结果ID无效' })
-      }
-
-      // 获取考核结果信息
+      // 获取考试结果
       const [resultRows] = await pool.query(
         `SELECT
           ar.id,
@@ -919,7 +927,6 @@ module.exports = async function (fastify, opts) {
           ar.is_passed,
           ar.status,
           ap.title as plan_title,
-          ap.max_attempts,
           e.title as exam_title,
           e.total_score as exam_total_score,
           e.pass_score,
@@ -927,82 +934,59 @@ module.exports = async function (fastify, opts) {
         FROM assessment_results ar
         INNER JOIN assessment_plans ap ON ar.plan_id = ap.id
         INNER JOIN exams e ON ar.exam_id = e.id
-        WHERE ar.id = ?`,
-        [resultId]
+        WHERE ar.id = ? AND ar.user_id = ?`,
+        [resultId, userId]
       )
 
       if (resultRows.length === 0) {
-        return reply.code(404).send({ success: false, message: '考核结果不存在' })
+        return reply.code(404).send({ success: false, message: '考试结果不存在或无权访问' })
       }
 
       const result = resultRows[0]
 
-      // 权限验证：只能查看自己的或管理员可以查看
-      if (result.user_id !== userId && decoded.role !== 'admin') {
-        return reply.code(403).send({ success: false, message: '无权查看此考核结果' })
-      }
-
-      // 获取所有题目（包含正确答案和解析）
-      const [questions] = await pool.query(
-        `SELECT
-          id,
-          type,
-          content,
-          options,
-          correct_answer,
-          explanation,
-          score as question_max_score
-        FROM questions
-        WHERE exam_id = ?
-        ORDER BY order_num ASC`,
-        [result.exam_id]
-      )
-
-      // 获取用户已保存的答案和评分结果
-      const [answerRecords] = await pool.query(
-        `SELECT
-          question_id,
-          user_answer,
-          score as user_score,
-          is_correct
-        FROM answer_records
-        WHERE assessment_result_id = ?`,
+      // 获取用户答案
+      const [userAnswersRows] = await pool.query(
+        `SELECT question_id, user_answer, user_score, is_correct
+        FROM user_answers
+        WHERE result_id = ?`,
         [resultId]
       )
 
-      const answerMap = answerRecords.reduce((acc, curr) => {
-        acc[curr.question_id] = curr
-        return acc
-      }, {})
+      // 将用户答案转换为 Map 便于查找
+      const userAnswersMap = new Map()
+      userAnswersRows.forEach(row => {
+        userAnswersMap.set(row.question_id, row)
+      })
 
-      const detailedQuestions = questions.map(q => {
-        const userAnswerData = answerMap[q.id] || {}
+      // 获取试卷题目（包含正确答案）
+      const [questionsRows] = await pool.query(
+        `SELECT id, type, content, options, correct_answer, explanation, max_score
+        FROM exam_questions
+        WHERE exam_id = ?
+        ORDER BY id`,
+        [result.exam_id]
+      )
+
+      // 构建详细的题目信息
+      const detailedQuestions = questionsRows.map(q => {
+        const userAnswerData = userAnswersMap.get(q.id) || {}
+
+        // 解析选项和正确答案
         let parsedOptions = null
-        if (q.options) {
-          try {
-            parsedOptions = JSON.parse(q.options)
-          } catch (error) {
-            console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
-            parsedOptions = q.options
-          }
-        }
-
         let parsedCorrectAnswer = null
-        if (q.correct_answer) {
-          try {
-            parsedCorrectAnswer = JSON.parse(q.correct_answer)
-          } catch (error) {
-            parsedCorrectAnswer = q.correct_answer
-          }
+
+        try {
+          parsedOptions = q.options ? JSON.parse(q.options) : null
+          parsedCorrectAnswer = q.correct_answer ? JSON.parse(q.correct_answer) : null
+        } catch (parseError) {
+          console.error('解析题目数据失败:', parseError)
         }
 
+        // 解析用户答案
         let parsedUserAnswer = null
-        if (userAnswerData.user_answer) {
-          try {
-            parsedUserAnswer = JSON.parse(userAnswerData.user_answer)
-          } catch (error) {
-            parsedUserAnswer = userAnswerData.user_answer
-          }
+        try {
+          parsedUserAnswer = userAnswerData.user_answer ? JSON.parse(userAnswerData.user_answer) : null
+        } catch (parseError) {
           // Handle cases where user_answer might be a string for fill_blank or essay
           if (typeof parsedUserAnswer === 'string' && (q.type === 'fill_blank' || q.type === 'essay')) {
             parsedUserAnswer = userAnswerData.user_answer;
@@ -1016,7 +1000,7 @@ module.exports = async function (fastify, opts) {
           options: parsedOptions,
           correct_answer: parsedCorrectAnswer,
           explanation: q.explanation,
-          question_max_score: parseFloat(q.question_max_score),
+          question_max_score: parseFloat(q.max_score),
           user_answer: parsedUserAnswer,
           user_score: userAnswerData.user_score !== undefined ? parseFloat(userAnswerData.user_score) : null,
           is_correct: userAnswerData.is_correct

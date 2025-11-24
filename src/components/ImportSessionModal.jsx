@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { toast } from 'react-toastify';
-import { qualityAPI } from '../api';
+import qualityAPI from './api/qualityAPI';
 import ExcelJS from 'exceljs';
 import { CloudUploadOutlined } from '@ant-design/icons'; // For upload icon
 
@@ -21,7 +21,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     const fileInputRef = useRef(null);
 
     const SYSTEM_FIELDS = [
-        'session_code', 'customer_service_id', 'customer_info', 
+        'session_code', 'customer_service_id', 'customer_info',
         'communication_channel', 'duration', 'message_count'
     ];
 
@@ -165,12 +165,12 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     const handleDownloadTemplate = async () => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('会话数据');
-        
+
         // 使用中文标题作为模板
-        worksheet.columns = SYSTEM_FIELDS.map(field => ({ 
-            header: SYSTEM_FIELD_LABELS_ZH[field] || field, 
-            key: field, 
-            width: 20 
+        worksheet.columns = SYSTEM_FIELDS.map(field => ({
+            header: SYSTEM_FIELD_LABELS_ZH[field] || field,
+            key: field,
+            width: 20
         }));
 
         const buffer = await workbook.xlsx.writeBuffer();
@@ -181,7 +181,7 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
         link.click();
         URL.revokeObjectURL(link.href);
     };
-    
+
     const handleColumnMapChange = (systemField, fileColumn) => {
         setColumnMap(prev => ({ ...prev, [systemField]: fileColumn }));
     };

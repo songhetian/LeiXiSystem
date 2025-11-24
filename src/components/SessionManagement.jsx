@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
-import { sessionAPI } from '../api'
+import sessionAPI from './api/sessionAPI'
 import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'; // Import the new modal
 

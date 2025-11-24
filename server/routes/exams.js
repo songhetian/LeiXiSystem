@@ -75,7 +75,7 @@ module.exports = async function (fastify, opts) {
         if (!validStatuses.includes(status)) {
           return reply.code(400).send({ success: false, message: '状态必须是 draft, published 或 archived' })
         }
-        whereClauses.push('status = ?')
+        whereClauses.push('e.status = ?')
         params.push(status)
       }
       if (title) {
@@ -2114,13 +2114,14 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 获取考核计划列表
+  // 获取考核计划列表（分页）
   // GET /api/assessment-plans
-  // 支持分页
+  // 支持分页（默认第1页，每页20条）
   // 支持状态筛选：draft, published, ongoing, completed, cancelled
   // 支持时间范围筛选（start_time, end_time）
   // 返回计划基本信息和参与统计
   // 包含试卷标题
+  /*
   fastify.get('/api/assessment-plans', async (request, reply) => {
     try {
       // 验证用户身份
@@ -2324,23 +2325,23 @@ module.exports = async function (fastify, opts) {
           exam_duration: plan.exam_duration,
           exam_total_score: parseFloat(plan.exam_total_score),
           exam_pass_score: parseFloat(plan.exam_pass_score),
+          target_users_count: totalUsers,
           start_time: plan.start_time,
           end_time: plan.end_time,
           max_attempts: plan.max_attempts,
           status: plan.status,
           created_by: plan.created_by,
+          creator_name: plan.creator_name,
+          creator_username: plan.creator_username,
+          creator_department_id: plan.creator_department_id,
+          creator_department_name: plan.creator_department_name,
           created_at: plan.created_at,
           updated_at: plan.updated_at,
-          target_department: {
-            id: plan.creator_department_id,
-            name: plan.creator_department_name
-          },
-          participation_stats: {
+          statistics: {
             total_users: totalUsers,
             completed_count: completedCount,
             passed_count: passedCount,
-            pass_rate: parseFloat(passRate),
-            completion_rate: totalUsers > 0 ? ((completedCount / totalUsers) * 100).toFixed(2) : '0.00'
+            pass_rate: parseFloat(passRate)
           }
         }
       }))
@@ -2349,16 +2350,14 @@ module.exports = async function (fastify, opts) {
         success: true,
         data: plansWithStats,
         pagination: {
+          total,
           page: pageNum,
           limit: limitNum,
-          total,
           totalPages: Math.ceil(total / limitNum)
         }
       }
     } catch (error) {
       console.error('获取考核计划列表失败:', error)
-      console.error('错误详情:', error.message)
-      console.error('错误堆栈:', error.stack)
       return reply.code(500).send({
         success: false,
         message: '获取失败',
@@ -2366,4 +2365,6 @@ module.exports = async function (fastify, opts) {
       })
     }
   })
+  */
+
 }

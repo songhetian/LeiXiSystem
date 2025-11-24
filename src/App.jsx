@@ -35,6 +35,7 @@ const ExamResultsManagement = lazy(() => import('./components/ExamResultsManagem
 const MyExamList = lazy(() => import('./components/MyExamList'));
 const ExamTaking = lazy(() => import('./components/ExamTaking'));
 const ExamResult = lazy(() => import('./components/ExamResult'));
+const MyExams = lazy(() => import('./components/MyExams'));
 const Statistics = lazy(() => import('./components/Statistics'));
 const ComingSoon = lazy(() => import('./components/ComingSoon'));
 const PersonalInfo = lazy(() => import('./components/PersonalInfo'));
@@ -46,6 +47,9 @@ const QualityReportPage = lazy(() => import('./pages/QualityReportPage'));
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'));
 const ViewingStatistics = lazy(() => import('./pages/ViewingStatistics'));
 const Diagnostics = lazy(() => import('./components/Diagnostics'));
+const NotificationCenter = lazy(() => import('./components/NotificationCenter'));
+const NotificationSender = lazy(() => import('./components/NotificationSender'));
+const NotificationSettings = lazy(() => import('./components/NotificationSettings'));
 
 const LeaveRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveRecords })));
 const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeApply })));
@@ -68,10 +72,13 @@ const CompensatoryApproval = lazy(() => import('./components/CompensatoryApprova
 const VacationQuotaSettings = lazy(() => import('./components/VacationQuotaSettings'));
 const VacationManagement = lazy(() => import('./components/VacationManagement'));
 const QuotaConfigLayout = lazy(() => import('./components/QuotaConfigLayout'));
+const VacationPermissions = lazy(() => import('./components/VacationPermissions'));
 const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceHome })));
 const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
 const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
 const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
+const WeChatPage = lazy(() => import('./pages/Messaging').then(module => ({ default: module.WeChatPage })));
+const CreateGroupPage = lazy(() => import('./pages/Messaging').then(module => ({ default: module.CreateGroupPage })));
 import DatabaseCheck from './components/DatabaseCheck';
 
 function App() {
@@ -153,7 +160,11 @@ function App() {
       case 'org-position':
         return <PositionManagement />
 
-
+      // 信息系统
+      case 'messaging-chat':
+        return <WeChatPage />
+      case 'messaging-create-group':
+        return <CreateGroupPage />
 
       // 考勤管理
       case 'attendance-home':
@@ -242,11 +253,14 @@ function App() {
         return <AssessmentPlanManagement />
       case 'assessment-categories':
         return <CategoryManagement />
+      case 'exam-plans':
+        // 统一使用 assessment-plans
+        return <AssessmentPlanManagement />
+      case 'my-exams':
+        return <MyExams onNavigate={handleSetActiveTab} />
       case 'assessment-results':
         return <ExamResultsManagement />
       // 已移除拖拽组卷功能，创建试卷在试卷管理中进行
-      case 'my-exams':
-        return <MyExamList onStartExam={(examId, planId) => handleSetActiveTab('exam-taking', { examId, planId })} />
       case 'exam-taking':
         return <ExamTaking
           resultId={activeTab.params.resultId}

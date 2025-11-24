@@ -4,7 +4,7 @@ import api from '../api';
 import Modal from './Modal'; // Assuming a generic Modal component exists
 import useAutoSave from '../hooks/useAutoSave'; // Import the useAutoSave hook
 
-const ExamTaking = ({ examId, planId, onExamEnd }) => {
+const ExamTaking = ({ resultId, onExamEnd, sourceType }) => {
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -13,30 +13,35 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
-  const [examEnded, setExamEnded] = useState(false); // New state to track if exam has ended
+  const [examEnded, setExamEnded] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
-  const [visibilityChangeCount, setVisibilityChangeCount] = useState(0); // New state for tracking visibility changes
-  const [resultIdState, setResultIdState] = useState(null); // State to hold the resultId once exam starts
+  const [visibilityChangeCount, setVisibilityChangeCount] = useState(0);
 
   const timerRef = useRef(null);
   const fiveMinWarningShown = useRef(false);
   const oneMinWarningShown = useRef(false);
 
+  // Define save function for the hook
+  const saveAnswersToBackend = async (id, answers) => {
+    const endpoint = sourceType === 'assessment_plan'
+      ? `/assessment-results/${id}/answer`
+      : `/exam-records/${id}/answer`;
+    await api.put(endpoint, { answers });
+  };
+
   // Initialize auto-save hook
-  const { isSaving, lastSaved, loadFromLocalStorage, clearLocalStorage } = useAutoSave(
-    examId,
-    resultIdState, // Pass resultIdState to the hook
-    userAnswers,
-    () => toast.success('答案已自动保存！'),
-    () => toast.error('答案自动保存失败！')
+  const { debouncedSave, saveToLocalStorage, loadFromLocalStorage } = useAutoSave(
+    saveAnswersToBackend,
+    resultId,
+    1000 // 1 second debounce
   );
 
   useEffect(() => {
-    if (examId && planId) {
+    if (resultId) {
       fetchExamDetails();
     }
-  }, [examId, planId]);
+  }, [resultId]);
 
   useEffect(() => {
     if (examStarted && timeLeft > 0) {
@@ -49,11 +54,11 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
           }
 
           // Time reminders
-          if (prevTime <= 300 && !fiveMinWarningShown.current) { // 5 minutes = 300 seconds
+          if (prevTime === 300 && !fiveMinWarningShown.current) {
             toast.warn('考试剩余时间不足5分钟，请抓紧时间！');
             fiveMinWarningShown.current = true;
           }
-          if (prevTime <= 60 && !oneMinWarningShown.current) { // 1 minute = 60 seconds
+          if (prevTime === 60 && !oneMinWarningShown.current) {
             toast.error('考试剩余时间不足1分钟，即将自动提交！');
             oneMinWarningShown.current = true;
           }
@@ -62,7 +67,7 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
         });
       }, 1000);
     } else if (timeLeft === 0 && examStarted) {
-      handleSubmitExam(true); // Ensure auto-submit if timer somehow reaches 0
+      handleSubmitExam(true);
     }
 
     return () => clearInterval(timerRef.current);
@@ -74,7 +79,6 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
       if (document.hidden) {
         setVisibilityChangeCount((prev) => prev + 1);
         toast.warn('检测到页面切换！请勿离开考试页面，否则可能被记录为作弊行为。');
-        // TODO: Log this event to the backend for anti-cheating
       }
     };
 
@@ -88,28 +92,62 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
   const fetchExamDetails = async () => {
     setLoading(true);
     try {
-      // 开始考试，创建考试结果并获取题目与剩余时间
-      const startResponse = await api.post('/assessment-results/start', {
-        exam_id: examId,
-        plan_id: planId
-      });
-      const { result_id, exam, questions, time_left_seconds } = startResponse.data;
-      setExam(exam);
-      setQuestions(questions);
-      setTimeLeft(time_left_seconds || (exam.duration * 60));
-      setResultIdState(result_id);
+      const endpoint = sourceType === 'assessment_plan'
+        ? `/assessment-results/${resultId}`
+        : `/exam-records/${resultId}`;
 
-      // 从本地恢复作答进度（可选）
-      const savedAnswers = loadFromLocalStorage();
-      if (Object.keys(savedAnswers).length > 0) {
-        setUserAnswers(savedAnswers);
-        toast.info('已恢复上次作答进度。');
+      const response = await api.get(endpoint);
+      const record = response.data.data;
+
+      setExam({
+        title: record.exam_title,
+        description: record.plan_title,
+        total_score: record.exam_total_score || record.total_score,
+        pass_score: record.pass_score,
+        duration: record.duration,
+      });
+      setQuestions(record.questions || []);
+
+      // Restore saved answers from backend first
+      let savedAnswers = {};
+
+      // Handle different answer formats
+      if (sourceType === 'assessment_plan') {
+         savedAnswers = record.saved_answers || {};
+      } else {
+         if (record.answers) {
+            try {
+              savedAnswers = typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers;
+            } catch (e) {
+              console.error('Failed to parse saved answers', e);
+            }
+         }
+      }
+
+      setUserAnswers(savedAnswers);
+      // Initialize local storage with fetched answers
+      saveToLocalStorage(savedAnswers);
+
+      // Calculate time left
+      const startTime = new Date(record.start_time);
+      const now = new Date();
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
+      const totalSeconds = record.duration * 60;
+      const remaining = Math.max(0, totalSeconds - elapsedSeconds);
+
+      setTimeLeft(remaining);
+
+      if (record.status !== 'in_progress') {
+        setExamEnded(true);
+        toast.info('该考试已结束');
+        onExamEnd(resultId);
+        return;
       }
 
     } catch (error) {
       console.error('获取考试详情失败:', error);
       toast.error('获取考试详情失败');
-      onExamEnd(null); // Go back if failed to load, pass null resultId
+      onExamEnd(null);
     } finally {
       setLoading(false);
     }
@@ -118,47 +156,40 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
   const handleStartExam = () => {
     setShowInstructions(false);
     setExamStarted(true);
-    // TODO: Call API to mark exam as started and get actual resultId
-    // For now, use a temporary resultId for auto-save
-    const tempResultId = `temp-${examId}-${Date.now()}`;
-    setResultIdState(tempResultId);
   };
 
-  const handleAnswerChange = async (questionId, answer) => {
-    if (examEnded) return; // Prevent changing answers after exam ends
-    setUserAnswers((prevAnswers) => ({
-      ...prevAnswers,
+  const handleAnswerChange = (questionId, answer) => {
+    if (examEnded) return;
+
+    const newAnswers = {
+      ...userAnswers,
       [questionId]: answer,
-    }));
-    // 自动保存到后端
-    try {
-      if (resultIdState) {
-        await api.put(`/assessment-results/${resultIdState}/answer`, {
-          question_id: questionId,
-          answer
-        });
-      }
-    } catch (e) {
-      console.error('自动保存答案失败:', e);
-    }
+    };
+
+    setUserAnswers(newAnswers);
+    saveToLocalStorage(newAnswers);
+    debouncedSave(newAnswers);
   };
 
   const handleSubmitExam = async (isTimeout = false) => {
-    if (isSubmitting || examEnded) return; // Prevent multiple submissions or submission after exam ends
+    if (isSubmitting || examEnded) return;
     setIsSubmitting(true);
     clearInterval(timerRef.current);
 
     try {
-      if (!resultIdState) throw new Error('缺少考试结果ID');
-      await api.post(`/assessment-results/${resultIdState}/submit`, { isTimeout });
+      const endpoint = sourceType === 'assessment_plan'
+        ? `/assessment-results/${resultId}/submit`
+        : `/exam-records/${resultId}/submit`;
+
+      await api.post(endpoint, { isTimeout });
       toast.success(isTimeout ? '考试时间到，已自动提交！' : '考试提交成功！');
       setExamEnded(true);
-      onExamEnd(resultIdState);
+      onExamEnd(resultId);
     } catch (error) {
       console.error('提交考试失败:', error);
       toast.error('提交考试失败');
+      setIsSubmitting(false); // Only reset if failed, otherwise we are done
     } finally {
-      setIsSubmitting(false);
       setShowConfirmSubmit(false);
     }
   };
@@ -234,17 +265,10 @@ const ExamTaking = ({ examId, planId, onExamEnd }) => {
               <div className={`text-2xl font-bold ${timeLeft <= 300 ? 'text-red-500 animate-pulse' : 'text-primary-600'}`}>
                 剩余时间: {formatTime(timeLeft)}
               </div>
-              {isSaving && (
-                <span className="text-sm text-gray-500 flex items-center gap-1">
-                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                  保存中...
-                </span>
-              )}
-              {lastSaved && (
-                <span className="text-xs text-gray-400">
-                  上次保存: {lastSaved.toLocaleTimeString()}
-                </span>
-              )}
+              <span className="text-sm text-gray-500 flex items-center gap-1">
+                 {/* Auto-save indicator could be added here if exposed from hook */}
+                 答案自动保存中
+              </span>
             </div>
             <button
               onClick={() => setShowConfirmSubmit(true)}

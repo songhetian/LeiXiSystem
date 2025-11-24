@@ -40,7 +40,7 @@ module.exports = async function (fastify, opts) {
         title,
         description,
         exam_id,
-        target_users,
+        target_departments,
         start_time,
         end_time,
         max_attempts
@@ -143,54 +143,62 @@ module.exports = async function (fastify, opts) {
       const mysqlStartTime = formatDateForMySQL(startTime)
       const mysqlEndTime = formatDateForMySQL(endTime)
 
-      // 验证 target_users（JSON 数组格式）
-      let targetUsersJson = null
-      let targetUserIds = []
+      // 验证 target_departments（JSON 数组格式）
+      let targetDepartmentsJson = null
+      let targetDepartmentIds = []
 
-      if (target_users !== undefined && target_users !== null) {
+      if (target_departments !== undefined && target_departments !== null) {
         // 验证是否为数组
-        if (!Array.isArray(target_users)) {
+        if (!Array.isArray(target_departments)) {
           return reply.code(400).send({
             success: false,
-            message: 'target_users 必须是数组格式'
+            message: 'target_departments 必须是数组格式'
+          })
+        }
+
+        // 检查是否为空数组
+        if (target_departments.length === 0) {
+          return reply.code(400).send({
+            success: false,
+            message: '请至少选择一个目标部门'
           })
         }
 
         // 验证数组元素都是数字
-        for (let i = 0; i < target_users.length; i++) {
-          if (typeof target_users[i] !== 'number' || target_users[i] <= 0) {
+        for (let i = 0; i < target_departments.length; i++) {
+          if (typeof target_departments[i] !== 'number' || target_departments[i] <= 0) {
             return reply.code(400).send({
               success: false,
-              message: `target_users 中的用户ID必须是大于0的数字，位置 ${i} 的值无效`
+              message: `target_departments 中的部门ID必须是大于0的数字，位置 ${i} 的值无效`
             })
           }
         }
 
         // 去重
-        targetUserIds = [...new Set(target_users)]
+        targetDepartmentIds = [...new Set(target_departments)]
 
-        // 验证用户是否存在
-        if (targetUserIds.length > 0) {
-          const placeholders = targetUserIds.map(() => '?').join(',')
-          const [userRows] = await pool.query(
-            `SELECT id FROM users WHERE id IN (${placeholders})`,
-            targetUserIds
+        // 验证部门是否存在
+        if (targetDepartmentIds.length > 0) {
+          const placeholders = targetDepartmentIds.map(() => '?').join(',')
+          const [deptRows] = await pool.query(
+            `SELECT id FROM departments WHERE id IN (${placeholders})`,
+            targetDepartmentIds
           )
 
-          if (userRows.length !== targetUserIds.length) {
-            const foundIds = userRows.map(u => u.id)
-            const missingIds = targetUserIds.filter(id => !foundIds.includes(id))
+          if (deptRows.length !== targetDepartmentIds.length) {
+            const foundIds = deptRows.map(d => d.id)
+            const missingIds = targetDepartmentIds.filter(id => !foundIds.includes(id))
             return reply.code(404).send({
               success: false,
-              message: '部分用户不存在',
+              message: '部分部门不存在',
               data: {
-                missing_user_ids: missingIds
+                missing_department_ids: missingIds
               }
             })
           }
         }
 
-        targetUsersJson = JSON.stringify(targetUserIds)
+        targetDepartmentsJson = JSON.stringify(targetDepartmentIds)
       }
 
       // 验证 max_attempts（默认为 1）
@@ -211,22 +219,20 @@ module.exports = async function (fastify, opts) {
           title,
           description,
           exam_id,
-          target_users,
+          target_departments,
           start_time,
           end_time,
           max_attempts,
-          status,
           created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title.trim(),
           description || null,
           exam_id,
-          targetUsersJson,
+          targetDepartmentsJson,
           mysqlStartTime,
           mysqlEndTime,
           maxAttempts,
-          'draft', // 默认 status 为 'draft'
           decoded.id // 设置 created_by 为当前用户
         ]
       )
@@ -242,8 +248,8 @@ module.exports = async function (fastify, opts) {
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
           max_attempts: maxAttempts,
-          target_user_count: targetUserIds.length,
-          status: 'draft',
+          target_department_count: targetDepartmentIds.length,
+          status: 'published',
           created_by: decoded.id
         }
       }
@@ -259,259 +265,125 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 获取考核计划详情
-  // GET /api/assessment-plans/:id
-  // 返回计划完整信息
-  // 包含试卷详细信息
-  // 解析 target_users JSON 返回用户列表
-  // 统计完成情况（已完成/总人数）
-  // 统计通过率
-  fastify.get('/api/assessment-plans/:id', async (request, reply) => {
+  // 获取考核计划列表
+  // GET /api/assessment-plans
+  fastify.get('/api/assessment-plans', async (request, reply) => {
     try {
-      const { id } = request.params
+      const { page = 1, limit = 10, keyword, department_id, status } = request.query
+      const offset = (page - 1) * limit
 
-      // 验证用户身份
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({
-          success: false,
-          message: '未提供认证令牌'
-        })
+      // 构建查询条件
+      let whereClause = 'ap.is_deleted = 0'
+      const params = []
+
+      if (keyword) {
+        whereClause += ' AND (ap.title LIKE ? OR ap.description LIKE ?)'
+        params.push(`%${keyword}%`, `%${keyword}%`)
       }
 
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({
-          success: false,
-          message: '无效的认证令牌'
-        })
+      if (status) {
+        whereClause += ' AND ap.status = ?'
+        params.push(status)
       }
-   // 获取考核计划基本信息
-      const [planRows] = await pool.query(
+
+      // 获取总数
+      const [countRows] = await pool.query(
+        `SELECT COUNT(*) as total FROM assessment_plans ap WHERE ${whereClause}`,
+        params
+      )
+      const total = countRows[0].total
+
+      // 获取列表
+      const [rows] = await pool.query(
         `SELECT
           ap.id,
           ap.title,
           ap.description,
           ap.exam_id,
-          ap.target_users,
+          ap.target_departments,
           ap.start_time,
           ap.end_time,
           ap.max_attempts,
           ap.status,
-          ap.created_by,
           ap.created_at,
-          ap.updated_at,
-          u.username as creator_username,
-          u.real_name as creator_name
+          e.title as exam_title
         FROM assessment_plans ap
-        LEFT JOIN users u ON ap.created_by = u.id
-        WHERE ap.id = ?`,
-        [id]
+        LEFT JOIN exams e ON ap.exam_id = e.id
+        WHERE ${whereClause}
+        ORDER BY ap.created_at DESC
+        LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit), parseInt(offset)]
       )
 
-      if (planRows.length === 0) {
-        return reply.code(404).send({
-          success: false,
-          message: '考核计划不存在'
-        })
-      }
+      // 处理 target_departments
+      const plans = []
+      for (const row of rows) {
+        let targetDepartments = []
+        let targetDepartmentIds = []
 
-      const plan = planRows[0]
+        if (row.target_departments) {
+          try {
+            targetDepartmentIds = typeof row.target_departments === 'string'
+              ? JSON.parse(row.target_departments)
+              : row.target_departments
 
-      // 获取试卷详细信息
-      const [examRows] = await pool.query(
-        `SELECT
-          e.id,
-          e.title,
-          e.description,
-          e.category,
-          e.difficulty,
-          e.duration,
-          e.total_score,
-          e.pass_score,
-          e.question_count,
-          e.status
-        FROM exams e
-        WHERE e.id = ?`,
-        [plan.exam_id]
-      )
-
-      if (examRows.length === 0) {
-        return reply.code(404).send({
-          success: false,
-          message: '关联的试卷不存在'
-        })
-      }
-
-      const exam = examRows[0]
-
-      // 解析 target_users JSON 返回用户列表
-      let targetUsers = []
-      let targetUserIds = []
-
-      if (plan.target_users) {
-        try {
-          // MySQL 可能已经自动解析了 JSON，所以先检查类型
-          targetUserIds = typeof plan.target_users === 'string'
-            ? JSON.parse(plan.target_users)
-            : plan.target_users
-
-          if (Array.isArray(targetUserIds) && targetUserIds.length > 0) {
-            // 获取目标用户的详细信息
-            const placeholders = targetUserIds.map(() => '?').join(',')
-            const [userRows] = await pool.query(
-              `SELECT
-                u.id,
-                u.username,
-                u.real_name,
-                u.email,
-                u.phone,
-                u.department_id,
-                d.name as department_name
-              FROM users u
-              LEFT JOIN departments d ON u.department_id = d.id
-              WHERE u.id IN (${placeholders})`,
-              targetUserIds
-            )
-            targetUsers = userRows
+            if (Array.isArray(targetDepartmentIds) && targetDepartmentIds.length > 0) {
+              // 获取部门名称
+              const placeholders = targetDepartmentIds.map(() => '?').join(',')
+              const [deptRows] = await pool.query(
+                `SELECT id, name FROM departments WHERE id IN (${placeholders})`,
+                targetDepartmentIds
+              )
+              targetDepartments = deptRows
+            }
+          } catch (e) {
+            console.error('解析 target_departments 失败', e)
           }
-        } catch (error) {
-          console.error('解析 target_users JSON 失败:', error)
-          // 如果解析失败，继续执行，但 targetUsers 为空数组
         }
-      }
 
-      // 统计完成情况（已完成/总人数）
-      const totalUsers = targetUserIds.length
-      let completedCount = 0
-      let passedCount = 0
+        // Calculate status based on time
+        const now = new Date()
+        const startTime = new Date(row.start_time)
+        const endTime = new Date(row.end_time)
+        let calculatedStatus = 'not_started'
 
-      if (totalUsers > 0) {
-        // 统计已完成的用户数（status 为 'submitted' 或 'graded'）
-        const placeholders = targetUserIds.map(() => '?').join(',')
-        const [completedRows] = await pool.query(
-          `SELECT COUNT(DISTINCT user_id) as completed_count
-          FROM assessment_results
-          WHERE plan_id = ?
-            AND user_id IN (${placeholders})
-            AND status IN ('submitted', 'graded')`,
-          [id, ...targetUserIds]
-        )
-        completedCount = completedRows[0].completed_count
+        if (now >= startTime && now <= endTime) {
+          calculatedStatus = 'ongoing'
+        } else if (now > endTime) {
+          calculatedStatus = 'ended'
+        }
 
-        // 统计通过的用户数
-        const [passedRows] = await pool.query(
-          `SELECT COUNT(DISTINCT user_id) as passed_count
-          FROM assessment_results
-          WHERE plan_id = ?
-            AND user_id IN (${placeholders})
-            AND is_passed = 1
-            AND status IN ('submitted', 'graded')`,
-          [id, ...targetUserIds]
-        )
-        passedCount = passedRows[0].passed_count
-      }
-
-      // 计算通过率
-      const passRate = completedCount > 0 ? (passedCount / completedCount * 100).toFixed(2) : 0
-
-      // 获取每个用户的考试情况
-      const participantDetails = []
-      for (const user of targetUsers) {
-        // 获取该用户的考试记录
-        const [resultRows] = await pool.query(
-          `SELECT
-            id,
-            attempt_number,
-            start_time,
-            submit_time,
-            duration,
-            score,
-            is_passed,
-            status
-          FROM assessment_results
-          WHERE plan_id = ? AND user_id = ?
-          ORDER BY attempt_number DESC`,
-          [id, user.id]
-        )
-
-        const hasCompleted = resultRows.some(r => r.status === 'submitted' || r.status === 'graded')
-        const bestResult = resultRows.find(r => r.status === 'submitted' || r.status === 'graded')
-        const attemptCount = resultRows.length
-
-        participantDetails.push({
-          user_id: user.id,
-          username: user.username,
-          real_name: user.real_name,
-          email: user.email,
-          phone: user.phone,
-          department_id: user.department_id,
-          department_name: user.department_name,
-          has_completed: hasCompleted,
-          attempt_count: attemptCount,
-          best_score: bestResult ? parseFloat(bestResult.score) : null,
-          is_passed: bestResult ? bestResult.is_passed === 1 : false,
-          last_submit_time: bestResult ? bestResult.submit_time : null
+        plans.push({
+          ...row,
+          status: calculatedStatus, // Override status
+          original_status: row.status,
+          target_departments: targetDepartments,
+          target_department_ids: targetDepartmentIds,
+          target_departments_names: targetDepartments.map(d => d.name).join(', ')
         })
-      }
-
-      // 构建返回数据
-      const result = {
-        id: plan.id,
-        title: plan.title,
-        description: plan.description,
-        exam_id: plan.exam_id,
-        start_time: plan.start_time,
-        end_time: plan.end_time,
-        max_attempts: plan.max_attempts,
-        status: plan.status,
-        created_at: plan.created_at,
-        updated_at: plan.updated_at,
-        creator: plan.created_by ? {
-          id: plan.created_by,
-          username: plan.creator_username,
-          name: plan.creator_name
-        } : null,
-        exam: {
-          id: exam.id,
-          title: exam.title,
-          description: exam.description,
-          category: exam.category,
-          difficulty: exam.difficulty,
-          duration: exam.duration,
-          total_score: parseFloat(exam.total_score),
-          pass_score: parseFloat(exam.pass_score),
-          question_count: exam.question_count,
-          status: exam.status
-        },
-        target_users: targetUsers,
-        participants: participantDetails,
-        statistics: {
-          total_users: totalUsers,
-          completed_count: completedCount,
-          passed_count: passedCount,
-          pass_rate: parseFloat(passRate),
-          completion_rate: totalUsers > 0 ? ((completedCount / totalUsers) * 100).toFixed(2) : 0
-        }
       }
 
       return {
         success: true,
-        data: result
+        data: plans,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: Math.ceil(total / limit)
+        }
       }
+
     } catch (error) {
-      console.error('获取考核计划详情失败:', error)
-      console.error('错误详情:', error.message)
-      console.error('错误堆栈:', error.stack)
+      console.error('获取考核计划列表失败:', error)
       return reply.code(500).send({
         success: false,
-        message: '获取失败',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: '获取列表失败'
       })
     }
-  })
+  });
+
+
 
   // 更新考核计划
   // PUT /api/assessment-plans/:id
@@ -543,7 +415,7 @@ module.exports = async function (fastify, opts) {
 
       // 获取现有的考核计划
       const [planRows] = await pool.query(
-        'SELECT id, title, exam_id, status FROM assessment_plans WHERE id = ?',
+        'SELECT id, title, exam_id, start_time, end_time FROM assessment_plans WHERE id = ?',
         [id]
       )
 
@@ -556,14 +428,30 @@ module.exports = async function (fastify, opts) {
 
       const existingPlan = planRows[0]
 
-      // 验证计划状态（ongoing/completed 限制修改）
-      if (existingPlan.status === 'ongoing' || existingPlan.status === 'completed') {
+      // 验证计划时间（进行中或已结束限制修改）
+      const now = new Date()
+      const startTime = new Date(existingPlan.start_time)
+      const endTime = new Date(existingPlan.end_time)
+
+      if (now >= startTime && now <= endTime) {
         return reply.code(400).send({
           success: false,
-          message: `无法修改${existingPlan.status === 'ongoing' ? '进行中' : '已完成'}的考核计划`,
+          message: '考核计划正在进行中，无法修改',
           data: {
             plan_id: existingPlan.id,
-            current_status: existingPlan.status
+            start_time: existingPlan.start_time,
+            end_time: existingPlan.end_time
+          }
+        })
+      }
+
+      if (now > endTime) {
+        return reply.code(400).send({
+          success: false,
+          message: '考核计划已结束，无法修改',
+          data: {
+            plan_id: existingPlan.id,
+            end_time: existingPlan.end_time
           }
         })
       }
@@ -660,58 +548,58 @@ module.exports = async function (fastify, opts) {
       }
 
       // 更新目标用户
-      if (target_users !== undefined) {
-        let targetUsersJson = null
-        let targetUserIds = []
+      if (target_departments !== undefined) {
+        let targetDepartmentsJson = null
+        let targetDepartmentIds = []
 
-        if (target_users !== null) {
+        if (target_departments !== null) {
           // 验证是否为数组
-          if (!Array.isArray(target_users)) {
+          if (!Array.isArray(target_departments)) {
             return reply.code(400).send({
               success: false,
-              message: 'target_users 必须是数组格式'
+              message: 'target_departments 必须是数组格式'
             })
           }
 
           // 验证数组元素都是数字
-          for (let i = 0; i < target_users.length; i++) {
-            if (typeof target_users[i] !== 'number' || target_users[i] <= 0) {
+          for (let i = 0; i < target_departments.length; i++) {
+            if (typeof target_departments[i] !== 'number' || target_departments[i] <= 0) {
               return reply.code(400).send({
                 success: false,
-                message: `target_users 中的用户ID必须是大于0的数字，位置 ${i} 的值无效`
+                message: `target_departments 中的部门ID必须是大于0的数字，位置 ${i} 的值无效`
               })
             }
           }
 
           // 去重
-          targetUserIds = [...new Set(target_users)]
+          targetDepartmentIds = [...new Set(target_departments)]
 
-          // 验证用户是否存在
-          if (targetUserIds.length > 0) {
-            const placeholders = targetUserIds.map(() => '?').join(',')
-            const [userRows] = await pool.query(
-              `SELECT id FROM users WHERE id IN (${placeholders})`,
-              targetUserIds
+          // 验证部门是否存在
+          if (targetDepartmentIds.length > 0) {
+            const placeholders = targetDepartmentIds.map(() => '?').join(',')
+            const [deptRows] = await pool.query(
+              `SELECT id FROM departments WHERE id IN (${placeholders})`,
+              targetDepartmentIds
             )
 
-            if (userRows.length !== targetUserIds.length) {
-              const foundIds = userRows.map(u => u.id)
-              const missingIds = targetUserIds.filter(id => !foundIds.includes(id))
+            if (deptRows.length !== targetDepartmentIds.length) {
+              const foundIds = deptRows.map(d => d.id)
+              const missingIds = targetDepartmentIds.filter(id => !foundIds.includes(id))
               return reply.code(404).send({
                 success: false,
-                message: '部分用户不存在',
+                message: '部分部门不存在',
                 data: {
-                  missing_user_ids: missingIds
+                  missing_department_ids: missingIds
                 }
               })
             }
           }
 
-          targetUsersJson = JSON.stringify(targetUserIds)
+          targetDepartmentsJson = JSON.stringify(targetDepartmentIds)
         }
 
-        updateFields.push('target_users = ?')
-        updateValues.push(targetUsersJson)
+        updateFields.push('target_departments = ?')
+        updateValues.push(targetDepartmentsJson)
       }
 
       // 更新最大尝试次数
@@ -748,7 +636,7 @@ module.exports = async function (fastify, opts) {
           ap.title,
           ap.description,
           ap.exam_id,
-          ap.target_users,
+          ap.target_departments,
           ap.start_time,
           ap.end_time,
           ap.max_attempts,
@@ -763,16 +651,16 @@ module.exports = async function (fastify, opts) {
 
       const updatedPlan = updatedPlanRows[0]
 
-      // 解析 target_users
-      let targetUserCount = 0
-      if (updatedPlan.target_users) {
+      // 解析 target_departments
+      let targetDepartmentCount = 0
+      if (updatedPlan.target_departments) {
         try {
-          const userIds = typeof updatedPlan.target_users === 'string'
-            ? JSON.parse(updatedPlan.target_users)
-            : updatedPlan.target_users
-          targetUserCount = Array.isArray(userIds) ? userIds.length : 0
+          const departmentIds = typeof updatedPlan.target_departments === 'string'
+            ? JSON.parse(updatedPlan.target_departments)
+            : updatedPlan.target_departments
+          targetDepartmentCount = Array.isArray(departmentIds) ? departmentIds.length : 0
         } catch (error) {
-          console.error('解析 target_users 失败:', error)
+          console.error('解析 target_departments 失败:', error)
         }
       }
 
@@ -788,7 +676,7 @@ module.exports = async function (fastify, opts) {
           start_time: updatedPlan.start_time,
           end_time: updatedPlan.end_time,
           max_attempts: updatedPlan.max_attempts,
-          target_user_count: targetUserCount,
+          target_department_count: targetDepartmentCount,
           status: updatedPlan.status,
           updated_at: updatedPlan.updated_at
         }
@@ -805,209 +693,17 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 更新计划状态
+  // 更新计划状态 (已废弃)
   // PUT /api/assessment-plans/:id/status
-  // 支持状态转换
-  // draft -> published（发布）
-  // published -> ongoing（自动或手动开始）
-  // ongoing -> completed（自动或手动完成）
-  // * -> cancelled（取消）
+  // 状态现由时间自动控制，此接口不再执行任何操作
   fastify.put('/api/assessment-plans/:id/status', async (request, reply) => {
-    try {
-      const { id } = request.params
-      const { status } = request.body
-
-      // 验证用户身份
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({
-          success: false,
-          message: '未提供认证令牌'
-        })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({
-          success: false,
-          message: '无效的认证令牌'
-        })
-      }
-
-      // 验证状态参数
-      const validStatuses = ['draft', 'published', 'ongoing', 'completed', 'cancelled']
-      if (!status || !validStatuses.includes(status)) {
-        return reply.code(400).send({
-          success: false,
-          message: '无效的状态值',
-          data: {
-            valid_statuses: validStatuses,
-            provided_status: status
-          }
-        })
-      }
-
-      // 获取当前计划信息
-      const [planRows] = await pool.query(
-        `SELECT
-          ap.id,
-          ap.title,
-          ap.status,
-          ap.exam_id,
-          ap.start_time,
-          ap.end_time,
-          e.question_count,
-          e.total_score
-        FROM assessment_plans ap
-        LEFT JOIN exams e ON ap.exam_id = e.id
-        WHERE ap.id = ?`,
-        [id]
-      )
-
-      if (planRows.length === 0) {
-        return reply.code(404).send({
-          success: false,
-          message: '考核计划不存在'
-        })
-      }
-
-      const plan = planRows[0]
-      const currentStatus = plan.status
-
-      // 如果状态相同，不需要更新
-      if (currentStatus === status) {
-        return reply.code(400).send({
-          success: false,
-          message: '计划状态已经是目标状态',
-          data: {
-            current_status: currentStatus,
-            target_status: status
-          }
-        })
-      }
-
-      // 验证状态转换规则
-      const allowedTransitions = {
-        'draft': ['published', 'cancelled'],
-        'published': ['ongoing', 'cancelled'],
-        'ongoing': ['completed', 'cancelled'],
-        'completed': ['cancelled'],
-        'cancelled': []
-      }
-
-      const allowedNextStatuses = allowedTransitions[currentStatus] || []
-
-      if (!allowedNextStatuses.includes(status)) {
-        return reply.code(400).send({
-          success: false,
-          message: `不允许从 ${currentStatus} 状态转换到 ${status} 状态`,
-          data: {
-            current_status: currentStatus,
-            target_status: status,
-            allowed_transitions: allowedNextStatuses
-          }
-        })
-      }
-
-      // 发布前的验证
-      if (status === 'published' && currentStatus === 'draft') {
-        // 验证试卷是否有题目
-        if (!plan.question_count || plan.question_count === 0) {
-          return reply.code(400).send({
-            success: false,
-            message: '试卷没有题目，无法发布考核计划',
-            data: {
-              exam_id: plan.exam_id,
-              question_count: plan.question_count
-            }
-          })
-        }
-
-        // 验证时间范围
-        const now = new Date()
-        const endTime = new Date(plan.end_time)
-
-        if (endTime <= now) {
-          return reply.code(400).send({
-            success: false,
-            message: '考核结束时间已过，无法发布',
-            data: {
-              end_time: plan.end_time,
-              current_time: now.toISOString()
-            }
-          })
-        }
-      }
-
-      // 开始考核的验证
-      if (status === 'ongoing' && currentStatus === 'published') {
-        const now = new Date()
-        const startTime = new Date(plan.start_time)
-        const endTime = new Date(plan.end_time)
-
-        // 检查是否在考核时间范围内
-        if (now < startTime) {
-          return reply.code(400).send({
-            success: false,
-            message: '考核尚未开始',
-            data: {
-              start_time: plan.start_time,
-              current_time: now.toISOString()
-            }
-          })
-        }
-
-        if (now > endTime) {
-          return reply.code(400).send({
-            success: false,
-            message: '考核已结束',
-            data: {
-              end_time: plan.end_time,
-              current_time: now.toISOString()
-            }
-          })
-        }
-      }
-
-      // 完成考核的验证
-      if (status === 'completed' && currentStatus === 'ongoing') {
-        // 可以手动完成，不需要额外验证
-        // 或者可以检查是否所有人都已完成考试
-      }
-
-      // 更新状态
-      await pool.query(
-        'UPDATE assessment_plans SET status = ?, updated_at = NOW() WHERE id = ?',
-        [status, id]
-      )
-
-      // 记录状态变更日志（可选）
-      // 这里可以添加日志记录逻辑
-
-      return {
-        success: true,
-        message: `考核计划状态已更新为 ${status}`,
-        data: {
-          id: plan.id,
-          title: plan.title,
-          previous_status: currentStatus,
-          current_status: status,
-          updated_at: new Date().toISOString()
-        }
-      }
-    } catch (error) {
-      console.error('更新考核计划状态失败:', error)
-      console.error('错误详情:', error.message)
-      console.error('错误堆栈:', error.stack)
-      return reply.code(500).send({
-        success: false,
-        message: '状态更新失败',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      })
+    return {
+      success: true,
+      message: '状态由时间自动控制，无需手动更新'
     }
   })
+
+
 
   // 获取参与者列表
   // GET /api/assessment-plans/:id/participants
@@ -1045,7 +741,7 @@ module.exports = async function (fastify, opts) {
           ap.id,
           ap.title,
           ap.exam_id,
-          ap.target_users,
+          ap.target_departments,
           ap.max_attempts,
           ap.status,
           e.title as exam_title,
@@ -1066,24 +762,24 @@ module.exports = async function (fastify, opts) {
 
       const plan = planRows[0]
 
-      // 解析 target_users JSON
-      let targetUserIds = []
-      if (plan.target_users) {
+      // 解析 target_departments JSON
+      let targetDepartmentIds = []
+      if (plan.target_departments) {
         try {
-          targetUserIds = typeof plan.target_users === 'string'
-            ? JSON.parse(plan.target_users)
-            : plan.target_users
+          targetDepartmentIds = typeof plan.target_departments === 'string'
+            ? JSON.parse(plan.target_departments)
+            : plan.target_departments
 
-          if (!Array.isArray(targetUserIds)) {
-            targetUserIds = []
+          if (!Array.isArray(targetDepartmentIds)) {
+            targetDepartmentIds = []
           }
         } catch (error) {
-          console.error('解析 target_users JSON 失败:', error)
-          targetUserIds = []
+          console.error('解析 target_departments JSON 失败:', error)
+          targetDepartmentIds = []
         }
       }
 
-      if (targetUserIds.length === 0) {
+      if (targetDepartmentIds.length === 0) {
         return {
           success: true,
           data: {
@@ -1106,8 +802,8 @@ module.exports = async function (fastify, opts) {
         }
       }
 
-      // 获取目标用户的详细信息
-      const placeholders = targetUserIds.map(() => '?').join(',')
+      // 获取目标部门中的所有用户
+      const deptPlaceholders = targetDepartmentIds.map(() => '?').join(',')
       const [userRows] = await pool.query(
         `SELECT
           u.id,
@@ -1119,8 +815,8 @@ module.exports = async function (fastify, opts) {
           d.name as department_name
         FROM users u
         LEFT JOIN departments d ON u.department_id = d.id
-        WHERE u.id IN (${placeholders})`,
-        targetUserIds
+        WHERE u.department_id IN (${deptPlaceholders})`,
+        targetDepartmentIds
       )
 
       // 构建参与者列表
@@ -1306,7 +1002,7 @@ module.exports = async function (fastify, opts) {
           ap.title,
           ap.description,
           ap.exam_id,
-          ap.target_users,
+          ap.target_departments,
           ap.start_time,
           ap.end_time,
           ap.max_attempts,
@@ -1322,35 +1018,64 @@ module.exports = async function (fastify, opts) {
           e.question_count as exam_question_count
         FROM assessment_plans ap
         INNER JOIN exams e ON ap.exam_id = e.id
-        WHERE ap.status IN ('published', 'ongoing', 'completed')
+        WHERE ap.is_deleted = 0
         ORDER BY ap.start_time DESC`
       )
 
       // 筛选当前用户可参加的考试
       const myExams = []
 
-      for (const plan of allPlans) {
-        // 解析 target_users JSON
-        let targetUserIds = []
-        if (plan.target_users) {
-          try {
-            targetUserIds = typeof plan.target_users === 'string'
-              ? JSON.parse(plan.target_users)
-              : plan.target_users
+      console.log('=== 我的考试调试信息 ===')
+      console.log('用户ID:', userId)
+      console.log('查询到的计划总数:', allPlans.length)
 
-            if (!Array.isArray(targetUserIds)) {
-              targetUserIds = []
+      for (const plan of allPlans) {
+        console.log(`\n检查计划 ${plan.id}: ${plan.title}`)
+        console.log('计划状态:', plan.plan_status)
+        console.log('原始 target_departments:', plan.target_departments)
+
+        // 解析 target_departments JSON
+        let targetDepartmentIds = []
+        if (plan.target_departments) {
+          try {
+            targetDepartmentIds = typeof plan.target_departments === 'string'
+              ? JSON.parse(plan.target_departments)
+              : plan.target_departments
+
+            if (!Array.isArray(targetDepartmentIds)) {
+              targetDepartmentIds = []
             }
+            console.log('解析后的目标部门IDs:', targetDepartmentIds)
           } catch (error) {
-            console.error(`计划 ${plan.id} 的 target_users 解析失败:`, error)
+            console.error(`计划 ${plan.id} 的 target_departments 解析失败:`, error)
             continue
           }
+        } else {
+          console.log('计划没有 target_departments 字段')
         }
 
-        // 检查当前用户是否在目标用户列表中
-        if (!targetUserIds.includes(userId)) {
+        // 检查当前用户是否在目标部门中
+        // 首先获取用户的部门ID
+        const [userRows] = await pool.query(
+          'SELECT department_id FROM users WHERE id = ?',
+          [userId]
+        )
+
+        if (userRows.length === 0) {
+          console.log('用户不存在，跳过')
           continue
         }
+
+        const userDepartmentId = userRows[0].department_id
+        console.log('用户部门ID:', userDepartmentId)
+
+        // 检查用户部门是否在目标部门列表中
+        if (!targetDepartmentIds.includes(userDepartmentId)) {
+          console.log('用户部门不在目标部门列表中，跳过')
+          continue
+        }
+
+        console.log('✓ 用户部门匹配成功！')
 
         // 获取用户的考试记录
         const [resultRows] = await pool.query(
@@ -1485,9 +1210,7 @@ module.exports = async function (fastify, opts) {
 
   // 删除考核计划
   // DELETE /api/assessment-plans/:id
-  // 检查计划状态（ongoing/completed 不可删除）
-  // 检查是否有考试记录
-  // 级联删除相关 assessment_results 和 answer_records
+  // 软删除：设置 is_deleted = 1
   fastify.delete('/api/assessment-plans/:id', async (request, reply) => {
     try {
       const { id } = request.params
@@ -1524,70 +1247,15 @@ module.exports = async function (fastify, opts) {
         })
       }
 
-      const plan = planRows[0]
-
-      // 检查计划状态（ongoing/completed 不可删除）
-      if (plan.status === 'ongoing' || plan.status === 'completed') {
-        return reply.code(400).send({
-          success: false,
-          message: `无法删除${plan.status === 'ongoing' ? '进行中' : '已完成'}的考核计划`,
-          data: {
-            plan_id: plan.id,
-            plan_title: plan.title,
-            current_status: plan.status
-          }
-        })
-      }
-
-      // 检查是否有考试记录
-      const [resultRows] = await pool.query(
-        'SELECT COUNT(*) as count FROM assessment_results WHERE plan_id = ?',
-        [id]
-      )
-
-      const hasResults = resultRows[0].count > 0
-
-      if (hasResults) {
-        // 如果有考试记录，级联删除相关 assessment_results 和 answer_records
-        // 首先获取所有相关的 result_id
-        const [resultIds] = await pool.query(
-          'SELECT id FROM assessment_results WHERE plan_id = ?',
-          [id]
-        )
-
-        if (resultIds.length > 0) {
-          const resultIdList = resultIds.map(r => r.id)
-          const placeholders = resultIdList.map(() => '?').join(',')
-
-          // 删除 answer_records（由于外键约束，这会自动级联删除）
-          // 但为了明确性，我们显式删除
-          await pool.query(
-            `DELETE FROM answer_records WHERE result_id IN (${placeholders})`,
-            resultIdList
-          )
-
-          // 删除 assessment_results
-          await pool.query(
-            'DELETE FROM assessment_results WHERE plan_id = ?',
-            [id]
-          )
-        }
-      }
-
-      // 删除考核计划
+      // 软删除
       await pool.query(
-        'DELETE FROM assessment_plans WHERE id = ?',
+        'UPDATE assessment_plans SET is_deleted = 1 WHERE id = ?',
         [id]
       )
 
       return {
         success: true,
-        message: '考核计划删除成功',
-        data: {
-          id: plan.id,
-          title: plan.title,
-          deleted_results: hasResults ? resultRows[0].count : 0
-        }
+        message: '考核计划已删除'
       }
     } catch (error) {
       console.error('删除考核计划失败:', error)
@@ -1599,5 +1267,5 @@ module.exports = async function (fastify, opts) {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       })
     }
-  })
-}
+  });
+};

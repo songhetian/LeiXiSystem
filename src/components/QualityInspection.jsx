@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'react-toastify'
-import { qualityAPI } from '../api'
+import qualityAPI from './api/qualityAPI'
 import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'
 

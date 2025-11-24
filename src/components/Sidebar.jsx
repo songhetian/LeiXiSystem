@@ -132,7 +132,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   // Clear search
   const clearSearch = () => {
     setSearchQuery('');
-    setExpandedMenus(['user', 'org', 'chat']);
+    setExpandedMenus(['user', 'org', 'messaging']);
   };
 
   return (
@@ -365,6 +365,15 @@ const allMenuItems = [
     ],
   },
   {
+    id: 'messaging',
+    label: '信息系统',
+    icon: <MessageOutlined />,
+    children: [
+      { id: 'messaging-chat', label: '聊天系统', icon: <MessageOutlined /> },
+      { id: 'messaging-create-group', label: '群组管理', icon: <TeamOutlined /> },
+    ],
+  },
+  {
     id: 'attendance',
     label: '考勤管理',
     icon: <ClockCircleOutlined />,
@@ -429,7 +438,7 @@ const allMenuItems = [
     icon: <FormOutlined />,
     children: [
       { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined /> },
-      { id: 'assessment-plans', label: '考核计划', icon: <CalendarOutlined /> },
+      { id: 'exam-plans', label: '考核计划', icon: <CalendarOutlined /> },
       { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined /> },
       { id: 'assessment-results', label: '考试结果', icon: <EyeOutlined /> },
       { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> },

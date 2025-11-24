@@ -1,31 +1,44 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api';
 import Modal from './Modal';
-import debounce from 'lodash.debounce';
+import IconPicker from './IconPicker';
+import './CategoryManagement.css';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'recycle'
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
 
   const [formData, setFormData] = useState({
     name: '',
+    code: '',
+    icon: '',
     description: '',
+    parent_id: null,
   });
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [activeTab]);
 
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/exam-categories');
-      // Handle response structure: { success: true, data: { categories: [...] } } or { success: true, data: [...] }
-      const categoriesData = response.data?.data?.categories || response.data?.data || [];
+      const endpoint = activeTab === 'recycle'
+        ? '/exam-categories/recycle-bin'
+        : '/exam-categories/tree';
+
+      const response = await api.get(endpoint);
+      const categoriesData = response.data?.data || [];
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (error) {
       console.error('获取分类失败:', error);
@@ -41,11 +54,16 @@ const CategoryManagement = () => {
     setLoading(true);
 
     try {
+      const submitData = {
+        ...formData,
+        code: formData.code || undefined, // 让后端自动生成
+      };
+
       if (editingCategory) {
-        await api.put(`/exam-categories/${editingCategory.id}`, formData);
+        await api.put(`/exam-categories/${editingCategory.id}`, submitData);
         toast.success('分类更新成功');
       } else {
-        await api.post('/exam-categories', formData);
+        await api.post('/exam-categories', submitData);
         toast.success('分类创建成功');
       }
       setShowModal(false);
@@ -53,196 +71,486 @@ const CategoryManagement = () => {
       fetchCategories();
     } catch (error) {
       console.error('提交失败:', error);
-      toast.error(editingCategory ? '更新失败' : '创建失败');
+      const errorMsg = error.response?.data?.message || (editingCategory ? '更新失败' : '创建失败');
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    if (!window.confirm('确定要删除这个分类吗？')) return;
+  const handleDeleteCategory = (categoryId) => {
+    const category = findCategoryById(categories, categoryId);
+    setCategoryToDelete(category);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
 
     try {
-      await api.delete(`/exam-categories/${categoryId}`);
-      toast.success('分类删除成功');
+      await api.delete(`/exam-categories/${categoryToDelete.id}`);
+      toast.success('分类已移至回收站');
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
       fetchCategories();
     } catch (error) {
       console.error('删除分类失败:', error);
-      toast.error('删除分类失败');
+      toast.error(error.response?.data?.message || '删除分类失败');
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
     }
+  };
+
+  const handlePermanentDelete = (categoryId) => {
+    const category = findCategoryById(categories, categoryId);
+    setCategoryToDelete(category);
+    setShowPermanentDeleteModal(true);
+  };
+
+  const confirmPermanentDelete = async () => {
+    if (!categoryToDelete) return;
+
+    try {
+      await api.delete(`/exam-categories/${categoryToDelete.id}/permanent`);
+      toast.success('分类已永久删除');
+      setShowPermanentDeleteModal(false);
+      setCategoryToDelete(null);
+      fetchCategories();
+    } catch (error) {
+      console.error('永久删除失败:', error);
+      toast.error(error.response?.data?.message || '永久删除失败');
+      setShowPermanentDeleteModal(false);
+      setCategoryToDelete(null);
+    }
+  };
+
+  const handleRestoreCategory = async (categoryId) => {
+    try {
+      await api.put(`/exam-categories/${categoryId}/restore`, { cascade: false });
+      toast.success('分类恢复成功');
+      fetchCategories();
+    } catch (error) {
+      console.error('恢复分类失败:', error);
+      toast.error(error.response?.data?.message || '恢复分类失败');
+    }
+  };
+
+  const findCategoryById = (nodes, id) => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findCategoryById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
   };
 
   const resetForm = () => {
     setFormData({
       name: '',
+      code: '',
+      icon: '',
       description: '',
+      parent_id: null,
     });
     setEditingCategory(null);
   };
 
-  const filteredCategories = useMemo(() => {
-    if (!Array.isArray(categories)) return [];
-    return categories.filter(category =>
-      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      category.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [categories, searchTerm]);
+  const toggleNode = (nodeId) => {
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(nodeId)) {
+        newSet.delete(nodeId);
+      } else {
+        newSet.add(nodeId);
+      }
+      return newSet;
+    });
+  };
 
-  // Debounced search handler
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+  const renderTreeNode = (node, level = 0) => {
+    const hasChildren = node.children && node.children.length > 0;
+    const isExpanded = expandedNodes.has(node.id);
+
+    return (
+      <div key={node.id} className="tree-node">
+        <div className="tree-node-content" style={{ paddingLeft: `${level * 24}px` }}>
+          {hasChildren && (
+            <button
+              className="expand-btn"
+              onClick={() => toggleNode(node.id)}
+            >
+              <span className="material-icons">
+                {isExpanded ? 'expand_more' : 'chevron_right'}
+              </span>
+            </button>
+          )}
+          {!hasChildren && <div className="expand-placeholder" />}
+
+          <span className="material-icons category-icon">
+            {node.icon || 'folder'}
+          </span>
+
+          <span className="category-name">{node.name}</span>
+
+          <div className="category-actions">
+            <button
+              onClick={() => {
+                setFormData({
+                  name: '',
+                  code: '',
+                  icon: '',
+                  description: '',
+                  parent_id: node.id,
+                });
+                setShowModal(true);
+              }}
+              className="action-btn add-btn"
+              title="添加子分类"
+            >
+              <span className="material-icons">add</span>
+              <span className="action-text">添加</span>
+            </button>
+            <button
+              onClick={() => {
+                setEditingCategory(node);
+                setFormData({
+                  name: node.name,
+                  code: node.code || '',
+                  icon: node.icon || '',
+                  description: node.description || '',
+                  parent_id: node.parent_id,
+                });
+                setShowModal(true);
+              }}
+              className="action-btn edit-btn"
+              title="编辑"
+            >
+              <span className="material-icons">edit</span>
+              <span className="action-text">编辑</span>
+            </button>
+            <button
+              onClick={() => handleDeleteCategory(node.id)}
+              className="action-btn delete-btn"
+              title="删除"
+            >
+              <span className="material-icons">delete</span>
+              <span className="action-text">删除</span>
+            </button>
+          </div>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="tree-children">
+            {node.children.map(child => renderTreeNode(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('zh-CN');
   };
 
   return (
-    <div className="p-0">
-      <div className="bg-white rounded-xl shadow-md p-6">
-        {/* 头部 */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">分类管理</h2>
-            <p className="text-gray-500 text-sm mt-1">共 {filteredCategories.length} 个分类</p>
-          </div>
-          <div className="flex items-center gap-3">
+    <div className="category-management">
+      <div className="category-header">
+        <div>
+          <h2>分类管理</h2>
+          <p className="category-count">
+            {activeTab === 'active' ? `共 ${categories.length} 个分类` : `回收站中 ${categories.length} 个分类`}
+          </p>
+        </div>
+        <div className="header-actions">
+          {activeTab === 'active' && (
             <button
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+              className="btn-primary"
             >
-              <span className="text-xl">+</span>
-              <span>新建分类</span>
+              <span className="material-icons">add</span>
+              新建分类
             </button>
-          </div>
-        </div>
-
-        {/* 搜索筛选区 */}
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <input
-            type="text"
-            placeholder="按分类名称、描述搜索..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-          />
-        </div>
-
-        {/* 表格 */}
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto">
-            <thead className="bg-primary-50 border-b border-primary-100">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">分类名称</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider">描述</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="3" className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-                    <p className="mt-2 text-gray-600">加载中...</p>
-                  </td>
-                </tr>
-              ) : filteredCategories.length === 0 ? (
-                <tr>
-                  <td colSpan="3" className="px-4 py-8 text-center text-gray-500">
-                    暂无分类
-                  </td>
-                </tr>
-              ) : (
-                filteredCategories.map((category, index) => (
-                  <tr key={category.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{category.name}</div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{category.description || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingCategory(category);
-                            setFormData({
-                              name: category.name,
-                              description: category.description || '',
-                            });
-                            setShowModal(true);
-                          }}
-                          className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 whitespace-nowrap"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(category.id)}
-                          className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          )}
         </div>
       </div>
 
+      {/* 标签页切换 */}
+      <div className="category-tabs">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
+        >
+          <span className="material-icons">folder</span>
+          正常分类
+        </button>
+        <button
+          onClick={() => setActiveTab('recycle')}
+          className={`tab-btn ${activeTab === 'recycle' ? 'active' : ''}`}
+        >
+          <span className="material-icons">delete</span>
+          回收站
+        </button>
+      </div>
+
+      {/* 分类树或回收站列表 */}
+      <div className="category-content">
+        {loading ? (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>加载中...</p>
+          </div>
+        ) : activeTab === 'active' ? (
+          <div className="category-tree">
+            {categories.length === 0 ? (
+              <div className="empty-state">
+                <span className="material-icons">folder_open</span>
+                <p>暂无分类，点击"新建分类"开始创建</p>
+              </div>
+            ) : (
+              categories.map(node => renderTreeNode(node))
+            )}
+          </div>
+        ) : (
+          <div className="recycle-list">
+            {categories.length === 0 ? (
+              <div className="empty-state">
+                <span className="material-icons">delete_outline</span>
+                <p>回收站为空</p>
+              </div>
+            ) : (
+              <table className="recycle-table">
+                <thead>
+                  <tr>
+                    <th>图标</th>
+                    <th>分类名称</th>
+                    <th>删除时间</th>
+                    <th>删除人</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map(category => (
+                    <tr key={category.id}>
+                      <td>
+                        <span className="material-icons">{category.icon || 'folder'}</span>
+                      </td>
+                      <td>{category.name}</td>
+                      <td>{formatDate(category.deleted_at)}</td>
+                      <td>{category.deleted_by_name || '-'}</td>
+                      <td>
+                        <div className="table-actions">
+                          <button
+                            onClick={() => handleRestoreCategory(category.id)}
+                            className="action-btn restore-btn"
+                            title="恢复"
+                          >
+                            <span className="material-icons">restore</span>
+                          </button>
+                          <button
+                            onClick={() => handlePermanentDelete(category.id)}
+                            className="action-btn permanent-delete-btn"
+                            title="永久删除"
+                          >
+                            <span className="material-icons">delete_forever</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 创建/编辑分类Modal */}
+      {showModal && (
+        <Modal
+          isOpen={showModal}
+          onClose={() => {
+            setShowModal(false);
+            resetForm();
+          }}
+          title={editingCategory ? '编辑分类' : '新建分类'}
+        >
+          <form onSubmit={handleSubmit} className="category-form">
+            <div className="form-group">
+              <label>分类名称 *</label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="输入分类名称"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>分类编码</label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                placeholder="留空自动生成"
+              />
+              <small>留空将自动生成唯一编码</small>
+            </div>
+
+            <div className="form-group">
+              <label>图标</label>
+              <div className="icon-input-group">
+                <div className="icon-preview">
+                  <span className="material-icons">
+                    {formData.icon || 'help_outline'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowIconPicker(true)}
+                  className="btn-secondary"
+                >
+                  选择图标
+                </button>
+                {formData.icon && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, icon: '' })}
+                    className="btn-text"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+              <small>留空将随机分配图标</small>
+            </div>
+
+            <div className="form-group">
+              <label>描述</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows="3"
+                placeholder="输入分类描述"
+              />
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary"
+              >
+                {loading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* 删除确认Modal */}
       <Modal
-        isOpen={showModal}
+        isOpen={showDeleteModal}
         onClose={() => {
-          setShowModal(false);
-          resetForm();
+          setShowDeleteModal(false);
+          setCategoryToDelete(null);
         }}
-        title={editingCategory ? '编辑分类' : '新建分类'}
+        title="确认删除"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">分类名称 *</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              placeholder="输入分类名称"
-            />
+        <div className="delete-confirm-content">
+          <div className="confirm-icon">
+            <span className="material-icons warning">warning</span>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">描述</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows="3"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              placeholder="输入分类描述"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
+          <p className="confirm-text">
+            确定要删除分类 "<strong>{categoryToDelete?.name}</strong>" 吗？
+            删除后可以在回收站中恢复。
+          </p>
+          <div className="confirm-actions">
             <button
-              type="button"
               onClick={() => {
-                setShowModal(false);
-                resetForm();
+                setShowDeleteModal(false);
+                setCategoryToDelete(null);
               }}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="btn-secondary"
             >
               取消
             </button>
             <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
+              onClick={confirmDeleteCategory}
+              className="btn-danger"
             >
-              {loading ? '保存中...' : '保存'}
+              确认删除
             </button>
           </div>
-        </form>
+        </div>
       </Modal>
+
+      {/* 永久删除确认Modal */}
+      <Modal
+        isOpen={showPermanentDeleteModal}
+        onClose={() => {
+          setShowPermanentDeleteModal(false);
+          setCategoryToDelete(null);
+        }}
+        title="⚠️ 警告：永久删除"
+      >
+        <div className="delete-confirm-content">
+          <div className="confirm-icon danger">
+            <span className="material-icons">delete_forever</span>
+          </div>
+          <p className="confirm-text danger">
+            <strong>此操作将永久删除分类 "{categoryToDelete?.name}"，无法恢复！</strong>
+          </p>
+          <p className="confirm-text">
+            确定要继续吗？
+          </p>
+          <div className="confirm-actions">
+            <button
+              onClick={() => {
+                setShowPermanentDeleteModal(false);
+                setCategoryToDelete(null);
+              }}
+              className="btn-secondary"
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmPermanentDelete}
+              className="btn-danger"
+            >
+              永久删除
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 图标选择器 */}
+      {showIconPicker && (
+        <IconPicker
+          value={formData.icon}
+          onChange={(icon) => {
+            setFormData({ ...formData, icon });
+            setShowIconPicker(false);
+          }}
+          onClose={() => setShowIconPicker(false)}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { qualityAPI } from '../api';
+import qualityAPI from '../components/api/qualityAPI';
 
 const CaseLibraryPage = () => {
   const [cases, setCases] = useState([]);

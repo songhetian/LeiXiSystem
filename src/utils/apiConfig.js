@@ -1,7 +1,7 @@
 // API配置工具
 export const getApiBaseUrl = () => {
   // 1. 浏览器环境 (HTTP/HTTPS): 动态获取当前主机名
-  // 这样如果服务器IP变了，浏览器端会自动适应，不需要重新构建
+  // 这样如果服务器IP变了，浏览器端会自动适应，不需要重新构建；
   if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
     const hostname = window.location.hostname;
     return `http://${hostname}:3001/api`;
@@ -19,7 +19,7 @@ export const getApiBaseUrl = () => {
     // 忽略错误
   }
 
-  return import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.100:3001/api';
+  return import.meta.env.VITE_API_BASE_URL || 'http://192.168.110.83:3001/api';
 }
 
 /**
