@@ -41,4 +41,5 @@ tests/results/
 dist-app/
 config/db-config.json
 uploads/
-
+docs/
+electron/

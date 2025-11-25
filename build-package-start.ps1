@@ -64,6 +64,15 @@ try {
     Write-Host "Setting API Base URL to: $apiUrl" -ForegroundColor Yellow
     $env:VITE_API_BASE_URL = $apiUrl
 
+    # Generate config.json for runtime configuration
+    $configPath = "public\config.json"
+    $configContent = @{
+        apiBaseUrl = $apiUrl
+    } | ConvertTo-Json
+
+    Write-Host "Generating runtime config at: $configPath" -ForegroundColor Yellow
+    Set-Content -Path $configPath -Value $configContent -Encoding UTF8
+
     # Run the package command
     # We use cmd /c to ensure compatibility with npm scripts on Windows
     cmd /c "npm run package"

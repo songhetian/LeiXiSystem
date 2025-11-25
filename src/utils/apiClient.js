@@ -1,5 +1,5 @@
 import { toast } from 'react-toastify';
-import { getApiUrl } from './apiConfig';
+import { getApiUrl, getApiUrlAsync } from './apiConfig';
 
 /**
  * Token管理工具类
@@ -99,7 +99,8 @@ class TokenManager {
     }
 
     try {
-      const response = await fetch(getApiUrl('/api/auth/refresh'), {
+      const apiUrl = await getApiUrlAsync('/api/auth/refresh');
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -254,7 +255,7 @@ export const apiRequest = async (url, options = {}) => {
  * GET请求
  */
 export const apiGet = async (path, options = {}) => {
-  const url = getApiUrl(path);
+  const url = await getApiUrlAsync(path);
   return apiRequest(url, { ...options, method: 'GET' });
 };
 
@@ -262,7 +263,7 @@ export const apiGet = async (path, options = {}) => {
  * POST请求
  */
 export const apiPost = async (path, data, options = {}) => {
-  const url = getApiUrl(path);
+  const url = await getApiUrlAsync(path);
   return apiRequest(url, {
     ...options,
     method: 'POST',
@@ -274,7 +275,7 @@ export const apiPost = async (path, data, options = {}) => {
  * PUT请求
  */
 export const apiPut = async (path, data, options = {}) => {
-  const url = getApiUrl(path);
+  const url = await getApiUrlAsync(path);
   return apiRequest(url, {
     ...options,
     method: 'PUT',
@@ -286,7 +287,7 @@ export const apiPut = async (path, data, options = {}) => {
  * DELETE请求
  */
 export const apiDelete = async (path, options = {}) => {
-  const url = getApiUrl(path);
+  const url = await getApiUrlAsync(path);
   return apiRequest(url, { ...options, method: 'DELETE' });
 };
 
@@ -294,7 +295,7 @@ export const apiDelete = async (path, options = {}) => {
  * 文件上传请求
  */
 export const apiUpload = async (path, formData, options = {}) => {
-  const url = getApiUrl(path);
+  const url = await getApiUrlAsync(path);
   const token = tokenManager.getToken();
 
   const config = {

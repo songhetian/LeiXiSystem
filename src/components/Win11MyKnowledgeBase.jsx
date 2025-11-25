@@ -73,7 +73,6 @@ const Win11MyKnowledgeBase = () => {
     visible: false,
     type: '', // 'category' or 'article'
     id: null,
-    id: null,
     title: ''
   });
 
