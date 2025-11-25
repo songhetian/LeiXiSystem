@@ -161,30 +161,20 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
         pass_score: record.pass_score,
         duration: record.duration,
       });
-      
-      // 处理题目数据，确保使用有效的题目ID
+
+      // 处理题目数据,保持题目ID的原始格式(包括temp_前缀)
       let formattedQuestions = [];
       if (record.questions && Array.isArray(record.questions)) {
         formattedQuestions = record.questions.map(q => {
-          // 确保题目有有效的ID
-          let id = q.id;
-          // 如果ID是字符串且以temp_开头，尝试转换为数字或保留原样
-          if (typeof id === 'string' && id.startsWith('temp_')) {
-            const numericPart = id.replace('temp_', '');
-            const parsedId = parseInt(numericPart);
-            // 只有当解析后的数字有效时才使用，否则保留原ID
-            if (!isNaN(parsedId) && parsedId > 0) {
-              id = parsedId;
-            }
-          }
-          
+          // 保持题目ID的原始格式,不做任何转换
+          // 这样可以确保答案保存和评分时ID格式一致
           return {
             ...q,
-            id: id
+            id: q.id  // 直接使用原始ID,无论是temp_前缀还是数字
           };
         });
       }
-      
+
       setQuestions(formattedQuestions);
 
       // 修复：统一从 saved_answers 获取已保存的答案
@@ -244,6 +234,15 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
     clearInterval(timerRef.current);
 
     try {
+      // 在提交前,先保存所有答案到后端,确保验证能通过
+      console.log('提交前保存所有答案:', userAnswers);
+      if (Object.keys(userAnswers).length > 0) {
+        await api.put(`/assessment-results/${resultId}/answer`, {
+          answers: userAnswers
+        });
+        console.log('所有答案已保存,开始提交');
+      }
+
       // 统一使用 assessment-results 路由
       await api.post(`/assessment-results/${resultId}/submit`, { isTimeout });
       toast.success(isTimeout ? '考试时间到，已自动提交！' : '考试提交成功！');
@@ -251,7 +250,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
       onExamEnd(resultId);
     } catch (error) {
       console.error('提交考试失败:', error);
-      toast.error('提交考试失败');
+      toast.error(`提交考试失败: ${error.response?.data?.message || error.message}`);
       setIsSubmitting(false);
     } finally {
       setShowConfirmSubmit(false);
@@ -373,10 +372,10 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
           </div>
 
           <div className="flex-1 flex overflow-hidden">
-            <div style={{ width: '200px', minWidth: '200px' }} className="bg-white rounded-xl shadow-md p-3 mr-4 overflow-y-auto flex flex-col">
-              <h3 className="text-sm font-bold text-gray-800 mb-3">题目导航</h3>
+            <div style={{ width: '280px', minWidth: '280px' }} className="bg-white rounded-xl shadow-md p-4 mr-4 overflow-y-auto flex flex-col">
+              <h3 className="text-base font-bold text-gray-800 mb-4">题目导航</h3>
 
-              <div className="grid grid-cols-2 gap-2 mb-3 flex-1">
+              <div className="grid grid-cols-3 gap-2 mb-4 flex-1">
                 {currentPageQuestions.map((q, pageIndex) => {
                   const actualIndex = startIndex + pageIndex;
                   const isAnswered = userAnswers[q.id];
@@ -387,7 +386,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
                       key={q.id}
                       onClick={() => setCurrentQuestionIndex(actualIndex)}
                       disabled={examEnded}
-                      className={`h-8 rounded flex items-center justify-center text-xs font-medium transition-colors
+                      className={`h-10 rounded flex items-center justify-center text-sm font-medium transition-colors
                         ${isCurrent ? 'bg-primary-500 text-white' :
                           isAnswered ? 'bg-green-100 text-green-700 hover:bg-green-200' :
                             'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -466,31 +465,35 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
 
                 <div className="space-y-3">
                   {currentQuestion.type === 'single_choice' || currentQuestion.type === 'true_false' ? (
-                    parseOptions(currentQuestion.options).map((option, idx) => (
-                      <label
-                        key={idx}
-                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all
-                          ${userAnswers[currentQuestion.id] === option
+                    parseOptions(currentQuestion.options).map((option, idx) => {
+                      const optionLetter = String.fromCharCode(65 + idx); // A, B, C, D...
+                      return (
+                        <label
+                          key={idx}
+                          className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all
+                          ${userAnswers[currentQuestion.id] === optionLetter
                             ? 'border-primary-500 bg-primary-50'
                             : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
                           }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`question-${currentQuestion.id}`}
-                          value={option}
-                          checked={userAnswers[currentQuestion.id] === option}
-                          onChange={() => handleAnswerChange(currentQuestion.id, option)}
-                          disabled={examEnded}
-                          className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
-                        />
-                        <span className="ml-3 text-gray-700">{option}</span>
-                      </label>
-                    ))
+                        >
+                          <input
+                            type="radio"
+                            name={`question-${currentQuestion.id}`}
+                            value={optionLetter}
+                            checked={userAnswers[currentQuestion.id] === optionLetter}
+                            onChange={() => handleAnswerChange(currentQuestion.id, optionLetter)}
+                            disabled={examEnded}
+                            className="w-4 h-4 text-primary-600 border-gray-300 focus:ring-primary-500"
+                          />
+                          <span className="ml-3 text-gray-700">{option}</span>
+                        </label>
+                      );
+                    })
                   ) : currentQuestion.type === 'multiple_choice' ? (
                     parseOptions(currentQuestion.options).map((option, idx) => {
+                      const optionLetter = String.fromCharCode(65 + idx); // A, B, C, D...
                       const currentAnswers = userAnswers[currentQuestion.id] || [];
-                      const isChecked = currentAnswers.includes(option);
+                      const isChecked = currentAnswers.includes(optionLetter);
                       return (
                         <label
                           key={idx}
@@ -505,8 +508,8 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
                             checked={isChecked}
                             onChange={(e) => {
                               const newAnswers = e.target.checked
-                                ? [...currentAnswers, option]
-                                : currentAnswers.filter(a => a !== option);
+                                ? [...currentAnswers, optionLetter]
+                                : currentAnswers.filter(a => a !== optionLetter);
                               handleAnswerChange(currentQuestion.id, newAnswers);
                             }}
                             disabled={examEnded}

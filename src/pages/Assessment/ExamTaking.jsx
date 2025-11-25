@@ -119,8 +119,10 @@ const ExamTaking = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const data = response.data.data;
+      console.log('[ExamTaking] 接收到的 saved_answers:', data.saved_answers);
       setExamData(data);
       setUserAnswers(data.saved_answers || {});
+      console.log('[ExamTaking] 设置 userAnswers 为:', data.saved_answers || {});
     } catch (error) {
       message.error(`获取考试进度失败: ${error.response?.data?.message || error.message}`);
       console.error('Failed to fetch exam progress:', error);
@@ -173,6 +175,17 @@ const ExamTaking = () => {
     debouncedSave.cancel?.(); // Cancel any pending auto-saves
 
     try {
+      // 在提交前,先保存所有答案到后端,确保验证能通过
+      console.log('提交前保存所有答案:', userAnswers);
+      if (Object.keys(userAnswers).length > 0) {
+        await axios.put(`/api/assessment-results/${resultId}/answer`, {
+          answers: userAnswers
+        }, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        console.log('所有答案已保存,开始提交');
+      }
+
       await axios.post(`/api/assessment-results/${resultId}/submit`, {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -298,18 +311,26 @@ const ExamTaking = () => {
               value={parsedAnswer}
             >
               <Space direction="vertical">
-                {question.options?.map((option, index) => (
-                  <Radio key={index} value={option}>
-                    {option}
-                  </Radio>
-                ))}
+                {question.options?.map((option, index) => {
+                  const optionLetter = String.fromCharCode(65 + index); // A, B, C, D...
+                  return (
+                    <Radio key={index} value={optionLetter}>
+                      {option}
+                    </Radio>
+                  );
+                })}
               </Space>
             </RadioGroup>
           );
         case 'multiple_choice':
+          // 将选项转换为字母索引格式
+          const checkboxOptions = question.options?.map((option, index) => ({
+            label: option,
+            value: String.fromCharCode(65 + index) // A, B, C, D...
+          }));
           return (
             <CheckboxGroup
-              options={question.options}
+              options={checkboxOptions}
               onChange={(checkedValues) => handleAnswerChange(question.id, checkedValues)}
               value={parsedAnswer || []}
             />
@@ -321,8 +342,8 @@ const ExamTaking = () => {
               value={parsedAnswer}
             >
               <Space direction="vertical">
-                <Radio value="true">正确</Radio>
-                <Radio value="false">错误</Radio>
+                <Radio value="A">正确</Radio>
+                <Radio value="B">错误</Radio>
               </Space>
             </RadioGroup>
           );

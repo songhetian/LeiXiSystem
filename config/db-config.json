@@ -1,9 +1,13 @@
 {
   "database": {
-    "host": "localhost",
+    "host": "192.168.110.83",
     "port": 3306,
-    "user": "root",
+    "user": "tian",
     "password": "root",
     "database": "leixin_customer_service"
+  },
+  "upload": {
+    "sharedDirectory": "\\\\SONG\\SharedUploads",
+    "publicUrl": "http://192.168.110.83:3001"
   }
 }

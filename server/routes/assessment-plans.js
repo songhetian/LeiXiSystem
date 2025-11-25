@@ -1125,6 +1125,16 @@ module.exports = async function (fastify, opts) {
         // 检查是否有进行中的考试
         const inProgressResult = resultRows.find(r => r.status === 'in_progress')
 
+        // 如果有 in_progress 的记录,检查是否有答案记录来区分"开始答题"和"继续答题"
+        let hasAnswers = false
+        if (inProgressResult) {
+          const [answerCount] = await pool.query(
+            'SELECT COUNT(*) as count FROM answer_records WHERE result_id = ?',
+            [inProgressResult.id]
+          )
+          hasAnswers = answerCount[0].count > 0
+        }
+
         // 构建考试信息
         myExams.push({
           plan_id: plan.id,
@@ -1150,7 +1160,8 @@ module.exports = async function (fastify, opts) {
           remaining_attempts: remainingAttempts,
           best_score: bestScore,
           is_passed: isPassed,
-          has_in_progress: !!inProgressResult,
+          has_in_progress: !!inProgressResult && hasAnswers,  // 有答案才算"继续答题"
+          has_not_started: !!inProgressResult && !hasAnswers,  // 没答案算"开始答题"
           in_progress_result_id: inProgressResult ? inProgressResult.id : null,
           can_start: examStatus === 'ongoing' && remainingAttempts > 0 && !inProgressResult,
           all_attempts: resultRows.map(r => ({

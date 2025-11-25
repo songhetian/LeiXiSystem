@@ -21,6 +21,10 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
 
       const response = await api.get(endpoint);
       const data = response.data.data;
+      console.log('ExamResult接收到的数据:', data);
+      if (data.detailed_questions && data.detailed_questions.length > 0) {
+        console.log('第一道题目详情(前端):', data.detailed_questions[0]);
+      }
 
       let processedQuestions = [];
       let passed = false;
@@ -132,9 +136,31 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
   const renderAnswer = (question, userAnswer) => {
     if (!userAnswer) return '未作答';
 
+    // 调试日志
+    if (question.type === 'multiple_choice') {
+      console.log('多选题答案:', {
+        questionId: question.id,
+        userAnswer: userAnswer,
+        type: typeof userAnswer,
+        raw: JSON.stringify(userAnswer)
+      });
+    }
+
     switch (question.type) {
       case 'multiple_choice':
-        return userAnswer.split('').sort().join('');
+        try {
+          // 尝试解析JSON数组 ["A", "B"]
+          const parsed = JSON.parse(userAnswer);
+          if (Array.isArray(parsed)) {
+            return parsed.sort().join('');
+          }
+          // 如果解析成功但不是数组,直接返回
+          return String(parsed);
+        } catch (e) {
+          // 如果不是JSON,可能是已经格式化的字符串如 "AB"
+          // 直接返回,不要再split
+          return userAnswer;
+        }
       default:
         return userAnswer;
     }
@@ -222,12 +248,14 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
                 </div>
 
                 {/* 正确答案 */}
+                {/* 已隐藏正确答案
                 <div>
                   <p className="text-sm font-medium text-gray-700">正确答案:</p>
                   <p className="p-2 rounded-md bg-gray-100 text-gray-800">
                     {renderCorrectAnswer(question)}
                   </p>
                 </div>
+                */}
 
                 {/* 选项（如果适用） */}
                 {(question.type === 'single_choice' || question.type === 'multiple_choice') && question.options && (

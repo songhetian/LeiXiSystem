@@ -185,43 +185,78 @@ module.exports = async function (fastify, opts) {
         })
       }
 
-      // 检查是否有进行中的考试
-      const [inProgressRows] = await pool.query(
-        `SELECT id, start_time
+      // 检查是否已有考试记录(无论状态)
+      const [existingRows] = await pool.query(
+        `SELECT id, start_time, status, attempt_number
         FROM assessment_results
-        WHERE plan_id = ? AND user_id = ? AND status = 'in_progress'
-        ORDER BY start_time DESC
+        WHERE plan_id = ? AND user_id = ?
+        ORDER BY attempt_number DESC
         LIMIT 1`,
         [plan_id, userId]
       )
 
-      if (inProgressRows.length > 0) {
-        const inProgressResult = inProgressRows[0]
+      // 如果已有记录,直接返回该记录,不创建新的
+      if (existingRows.length > 0) {
+        const existingResult = existingRows[0]
 
-        // 检查是否超时
-        const examStartTime = new Date(inProgressResult.start_time)
-        const examDuration = plan.duration * 60 * 1000 // 转换为毫秒
-        const examEndTime = new Date(examStartTime.getTime() + examDuration)
+        console.log(`用户 ${userId} 已有考试记录 ${existingResult.id}, 状态: ${existingResult.status}, 直接返回`)
 
-        if (now < examEndTime) {
-          // 考试还在进行中，返回现有的考试
-          return reply.code(400).send({
-            success: false,
-            message: '您有一场正在进行的考试',
-            data: {
-              result_id: inProgressResult.id,
-              start_time: inProgressResult.start_time,
-              remaining_time: Math.ceil((examEndTime - now) / 1000 / 60) + ' 分钟'
-            }
-          })
-        } else {
-          // 考试已超时，自动标记为过期
+        // 如果状态不是 in_progress,更新为 in_progress 并重置开始时间
+        if (existingResult.status !== 'in_progress') {
           await pool.query(
             `UPDATE assessment_results
-            SET status = 'expired', updated_at = NOW()
+            SET status = 'in_progress', start_time = NOW()
             WHERE id = ?`,
-            [inProgressResult.id]
+            [existingResult.id]
           )
+        }
+
+        // 获取试卷题目
+        let questions = []
+        try {
+          questions = typeof plan.questions === 'string' ? JSON.parse(plan.questions) : (plan.questions || [])
+        } catch (e) {
+          console.error('解析题目 JSON 失败:', e)
+          questions = []
+        }
+
+        // 格式化题目数据
+        const formattedQuestions = questions.map(q => {
+          let parsedOptions = q.options
+          if (typeof parsedOptions === 'string') {
+            try {
+              parsedOptions = JSON.parse(parsedOptions)
+            } catch (e) {
+              parsedOptions = parsedOptions.split(/,|，/).map(opt => opt.trim()).filter(Boolean)
+            }
+          }
+
+          return {
+            id: q.id,
+            exam_id: plan.exam_id,
+            type: q.type,
+            content: q.content,
+            options: parsedOptions,
+            score: parseFloat(q.score),
+            order_num: q.order_num
+          }
+        })
+
+        return {
+          success: true,
+          message: '继续考试',
+          data: {
+            result_id: existingResult.id,
+            plan_id: plan.id,
+            plan_title: plan.title,
+            exam_id: plan.exam_id,
+            exam_title: plan.exam_title,
+            attempt_number: existingResult.attempt_number,
+            max_attempts: plan.max_attempts,
+            start_time: new Date().toISOString(),
+            duration: plan.duration,
+            questions: formattedQuestions
+          }
         }
       }
 
@@ -413,11 +448,19 @@ module.exports = async function (fastify, opts) {
         `SELECT question_id, user_answer FROM answer_records WHERE result_id = ?`,
         [resultId]
       )
-      
+
+      console.log(`[GET /assessment-results/${resultId}] 查询到 ${answerRows.length} 条答案记录`)
+
       // 将答案转换为对象格式 {question_id: user_answer}
       answerRows.forEach(row => {
         savedAnswers[row.question_id] = row.user_answer
       })
+
+      if (Object.keys(savedAnswers).length > 0) {
+        console.log('[GET /assessment-results] saved_answers:', savedAnswers)
+      } else {
+        console.log('[GET /assessment-results] ⚠️ 没有找到已保存的答案')
+      }
 
       // 计算剩余时间
       let remainingTime = 0 // seconds
@@ -588,7 +631,7 @@ module.exports = async function (fastify, opts) {
             `SELECT COUNT(*) as count FROM answer_records WHERE result_id = ?`,
             [resultId]
           )
-          
+
           // 如果没有答案记录，说明是误标记为 graded，可以重置状态
           if (answerCountRows[0].count === 0) {
             await pool.query(
@@ -631,57 +674,51 @@ module.exports = async function (fastify, opts) {
 
       // Helper function to save a single answer
       const saveSingleAnswer = async (qId, ans) => {
-        console.log('保存单个答案:', { resultId, qId, ans });
-        
-        // 验证 question_id 是否为有效的整数ID
-        let questionIdInt = parseInt(qId);
-        // 如果原始ID是字符串且以temp_开头，尝试提取数字部分
-        if (typeof qId === 'string' && qId.startsWith('temp_')) {
-          const numericPart = qId.replace('temp_', '');
-          const parsedId = parseInt(numericPart);
-          if (!isNaN(parsedId) && parsedId > 0) {
-            questionIdInt = parsedId;
+        try {
+          console.log('=== 开始保存答案 (Atomic) ===');
+          console.log('保存单个答案:', { resultId, qId, ans, ansType: typeof ans });
+
+          const questionId = String(qId);
+          const answerValue = typeof ans === 'string' ? ans : JSON.stringify(ans);
+
+          console.log('使用题目ID:', questionId);
+          console.log('答案值:', answerValue);
+
+          // 使用 INSERT ... ON DUPLICATE KEY UPDATE 实现原子操作
+          // 这依赖于 answer_records 表上的唯一索引 (result_id, question_id)
+          const [result] = await pool.query(
+            `INSERT INTO answer_records (result_id, question_id, user_answer, created_at)
+             VALUES (?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE
+             user_answer = VALUES(user_answer)`,
+            [resultId, questionId, answerValue]
+          );
+
+          console.log('数据库操作结果:', {
+            insertId: result.insertId,
+            affectedRows: result.affectedRows, // 1 for insert, 2 for update (usually)
+            info: result.info
+          });
+
+          if (result.affectedRows === 1) {
+             console.log('✅ 答案插入成功');
+          } else if (result.affectedRows === 2) {
+             console.log('✅ 答案更新成功');
+          } else {
+             console.log('✅ 答案已保存 (无变化)');
           }
-        }
-        
-        // 如果转换后的ID无效，直接返回不处理
-        if (isNaN(questionIdInt) || questionIdInt <= 0) {
-          console.log('无效的题目ID:', qId);
-          return;
-        }
-        
-        // 验证 question_id 是否属于该试卷
-        const [questionRows] = await pool.query(
-          `SELECT id FROM questions WHERE id = ? AND exam_id = ?`,
-          [questionIdInt, result.exam_id]
-        )
 
-        // 如果题目不存在于数据库中，也允许保存（可能是前端临时ID）
-        // 但在提交时会过滤掉这些无效的答案
-
-        // 检查是否已存在答案记录
-        const [existingAnswerRows] = await pool.query(
-          `SELECT id FROM answer_records WHERE result_id = ? AND question_id = ?`,
-          [resultId, questionIdInt]
-        )
-
-        if (existingAnswerRows.length > 0) {
-          // 更新答案
-          console.log('更新已存在的答案记录:', existingAnswerRows[0].id);
-          await pool.query(
-            `UPDATE answer_records
-            SET user_answer = ?, updated_at = NOW()
-            WHERE result_id = ? AND question_id = ?`,
-            [ans, resultId, questionIdInt]
-          )
-        } else {
-          // 插入新答案
-          console.log('插入新的答案记录');
-          await pool.query(
-            `INSERT INTO answer_records (result_id, question_id, user_answer)
-            VALUES (?, ?, ?)`,
-            [resultId, questionIdInt, ans]
-          )
+          console.log('=== 答案保存完成 ===\n');
+        } catch (error) {
+          console.error('❌ 保存答案失败:', error);
+          console.error('错误详情:', {
+            message: error.message,
+            code: error.code,
+            sqlMessage: error.sqlMessage,
+            questionId: qId,
+            answer: ans
+          });
+          throw error;
         }
       }
 
@@ -747,7 +784,7 @@ module.exports = async function (fastify, opts) {
       // 获取考试结果与配置
       const [resultRows] = await connection.query(
         `SELECT
-          ar.id, ar.plan_id, ar.exam_id, ar.user_id, ar.start_time, ar.status,
+          ar.id, ar.plan_id, ar.exam_id, ar.user_id, ar.start_time, ar.status, ar.attempt_number,
           ap.max_attempts,
           e.title as exam_title, e.duration as exam_duration, e.total_score, e.pass_score
         FROM assessment_results ar
@@ -773,138 +810,187 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: `考试状态为 ${result.status}，无法提交` })
       }
 
-      // 取题目与已有答案
-      const [questions] = await connection.query(
-        `SELECT id, type, content, options, correct_answer, score, order_num FROM questions WHERE exam_id = ? ORDER BY order_num ASC`,
+      // 从 exams.questions JSON 获取题目
+      const [examRows] = await connection.query(
+        `SELECT questions FROM exams WHERE id = ?`,
         [result.exam_id]
       )
-      
+
+      let questions = []
+      if (examRows.length > 0 && examRows[0].questions) {
+        try {
+          questions = typeof examRows[0].questions === 'string'
+            ? JSON.parse(examRows[0].questions)
+            : examRows[0].questions
+        } catch (e) {
+          await connection.rollback(); connection.release()
+          return reply.code(500).send({ success: false, message: '解析题目失败' })
+        }
+      }
+
+      if (questions.length === 0) {
+        await connection.rollback(); connection.release()
+        return reply.code(400).send({ success: false, message: '试卷没有题目' })
+      }
+
       // 获取所有答案记录
       const [answerRows] = await connection.query(
         `SELECT id, question_id, user_answer, score, is_correct FROM answer_records WHERE result_id = ?`,
         [resultId]
       )
-      
-      // 创建有效答案的映射，过滤掉临时ID
-      const validQuestionIds = new Set(questions.map(q => q.id));
-      const answerMap = new Map();
-      
+
+      // 创建答案映射(统一使用字符串ID)
+      const answerMap = new Map()
       for (const answer of answerRows) {
-        // 只保留有效的题目ID（在试卷中的题目）
-        if (validQuestionIds.has(answer.question_id)) {
-          answerMap.set(answer.question_id, answer);
-        } else {
-          // 删除无效的答案记录（临时ID）
-          await connection.query(
-            `DELETE FROM answer_records WHERE id = ?`,
-            [answer.id]
-          );
-          console.log('删除无效答案记录:', answer.question_id);
+        answerMap.set(String(answer.question_id), answer)
+      }
+
+      // 检查是否所有题目都已回答
+      const unansweredQuestions = []
+      for (const q of questions) {
+        const questionId = String(q.id)
+        const answer = answerMap.get(questionId)
+        if (!answer || !answer.user_answer) {
+          unansweredQuestions.push({
+            id: q.id,
+            content: q.content,
+            type: q.type
+          })
         }
       }
 
-      // 工具：解析 options、映射答案
-      const parseOptions = (raw) => {
-        if (!raw) return null
-        try { return JSON.parse(raw) } catch { return raw }
-      }
-      const toLetter = (idx) => String.fromCharCode('A'.charCodeAt(0) + idx)
-      const normalizeUserAnswerSingle = (q, userAnswer) => {
-        if (!userAnswer) return null
-        const options = parseOptions(q.options) || []
-        // 如果 correct_answer 是字母，用户答案可能是选项文本或字母
-        if (options && Array.isArray(options)) {
-          const byTextIndex = options.findIndex(opt => opt === userAnswer)
-          if (byTextIndex >= 0) return toLetter(byTextIndex)
-        }
-        return userAnswer
-      }
-      const normalizeUserAnswerMultiple = (q, userAnswer) => {
-        if (!userAnswer) return []
-        let arr
-        try { arr = Array.isArray(userAnswer) ? userAnswer : JSON.parse(userAnswer) } catch { arr = [] }
-        const options = parseOptions(q.options) || []
-        const letters = arr.map(v => {
-          const idx = options.findIndex(opt => opt === v)
-          return idx >= 0 ? toLetter(idx) : v
+      if (unansweredQuestions.length > 0) {
+        await connection.rollback()
+        connection.release()
+        return reply.code(400).send({
+          success: false,
+          message: `还有 ${unansweredQuestions.length} 道题目未作答，请完成所有题目后再提交`,
+          data: {
+            unanswered_count: unansweredQuestions.length,
+            total_questions: questions.length,
+            unanswered_questions: unansweredQuestions.map(q => ({
+              id: q.id,
+              content: q.content.substring(0, 50) + (q.content.length > 50 ? '...' : '')
+            }))
+          }
         })
-        // 去重排序
-        return Array.from(new Set(letters)).sort()
       }
+
+      console.log(`开始评分: 共 ${questions.length} 道题, ${answerRows.length} 条答案记录`)
+
+      // 调试: 打印题目ID列表
+      console.log('题目ID列表:', questions.map(q => q.id))
+
+      // 调试: 打印答案记录ID列表
+      console.log('答案记录ID列表:', answerRows.map(a => a.question_id))
+
+      // 调试: 打印answerMap的所有键
+      console.log('answerMap键列表:', Array.from(answerMap.keys()))
 
       // 评分
       let totalScore = 0
       let correctCount = 0
-      let pendingManualCount = 0
+      let hasSubjectiveQuestions = false // 是否有主观题
       const detailedQuestions = []
 
       for (const q of questions) {
-        const options = parseOptions(q.options)
-        const correctRaw = q.correct_answer
-        let userAnsRaw = answerMap.get(q.id)?.user_answer || null
+        const questionId = String(q.id)
+        const existingAnswer = answerMap.get(questionId)
+        let userAnsRaw = existingAnswer?.user_answer || null
+
+        // 调试: 打印每道题的匹配情况
+        console.log(`题目 ${questionId}: 找到答案=${!!existingAnswer}, 用户答案=${userAnsRaw}`)
+
+        // 尝试解析JSON格式的答案
+        if (userAnsRaw && typeof userAnsRaw === 'string') {
+          try {
+            userAnsRaw = JSON.parse(userAnsRaw)
+          } catch (e) {
+            // 保持原始字符串
+          }
+        }
+
         let isCorrect = null
         let earned = null
+        const correctAnswer = q.correct_answer
 
+        // 根据题目类型评分
         if (q.type === 'single_choice') {
-          const userLetter = normalizeUserAnswerSingle(q, userAnsRaw)
-          isCorrect = userLetter && correctRaw ? (userLetter === correctRaw) : 0
+          // 单选题: 用户答案和正确答案都是字母(A, B, C, D)
+          isCorrect = userAnsRaw === correctAnswer ? 1 : 0
           earned = isCorrect ? parseFloat(q.score) : 0
+          console.log(`单选题 ${questionId}: 用户答案=${userAnsRaw}, 正确答案=${correctAnswer}, 得分=${earned}`)
+
         } else if (q.type === 'multiple_choice') {
-          const userLetters = normalizeUserAnswerMultiple(q, userAnsRaw)
-          const correctLetters = correctRaw ? correctRaw.split('').sort() : []
-          const fullCorrect = userLetters.length === correctLetters.length && userLetters.every((v, i) => v === correctLetters[i])
-          const intersect = new Set(userLetters.filter(v => correctLetters.includes(v)))
-          const ratio = correctLetters.length > 0 ? (intersect.size / correctLetters.length) : 0
+          // 多选题: 用户答案是字母数组 ["A", "B"]
+          const userLetters = Array.isArray(userAnsRaw) ? userAnsRaw.sort() : []
+          const correctLetters = correctAnswer ? correctAnswer.split('').sort() : []
+          const fullCorrect = userLetters.length === correctLetters.length &&
+                             userLetters.every((v, i) => v === correctLetters[i])
+
           if (fullCorrect) {
-            isCorrect = 1; earned = parseFloat(q.score)
+            isCorrect = 1
+            earned = parseFloat(q.score)
           } else {
-            isCorrect = intersect.size > 0 ? 0 : 0
+            // 部分正确,按比例给分
+            const correctSet = new Set(correctLetters)
+            const correctCount = userLetters.filter(v => correctSet.has(v)).length
+            const ratio = correctLetters.length > 0 ? (correctCount / correctLetters.length) : 0
+            isCorrect = 0
             earned = parseFloat(q.score) * ratio
           }
+          console.log(`多选题 ${questionId}: 用户答案=${JSON.stringify(userLetters)}, 正确答案=${JSON.stringify(correctLetters)}, 得分=${earned}`)
+
         } else if (q.type === 'true_false') {
-          const normalized = (userAnsRaw === 'true') ? 'A' : (userAnsRaw === 'false') ? 'B' : userAnsRaw
-          isCorrect = normalized && correctRaw ? (normalized === correctRaw) : 0
+          // 判断题: A=对, B=错
+          isCorrect = userAnsRaw === correctAnswer ? 1 : 0
           earned = isCorrect ? parseFloat(q.score) : 0
-        } else if (q.type === 'fill_blank') {
-          let keywords
-          try { keywords = JSON.parse(correctRaw) } catch { keywords = (correctRaw || '').split(',').map(s => s.trim()).filter(Boolean) }
-          let blanks
-          try { blanks = Array.isArray(userAnsRaw) ? userAnsRaw : JSON.parse(userAnsRaw) } catch { blanks = userAnsRaw ? [userAnsRaw] : [] }
-          const matchOne = (kw, ans) => ans && kw && ans.toLowerCase().includes(kw.toLowerCase())
-          const matched = blanks.filter(ans => keywords.some(kw => matchOne(kw, ans))).length
-          const ratio = blanks.length > 0 ? (matched / blanks.length) : 0
-          isCorrect = matched === blanks.length ? 1 : 0
-          earned = parseFloat(q.score) * ratio
-        } else {
-          // 主观题待评分
-          pendingManualCount += 1
+          console.log(`判断题 ${questionId}: 用户答案=${userAnsRaw}, 正确答案=${correctAnswer}, 得分=${earned}`)
+
+        } else if (q.type === 'fill_blank' || q.type === 'short_answer') {
+          // 填空题和简答题: 需要人工评分
+          hasSubjectiveQuestions = true
           isCorrect = null
           earned = null
-        }
+          console.log(`主观题 ${questionId}: 类型=${q.type}, 需要人工评分`)
 
-        // 汇总
-        if (earned !== null) totalScore += parseFloat(earned || 0)
-        if (isCorrect === 1) correctCount += 1
-
-        // 更新/插入答题记录评分
-        const existing = answerMap.get(q.id)
-        if (existing) {
-          await connection.query(
-            `UPDATE answer_records SET score = ?, is_correct = ?, updated_at = NOW() WHERE id = ?`,
-            [earned, isCorrect, existing.id]
-          )
         } else {
+          // 其他未知类型,标记为待评分
+          hasSubjectiveQuestions = true
+          isCorrect = null
+          earned = null
+          console.log(`未知题型 ${questionId}: 类型=${q.type}`)
+        }
+
+        // 汇总得分
+        if (earned !== null) {
+          totalScore += parseFloat(earned || 0)
+        }
+        if (isCorrect === 1) {
+          correctCount += 1
+        }
+
+        // 更新或插入答案记录的评分
+        if (existingAnswer) {
           await connection.query(
-            `INSERT INTO answer_records (result_id, question_id, user_answer, score, is_correct) VALUES (?, ?, ?, ?, ?)`,
-            [resultId, q.id, userAnsRaw, earned, isCorrect]
+            `UPDATE answer_records SET score = ?, is_correct = ? WHERE id = ?`,
+            [earned, isCorrect, existingAnswer.id]
+          )
+        } else if (userAnsRaw !== null) {
+          // 如果有答案但没有记录,插入
+          await connection.query(
+            `INSERT INTO answer_records (result_id, question_id, user_answer, score, is_correct)
+             VALUES (?, ?, ?, ?, ?)`,
+            [resultId, questionId, typeof userAnsRaw === 'string' ? userAnsRaw : JSON.stringify(userAnsRaw), earned, isCorrect]
           )
         }
 
+        // 构建详细题目信息
         detailedQuestions.push({
           id: q.id,
           type: q.type,
           content: q.content,
-          options,
+          options: q.options,
           question_max_score: parseFloat(q.score),
           user_answer: userAnsRaw,
           user_score: earned !== null ? parseFloat(earned) : null,
@@ -912,19 +998,55 @@ module.exports = async function (fastify, opts) {
         })
       }
 
-      // 用时/状态
+      // 计算用时和状态
       const submitTime = new Date()
       const startTime = new Date(result.start_time)
       const durationSeconds = Math.max(0, Math.floor((submitTime.getTime() - startTime.getTime()) / 1000))
       const isPassed = totalScore >= parseFloat(result.pass_score) ? 1 : 0
-      const newStatus = pendingManualCount === 0 ? 'graded' : 'submitted'
 
+      // 如果有主观题,状态为submitted(待评分),否则为graded(已评分)
+      const newStatus = hasSubjectiveQuestions ? 'submitted' : 'graded'
+
+      console.log(`评分完成: 总分=${totalScore}, 及格分=${result.pass_score}, 是否通过=${isPassed}, 状态=${newStatus}`)
+
+      // 更新考试结果
       await connection.query(
-        `UPDATE assessment_results SET submit_time = ?, duration = ?, score = ?, is_passed = ?, status = ?, updated_at = NOW() WHERE id = ?`,
+        `UPDATE assessment_results
+         SET submit_time = ?, duration = ?, score = ?, is_passed = ?, status = ?
+         WHERE id = ?`,
         [submitTime, durationSeconds, totalScore, isPassed, newStatus, resultId]
       )
 
-      await connection.commit(); connection.release()
+      // 提交成功后,为下一次考试创建新的 result_id
+      // 这样下次点击"开始考试"时会显示"开始答题"而不是"继续答题"
+      let nextResultId = null
+      const currentAttemptNumber = result.attempt_number || 1
+
+      // 检查是否还有剩余尝试次数
+      if (currentAttemptNumber < result.max_attempts) {
+        const nextAttemptNumber = currentAttemptNumber + 1
+        console.log(`创建下一次考试记录: attempt_number=${nextAttemptNumber}`)
+
+        const [nextResultInsert] = await connection.query(
+          `INSERT INTO assessment_results (
+            plan_id,
+            exam_id,
+            user_id,
+            attempt_number,
+            start_time,
+            status
+          ) VALUES (?, ?, ?, ?, NOW(), 'in_progress')`,
+          [result.plan_id, result.exam_id, result.user_id, nextAttemptNumber]
+        )
+
+        nextResultId = nextResultInsert.insertId
+        console.log(`下一次考试记录已创建: result_id=${nextResultId}`)
+      } else {
+        console.log(`已达到最大尝试次数 ${result.max_attempts}, 不创建新记录`)
+      }
+
+      await connection.commit()
+      connection.release()
 
       // 构建返回
       return {
@@ -944,7 +1066,7 @@ module.exports = async function (fastify, opts) {
             is_passed: isPassed === 1,
             question_count: questions.length,
             correct_count: correctCount,
-            pending_grading_count: pendingManualCount
+            pending_grading_count: hasSubjectiveQuestions ? questions.filter(q => q.type === 'fill_blank' || q.type === 'short_answer').length : 0
           },
           detailed_questions: detailedQuestions
         }
@@ -1027,8 +1149,15 @@ module.exports = async function (fastify, opts) {
       // 将用户答案转换为 Map 便于查找
       const userAnswersMap = new Map()
       userAnswersRows.forEach(row => {
-        userAnswersMap.set(row.question_id, row)
+        // 确保键是字符串
+        userAnswersMap.set(String(row.question_id), row)
       })
+
+      console.log(`获取考试结果: resultId=${resultId}, 答案记录数=${userAnswersRows.length}`)
+      if (userAnswersRows.length > 0) {
+        console.log('第一条答案记录:', userAnswersRows[0])
+        console.log('答案Map键:', Array.from(userAnswersMap.keys()))
+      }
 
       // 获取试卷题目（从 exams 表 JSON 字段）
       const [examRows] = await pool.query(
@@ -1048,6 +1177,10 @@ module.exports = async function (fastify, opts) {
         }
       }
 
+      if (questions.length > 0) {
+        console.log('第一道题目ID:', questions[0].id, '类型:', typeof questions[0].id)
+      }
+
       // 格式化题目并附加用户答案
       const detailedQuestions = questions.map(q => {
         let parsedOptions = q.options
@@ -1060,7 +1193,12 @@ module.exports = async function (fastify, opts) {
         }
 
         // 获取用户答案
-        const userAns = userAnswersMap.get(q.id)
+        // 确保使用字符串ID查找
+        const questionId = String(q.id)
+        const userAns = userAnswersMap.get(questionId)
+
+        // 调试匹配情况
+        console.log(`题目 ${questionId} 匹配结果:`, !!userAns, userAns ? `答案: ${userAns.user_answer}` : '无答案')
 
         return {
           id: q.id,
@@ -1078,6 +1216,10 @@ module.exports = async function (fastify, opts) {
 
       const incorrectQuestions = detailedQuestions.filter(q => q.is_correct === 0)
       const pendingGradingQuestions = detailedQuestions.filter(q => q.is_correct === null)
+
+      if (detailedQuestions.length > 0) {
+        console.log('返回给前端的第一道题目详情:', detailedQuestions[0])
+      }
 
       return {
         success: true,
@@ -1629,21 +1771,23 @@ module.exports = async function (fastify, opts) {
         }
       }
 
-      // 获取所有题目（包含正确答案和解析）
-      const [questions] = await pool.query(
-        `SELECT
-          id,
-          type,
-          content,
-          options,
-          correct_answer,
-          explanation,
-          score as question_max_score
-        FROM questions
-        WHERE exam_id = ?
-        ORDER BY order_num ASC`,
+      // 获取试卷题目（从 exams 表 JSON 字段）
+      const [examRows] = await pool.query(
+        `SELECT questions FROM exams WHERE id = ?`,
         [result.exam_id]
       )
+
+      let questions = []
+      if (examRows.length > 0 && examRows[0].questions) {
+        try {
+          questions = typeof examRows[0].questions === 'string'
+            ? JSON.parse(examRows[0].questions)
+            : examRows[0].questions
+        } catch (e) {
+          console.error('解析题目JSON失败:', e)
+          questions = []
+        }
+      }
 
       // 获取用户已保存的答案和评分结果
       const [answerRecords] = await pool.query(
@@ -1653,48 +1797,40 @@ module.exports = async function (fastify, opts) {
           score as user_score,
           is_correct
         FROM answer_records
-        WHERE assessment_result_id = ?`,
+        WHERE result_id = ?`,
         [resultId]
       )
 
       const answerMap = answerRecords.reduce((acc, curr) => {
-        acc[curr.question_id] = curr
+        acc[String(curr.question_id)] = curr
         return acc
       }, {})
 
+      console.log(`获取答题详情: resultId=${resultId}, 题目数=${questions.length}, 答案数=${answerRecords.length}`)
+
       const detailedAnswers = questions.map(q => {
-        const userAnswerData = answerMap[q.id] || {}
+        const questionId = String(q.id)
+        const userAnswerData = answerMap[questionId] || {}
+
         let parsedOptions = null
         if (q.options) {
           try {
-            parsedOptions = JSON.parse(q.options)
+            parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
           } catch (error) {
-            console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
+            // console.error(`题目 ${q.id} 的 options 字段 JSON 解析失败:`, error.message)
             parsedOptions = q.options
           }
         }
 
-        let parsedCorrectAnswer = null
-        if (q.correct_answer) {
-          try {
-            parsedCorrectAnswer = JSON.parse(q.correct_answer)
-          } catch (error) {
-            parsedCorrectAnswer = q.correct_answer
-          }
-        }
+        // 处理正确答案显示
+        let parsedCorrectAnswer = q.correct_answer
+        // 多选题正确答案通常是 "AB" 这种字符串,不需要特殊处理
+        // 如果是JSON字符串才解析
 
-        let parsedUserAnswer = null
-        if (userAnswerData.user_answer) {
-          try {
-            parsedUserAnswer = JSON.parse(userAnswerData.user_answer)
-          } catch (error) {
-            parsedUserAnswer = userAnswerData.user_answer
-          }
-          // Handle cases where user_answer might be a string for fill_blank or essay
-          if (typeof parsedUserAnswer === 'string' && (q.type === 'fill_blank' || q.type === 'essay')) {
-            parsedUserAnswer = userAnswerData.user_answer;
-          }
-        }
+        // 处理用户答案显示
+        let parsedUserAnswer = userAnswerData.user_answer
+        // 前端期望多选题答案是 JSON 数组字符串 '["A","B"]' 或者 字符串 "AB"
+        // 数据库存的是 '["A","B"]' (JSON string) 或 "A" (string)
 
         return {
           question_id: q.id,
@@ -1703,7 +1839,7 @@ module.exports = async function (fastify, opts) {
           options: parsedOptions,
           correct_answer: parsedCorrectAnswer,
           explanation: q.explanation,
-          question_max_score: parseFloat(q.question_max_score),
+          question_max_score: parseFloat(q.score),
           user_answer: parsedUserAnswer,
           user_score: userAnswerData.user_score !== undefined ? parseFloat(userAnswerData.user_score) : null,
           is_correct: userAnswerData.is_correct
@@ -1716,8 +1852,12 @@ module.exports = async function (fastify, opts) {
         data: {
           result_id: resultId,
           exam_id: result.exam_id,
+          exam_title: result.exam_title, // 添加试卷标题
           user_id: result.user_id,
-          answers: detailedAnswers
+          score: result.score,
+          total_score: result.exam_total_score,
+          is_passed: result.is_passed,
+          questions: detailedAnswers
         }
       }
     } catch (error) {

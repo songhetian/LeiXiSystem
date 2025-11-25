@@ -8,17 +8,13 @@ const dbConfig = {
   port: 3306
 };
 
-async function checkSchema() {
+async function checkStatusColumn() {
   const connection = await mysql.createConnection(dbConfig);
 
   try {
-    console.log('--- Table Description ---');
-    const [desc] = await connection.query('DESCRIBE answer_records');
+    console.log('--- assessment_results 表结构 ---');
+    const [desc] = await connection.query('DESCRIBE assessment_results');
     console.log(JSON.stringify(desc, null, 2));
-
-    console.log('\n--- Indexes ---');
-    const [indexes] = await connection.query('SHOW INDEX FROM answer_records');
-    console.log(JSON.stringify(indexes, null, 2));
   } catch (error) {
     console.error('Error:', error);
   } finally {
@@ -26,4 +22,4 @@ async function checkSchema() {
   }
 }
 
-checkSchema();
+checkStatusColumn();
