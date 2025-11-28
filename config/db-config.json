@@ -1,6 +1,6 @@
 {
   "database": {
-    "host": "192.168.110.83",
+    "host": "192.168.2.3",
     "port": 3306,
     "user": "tian",
     "password": "root",
@@ -8,6 +8,6 @@
   },
   "upload": {
     "sharedDirectory": "\\\\SONG\\SharedUploads",
-    "publicUrl": "http://192.168.110.83:3001"
+    "publicUrl": "http://192.168.2.3:3001"
   }
 }

@@ -1,0 +1,13 @@
+{
+  "database": {
+    "host": "YOUR_DATABASE_HOST",
+    "port": 3306,
+    "user": "YOUR_DATABASE_USER",
+    "password": "YOUR_DATABASE_PASSWORD",
+    "database": "leixin_customer_service"
+  },
+  "upload": {
+    "sharedDirectory": "YOUR_UPLOAD_DIRECTORY",
+    "publicUrl": "YOUR_PUBLIC_URL"
+  }
+}

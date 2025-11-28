@@ -14,6 +14,7 @@ out/
 # Environment
 .env
 .env.local
+config/db-config.json
 
 # IDE
 .vscode/
@@ -39,7 +40,6 @@ tests/results/
 
 #打包文件
 dist-app/
-config/db-config.json
 uploads/
 docs/
 electron/

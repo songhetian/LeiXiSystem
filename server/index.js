@@ -46,7 +46,15 @@ fastify.addHook('preHandler', async (request, reply) => {
 })
 
 // 加载数据库配置
-const dbConfigPath = path.join(__dirname, '../config/db-config.json')
+// 在打包环境中，配置位于 resources/config/db-config.json
+// 在开发环境中，配置位于 ../config/db-config.json
+const isPackaged = __dirname.includes('app.asar');
+const dbConfigPath = isPackaged
+  ? path.join(__dirname, '../../config/db-config.json')
+  : path.join(__dirname, '../config/db-config.json');
+
+console.log('尝试加载数据库配置:', dbConfigPath);
+
 let dbConfigJson = {}
 try {
   if (fs.existsSync(dbConfigPath)) {
@@ -90,11 +98,11 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secre
 
 // 数据库配置
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'tian',
-  password: process.env.DB_PASSWORD || 'root',
-  database: process.env.DB_NAME || 'leixin_customer_service',
-  port: process.env.DB_PORT || 3306,
+  host: (dbConfigJson.database && dbConfigJson.database.host) || process.env.DB_HOST || 'localhost',
+  user: (dbConfigJson.database && dbConfigJson.database.user) || process.env.DB_USER || 'tian',
+  password: (dbConfigJson.database && dbConfigJson.database.password) || process.env.DB_PASSWORD || 'root',
+  database: (dbConfigJson.database && dbConfigJson.database.database) || process.env.DB_NAME || 'leixin_customer_service',
+  port: (dbConfigJson.database && dbConfigJson.database.port) || process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

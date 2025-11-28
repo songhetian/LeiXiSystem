@@ -108,6 +108,12 @@
       ],
       "icon": "build/icon.png"
     },
+    "extraResources": [
+      {
+        "from": "config/db-config.json",
+        "to": "config/db-config.json"
+      }
+    ],
     "npmRebuild": false
   }
 }
