@@ -22,7 +22,8 @@ const MODULE_NAMES = {
   'meal': '订餐管理',
   'chat': '聊天管理',
   'message': '消息管理',
-  'system': '系统设置'
+  'system': '系统设置',
+  'training': '培训考核'
 }
 
 function PermissionManagement() {
@@ -50,8 +51,7 @@ function PermissionManagement() {
   const [roleFormData, setRoleFormData] = useState({
     name: '',
     description: '',
-    level: 1,
-    can_view_all_departments: false
+    level: 1
   })
 
   // 搜索条件
@@ -332,7 +332,7 @@ function PermissionManagement() {
   // 角色管理
   const handleCreateRole = () => {
     setEditingRole(null)
-    setRoleFormData({ name: '', description: '', level: 1, can_view_all_departments: false })
+    setRoleFormData({ name: '', description: '', level: 1 })
     setSelectedTemplate('custom')
     setIsRoleModalOpen(true)
   }
@@ -342,8 +342,7 @@ function PermissionManagement() {
     setRoleFormData({
       name: role.name,
       description: role.description || '',
-      level: role.level || 1,
-      can_view_all_departments: role.can_view_all_departments === 1
+      level: role.level || 1
     })
     setIsRoleModalOpen(true)
   }
@@ -399,8 +398,14 @@ function PermissionManagement() {
     setSelectedRole(role)
     try {
       const response = await fetch(getApiUrl(`/api/roles/${role.id}/permissions`))
-      const data = await response.json()
-      setSelectedRole({ ...role, permissions: data })
+      const result = await response.json()
+      let permissionsData = []
+      if (Array.isArray(result)) {
+        permissionsData = result
+      } else if (result.success && Array.isArray(result.data)) {
+        permissionsData = result.data
+      }
+      setSelectedRole({ ...role, permissions: permissionsData })
       setIsPermissionModalOpen(true)
     } catch (error) {
       toast.error('获取角色权限失败')
@@ -440,8 +445,14 @@ function PermissionManagement() {
 
       // 重新获取权限
       const res = await fetch(getApiUrl(`/api/roles/${selectedRole.id}/permissions`))
-      const data = await res.json()
-      setSelectedRole({ ...selectedRole, permissions: data })
+      const result = await res.json()
+      let permissionsData = []
+      if (Array.isArray(result)) {
+        permissionsData = result
+      } else if (result.success && Array.isArray(result.data)) {
+        permissionsData = result.data
+      }
+      setSelectedRole({ ...selectedRole, permissions: permissionsData })
       toast.success(enable ? '模块权限已开启' : '模块权限已关闭')
 
       // 刷新当前用户的权限
@@ -465,8 +476,14 @@ function PermissionManagement() {
 
       if (response.ok) {
         const res = await fetch(getApiUrl(`/api/roles/${selectedRole.id}/permissions`))
-        const data = await res.json()
-        setSelectedRole({ ...selectedRole, permissions: data })
+        const result = await res.json()
+        let permissionsData = []
+        if (Array.isArray(result)) {
+          permissionsData = result
+        } else if (result.success && Array.isArray(result.data)) {
+          permissionsData = result.data
+        }
+        setSelectedRole({ ...selectedRole, permissions: permissionsData })
 
         // 刷新当前用户的权限（如果修改的是当前用户的角色）
         refreshCurrentUserPermissions()
@@ -564,7 +581,7 @@ function PermissionManagement() {
   const isModuleEnabled = (moduleKey) => {
     const modulePerms = permissions.filter(p => p.module === moduleKey)
     if (modulePerms.length === 0) return false
-    return modulePerms.every(p => selectedRole?.permissions?.some(rp => rp.id === p.id))
+    return modulePerms.every(p => Array.isArray(selectedRole?.permissions) && selectedRole.permissions.some(rp => rp.id === p.id))
   }
 
   if (loading) {
@@ -977,22 +994,8 @@ function PermissionManagement() {
             <p className="text-xs text-gray-500 mt-1">数字越大，级别越高（1-10）</p>
           </div>
 
-          <div className="border-t pt-4">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={roleFormData.can_view_all_departments}
-                onChange={(e) => setRoleFormData({ ...roleFormData, can_view_all_departments: e.target.checked })}
-                className="mr-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                可以查看全部部门
-              </span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1 ml-6">
-              启用后，该角色的用户可以查看和管理所有部门的数据（员工、班次、排班等）
-            </p>
-          </div>
+
+
 
           <div className="flex justify-end gap-3 pt-4">
             <button
@@ -1054,7 +1057,7 @@ function PermissionManagement() {
                 {/* 权限列表 */}
                 <div className="p-4 space-y-2 bg-white">
                   {moduleData.permissions.map(perm => {
-                    const hasPermission = selectedRole?.permissions?.some(p => p.id === perm.id)
+                    const hasPermission = Array.isArray(selectedRole?.permissions) && selectedRole.permissions.some(p => p.id === perm.id)
                     return (
                       <label key={perm.id} className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input

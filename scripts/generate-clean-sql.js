@@ -1,12 +1,13 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const dbConfig = {
-  host: 'localhost',
-  user: 'tian',
-  password: 'root',
-  database: 'leixin_customer_service'
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'root',
+  database: process.env.DB_NAME || 'leixin_customer_service'
 };
 
 async function generateCleanSQL() {
@@ -44,8 +45,7 @@ SET FOREIGN_KEY_CHECKS = 0;
       sql += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
     }
 
-    sql += `\nSET FOREIGN_KEY_CHECKS = 1;\n\n`;
-    sql += `-- ==========================================\n`;
+    sql += `\n-- ==========================================\n`;
     sql += `-- 创建表结构\n`;
     sql += `-- ==========================================\n\n`;
 
@@ -85,6 +85,9 @@ SET @admin_role_id = LAST_INSERT_ID();
 INSERT INTO \`user_roles\` (\`user_id\`, \`role_id\`, \`created_at\`)
 VALUES (@admin_user_id, @admin_role_id, NOW());
 
+-- 恢复外键检查
+SET FOREIGN_KEY_CHECKS = 1;
+
 -- ==========================================
 -- 初始化完成
 -- ==========================================
@@ -95,7 +98,7 @@ VALUES (@admin_user_id, @admin_role_id, NOW());
 -- ==========================================
 `;
 
-    // 保存到文件
+    // 保存到文件 (使用 UTF-8 without BOM)
     const outputPath = path.join(__dirname, '../database/migrations/001_init_clean_database.sql');
     const outputDir = path.dirname(outputPath);
 
@@ -103,7 +106,8 @@ VALUES (@admin_user_id, @admin_role_id, NOW());
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    fs.writeFileSync(outputPath, sql, 'utf8');
+    // 写入文件，明确指定 UTF-8 编码
+    fs.writeFileSync(outputPath, sql, { encoding: 'utf8', flag: 'w' });
 
     console.log('\\n✅ SQL文件生成成功！');
     console.log(`文件路径: ${outputPath}`);

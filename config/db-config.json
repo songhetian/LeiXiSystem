@@ -1,13 +1,5 @@
 {
-  "database": {
-    "host": "192.168.2.3",
-    "port": 3306,
-    "user": "tian",
-    "password": "root",
-    "database": "leixin_customer_service"
-  },
-  "upload": {
-    "sharedDirectory": "\\\\SONG\\SharedUploads",
-    "publicUrl": "http://192.168.2.3:3001"
-  }
+  "encrypted": "1f85d1d8e1cfe9b1dc1142b53b638d67044bc6b80a37dc5b1418eac45430f88a1cbfd25c8de426c8a340e34cf56bd29ec6f05be3506145a4f46b90e27b59e972b0cf5ebb4b94ce6300739967f5642abb50403fe004a8575c8c539141888890b68f0aaa802d2e2b595726300144a3787b68f0d34201cec082e08599b4f8655dda3e0537329db528d50c67274e99e7a3e0a0341ebbe207bf1f494eacd935c17507b9d0bcb2b53fea59310b52b3c27f5f6869abd5fe98197556a935addc65172b21f841e216988533370bfc6dadebc99b65c80d6b4a11b8c151",
+  "iv": "6e6a455fa405da624bd4bbc643ca6c19",
+  "authTag": "3a715d71222fd47ae0baa9745eb520b0"
 }

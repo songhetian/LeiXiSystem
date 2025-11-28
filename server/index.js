@@ -55,11 +55,13 @@ const dbConfigPath = isPackaged
 
 console.log('尝试加载数据库配置:', dbConfigPath);
 
+// 引入配置加密工具
+const { loadConfig } = require('./utils/config-crypto');
+
 let dbConfigJson = {}
 try {
-  if (fs.existsSync(dbConfigPath)) {
-    dbConfigJson = JSON.parse(fs.readFileSync(dbConfigPath, 'utf8'))
-  }
+  // 使用 loadConfig 自动检测并解密配置（如果已加密）
+  dbConfigJson = loadConfig(dbConfigPath);
 } catch (error) {
   console.error('加载数据库配置失败:', error)
 }
@@ -384,8 +386,19 @@ fastify.post('/api/auth/login', async (request, reply) => {
 
     // 生成 JWT token（包含时间戳确保唯一性）
     const sessionId = `${user.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      sessionId
+    };
+
+    // 只有当 department_id 存在且不为 null 时才添加到 payload 中
+    if (user.department_id !== null && user.department_id !== undefined) {
+      tokenPayload.department_id = user.department_id;
+    }
+
     const token = jwt.sign(
-      { id: user.id, username: user.username, sessionId },
+      tokenPayload,
       JWT_SECRET,
       { expiresIn: '1h' } // Access token有效期1小时
     )
@@ -476,8 +489,19 @@ fastify.post('/api/auth/refresh', async (request, reply) => {
 
     // 生成新的access token
     const sessionId = `${user.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      sessionId
+    };
+
+    // 只有当 department_id 存在且不为 null 时才添加到 payload 中
+    if (user.department_id !== null && user.department_id !== undefined) {
+      tokenPayload.department_id = user.department_id;
+    }
+
     const newToken = jwt.sign(
-      { id: user.id, username: user.username, sessionId },
+      tokenPayload,
       JWT_SECRET,
       { expiresIn: '1h' } // Access token有效期1小时
     )
@@ -617,7 +641,7 @@ fastify.get('/api/auth/permissions', async (request, reply) => {
 
     // 获取用户的角色信息
     const [roles] = await pool.query(`
-      SELECT r.id, r.name, r.can_view_all_departments
+      SELECT r.id, r.name
       FROM roles r
       INNER JOIN user_roles ur ON r.id = ur.role_id
       WHERE ur.user_id = ?
@@ -632,7 +656,7 @@ fastify.get('/api/auth/permissions', async (request, reply) => {
         permissions: permissions.map(p => p.code),
         permissionDetails: permissions,
         roles: roles,
-        canViewAllDepartments: roles.some(r => r.can_view_all_departments === 1),
+        canViewAllDepartments: roles.some(r => r.name === '超级管理员'),
         departmentId: user[0]?.department_id
       }
     }
@@ -1089,8 +1113,26 @@ fastify.post('/api/employees', async (request, reply) => {
   try {
     const passwordHash = '$2b$12$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq'; // 默认密码: 123456
 
+    let finalEmployeeNo = employee_no;
+
+    // 如果没有提供工号，自动生成
+    if (!finalEmployeeNo) {
+      const [maxEmpRows] = await pool.query('SELECT employee_no FROM employees WHERE employee_no REGEXP "^EMP[0-9]+$" ORDER BY LENGTH(employee_no) DESC, employee_no DESC LIMIT 1');
+
+      if (maxEmpRows.length > 0) {
+        // 提取数字部分并加1
+        const currentMax = maxEmpRows[0].employee_no;
+        const numPart = parseInt(currentMax.replace(/\D/g, ''));
+        finalEmployeeNo = `EMP${String(numPart + 1).padStart(4, '0')}`;
+      } else {
+        // 如果没有符合格式的工号，从 EMP0001 开始
+        finalEmployeeNo = 'EMP0001';
+      }
+      console.log(`自动生成工号: ${finalEmployeeNo}`);
+    }
+
     // 确保员工编号作为用户名使用
-    const username = employee_no;
+    const username = finalEmployeeNo;
 
     // 处理日期格式：确保只保存日期部分（YYYY-MM-DD）
     let formattedHireDate = null;
@@ -1111,7 +1153,7 @@ fastify.post('/api/employees', async (request, reply) => {
     // 创建员工信息
     const [employeeResult] = await pool.query(
       'INSERT INTO employees (user_id, employee_no, position, hire_date, rating, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [userResult.insertId, employee_no, position || null, formattedHireDate, rating || 3, status]
+      [userResult.insertId, finalEmployeeNo, position || null, formattedHireDate, rating || 3, status]
     );
 
     // 自动创建员工变动记录（入职记录）

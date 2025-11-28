@@ -3,7 +3,7 @@ const permissionRoutes = async (fastify, options) => {
   fastify.get('/api/roles', async (request, reply) => {
     const connection = await fastify.mysql.getConnection();
     try {
-      const [roles] = await connection.query('SELECT * FROM roles ORDER BY id');
+      const [roles] = await connection.query('SELECT id, name, description, level, is_system, created_at, updated_at FROM roles ORDER BY id');
 
       // Get permissions for each role
       for (let role of roles) {
@@ -112,7 +112,7 @@ const permissionRoutes = async (fastify, options) => {
 
       for (let user of users) {
         const [roles] = await connection.query(`
-          SELECT r.*
+          SELECT r.id, r.name, r.description, r.level, r.is_system, r.created_at, r.updated_at
           FROM roles r
           JOIN user_roles ur ON r.id = ur.role_id
           WHERE ur.user_id = ?
@@ -217,6 +217,78 @@ const permissionRoutes = async (fastify, options) => {
     } catch (error) {
       await connection.rollback();
       throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Get role permissions
+  fastify.get('/api/roles/:id/permissions', async (request, reply) => {
+    const { id } = request.params;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      const [permissions] = await connection.query(`
+        SELECT p.*
+        FROM permissions p
+        JOIN role_permissions rp ON p.id = rp.permission_id
+        WHERE rp.role_id = ?
+        ORDER BY p.module, p.id
+      `, [id]);
+
+      return { success: true, data: permissions };
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Add permission to role
+  fastify.post('/api/roles/:id/permissions', async (request, reply) => {
+    const { id } = request.params;
+    const { permission_id } = request.body;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      // Check if role already has this permission
+      const [existing] = await connection.query(
+        'SELECT * FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+        [id, permission_id]
+      );
+
+      if (existing.length > 0) {
+        return { success: true, message: '角色已拥有此权限' };
+      }
+
+      await connection.query(
+        'INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+        [id, permission_id]
+      );
+
+      return { success: true, message: '权限分配成功' };
+    } catch (error) {
+      console.error('添加权限失败:', error);
+      return { success: false, message: '权限分配失败' };
+    } finally {
+      connection.release();
+    }
+  });
+
+  // Remove permission from role
+  fastify.delete('/api/roles/:id/permissions/:permissionId', async (request, reply) => {
+    const { id, permissionId } = request.params;
+    const connection = await fastify.mysql.getConnection();
+    try {
+      const [result] = await connection.query(
+        'DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+        [id, permissionId]
+      );
+
+      if (result.affectedRows === 0) {
+        return { success: false, message: '角色没有此权限' };
+      }
+
+      return { success: true, message: '权限移除成功' };
+    } catch (error) {
+      console.error('移除权限失败:', error);
+      return { success: false, message: '权限移除失败' };
     } finally {
       connection.release();
     }

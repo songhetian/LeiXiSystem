@@ -19,7 +19,14 @@ async function runMigrations() {
     console.log('Connected to the database.');
 
     // Ensure migrations_history table exists
-    const createHistoryTableSql = fs.readFileSync(path.join(__dirname, '../database/migrations/016_create_migrations_history_table.sql'), 'utf8');
+    // Ensure migrations_history table exists
+    const createHistoryTableSql = `
+      CREATE TABLE IF NOT EXISTS migrations_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        migration_name VARCHAR(255) NOT NULL UNIQUE,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `;
     await connection.query(createHistoryTableSql);
     console.log('Ensured migrations_history table exists.');
 

@@ -752,7 +752,7 @@ function EmployeeManagement() {
                     </div>
                   </td>
                   <td className="w-[12%] px-4 py-3 text-center text-gray-600">
-                    <div className="truncate">{departments.find(d => d.id === emp.department_id)?.name || '-'}</div>
+                    <div className="truncate">{emp.department_name || '-'}</div>
                   </td>
                   <td className="w-[12%] px-4 py-3 text-center text-gray-600">
                     <div className="truncate">{emp.position || '-'}</div>

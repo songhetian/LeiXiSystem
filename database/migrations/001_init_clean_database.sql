@@ -110,7 +110,8 @@ DROP TABLE IF EXISTS `vacation_type_balances`;
 DROP TABLE IF EXISTS `vacation_types`;
 DROP TABLE IF EXISTS `work_shifts`;
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- SET FOREIGN_KEY_CHECKS = 1; -- Will be enabled at the end
+
 
 -- ==========================================
 -- 创建表结构
@@ -582,8 +583,7 @@ CREATE TABLE `employee_status_records` (
   CONSTRAINT `fk_employee_status_records_operated_by` FOREIGN KEY (`operated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='员工状态变更记录表-记录员工状态和部门变更历史';
 
--- 表: employee_work_duration
-undefined;
+
 
 -- 表: employees
 CREATE TABLE `employees` (
@@ -2024,11 +2024,18 @@ CREATE TABLE `work_shifts` (
 -- 插入初始数据
 -- ==========================================
 
+-- 插入管理员部门
+INSERT INTO `departments` (`name`, `description`, `status`, `created_at`)
+VALUES ('管理员', '系统管理员部门', 'active', NOW());
+
+-- 获取刚插入的部门ID
+SET @admin_dept_id = LAST_INSERT_ID();
+
 -- 插入超级管理员账号
 -- 用户名: admin
 -- 密码: admin123
 INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
-VALUES ('admin', '$2b$10$ya3vuqq/jDVDl20Lir84N.3rjxwKgcq25aWJpaZstEkttcRApbFRm', '系统管理员', 'admin@example.com', '13800138000', NULL, 'active', NOW());
+VALUES ('admin', '$2b$10$ya3vuqq/jDVDl20Lir84N.3rjxwKgcq25aWJpaZstEkttcRApbFRm', '系统管理员', 'admin@example.com', '13800138000', @admin_dept_id, 'active', NOW());
 
 -- 获取刚插入的用户ID
 SET @admin_user_id = LAST_INSERT_ID();
@@ -2037,15 +2044,9 @@ SET @admin_user_id = LAST_INSERT_ID();
 INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `created_at`)
 VALUES (@admin_user_id, 'ADMIN001', '系统管理员', NOW(), 'active', NOW());
 
--- 插入超级管理员角色（如果roles表存在）
-INSERT INTO `roles` (`name`, `description`, `level`, `can_view_all_departments`, `created_at`)
-VALUES ('超级管理员', '拥有系统所有权限', 1, 1, NOW());
+-- 注意：roles 和 user_roles 表不在此初始化脚本中
+-- 如需角色功能，请单独创建这些表并插入数据
 
-SET @admin_role_id = LAST_INSERT_ID();
-
--- 关联用户和角色
-INSERT INTO `user_roles` (`user_id`, `role_id`, `created_at`)
-VALUES (@admin_user_id, @admin_role_id, NOW());
 
 -- ==========================================
 -- 初始化完成
@@ -2055,3 +2056,6 @@ VALUES (@admin_user_id, @admin_role_id, NOW());
 -- 密码: admin123
 -- 请登录后立即修改密码！
 -- ==========================================
+
+
+SET FOREIGN_KEY_CHECKS = 1;

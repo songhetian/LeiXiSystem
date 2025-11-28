@@ -5,63 +5,6 @@ const { extractUserPermissions, applyDepartmentFilter } = require('../middleware
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql;
 
-  // 确保表存在
-  async function ensureTables() {
-    const connection = await pool.getConnection();
-    try {
-      // 创建假期类型余额表
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS vacation_type_balances (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          employee_id INT NOT NULL,
-          user_id INT NOT NULL,
-          year INT NOT NULL,
-          vacation_type_id INT NOT NULL,
-          total_days DECIMAL(5,2) DEFAULT 0,
-          used_days DECIMAL(5,2) DEFAULT 0,
-          conversion_date DATE NULL,
-          remaining_carryover_days DECIMAL(5,2) DEFAULT 0.00,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY unique_employee_year_type (employee_id, year, vacation_type_id),
-          FOREIGN KEY (vacation_type_id) REFERENCES vacation_types(id) ON DELETE CASCADE,
-          INDEX idx_employee_year (employee_id, year),
-          INDEX idx_vacation_type (vacation_type_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `);
-
-      // 创建加班转换记录表
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS overtime_conversions (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          employee_id INT NOT NULL,
-          user_id INT NOT NULL,
-          overtime_hours DECIMAL(5,2) NOT NULL,
-          target_vacation_type_id INT NOT NULL,
-          converted_days DECIMAL(5,2) NOT NULL,
-          conversion_rule_id INT,
-          conversion_ratio DECIMAL(5,2) NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          created_by INT,
-          FOREIGN KEY (target_vacation_type_id) REFERENCES vacation_types(id),
-          FOREIGN KEY (conversion_rule_id) REFERENCES conversion_rules(id),
-          INDEX idx_employee (employee_id),
-          INDEX idx_created_at (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `);
-
-      console.log('✅ Vacation type balances tables ensured');
-    } catch (error) {
-      console.error('❌ Error creating tables:', error);
-      throw error;
-    } finally {
-      connection.release();
-    }
-  }
-
-  // 初始化时确保表存在
-  await ensureTables();
-
   // 获取所有假期类型 (兼容性路由)
   fastify.get('/api/vacation-types', async (request, reply) => {
     try {
