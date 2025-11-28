@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Select, InputNumber, Button, Alert, Statistic, Row, Col, Spin, Descriptions } from 'antd';
+import { Modal, Form, Select, InputNumber, Button, Alert, Statistic, Row, Col, Spin, Descriptions, Space, Input } from 'antd';
 import { SwapOutlined, CalculatorOutlined, ClockCircleOutlined, CalendarOutlined } from '@ant-design/icons';
 import { toast } from 'react-toastify';
 import { getApiBaseUrl } from '../utils/apiConfig';
@@ -205,13 +205,17 @@ const OvertimeConversionModal = ({ visible, onClose, onSuccess, employeeId, over
             { type: 'number', min: 0, message: '加班时长必须大于0' }
           ]}
         >
-          <InputNumber
-            min={0}
-            step={0.5}
-            placeholder="请输入加班时长"
-            addonAfter="小时"
-            style={{ width: '100%' }}
-          />
+          <Space.Compact style={{ width: '100%' }}>
+            <InputNumber
+              min={0}
+              step={0.5}
+              placeholder="请输入加班时长"
+              style={{ width: '100%' }}
+              readOnly={true}
+              disabled={true}
+            />
+            <Input addonAfter="小时" readOnly={true} disabled={true} />
+          </Space.Compact>
         </Form.Item>
 
         <Form.Item

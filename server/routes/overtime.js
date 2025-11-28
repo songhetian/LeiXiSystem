@@ -92,9 +92,14 @@ module.exports = async function (fastify, opts) {
       let query = `
         SELECT *
         FROM overtime_records
-        WHERE employee_id = ?
+        WHERE 1=1
       `;
-      const params = [employee_id];
+      const params = [];
+
+      if (employee_id) {
+        query += ' AND employee_id = ?';
+        params.push(employee_id);
+      }
 
       if (status && status !== 'all') {
         query += ' AND status = ?';
@@ -107,8 +112,14 @@ module.exports = async function (fastify, opts) {
       const [records] = await pool.query(query, params);
 
       // 获取总数
-      let countQuery = 'SELECT COUNT(*) as total FROM overtime_records WHERE employee_id = ?';
-      const countParams = [employee_id];
+      // 获取总数
+      let countQuery = 'SELECT COUNT(*) as total FROM overtime_records WHERE 1=1';
+      const countParams = [];
+
+      if (employee_id) {
+        countQuery += ' AND employee_id = ?';
+        countParams.push(employee_id);
+      }
 
       if (status && status !== 'all') {
         countQuery += ' AND status = ?';
@@ -132,7 +143,44 @@ module.exports = async function (fastify, opts) {
     }
   });
 
-  // 申请加班
+  // 申请加班 (新接口,匹配前端数据格式)
+  fastify.post('/api/overtime/apply', async (request, reply) => {
+    const { employee_id, user_id, overtime_date, start_time, end_time, reason } = request.body;
+
+    if (!employee_id || !overtime_date || !start_time || !end_time) {
+      return reply.code(400).send({ success: false, message: '缺少必填参数' });
+    }
+
+    try {
+      // 计算加班时长
+      const startDateTime = new Date(start_time);
+      const endDateTime = new Date(end_time);
+      const diffMs = endDateTime - startDateTime;
+      const hours = (diffMs / (1000 * 60 * 60)).toFixed(1);
+
+      if (hours <= 0) {
+        return reply.code(400).send({ success: false, message: '结束时间必须晚于开始时间' });
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO overtime_records 
+        (employee_id, user_id, overtime_date, start_time, end_time, hours, reason, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [employee_id, user_id, overtime_date, start_time, end_time, hours, reason || '', 'pending']
+      );
+
+      return {
+        success: true,
+        message: '申请成功',
+        data: { id: result.insertId }
+      };
+    } catch (error) {
+      console.error('申请加班失败:', error);
+      return reply.code(500).send({ success: false, message: '申请失败' });
+    }
+  });
+
+  // 申请加班 (旧接口,保留兼容性)
   fastify.post('/api/overtime/records', async (request, reply) => {
     const { employee_id, date, hours, reason } = request.body;
 

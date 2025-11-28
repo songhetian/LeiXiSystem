@@ -135,7 +135,7 @@ const VacationManagement = () => {
         },
         body: JSON.stringify({
           employee_id: selectedEmployee.employee_id,
-          hours: convertHours,
+          hours: selectedEmployee.overtime_hours_total - (selectedEmployee.overtime_hours_converted || 0),
           year: year
         })
       });
@@ -302,6 +302,9 @@ const VacationManagement = () => {
             icon={<SwapOutlined />}
             onClick={() => {
               setSelectedEmployee(record);
+              // 设置转换小时数为员工的剩余加班时长
+              const remainingHours = record.overtime_hours_total - (record.overtime_hours_converted || 0);
+              setConvertHours(remainingHours);
               setConvertModalVisible(true);
             }}
             disabled={!record.overtime_hours_total || (record.overtime_hours_total - (record.overtime_hours_converted || 0)) < 8}
@@ -591,13 +594,17 @@ const VacationManagement = () => {
         <p>当前剩余加班：{selectedEmployee ? (selectedEmployee.overtime_hours_total - (selectedEmployee.overtime_hours_converted || 0)).toFixed(1) : 0} 小时</p>
         <div className="mt-4">
           <span className="mr-2">转换小时数:</span>
-          <InputNumber
-            min={8}
-            step={8}
-            value={convertHours}
-            onChange={setConvertHours}
-            addonAfter="小时"
-          />
+          <Space.Compact>
+            <InputNumber
+              min={8}
+              max={selectedEmployee ? (selectedEmployee.overtime_hours_total - (selectedEmployee.overtime_hours_converted || 0)) : 8}
+              step={8}
+              value={selectedEmployee ? (selectedEmployee.overtime_hours_total - (selectedEmployee.overtime_hours_converted || 0)) : 8}
+              readOnly={true}
+              disabled={true}
+            />
+            <Input defaultValue="小时" readOnly={true} disabled={true} />
+          </Space.Compact>
           <p className="text-gray-500 text-sm mt-2">注：每8小时转换为1天加班假</p>
         </div>
       </Modal>

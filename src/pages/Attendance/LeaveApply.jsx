@@ -14,17 +14,38 @@ export default function LeaveApply() {
   })
   const [balance, setBalance] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [employee] = useState({ id: 1, user_id: 1, name: '张三' })
+  const [employee, setEmployee] = useState(null)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetchBalance()
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      const userData = JSON.parse(userStr)
+      setUser(userData)
+      fetchEmployeeInfo(userData.id)
+    }
   }, [])
 
-  const fetchBalance = async () => {
+  const fetchEmployeeInfo = async (userId) => {
+    try {
+      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      if (response.data.success && response.data.data) {
+        setEmployee(response.data.data)
+        fetchBalance(response.data.data.id)
+      } else {
+        toast.error('未找到员工信息')
+      }
+    } catch (error) {
+      console.error('获取员工信息失败:', error)
+      toast.error('获取员工信息失败')
+    }
+  }
+
+  const fetchBalance = async (employeeId) => {
     try {
       // Use the new vacation balance API which includes overtime/converted leave
       const response = await axios.get(getApiUrl('/api/vacation/balance'), {
-        params: { employee_id: employee.id }
+        params: { employee_id: employeeId }
       })
       if (response.data.success) {
         setBalance(response.data.data)
@@ -45,6 +66,11 @@ export default function LeaveApply() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!employee) {
+      toast.error('员工信息未加载')
+      return
+    }
 
     const days = calculateDays()
     if (days <= 0) {
@@ -87,7 +113,7 @@ export default function LeaveApply() {
           attachments: [],
           use_converted_leave: false
         })
-        fetchBalance()
+        fetchBalance(employee.id)
       }
     } catch (error) {
       toast.error(error.response?.data?.message || '提交失败')
@@ -147,11 +173,10 @@ export default function LeaveApply() {
                   key={type.value}
                   type="button"
                   onClick={() => setFormData(prev => ({ ...prev, leave_type: type.value }))}
-                  className={`p-4 border-2 rounded-lg text-center transition-colors ${
-                    formData.leave_type === type.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`p-4 border-2 rounded-lg text-center transition-colors ${formData.leave_type === type.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <div className="text-2xl mb-1">{type.icon}</div>
                   <div className="text-sm font-medium">{type.label}</div>

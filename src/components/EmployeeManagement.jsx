@@ -457,7 +457,7 @@ function EmployeeManagement() {
 
       // 2. 记录变动到employee_changes表
       const changeType = statusChangeData.newStatus === 'resigned' ? 'resign' :
-                        statusChangeData.newStatus === 'inactive' ? 'terminate' : 'hire'
+        statusChangeData.newStatus === 'inactive' ? 'terminate' : 'hire'
 
       const changeData = {
         employee_id: statusChangingEmp.id,
@@ -711,192 +711,190 @@ function EmployeeManagement() {
         {/* 表格 */}
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
-          <thead className="bg-primary-50 border-b border-primary-100">
-            <tr>
-              <th className="w-[20%] px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">员工</th>
-              <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">部门</th>
-              <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">职位</th>
-              <th className="w-[15%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">联系方式</th>
-              <th className="w-[8%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">评级</th>
-              <th className="w-[10%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
-              <th className="w-[23%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEmployees.length === 0 ? (
+            <thead className="bg-primary-50 border-b border-primary-100">
               <tr>
-                <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                  {employees.length === 0 ? '暂无数据' : '没有符合条件的员工'}
-                </td>
+                <th className="w-[20%] px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">员工</th>
+                <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">部门</th>
+                <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">职位</th>
+                <th className="w-[15%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">联系方式</th>
+                <th className="w-[8%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">评级</th>
+                <th className="w-[10%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
+                <th className="w-[23%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
               </tr>
-            ) : (
-              getCurrentPageData().map((emp, index) => (
-                <tr key={emp.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
-                  <td className="w-[20%] px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-lg font-medium text-primary-600 cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all overflow-hidden flex-shrink-0"
-                        onClick={() => handleViewDetail(emp)}
-                        title="点击查看详情"
-                      >
-                        {emp.avatar ? (
-                          <img src={emp.avatar} alt={emp.real_name} className="w-full h-full object-cover" />
-                        ) : (
-                          emp.real_name?.charAt(0) || '员'
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-gray-900 truncate">{emp.real_name}</div>
-                        <div className="text-xs text-gray-500 truncate">{emp.employee_no}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="w-[12%] px-4 py-3 text-center text-gray-600">
-                    <div className="truncate">{emp.department_name || '-'}</div>
-                  </td>
-                  <td className="w-[12%] px-4 py-3 text-center text-gray-600">
-                    <div className="truncate">{emp.position || '-'}</div>
-                  </td>
-                  <td className="w-[15%] px-4 py-3 text-center text-gray-600">
-                    <div className="truncate">{emp.phone || emp.email || '-'}</div>
-                  </td>
-                  <td className="w-[8%] px-4 py-3 text-center">
-                    <span className="text-gray-700 font-medium">{renderRating(emp.rating)}</span>
-                  </td>
-                  <td className="w-[10%] px-4 py-3 text-center">
-                    <div className="flex justify-center">
-                      <span
-                        onClick={() => handleStatusClick(emp)}
-                        className={`px-3 py-1 rounded-full text-sm cursor-pointer hover:opacity-80 transition-opacity whitespace-nowrap ${
-                          emp.status === 'active' ? 'bg-green-100 text-green-700' :
-                          emp.status === 'resigned' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}
-                        title="点击修改状态"
-                      >
-                        {emp.status === 'active' ? '在职' : emp.status === 'resigned' ? '离职' : '停用'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="w-[23%] px-4 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(emp)}
-                        className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        编辑
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(emp)}
-                        className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        删除
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {filteredEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                    {employees.length === 0 ? '暂无数据' : '没有符合条件的员工'}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                getCurrentPageData().map((emp, index) => (
+                  <tr key={emp.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
+                    <td className="w-[20%] px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-lg font-medium text-primary-600 cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all overflow-hidden flex-shrink-0"
+                          onClick={() => handleViewDetail(emp)}
+                          title="点击查看详情"
+                        >
+                          {emp.avatar ? (
+                            <img src={emp.avatar} alt={emp.real_name} className="w-full h-full object-cover" />
+                          ) : (
+                            emp.real_name?.charAt(0) || '员'
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-gray-900 truncate">{emp.real_name}</div>
+                          <div className="text-xs text-gray-500 truncate">{emp.employee_no}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="w-[12%] px-4 py-3 text-center text-gray-600">
+                      <div className="truncate">{emp.department_name || '-'}</div>
+                    </td>
+                    <td className="w-[12%] px-4 py-3 text-center text-gray-600">
+                      <div className="truncate">{emp.position || '-'}</div>
+                    </td>
+                    <td className="w-[15%] px-4 py-3 text-center text-gray-600">
+                      <div className="truncate">{emp.phone || emp.email || '-'}</div>
+                    </td>
+                    <td className="w-[8%] px-4 py-3 text-center">
+                      <span className="text-gray-700 font-medium">{renderRating(emp.rating)}</span>
+                    </td>
+                    <td className="w-[10%] px-4 py-3 text-center">
+                      <div className="flex justify-center">
+                        <span
+                          onClick={() => handleStatusClick(emp)}
+                          className={`px-3 py-1 rounded-full text-sm cursor-pointer hover:opacity-80 transition-opacity whitespace-nowrap ${emp.status === 'active' ? 'bg-green-100 text-green-700' :
+                              emp.status === 'resigned' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}
+                          title="点击修改状态"
+                        >
+                          {emp.status === 'active' ? '在职' : emp.status === 'resigned' ? '离职' : '停用'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="w-[23%] px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleEdit(emp)}
+                          className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(emp)}
+                          className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          删除
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      {/* 分页组件 */}
-      {filteredEmployees.length > 0 && (
-        <div className="mt-4 flex items-center justify-between px-4">
-          {/* 左侧：每页显示数量 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">每页显示</span>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-            <span className="text-sm text-gray-600">条</span>
-            <span className="text-sm text-gray-600 ml-4">
-              共 {filteredEmployees.length} 条记录
-            </span>
-          </div>
-
-          {/* 右侧：分页按钮 */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              首页
-            </button>
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              上一页
-            </button>
-
-            {/* 页码按钮 */}
-            <div className="flex gap-1">
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                let pageNum
-                if (totalPages <= 7) {
-                  pageNum = i + 1
-                } else if (currentPage <= 4) {
-                  pageNum = i + 1
-                } else if (currentPage >= totalPages - 3) {
-                  pageNum = totalPages - 6 + i
-                } else {
-                  pageNum = currentPage - 3 + i
-                }
-
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`px-3 py-1 border rounded-lg ${
-                      currentPage === pageNum
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
+        {/* 分页组件 */}
+        {filteredEmployees.length > 0 && (
+          <div className="mt-4 flex items-center justify-between px-4">
+            {/* 左侧：每页显示数量 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">每页显示</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-sm text-gray-600">条</span>
+              <span className="text-sm text-gray-600 ml-4">
+                共 {filteredEmployees.length} 条记录
+              </span>
             </div>
 
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              下一页
-            </button>
-            <button
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              末页
-            </button>
+            {/* 右侧：分页按钮 */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                首页
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                上一页
+              </button>
 
-            <span className="text-sm text-gray-600 ml-2">
-              第 {currentPage} / {totalPages} 页
-            </span>
+              {/* 页码按钮 */}
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 7) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 4) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 3) {
+                    pageNum = totalPages - 6 + i
+                  } else {
+                    pageNum = currentPage - 3 + i
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-3 py-1 border rounded-lg ${currentPage === pageNum
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                下一页
+              </button>
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                末页
+              </button>
+
+              <span className="text-sm text-gray-600 ml-2">
+                第 {currentPage} / {totalPages} 页
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       <Modal
@@ -944,14 +942,15 @@ function EmployeeManagement() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                工号 <span className="text-red-500">*</span>
+                工号 {editingEmp ? <span className="text-red-500">*</span> : <span className="text-gray-400 text-xs font-normal">(留空自动生成)</span>}
               </label>
               <input
                 type="text"
-                required
                 value={formData.employee_no}
                 onChange={(e) => setFormData({ ...formData, employee_no: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${editingEmp ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                placeholder={editingEmp ? '' : "自动生成 (如: EMP0001)"}
+                readOnly={!!editingEmp}
               />
             </div>
             <div>

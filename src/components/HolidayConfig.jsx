@@ -168,12 +168,54 @@ const HolidayConfig = () => {
   const handleQuickAdd = async (typeName, days, month) => {
     try {
       const token = localStorage.getItem('token');
+      let typeId = findVacationTypeByName(typeName);
 
-      // 查找假期类型,如果不存在则提示
-      const typeId = findVacationTypeByName(typeName);
+      // 如果不存在假期类型，自动创建
       if (!typeId) {
-        message.warning(`假期类型"${typeName}"不存在,请先在假期类型管理中创建该类型`);
-        return;
+        try {
+          const HOLIDAY_CODES = {
+            '元旦': 'new_year',
+            '春节': 'spring_festival',
+            '清明节': 'qingming',
+            '劳动节': 'labor_day',
+            '端午节': 'dragon_boat',
+            '中秋节': 'mid_autumn',
+            '国庆节': 'national_day'
+          };
+
+          const code = HOLIDAY_CODES[typeName] || `holiday_${Date.now()}`;
+
+          const createTypeRes = await fetch(`${getApiBaseUrl()}/vacation-types`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              code,
+              name: typeName,
+              base_days: days,
+              included_in_total: false, // 节假日通常不计入总额度
+              description: `${typeName}假期`,
+              enabled: true
+            })
+          });
+
+          const createTypeData = await createTypeRes.json();
+          if (createTypeData.success) {
+            typeId = createTypeData.data.insertId || createTypeData.data.id;
+            message.success(`自动创建假期类型: ${typeName}`);
+            // 重新加载假期类型列表
+            loadVacationTypes();
+          } else {
+            message.error(`创建假期类型失败: ${createTypeData.message}`);
+            return;
+          }
+        } catch (err) {
+          console.error('创建假期类型出错:', err);
+          message.error('自动创建假期类型失败');
+          return;
+        }
       }
 
       const response = await fetch(`${getApiBaseUrl()}/holidays`, {

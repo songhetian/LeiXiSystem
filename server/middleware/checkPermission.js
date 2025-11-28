@@ -88,7 +88,7 @@ async function extractUserPermissions(request, pool) {
  * @param {String} departmentField - 部门字段名（如 'u.department_id'）
  * @returns {Object} { query, params } - 修改后的查询和参数
  */
-function applyDepartmentFilter(permissions, query, params, departmentField = 'u.department_id') {
+function applyDepartmentFilter(permissions, query, params, departmentField = 'u.department_id', userField = 'u.id') {
   // 如果没有权限信息（未登录或无角色），限制为看不到任何数据
   if (!permissions) {
     console.log('[applyDepartmentFilter] No permissions, blocking all data')
@@ -97,28 +97,28 @@ function applyDepartmentFilter(permissions, query, params, departmentField = 'u.
   }
 
   console.log('[applyDepartmentFilter] Permissions:', {
+    userId: permissions.userId,
     departmentId: permissions.departmentId,
     canViewAllDepartments: permissions.canViewAllDepartments,
     viewableDepartmentIds: permissions.viewableDepartmentIds
   })
 
-  // 如果用户有部门信息，只显示该部门的员工（即使是超级管理员，也受部门限制）
-  if (permissions.departmentId) {
-    console.log(`[applyDepartmentFilter] Filtering by departmentId: ${permissions.departmentId}`)
-    query += ` AND ${departmentField} = ?`
-    params.push(permissions.departmentId);
+  // 严格根据 viewableDepartmentIds 过滤
+  // 即使是超级管理员，也必须配置了可查看的部门才能查看
+  if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
+    console.log(`[applyDepartmentFilter] Filtering by viewableDepartmentIds: ${permissions.viewableDepartmentIds.join(',')}`)
+    const placeholders = permissions.viewableDepartmentIds.map(() => '?').join(',')
+
+    // 允许查看指定部门的员工 OR 自己的记录
+    query += ` AND (${departmentField} IN (${placeholders}) OR ${userField} = ?)`
+    params.push(...permissions.viewableDepartmentIds, permissions.userId)
     return { query, params }
   }
 
-  // 如果没有部门信息，但有查看所有部门的权限（例如无部门的超级管理员），则可以查看所有
-  if (permissions.canViewAllDepartments) {
-    console.log('[applyDepartmentFilter] Super admin without department, allowing all')
-    return { query, params }
-  }
-
-  // 如果没有部门信息，看不到任何数据
-  console.log('[applyDepartmentFilter] No department and not super admin, blocking all data')
-  query += ` AND 1=0`
+  // 如果没有可查看的部门列表，只能查看自己
+  console.log('[applyDepartmentFilter] No viewable departments, restricting to self')
+  query += ` AND ${userField} = ?`
+  params.push(permissions.userId)
   return { query, params }
 }
 

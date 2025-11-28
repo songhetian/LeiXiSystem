@@ -16,13 +16,14 @@ module.exports = async function (fastify, opts) {
       // 权限控制
       if (permissions) {
         // 根据用户权限过滤部门
-        // 优先根据 departmentId 过滤（即使是超级管理员）
-        if (permissions.departmentId) {
-          query += ' AND id = ?'
-          params.push(permissions.departmentId)
-        } else if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
+        // 优先使用 viewableDepartmentIds（配置的部门权限）
+        if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
           query += ` AND id IN (${permissions.viewableDepartmentIds.map(() => '?').join(',')})`
           params.push(...permissions.viewableDepartmentIds)
+        } else if (permissions.departmentId) {
+          // 如果没有配置部门权限，则只能看到自己所在的部门
+          query += ' AND id = ?'
+          params.push(permissions.departmentId)
         } else {
           // 没有任何部门权限
           return { success: true, data: [] }

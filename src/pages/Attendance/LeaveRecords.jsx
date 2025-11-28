@@ -5,18 +5,46 @@ import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
 
 
-export default function LeaveRecords() {
+export default function LeaveRecords({ onNavigate }) {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
-  const [employee] = useState({ id: 1, user_id: 1, name: '张三' })
+  const [employee, setEmployee] = useState(null)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetchRecords()
-  }, [pagination.page, statusFilter])
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      const userData = JSON.parse(userStr)
+      setUser(userData)
+      fetchEmployeeInfo(userData.id)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (employee) {
+      fetchRecords()
+    }
+  }, [pagination.page, statusFilter, employee])
+
+  const fetchEmployeeInfo = async (userId) => {
+    try {
+      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      if (response.data.success && response.data.data) {
+        setEmployee(response.data.data)
+      } else {
+        toast.error('未找到员工信息')
+      }
+    } catch (error) {
+      console.error('获取员工信息失败:', error)
+      toast.error('获取员工信息失败')
+    }
+  }
 
   const fetchRecords = async () => {
+    if (!employee) return
+
     setLoading(true)
     try {
       const response = await axios.get(getApiUrl('/api/leave/records'), {
@@ -79,7 +107,7 @@ export default function LeaveRecords() {
     return types[type] || type
   }
 
-  
+
 
   return (
     <div className="p-6">
@@ -89,12 +117,12 @@ export default function LeaveRecords() {
           <h1 className="text-2xl font-bold text-gray-800">请假记录</h1>
           <p className="text-gray-600 mt-1">查看您的请假申请历史</p>
         </div>
-        <a
-          href="/attendance/leave/apply"
+        <button
+          onClick={() => onNavigate && onNavigate('attendance-leave-apply')}
           className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
         >
           + 新建请假
-        </a>
+        </button>
       </div>
 
       {/* 状态筛选 */}
@@ -113,11 +141,10 @@ export default function LeaveRecords() {
                 setStatusFilter(status.value)
                 setPagination(prev => ({ ...prev, page: 1 }))
               }}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                statusFilter === status.value
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg transition-colors ${statusFilter === status.value
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               {status.label}
             </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, InputNumber, message, Spin, Alert } from 'antd';
 import { getApiBaseUrl } from '../utils/apiConfig';
+import { Space } from 'antd';
 
 const VacationQuotaEditModal = ({ visible, onClose, employee, year, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -160,7 +161,10 @@ const VacationQuotaEditModal = ({ visible, onClose, employee, year, onSuccess })
               label={type.name}
               rules={[{ required: true, message: '请输入天数' }]}
             >
-              <InputNumber min={0} precision={1} addonAfter="天" />
+              <Space.Compact style={{ width: '100%' }}>
+                <InputNumber min={0} precision={1} />
+                <Input defaultValue="天" readOnly={true} disabled={true} />
+              </Space.Compact>
             </Form.Item>
           ))}
 

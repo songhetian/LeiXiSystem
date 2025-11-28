@@ -19,7 +19,6 @@ async function runMigrations() {
     console.log('Connected to the database.');
 
     // Ensure migrations_history table exists
-    // Ensure migrations_history table exists
     const createHistoryTableSql = `
       CREATE TABLE IF NOT EXISTS migrations_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,7 +44,44 @@ async function runMigrations() {
 
       console.log(`Applying migration: ${file}`);
       const sql = fs.readFileSync(path.join(__dirname, '../database/migrations', file), 'utf8');
-      await connection.query(sql);
+
+      // Disable foreign key checks to allow dropping tables
+      await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+
+      // Remove comment lines first
+      const cleanedSql = sql
+        .split('\n')
+        .filter(line => !line.trim().startsWith('--'))
+        .join('\n');
+
+      // Split SQL file into individual statements
+      const statements = cleanedSql
+        .split(';')
+        .map(stmt => stmt.trim())
+        .filter(stmt => stmt.length > 0);
+
+      console.log(`Executing ${statements.length} SQL statements...`);
+
+      // Execute each statement sequentially
+      for (let i = 0; i < statements.length; i++) {
+        const statement = statements[i];
+        if (statement) {
+          try {
+            await connection.query(statement);
+            if ((i + 1) % 50 === 0) {
+              console.log(`  Executed ${i + 1}/${statements.length} statements...`);
+            }
+          } catch (err) {
+            console.error(`Error executing statement ${i + 1}:`, err.message);
+            console.error('Statement:', statement.substring(0, 300) + '...');
+            throw err;
+          }
+        }
+      }
+
+      // Re-enable foreign key checks
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+
       await connection.query('INSERT INTO migrations_history (migration_name) VALUES (?)', [file]);
       console.log(`Successfully applied migration: ${file}`);
     }

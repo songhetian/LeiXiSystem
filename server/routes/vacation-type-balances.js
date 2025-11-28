@@ -5,18 +5,7 @@ const { extractUserPermissions, applyDepartmentFilter } = require('../middleware
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql;
 
-  // 获取所有假期类型 (兼容性路由)
-  fastify.get('/api/vacation-types', async (request, reply) => {
-    try {
-      const [rows] = await pool.query(
-        'SELECT * FROM vacation_types WHERE enabled = TRUE ORDER BY code'
-      );
-      return { success: true, data: rows };
-    } catch (error) {
-      console.error('❌ 获取假期类型失败:', error);
-      return reply.code(500).send({ success: false, message: '获取失败' });
-    }
-  });
+
 
   // 获取或创建员工某年某类型的假期余额
   async function getOrCreateTypeBalance(employeeId, userId, year, vacationTypeId) {
@@ -306,7 +295,7 @@ module.exports = async function (fastify, opts) {
           converted_days, conversion_rule_id, conversion_ratio, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [employee_id, userId, overtime_hours, target_type_id,
-         convertedDays, conversion_rule_id, conversionRatio, operatorId]
+          convertedDays, conversion_rule_id, conversionRatio, operatorId]
       );
 
       await connection.commit();

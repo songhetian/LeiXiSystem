@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Switch, message, Card } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, Select, Switch, message, Card, Space } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/apiConfig';
 
@@ -51,9 +51,10 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          name: 'overtime转overtime_leave',
           source_type: 'overtime',
           target_type: 'overtime_leave',
-          conversion_rate: 8,
+          ratio: 8,
           enabled: true
         })
       });
@@ -92,13 +93,21 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
 
       const method = editingRule ? 'PUT' : 'POST';
 
+      // 转换字段名，不包含name字段
+      const ruleData = {
+        source_type: values.source_type,
+        target_type: values.target_type,
+        ratio: values.conversion_rate,
+        enabled: values.enabled
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(values)
+        body: JSON.stringify(ruleData)
       });
 
       const data = await response.json();
@@ -185,7 +194,12 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
             icon={<EditOutlined />}
             onClick={() => {
               setEditingRule(record);
-              form.setFieldsValue(record);
+              // Map server field 'conversion_rate' to form field 'conversion_rate'
+              const formValues = {
+                ...record,
+                conversion_rate: record.conversion_rate
+              };
+              form.setFieldsValue(formValues);
               setModalVisible(true);
             }}
           />
@@ -213,7 +227,12 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
           onClick={() => {
             setEditingRule(null);
             form.resetFields();
-            form.setFieldsValue({ enabled: true, source_type: 'overtime', target_type: 'overtime_leave' });
+            form.setFieldsValue({ 
+              enabled: true, 
+              source_type: 'overtime', 
+              target_type: 'overtime_leave',
+              conversion_rate: 8
+            });
             setModalVisible(true);
           }}
         >
@@ -267,7 +286,10 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
             label="转换比例 (多少小时 = 1天)"
             rules={[{ required: true }]}
           >
-            <InputNumber min={1} max={24} precision={1} className="w-full" addonAfter="小时" />
+            <Space.Compact style={{ width: '100%' }}>
+              <InputNumber min={1} max={24} precision={1} className="w-full" defaultValue={8} />
+              <Input defaultValue="小时" readOnly={true} disabled={true} />
+            </Space.Compact>
           </Form.Item>
 
           <Form.Item

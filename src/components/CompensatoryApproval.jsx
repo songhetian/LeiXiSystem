@@ -24,6 +24,8 @@ const CompensatoryApproval = () => {
     limit: 10,
     total: 0
   })
+  const [departments, setDepartments] = useState([])
+  const [selectedDepartment, setSelectedDepartment] = useState('')
 
 
   const formatDateTime = (dateString) => {
@@ -39,8 +41,29 @@ const CompensatoryApproval = () => {
   }
 
   useEffect(() => {
+    loadDepartments()
+  }, [])
+
+  useEffect(() => {
     loadRequests()
-  }, [pagination.page, searchTerm, dateFilters, status])
+  }, [pagination.page, searchTerm, dateFilters, status, selectedDepartment])
+
+  const loadDepartments = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${getApiBaseUrl()}/departments/list`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const result = await response.json()
+      if (result.success) {
+        const activeDepts = result.data.filter(d => d.status === 'active')
+        setDepartments(activeDepts)
+        // 默认显示全部部门，不自动选中第一个
+      }
+    } catch (error) {
+      console.error('加载部门列表失败:', error)
+    }
+  }
 
   const loadRequests = async () => {
     try {
@@ -50,7 +73,7 @@ const CompensatoryApproval = () => {
       const user = JSON.parse(localStorage.getItem('user'))
 
       const params = new URLSearchParams({
-        department_id: user.department_id || '',
+        ...(selectedDepartment && { department_id: selectedDepartment }),
         page: pagination.page,
         limit: pagination.limit,
         ...(searchTerm && { search: searchTerm }),
@@ -80,11 +103,15 @@ const CompensatoryApproval = () => {
           }))
         }
       } else {
-        toast.error(result.message || '加载失败')
+        // 如果是获取失败，但不是网络错误，可能是没有数据（取决于后端实现）
+        // 这里我们不显示错误提示，而是清空列表
+        setRequests([])
+        setPagination(prev => ({ ...prev, total: 0 }))
       }
     } catch (error) {
       console.error('加载数据失败:', error)
-      toast.error('加载数据失败')
+      // 不显示错误提示，避免在无数据时打扰用户
+      setRequests([])
     } finally {
       setLoading(false)
     }
@@ -217,11 +244,10 @@ const CompensatoryApproval = () => {
               setStatus(tab.id)
               setPagination(prev => ({ ...prev, page: 1 }))
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              status === tab.id
-                ? 'bg-primary-50 text-primary-600 shadow-sm'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${status === tab.id
+              ? 'bg-primary-50 text-primary-600 shadow-sm'
+              : 'text-gray-600 hover:bg-gray-50'
+              }`}
           >
             <tab.icon size={16} />
             {tab.label}
@@ -270,7 +296,25 @@ const CompensatoryApproval = () => {
             )}
           </div>
 
-          {/* 第二行: 时间过滤器 */}
+          {/* 第二行: 部门选择 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">选择部门</label>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => {
+                setSelectedDepartment(e.target.value)
+                setPagination(prev => ({ ...prev, page: 1 }))
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">全部部门</option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>{dept.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 第三行: 时间过滤器 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">申请时间</label>
@@ -278,14 +322,14 @@ const CompensatoryApproval = () => {
                 <input
                   type="date"
                   value={dateFilters.申请时间_start}
-                  onChange={(e) => setDateFilters({...dateFilters, 申请时间_start: e.target.value})}
+                  onChange={(e) => setDateFilters({ ...dateFilters, 申请时间_start: e.target.value })}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <span className="text-gray-500">至</span>
                 <input
                   type="date"
                   value={dateFilters.申请时间_end}
-                  onChange={(e) => setDateFilters({...dateFilters, 申请时间_end: e.target.value})}
+                  onChange={(e) => setDateFilters({ ...dateFilters, 申请时间_end: e.target.value })}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -297,14 +341,14 @@ const CompensatoryApproval = () => {
                 <input
                   type="date"
                   value={dateFilters.调休日期_start}
-                  onChange={(e) => setDateFilters({...dateFilters, 调休日期_start: e.target.value})}
+                  onChange={(e) => setDateFilters({ ...dateFilters, 调休日期_start: e.target.value })}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <span className="text-gray-500">至</span>
                 <input
                   type="date"
                   value={dateFilters.调休日期_end}
-                  onChange={(e) => setDateFilters({...dateFilters, 调休日期_end: e.target.value})}
+                  onChange={(e) => setDateFilters({ ...dateFilters, 调休日期_end: e.target.value })}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -327,8 +371,8 @@ const CompensatoryApproval = () => {
             </div>
             <p className="text-lg font-medium text-gray-900">
               {status === 'pending' ? '暂无待审批申请' :
-               status === 'approved' ? '暂无已通过申请' :
-               status === 'rejected' ? '暂无已拒绝申请' : '暂无申请记录'}
+                status === 'approved' ? '暂无已通过申请' :
+                  status === 'rejected' ? '暂无已拒绝申请' : '暂无申请记录'}
             </p>
             <p className="text-sm text-gray-500 mt-1">
               {status === 'pending' ? '当前没有需要处理的调休申请' : '当前筛选条件下没有找到记录'}

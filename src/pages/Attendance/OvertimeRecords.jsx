@@ -5,20 +5,48 @@ import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
 
 
-export default function OvertimeRecords() {
+export default function OvertimeRecords({ onNavigate }) {
   const [records, setRecords] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
-  const [employee] = useState({ id: 1, user_id: 1, name: '张三' })
+  const [employee, setEmployee] = useState(null)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetchRecords()
-    fetchStats()
-  }, [pagination.page, statusFilter])
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      const userData = JSON.parse(userStr)
+      setUser(userData)
+      fetchEmployeeInfo(userData.id)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (employee) {
+      fetchRecords()
+      fetchStats()
+    }
+  }, [pagination.page, statusFilter, employee])
+
+  const fetchEmployeeInfo = async (userId) => {
+    try {
+      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      if (response.data.success && response.data.data) {
+        setEmployee(response.data.data)
+      } else {
+        toast.error('未找到员工信息')
+      }
+    } catch (error) {
+      console.error('获取员工信息失败:', error)
+      toast.error('获取员工信息失败')
+    }
+  }
 
   const fetchRecords = async () => {
+    if (!employee) return
+
     setLoading(true)
     try {
       const response = await axios.get(getApiUrl('/api/overtime/records'), {
@@ -42,6 +70,8 @@ export default function OvertimeRecords() {
   }
 
   const fetchStats = async () => {
+    if (!employee) return
+
     try {
       const response = await axios.get(getApiUrl('/api/overtime/stats'), {
         params: { employee_id: employee.id }
@@ -83,7 +113,7 @@ export default function OvertimeRecords() {
     )
   }
 
-  
+
 
   const formatTime = (dateTimeStr) => {
     if (!dateTimeStr) return '--:--'
@@ -140,11 +170,10 @@ export default function OvertimeRecords() {
                 setStatusFilter(status.value)
                 setPagination(prev => ({ ...prev, page: 1 }))
               }}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                statusFilter === status.value
+              className={`px-4 py-2 rounded-lg transition-colors ${statusFilter === status.value
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               {status.label}
             </button>

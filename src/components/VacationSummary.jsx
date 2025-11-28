@@ -13,21 +13,8 @@ const VacationSummary = () => {
   const [departments, setDepartments] = useState([]);
   const [vacationTypes, setVacationTypes] = useState([]);
   const [filters, setFilters] = useState(() => {
-    const userStr = localStorage.getItem('user');
-    let initialDeptId = undefined;
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        // 强制转换为数字
-        if (user.department_id !== undefined && user.department_id !== null) {
-          initialDeptId = parseInt(user.department_id);
-        }
-      } catch (e) {
-        console.error('解析用户信息失败', e);
-      }
-    }
     return {
-      department_id: initialDeptId,
+      department_id: undefined,
       search: '',
       year: new Date().getFullYear()
     };
@@ -46,24 +33,6 @@ const VacationSummary = () => {
     loadDepartments();
     loadVacationTypes();
   }, []);
-
-  // 监听部门列表变化，确保默认值正确
-  useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr && departments.length > 0) {
-      try {
-        const user = JSON.parse(userStr);
-        const userDeptId = user.department_id ? parseInt(user.department_id) : undefined;
-
-        // 如果当前没有选部门，且用户有部门，且该部门在列表中，则自动选中
-        if (!filters.department_id && userDeptId && departments.some(d => d.id === userDeptId)) {
-          setFilters(prev => ({ ...prev, department_id: userDeptId }));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, [departments]);
 
   useEffect(() => {
     loadData();
@@ -259,7 +228,7 @@ const VacationSummary = () => {
           <Select
             placeholder="选择年份"
             value={filters.year}
-            onChange={val => setFilters({...filters, year: val})}
+            onChange={val => setFilters({ ...filters, year: val })}
             className="w-full"
           >
             {[0, 1, 2].map(i => {
@@ -272,9 +241,10 @@ const VacationSummary = () => {
             placeholder="选择部门"
             allowClear
             value={filters.department_id}
-            onChange={val => setFilters({...filters, department_id: val})}
+            onChange={val => setFilters({ ...filters, department_id: val })}
             className="w-full"
           >
+            <Option value={undefined}>全部部门</Option>
             {departments.map(d => (
               <Option key={d.id} value={d.id}>{d.name}</Option>
             ))}
@@ -284,7 +254,7 @@ const VacationSummary = () => {
             placeholder="搜索姓名/工号"
             prefix={<SearchOutlined />}
             value={filters.search}
-            onChange={e => setFilters({...filters, search: e.target.value})}
+            onChange={e => setFilters({ ...filters, search: e.target.value })}
             onPressEnter={loadData}
             className="w-full"
           />

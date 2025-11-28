@@ -70,7 +70,10 @@ try {
 // 优先使用配置文件中的 sharedDirectory，否则使用默认的 uploads 目录
 let uploadDir = path.join(__dirname, '../uploads')
 if (dbConfigJson.upload && dbConfigJson.upload.sharedDirectory) {
-  uploadDir = dbConfigJson.upload.sharedDirectory
+  // 确保路径是绝对路径
+  uploadDir = path.isAbsolute(dbConfigJson.upload.sharedDirectory)
+    ? dbConfigJson.upload.sharedDirectory
+    : path.resolve(__dirname, dbConfigJson.upload.sharedDirectory)
   console.log('使用配置的上传目录:', uploadDir)
 }
 
@@ -2888,7 +2891,7 @@ fastify.delete('/api/roles/:roleId/departments/:departmentId', async (request, r
       'DELETE FROM role_departments WHERE role_id = ? AND department_id = ?',
       [roleId, departmentId]
     );
-    return { success: true, message: '部门权限移除成功'};
+    return { success: true, message: '部门权限移除成功' };
   } catch (error) {
     console.error(error);
     reply.code(500).send({ error: 'Failed to remove permission' });
@@ -3020,6 +3023,7 @@ fastify.register(require('./routes/conversion-rules'))
 fastify.register(require('./routes/vacation-balance'))
 fastify.register(require('./routes/compensatory-leave'))
 fastify.register(require('./routes/vacation-type-balances'))
+fastify.register(require('./routes/vacation-types'))
 
 // ==================== 知识库路由 ====================
 fastify.register(require('./routes/knowledge-reading'))
@@ -3033,7 +3037,7 @@ const start = async () => {
     console.log(`🚀 服务器启动成功！`);
     console.log(`   本地访问: http://localhost:3001`);
     if (dbConfigJson.upload && dbConfigJson.upload.publicUrl) {
-       console.log(`   公共访问: ${dbConfigJson.upload.publicUrl}`);
+      console.log(`   公共访问: ${dbConfigJson.upload.publicUrl}`);
     }
     console.log(`   网络访问: http://[您的IP地址]:3001`);
   } catch (err) {

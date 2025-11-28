@@ -145,13 +145,15 @@ const BatchVacationQuotaEditModal = ({ visible, onClose, employees = [], year, o
               name={type.code}
               label={type.name}
             >
-              <InputNumber
-                min={0}
-                precision={1}
-                addonAfter="天"
-                placeholder="保持不变"
-                style={{ width: '100%' }}
-              />
+              <Space.Compact style={{ width: '100%' }}>
+                <InputNumber
+                  min={0}
+                  precision={1}
+                  placeholder="保持不变"
+                  style={{ width: '100%' }}
+                />
+                <Input defaultValue="天" readOnly={true} disabled={true} />
+              </Space.Compact>
             </Form.Item>
           ))}
 

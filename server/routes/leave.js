@@ -56,9 +56,14 @@ module.exports = async function (fastify, opts) {
         SELECT lr.*, u.real_name as approver_name
         FROM leave_records lr
         LEFT JOIN users u ON lr.approver_id = u.id
-        WHERE lr.employee_id = ?
+        WHERE 1=1
       `
-      const params = [employee_id]
+      const params = []
+
+      if (employee_id) {
+        query += ' AND lr.employee_id = ?'
+        params.push(employee_id)
+      }
 
       if (status && status !== 'all') {
         query += ' AND lr.status = ?'
@@ -71,8 +76,14 @@ module.exports = async function (fastify, opts) {
       const [records] = await pool.query(query, params)
 
       // 获取总数
-      let countQuery = 'SELECT COUNT(*) as total FROM leave_records WHERE employee_id = ?'
-      const countParams = [employee_id]
+      // 获取总数
+      let countQuery = 'SELECT COUNT(*) as total FROM leave_records WHERE 1=1'
+      const countParams = []
+
+      if (employee_id) {
+        countQuery += ' AND employee_id = ?'
+        countParams.push(employee_id)
+      }
 
       if (status && status !== 'all') {
         countQuery += ' AND status = ?'
@@ -170,32 +181,32 @@ module.exports = async function (fastify, opts) {
           let daysToDeduct = leaveRecord.days;
 
           if (leaveRecord.use_converted_leave) {
-             // 获取当前余额
-             const balance = await fastify.getVacationBalance(leaveRecord.employee_id, leaveRecord.user_id, year);
-             const convertedRemaining = parseFloat(balance.overtime_leave_total || 0) - parseFloat(balance.overtime_leave_used || 0);
+            // 获取当前余额
+            const balance = await fastify.getVacationBalance(leaveRecord.employee_id, leaveRecord.user_id, year);
+            const convertedRemaining = parseFloat(balance.overtime_leave_total || 0) - parseFloat(balance.overtime_leave_used || 0);
 
-             if (convertedRemaining > 0) {
-               if (convertedRemaining >= daysToDeduct) {
-                 // 转换假期足够，全部使用转换假期
-                 leaveTypeToDeduct = 'overtime_leave';
-               } else {
-                 // 转换假期不足，部分使用
-                 // 1. 扣除所有剩余转换假期
-                 await fastify.deductLeaveBalance(
-                    leaveRecord.employee_id,
-                    leaveRecord.user_id,
-                    'overtime_leave',
-                    convertedRemaining,
-                    year,
-                    approver_id,
-                    request.ip
-                 );
+            if (convertedRemaining > 0) {
+              if (convertedRemaining >= daysToDeduct) {
+                // 转换假期足够，全部使用转换假期
+                leaveTypeToDeduct = 'overtime_leave';
+              } else {
+                // 转换假期不足，部分使用
+                // 1. 扣除所有剩余转换假期
+                await fastify.deductLeaveBalance(
+                  leaveRecord.employee_id,
+                  leaveRecord.user_id,
+                  'overtime_leave',
+                  convertedRemaining,
+                  year,
+                  approver_id,
+                  request.ip
+                );
 
-                 // 2. 剩余部分使用原申请类型
-                 daysToDeduct = daysToDeduct - convertedRemaining;
-                 // leaveTypeToDeduct 保持原值 (e.g. 'annual')
-               }
-             }
+                // 2. 剩余部分使用原申请类型
+                daysToDeduct = daysToDeduct - convertedRemaining;
+                // leaveTypeToDeduct 保持原值 (e.g. 'annual')
+              }
+            }
           }
 
           await fastify.deductLeaveBalance(
@@ -211,7 +222,7 @@ module.exports = async function (fastify, opts) {
 
         // 自动更新排班
         if (fastify.updateScheduleForLeave) {
-           await fastify.updateScheduleForLeave(leaveRecord);
+          await fastify.updateScheduleForLeave(leaveRecord);
         }
 
         await connection.commit()

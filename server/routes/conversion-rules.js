@@ -54,9 +54,9 @@ module.exports = async function (fastify, opts) {
 
   // 创建转换规则
   fastify.post('/api/conversion-rules', async (request, reply) => {
-    const { name, source_type, target_type, ratio, enabled, description } = request.body;
+    const { source_type, target_type, ratio, enabled } = request.body;
 
-    if (!name || !source_type || !target_type || !ratio) {
+    if (!source_type || !target_type || !ratio) {
       return reply.code(400).send({ success: false, message: '缺少必填参数' });
     }
 
@@ -65,26 +65,30 @@ module.exports = async function (fastify, opts) {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS conversion_rules (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
           source_type VARCHAR(50) NOT NULL,
           target_type VARCHAR(50) NOT NULL,
-          ratio DECIMAL(5, 2) NOT NULL DEFAULT 1.00,
-          enabled BOOLEAN DEFAULT TRUE,
-          description TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          conversion_rate DECIMAL(10, 2) NOT NULL,
+          enabled TINYINT(1) DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
       `);
 
       const [result] = await pool.query(
-        'INSERT INTO conversion_rules (name, source_type, target_type, ratio, enabled, description) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, source_type, target_type, ratio, enabled !== undefined ? enabled : true, description]
+        'INSERT INTO conversion_rules (source_type, target_type, conversion_rate, enabled) VALUES (?, ?, ?, ?)',
+        [source_type, target_type, ratio, enabled !== undefined ? enabled : 1]
       );
 
       return {
         success: true,
         message: '创建成功',
-        data: { id: result.insertId, ...request.body }
+        data: { 
+          id: result.insertId, 
+          source_type,
+          target_type,
+          conversion_rate: ratio,
+          enabled
+        }
       };
     } catch (error) {
       console.error('❌ 创建转换规则失败:', error);
@@ -95,18 +99,16 @@ module.exports = async function (fastify, opts) {
   // 更新转换规则
   fastify.put('/api/conversion-rules/:id', async (request, reply) => {
     const { id } = request.params;
-    const { name, source_type, target_type, ratio, enabled, description } = request.body;
+    const { source_type, target_type, ratio, enabled } = request.body;
 
     try {
       const updates = [];
       const params = [];
 
-      if (name !== undefined) { updates.push('name = ?'); params.push(name); }
       if (source_type !== undefined) { updates.push('source_type = ?'); params.push(source_type); }
       if (target_type !== undefined) { updates.push('target_type = ?'); params.push(target_type); }
-      if (ratio !== undefined) { updates.push('ratio = ?'); params.push(ratio); }
+      if (ratio !== undefined) { updates.push('conversion_rate = ?'); params.push(ratio); }
       if (enabled !== undefined) { updates.push('enabled = ?'); params.push(enabled); }
-      if (description !== undefined) { updates.push('description = ?'); params.push(description); }
 
       if (updates.length === 0) {
         return reply.code(400).send({ success: false, message: '没有要更新的字段' });
@@ -146,7 +148,7 @@ module.exports = async function (fastify, opts) {
     }
 
     try {
-      let conversionRatio = 1.0;
+      let conversionRatio = 8.0;
       let ruleName = '默认规则';
 
       if (rule_id) {
@@ -156,8 +158,8 @@ module.exports = async function (fastify, opts) {
           [rule_id]
         );
         if (rules.length > 0) {
-          conversionRatio = parseFloat(rules[0].ratio);
-          ruleName = rules[0].name;
+          conversionRatio = parseFloat(rules[0].conversion_rate);
+          ruleName = `规则-${rules[0].id}`;
         }
       } else if (target_type_code) {
         // 根据目标类型查找规则
@@ -168,8 +170,8 @@ module.exports = async function (fastify, opts) {
           [target_type_code]
         );
         if (rules.length > 0) {
-          conversionRatio = parseFloat(rules[0].ratio);
-          ruleName = rules[0].name;
+          conversionRatio = parseFloat(rules[0].conversion_rate);
+          ruleName = `规则-${rules[0].id}`;
         }
       }
 

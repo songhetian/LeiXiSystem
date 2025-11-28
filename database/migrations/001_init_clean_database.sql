@@ -9,6 +9,9 @@ CREATE DATABASE IF NOT EXISTS leixin_customer_service DEFAULT CHARACTER SET utf8
 
 USE leixin_customer_service;
 
+-- 设置SQL模式,允许更灵活的数据插入
+SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
 -- 删除所有表（如果存在）
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -2000,6 +2003,17 @@ CREATE TABLE `vacation_types` (
   KEY `idx_enabled` (`enabled`)
 ) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='假期类型表';
 
+-- 插入默认假期类型
+INSERT INTO `vacation_types` (`code`, `name`, `base_days`, `included_in_total`, `description`, `enabled`) VALUES
+('annual', '年假', 5.00, 1, '法定年休假', 1),
+('sick', '病假', 12.00, 1, '因病请假', 1),
+('personal', '事假', 0.00, 0, '因私事请假', 1),
+('marriage', '婚假', 3.00, 0, '结婚请假', 1),
+('maternity', '产假', 98.00, 0, '生育请假', 1),
+('paternity', '陪产假', 15.00, 0, '陪护妻子生育', 1),
+('bereavement', '丧假', 3.00, 0, '直系亲属去世', 1),
+('compensatory', '调休', 0.00, 1, '加班调休', 1);
+
 -- 表: work_shifts
 CREATE TABLE `work_shifts` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -2024,36 +2038,295 @@ CREATE TABLE `work_shifts` (
 -- 插入初始数据
 -- ==========================================
 
+-- ========== 1. 插入部门数据 ==========
 -- 插入管理员部门
-INSERT INTO `departments` (`name`, `description`, `status`, `created_at`)
-VALUES ('管理员', '系统管理员部门', 'active', NOW());
-
--- 获取刚插入的部门ID
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('管理员', '系统管理员部门', 'active', 1, NOW());
 SET @admin_dept_id = LAST_INSERT_ID();
 
+-- 插入技术部
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('技术部', '负责系统开发和技术支持', 'active', 2, NOW());
+SET @tech_dept_id = LAST_INSERT_ID();
+
+-- 插入客服部
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('客服部', '负责客户服务和支持', 'active', 3, NOW());
+SET @service_dept_id = LAST_INSERT_ID();
+
+-- 插入人事部
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('人事部', '负责人力资源管理', 'active', 4, NOW());
+SET @hr_dept_id = LAST_INSERT_ID();
+
+-- 插入财务部
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('财务部', '负责财务管理和核算', 'active', 5, NOW());
+SET @finance_dept_id = LAST_INSERT_ID();
+
+-- 插入市场部
+INSERT INTO `departments` (`name`, `description`, `status`, `sort_order`, `created_at`)
+VALUES ('市场部', '负责市场营销和推广', 'active', 6, NOW());
+SET @market_dept_id = LAST_INSERT_ID();
+
+-- ========== 2. 插入职位数据 ==========
+INSERT INTO `positions` (`name`, `description`, `level`, `created_at`) VALUES
+('系统管理员', '负责系统管理和维护', 'senior', NOW()),
+('技术经理', '负责技术团队管理', 'manager', NOW()),
+('高级工程师', '负责核心功能开发', 'senior', NOW()),
+('工程师', '负责功能开发', 'intermediate', NOW()),
+('客服主管', '负责客服团队管理', 'manager', NOW()),
+('高级客服专员', '负责复杂客户问题处理', 'senior', NOW()),
+('客服专员', '负责客户咨询服务', 'junior', NOW()),
+('人事经理', '负责人力资源管理', 'manager', NOW()),
+('人事专员', '负责招聘和员工关系', 'junior', NOW()),
+('财务经理', '负责财务管理', 'manager', NOW()),
+('会计', '负责账务处理', 'intermediate', NOW()),
+('市场经理', '负责市场策略', 'manager', NOW()),
+('市场专员', '负责市场推广', 'junior', NOW());
+
+-- ========== 3. 插入权限数据 ==========
+INSERT INTO `permissions` (`code`, `name`, `resource`, `action`, `module`, `description`, `created_at`) VALUES
+-- 用户管理权限
+('user:view', '查看用户', 'user', 'view', 'user_management', '查看用户列表和详情', NOW()),
+('user:create', '创建用户', 'user', 'create', 'user_management', '创建新用户账号', NOW()),
+('user:update', '更新用户', 'user', 'update', 'user_management', '更新用户信息', NOW()),
+('user:delete', '删除用户', 'user', 'delete', 'user_management', '删除用户账号', NOW()),
+('user:reset_password', '重置密码', 'user', 'reset_password', 'user_management', '重置用户密码', NOW()),
+
+-- 部门管理权限
+('department:view', '查看部门', 'department', 'view', 'department_management', '查看部门列表和详情', NOW()),
+('department:create', '创建部门', 'department', 'create', 'department_management', '创建新部门', NOW()),
+('department:update', '更新部门', 'department', 'update', 'department_management', '更新部门信息', NOW()),
+('department:delete', '删除部门', 'department', 'delete', 'department_management', '删除部门', NOW()),
+
+-- 员工管理权限
+('employee:view', '查看员工', 'employee', 'view', 'employee_management', '查看员工列表和详情', NOW()),
+('employee:create', '创建员工', 'employee', 'create', 'employee_management', '创建员工档案', NOW()),
+('employee:update', '更新员工', 'employee', 'update', 'employee_management', '更新员工信息', NOW()),
+('employee:delete', '删除员工', 'employee', 'delete', 'employee_management', '删除员工档案', NOW()),
+
+-- 角色权限管理
+('role:view', '查看角色', 'role', 'view', 'role_management', '查看角色列表和详情', NOW()),
+('role:create', '创建角色', 'role', 'create', 'role_management', '创建新角色', NOW()),
+('role:update', '更新角色', 'role', 'update', 'role_management', '更新角色信息', NOW()),
+('role:delete', '删除角色', 'role', 'delete', 'role_management', '删除角色', NOW()),
+('role:assign_permission', '分配权限', 'role', 'assign_permission', 'role_management', '为角色分配权限', NOW()),
+
+-- 考勤管理权限
+('attendance:view', '查看考勤', 'attendance', 'view', 'attendance_management', '查看考勤记录', NOW()),
+('attendance:create', '创建考勤', 'attendance', 'create', 'attendance_management', '创建考勤记录', NOW()),
+('attendance:update', '更新考勤', 'attendance', 'update', 'attendance_management', '更新考勤记录', NOW()),
+('attendance:approve', '审批考勤', 'attendance', 'approve', 'attendance_management', '审批考勤异常', NOW()),
+
+-- 考核管理权限
+('assessment:view', '查看考核', 'assessment', 'view', 'assessment_management', '查看考核计划和结果', NOW()),
+('assessment:create', '创建考核', 'assessment', 'create', 'assessment_management', '创建考核计划', NOW()),
+('assessment:update', '更新考核', 'assessment', 'update', 'assessment_management', '更新考核计划', NOW()),
+('assessment:delete', '删除考核', 'assessment', 'delete', 'assessment_management', '删除考核计划', NOW()),
+
+-- 知识库管理权限
+('knowledge:view', '查看知识库', 'knowledge', 'view', 'knowledge_management', '查看知识库文章', NOW()),
+('knowledge:create', '创建文章', 'knowledge', 'create', 'knowledge_management', '创建知识库文章', NOW()),
+('knowledge:update', '更新文章', 'knowledge', 'update', 'knowledge_management', '更新知识库文章', NOW()),
+('knowledge:delete', '删除文章', 'knowledge', 'delete', 'knowledge_management', '删除知识库文章', NOW()),
+
+-- 质检管理权限
+('quality:view', '查看质检', 'quality', 'view', 'quality_management', '查看质检记录', NOW()),
+('quality:create', '创建质检', 'quality', 'create', 'quality_management', '创建质检记录', NOW()),
+('quality:update', '更新质检', 'quality', 'update', 'quality_management', '更新质检记录', NOW()),
+('quality:delete', '删除质检', 'quality', 'delete', 'quality_management', '删除质检记录', NOW()),
+
+-- 系统设置权限
+('system:view', '查看系统设置', 'system', 'view', 'system_management', '查看系统设置', NOW()),
+('system:update', '更新系统设置', 'system', 'update', 'system_management', '更新系统设置', NOW());
+
+-- ========== 4. 插入角色数据 ==========
+INSERT INTO `roles` (`name`, `description`, `is_system`, `created_at`) VALUES
+('超级管理员', '拥有系统所有权限', 1, NOW()),
+('部门经理', '部门管理权限', 0, NOW()),
+('普通员工', '基础员工权限', 0, NOW()),
+('客服人员', '客服相关权限', 0, NOW());
+
+-- 获取角色ID
+SET @super_admin_role_id = (SELECT id FROM roles WHERE name = '超级管理员');
+SET @manager_role_id = (SELECT id FROM roles WHERE name = '部门经理');
+SET @employee_role_id = (SELECT id FROM roles WHERE name = '普通员工');
+SET @service_role_id = (SELECT id FROM roles WHERE name = '客服人员');
+
+-- ========== 5. 插入角色权限关联 ==========
+-- 超级管理员拥有所有权限
+INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
+SELECT @super_admin_role_id, id, NOW() FROM permissions;
+
+-- 部门经理权限
+INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
+SELECT @manager_role_id, id, NOW() FROM permissions 
+WHERE code IN (
+    'user:view', 'employee:view', 'employee:update',
+    'attendance:view', 'attendance:approve',
+    'assessment:view', 'assessment:create',
+    'knowledge:view', 'knowledge:create', 'knowledge:update',
+    'quality:view', 'quality:create'
+);
+
+-- 普通员工权限
+INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
+SELECT @employee_role_id, id, NOW() FROM permissions 
+WHERE code IN (
+    'user:view', 'employee:view',
+    'attendance:view', 'knowledge:view'
+);
+
+-- 客服人员权限
+INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
+SELECT @service_role_id, id, NOW() FROM permissions 
+WHERE code IN (
+    'user:view', 'employee:view',
+    'attendance:view', 'knowledge:view', 'knowledge:create',
+    'quality:view'
+);
+
+-- ========== 6. 插入用户和员工数据 ==========
 -- 插入超级管理员账号
--- 用户名: admin
--- 密码: admin123
+-- 用户名: admin, 密码: admin123
 INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
 VALUES ('admin', '$2b$10$ya3vuqq/jDVDl20Lir84N.3rjxwKgcq25aWJpaZstEkttcRApbFRm', '系统管理员', 'admin@example.com', '13800138000', @admin_dept_id, 'active', NOW());
-
--- 获取刚插入的用户ID
 SET @admin_user_id = LAST_INSERT_ID();
 
--- 插入管理员员工记录
-INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `created_at`)
-VALUES (@admin_user_id, 'ADMIN001', '系统管理员', NOW(), 'active', NOW());
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@admin_user_id, 'ADMIN001', '系统管理员', '2024-01-01', 'active', 5, NOW());
 
--- 注意：roles 和 user_roles 表不在此初始化脚本中
--- 如需角色功能，请单独创建这些表并插入数据
+-- 绑定超级管理员角色到 admin 用户
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@admin_user_id, @super_admin_role_id, NOW());
+
+-- 技术部员工
+-- 用户名: tech_manager, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('tech_manager', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '张技术', 'tech.manager@example.com', '13800138001', @tech_dept_id, 'active', NOW());
+SET @tech_manager_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@tech_manager_id, 'TECH001', '技术经理', '2024-01-15', 'active', 4, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@tech_manager_id, @manager_role_id, NOW());
+
+-- 用户名: engineer1, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('engineer1', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '李工程师', 'engineer1@example.com', '13800138002', @tech_dept_id, 'active', NOW());
+SET @engineer1_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@engineer1_id, 'TECH002', '高级工程师', '2024-02-01', 'active', 4, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@engineer1_id, @employee_role_id, NOW());
+
+-- 用户名: engineer2, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('engineer2', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '王工程师', 'engineer2@example.com', '13800138003', @tech_dept_id, 'active', NOW());
+SET @engineer2_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@engineer2_id, 'TECH003', '工程师', '2024-03-01', 'active', 3, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@engineer2_id, @employee_role_id, NOW());
+
+-- 客服部员工
+-- 用户名: service_manager, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('service_manager', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '赵主管', 'service.manager@example.com', '13800138004', @service_dept_id, 'active', NOW());
+SET @service_manager_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@service_manager_id, 'CS001', '客服主管', '2024-01-10', 'active', 5, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@service_manager_id, @manager_role_id, NOW());
+
+-- 用户名: service1, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('service1', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '刘客服', 'service1@example.com', '13800138005', @service_dept_id, 'active', NOW());
+SET @service1_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@service1_id, 'CS002', '高级客服专员', '2024-02-15', 'active', 4, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@service1_id, @service_role_id, NOW());
+
+-- 用户名: service2, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('service2', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '陈客服', 'service2@example.com', '13800138006', @service_dept_id, 'active', NOW());
+SET @service2_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@service2_id, 'CS003', '客服专员', '2024-03-10', 'active', 3, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@service2_id, @service_role_id, NOW());
+
+-- 用户名: service3, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('service3', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '周客服', 'service3@example.com', '13800138007', @service_dept_id, 'active', NOW());
+SET @service3_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@service3_id, 'CS004', '客服专员', '2024-04-01', 'active', 3, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@service3_id, @service_role_id, NOW());
+
+-- 人事部员工
+-- 用户名: hr_manager, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('hr_manager', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '吴经理', 'hr.manager@example.com', '13800138008', @hr_dept_id, 'active', NOW());
+SET @hr_manager_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@hr_manager_id, 'HR001', '人事经理', '2024-01-05', 'active', 4, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@hr_manager_id, @manager_role_id, NOW());
+
+-- 用户名: hr1, 密码: 123456
+INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`)
+VALUES ('hr1', '$2b$10$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq', '郑人事', 'hr1@example.com', '13800138009', @hr_dept_id, 'active', NOW());
+SET @hr1_id = LAST_INSERT_ID();
+
+INSERT INTO `employees` (`user_id`, `employee_no`, `position`, `hire_date`, `status`, `rating`, `created_at`)
+VALUES (@hr1_id, 'HR002', '人事专员', '2024-02-20', 'active', 3, NOW());
+
+INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
+VALUES (@hr1_id, @employee_role_id, NOW());
 
 
 -- ==========================================
 -- 初始化完成
 -- ==========================================
--- 超级管理员账号信息:
--- 用户名: admin
--- 密码: admin123
+-- 测试账号信息:
+-- 
+-- 超级管理员:
+--   用户名: admin, 密码: admin123
+-- 
+-- 部门经理:
+--   用户名: tech_manager, 密码: 123456 (技术部)
+--   用户名: service_manager, 密码: 123456 (客服部)
+--   用户名: hr_manager, 密码: 123456 (人事部)
+-- 
+-- 普通员工:
+--   用户名: engineer1, 密码: 123456 (技术部-高级工程师)
+--   用户名: engineer2, 密码: 123456 (技术部-工程师)
+--   用户名: hr1, 密码: 123456 (人事部-人事专员)
+-- 
+-- 客服人员:
+--   用户名: service1, 密码: 123456 (客服部-高级客服专员)
+--   用户名: service2, 密码: 123456 (客服部-客服专员)
+--   用户名: service3, 密码: 123456 (客服部-客服专员)
+-- 
 -- 请登录后立即修改密码！
 -- ==========================================
 

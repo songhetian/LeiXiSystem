@@ -6,6 +6,8 @@ import { useTokenVerification } from './hooks/useTokenVerification'
 import { getApiUrl } from './utils/apiConfig'
 import { tokenManager, apiPost } from './utils/apiClient'
 import { Spin } from 'antd'; // Import Spin for fallback
+import ErrorBoundary from './components/ErrorBoundary'
+import NotFound from './pages/NotFound'
 
 // Lazy-loaded components
 const Login = lazy(() => import('./pages/Login'));
@@ -176,11 +178,11 @@ function App() {
       case 'attendance-leave-apply':
         return <LeaveApply />
       case 'attendance-leave-records':
-        return <LeaveRecords />
+        return <LeaveRecords onNavigate={handleSetActiveTab} />
       case 'attendance-overtime-apply':
         return <OvertimeApply />
       case 'attendance-overtime-records':
-        return <OvertimeRecords />
+        return <OvertimeRecords onNavigate={handleSetActiveTab} />
       case 'attendance-stats':
         return <AttendanceStats />
       case 'attendance-department':
@@ -303,7 +305,7 @@ function App() {
         return <PersonalInfo />
 
       default:
-        return <EmployeeManagement />
+        return <NotFound />
     }
   }
 
@@ -312,34 +314,36 @@ function App() {
   }
 
   return (
-    <DatabaseCheck>
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar
-          activeTab={activeTab.name}
-          setActiveTab={handleSetActiveTab}
-          user={user}
-          onLogout={handleLogout}
-        />
-        <main className="flex-1 overflow-auto bg-gray-50">
-          <Suspense fallback={<div className="flex justify-center items-center h-full"><Spin size="large" /></div>}>
-            {renderContent()}
-          </Suspense>
-        </main>
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
-          limit={3}
-        />
-      </div>
-    </DatabaseCheck>
+    <ErrorBoundary>
+      <DatabaseCheck>
+        <div className="flex h-screen bg-gray-50">
+          <Sidebar
+            activeTab={activeTab.name}
+            setActiveTab={handleSetActiveTab}
+            user={user}
+            onLogout={handleLogout}
+          />
+          <main className="flex-1 overflow-auto bg-gray-50">
+            <Suspense fallback={<div className="flex justify-center items-center h-full"><Spin size="large" /></div>}>
+              {renderContent()}
+            </Suspense>
+          </main>
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+            limit={3}
+          />
+        </div>
+      </DatabaseCheck>
+    </ErrorBoundary>
   )
 }
 

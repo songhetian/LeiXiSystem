@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { getApiUrl } from '../../utils/apiConfig'
@@ -12,7 +12,31 @@ export default function OvertimeApply() {
     reason: ''
   })
   const [loading, setLoading] = useState(false)
-  const [employee] = useState({ id: 1, user_id: 1, name: '张三' })
+  const [employee, setEmployee] = useState(null)
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      const userData = JSON.parse(userStr)
+      setUser(userData)
+      fetchEmployeeInfo(userData.id)
+    }
+  }, [])
+
+  const fetchEmployeeInfo = async (userId) => {
+    try {
+      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      if (response.data.success && response.data.data) {
+        setEmployee(response.data.data)
+      } else {
+        toast.error('未找到员工信息')
+      }
+    } catch (error) {
+      console.error('获取员工信息失败:', error)
+      toast.error('获取员工信息失败')
+    }
+  }
 
   const calculateHours = () => {
     if (!formData.start_time || !formData.end_time) return 0
@@ -25,6 +49,11 @@ export default function OvertimeApply() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!employee) {
+      toast.error('员工信息未加载')
+      return
+    }
 
     const hours = calculateHours()
     if (hours <= 0) {
