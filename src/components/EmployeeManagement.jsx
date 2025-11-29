@@ -708,34 +708,34 @@ function EmployeeManagement() {
           )}
         </div>
 
-        {/* 表格 */}
+        {/* 表格 - 优化紧凑布局 */}
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full">
             <thead className="bg-primary-50 border-b border-primary-100">
               <tr>
-                <th className="w-[20%] px-4 py-3 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">员工</th>
-                <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">部门</th>
-                <th className="w-[12%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">职位</th>
-                <th className="w-[15%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">联系方式</th>
-                <th className="w-[8%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">评级</th>
-                <th className="w-[10%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
-                <th className="w-[23%] px-4 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tl-lg">员工</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">部门</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">职位</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">联系方式</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">评级</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider rounded-tr-lg">操作</th>
               </tr>
             </thead>
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-3 py-8 text-center text-gray-500">
                     {employees.length === 0 ? '暂无数据' : '没有符合条件的员工'}
                   </td>
                 </tr>
               ) : (
                 getCurrentPageData().map((emp, index) => (
                   <tr key={emp.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-primary-50/30'} hover:bg-primary-100/50 transition-colors`}>
-                    <td className="w-[20%] px-4 py-3">
-                      <div className="flex items-center gap-3">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
                         <div
-                          className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-lg font-medium text-primary-600 cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all overflow-hidden flex-shrink-0"
+                          className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-600 cursor-pointer hover:ring-2 hover:ring-primary-500 transition-all overflow-hidden flex-shrink-0"
                           onClick={() => handleViewDetail(emp)}
                           title="点击查看详情"
                         >
@@ -745,29 +745,29 @@ function EmployeeManagement() {
                             emp.real_name?.charAt(0) || '员'
                           )}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-gray-900 truncate">{emp.real_name}</div>
+                        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleViewDetail(emp)}>
+                          <div className="text-sm font-medium text-gray-900 truncate hover:text-primary-600 transition-colors">{emp.real_name}</div>
                           <div className="text-xs text-gray-500 truncate">{emp.employee_no}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="w-[12%] px-4 py-3 text-center text-gray-600">
-                      <div className="truncate">{emp.department_name || '-'}</div>
+                    <td className="px-3 py-2 text-center">
+                      <div className="text-sm text-gray-600 truncate">{emp.department_name || '-'}</div>
                     </td>
-                    <td className="w-[12%] px-4 py-3 text-center text-gray-600">
-                      <div className="truncate">{emp.position || '-'}</div>
+                    <td className="px-3 py-2 text-center">
+                      <div className="text-sm text-gray-600 truncate">{emp.position || '-'}</div>
                     </td>
-                    <td className="w-[15%] px-4 py-3 text-center text-gray-600">
-                      <div className="truncate">{emp.phone || emp.email || '-'}</div>
+                    <td className="px-3 py-2 text-center">
+                      <div className="text-sm text-gray-600 truncate">{emp.phone || emp.email || '-'}</div>
                     </td>
-                    <td className="w-[8%] px-4 py-3 text-center">
-                      <span className="text-gray-700 font-medium">{renderRating(emp.rating)}</span>
+                    <td className="px-3 py-2 text-center">
+                      <span className="text-sm text-gray-700 font-medium">{renderRating(emp.rating)}</span>
                     </td>
-                    <td className="w-[10%] px-4 py-3 text-center">
+                    <td className="px-3 py-2 text-center">
                       <div className="flex justify-center">
                         <span
                           onClick={() => handleStatusClick(emp)}
-                          className={`px-3 py-1 rounded-full text-sm cursor-pointer hover:opacity-80 transition-opacity whitespace-nowrap ${emp.status === 'active' ? 'bg-green-100 text-green-700' :
+                          className={`px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity whitespace-nowrap ${emp.status === 'active' ? 'bg-green-100 text-green-700' :
                               emp.status === 'resigned' ? 'bg-red-100 text-red-700' :
                                 'bg-gray-100 text-gray-700'
                             }`}
@@ -777,25 +777,25 @@ function EmployeeManagement() {
                         </span>
                       </div>
                     </td>
-                    <td className="w-[23%] px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => handleEdit(emp)}
-                          className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                          className="p-1.5 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                          title="编辑"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          编辑
                         </button>
                         <button
                           onClick={() => handleDeleteClick(emp)}
-                          className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                          className="p-1.5 text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                          title="删除"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                          删除
                         </button>
                       </div>
                     </td>

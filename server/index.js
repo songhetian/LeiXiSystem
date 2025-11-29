@@ -3029,6 +3029,9 @@ fastify.register(require('./routes/vacation-types'))
 fastify.register(require('./routes/knowledge-reading'))
 fastify.register(require('./routes/knowledge-stats'))
 
+// ==================== 质检管理路由 ====================
+fastify.register(require('./routes/quality-inspection'))
+
 const start = async () => {
   try {
     await initDatabase();

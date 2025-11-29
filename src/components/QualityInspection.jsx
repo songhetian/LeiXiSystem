@@ -4,15 +4,17 @@ import { toast } from 'react-toastify'
 import qualityAPI from '../api/qualityAPI.js'
 import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'
-import '../pages/Messaging/WeChatPage.css' // Ensure this path is correct relative to src/components/QualityInspection.jsx
+import PlatformShopManagement from './PlatformShopManagement'
+import '../pages/Messaging/WeChatPage.css'
 
 const QualityInspection = () => {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading] = useState(true)
   const [isInspectOpen, setIsInspectOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isPlatformShopModalOpen, setIsPlatformShopModalOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState(null)
-  const [sessionMessages, setSessionMessages] = useState([]); // New state for session messages
+  const [sessionMessages, setSessionMessages] = useState([]);
   const [inspectionData, setInspectionData] = useState({
     attitude: 0,
     professional: 0,
@@ -36,17 +38,16 @@ const QualityInspection = () => {
     endDate: '',
   });
 
-  // Helper to determine if timestamp should be shown
   const shouldShowTimestamp = (currentMsg, prevMsg) => {
     if (!prevMsg) return true;
     const currentTime = new Date(currentMsg.sent_at).getTime();
     const prevTime = new Date(prevMsg.sent_at).getTime();
-    return (currentTime - prevTime) / 1000 / 60 > 5; // Show if > 5 mins difference
+    return (currentTime - prevTime) / 1000 / 60 > 5;
   };
 
   useEffect(() => {
     loadInspections();
-  }, [pagination.page, pagination.pageSize, filters]); // Reload inspections when page, pageSize, or filters change
+  }, [pagination.page, pagination.pageSize, filters]);
 
   useEffect(() => {
     if (chatHistoryRef.current) {
@@ -74,17 +75,17 @@ const QualityInspection = () => {
 
   const handleFilterChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
-    setPagination({ ...pagination, page: 1 }); // Reset to first page on filter change
+    setPagination({ ...pagination, page: 1 });
   };
 
   const handlePageChange = (newPage) => {
     setPagination({ ...pagination, page: newPage });
   };
 
-  const handleInspect = async (inspection) => { // Made async to fetch messages
+  const handleInspect = async (inspection) => {
     setSelectedInspection(inspection)
     setInspectionData({
-      attitude: inspection.score_details?.attitude || 0, // Pre-fill if already scored
+      attitude: inspection.score_details?.attitude || 0,
       professional: inspection.score_details?.professional || 0,
       communication: inspection.score_details?.communication || 0,
       compliance: inspection.score_details?.compliance || 0,
@@ -92,14 +93,13 @@ const QualityInspection = () => {
     })
     setIsInspectOpen(true)
 
-    // Fetch session messages
     try {
       const messagesResponse = await qualityAPI.getSessionMessages(inspection.id);
       setSessionMessages(messagesResponse.data.data);
     } catch (error) {
       toast.error('加载会话消息失败');
       console.error('Error loading session messages:', error);
-      setSessionMessages([]); // Clear messages on error
+      setSessionMessages([]);
     }
   }
 
@@ -114,8 +114,8 @@ const QualityInspection = () => {
 
       await qualityAPI.submitReview(selectedInspection.id, {
         score: totalScore,
-        grade: 'A', // Placeholder, actual grade logic might be more complex
-        rule_scores: [ // Example structure, adjust based on actual backend expectation
+        grade: 'A',
+        rule_scores: [
           { rule_id: 1, score: inspectionData.attitude, comment: 'Attitude score' },
           { rule_id: 2, score: inspectionData.professional, comment: 'Professional score' },
           { rule_id: 3, score: inspectionData.communication, comment: 'Communication score' },
@@ -206,6 +206,12 @@ const QualityInspection = () => {
               className="business-input w-40"
             />
             <button
+              onClick={() => setIsPlatformShopModalOpen(true)}
+              className="business-btn business-btn-secondary"
+            >
+              平台店铺管理
+            </button>
+            <button
               onClick={() => setIsImportModalOpen(true)}
               className="business-btn business-btn-success"
             >
@@ -287,7 +293,6 @@ const QualityInspection = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="flex justify-center items-center mt-6 space-x-2">
             <button
@@ -320,6 +325,10 @@ const QualityInspection = () => {
 
       <ImportSessionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
 
+      <Modal isOpen={isPlatformShopModalOpen} onClose={() => setIsPlatformShopModalOpen(false)} title="平台店铺管理" size="large">
+        <PlatformShopManagement />
+      </Modal>
+
       <Modal isOpen={isInspectOpen} onClose={() => setIsInspectOpen(false)} title="质检评分">
         {selectedInspection && (
           <div className="space-y-6">
@@ -335,7 +344,6 @@ const QualityInspection = () => {
               </div>
             </div>
 
-            {/* Chat History Display - WeChat Style */}
             <div ref={chatHistoryRef} className="wechat-messages bg-gray-100 rounded-lg h-96 overflow-y-auto border border-gray-200">
               {sessionMessages.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">暂无会话消息</p>

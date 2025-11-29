@@ -38,7 +38,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zInd
             <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
           </div>
         )}
-        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
           {children}
         </div>
         {footer && (

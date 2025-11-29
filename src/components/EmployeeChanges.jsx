@@ -327,8 +327,8 @@ function EmployeeChanges() {
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-4 gap-6 mb-6">
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
+      <div className="grid grid-cols-3 gap-8 mb-6 w-full">
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-all duration-300 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-green-700 mb-1">本月入职</div>
@@ -337,12 +337,12 @@ function EmployeeChanges() {
                   new Date(c.change_date).getMonth() === new Date().getMonth()).length}
               </div>
             </div>
-            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl">
+            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg">
               👤
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-lg transition-all duration-300 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-red-700 mb-1">本月离职</div>
@@ -351,12 +351,12 @@ function EmployeeChanges() {
                   new Date(c.change_date).getMonth() === new Date().getMonth()).length}
               </div>
             </div>
-            <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white text-2xl">
+            <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg">
               👋
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-all duration-300 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-blue-700 mb-1">本月调动</div>
@@ -365,22 +365,8 @@ function EmployeeChanges() {
                   new Date(c.change_date).getMonth() === new Date().getMonth()).length}
               </div>
             </div>
-            <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl">
+            <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg">
               🔄
-            </div>
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-md p-6 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-purple-700 mb-1">本月晋升</div>
-              <div className="text-3xl font-bold text-purple-800">
-                {filteredChanges.filter(c => c.change_type === 'promotion' &&
-                  new Date(c.change_date).getMonth() === new Date().getMonth()).length}
-              </div>
-            </div>
-            <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white text-2xl">
-              ⬆️
             </div>
           </div>
         </div>

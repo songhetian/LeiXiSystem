@@ -137,115 +137,116 @@ function EmployeeDetail({ employee, isOpen, onClose, departments }) {
   if (!employee) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="" size="full">
+    <Modal isOpen={isOpen} onClose={onClose} title="" size="large">
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
+          width: 2px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
           background: #cbd5e0;
-          border-radius: 2px;
+          border-radius: 1px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #a0aec0;
         }
       `}</style>
 
-      <div className="max-h-[80vh] overflow-y-auto custom-scrollbar pr-2">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 -mx-6 -mt-6 px-6 py-8 mb-6">
-          <div className="flex items-start gap-6">
-            <div className="w-28 h-28 rounded-xl bg-white shadow-lg flex items-center justify-center text-4xl font-bold text-primary-600 overflow-hidden flex-shrink-0">
+      <div>
+        {/* 头部 - 莫兰迪色系(加深) */}
+        <div className="bg-gradient-to-r from-sky-200/80 to-indigo-200/80 -mx-6 -mt-4 px-5 py-3 mb-4 border-b border-sky-300/70">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-lg bg-white/95 shadow-sm flex items-center justify-center text-lg font-semibold text-indigo-700 overflow-hidden flex-shrink-0 border border-indigo-300/60">
               {employee.avatar ? (
                 <img src={employee.avatar} alt={employee.real_name} className="w-full h-full object-cover" />
               ) : (
                 employee.real_name?.charAt(0) || '员'
               )}
             </div>
-            <div className="flex-1 pt-2">
-              <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-3xl font-bold text-gray-900">{employee.real_name}</h3>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                  employee.status === 'active' ? 'bg-green-500 text-white' :
-                  employee.status === 'resigned' ? 'bg-red-500 text-white' :
-                  'bg-gray-500 text-white'
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className="text-base font-semibold text-slate-800">{employee.real_name}</h3>
+                <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                  employee.status === 'active' ? 'bg-emerald-200/90 text-emerald-800 border border-emerald-400/70' :
+                  employee.status === 'resigned' ? 'bg-rose-200/90 text-rose-800 border border-rose-400/70' :
+                  'bg-slate-200/90 text-slate-700 border border-slate-400/70'
                 }`}>
                   {employee.status === 'active' ? '在职' : employee.status === 'resigned' ? '离职' : '停用'}
                 </span>
               </div>
-              <p className="text-xl text-gray-700 font-medium mb-3">{employee.position || '未设置职位'}</p>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-600">工号</span>
-                  <span className="font-semibold text-gray-900">{employee.employee_no}</span>
+              <p className="text-xs text-slate-600 mb-1.5">{employee.position || '未设置职位'}</p>
+              <div className="flex items-center gap-3 text-xs text-slate-600">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">工号</span>
+                  <span className="font-medium text-slate-800">{employee.employee_no}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-600">评级</span>
-                  <span className="font-semibold text-yellow-600">{renderRating(employee.rating || 3)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">评级</span>
+                  <span className="font-medium text-slate-800">{renderRating(employee.rating || 3)}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-600">在职时长</span>
-                  <span className="font-semibold text-primary-600">{calculateTenureFromChanges()}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">在职</span>
+                  <span className="font-medium text-slate-800">{calculateTenureFromChanges()}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mb-6">
-          <h4 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-primary-500">基本信息</h4>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">所属部门</span>
-              <span className="text-gray-900 font-medium">
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-200">基本信息</h4>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">所属部门</span>
+              <span className="text-xs text-gray-800 font-medium">
                 {departments.find(d => d.id === employee.department_id)?.name || '-'}
               </span>
             </div>
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">入职日期</span>
-              <span className="text-gray-900 font-medium">
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">入职日期</span>
+              <span className="text-xs text-gray-800 font-medium">
                 {employee.hire_date ? formatDate(employee.hire_date) : '-'}
               </span>
             </div>
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">学历</span>
-              <span className="text-gray-900 font-medium">{employee.education || '-'}</span>
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">学历</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.education || '-'}</span>
             </div>
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">手机号</span>
-              <span className="text-gray-900 font-medium">{employee.phone || '-'}</span>
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">手机号</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.phone || '-'}</span>
             </div>
-            <div className="flex col-span-2">
-              <span className="text-gray-600 w-28 flex-shrink-0">邮箱</span>
-              <span className="text-gray-900 font-medium">{employee.email || '-'}</span>
+            <div className="flex items-center col-span-2">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">邮箱</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.email || '-'}</span>
             </div>
           </div>
         </div>
 
-        <div className="mb-6">
-          <h4 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-primary-500">联系信息</h4>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">紧急联系人</span>
-              <span className="text-gray-900 font-medium">{employee.emergency_contact || '-'}</span>
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-200">联系信息</h4>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">紧急联系人</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.emergency_contact || '-'}</span>
             </div>
-            <div className="flex">
-              <span className="text-gray-600 w-28 flex-shrink-0">紧急电话</span>
-              <span className="text-gray-900 font-medium">{employee.emergency_phone || '-'}</span>
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">紧急电话</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.emergency_phone || '-'}</span>
             </div>
-            <div className="flex col-span-2">
-              <span className="text-gray-600 w-28 flex-shrink-0">家庭住址</span>
-              <span className="text-gray-900 font-medium">{employee.address || '-'}</span>
+            <div className="flex items-center col-span-2">
+              <span className="text-xs text-gray-500 w-20 flex-shrink-0">家庭住址</span>
+              <span className="text-xs text-gray-800 font-medium">{employee.address || '-'}</span>
             </div>
           </div>
         </div>
 
         {employee.skills && (
-          <div className="mb-6">
-            <h4 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b-2 border-primary-500">技能特长</h4>
-            <p className="text-gray-900 leading-relaxed">{employee.skills}</p>
+          <div className="mb-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-200">技能特长</h4>
+            <p className="text-xs text-gray-700 leading-relaxed">{employee.skills}</p>
           </div>
         )}
 
@@ -457,10 +458,10 @@ function EmployeeDetail({ employee, isOpen, onClose, departments }) {
         )}
       </div>
 
-      <div className="flex justify-end pt-4 mt-4 border-t -mx-6 px-6 -mb-6 pb-6 bg-gray-50">
+      <div className="flex justify-end pt-4 mt-4 border-t border-sky-300/70 -mx-6 px-6 -mb-6 pb-6 bg-sky-100/80">
         <button
           onClick={onClose}
-          className="px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          className="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium shadow-sm"
         >
           关闭
         </button>

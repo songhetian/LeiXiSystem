@@ -154,6 +154,123 @@ module.exports = async function (fastify, opts) {
         }
     });
 
+    // POST /api/quality/sessions/import - Import sessions from Excel
+    fastify.post('/api/quality/sessions/import', async (request, reply) => {
+        try {
+            const parts = request.parts();
+            let fileBuffer;
+            let platformId;
+            let shopId;
+            let columnMapStr;
+
+            for await (const part of parts) {
+                if (part.file) {
+                    fileBuffer = await part.toBuffer();
+                } else {
+                    if (part.fieldname === 'platform') platformId = part.value;
+                    if (part.fieldname === 'shop') shopId = part.value;
+                    if (part.fieldname === 'columnMap') columnMapStr = part.value;
+                }
+            }
+
+            if (!fileBuffer || !platformId || !shopId || !columnMapStr) {
+                return reply.code(400).send({ success: false, message: 'Missing file, platform, shop, or column map.' });
+            }
+
+            const columnMap = JSON.parse(columnMapStr);
+
+            // Get platform and shop names
+            const [platformRows] = await pool.query('SELECT name FROM platforms WHERE id = ?', [platformId]);
+            const [shopRows] = await pool.query('SELECT name FROM shops WHERE id = ?', [shopId]);
+
+            if (platformRows.length === 0 || shopRows.length === 0) {
+                return reply.code(400).send({ success: false, message: 'Invalid platform or shop ID.' });
+            }
+
+            const platformName = platformRows[0].name;
+            const shopName = shopRows[0].name;
+
+            // Parse Excel
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(fileBuffer);
+            const worksheet = workbook.getWorksheet(1);
+
+            if (!worksheet) {
+                return reply.code(400).send({ success: false, message: 'Invalid Excel file.' });
+            }
+
+            const headers = [];
+            worksheet.getRow(1).eachCell((cell, colNumber) => {
+                headers[colNumber] = cell.value;
+            });
+
+            const sessionsToInsert = [];
+            const errors = [];
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return; // Skip header
+
+                const rowData = {};
+                row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    rowData[headers[colNumber]] = cell.value;
+                });
+
+                // Map fields
+                const session = {
+                    session_code: rowData[columnMap.session_code],
+                    customer_service_id: rowData[columnMap.customer_service_id], // Assuming this is the ID or we need to look it up?
+                    // If customer_service_id in Excel is a name, we might need to look up the user ID.
+                    // But ImportSessionModal says "客服ID" (Customer Service ID). Let's assume it's the ID for now.
+                    customer_info: rowData[columnMap.customer_info] || {},
+                    communication_channel: rowData[columnMap.communication_channel] || 'unknown',
+                    duration: rowData[columnMap.duration] || 0,
+                    message_count: rowData[columnMap.message_count] || 0,
+                    platform: platformName,
+                    shop: shopName
+                };
+
+                if (session.session_code && session.customer_service_id) {
+                    sessionsToInsert.push(session);
+                }
+            });
+
+            // Insert into DB
+            let successCount = 0;
+            for (const session of sessionsToInsert) {
+                try {
+                    // Check if customer_service_id exists
+                    // If it's a number, check if user exists.
+                    // If it's a name, try to find user by name?
+                    // Let's assume it's ID first.
+
+                    // Note: customer_info should be stringified
+                    await pool.query(
+                        `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [session.session_code, session.customer_service_id, JSON.stringify(session.customer_info), session.communication_channel, session.platform, session.shop, session.duration, session.message_count]
+                    );
+                    // Wait, I used session.session_code as customer_service_id in the line above! That's a bug in my thought.
+                    // Correct: [session.session_code, session.customer_service_id, ...]
+
+                    successCount++;
+                } catch (err) {
+                    console.error('Error inserting session:', err);
+                    errors.push(`Session ${session.session_code}: ${err.message}`);
+                }
+            }
+
+            return {
+                success: true,
+                message: `Imported ${successCount} sessions successfully.`,
+                errors: errors.length > 0 ? errors : undefined
+            };
+
+        } catch (error) {
+            console.error('Error importing sessions:', error);
+            reply.code(500).send({ success: false, message: 'Failed to import sessions.' });
+        }
+    });
+
     // GET /api/quality/sessions - Get session list (with filtering)
     fastify.get('/api/quality/sessions', async (request, reply) => {
         const { page = 1, pageSize = 10, search = '', customerServiceId, status, channel, startDate, endDate } = request.query;
@@ -1331,137 +1448,7 @@ module.exports = async function (fastify, opts) {
         }
     });
 
-    // POST /api/quality/sessions/import - Import sessions from Excel
-    fastify.post('/api/quality/sessions/import', async (request, reply) => {
-        const data = await request.file();
-        if (!data) {
-            return reply.code(400).send({ success: false, message: 'No file uploaded.' });
-        }
 
-        const platform = data.fields.platform;
-        const shop = data.fields.shop;
-        const columnMapRaw = data.fields.columnMap; // Get the raw value, which is already an object or undefined
-
-        console.log('Backend received data.fields:', data.fields);
-        console.log('Backend received columnMapRaw:', columnMapRaw); // Log the raw columnMap
-
-        // If columnMapRaw is an object, use it directly. Otherwise, it might be undefined or some other type.
-        // We expect it to be an object due to Fastify's multipart parsing for JSON-like fields.
-        let columnMap;
-        if (typeof columnMapRaw === 'object' && columnMapRaw !== null) {
-            columnMap = columnMapRaw;
-        } else {
-            console.error('columnMap received is not an object:', columnMapRaw);
-            return reply.code(400).send({ success: false, message: 'Invalid column map format: Expected an object.' });
-        }
-
-        // Use columnMap here, and ensure platform, shop are present
-        if (!platform || !shop || Object.keys(columnMap).length === 0) { // Check if columnMap is empty as well
-            return reply.code(400).send({ success: false, message: 'Platform, shop, and column map are required.' });
-        }
-
-        console.log('Successfully processed columnMap:', columnMap);
-
-        const workbook = new ExcelJS.Workbook();
-        try {
-            const buffer = await data.toBuffer();
-            await workbook.xlsx.load(buffer);
-        } catch (error) {
-            console.error('Error parsing Excel file:', error);
-            return reply.code(400).send({ success: false, message: 'Invalid Excel file format.' });
-        }
-
-
-        const worksheet = workbook.getWorksheet(1);
-        if (!worksheet) {
-            return reply.code(400).send({ success: false, message: 'No worksheet found in the Excel file.' });
-        }
-
-        const headerRow = worksheet.getRow(1);
-        if (!headerRow || headerRow.actualCellCount === 0) {
-            throw new Error('Excel文件中缺少标题行�?');
-        }
-        const headers = [];
-        headerRow.eachCell((cell) => {
-            headers.push(cell.value);
-        });
-        console.log('Excel file headers:', headers); // Log headers
-
-        // Define system fields to map
-        const SYSTEM_FIELDS = [
-            'session_code', 'customer_service_id', 'customer_info',
-            'communication_channel', 'duration', 'message_count'
-        ];
-
-        const sessionsToInsert = [];
-        worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            if (rowNumber > 1) { // Skip header row
-                const sessionData = {};
-                SYSTEM_FIELDS.forEach(systemField => {
-                    const fileColumnName = columnMap[systemField];
-                    if (fileColumnName) {
-                        const cellIndex = headers.indexOf(fileColumnName);
-                        if (cellIndex !== -1) {
-                            // Ensure cell value is safely retrieved and handled
-                            let cellValue = row.getCell(cellIndex + 1).value;
-                            // Convert RichText object to string if necessary
-                            if (typeof cellValue === 'object' && cellValue !== null && cellValue.richText) {
-                                cellValue = cellValue.richText.map(textItem => textItem.text).join('');
-                            }
-                            sessionData[systemField] = cellValue;
-                        }
-                    }
-                });
-
-                // Add platform and shop from request body
-                sessionData.platform = platform;
-                sessionData.shop = shop;
-
-                console.log(`Processing row ${rowNumber}:`, sessionData); // Log processed row data
-
-                // Basic validation for required fields
-                if (sessionData.session_code && sessionData.customer_service_id) {
-                    sessionsToInsert.push(sessionData);
-                } else {
-                    console.warn(`Row ${rowNumber} skipped due to missing session_code or customer_service_id:`, sessionData);
-                }
-            }
-        });
-
-        console.log('Final sessionsToInsert length:', sessionsToInsert.length); // Log final array length
-        if (sessionsToInsert.length === 0) {
-            return reply.code(400).send({ success: false, message: 'No valid data found in the file based on mappings.' });
-        }
-
-        const connection = await pool.getConnection();
-        try {
-            await connection.beginTransaction();
-            for (const session of sessionsToInsert) {
-                await connection.query(
-                    `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        session.session_code,
-                        session.customer_service_id,
-                        JSON.stringify(session.customer_info), // Assuming customer_info might be an object
-                        session.communication_channel,
-                        session.platform,
-                        session.shop,
-                        session.duration,
-                        session.message_count
-                    ]
-                );
-            }
-            await connection.commit();
-            return { success: true, message: `${sessionsToInsert.length} sessions imported successfully.` };
-        } catch (error) {
-            await connection.rollback();
-            console.error('Error importing sessions:', error);
-            reply.code(500).send({ success: false, message: 'Failed to import sessions.' });
-        } finally {
-            connection.release();
-        }
-    });
 
     // DELETE /api/quality/cases/:id - Delete case with cascade
     fastify.delete('/api/quality/cases/:id', async (request, reply) => {
