@@ -1,0 +1,290 @@
+[
+  {
+    "Tables_in_leixin_customer_service": "answer_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "article_comments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "article_likes"
+  },
+  {
+    "Tables_in_leixin_customer_service": "assessment_plans"
+  },
+  {
+    "Tables_in_leixin_customer_service": "assessment_results"
+  },
+  {
+    "Tables_in_leixin_customer_service": "attendance_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "attendance_rules"
+  },
+  {
+    "Tables_in_leixin_customer_service": "attendance_settings"
+  },
+  {
+    "Tables_in_leixin_customer_service": "case_attachments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "case_comments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "case_learning_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "case_tags"
+  },
+  {
+    "Tables_in_leixin_customer_service": "cases"
+  },
+  {
+    "Tables_in_leixin_customer_service": "chat_room_members"
+  },
+  {
+    "Tables_in_leixin_customer_service": "collected_messages"
+  },
+  {
+    "Tables_in_leixin_customer_service": "compensatory_leave_requests"
+  },
+  {
+    "Tables_in_leixin_customer_service": "conversation_members"
+  },
+  {
+    "Tables_in_leixin_customer_service": "conversations"
+  },
+  {
+    "Tables_in_leixin_customer_service": "conversion_rules"
+  },
+  {
+    "Tables_in_leixin_customer_service": "departments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "employee_changes"
+  },
+  {
+    "Tables_in_leixin_customer_service": "employee_status_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "employees"
+  },
+  {
+    "Tables_in_leixin_customer_service": "exam_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service": "exam_category_audit_logs"
+  },
+  {
+    "Tables_in_leixin_customer_service": "exams"
+  },
+  {
+    "Tables_in_leixin_customer_service": "group_members"
+  },
+  {
+    "Tables_in_leixin_customer_service": "groups"
+  },
+  {
+    "Tables_in_leixin_customer_service": "holidays"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_article_daily_stats"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_article_read_sessions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_articles"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_attachments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_learning_plan_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_learning_plans"
+  },
+  {
+    "Tables_in_leixin_customer_service": "knowledge_learning_statistics"
+  },
+  {
+    "Tables_in_leixin_customer_service": "learning_plans"
+  },
+  {
+    "Tables_in_leixin_customer_service": "learning_statistics"
+  },
+  {
+    "Tables_in_leixin_customer_service": "learning_tasks"
+  },
+  {
+    "Tables_in_leixin_customer_service": "leave_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "makeup_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "meal_order_items"
+  },
+  {
+    "Tables_in_leixin_customer_service": "meal_orders"
+  },
+  {
+    "Tables_in_leixin_customer_service": "menu_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service": "menu_items"
+  },
+  {
+    "Tables_in_leixin_customer_service": "message_status"
+  },
+  {
+    "Tables_in_leixin_customer_service": "messages"
+  },
+  {
+    "Tables_in_leixin_customer_service": "migrations_history"
+  },
+  {
+    "Tables_in_leixin_customer_service": "my_knowledge_articles"
+  },
+  {
+    "Tables_in_leixin_customer_service": "my_knowledge_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service": "my_knowledge_saved_articles"
+  },
+  {
+    "Tables_in_leixin_customer_service": "notification_recipients"
+  },
+  {
+    "Tables_in_leixin_customer_service": "notifications"
+  },
+  {
+    "Tables_in_leixin_customer_service": "overtime_conversions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "overtime_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "permissions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "platforms"
+  },
+  {
+    "Tables_in_leixin_customer_service": "positions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_case_attachments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_case_collections"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_case_comments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_case_learning_records"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_case_tags"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_cases"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_rules"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_scores"
+  },
+  {
+    "Tables_in_leixin_customer_service": "quality_sessions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "questions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "role_departments"
+  },
+  {
+    "Tables_in_leixin_customer_service": "role_permissions"
+  },
+  {
+    "Tables_in_leixin_customer_service": "roles"
+  },
+  {
+    "Tables_in_leixin_customer_service": "schedules"
+  },
+  {
+    "Tables_in_leixin_customer_service": "session_messages"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules_backup"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules_backup_20251113"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules_backup_before_date_fix"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules_backup_comprehensive"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shift_schedules_backup_simple"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shifts"
+  },
+  {
+    "Tables_in_leixin_customer_service": "shops"
+  },
+  {
+    "Tables_in_leixin_customer_service": "tag_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service": "tags"
+  },
+  {
+    "Tables_in_leixin_customer_service": "user_case_favorites"
+  },
+  {
+    "Tables_in_leixin_customer_service": "user_notification_settings"
+  },
+  {
+    "Tables_in_leixin_customer_service": "user_roles"
+  },
+  {
+    "Tables_in_leixin_customer_service": "user_settings"
+  },
+  {
+    "Tables_in_leixin_customer_service": "users"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_audit_logs"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_balance_changes"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_balances"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_settings"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_type_balances"
+  },
+  {
+    "Tables_in_leixin_customer_service": "vacation_types"
+  },
+  {
+    "Tables_in_leixin_customer_service": "work_shifts"
+  }
+]

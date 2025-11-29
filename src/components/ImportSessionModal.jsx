@@ -5,7 +5,7 @@ import qualityAPI from '../api/qualityAPI.js';
 import ExcelJS from 'exceljs';
 import { CloudUploadOutlined } from '@ant-design/icons';
 
-const ImportSessionModal = ({ isOpen, onClose }) => {
+const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
     const [currentStep, setCurrentStep] = useState(1);
     const [platforms, setPlatforms] = useState([]);
     const [shops, setShops] = useState([]);
@@ -21,16 +21,20 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
     const fileInputRef = useRef(null);
 
     const SYSTEM_FIELDS = [
-        'session_code', 'customer_service_id', 'customer_info',
-        'communication_channel', 'duration', 'message_count'
+        'session_no', 'agent_name', 'customer_id', 'customer_name',
+        'channel', 'start_time', 'end_time',
+        'duration', 'message_count'
     ];
 
     const SYSTEM_FIELD_LABELS_ZH = {
-        'session_code': '会话编号',
-        'customer_service_id': '客服ID',
-        'customer_info': '客户信息',
-        'communication_channel': '沟通渠道',
-        'duration': '时长',
+        'session_no': '会话编号',
+        'agent_name': '客服姓名',
+        'customer_id': '客户ID',
+        'customer_name': '客户姓名',
+        'channel': '沟通渠道',
+        'start_time': '开始时间',
+        'end_time': '结束时间',
+        'duration': '时长(秒)',
         'message_count': '消息数量'
     };
 
@@ -76,6 +80,37 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
         }
     }, [selectedPlatform]);
 
+    // 智能自动映射函数
+    const autoMapColumns = (headers) => {
+        const mapping = {};
+
+        // 定义映射规则：系统字段 -> 可能的Excel列名
+        const mappingRules = {
+            'session_no': ['会话编号', '会话号', 'session_no', 'sessionNo', '编号'],
+            'agent_name': ['客服姓名', '客服名称', '客服', 'agent_name', 'agentName', '姓名'],
+            'customer_id': ['客户ID', '客户编号', 'customer_id', 'customerId'],
+            'customer_name': ['客户姓名', '客户名称', '客户', 'customer_name', 'customerName'],
+            'channel': ['沟通渠道', '渠道', 'channel', '通道'],
+            'start_time': ['开始时间', '起始时间', 'start_time', 'startTime'],
+            'end_time': ['结束时间', '终止时间', 'end_time', 'endTime'],
+            'duration': ['时长(秒)', '时长', 'duration', '持续时间'],
+            'message_count': ['消息数量', '消息数', 'message_count', 'messageCount', '条数']
+        };
+
+        // 遍历系统字段，尝试匹配Excel列名
+        Object.keys(mappingRules).forEach(systemField => {
+            const possibleNames = mappingRules[systemField];
+            for (const header of headers) {
+                if (possibleNames.includes(header)) {
+                    mapping[systemField] = header;
+                    break;
+                }
+            }
+        });
+
+        return mapping;
+    };
+
     const processFile = async (selectedFile) => {
         setImportError('');
         if (!selectedFile) return;
@@ -101,6 +136,16 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                     headers.push(cell.value);
                 });
                 setFileColumns(headers);
+
+                // 自动映射列
+                const autoMapping = autoMapColumns(headers);
+                setColumnMap(autoMapping);
+
+                // 显示自动映射结果
+                const mappedCount = Object.keys(autoMapping).length;
+                if (mappedCount > 0) {
+                    toast.success(`已自动映射 ${mappedCount} 个字段`);
+                }
 
                 const rows = [];
                 worksheet.eachRow((row, rowNumber) => {
@@ -163,19 +208,66 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
 
     const handleDownloadTemplate = async () => {
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('会话数据');
 
-        worksheet.columns = SYSTEM_FIELDS.map(field => ({
-            header: SYSTEM_FIELD_LABELS_ZH[field] || field,
-            key: field,
-            width: 20
-        }));
+        // Sheet 1: 会话信息
+        const sessionSheet = workbook.addWorksheet('会话信息');
+        sessionSheet.columns = [
+            { header: '会话编号', key: 'session_no', width: 20 },
+            { header: '客服姓名', key: 'agent_name', width: 15 },
+            { header: '客户ID', key: 'customer_id', width: 15 },
+            { header: '客户姓名', key: 'customer_name', width: 15 },
+            { header: '沟通渠道', key: 'channel', width: 12 },
+            { header: '开始时间', key: 'start_time', width: 20 },
+            { header: '结束时间', key: 'end_time', width: 20 },
+            { header: '时长(秒)', key: 'duration', width: 12 },
+            { header: '消息数量', key: 'message_count', width: 12 }
+        ];
+
+        // 添加示例数据
+        sessionSheet.addRow({
+            session_no: 'S001',
+            agent_name: '张三',
+            customer_id: 'C001',
+            customer_name: '李四',
+            channel: 'chat',
+            start_time: '2024-11-29 10:00:00',
+            end_time: '2024-11-29 10:15:00',
+            duration: 900,
+            message_count: 2
+        });
+
+        // Sheet 2: 聊天记录
+        const messageSheet = workbook.addWorksheet('聊天记录');
+        messageSheet.columns = [
+            { header: '会话编号', key: 'session_no', width: 20 },
+            { header: '发送者类型', key: 'sender_type', width: 15 },
+            { header: '发送者姓名', key: 'sender_name', width: 15 },
+            { header: '消息内容', key: 'content', width: 50 },
+            { header: '发送时间', key: 'timestamp', width: 20 }
+        ];
+
+        // 添加示例消息
+        messageSheet.addRow({
+            session_no: 'S001',
+            sender_type: 'customer',
+            sender_name: '李四',
+            content: '你好，我想咨询一下产品信息',
+            timestamp: '2024-11-29 10:00:05'
+        });
+
+        messageSheet.addRow({
+            session_no: 'S001',
+            sender_type: 'agent',
+            sender_name: '张三',
+            content: '您好！很高兴为您服务，请问有什么可以帮您的？',
+            timestamp: '2024-11-29 10:00:10'
+        });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = '会话导入模板.xlsx';
+        link.download = '质检会话导入模板.xlsx';
         link.click();
         URL.revokeObjectURL(link.href);
     };
@@ -200,9 +292,13 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                 setImportError(msg);
                 return;
             }
-            const requiredFieldsMapped = ['session_code', 'customer_service_id'].every(field => columnMap[field]);
-            if (!requiredFieldsMapped) {
-                const msg = '请至少映射 会话编号 和 客服ID。';
+        } else if (currentStep === 3) {
+            // 只要求必填字段：会话编号和客服姓名
+            const requiredFields = ['session_no', 'agent_name'];
+            const missingFields = requiredFields.filter(field => !columnMap[field]);
+            if (missingFields.length > 0) {
+                const fieldLabels = missingFields.map(f => SYSTEM_FIELD_LABELS_ZH[f]).join('、');
+                const msg = `请至少映射 ${fieldLabels}。`;
                 toast.warn(msg);
                 setImportError(msg);
                 return;
@@ -234,6 +330,9 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
         try {
             const response = await qualityAPI.importSessions(formData);
             toast.success(response.data.message);
+            if (onSuccess) {
+                onSuccess();
+            }
             onClose();
         } catch (error) {
             const msg = error.response?.data?.message || '导入失败。';
@@ -377,10 +476,10 @@ const ImportSessionModal = ({ isOpen, onClose }) => {
                             <h3 className="text-lg font-semibold leading-6 text-gray-900 mb-6 text-center">第三步：预览并确认</h3>
                             <div className="space-y-2 mb-4 bg-gray-50 p-4 rounded-lg">
                                 <p className="text-sm text-gray-700">
-                                    <span className="font-medium">已选平台：</span> {platforms.find(p => p.id === selectedPlatform)?.name || 'N/A'}
+                                    <span className="font-medium">已选平台：</span> {platforms.find(p => p.id === parseInt(selectedPlatform))?.name || 'N/A'}
                                 </p>
                                 <p className="text-sm text-gray-700">
-                                    <span className="font-medium">已选店铺：</span> {shops.find(s => s.id === selectedShop)?.name || 'N/A'}
+                                    <span className="font-medium">已选店铺：</span> {shops.find(s => s.id === parseInt(selectedShop))?.name || 'N/A'}
                                 </p>
                             </div>
                             {previewData.length > 0 ? (

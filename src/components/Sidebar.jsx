@@ -31,6 +31,7 @@ import {
   RightOutlined,
   ShopOutlined,
   CloseCircleOutlined,
+  TagsOutlined,
 } from '@ant-design/icons';
 
 // --- Component Definition ---
@@ -412,10 +413,10 @@ const allMenuItems = [
     label: '质检管理',
     icon: <SearchOutlined />,
     children: [
-      { id: 'quality-session', label: '会话管理', icon: <MessageOutlined /> },
       { id: 'quality-platform-shop', label: '平台店铺', icon: <ShopOutlined /> },
       { id: 'quality-rule', label: '规则管理', icon: <FileSearchOutlined /> },
-      { id: 'quality-score', label: '质检评分', icon: <StarOutlined /> },
+      { id: 'quality-score', label: '会话质检', icon: <StarOutlined /> },
+      { id: 'quality-tags', label: '标签管理', icon: <TagsOutlined /> },
       { id: 'quality-report', label: '质检报告', icon: <BarChartOutlined /> },
       { id: 'quality-report-summary', label: '综合报告', icon: <LineChartOutlined /> },
       { id: 'quality-case-library', label: '案例库', icon: <FolderOpenOutlined /> },

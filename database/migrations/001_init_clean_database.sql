@@ -1514,8 +1514,11 @@ CREATE TABLE `quality_scores` (
 CREATE TABLE `quality_sessions` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT '质检会话唯一标识ID',
   `session_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '会话编号，全局唯一，用于业务查询',
-  `agent_id` int NOT NULL COMMENT '客服人员用户ID，关联users表，级联删除',
+  `agent_id` int DEFAULT NULL COMMENT '客服人员用户ID (系统用户)，关联users表',
+  `external_agent_id` int DEFAULT NULL COMMENT '外部客服ID (导入用户)，关联external_agents表',
+  `agent_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '客服姓名（用于导入外部数据）',
   `customer_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '客户ID，可能来自外部系统',
+  `customer_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '客户姓名',
   `channel` enum('chat','phone','email','video') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'chat' COMMENT '沟通渠道：chat-在线聊天，phone-电话，email-邮件，video-视频',
   `start_time` datetime NOT NULL COMMENT '会话开始时间',
   `end_time` datetime NOT NULL COMMENT '会话结束时间',
@@ -1529,8 +1532,8 @@ CREATE TABLE `quality_sessions` (
   `reviewed_at` datetime DEFAULT NULL COMMENT '质检完成时间',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
-  `platform` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '平台来源',
-  `shop` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '店铺名称',
+  `platform_id` int DEFAULT NULL COMMENT '平台ID，关联platforms表',
+  `shop_id` int DEFAULT NULL COMMENT '店铺ID，关联shops表',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_session_no` (`session_no`),
   KEY `idx_agent_id` (`agent_id`),
@@ -1544,10 +1547,15 @@ CREATE TABLE `quality_sessions` (
   KEY `idx_score` (`score`),
   KEY `idx_grade` (`grade`),
   KEY `idx_reviewed_at` (`reviewed_at`),
+  KEY `idx_platform_id` (`platform_id`),
+  KEY `idx_shop_id` (`shop_id`),
   KEY `idx_time_range` (`start_time`,`end_time`),
   KEY `idx_agent_time_status` (`agent_id`,`start_time`,`status`),
   CONSTRAINT `fk_quality_sessions_agent_id` FOREIGN KEY (`agent_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_quality_sessions_inspector_id` FOREIGN KEY (`inspector_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_quality_sessions_external_agent` FOREIGN KEY (`external_agent_id`) REFERENCES `external_agents` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_quality_sessions_inspector_id` FOREIGN KEY (`inspector_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_quality_sessions_platform_id` FOREIGN KEY (`platform_id`) REFERENCES `platforms` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_quality_sessions_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检会话表-客服会话质检记录表，存储需要质检的会话基本信息';
 
 -- 表: questions
@@ -1656,6 +1664,40 @@ CREATE TABLE `session_messages` (
   CONSTRAINT `fk_session_messages_session_id` FOREIGN KEY (`session_id`) REFERENCES `quality_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会话消息表-存储质检会话中的具体消息内容';
 
+-- 表: quality_session_tags
+CREATE TABLE `quality_session_tags` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '关联记录唯一标识ID',
+  `session_id` int NOT NULL COMMENT '质检会话ID，关联quality_sessions表',
+  `tag_id` int NOT NULL COMMENT '标签ID，关联tags表',
+  `created_by` int DEFAULT NULL COMMENT '创建人用户ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_session_tag` (`session_id`, `tag_id`),
+  KEY `idx_session_id` (`session_id`),
+  KEY `idx_tag_id` (`tag_id`),
+  KEY `idx_created_by` (`created_by`),
+  CONSTRAINT `fk_quality_session_tags_session_id` FOREIGN KEY (`session_id`) REFERENCES `quality_sessions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_quality_session_tags_tag_id` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_quality_session_tags_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检会话标签关联表-存储会话级别的标签关联';
+
+-- 表: quality_message_tags
+CREATE TABLE `quality_message_tags` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '关联记录唯一标识ID',
+  `message_id` int NOT NULL COMMENT '消息ID，关联session_messages表',
+  `tag_id` int NOT NULL COMMENT '标签ID，关联tags表',
+  `created_by` int DEFAULT NULL COMMENT '创建人用户ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_message_tag` (`message_id`, `tag_id`),
+  KEY `idx_message_id` (`message_id`),
+  KEY `idx_tag_id` (`tag_id`),
+  KEY `idx_created_by` (`created_by`),
+  CONSTRAINT `fk_quality_message_tags_message_id` FOREIGN KEY (`message_id`) REFERENCES `session_messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_quality_message_tags_tag_id` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_quality_message_tags_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检消息标签关联表-存储消息级别的标签关联';
+
 -- 表: shift_schedules
 CREATE TABLE `shift_schedules` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -1760,6 +1802,9 @@ CREATE TABLE `shops` (
 -- 表: tag_categories
 CREATE TABLE `tag_categories` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT '标签分类唯一标识ID',
+  `parent_id` int DEFAULT NULL COMMENT '父分类ID，NULL表示根分类',
+  `level` int NOT NULL DEFAULT '0' COMMENT '分类层级，0为根节点',
+  `path` varchar(500) DEFAULT NULL COMMENT '分类路径，如1/2/3，便于查询子树',
   `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '分类名称，如"产品类型"、"问题类型"',
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '分类详细描述，说明该分类的用途',
   `color` varchar(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '分类显示颜色，十六进制颜色代码',
@@ -1769,14 +1814,22 @@ CREATE TABLE `tag_categories` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_name` (`name`),
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_level` (`level`),
+  KEY `idx_path` (`path`(255)),
   KEY `idx_sort_order` (`sort_order`),
-  KEY `idx_is_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签分类表-标签分类管理表，用于组织标签的层次结构';
+  KEY `idx_is_active` (`is_active`),
+  CONSTRAINT `fk_tag_categories_parent_id` FOREIGN KEY (`parent_id`) REFERENCES `tag_categories` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签分类表-标签分类管理表，用于组织标签的层次结构，支持无限极分类';
 
 -- 表: tags
 CREATE TABLE `tags` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT '标签唯一标识ID',
+  `parent_id` int DEFAULT NULL COMMENT '父标签ID，NULL表示根标签',
+  `level` int NOT NULL DEFAULT '0' COMMENT '标签层级，0为根节点',
+  `path` varchar(500) DEFAULT NULL COMMENT '标签路径，如1/2/3，便于查询子树',
   `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '标签名称，如"退款"、"技术故障"',
+  `tag_type` enum('quality','case','general') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'general' COMMENT '标签类型：quality-质检，case-案例，general-通用',
   `category_id` int DEFAULT NULL COMMENT '所属分类ID，关联tag_categories表',
   `color` varchar(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '标签显示颜色，十六进制颜色代码',
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '标签详细描述，说明标签的含义',
@@ -1785,12 +1838,17 @@ CREATE TABLE `tags` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
   PRIMARY KEY (`id`),
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_level` (`level`),
+  KEY `idx_path` (`path`(255)),
   KEY `idx_name` (`name`),
+  KEY `idx_tag_type` (`tag_type`),
   KEY `idx_category_id` (`category_id`),
   KEY `idx_usage_count` (`usage_count`),
   KEY `idx_is_active` (`is_active`),
+  CONSTRAINT `fk_tags_parent_id` FOREIGN KEY (`parent_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_tags_category_id` FOREIGN KEY (`category_id`) REFERENCES `tag_categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签表-标签信息表，用于案例的标签化管理';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签表-标签信息表，用于案例和质检的标签化管理，支持无限极分类';
 
 -- 表: user_case_favorites
 CREATE TABLE `user_case_favorites` (
@@ -2161,7 +2219,7 @@ SELECT @super_admin_role_id, id, NOW() FROM permissions;
 
 -- 部门经理权限
 INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
-SELECT @manager_role_id, id, NOW() FROM permissions 
+SELECT @manager_role_id, id, NOW() FROM permissions
 WHERE code IN (
     'user:view', 'employee:view', 'employee:update',
     'attendance:view', 'attendance:approve',
@@ -2172,7 +2230,7 @@ WHERE code IN (
 
 -- 普通员工权限
 INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
-SELECT @employee_role_id, id, NOW() FROM permissions 
+SELECT @employee_role_id, id, NOW() FROM permissions
 WHERE code IN (
     'user:view', 'employee:view',
     'attendance:view', 'knowledge:view'
@@ -2180,7 +2238,7 @@ WHERE code IN (
 
 -- 客服人员权限
 INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`)
-SELECT @service_role_id, id, NOW() FROM permissions 
+SELECT @service_role_id, id, NOW() FROM permissions
 WHERE code IN (
     'user:view', 'employee:view',
     'attendance:view', 'knowledge:view', 'knowledge:create',
@@ -2304,29 +2362,73 @@ INSERT INTO `user_roles` (`user_id`, `role_id`, `assigned_at`)
 VALUES (@hr1_id, @employee_role_id, NOW());
 
 
+
+-- ==========================================
+-- 2024-11-29 导入功能增强
+-- ==========================================
+
+-- 表: external_agents
+CREATE TABLE IF NOT EXISTS `external_agents` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '外部客服ID',
+  `name` varchar(100) NOT NULL COMMENT '客服姓名',
+  `platform_id` int DEFAULT NULL COMMENT '所属平台ID',
+  `shop_id` int DEFAULT NULL COMMENT '所属店铺ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name_platform_shop` (`name`, `platform_id`, `shop_id`),
+  KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='外部客服表-存储导入的非系统客服人员';
+
+-- 表: customers
+CREATE TABLE IF NOT EXISTS `customers` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '客户唯一标识ID',
+  `customer_id` varchar(50) NOT NULL COMMENT '客户ID（外部系统）',
+  `name` varchar(100) DEFAULT NULL COMMENT '客户姓名',
+  `phone` varchar(20) DEFAULT NULL COMMENT '联系电话',
+  `email` varchar(100) DEFAULT NULL COMMENT '电子邮箱',
+  `platform_id` int DEFAULT NULL COMMENT '所属平台ID',
+  `shop_id` int DEFAULT NULL COMMENT '所属店铺ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_customer_platform_shop` (`customer_id`, `platform_id`, `shop_id`),
+  KEY `idx_name` (`name`),
+  KEY `idx_phone` (`phone`),
+  KEY `idx_platform_shop` (`platform_id`, `shop_id`),
+  CONSTRAINT `fk_customers_platform` FOREIGN KEY (`platform_id`) REFERENCES `platforms` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_customers_shop` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户表-存储客户基本信息';
+
+-- 修改 quality_sessions 表以支持外部客服和客户姓名
+-- 注意：在实际运行此脚本初始化时，如果表已存在，这些 ALTER 语句可能会报错，
+-- 建议将这些修改直接合并到 quality_sessions 的 CREATE TABLE 语句中。
+-- 但为了保持脚本的历史记录，这里使用 ALTER，或者请手动更新上方的 CREATE TABLE 定义。
+-- 为确保幂等性，这里仅作为记录追加。
+-- 实际生产环境建议修改上方的 CREATE TABLE `quality_sessions` 定义。
+
 -- ==========================================
 -- 初始化完成
 -- ==========================================
 -- 测试账号信息:
--- 
+--
 -- 超级管理员:
 --   用户名: admin, 密码: admin123
--- 
+--
 -- 部门经理:
 --   用户名: tech_manager, 密码: 123456 (技术部)
 --   用户名: service_manager, 密码: 123456 (客服部)
 --   用户名: hr_manager, 密码: 123456 (人事部)
--- 
+--
 -- 普通员工:
 --   用户名: engineer1, 密码: 123456 (技术部-高级工程师)
 --   用户名: engineer2, 密码: 123456 (技术部-工程师)
 --   用户名: hr1, 密码: 123456 (人事部-人事专员)
--- 
+--
 -- 客服人员:
 --   用户名: service1, 密码: 123456 (客服部-高级客服专员)
 --   用户名: service2, 密码: 123456 (客服部-客服专员)
 --   用户名: service3, 密码: 123456 (客服部-客服专员)
--- 
+--
 -- 请登录后立即修改密码！
 -- ==========================================
 

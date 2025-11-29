@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 
-const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zIndex = 1000 }) => {
+const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zIndex = 1000, variant = 'default' }) => {
   if (!isOpen) return null
 
   const sizeClasses = {
@@ -11,6 +11,18 @@ const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zInd
     full: 'max-w-7xl',
     wide: 'max-w-[85vw]'
   }
+
+  // Simple color variants
+  const variantColors = {
+    default: '#3b82f6',
+    primary: '#8b5cf6',
+    success: '#10b981',
+    warning: '#f59e0b',
+    danger: '#ef4444',
+    info: '#06b6d4'
+  }
+
+  const headerColor = variantColors[variant] || variantColors.default
 
   // Handle escape key press
   useEffect(() => {
@@ -31,11 +43,17 @@ const Modal = ({ isOpen, onClose, title, children, size = 'medium', footer, zInd
         onClick={onClose}
       ></div>
       <div
-        className={`relative z-10 bg-white rounded-lg shadow-lg ${sizeClasses[size]} w-full mx-4 max-h-[90vh] overflow-hidden`}
+        className={`relative z-10 bg-white rounded-lg shadow-xl ${sizeClasses[size]} w-full mx-4 max-h-[90vh] overflow-hidden`}
       >
         {title && (
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+          <div
+            className="px-6 py-4 border-b"
+            style={{
+              backgroundColor: headerColor,
+              borderBottomColor: headerColor
+            }}
+          >
+            <h2 className="text-xl font-semibold text-white">{title}</h2>
           </div>
         )}
         <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">

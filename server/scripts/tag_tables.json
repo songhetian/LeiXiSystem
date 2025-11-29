@@ -1,0 +1,14 @@
+[
+  {
+    "Tables_in_leixin_customer_service (%tag%)": "case_tags"
+  },
+  {
+    "Tables_in_leixin_customer_service (%tag%)": "quality_case_tags"
+  },
+  {
+    "Tables_in_leixin_customer_service (%tag%)": "tag_categories"
+  },
+  {
+    "Tables_in_leixin_customer_service (%tag%)": "tags"
+  }
+]

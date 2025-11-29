@@ -136,138 +136,21 @@ module.exports = async function (fastify, opts) {
 
     // POST /api/quality/sessions - Create quality session
     fastify.post('/api/quality/sessions', async (request, reply) => {
-        const { session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count } = request.body;
+        const { session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, platform_id, shop_id, duration, message_count } = request.body;
         try {
-            if (!session_code || !customer_service_id || !platform || !shop) {
-                return reply.code(400).send({ success: false, message: 'Session code, customer service ID, platform, and shop are required.' });
+            if (!session_no || (!agent_id && !external_agent_id) || !platform_id || !shop_id) {
+                return reply.code(400).send({ success: false, message: 'Session no, agent (internal or external), platform, and shop are required.' });
             }
 
             const [result] = await pool.query(
-                `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [session_code, customer_service_id, JSON.stringify(customer_info), communication_channel, platform, shop, duration, message_count]
+                `INSERT INTO quality_sessions (session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, platform_id, shop_id, duration, message_count)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, platform_id, shop_id, duration, message_count]
             );
             return { success: true, id: result.insertId };
         } catch (error) {
             console.error('Error creating quality session:', error);
             reply.code(500).send({ success: false, message: 'Failed to create quality session.' });
-        }
-    });
-
-    // POST /api/quality/sessions/import - Import sessions from Excel
-    fastify.post('/api/quality/sessions/import', async (request, reply) => {
-        try {
-            const parts = request.parts();
-            let fileBuffer;
-            let platformId;
-            let shopId;
-            let columnMapStr;
-
-            for await (const part of parts) {
-                if (part.file) {
-                    fileBuffer = await part.toBuffer();
-                } else {
-                    if (part.fieldname === 'platform') platformId = part.value;
-                    if (part.fieldname === 'shop') shopId = part.value;
-                    if (part.fieldname === 'columnMap') columnMapStr = part.value;
-                }
-            }
-
-            if (!fileBuffer || !platformId || !shopId || !columnMapStr) {
-                return reply.code(400).send({ success: false, message: 'Missing file, platform, shop, or column map.' });
-            }
-
-            const columnMap = JSON.parse(columnMapStr);
-
-            // Get platform and shop names
-            const [platformRows] = await pool.query('SELECT name FROM platforms WHERE id = ?', [platformId]);
-            const [shopRows] = await pool.query('SELECT name FROM shops WHERE id = ?', [shopId]);
-
-            if (platformRows.length === 0 || shopRows.length === 0) {
-                return reply.code(400).send({ success: false, message: 'Invalid platform or shop ID.' });
-            }
-
-            const platformName = platformRows[0].name;
-            const shopName = shopRows[0].name;
-
-            // Parse Excel
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(fileBuffer);
-            const worksheet = workbook.getWorksheet(1);
-
-            if (!worksheet) {
-                return reply.code(400).send({ success: false, message: 'Invalid Excel file.' });
-            }
-
-            const headers = [];
-            worksheet.getRow(1).eachCell((cell, colNumber) => {
-                headers[colNumber] = cell.value;
-            });
-
-            const sessionsToInsert = [];
-            const errors = [];
-
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber === 1) return; // Skip header
-
-                const rowData = {};
-                row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                    rowData[headers[colNumber]] = cell.value;
-                });
-
-                // Map fields
-                const session = {
-                    session_code: rowData[columnMap.session_code],
-                    customer_service_id: rowData[columnMap.customer_service_id], // Assuming this is the ID or we need to look it up?
-                    // If customer_service_id in Excel is a name, we might need to look up the user ID.
-                    // But ImportSessionModal says "客服ID" (Customer Service ID). Let's assume it's the ID for now.
-                    customer_info: rowData[columnMap.customer_info] || {},
-                    communication_channel: rowData[columnMap.communication_channel] || 'unknown',
-                    duration: rowData[columnMap.duration] || 0,
-                    message_count: rowData[columnMap.message_count] || 0,
-                    platform: platformName,
-                    shop: shopName
-                };
-
-                if (session.session_code && session.customer_service_id) {
-                    sessionsToInsert.push(session);
-                }
-            });
-
-            // Insert into DB
-            let successCount = 0;
-            for (const session of sessionsToInsert) {
-                try {
-                    // Check if customer_service_id exists
-                    // If it's a number, check if user exists.
-                    // If it's a name, try to find user by name?
-                    // Let's assume it's ID first.
-
-                    // Note: customer_info should be stringified
-                    await pool.query(
-                        `INSERT INTO quality_sessions (session_code, customer_service_id, customer_info, communication_channel, platform, shop, duration, message_count)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [session.session_code, session.customer_service_id, JSON.stringify(session.customer_info), session.communication_channel, session.platform, session.shop, session.duration, session.message_count]
-                    );
-                    // Wait, I used session.session_code as customer_service_id in the line above! That's a bug in my thought.
-                    // Correct: [session.session_code, session.customer_service_id, ...]
-
-                    successCount++;
-                } catch (err) {
-                    console.error('Error inserting session:', err);
-                    errors.push(`Session ${session.session_code}: ${err.message}`);
-                }
-            }
-
-            return {
-                success: true,
-                message: `Imported ${successCount} sessions successfully.`,
-                errors: errors.length > 0 ? errors : undefined
-            };
-
-        } catch (error) {
-            console.error('Error importing sessions:', error);
-            reply.code(500).send({ success: false, message: 'Failed to import sessions.' });
         }
     });
 
@@ -279,27 +162,33 @@ module.exports = async function (fastify, opts) {
         let query = `
             SELECT
                 qs.*,
-                u.real_name as customer_service_name
+                u.real_name as customer_service_name,
+                ea.name as external_agent_name,
+                p.name as platform_name,
+                s.name as shop_name
             FROM quality_sessions qs
-            LEFT JOIN users u ON qs.customer_service_id = u.id
+            LEFT JOIN users u ON qs.agent_id = u.id
+            LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
+            LEFT JOIN platforms p ON qs.platform_id = p.id
+            LEFT JOIN shops s ON qs.shop_id = s.id
             WHERE 1=1
         `;
         const params = [];
 
         if (search) {
-            query += ` AND (qs.session_code LIKE ? OR qs.customer_info LIKE ?)`;
-            params.push(`%${search}%`, `%${search}%`);
+            query += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
         if (customerServiceId) {
-            query += ` AND qs.customer_service_id = ?`;
+            query += ` AND qs.agent_id = ?`;
             params.push(customerServiceId);
         }
         if (status) {
-            query += ` AND qs.quality_status = ?`;
+            query += ` AND qs.status = ?`;
             params.push(status);
         }
         if (channel) {
-            query += ` AND qs.communication_channel = ?`;
+            query += ` AND qs.channel = ?`;
             params.push(channel);
         }
         if (startDate) {
@@ -311,14 +200,43 @@ module.exports = async function (fastify, opts) {
             params.push(endDate);
         }
 
-        // Get total count
-        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM quality_sessions qs LEFT JOIN users u ON qs.customer_service_id = u.id WHERE 1=1 ${query.split('WHERE 1=1')[1]}`, params);
-        const total = countResult[0].total;
-
-        query += ` ORDER BY qs.created_at DESC LIMIT ? OFFSET ?`;
-        params.push(parseInt(pageSize), parseInt(offset));
-
         try {
+            // Build count query
+            let countQuery = `
+                SELECT COUNT(*) as total
+                FROM quality_sessions qs
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
+                WHERE 1=1
+            `;
+
+            // Add same filters to count query
+            if (search) {
+                countQuery += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
+            }
+            if (customerServiceId) {
+                countQuery += ` AND qs.agent_id = ?`;
+            }
+            if (status) {
+                countQuery += ` AND qs.status = ?`;
+            }
+            if (channel) {
+                countQuery += ` AND qs.channel = ?`;
+            }
+            if (startDate) {
+                countQuery += ` AND qs.created_at >= ?`;
+            }
+            if (endDate) {
+                countQuery += ` AND qs.created_at <= ?`;
+            }
+
+            // Get total count
+            const [countResult] = await pool.query(countQuery, params);
+            const total = countResult[0].total;
+
+            query += ` ORDER BY qs.created_at DESC LIMIT ? OFFSET ?`;
+            params.push(parseInt(pageSize), parseInt(offset));
+
             const [rows] = await pool.query(query, params);
             return {
                 success: true,
@@ -343,16 +261,36 @@ module.exports = async function (fastify, opts) {
             const [rows] = await pool.query(
                 `SELECT
                     qs.*,
-                    u.real_name as customer_service_name
+                    u.real_name as customer_service_name,
+                    ea.name as external_agent_name,
+                    p.name as platform_name,
+                    s.name as shop_name
                 FROM quality_sessions qs
-                LEFT JOIN users u ON qs.customer_service_id = u.id
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
+                LEFT JOIN platforms p ON qs.platform_id = p.id
+                LEFT JOIN shops s ON qs.shop_id = s.id
                 WHERE qs.id = ?`,
                 [id]
             );
             if (rows.length === 0) {
                 return reply.code(404).send({ success: false, message: 'Quality session not found.' });
             }
-            return { success: true, data: rows[0] };
+
+            // Get session tags
+            const [sessionTags] = await pool.query(
+                `SELECT t.*, tc.name as category_name, tc.color as category_color
+                 FROM quality_session_tags qst
+                 JOIN tags t ON qst.tag_id = t.id
+                 LEFT JOIN tag_categories tc ON t.category_id = tc.id
+                 WHERE qst.session_id = ?`,
+                [id]
+            );
+
+            const sessionData = rows[0];
+            sessionData.tags = sessionTags;
+
+            return { success: true, data: sessionData };
         } catch (error) {
             console.error('Error fetching quality session details:', error);
             reply.code(500).send({ success: false, message: 'Failed to fetch quality session details.' });
@@ -362,21 +300,24 @@ module.exports = async function (fastify, opts) {
     // PUT /api/quality/sessions/:id - Update session information
     fastify.put('/api/quality/sessions/:id', async (request, reply) => {
         const { id } = request.params;
-        const { session_code, customer_service_id, customer_info, communication_channel, duration, message_count, quality_status, score, grade } = request.body;
+        const { session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, duration, message_count, status, score, grade } = request.body;
         try {
             const [result] = await pool.query(
                 `UPDATE quality_sessions SET
-                    session_code = ?,
-                    customer_service_id = ?,
-                    customer_info = ?,
-                    communication_channel = ?,
+                    session_no = ?,
+                    agent_id = ?,
+                    external_agent_id = ?,
+                    agent_name = ?,
+                    customer_id = ?,
+                    customer_name = ?,
+                    channel = ?,
                     duration = ?,
                     message_count = ?,
-                    quality_status = ?,
+                    status = ?,
                     score = ?,
                     grade = ?
                  WHERE id = ?`,
-                [session_code, customer_service_id, JSON.stringify(customer_info), communication_channel, duration, message_count, quality_status, score, grade, id]
+                [session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, duration, message_count, status, score, grade, id]
             );
             if (result.affectedRows === 0) {
                 return reply.code(404).send({ success: false, message: 'Quality session not found.' });
@@ -408,7 +349,7 @@ module.exports = async function (fastify, opts) {
         const { id } = request.params;
         try {
             const [rows] = await pool.query(
-                'SELECT * FROM session_messages WHERE session_id = ? ORDER BY sent_at ASC',
+                'SELECT * FROM session_messages WHERE session_id = ? ORDER BY timestamp ASC',
                 [id]
             );
             return { success: true, data: rows };
@@ -431,7 +372,7 @@ module.exports = async function (fastify, opts) {
                 // Update overall session score and grade
                 const [sessionUpdateResult] = await connection.query(
                     `UPDATE quality_sessions SET
-                        quality_status = 'completed',
+                        status = 'completed',
                         score = ?,
                         grade = ?
                      WHERE id = ?`,
@@ -706,18 +647,19 @@ module.exports = async function (fastify, opts) {
             const averageScore = avgScoreResult[0].average || 0;
 
             // Sessions by status
-            const [statusDistribution] = await pool.query('SELECT quality_status, COUNT(*) as count FROM quality_sessions GROUP BY quality_status');
+            const [statusDistribution] = await pool.query('SELECT status as quality_status, COUNT(*) as count FROM quality_sessions GROUP BY status');
 
             // Top N customer service by average score (example)
             const [topCustomerService] = await pool.query(`
                 SELECT
-                    u.real_name as customer_service_name,
+                    COALESCE(u.real_name, ea.name, qs.agent_name) as customer_service_name,
                     AVG(qs.score) as average_score,
                     COUNT(qs.id) as total_sessions
                 FROM quality_sessions qs
-                LEFT JOIN users u ON qs.customer_service_id = u.id
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
                 WHERE qs.score IS NOT NULL
-                GROUP BY u.real_name
+                GROUP BY COALESCE(u.real_name, ea.name, qs.agent_name)
                 ORDER BY average_score DESC
                 LIMIT 5
             `);
@@ -1321,19 +1263,21 @@ module.exports = async function (fastify, opts) {
             const [rows] = await pool.query(`
                 SELECT
                     qs.id,
-                    qs.session_code,
-                    u.real_name as customer_service_name,
-                    qs.customer_info,
-                    qs.communication_channel,
+                    qs.session_no,
+                    COALESCE(u.real_name, ea.name, qs.agent_name) as customer_service_name,
+                    qs.customer_id,
+                    qs.customer_name,
+                    qs.channel,
                     qs.duration,
                     qs.message_count,
-                    qs.quality_status,
+                    qs.status,
                     qs.score,
                     qs.grade,
                     qs.created_at,
                     qs.updated_at
                 FROM quality_sessions qs
-                LEFT JOIN users u ON qs.customer_service_id = u.id
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
                 ORDER BY qs.created_at DESC
             `);
 
@@ -1392,18 +1336,19 @@ module.exports = async function (fastify, opts) {
             const averageScore = avgScoreResult[0].average || 0;
 
             // Sessions by status
-            const [statusDistribution] = await pool.query('SELECT quality_status, COUNT(*) as count FROM quality_sessions GROUP BY quality_status');
+            const [statusDistribution] = await pool.query('SELECT status as quality_status, COUNT(*) as count FROM quality_sessions GROUP BY status');
 
             // Top N customer service by average score
             const [topCustomerService] = await pool.query(`
                 SELECT
-                    u.real_name as customer_service_name,
+                    COALESCE(u.real_name, ea.name, qs.agent_name) as customer_service_name,
                     AVG(qs.score) as average_score,
                     COUNT(qs.id) as total_sessions
                 FROM quality_sessions qs
-                LEFT JOIN users u ON qs.customer_service_id = u.id
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
                 WHERE qs.score IS NOT NULL
-                GROUP BY u.real_name
+                GROUP BY COALESCE(u.real_name, ea.name, qs.agent_name)
                 ORDER BY average_score DESC
                 LIMIT 5
             `);

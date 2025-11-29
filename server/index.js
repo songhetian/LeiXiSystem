@@ -18,6 +18,9 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 // 引入权限中间件
 const { extractUserPermissions, applyDepartmentFilter } = require('./middleware/checkPermission')
 
+// 注册质检导入路由
+fastify.register(require('./routes/quality-inspection-import-new'))
+
 // 注册 CORS
 fastify.register(cors, {
   origin: '*',
@@ -3031,6 +3034,7 @@ fastify.register(require('./routes/knowledge-stats'))
 
 // ==================== 质检管理路由 ====================
 fastify.register(require('./routes/quality-inspection'))
+fastify.register(require('./routes/quality-tags'))
 
 const start = async () => {
   try {

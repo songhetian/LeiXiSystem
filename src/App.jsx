@@ -79,6 +79,7 @@ const AttendanceHome = lazy(() => import('./pages/Attendance').then(module => ({
 const AttendanceRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceRecords })));
 const LeaveApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.LeaveApply })));
 const PlatformShopManagement = lazy(() => import('./components/PlatformShopManagement'));
+const QualityTagManagement = lazy(() => import('./components/QualityTagManagement'));
 const WeChatPage = lazy(() => import('./pages/Messaging').then(module => ({ default: module.WeChatPage })));
 const CreateGroupPage = lazy(() => import('./pages/Messaging').then(module => ({ default: module.CreateGroupPage })));
 import DatabaseCheck from './components/DatabaseCheck';
@@ -217,12 +218,12 @@ function App() {
 
 
       // 质检管理
-      case 'quality-session':
-        return <SessionManagement />
       case 'quality-rule':
         return <QualityRuleManagementPage />
       case 'quality-score':
         return <QualityInspection />
+      case 'quality-tags':
+        return <QualityTagManagement />
       case 'quality-platform-shop':
         return <PlatformShopManagement />
       case 'quality-report':

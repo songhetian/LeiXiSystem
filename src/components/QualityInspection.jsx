@@ -5,23 +5,18 @@ import qualityAPI from '../api/qualityAPI.js'
 import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'
 import PlatformShopManagement from './PlatformShopManagement'
+import SessionDetailModal from './SessionDetailModal'
 import '../pages/Messaging/WeChatPage.css'
 
 const QualityInspection = () => {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading] = useState(true)
-  const [isInspectOpen, setIsInspectOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPlatformShopModalOpen, setIsPlatformShopModalOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [sessionMessages, setSessionMessages] = useState([]);
-  const [inspectionData, setInspectionData] = useState({
-    attitude: 0,
-    professional: 0,
-    communication: 0,
-    compliance: 0,
-    comment: ''
-  })
+
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -84,77 +79,16 @@ const QualityInspection = () => {
 
   const handleInspect = async (inspection) => {
     setSelectedInspection(inspection)
-    setInspectionData({
-      attitude: inspection.score_details?.attitude || 0,
-      professional: inspection.score_details?.professional || 0,
-      communication: inspection.score_details?.communication || 0,
-      compliance: inspection.score_details?.compliance || 0,
-      comment: inspection.comment || ''
-    })
-    setIsInspectOpen(true)
-
     try {
       const messagesResponse = await qualityAPI.getSessionMessages(inspection.id);
       setSessionMessages(messagesResponse.data.data);
+      setIsDetailModalOpen(true); // Open the new modal
     } catch (error) {
       toast.error('加载会话消息失败');
       console.error('Error loading session messages:', error);
       setSessionMessages([]);
     }
   }
-
-  const handleSubmitInspection = async () => {
-    try {
-      const totalScore = Math.round(
-        inspectionData.attitude * 0.3 +
-        inspectionData.professional * 0.3 +
-        inspectionData.communication * 0.2 +
-        inspectionData.compliance * 0.2
-      )
-
-      await qualityAPI.submitReview(selectedInspection.id, {
-        score: totalScore,
-        grade: 'A',
-        rule_scores: [
-          { rule_id: 1, score: inspectionData.attitude, comment: 'Attitude score' },
-          { rule_id: 2, score: inspectionData.professional, comment: 'Professional score' },
-          { rule_id: 3, score: inspectionData.communication, comment: 'Communication score' },
-          { rule_id: 4, score: inspectionData.compliance, comment: 'Compliance score' },
-        ],
-        comment: inspectionData.comment
-      })
-
-      toast.success('质检完成！')
-      setIsInspectOpen(false)
-      loadInspections()
-    } catch (error) {
-      toast.error('提交质检失败: ' + (error.response?.data?.message || error.message))
-      console.error('Error submitting inspection:', error)
-    }
-  }
-
-  const ScoreInput = ({ label, value, onChange, weight }) => (
-    <div className="space-y-2">
-      <div className="flex justify-between">
-        <label className="text-sm font-medium text-gray-700">{label}</label>
-        <span className="text-sm text-gray-500">权重: {weight}%</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="flex-1 h-2 bg-primary-200 rounded-lg appearance-none cursor-pointer"
-          style={{
-            background: `linear-gradient(to right, #22c55e 0%, #22c55e ${value}%, #bbf7d0 ${value}%, #bbf7d0 100%)`
-          }}
-        />
-        <span className="text-lg font-semibold text-primary-700 w-12 text-right">{value}</span>
-      </div>
-    </div>
-  )
 
   if (loading) {
     return (
@@ -248,8 +182,8 @@ const QualityInspection = () => {
                     <td className="font-medium">#{inspection.session_code}</td>
                     <td>{inspection.customer_service_name}</td>
                     <td>{inspection.communication_channel}</td>
-                    <td>{inspection.platform}</td>
-                    <td>{inspection.shop}</td>
+                    <td>{inspection.platform_name}</td>
+                    <td>{inspection.shop_name}</td>
                     <td>
                       {inspection.score ? (
                         <span className={`font-semibold ${inspection.score >= 90 ? 'text-green-600' :
@@ -270,21 +204,23 @@ const QualityInspection = () => {
                     </td>
                     <td>{formatDate(inspection.created_at)}</td>
                     <td className="text-center">
-                      {inspection.quality_status === 'pending' ? (
-                        <button
-                          onClick={() => handleInspect(inspection)}
-                          className="business-btn business-btn-primary business-btn-sm"
-                        >
-                          开始质检
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleInspect(inspection)}
-                          className="business-btn business-btn-secondary business-btn-sm"
-                        >
-                          查看详情
-                        </button>
-                      )}
+                      <div className="flex gap-2 justify-center">
+                        {inspection.quality_status === 'pending' ? (
+                          <button
+                            onClick={() => handleInspect(inspection)}
+                            className="business-btn business-btn-primary business-btn-sm"
+                          >
+                            开始质检
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleInspect(inspection)}
+                            className="business-btn business-btn-secondary business-btn-sm"
+                          >
+                            查看详情
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -293,159 +229,147 @@ const QualityInspection = () => {
           </table>
         </div>
 
+        {/* Pagination */}
         {pagination.totalPages > 1 && (
-          <div className="flex justify-center items-center mt-6 space-x-2">
-            <button
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={pagination.page === 1}
-              className="business-btn business-btn-secondary business-btn-sm"
-            >
-              上一页
-            </button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => (
+          <div className="mt-6 flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
+            <div className="flex flex-1 justify-between sm:hidden">
               <button
-                key={p}
-                onClick={() => handlePageChange(p)}
-                className={`business-btn business-btn-sm ${pagination.page === p ? 'business-btn-primary' : 'business-btn-secondary'
-                  }`}
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {p}
+                上一页
               </button>
-            ))}
-            <button
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={pagination.page === pagination.totalPages}
-              className="business-btn business-btn-secondary business-btn-sm"
-            >
-              下一页
-            </button>
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.totalPages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                下一页
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  显示第 <span className="font-medium">{(pagination.page - 1) * pagination.pageSize + 1}</span> 到{' '}
+                  <span className="font-medium">{Math.min(pagination.page * pagination.pageSize, pagination.total)}</span> 条，
+                  共 <span className="font-medium">{pagination.total}</span> 条记录
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={pagination.page === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">上一页</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {(() => {
+                    const pages = [];
+                    const maxVisible = 7;
+                    let startPage = Math.max(1, pagination.page - Math.floor(maxVisible / 2));
+                    let endPage = Math.min(pagination.totalPages, startPage + maxVisible - 1);
+
+                    if (endPage - startPage < maxVisible - 1) {
+                      startPage = Math.max(1, endPage - maxVisible + 1);
+                    }
+
+                    if (startPage > 1) {
+                      pages.push(
+                        <button
+                          key={1}
+                          onClick={() => handlePageChange(1)}
+                          className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
+                        >
+                          1
+                        </button>
+                      );
+                      if (startPage > 2) {
+                        pages.push(
+                          <span key="ellipsis1" className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+                            ...
+                          </span>
+                        );
+                      }
+                    }
+
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => handlePageChange(i)}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                            pagination.page === i
+                              ? 'z-10 bg-primary-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600'
+                              : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+
+                    if (endPage < pagination.totalPages) {
+                      if (endPage < pagination.totalPages - 1) {
+                        pages.push(
+                          <span key="ellipsis2" className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+                            ...
+                          </span>
+                        );
+                      }
+                      pages.push(
+                        <button
+                          key={pagination.totalPages}
+                          onClick={() => handlePageChange(pagination.totalPages)}
+                          className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
+                        >
+                          {pagination.totalPages}
+                        </button>
+                      );
+                    }
+
+                    return pages;
+                  })()}
+                  <button
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={pagination.page === pagination.totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">下一页</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      <ImportSessionModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
+      <ImportSessionModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={loadInspections}
+      />
 
       <Modal isOpen={isPlatformShopModalOpen} onClose={() => setIsPlatformShopModalOpen(false)} title="平台店铺管理" size="large">
         <PlatformShopManagement />
       </Modal>
 
-      <Modal isOpen={isInspectOpen} onClose={() => setIsInspectOpen(false)} title="质检评分">
-        {selectedInspection && (
-          <div className="space-y-6">
-            <div className="bg-primary-50 rounded-lg p-4 border border-primary-100">
-              <h3 className="font-semibold mb-2 text-primary-800">会话信息</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm text-primary-700">
-                <div>会话ID: #{selectedInspection.session_code}</div>
-                <div>客服: {selectedInspection.customer_service_name}</div>
-                <div>渠道: {selectedInspection.communication_channel}</div>
-                <div>时长: {selectedInspection.duration}s</div>
-                <div>消息数: {selectedInspection.message_count}</div>
-                <div>创建日期: {formatDate(selectedInspection.created_at)}</div>
-              </div>
-            </div>
-
-            <div ref={chatHistoryRef} className="wechat-messages bg-gray-100 rounded-lg h-96 overflow-y-auto border border-gray-200">
-              {sessionMessages.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">暂无会话消息</p>
-              ) : (
-                sessionMessages.map((message, index) => {
-                  const isAgent = message.sender_type === 'agent' || message.sender_type === 'customer_service';
-                  const msgType = isAgent ? 'sent' : 'received';
-                  const prevMsg = sessionMessages[index - 1];
-
-                  return (
-                    <div key={message.id}>
-                      {shouldShowTimestamp(message, prevMsg) && (
-                        <div className="message-timestamp">
-                          {new Date(message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                      <div className={`message-wrapper ${msgType}`}>
-                        {msgType === 'received' && (
-                          <div className="message-avatar bg-blue-500">客</div>
-                        )}
-                        <div className={`message-bubble ${msgType}`}>
-                          <div className="message-content">{message.message_content}</div>
-                        </div>
-                        {msgType === 'sent' && (
-                          <div className="message-avatar sent">服</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <ScoreInput
-                label="服务态度"
-                value={inspectionData.attitude}
-                onChange={(v) => setInspectionData({ ...inspectionData, attitude: v })}
-                weight={30}
-              />
-              <ScoreInput
-                label="专业能力"
-                value={inspectionData.professional}
-                onChange={(v) => setInspectionData({ ...inspectionData, professional: v })}
-                weight={30}
-              />
-              <ScoreInput
-                label="沟通技巧"
-                value={inspectionData.communication}
-                onChange={(v) => setInspectionData({ ...inspectionData, communication: v })}
-                weight={20}
-              />
-              <ScoreInput
-                label="合规性"
-                value={inspectionData.compliance}
-                onChange={(v) => setInspectionData({ ...inspectionData, compliance: v })}
-                weight={20}
-              />
-            </div>
-
-            <div>
-              <label className="business-label">评价意见</label>
-              <textarea
-                value={inspectionData.comment}
-                onChange={(e) => setInspectionData({ ...inspectionData, comment: e.target.value })}
-                className="business-textarea"
-                rows="4"
-                placeholder="请输入评价意见和改进建议..."
-              />
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <div className="text-center">
-                <div className="text-sm text-gray-600 mb-1">综合得分</div>
-                <div className="text-3xl font-bold text-primary-600">
-                  {Math.round(
-                    inspectionData.attitude * 0.3 +
-                    inspectionData.professional * 0.3 +
-                    inspectionData.communication * 0.2 +
-                    inspectionData.compliance * 0.2
-                  )}分
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setIsInspectOpen(false)}
-                className="business-btn business-btn-secondary"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSubmitInspection}
-                className="business-btn business-btn-primary"
-              >
-                提交质检
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <SessionDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          loadInspections(); // Refresh list after closing in case of changes
+        }}
+        session={selectedInspection}
+        initialMessages={sessionMessages}
+      />
     </div>
   )
 }

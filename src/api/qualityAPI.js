@@ -83,6 +83,46 @@ const qualityAPI = {
   getUserFavoriteCases: (userId, params) => api.get(`/quality/users/${userId}/favorites`, { params }),
   // 开始学习案例
   startLearningCase: (caseId, userId) => api.post(`/quality/cases/${caseId}/learn/start`, { user_id: userId }),
+
+  // --- 标签分类管理 ---
+  // 获取所有标签分类（树形结构）
+  getTagCategories: (params) => api.get('/quality/tag-categories', { params }),
+  // 获取单个标签分类
+  getTagCategory: (id) => api.get(`/quality/tag-categories/${id}`),
+  // 创建标签分类
+  createTagCategory: (data) => api.post('/quality/tag-categories', data),
+  // 更新标签分类
+  updateTagCategory: (id, data) => api.put(`/quality/tag-categories/${id}`, data),
+  // 删除标签分类
+  deleteTagCategory: (id) => api.delete(`/quality/tag-categories/${id}`),
+
+  // --- 标签管理 ---
+  // 获取所有标签（树形结构）
+  getTags: (params) => api.get('/quality/tags', { params }),
+  // 获取单个标签
+  getTag: (id) => api.get(`/quality/tags/${id}`),
+  // 创建标签
+  createTag: (data) => api.post('/quality/tags', data),
+  // 更新标签
+  updateTag: (id, data) => api.put(`/quality/tags/${id}`, data),
+  // 删除标签
+  deleteTag: (id) => api.delete(`/quality/tags/${id}`),
+
+  // --- 会话标签关联 ---
+  // 获取会话的所有标签
+  getSessionTags: (sessionId) => api.get(`/quality/sessions/${sessionId}/tags`),
+  // 为会话添加标签
+  addSessionTag: (sessionId, data) => api.post(`/quality/sessions/${sessionId}/tags`, data),
+  // 删除会话标签
+  removeSessionTag: (sessionId, tagId) => api.delete(`/quality/sessions/${sessionId}/tags/${tagId}`),
+
+  // --- 消息标签关联 ---
+  // 获取消息的所有标签
+  getMessageTags: (messageId) => api.get(`/quality/messages/${messageId}/tags`),
+  // 为消息添加标签
+  addMessageTag: (messageId, data) => api.post(`/quality/messages/${messageId}/tags`, data),
+  // 删除消息标签
+  removeMessageTag: (messageId, tagId) => api.delete(`/quality/messages/${messageId}/tags/${tagId}`),
 };
 
 export default qualityAPI;
