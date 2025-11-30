@@ -161,7 +161,28 @@ module.exports = async function (fastify, opts) {
 
         let query = `
             SELECT
-                qs.*,
+                qs.id,
+                qs.session_no as session_code,
+                qs.agent_id,
+                qs.external_agent_id,
+                qs.agent_name,
+                qs.customer_id,
+                qs.customer_name,
+                qs.channel as communication_channel,
+                qs.start_time,
+                qs.end_time,
+                qs.duration,
+                qs.message_count,
+                qs.status as quality_status,
+                qs.inspector_id,
+                qs.score,
+                qs.grade,
+                qs.comment,
+                qs.reviewed_at,
+                qs.platform_id,
+                qs.shop_id,
+                qs.created_at,
+                qs.updated_at,
                 u.real_name as customer_service_name,
                 ea.name as external_agent_name,
                 p.name as platform_name,
@@ -300,25 +321,37 @@ module.exports = async function (fastify, opts) {
     // PUT /api/quality/sessions/:id - Update session information
     fastify.put('/api/quality/sessions/:id', async (request, reply) => {
         const { id } = request.params;
-        const { session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, duration, message_count, status, score, grade } = request.body;
+        const updates = request.body;
+
+        // Remove fields that shouldn't be updated directly or are undefined
+        const allowedFields = [
+            'session_no', 'agent_id', 'external_agent_id', 'agent_name',
+            'customer_id', 'customer_name', 'channel', 'duration',
+            'message_count', 'status', 'score', 'grade'
+        ];
+
+        const fieldsToUpdate = [];
+        const values = [];
+
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) {
+                fieldsToUpdate.push(`${field} = ?`);
+                values.push(updates[field]);
+            }
+        }
+
+        if (fieldsToUpdate.length === 0) {
+            return reply.code(400).send({ success: false, message: 'No valid fields to update.' });
+        }
+
+        values.push(id);
+
         try {
             const [result] = await pool.query(
-                `UPDATE quality_sessions SET
-                    session_no = ?,
-                    agent_id = ?,
-                    external_agent_id = ?,
-                    agent_name = ?,
-                    customer_id = ?,
-                    customer_name = ?,
-                    channel = ?,
-                    duration = ?,
-                    message_count = ?,
-                    status = ?,
-                    score = ?,
-                    grade = ?
-                 WHERE id = ?`,
-                [session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name, channel, duration, message_count, status, score, grade, id]
+                `UPDATE quality_sessions SET ${fieldsToUpdate.join(', ')} WHERE id = ?`,
+                values
             );
+
             if (result.affectedRows === 0) {
                 return reply.code(404).send({ success: false, message: 'Quality session not found.' });
             }
@@ -348,35 +381,94 @@ module.exports = async function (fastify, opts) {
     fastify.get('/api/quality/sessions/:id/messages', async (request, reply) => {
         const { id } = request.params;
         try {
-            const [rows] = await pool.query(
+            // Fetch messages
+            const [messages] = await pool.query(
                 'SELECT * FROM session_messages WHERE session_id = ? ORDER BY timestamp ASC',
                 [id]
             );
-            return { success: true, data: rows };
+
+            if (messages.length === 0) {
+                return { success: true, data: [] };
+            }
+
+            // Fetch tags for these messages
+            const messageIds = messages.map(m => m.id);
+            if (messageIds.length > 0) {
+                const [tags] = await pool.query(
+                    `SELECT qmt.message_id, t.* 
+                     FROM quality_message_tags qmt
+                     JOIN quality_tags t ON qmt.tag_id = t.id
+                     WHERE qmt.message_id IN (?)`,
+                    [messageIds]
+                );
+
+                // Attach tags to messages
+                const tagMap = {};
+                tags.forEach(tag => {
+                    if (!tagMap[tag.message_id]) {
+                        tagMap[tag.message_id] = [];
+                    }
+                    tagMap[tag.message_id].push(tag);
+                });
+
+                messages.forEach(msg => {
+                    msg.tags = tagMap[msg.id] || [];
+                });
+            }
+
+            return { success: true, data: messages };
         } catch (error) {
             console.error('Error fetching session messages:', error);
             reply.code(500).send({ success: false, message: 'Failed to fetch session messages.' });
         }
     });
 
+    // PUT /api/quality/messages/:id - Update message content
+    fastify.put('/api/quality/messages/:id', async (request, reply) => {
+        const { id } = request.params;
+        const { content } = request.body;
+
+        if (!content) {
+            return reply.code(400).send({ success: false, message: 'Message content is required.' });
+        }
+
+        try {
+            const [result] = await pool.query(
+                'UPDATE session_messages SET content = ? WHERE id = ?',
+                [content, id]
+            );
+
+            if (result.affectedRows === 0) {
+                return reply.code(404).send({ success: false, message: 'Message not found.' });
+            }
+
+            return { success: true, message: 'Message updated successfully.' };
+        } catch (error) {
+            console.error('Error updating message:', error);
+            reply.code(500).send({ success: false, message: 'Failed to update message.' });
+        }
+    });
+
     // POST /api/quality/sessions/:id/review - Submit quality review
     fastify.post('/api/quality/sessions/:id/review', async (request, reply) => {
         const { id } = request.params;
-        const { score, grade, rule_scores } = request.body; // rule_scores is an array of { rule_id, score, comment }
+        const { score, grade, rule_scores, comment, session_tags, message_tags } = request.body;
 
         try {
             const connection = await pool.getConnection();
             await connection.beginTransaction();
 
             try {
-                // Update overall session score and grade
+                // Update overall session score, grade, and comment
                 const [sessionUpdateResult] = await connection.query(
                     `UPDATE quality_sessions SET
                         status = 'completed',
                         score = ?,
-                        grade = ?
+                        grade = ?,
+                        comment = ?,
+                        reviewed_at = NOW()
                      WHERE id = ?`,
-                    [score, grade, id]
+                    [score, grade, comment, id]
                 );
 
                 if (sessionUpdateResult.affectedRows === 0) {
@@ -385,15 +477,78 @@ module.exports = async function (fastify, opts) {
                     return reply.code(404).send({ success: false, message: 'Quality session not found.' });
                 }
 
+                // Fetch all active rules to get their score weights (max_score)
+                const [rules] = await connection.query('SELECT id, score_weight FROM quality_rules WHERE is_active = 1');
+                const ruleMap = new Map();
+                rules.forEach(rule => ruleMap.set(rule.id, rule.score_weight));
+
                 // Insert individual rule scores
                 if (rule_scores && Array.isArray(rule_scores)) {
+                    // Validate that all rule_ids exist
+                    const invalidRules = [];
                     for (const rs of rule_scores) {
+                        if (!ruleMap.has(rs.rule_id)) {
+                            invalidRules.push(rs.rule_id);
+                        }
+                    }
+
+                    if (invalidRules.length > 0) {
+                        await connection.rollback();
+                        connection.release();
+                        return reply.code(400).send({
+                            success: false,
+                            message: `Invalid rule IDs: ${invalidRules.join(', ')}. Available rule IDs: ${Array.from(ruleMap.keys()).join(', ')}`
+                        });
+                    }
+
+                    for (const rs of rule_scores) {
+                        const maxScore = ruleMap.get(rs.rule_id) || null;
                         await connection.query(
-                            `INSERT INTO quality_scores (session_id, rule_id, score, comment)
-                             VALUES (?, ?, ?, ?)
-                             ON DUPLICATE KEY UPDATE score = VALUES(score), comment = VALUES(comment)`,
-                            [id, rs.rule_id, rs.score, rs.comment]
+                            `INSERT INTO quality_scores (session_id, rule_id, score, max_score, comment)
+                             VALUES (?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE score = VALUES(score), max_score = VALUES(max_score), comment = VALUES(comment)`,
+                            [id, rs.rule_id, rs.score, maxScore, rs.comment]
                         );
+                    }
+                }
+
+                // Save session tags
+                if (session_tags && Array.isArray(session_tags)) {
+                    // First, remove existing tags
+                    await connection.query('DELETE FROM quality_session_tags WHERE session_id = ?', [id]);
+
+                    // Insert new tags
+                    for (const tag of session_tags) {
+                        // Handle both full tag object and just ID
+                        const tagId = tag.id || tag;
+                        if (tagId) {
+                            await connection.query(
+                                'INSERT IGNORE INTO quality_session_tags (session_id, tag_id) VALUES (?, ?)',
+                                [id, tagId]
+                            );
+                        }
+                    }
+                }
+
+                // Save message tags
+                if (message_tags && Array.isArray(message_tags)) {
+                    // First, remove existing message tags for this session
+                    await connection.query(
+                        `DELETE qmt 
+                         FROM quality_message_tags qmt 
+                         JOIN session_messages sm ON qmt.message_id = sm.id 
+                         WHERE sm.session_id = ?`,
+                        [id]
+                    );
+
+                    // Insert new message tags
+                    for (const tag of message_tags) {
+                        if (tag.messageId && tag.tagId) {
+                            await connection.query(
+                                'INSERT IGNORE INTO quality_message_tags (message_id, tag_id) VALUES (?, ?)',
+                                [tag.messageId, tag.tagId]
+                            );
+                        }
                     }
                 }
 
@@ -745,7 +900,7 @@ module.exports = async function (fastify, opts) {
         let query = `
             SELECT
                 qc.*,
-                qs.session_code
+                qs.session_no as session_code
             FROM quality_cases qc
             LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
             WHERE 1=1
@@ -1074,9 +1229,9 @@ module.exports = async function (fastify, opts) {
         let query = `
             SELECT
                 qc.*,
-                qs.session_code,
+                qs.session_no as session_code,
                 ucf.created_at as favorited_at
-            FROM user_case_favorites ucf
+            FROM quality_case_favorites ucf
             JOIN quality_cases qc ON ucf.case_id = qc.id
             LEFT JOIN quality_sessions qs ON qc.session_id = qs.id
             WHERE ucf.user_id = ?
@@ -1097,7 +1252,7 @@ module.exports = async function (fastify, opts) {
         }
 
         // Get total count
-        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM user_case_favorites ucf JOIN quality_cases qc ON ucf.case_id = qc.id WHERE ucf.user_id = ? ${query.split('WHERE ucf.user_id = ?')[1]}`, params);
+        const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM quality_case_favorites ucf JOIN quality_cases qc ON ucf.case_id = qc.id WHERE ucf.user_id = ? ${query.split('WHERE ucf.user_id = ?')[1]}`, params);
         const total = countResult[0].total;
 
         query += ` ORDER BY ucf.created_at DESC LIMIT ? OFFSET ?`;
@@ -1481,6 +1636,51 @@ module.exports = async function (fastify, opts) {
         } catch (error) {
             console.error('Error fetching recommended quality cases:', error);
             reply.code(500).send({ success: false, message: 'Failed to fetch recommended quality cases.' });
+        }
+    });
+
+    // GET /api/quality/sessions/:id/tags - Get tags for a session
+    fastify.get('/api/quality/sessions/:id/tags', async (request, reply) => {
+        const { id } = request.params;
+        try {
+            const [rows] = await pool.query(`
+                SELECT t.* 
+                FROM quality_tags t
+                JOIN quality_session_tags qst ON t.id = qst.tag_id
+                WHERE qst.session_id = ?
+            `, [id]);
+            return { success: true, data: rows };
+        } catch (error) {
+            console.error('Error fetching session tags:', error);
+            reply.code(500).send({ success: false, message: 'Failed to fetch session tags.' });
+        }
+    });
+
+    // POST /api/quality/sessions/:id/tags - Add tag to session
+    fastify.post('/api/quality/sessions/:id/tags', async (request, reply) => {
+        const { id } = request.params;
+        const { tag_id } = request.body;
+        if (!tag_id) {
+            return reply.code(400).send({ success: false, message: 'Tag ID is required.' });
+        }
+        try {
+            await pool.query('INSERT IGNORE INTO quality_session_tags (session_id, tag_id) VALUES (?, ?)', [id, tag_id]);
+            return { success: true, message: 'Tag added to session.' };
+        } catch (error) {
+            console.error('Error adding session tag:', error);
+            reply.code(500).send({ success: false, message: 'Failed to add session tag.' });
+        }
+    });
+
+    // DELETE /api/quality/sessions/:id/tags/:tagId - Remove tag from session
+    fastify.delete('/api/quality/sessions/:id/tags/:tagId', async (request, reply) => {
+        const { id, tagId } = request.params;
+        try {
+            await pool.query('DELETE FROM quality_session_tags WHERE session_id = ? AND tag_id = ?', [id, tagId]);
+            return { success: true, message: 'Tag removed from session.' };
+        } catch (error) {
+            console.error('Error removing session tag:', error);
+            reply.code(500).send({ success: false, message: 'Failed to remove session tag.' });
         }
     });
 

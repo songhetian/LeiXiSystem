@@ -38,6 +38,7 @@ DROP TABLE IF EXISTS `users`;
 DROP TABLE IF EXISTS `roles`;
 DROP TABLE IF EXISTS `permissions`;
 DROP TABLE IF EXISTS `departments`;
+DROP TABLE IF EXISTS `external_agents`;
 
 -- ==========================================
 -- 基础表结构
@@ -357,10 +358,28 @@ CREATE TABLE `quality_rules` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检规则表';
 
 -- 表: quality_sessions (质检会话表)
+-- 表: external_agents (外部客服表)
+CREATE TABLE `external_agents` (
+  `id` INT NOT NULL AUTO_INCREMENT COMMENT '外部客服ID',
+  `name` VARCHAR(100) NOT NULL COMMENT '客服姓名',
+  `platform_id` INT NOT NULL COMMENT '所属平台ID',
+  `shop_id` INT NOT NULL COMMENT '所属店铺ID',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name_platform_shop` (`name`, `platform_id`, `shop_id`),
+  KEY `idx_platform_id` (`platform_id`),
+  KEY `idx_shop_id` (`shop_id`),
+  CONSTRAINT `fk_external_agents_platform` FOREIGN KEY (`platform_id`) REFERENCES `platforms` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_external_agents_shop` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='外部客服表-存储从Excel导入的客服信息';
+
+-- 表: quality_sessions (质检会话表)
 CREATE TABLE `quality_sessions` (
   `id` INT NOT NULL AUTO_INCREMENT COMMENT '质检会话ID',
   `session_no` VARCHAR(50) NOT NULL COMMENT '会话编号',
   `agent_id` INT DEFAULT NULL COMMENT '客服人员ID（系统用户）',
+  `external_agent_id` INT DEFAULT NULL COMMENT '外部客服ID（导入数据）',
   `agent_name` VARCHAR(100) DEFAULT NULL COMMENT '客服姓名（导入数据）',
   `customer_id` VARCHAR(50) DEFAULT NULL COMMENT '客户ID',
   `customer_name` VARCHAR(100) DEFAULT NULL COMMENT '客户姓名',
@@ -372,7 +391,7 @@ CREATE TABLE `quality_sessions` (
   `status` ENUM('pending', 'in_review', 'completed', 'disputed') NOT NULL DEFAULT 'pending' COMMENT '质检状态',
   `inspector_id` INT DEFAULT NULL COMMENT '质检员ID',
   `score` DECIMAL(5,2) DEFAULT NULL COMMENT '质检总分',
-  `grade` ENUM('excellent', 'good', 'average', 'poor') DEFAULT NULL COMMENT '质检等级',
+  `grade` VARCHAR(20) DEFAULT NULL COMMENT '质检等级',
   `comment` TEXT COMMENT '质检评语',
   `reviewed_at` DATETIME DEFAULT NULL COMMENT '质检完成时间',
   `platform_id` INT DEFAULT NULL COMMENT '平台ID',
@@ -382,6 +401,7 @@ CREATE TABLE `quality_sessions` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_session_no` (`session_no`),
   KEY `idx_agent_id` (`agent_id`),
+  KEY `idx_external_agent_id` (`external_agent_id`),
   KEY `idx_customer_id` (`customer_id`),
   KEY `idx_channel` (`channel`),
   KEY `idx_start_time` (`start_time`),
@@ -397,6 +417,7 @@ CREATE TABLE `quality_sessions` (
   KEY `idx_time_range` (`start_time`, `end_time`),
   KEY `idx_agent_time_status` (`agent_id`, `start_time`, `status`),
   CONSTRAINT `fk_quality_sessions_agent_id` FOREIGN KEY (`agent_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_quality_sessions_external_agent_id` FOREIGN KEY (`external_agent_id`) REFERENCES `external_agents` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_quality_sessions_inspector_id` FOREIGN KEY (`inspector_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_quality_sessions_platform_id` FOREIGN KEY (`platform_id`) REFERENCES `platforms` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_quality_sessions_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE SET NULL
@@ -408,7 +429,7 @@ CREATE TABLE `quality_scores` (
   `session_id` INT NOT NULL COMMENT '会话ID',
   `rule_id` INT NOT NULL COMMENT '规则ID',
   `score` DECIMAL(5,2) NOT NULL COMMENT '得分',
-  `max_score` DECIMAL(5,2) NOT NULL COMMENT '满分',
+  `max_score` DECIMAL(5,2) DEFAULT NULL COMMENT '满分',
   `comment` TEXT COMMENT '评分说明',
   `created_by` INT DEFAULT NULL COMMENT '评分人ID',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -422,6 +443,64 @@ CREATE TABLE `quality_scores` (
   CONSTRAINT `fk_quality_scores_rule_id` FOREIGN KEY (`rule_id`) REFERENCES `quality_rules` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_quality_scores_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检评分表';
+
+-- 表: quality_tag_categories (标签分类表)
+CREATE TABLE `quality_tag_categories` (
+  `id` INT NOT NULL AUTO_INCREMENT COMMENT '分类ID',
+  `name` VARCHAR(50) NOT NULL COMMENT '分类名称',
+  `description` VARCHAR(255) DEFAULT NULL COMMENT '分类描述',
+  `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='标签分类表';
+
+-- 表: quality_tags (质检标签表)
+CREATE TABLE `quality_tags` (
+  `id` INT NOT NULL AUTO_INCREMENT COMMENT '标签ID',
+  `name` VARCHAR(50) NOT NULL COMMENT '标签名称',
+  `category_id` INT DEFAULT NULL COMMENT '分类ID',
+  `color` VARCHAR(20) DEFAULT '#1890ff' COMMENT '标签颜色',
+  `description` VARCHAR(255) DEFAULT NULL COMMENT '标签描述',
+  `tag_type` ENUM('quality', 'business', 'other') NOT NULL DEFAULT 'quality' COMMENT '标签类型',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name_category` (`name`, `category_id`),
+  KEY `idx_category_id` (`category_id`),
+  KEY `idx_tag_type` (`tag_type`),
+  CONSTRAINT `fk_quality_tags_category_id` FOREIGN KEY (`category_id`) REFERENCES `quality_tag_categories` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质检标签表';
+
+-- 表: quality_session_tags (会话标签关联表)
+CREATE TABLE `quality_session_tags` (
+  `id` INT NOT NULL AUTO_INCREMENT COMMENT '关联ID',
+  `session_id` INT NOT NULL COMMENT '会话ID',
+  `tag_id` INT NOT NULL COMMENT '标签ID',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_session_tag` (`session_id`, `tag_id`),
+  KEY `idx_session_id` (`session_id`),
+  KEY `idx_tag_id` (`tag_id`),
+  CONSTRAINT `fk_session_tags_session_id` FOREIGN KEY (`session_id`) REFERENCES `quality_sessions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_session_tags_tag_id` FOREIGN KEY (`tag_id`) REFERENCES `quality_tags` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会话标签关联表';
+
+-- 表: quality_message_tags (消息标签关联表)
+CREATE TABLE `quality_message_tags` (
+  `id` INT NOT NULL AUTO_INCREMENT COMMENT '关联ID',
+  `message_id` INT NOT NULL COMMENT '消息ID',
+  `tag_id` INT NOT NULL COMMENT '标签ID',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_message_tag` (`message_id`, `tag_id`),
+  KEY `idx_message_id` (`message_id`),
+  KEY `idx_tag_id` (`tag_id`),
+  CONSTRAINT `fk_message_tags_message_id` FOREIGN KEY (`message_id`) REFERENCES `session_messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_message_tags_tag_id` FOREIGN KEY (`tag_id`) REFERENCES `quality_tags` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息标签关联表';
 
 -- 表: session_messages (会话消息表)
 CREATE TABLE `session_messages` (

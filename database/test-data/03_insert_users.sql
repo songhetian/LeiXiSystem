@@ -26,14 +26,14 @@ DELETE FROM `users` WHERE `username` IN ('admin', 'manager1', 'service1', 'servi
 -- 插入用户数据
 -- 密码都是: 123456 (使用bcrypt加密后的哈希值)
 INSERT INTO `users` (`username`, `password_hash`, `real_name`, `email`, `phone`, `department_id`, `status`, `created_at`) VALUES
-('admin', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '系统管理员', 'admin@leixi.com', '13800000000', @dept_admin_id, 'active', NOW()),
-('manager1', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '张经理', 'manager1@leixi.com', '13800000001', @dept_service_id, 'active', NOW()),
-('service1', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '李客服', 'service1@leixi.com', '13800000002', @dept_service_id, 'active', NOW()),
-('service2', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '王客服', 'service2@leixi.com', '13800000003', @dept_service_id, 'active', NOW()),
-('service3', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '赵客服', 'service3@leixi.com', '13800000004', @dept_service_id, 'active', NOW()),
-('qa1', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '刘质检', 'qa1@leixi.com', '13800000005', @dept_qa_id, 'active', NOW()),
-('qa2', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '陈质检', 'qa2@leixi.com', '13800000006', @dept_qa_id, 'active', NOW()),
-('tech1', '$2b$10$rZ5zKzY8vK5YqZ5YqZ5YqOqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5YqZ5', '周工程师', 'tech1@leixi.com', '13800000007', @dept_tech_id, 'active', NOW());
+('admin', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '系统管理员', 'admin@leixi.com', '13800000000', @dept_admin_id, 'active', NOW()),
+('manager1', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '张经理', 'manager1@leixi.com', '13800000001', @dept_service_id, 'active', NOW()),
+('service1', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '李客服', 'service1@leixi.com', '13800000002', @dept_service_id, 'active', NOW()),
+('service2', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '王客服', 'service2@leixi.com', '13800000003', @dept_service_id, 'active', NOW()),
+('service3', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '赵客服', 'service3@leixi.com', '13800000004', @dept_service_id, 'active', NOW()),
+('qa1', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '刘质检', 'qa1@leixi.com', '13800000005', @dept_qa_id, 'active', NOW()),
+('qa2', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '陈质检', 'qa2@leixi.com', '13800000006', @dept_qa_id, 'active', NOW()),
+('tech1', '$2b$10$Gg7I/ImQq/BdLJpaHHVTC.ASi5QcoQg9JymoZJqfaT/O2O.Jz1tQG', '周工程师', 'tech1@leixi.com', '13800000007', @dept_tech_id, 'active', NOW());
 
 -- 获取用户ID
 SET @user_admin_id = (SELECT id FROM `users` WHERE `username` = 'admin' LIMIT 1);

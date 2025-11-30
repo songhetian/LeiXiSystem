@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { FolderOutlined } from '@ant-design/icons'; // 添加图标导入
 import api from '../api';
 import Modal from './Modal';
 import './CategoryManagement.css';
@@ -15,6 +16,23 @@ const CategoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'recycle'
   const [expandedNodes, setExpandedNodes] = useState(new Set());
+
+  // 初始化时展开所有节点
+  useEffect(() => {
+    if (categories.length > 0 && activeTab === 'active') {
+      const allNodeIds = new Set();
+      const collectNodeIds = (nodes) => {
+        nodes.forEach(node => {
+          allNodeIds.add(node.id);
+          if (node.children && node.children.length > 0) {
+            collectNodeIds(node.children);
+          }
+        });
+      };
+      collectNodeIds(categories);
+      setExpandedNodes(allNodeIds);
+    }
+  }, [categories, activeTab]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -168,23 +186,32 @@ const CategoryManagement = () => {
     const isExpanded = expandedNodes.has(node.id);
 
     return (
-      <div key={node.id} className="tree-node">
-        <div className="tree-node-content" style={{ paddingLeft: `${level * 24}px` }}>
+      <div key={node.id} className="tree-item" style={{ paddingLeft: `${level * 24}px` }}>
+        <div 
+          className="tree-item-content"
+        >
           {hasChildren && (
             <button
               className="expand-btn"
-              onClick={() => toggleNode(node.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleNode(node.id);
+              }}
             >
               <span>{isExpanded ? '▼' : '▶'}</span>
             </button>
           )}
           {!hasChildren && <div className="expand-placeholder" />}
+          
+          {/* 添加文件夹图标 */}
+          <FolderOutlined className="tree-icon" />
+          
+          <span className="tree-label">{node.name}</span>
 
-          <span className="category-name">{node.name}</span>
-
-          <div className="category-actions">
+          <div className="tree-actions">
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setFormData({
                   name: '',
                   description: '',
@@ -192,14 +219,14 @@ const CategoryManagement = () => {
                 });
                 setShowModal(true);
               }}
-              className="action-btn add-btn"
+              className="btn-icon add-btn"
               title="添加子分类"
             >
               <span>➕</span>
-              <span className="action-text">添加</span>
             </button>
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setEditingCategory(node);
                 setFormData({
                   name: node.name,
@@ -208,19 +235,20 @@ const CategoryManagement = () => {
                 });
                 setShowModal(true);
               }}
-              className="action-btn edit-btn"
+              className="btn-icon edit-btn"
               title="编辑"
             >
               <span>✏️</span>
-              <span className="action-text">编辑</span>
             </button>
             <button
-              onClick={() => handleDeleteCategory(node.id)}
-              className="action-btn delete-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteCategory(node.id);
+              }}
+              className="btn-icon delete-btn"
               title="删除"
             >
               <span>🗑️</span>
-              <span className="action-text">删除</span>
             </button>
           </div>
         </div>
@@ -327,14 +355,14 @@ const CategoryManagement = () => {
                         <div className="table-actions">
                           <button
                             onClick={() => handleRestoreCategory(category.id)}
-                            className="action-btn restore-btn"
+                            className="btn-icon restore-btn"
                             title="恢复"
                           >
                             <span>♻️</span>
                           </button>
                           <button
                             onClick={() => handlePermanentDelete(category.id)}
-                            className="action-btn permanent-delete-btn"
+                            className="btn-icon permanent-delete-btn"
                             title="永久删除"
                           >
                             <span>❌</span>
@@ -354,49 +382,47 @@ const CategoryManagement = () => {
       {showModal && (
         <Modal
           isOpen={showModal}
-          onClose={() => {
-            setShowModal(false);
-            resetForm();
-          }}
-          title={editingCategory ? '编辑分类' : '新建分类'}
+          onClose={() => setShowModal(false)}
+          title={editingCategory ? "编辑分类" : "新建分类"}
         >
-          <form onSubmit={handleSubmit} className="category-form">
+          <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label>分类名称 *</label>
+              <label htmlFor="categoryName">分类名称 *</label>
               <input
+                id="categoryName"
                 type="text"
-                required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="输入分类名称"
+                placeholder="请输入分类名称"
+                className="form-input"
+                required
               />
             </div>
-
+            
             <div className="form-group">
-              <label>描述</label>
+              <label htmlFor="categoryDescription">描述</label>
               <textarea
+                id="categoryDescription"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="请输入分类描述"
+                className="form-textarea"
                 rows="3"
-                placeholder="输入分类描述"
               />
             </div>
-
+            
             <div className="form-actions">
               <button
                 type="button"
-                onClick={() => {
-                  setShowModal(false);
-                  resetForm();
-                }}
+                onClick={() => setShowModal(false)}
                 className="btn-secondary"
               >
                 取消
               </button>
               <button
                 type="submit"
-                disabled={loading}
                 className="btn-primary"
+                disabled={loading}
               >
                 {loading ? '保存中...' : '保存'}
               </button>
@@ -405,81 +431,71 @@ const CategoryManagement = () => {
         </Modal>
       )}
 
-      {/* 删除确认Modal */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setCategoryToDelete(null);
-        }}
-        title="确认删除"
-      >
-        <div className="delete-confirm-content">
-          <div className="confirm-icon">
-            <span className="warning">⚠️</span>
+      {/* 删除确认对话框 */}
+      {showDeleteModal && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="确认删除"
+        >
+          <div className="delete-confirm-content">
+            <div className="confirm-icon warning">⚠️</div>
+            <p className="confirm-text">
+              确定要删除分类 "{categoryToDelete?.name}" 吗？
+              <br />
+              删除后将移至回收站，您仍可以恢复它。
+            </p>
+            <div className="confirm-actions">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteCategory}
+                className="btn-danger"
+                disabled={loading}
+              >
+                {loading ? '删除中...' : '确定删除'}
+              </button>
+            </div>
           </div>
-          <p className="confirm-text">
-            确定要删除分类 "<strong>{categoryToDelete?.name}</strong>" 吗？
-            删除后可以在回收站中恢复。
-          </p>
-          <div className="confirm-actions">
-            <button
-              onClick={() => {
-                setShowDeleteModal(false);
-                setCategoryToDelete(null);
-              }}
-              className="btn-secondary"
-            >
-              取消
-            </button>
-            <button
-              onClick={confirmDeleteCategory}
-              className="btn-danger"
-            >
-              确认删除
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* 永久删除确认Modal */}
-      <Modal
-        isOpen={showPermanentDeleteModal}
-        onClose={() => {
-          setShowPermanentDeleteModal(false);
-          setCategoryToDelete(null);
-        }}
-        title="⚠️ 警告：永久删除"
-      >
-        <div className="delete-confirm-content">
-          <div className="confirm-icon danger">
-            <span>❌</span>
+      {/* 永久删除确认对话框 */}
+      {showPermanentDeleteModal && (
+        <Modal
+          isOpen={showPermanentDeleteModal}
+          onClose={() => setShowPermanentDeleteModal(false)}
+          title="确认永久删除"
+        >
+          <div className="delete-confirm-content">
+            <div className="confirm-icon danger">⚠️</div>
+            <p className="confirm-text danger">
+              确定要永久删除分类 "{categoryToDelete?.name}" 吗？
+              <br />
+              <strong>此操作不可恢复！</strong>
+            </p>
+            <div className="confirm-actions">
+              <button
+                onClick={() => setShowPermanentDeleteModal(false)}
+                className="btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmPermanentDelete}
+                className="btn-danger"
+                disabled={loading}
+              >
+                {loading ? '删除中...' : '永久删除'}
+              </button>
+            </div>
           </div>
-          <p className="confirm-text danger">
-            <strong>此操作将永久删除分类 "{categoryToDelete?.name}"，无法恢复！</strong>
-          </p>
-          <p className="confirm-text">
-            确定要继续吗？
-          </p>
-          <div className="confirm-actions">
-            <button
-              onClick={() => {
-                setShowPermanentDeleteModal(false);
-                setCategoryToDelete(null);
-              }}
-              className="btn-secondary"
-            >
-              取消
-            </button>
-            <button
-              onClick={confirmPermanentDelete}
-              className="btn-danger"
-            >
-              永久删除
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };

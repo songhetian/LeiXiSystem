@@ -29,6 +29,8 @@ const qualityAPI = {
   deleteSession: (id) => api.delete(`/quality/sessions/${id}`),
   // 获取会话消息
   getSessionMessages: (id) => api.get(`/quality/sessions/${id}/messages`),
+  // 更新消息内容
+  updateMessage: (id, data) => api.put(`/quality/messages/${id}`, data),
 
   // --- 质检规则 ---
   // 获取质检规则列表

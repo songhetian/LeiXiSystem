@@ -7,7 +7,8 @@ import {
     CheckCircleIcon,
     TagIcon,
     TrashIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    SwatchIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { toast } from 'react-toastify';
@@ -24,6 +25,18 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
     const [isDraggingSplit, setIsDraggingSplit] = useState(false);
     const [isDraggingModal, setIsDraggingModal] = useState(false);
     const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+    const [bgColor, setBgColor] = useState('#f0fdf4'); // Default light green
+    const [showColorPicker, setShowColorPicker] = useState(false);
+
+    // Morandi Colors
+    const MORANDI_COLORS = [
+        { name: '薄荷绿', value: '#f0fdf4' }, // Default
+        { name: '莫兰迪蓝', value: '#e3e8f0' }, // Slate-100ish
+        { name: '莫兰迪粉', value: '#fce7f3' }, // Pink-100ish
+        { name: '莫兰迪黄', value: '#fef3c7' }, // Amber-100ish
+        { name: '莫兰迪灰', value: '#f3f4f6' }, // Gray-100
+        { name: '莫兰迪紫', value: '#f3e8ff' }, // Purple-100ish
+    ];
 
     // Inspection Data
     const [rating, setRating] = useState(0);
@@ -50,14 +63,36 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
     // Sync messages with prop when it changes
     useEffect(() => {
         setMessages(initialMessages);
+
+        // Extract tags from messages and set tags state
+        const allTags = [];
+        initialMessages.forEach(msg => {
+            if (msg.tags && Array.isArray(msg.tags)) {
+                msg.tags.forEach(tag => {
+                    allTags.push({
+                        id: tag.id, // This is the tag ID from database
+                        tagId: tag.id, // Real tag ID for saving
+                        messageId: msg.id,
+                        text: tag.name,
+                        color: tag.color
+                    });
+                });
+            }
+        });
+        setTags(allTags);
     }, [initialMessages]);
 
     // Load session tags when session changes
     useEffect(() => {
         if (session?.id) {
-            // In a real app, you would fetch session tags here
-            // qualityAPI.getSessionTags(session.id).then(...)
-            setSessionTags([]);
+            qualityAPI.getSessionTags(session.id)
+                .then(res => {
+                    setSessionTags(res.data.data || []);
+                })
+                .catch(err => {
+                    console.error('Error fetching session tags:', err);
+                    setSessionTags([]);
+                });
         }
     }, [session]);
 
@@ -74,10 +109,10 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
             } else {
                 // Initialize from session data
                 setRating(session.score ? Math.round(session.score / 20) : 0);
-                setTags([]); // In real app, fetch existing tags here
+                // Tags are now loaded from initialMessages
             }
-            // Initialize edit content with session comment
-            setEditContent(session.comment || '');
+            // Initialize edit content (will be set when editing a message)
+            setEditContent('');
         }
     }, [isOpen, session, draftKey]);
 
@@ -175,14 +210,13 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                 rule_scores: [
                     { rule_id: 1, score: ruleScore, comment: 'Attitude' },
                     { rule_id: 2, score: ruleScore, comment: 'Professional' },
-                    { rule_id: 3, score: ruleScore, comment: 'Communication' },
-                    { rule_id: 4, score: ruleScore, comment: 'Compliance' }
+                    { rule_id: 3, score: ruleScore, comment: 'Communication' }
                 ],
                 comment: editContent || '通过新版质检界面评分',
                 session_tags: sessionTags,
                 message_tags: tags.map(t => ({
                     messageId: t.messageId,
-                    tagId: t.tagId || t.id, // Use real ID if available
+                    tagId: t.tagId || t.id,
                     text: t.text,
                     color: t.color
                 }))
@@ -259,20 +293,35 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
-                    >
-                        <XMarkIcon className="w-6 h-6" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Color Picker - Always Visible */}
+                        <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-lg border border-gray-200">
+                            <span className="text-xs text-gray-500 mr-1">背景:</span>
+                            {MORANDI_COLORS.map((color) => (
+                                <button
+                                    key={color.value}
+                                    className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${bgColor === color.value ? 'border-blue-500 shadow-md' : 'border-gray-300'}`}
+                                    style={{ backgroundColor: color.value }}
+                                    onClick={() => setBgColor(color.value)}
+                                    title={color.name}
+                                />
+                            ))}
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
+                        >
+                            <XMarkIcon className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Body */}
                 <div className="flex-1 flex overflow-hidden relative">
                     {/* Left Panel: Chat History */}
                     <div
-                        className="flex flex-col bg-gray-50/50"
-                        style={{ width: `${leftWidth}%` }}
+                        className="flex flex-col transition-colors duration-300"
+                        style={{ width: `${leftWidth}%`, backgroundColor: bgColor }}
                     >
                         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                             {messages.map((msg, index) => {
@@ -286,17 +335,17 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                                         className={`flex ${isAgent ? 'justify-end' : 'justify-start'} group`}
                                         onClick={() => setSelectedMessageId(msg.id)}
                                     >
-                                        <div className={`flex max-w-[85%] gap-3 ${isAgent ? 'flex-row-reverse' : 'flex-row'}`}>
+                                        <div className={`flex max-w-[92%] gap-3 ${isAgent ? 'flex-row-reverse' : 'flex-row'}`}>
                                             {/* Avatar */}
                                             <div className={`avatar flex-shrink-0 ${isAgent ? 'agent' : 'customer'}`}>
                                                 {isAgent ? '服' : '客'}
                                             </div>
 
                                             {/* Content */}
-                                            <div className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'}`}>
-                                                <div className="flex items-center gap-2 mb-1 px-1">
-                                                    <span className="text-xs font-medium text-gray-600">{isAgent ? '客服' : '客户'}</span>
-                                                    <span className="text-xs text-gray-400">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                                            <div className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'} message-container`}>
+                                                <div className="chat-info-area">
+                                                    <span className="chat-info-text">{isAgent ? '客服' : '客户'}</span>
+                                                    <span className="chat-info-text text-gray-400">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                                                 </div>
 
                                                 <div className={`message-bubble ${isAgent ? 'agent' : 'customer'} ${isSelected ? 'selected' : 'cursor-pointer'}`}>
@@ -345,7 +394,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                                     <StarIcon className="w-4 h-4 text-yellow-500" />
                                     会话评分
                                 </h3>
-                                <div className="p-6 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center gap-3">
+                                <div className="py-2 flex flex-col items-center justify-center gap-3">
                                     <div className="flex gap-2">
                                         {renderStars()}
                                     </div>
@@ -355,13 +404,32 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                                 </div>
                             </div>
 
+                            {/* Quality Review Comment Section */}
+                            <div className="mb-8">
+                                <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <PencilSquareIcon className="w-4 h-4 text-purple-500" />
+                                    质检评语
+                                </h3>
+                                <div className="py-2">
+                                    <textarea
+                                        className="w-full h-32 p-3 bg-gray-50 border-none rounded-lg focus:ring-2 focus:ring-blue-100 outline-none resize-none text-sm transition-all"
+                                        placeholder="请输入质检评语..."
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                    />
+                                    <div className="mt-2 text-xs text-gray-400 text-right">
+                                        {editContent.length} / 500
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Tag Management */}
                             <div className="mb-8">
                                 <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <TagIcon className="w-4 h-4 text-blue-500" />
                                     会话标签
                                 </h3>
-                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="py-2">
                                     <TagSelector
                                         selectedTags={sessionTags}
                                         onTagsChange={handleSessionTagsChange}
@@ -377,8 +445,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                                 </h3>
 
                                 {selectedMessageId ? (
-                                    <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-4">
-                                        <div className="text-xs text-blue-600 font-medium">
+                                    <div className="py-2 space-y-3">
+                                        <div className="text-xs text-blue-600 font-medium px-1">
                                             已选中消息 ID: {selectedMessageId}
                                         </div>
                                         <TagSelector
@@ -388,7 +456,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                                         />
                                     </div>
                                 ) : (
-                                    <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
+                                    <div className="py-8 text-center text-gray-400 text-sm bg-gray-50 rounded-lg border-dashed border border-gray-200">
                                         点击左侧消息进行标注
                                     </div>
                                 )}
@@ -399,11 +467,25 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                         <div className="p-6 border-t border-gray-100 bg-gray-50/50 space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                                 <button
-                                    onClick={() => setShowEditSession(true)}
-                                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                                    onClick={() => {
+                                        if (selectedMessageId) {
+                                            const selectedMsg = messages.find(m => m.id === selectedMessageId);
+                                            if (selectedMsg) {
+                                                setEditContent(selectedMsg.content);
+                                                setShowEditSession(true);
+                                            }
+                                        } else {
+                                            toast.warning('请先选择要编辑的消息');
+                                        }
+                                    }}
+                                    disabled={!selectedMessageId}
+                                    className={`flex items-center justify-center gap-2 py-2.5 px-4 border rounded-xl text-sm font-medium transition-all shadow-sm ${selectedMessageId
+                                        ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                        }`}
                                 >
                                     <PencilSquareIcon className="w-4 h-4" />
-                                    修改会话
+                                    修改消息
                                 </button>
                                 <button
                                     onClick={() => setShowAddToCase(true)}
@@ -457,21 +539,21 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                 </div>
             </Modal>
 
-            {/* Edit Session Modal */}
+            {/* Edit Message Modal */}
             <Modal
                 isOpen={showEditSession}
                 onClose={() => setShowEditSession(false)}
-                title="修改会话内容"
+                title="修改消息内容"
                 zIndex={1100}
                 variant="warning"
             >
                 <div className="py-4 space-y-4">
                     <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-sm text-yellow-800">
-                        注意：修改会话内容可能会影响质检结果，请谨慎操作。
+                        注意：此操作将永久修改数据库中的消息内容。
                     </div>
                     <textarea
                         className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none resize-none"
-                        placeholder="在此编辑会话内容..."
+                        placeholder="在此编辑消息内容..."
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
                     />
@@ -484,14 +566,27 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                         </button>
                         <button
                             onClick={async () => {
-                                try {
-                                    // Call PUT API to update session comment
-                                    await qualityAPI.updateSession(session.id, { comment: editContent });
-                                    toast.success('会话内容已更新');
-                                    setShowEditSession(false);
-                                } catch (error) {
-                                    console.error('Update failed:', error);
-                                    toast.error('更新失败');
+                                if (selectedMessageId && editContent.trim()) {
+                                    try {
+                                        // Call API to update message content
+                                        await qualityAPI.updateMessage(selectedMessageId, { content: editContent });
+
+                                        // Update local state
+                                        setMessages(prevMessages =>
+                                            prevMessages.map(msg =>
+                                                msg.id === selectedMessageId
+                                                    ? { ...msg, content: editContent }
+                                                    : msg
+                                            )
+                                        );
+                                        toast.success('消息内容已更新');
+                                        setShowEditSession(false);
+                                    } catch (error) {
+                                        console.error('Update failed:', error);
+                                        toast.error('更新失败: ' + (error.response?.data?.message || error.message));
+                                    }
+                                } else {
+                                    toast.error('消息内容不能为空');
                                 }
                             }}
                             className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
@@ -546,8 +641,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [] }) 
                         </button>
                     </div>
                 </div>
-            </Modal>
-        </div>
+            </Modal >
+        </div >
     );
 };
 

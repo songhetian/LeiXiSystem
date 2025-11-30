@@ -19,84 +19,97 @@
   background-color: rgba(107, 114, 128, 0.8);
 }
 
-/* Message Bubbles */
+/* Message Bubbles - Increased specificity to override any defaults */
 .message-bubble {
   position: relative;
-  max-width: 100%;
-  padding: 10px 14px;
+  max-width: 90%; /* 增加最大宽度 */
+  min-width: 120px; /* 最小宽度，防止过窄 */
+  padding: 12px 18px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+  white-space: normal !important;
+  /* Force normal wrapping */
   word-wrap: break-word;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  overflow-wrap: break-word;
+  word-break: normal !important;
+  /* Don't break every character */
   transition: all 0.2s ease;
+  display: inline-block;
+  /* Shrink to content width */
+  width: fit-content; /* 根据内容调整宽度 */
 }
 
 .message-bubble.agent {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  border-radius: 16px 16px 4px 16px;
+  background-color: #eff6ff;
+  /* blue-50 */
+  color: #1e40af;
+  /* blue-800 */
+  border-radius: 12px 12px 4px 12px;
 }
 
 .message-bubble.customer {
-  background: white;
-  color: #1f2937;
+  background-color: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 16px 16px 16px 4px;
+  color: #1f2937;
+  /* gray-800 */
+  border-radius: 12px 12px 12px 4px;
 }
 
 .message-bubble.selected {
-  box-shadow: 0 0 0 2px #f59e0b, 0 4px 6px rgba(0, 0, 0, 0.1);
-  transform: scale(1.01);
-  z-index: 1;
+  box-shadow: 0 0 0 2px #fbbf24;
+  /* amber-400 */
+  background-color: #fffbeb;
+  /* amber-50 */
+  border-color: #fbbf24;
+}
+
+/* Message Container */
+.message-container {
+  max-width: 95%; /* Increase max width for better utilization of space */
 }
 
 /* Avatar */
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .avatar.agent {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-}
-
-.avatar.customer {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-}
-
-/* Split Pane Resizer */
-.resizer {
-  width: 4px;
-  background-color: #f3f4f6;
-  cursor: col-resize;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-
-.resizer:hover, .resizer.dragging {
   background-color: #3b82f6;
 }
 
-.resizer-handle {
-  width: 2px;
-  height: 24px;
-  background-color: #d1d5db;
-  border-radius: 1px;
+.avatar.customer {
+  background-color: #f97316;
 }
 
-.resizer:hover .resizer-handle {
-  background-color: white;
+/* Customer/Agent Info Display Area */
+.chat-info-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  min-width: 120px; /* 最小宽度，防止过窄 */
+  max-width: 90%; /* 增加最大宽度 */
+  flex-wrap: nowrap; /* Prevent wrapping */
+  width: fit-content; /* 根据内容调整宽度 */
+}
+
+.chat-info-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5563; /* gray-600 */
+  white-space: nowrap; /* Prevent text wrapping */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Show ellipsis for overflow text */
 }
 
 /* Tag Styles */
@@ -105,28 +118,61 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: white;
   margin-right: 4px;
   margin-bottom: 4px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  transition: transform 0.1s;
 }
 
 .tag-chip:hover {
-  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+/* Split Pane Resizer */
+.resizer {
+  width: 1px;
+  background-color: #e5e7eb;
+  cursor: col-resize;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizer.dragging {
+  background-color: #3b82f6;
+  width: 4px;
+}
+
+.resizer-handle {
+  display: none;
 }
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .animate-fade-in {
@@ -159,5 +205,7 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

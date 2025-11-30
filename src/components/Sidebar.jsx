@@ -248,11 +248,10 @@ const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleM
       case 2:
         return {
           container: 'ml-4 pl-4 border-l-2 border-blue-100',
-          button: `px-4 py-2.5 rounded-lg transition-all duration-200 ${
-            isActive
+          button: `px-4 py-2.5 rounded-lg transition-all duration-200 ${isActive
               ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-200 font-medium'
               : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-          }`,
+            }`,
           icon: 'text-base',
           text: 'text-sm',
         };
@@ -299,9 +298,8 @@ const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleM
         </div>
         {hasChildren && (
           <RightOutlined
-            className={`text-xs transition-transform duration-200 text-gray-400 ${
-              isExpanded ? 'rotate-90' : ''
-            }`}
+            className={`text-xs transition-transform duration-200 text-gray-400 ${isExpanded ? 'rotate-90' : ''
+              }`}
           />
         )}
       </button>
@@ -414,13 +412,9 @@ const allMenuItems = [
     icon: <SearchOutlined />,
     children: [
       { id: 'quality-platform-shop', label: '平台店铺', icon: <ShopOutlined /> },
-      { id: 'quality-rule', label: '规则管理', icon: <FileSearchOutlined /> },
       { id: 'quality-score', label: '会话质检', icon: <StarOutlined /> },
       { id: 'quality-tags', label: '标签管理', icon: <TagsOutlined /> },
-      { id: 'quality-report', label: '质检报告', icon: <BarChartOutlined /> },
-      { id: 'quality-report-summary', label: '综合报告', icon: <LineChartOutlined /> },
       { id: 'quality-case-library', label: '案例库', icon: <FolderOpenOutlined /> },
-      { id: 'quality-recommendation', label: '案例推荐', icon: <StarOutlined /> },
     ],
   },
   {

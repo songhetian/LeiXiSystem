@@ -42,11 +42,11 @@ INSERT INTO `quality_sessions`
 (`session_no`, `agent_id`, `customer_id`, `customer_name`, `channel`, `start_time`, `end_time`, `duration`, `message_count`, `status`, `inspector_id`, `score`, `grade`, `comment`, `reviewed_at`, `platform_id`, `shop_id`)
 VALUES
 -- 已完成的质检会话
-('QS20251130001', @agent1_id, 'CUST001', '张三', 'chat', '2025-11-30 10:00:00', '2025-11-30 10:15:00', 900, 10, 'completed', @qa1_id, 93.00, 'excellent', '服务态度优秀，问题解决及时', NOW(), @platform_jd_id, @shop_jd1_id),
-('QS20251130002', @agent1_id, 'CUST002', '李四', 'phone', '2025-11-30 11:00:00', '2025-11-30 11:20:00', 1200, 15, 'completed', @qa1_id, 84.00, 'good', '服务良好，沟通顺畅', NOW(), @platform_jd_id, @shop_jd2_id),
-('QS20251130003', @agent2_id, 'CUST003', '王五', 'chat', '2025-11-30 14:00:00', '2025-11-30 14:10:00', 600, 8, 'completed', @qa1_id, 100.00, 'excellent', '完美的服务体验', NOW(), @platform_jd_id, @shop_jd1_id),
-('QS20251130004', @agent2_id, 'CUST004', '赵六', 'email', '2025-11-30 15:00:00', '2025-11-30 15:30:00', 1800, 6, 'completed', @qa1_id, 78.00, 'good', '邮件回复及时，内容详细', NOW(), @platform_tb_id, @shop_tb1_id),
-('QS20251130005', @agent3_id, 'CUST005', '孙七', 'chat', '2025-11-30 16:00:00', '2025-11-30 16:25:00', 1500, 12, 'completed', @qa1_id, 89.00, 'excellent', '服务专业，态度友好', NOW(), @platform_jd_id, @shop_jd2_id),
+('QS20251130001', @agent1_id, 'CUST001', '张三', 'chat', '2025-11-30 10:00:00', '2025-11-30 10:15:00', 900, 10, 'completed', @qa1_id, 93.00, 'S', '服务态度优秀，问题解决及时', NOW(), @platform_jd_id, @shop_jd1_id),
+('QS20251130002', @agent1_id, 'CUST002', '李四', 'phone', '2025-11-30 11:00:00', '2025-11-30 11:20:00', 1200, 15, 'completed', @qa1_id, 84.00, 'B', '服务良好，沟通顺畅', NOW(), @platform_jd_id, @shop_jd2_id),
+('QS20251130003', @agent2_id, 'CUST003', '王五', 'chat', '2025-11-30 14:00:00', '2025-11-30 14:10:00', 600, 8, 'completed', @qa1_id, 100.00, 'S', '完美的服务体验', NOW(), @platform_jd_id, @shop_jd1_id),
+('QS20251130004', @agent2_id, 'CUST004', '赵六', 'email', '2025-11-30 15:00:00', '2025-11-30 15:30:00', 1800, 6, 'completed', @qa1_id, 78.00, 'C', '邮件回复及时，内容详细', NOW(), @platform_tb_id, @shop_tb1_id),
+('QS20251130005', @agent3_id, 'CUST005', '孙七', 'chat', '2025-11-30 16:00:00', '2025-11-30 16:25:00', 1500, 12, 'completed', @qa1_id, 89.00, 'A', '服务专业，态度友好', NOW(), @platform_jd_id, @shop_jd2_id),
 
 -- 待质检的会话
 ('QS20251201001', @agent1_id, 'CUST006', '周八', 'phone', '2025-12-01 09:30:00', '2025-12-01 10:00:00', 1800, 20, 'pending', NULL, NULL, NULL, NULL, NULL, @platform_jd_id, @shop_jd1_id),

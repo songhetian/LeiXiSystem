@@ -6,6 +6,7 @@ import Modal from './Modal'
 import ImportSessionModal from './ImportSessionModal'
 import PlatformShopManagement from './PlatformShopManagement'
 import SessionDetailModal from './SessionDetailModal'
+import ConfirmDialog from './ConfirmDialog'
 import '../pages/Messaging/WeChatPage.css'
 
 const QualityInspection = () => {
@@ -16,6 +17,8 @@ const QualityInspection = () => {
   const [isPlatformShopModalOpen, setIsPlatformShopModalOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [sessionMessages, setSessionMessages] = useState([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -90,6 +93,26 @@ const QualityInspection = () => {
     }
   }
 
+  const handleDelete = (sessionId) => {
+    setSessionToDelete(sessionId);
+    setDeleteDialogOpen(true);
+  }
+
+  const confirmDelete = async () => {
+    if (!sessionToDelete) return;
+
+    try {
+      await qualityAPI.deleteSession(sessionToDelete);
+      toast.success('删除成功');
+      loadInspections(); // Refresh the list
+    } catch (error) {
+      toast.error('删除失败: ' + (error.response?.data?.message || error.message));
+      console.error('Error deleting session:', error);
+    } finally {
+      setSessionToDelete(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -158,14 +181,14 @@ const QualityInspection = () => {
           <table className="business-table">
             <thead>
               <tr>
-                <th>会话ID</th>
-                <th>客服</th>
-                <th>沟通渠道</th>
-                <th>平台</th>
-                <th>店铺</th>
-                <th>评分</th>
-                <th>状态</th>
-                <th>日期</th>
+                <th className="text-center">会话ID</th>
+                <th className="text-center">客服</th>
+                <th className="text-center">沟通渠道</th>
+                <th className="text-center">平台</th>
+                <th className="text-center">店铺</th>
+                <th className="text-center">评分</th>
+                <th className="text-center">状态</th>
+                <th className="text-center">日期</th>
                 <th className="text-center">操作</th>
               </tr>
             </thead>
@@ -180,10 +203,10 @@ const QualityInspection = () => {
                 inspections.map((inspection) => (
                   <tr key={inspection.id}>
                     <td className="font-medium">#{inspection.session_code}</td>
-                    <td>{inspection.customer_service_name}</td>
-                    <td>{inspection.communication_channel}</td>
-                    <td>{inspection.platform_name}</td>
-                    <td>{inspection.shop_name}</td>
+                    <td>{inspection.customer_service_name || inspection.agent_name || '-'}</td>
+                    <td>{inspection.communication_channel || '-'}</td>
+                    <td>{inspection.platform_name || '-'}</td>
+                    <td>{inspection.shop_name || '-'}</td>
                     <td>
                       {inspection.score ? (
                         <span className={`font-semibold ${inspection.score >= 90 ? 'text-green-600' :
@@ -220,6 +243,12 @@ const QualityInspection = () => {
                             查看详情
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDelete(inspection.id)}
+                          className="business-btn business-btn-danger business-btn-sm"
+                        >
+                          删除
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -302,11 +331,10 @@ const QualityInspection = () => {
                         <button
                           key={i}
                           onClick={() => handlePageChange(i)}
-                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                            pagination.page === i
-                              ? 'z-10 bg-primary-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600'
-                              : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
-                          }`}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${pagination.page === i
+                            ? 'z-10 bg-primary-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600'
+                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                            }`}
                         >
                           {i}
                         </button>
@@ -369,6 +397,17 @@ const QualityInspection = () => {
         }}
         session={selectedInspection}
         initialMessages={sessionMessages}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        title="确认删除"
+        message="确定要删除这条质检记录吗？此操作不可恢复。"
+        confirmText="删除"
+        cancelText="取消"
+        type="danger"
       />
     </div>
   )

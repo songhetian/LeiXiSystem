@@ -1,10 +1,8 @@
-/* 分类管理 - 扁平化极简风格 */
-
+/* 分类管理 - 与标签管理样式保持一致 */
 .category-management {
   padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f5f7fa;
+  min-height: 100vh;
 }
 
 /* 头部 */
@@ -13,21 +11,19 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
 }
 
 .category-header h2 {
-  margin: 0 0 4px 0;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
-  color: #111;
+  color: #1f2937;
+  margin: 0 0 8px 0;
 }
 
 .category-count {
   margin: 0;
-  font-size: 13px;
-  color: #888;
+  font-size: 14px;
+  color: #6b7280;
 }
 
 .header-actions {
@@ -35,191 +31,170 @@
   gap: 12px;
 }
 
-/* 标签页 - 极简风格 */
+/* 标签页 - 与标签管理样式保持一致 */
 .category-tabs {
   display: flex;
-  gap: 24px;
+  gap: 8px;
   margin-bottom: 24px;
-  border-bottom: 1px solid #f0f0f0;
-  padding: 0 4px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .tab-btn {
-  padding: 12px 4px;
-  border: none;
+  padding: 12px 24px;
   background: transparent;
-  color: #666;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
+  color: #6b7280;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -2px;
 }
 
 .tab-btn:hover {
-  color: #1890ff;
+  color: #3b82f6;
 }
 
 .tab-btn.active {
-  color: #1890ff;
-  font-weight: 600;
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: #1890ff;
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
 }
 
 /* 内容区域 */
 .category-content {
   background: white;
-  min-height: 400px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 24px;
 }
 
-/* 分类树 - 增强层级感 */
+/* 分类树 - 与标签管理样式保持一致 */
 .category-tree {
-  padding: 8px 0;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
-.tree-node {
-  position: relative;
+.tree-item {
+  margin-bottom: 4px;
 }
 
-/* 节点内容行 */
-.tree-node-content {
+.tree-item-content {
   display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 4px;
-  transition: background-color 0.15s;
-  cursor: default;
-  border: 1px solid transparent;
-  /* 预留边框位置防止抖动 */
+  gap: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
-.tree-node-content:hover {
-  background-color: #f5f7fa;
-  border-color: #e6f7ff;
+.tree-item-content:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 /* 展开/折叠按钮 */
 .expand-btn {
-  width: 20px;
-  height: 20px;
-  border: 1px solid #d9d9d9;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d1d5db;
   background: white;
-  color: #8c8c8c;
+  color: #6b7280;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
-  margin-right: 8px;
-  padding: 0;
+  border-radius: 4px;
   font-size: 12px;
   line-height: 1;
   transition: all 0.2s;
+  /* 隐藏按钮，但保留功能 */
+  opacity: 0;
+  position: absolute;
+  z-index: -1;
 }
 
 .expand-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
 }
 
+/* 占位符，保持布局一致 */
 .expand-placeholder {
-  width: 20px;
-  margin-right: 8px;
+  width: 24px;
 }
 
-/* 分类名称 */
-.category-name {
-  flex: 1;
+/* 文件夹图标 */
+.tree-icon {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+/* 分类标签 */
+.tree-label {
   font-size: 14px;
-  color: #333;
   font-weight: 500;
+  color: #1f2937;
+  flex: 1;
 }
 
 /* 操作按钮组 */
-.category-actions {
+.tree-actions {
   display: flex;
-  gap: 8px;
-  opacity: 0;
-  /* 默认隐藏 */
-  transition: opacity 0.2s;
-}
-
-.tree-node-content:hover .category-actions {
-  opacity: 1;
-}
-
-/* 扁平化操作按钮 */
-.action-btn {
-  display: flex;
-  align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border: none;
-  border-radius: 2px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
+  margin-left: auto;
+}
+
+/* 图标按钮 */
+.btn-icon {
+  padding: 6px;
   background: transparent;
-}
-
-.action-btn span {
+  border: none;
+  cursor: pointer;
   font-size: 14px;
+  color: #6b7280;
+  transition: all 0.2s;
+  border-radius: 4px;
 }
 
-/* 添加按钮 */
+.btn-icon:hover {
+  background: #f3f4f6;
+}
+
+.btn-edit:hover {
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.btn-delete:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
 .add-btn {
-  color: #52c41a;
-  background: rgba(82, 196, 26, 0.1);
+  color: #10b981;
 }
 
 .add-btn:hover {
-  background: #52c41a;
-  color: white;
-}
-
-/* 编辑按钮 */
-.edit-btn {
-  color: #1890ff;
-  background: rgba(24, 144, 255, 0.1);
-}
-
-.edit-btn:hover {
-  background: #1890ff;
-  color: white;
-}
-
-/* 删除按钮 */
-.delete-btn {
-  color: #ff4d4f;
-  background: rgba(255, 77, 79, 0.1);
-}
-
-.delete-btn:hover {
-  background: #ff4d4f;
-  color: white;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 /* 子级缩进与连接线 */
 .tree-children {
-  margin-left: 10px;
-  /* 基础缩进 */
-  padding-left: 24px;
-  /* 内容缩进 */
-  border-left: 1px dashed #d9d9d9;
-  /* 虚线连接 */
-  position: relative;
+  margin-top: 4px;
+  margin-left: 24px;
+  border-left: 2px solid #e5e7eb;
+  padding-left: 12px;
 }
 
-/* 回收站表格 - 扁平化 */
+/* 回收站表格 - 与标签管理样式保持一致 */
 .recycle-table {
   width: 100%;
   border-collapse: collapse;
@@ -230,73 +205,98 @@
   padding: 12px 16px;
   text-align: left;
   font-weight: 500;
-  color: #888;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fafafa;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .recycle-table tbody tr {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .recycle-table tbody tr:hover {
-  background: #fafafa;
+  background: #f9fafb;
 }
 
 .recycle-table tbody td {
   padding: 12px 16px;
-  color: #333;
+  color: #1f2937;
+}
+
+.table-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.restore-btn:hover {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.permanent-delete-btn:hover {
+  background: #fef2f2;
+  color: #ef4444;
 }
 
 /* 按钮通用样式 */
 .btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   padding: 8px 16px;
-  background: #1890ff;
+  background: #3b82f6;
   color: white;
   border: none;
-  border-radius: 2px;
-  font-size: 14px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
 }
 
 .btn-primary:hover {
-  background: #40a9ff;
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
 }
 
 .btn-secondary {
   padding: 8px 16px;
-  background: white;
-  color: #333;
-  border: 1px solid #d9d9d9;
-  border-radius: 2px;
-  font-size: 14px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   transition: all 0.2s;
 }
 
 .btn-secondary:hover {
-  color: #1890ff;
-  border-color: #1890ff;
+  background: #e5e7eb;
 }
 
 .btn-danger {
   padding: 8px 16px;
-  background: #ff4d4f;
+  background: #ef4444;
   color: white;
   border: none;
-  border-radius: 2px;
+  border-radius: 6px;
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-danger:hover {
-  background: #ff7875;
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
 }
 
 /* 表单样式 */
@@ -308,31 +308,31 @@
   display: block;
   margin-bottom: 8px;
   font-size: 14px;
-  color: #333;
+  font-weight: 500;
+  color: #374151;
 }
 
 .form-group input,
 .form-group textarea {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 2px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
   font-size: 14px;
+  color: #1f2937;
   transition: all 0.2s;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #1890ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-group small {
-  display: block;
-  margin-top: 6px;
-  color: #888;
-  font-size: 12px;
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
 .form-actions {
@@ -340,8 +340,8 @@
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* 确认对话框 */
@@ -353,24 +353,38 @@
 .confirm-icon {
   font-size: 40px;
   margin-bottom: 16px;
-  color: #faad14;
+}
+
+.confirm-icon.warning {
+  color: #f59e0b;
+}
+
+.confirm-icon.danger {
+  color: #ef4444;
 }
 
 .confirm-text {
   font-size: 14px;
-  color: #333;
+  color: #374151;
   margin-bottom: 24px;
 }
 
 .confirm-text.danger {
-  color: #ff4d4f;
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
 
 /* 空状态 */
 .empty-state {
   text-align: center;
-  padding: 48px 0;
-  color: #ccc;
+  padding: 60px 20px;
+  color: #6b7280;
 }
 
 .empty-state span {
@@ -385,15 +399,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 0;
-  color: #888;
+  padding: 60px 0;
+  color: #6b7280;
 }
 
 .spinner {
   width: 32px;
   height: 32px;
-  border: 2px solid #f0f0f0;
-  border-top-color: #1890ff;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: 12px;
@@ -415,6 +429,21 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .tree-item-content {
+    flex-wrap: wrap;
+  }
+
+  .tree-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .action-text {
