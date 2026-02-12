@@ -21,7 +21,7 @@ function setupWebSocket(server, redis, getPool) {
   // --- Redis Pub/Sub Integration ---
   if (redis) {
     console.log('🔌 [WebSocket] 正在初始化 Redis 订阅客户端...');
-    const subClient = redis.duplicate();
+    const subClient = redis.duplicate({ enableReadyCheck: false });
     
     subClient.on('connect', () => {
       console.log('✅ [Redis Pub/Sub] 订阅客户端已连接');

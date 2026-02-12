@@ -163,6 +163,29 @@ module.exports = async function (fastify, opts) {
     }
   })
 
+  // 获取题库列表
+  // GET /api/question-bank
+  fastify.get('/api/question-bank', async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+      if (!token) {
+        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+      }
+      try { jwt.verify(token, JWT_SECRET) } catch { return reply.code(401).send({ success: false, message: '无效的认证令牌' }) }
+
+      const [rows] = await pool.query(
+        `SELECT q.*, e.title as exam_title
+         FROM questions q
+         LEFT JOIN exams e ON q.exam_id = e.id
+         ORDER BY q.created_at DESC`
+      )
+      return { success: true, data: rows }
+    } catch (error) {
+      console.error('获取题库失败:', error)
+      return reply.code(500).send({ success: false, message: '获取失败' })
+    }
+  })
+
   // 创建试卷
   // POST /api/exams
   // 必填字段验证：title, duration, total_score, pass_score

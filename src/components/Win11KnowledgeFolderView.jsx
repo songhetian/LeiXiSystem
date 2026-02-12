@@ -202,11 +202,19 @@ const Win11KnowledgeFolderView = () => {
     try {
       const response = await axios.get(getApiUrl('/api/knowledge/articles'));
       console.log('Folder Articles API Response:', response.data); // 调试信息
-      // 确保返回的是数组
+      
+      // 确保获取到文章数据
+      let articlesData = [];
+      if (response.data && Array.isArray(response.data.data)) {
+        articlesData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        articlesData = response.data;
+      }
+      
       const uid = getCurrentUserId();
       const filtered = (articlesData || []).filter(a => {
         const notDeleted = !a.deleted_at && a.status !== 'deleted' && a.is_deleted !== 1;
-        const isActuallyPublic = a.is_public === 1 || String(a.type).toLowerCase() === 'common' || String(a.type).toLowerCase() === 'public';
+        const isActuallyPublic = a.is_public === 1 || String(a.type || '').toLowerCase() === 'common' || String(a.type || '').toLowerCase() === 'public';
         
         // 逻辑: (公开文章 OR 我创建的文章) AND 未删除
         return (isActuallyPublic || isOwnedBy(a, uid)) && notDeleted;

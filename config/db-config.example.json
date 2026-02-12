@@ -1,13 +1,19 @@
 {
 	"database": {
-		"host": "192.168.2.31",
+		"host": "192.168.2.3",
 		"port": 3306,
 		"user": "tian",
 		"password": "root",
 		"database": "leixin_customer_service"
 	},
+	"redis": {
+		"host": "192.168.2.3",
+		"port": 6379,
+		"password": "",
+		"db": 0
+	},
 	"upload": {
-		"sharedDirectory": "F:\\code\\System\\uploads",
-		"publicUrl": "http://192.168.2.31:3001/api"
+		"sharedDirectory": "\\\\SONG\\SharedUploads",
+		"publicUrl": "http://192.168.2.3:3001/api"
 	}
 }

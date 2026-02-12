@@ -67,6 +67,7 @@
 ### 后端技术栈
 - **Fastify** - Node.js Web 框架
 - **MySQL 8.0** - 关系型数据库
+- **Redis** - 高性能键值缓存
 - **Socket.IO** - 实时通信
 - **JSON Web Token (JWT)** - 身份认证
 
@@ -78,6 +79,7 @@
 ### 环境要求
 - Node.js >= 16.0.0
 - MySQL >= 8.0
+- Redis >= 6.0
 - npm >= 8.0.0
 
 ### 安装步骤
