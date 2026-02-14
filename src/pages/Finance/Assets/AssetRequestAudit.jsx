@@ -215,7 +215,6 @@ const AssetRequestAudit = () => {
             <ShadcnButton variant="outline" onClick={() => setAuditModal(false)}>取消</ShadcnButton>
             <ShadcnButton 
               variant={selectedRequest?.targetAction === 'approve' ? 'indigo' : 'danger'} 
-              onClick={() => form.submit()}
               onClick={() => submitAudit()}
             >
               确认{selectedRequest?.targetAction === 'approve' ? '通过申请' : '驳回申请'}
