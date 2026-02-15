@@ -22,7 +22,7 @@ npm install --production
 # 注意：前端构建需要 vite，它在 devDependencies 中
 echo "🛠️ 构建前端静态资源..."
 npm install vite @vitejs/plugin-react cross-env --no-save
-npm run build
+NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # 4. 检查 PM2 是否安装
 if ! command -v pm2 &> /dev/null; then
