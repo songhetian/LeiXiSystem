@@ -14,7 +14,7 @@ import {
   ArrowRightOutlined,
   RiseOutlined
 } from '@ant-design/icons';
-import api from '../../api';
+import { apiGet } from '../../utils/apiClient';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
