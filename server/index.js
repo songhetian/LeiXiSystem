@@ -1754,6 +1754,8 @@ fastify.post('/api/employees', async (request, reply) => {
 // 更新员工
 fastify.put('/api/employees/:id', async (request, reply) => {
   const { id } = request.params;
+  const pool = fastify.mysql;
+  const redis = fastify.redis;
   console.log(`[Backend] Received update request for employee ID: ${id}, body:`, request.body);
   const {
     employee_no, real_name, email, phone, department_id, position,
@@ -1783,7 +1785,7 @@ fastify.put('/api/employees/:id', async (request, reply) => {
 
     // 更新用户信息
     await pool.query(
-      'UPDATE users SET real_name = ?, email = ?, phone = ?, department_id = ?, avatar = ?, status = ? WHERE id = ?',
+      'UPDATE users SET real_name = ?, email = ?, phone = ?, department_id = ?, avatar = ?, status = ?, updated_at = NOW() WHERE id = ?',
       [real_name, email || null, phone || null, finalDeptId, avatar || null, finalStatus, userId]
     );
 
@@ -1816,7 +1818,8 @@ fastify.put('/api/employees/:id', async (request, reply) => {
         address = ?,
         education = ?,
         skills = ?,
-        remark = ?
+        remark = ?,
+        updated_at = NOW()
       WHERE id = ?`,
       [
         employee_no,

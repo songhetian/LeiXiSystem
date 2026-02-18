@@ -468,6 +468,38 @@ function EmployeeManagement() {
         }
 
         toast.success(editingEmp ? '员工更新成功' : '员工创建成功')
+        
+        // 🚨 同步更新当前登录用户的 localStorage 缓存
+        if (editingEmp && userId) {
+          const savedUserStr = localStorage.getItem('user');
+          if (savedUserStr) {
+            try {
+              const savedUser = JSON.parse(savedUserStr);
+              // 如果修改的是当前登录用户
+              if (parseInt(savedUser.id) === parseInt(userId)) {
+                console.log('检测到正在修改当前登录用户的资料，同步更新 localStorage...');
+                const updatedUser = {
+                  ...savedUser,
+                  real_name: formData.real_name,
+                  email: formData.email,
+                  phone: formData.phone,
+                  avatar: formData.avatar,
+                  department_id: formData.department_id,
+                  // 这里可以根据需要增加更多同步字段
+                };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                
+                // 触发 storage 事件，通知 App.jsx, Sidebar, TopNavbar 等组件更新状态
+                window.dispatchEvent(new Event('storage'));
+                // 同时触发一个自定义事件，以防万一
+                window.dispatchEvent(new CustomEvent('userInfoUpdated', { detail: updatedUser }));
+              }
+            } catch (e) {
+              console.error('同步更新 localStorage 失败:', e);
+            }
+          }
+        }
+
         setIsModalOpen(false)
         fetchEmployees()
         resetForm()

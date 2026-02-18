@@ -694,6 +694,19 @@ function App() {
           setAppTheme({ background: '#F3F4F6' });
         }
       }
+      // 🚨 监听用户信息变更
+      if (e.key === 'user' || !e.key) { // !e.key 处理 window.dispatchEvent(new Event('storage')) 的情况
+        const newUserStr = localStorage.getItem('user');
+        if (newUserStr) {
+          try {
+            const newUser = JSON.parse(newUserStr);
+            setUser(newUser);
+            console.log('App.jsx: 检测到用户信息变更，已同步 state');
+          } catch (error) {
+            console.error('Failed to parse user from storage event', error);
+          }
+        }
+      }
     };
 
     // 监听自定义主题变化事件
