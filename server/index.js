@@ -1754,8 +1754,6 @@ fastify.post('/api/employees', async (request, reply) => {
 // 更新员工
 fastify.put('/api/employees/:id', async (request, reply) => {
   const { id } = request.params;
-  const pool = fastify.mysql;
-  const redis = fastify.redis;
   console.log(`[Backend] Received update request for employee ID: ${id}, body:`, request.body);
   const {
     employee_no, real_name, email, phone, department_id, position,
