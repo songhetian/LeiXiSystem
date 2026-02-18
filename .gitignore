@@ -48,3 +48,5 @@ electron/
 config/db-config.encrypted.json
 config/db-config.decrypted.json
 nul
+
+leixi.*
