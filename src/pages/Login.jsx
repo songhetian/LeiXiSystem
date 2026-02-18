@@ -167,6 +167,9 @@ const Login = ({ onLoginSuccess }) => {
         }
         // 存储token
         localStorage.setItem('token', response.data.token)
+        if (response.data.sessionToken) {
+          localStorage.setItem('sessionToken', response.data.sessionToken)
+        }
 
         // 存储用户信息,但不包含图片URL(避免缓存问题)
         const userDataForStorage = { ...response.data.user }
