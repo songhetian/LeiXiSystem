@@ -3323,10 +3323,31 @@ const start = async () => {
     // 检查会话状态
     fastify.post('/api/auth/check-session', async (request, reply) => {
       console.log('收到 /api/auth/check-session 请求:', request.body);
-      const { userId, sessionToken } = request.body
+      const { userId, sessionToken, username } = request.body
 
+      // 场景1：登录前的活跃会话检查（通过用户名）
+      if (username && !userId) {
+        try {
+          const [user] = await pool.query(
+            'SELECT id, session_token, last_login FROM users WHERE username = ? AND status = "active"',
+            [username]
+          );
+          if (user.length > 0 && user[0].session_token) {
+            return { 
+              success: true, 
+              hasActiveSession: true, 
+              lastLogin: user[0].last_login 
+            };
+          }
+          return { success: true, hasActiveSession: false };
+        } catch (err) {
+          return { success: false, message: '检查活跃会话失败' };
+        }
+      }
+
+      // 场景2：已登录状态的会话校验
       if (!userId || !sessionToken) {
-        return { success: false, message: '会话信息不完整' }
+        return { success: false, message: '会话信息不完整', hasActiveSession: false };
       }
 
       try {
@@ -3336,21 +3357,21 @@ const start = async () => {
         )
 
         if (user.length === 0) {
-          return { success: false, message: '用户不存在' }
+          return { success: false, message: '用户不存在', hasActiveSession: false }
         }
 
         if (user[0].status !== 'active') {
-          return { success: false, message: '账号未激活或已禁用' }
+          return { success: false, message: '账号未激活或已禁用', hasActiveSession: false }
         }
 
         if (user[0].session_token !== sessionToken) {
-          return { success: false, message: '会话已过期或在其他设备登录' }
+          return { success: false, message: '会话已过期或在其他设备登录', hasActiveSession: true }
         }
 
-        return { success: true }
+        return { success: true, hasActiveSession: true }
       } catch (error) {
         console.error('检查会话失败:', error)
-        return reply.code(500).send({ success: false, message: '服务器错误' })
+        return { success: false, message: '服务器错误', hasActiveSession: false }
       }
     })
 
