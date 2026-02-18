@@ -50,3 +50,5 @@ config/db-config.decrypted.json
 nul
 
 leixi.*
+vite.config.js
+*.md

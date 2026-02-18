@@ -342,618 +342,7 @@ fastify.post('/api/upload/multiple', async (request, reply) => {
 })
 
 // ==================== 认证 API ====================
-
-// 检查用户名是否可用并提供建议
-fastify.post('/api/auth/check-username', async (request, reply) => {
-  const { username, realName } = request.body
-
-  try {
-    // 检查用户名是否已存在
-    const [existing] = await pool.query('SELECT id FROM users WHERE username = ?', [username])
-
-    if (existing.length === 0) {
-      return { available: true, suggestions: [] }
-    }
-
-    // 生成建议用户名（类似 Google）
-    const suggestions = []
-    const baseUsername = username.toLowerCase()
-    const currentYear = new Date().getFullYear()
-
-    // 建议1: 用户名 + 随机3位数字
-    suggestions.push(`${baseUsername}${Math.floor(100 + Math.random() * 900)}`)
-
-    // 建议2: 用户名 + 当前年份
-    suggestions.push(`${baseUsername}${currentYear}`)
-
-    // 建议3: 用户名 + 随机4位数字
-    suggestions.push(`${baseUsername}${Math.floor(1000 + Math.random() * 9000)}`)
-
-    // 建议4: 如果有真实姓名，尝试姓+名首字母+数字
-    if (realName && realName.length >= 2) {
-      const pinyin = require('pinyin-pro')
-      const pinyinArray = pinyin.pinyin(realName, { toneType: 'none', type: 'array' })
-      if (pinyinArray.length >= 2) {
-        const firstNameInitial = pinyinArray[0][0]
-        const lastNameInitial = pinyinArray[pinyinArray.length - 1][0]
-        suggestions.push(`${firstNameInitial}${lastNameInitial}${Math.floor(10 + Math.random() * 90)}`)
-      }
-    }
-
-    // 建议5: 用户名 + "_" + 随机2位数字
-    suggestions.push(`${baseUsername}_${Math.floor(10 + Math.random() * 90)}`)
-
-    // 过滤掉已存在的建议
-    const uniqueSuggestions = []
-    for (const suggestion of suggestions) {
-      const [exists] = await pool.query('SELECT id FROM users WHERE username = ?', [suggestion])
-      if (exists.length === 0) {
-        uniqueSuggestions.push(suggestion)
-      }
-    }
-
-    return {
-      available: false,
-      suggestions: uniqueSuggestions.slice(0, 5) // 最多返回5个建议
-    }
-  } catch (error) {
-    console.error('检查用户名失败:', error)
-    return reply.code(500).send({ success: false, message: '检查用户名失败' })
-  }
-})
-
-// 用户注册
-fastify.post('/api/auth/register', async (request, reply) => {
-  const { username, password, real_name, email, phone, department_id } = request.body
-
-  try {
-    // 检查用户名是否已存在
-    const [existingUsername] = await pool.query('SELECT id FROM users WHERE username = ?', [username])
-    if (existingUsername.length > 0) {
-      return reply.code(400).send({ success: false, message: '用户名已存在' })
-    }
-
-    // 检查邮箱是否已存在（仅当提供了邮箱时）
-    if (email && email.trim()) {
-      const [existingEmail] = await pool.query('SELECT id FROM users WHERE email = ?', [email])
-      if (existingEmail.length > 0) {
-        return reply.code(400).send({ success: false, message: '该邮箱已被注册' })
-      }
-    }
-
-    // 检查手机号是否已存在（仅当提供了手机号时）
-    if (phone && phone.trim()) {
-      const [existingPhone] = await pool.query('SELECT id FROM users WHERE phone = ?', [phone])
-      if (existingPhone.length > 0) {
-        return reply.code(400).send({ success: false, message: '该手机号已被注册' })
-      }
-    }
-
-    // 加密密码
-    const passwordHash = await bcrypt.hash(password, 10)
-
-    // 注册用户
-    // 注意：如果 email 或 phone 为空字符串，将其转换为 null，避免唯一索引冲突（如果数据库有唯一索引且允许 NULL）
-    const emailToSave = email && email.trim() ? email : null;
-    const phoneToSave = phone && phone.trim() ? phone : null;
-
-    const [result] = await pool.query(
-      'INSERT INTO users (username, password_hash, real_name, email, phone, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [username, passwordHash, real_name, emailToSave, phoneToSave, department_id || null, 'pending']
-    )
-
-    return { success: true, message: '注册成功', userId: result.insertId }
-  } catch (error) {
-    console.error('注册失败:', error)
-
-    // 处理数据库约束错误
-    if (error.code === 'ER_DUP_ENTRY') {
-      if (error.sqlMessage.includes('uk_email')) {
-        return reply.code(400).send({ success: false, message: '该邮箱已被注册' })
-      } else if (error.sqlMessage.includes('uk_phone')) {
-        return reply.code(400).send({ success: false, message: '该手机号已被注册' })
-      } else if (error.sqlMessage.includes('username')) {
-        return reply.code(400).send({ success: false, message: '用户名已存在' })
-      }
-    }
-
-    return reply.code(500).send({ success: false, message: '注册失败，请稍后重试' })
-  }
-})
-
-// 检查用户是否已有活跃会话
-fastify.post('/api/auth/check-session', async (request, reply) => {
-  console.log('收到 /api/auth/check-session 请求:', request.body);
-  const { username } = request.body
-
-  try {
-    console.log('查询用户会话信息:', username);
-    // 查询用户的session_token
-    const [users] = await pool.query(
-      'SELECT id, session_token, session_created_at FROM users WHERE username = ?',
-      [username]
-    )
-
-    console.log('查询结果:', users);
-
-    if (users.length === 0) {
-      console.log('用户不存在');
-      return { hasActiveSession: false }
-    }
-
-    const user = users[0]
-
-    // 如果有session_token，说明有活跃会话
-    if (user.session_token) {
-      console.log('用户有session_token，验证有效性');
-      // 验证token是否还有效
-      try {
-        jwt.verify(user.session_token, JWT_SECRET)
-
-        // Token有效，返回会话信息
-        console.log('Token有效');
-        return {
-          hasActiveSession: true,
-          sessionCreatedAt: user.session_created_at,
-          message: '该账号已在其他设备登录'
-        }
-      } catch (error) {
-        // Token已过期，视为无活跃会话
-        console.log('Token已过期');
-        return { hasActiveSession: false }
-      }
-    }
-
-    console.log('用户没有活跃会话');
-    return { hasActiveSession: false }
-  } catch (error) {
-    console.error('检查会话失败:', error)
-    return reply.code(500).send({ success: false, message: '检查会话失败' })
-  }
-})
-
-// 用户登录 (Updated to include department_id)
-fastify.post('/api/auth/login', async (request, reply) => {
-  const { username, password, forceLogin } = request.body
-
-  try {
-    // 查询用户
-    const [users] = await pool.query(
-      'SELECT id, username, password_hash, real_name, email, phone, status, department_id FROM users WHERE username = ?',
-      [username]
-    )
-
-    if (users.length === 0) {
-      return reply.code(401).send({ success: false, message: 'Invalid username or password' })
-    }
-
-    const user = users[0]
-
-    // 账号状态检查
-    if (user.status === 'pending') {
-      return reply.code(403).send({ success: false, message: '账号待审核，请联系管理员' })
-    }
-
-    if (user.status !== 'active') {
-      return reply.code(403).send({ success: false, message: '账号已禁用' })
-    }
-
-    // 验证密码
-    const isValid = await bcrypt.compare(password, user.password_hash)
-    if (!isValid) {
-      return reply.code(401).send({ success: false, message: 'Invalid username or password' })
-    }
-
-    // 生成 JWT token（包含时间戳确保唯一性）
-    const sessionId = `${user.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      sessionId
-    };
-
-    // 只有当 department_id 存在且不为 null 时才添加到 payload 中
-    if (user.department_id !== null && user.department_id !== undefined) {
-      tokenPayload.department_id = user.department_id;
-    }
-
-    const token = jwt.sign(
-      tokenPayload,
-      JWT_SECRET,
-      { expiresIn: '1h' } // Access token有效期1小时
-    )
-
-    // 生成 Refresh Token
-    const refreshToken = jwt.sign(
-      { id: user.id },
-      JWT_REFRESH_SECRET,
-      { expiresIn: '7d' } // Refresh token有效期7天
-    )
-
-    // 更新最后登录时间和session_token（实现单设备登录）
-    await pool.query(
-      'UPDATE users SET last_login = NOW(), session_token = ?, session_created_at = NOW() WHERE id = ?',
-      [token, user.id]
-    )
-
-    // Redis 同步：存储当前活跃 Session (有效期 7 天，与 Refresh Token 一致)
-    if (redis) {
-      await redis.set(`user:session:${user.id}`, token, 'EX', 7 * 24 * 3600);
-    }
-
-    // 返回登录信息（不包含密码）
-    const { password_hash, ...userInfo } = user
-
-    return {
-      success: true,
-      message: '登录成功',
-      token,
-      refresh_token: refreshToken,
-      expiresIn: 3600,
-      user: userInfo
-    }
-  } catch (error) {
-    console.error('登录失败:', error)
-    return reply.code(500).send({ success: false, message: '登录失败' })
-  }
-})
-
-// 用户退出登录
-fastify.post('/api/auth/logout', async (request, reply) => {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return reply.code(401).send({ success: false, message: '未登录' })
-    }
-
-    // 即使没有请求体也要处理，避免Fastify报错
-    if (!request.body) {
-      request.body = {};
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (jwtError) {
-      // JWT验证失败，但仍清除数据库中的session_token
-      console.warn('JWT验证失败，但仍尝试清除session:', jwtError.message);
-      // 返回成功，让前端清除本地存储
-      return {
-        success: true,
-        message: '退出登录成功'
-      };
-    }
-
-    // 清除数据库中的session_token
-    await pool.query(
-      'UPDATE users SET session_token = NULL, session_created_at = NULL WHERE id = ?',
-      [decoded.id]
-    )
-
-    // Redis 同步：清除活跃 Session
-    if (redis) {
-      await redis.del(`user:session:${decoded.id}`);
-    }
-
-    return {
-      success: true,
-      message: '退出登录成功'
-    }
-  } catch (error) {
-    console.error('退出登录失败:', error)
-    // 即使出错也返回成功，因为前端会清除本地token
-    return {
-      success: true,
-      message: '退出登录成功'
-    }
-  }
-})
-
-// 刷新Token
-fastify.post('/api/auth/refresh', async (request, reply) => {
-  const { refresh_token } = request.body
-
-  if (!refresh_token) {
-    return reply.code(400).send({ error: 'Refresh token is required' })
-  }
-
-  try {
-    // 验证refresh token
-    const decoded = jwt.verify(refresh_token, JWT_REFRESH_SECRET)
-
-    // 检查用户是否存在且状态正常
-    const [users] = await pool.query(
-      'SELECT id, username, status, session_token, department_id FROM users WHERE id = ?',
-      [decoded.id]
-    )
-
-    if (users.length === 0 || users[0].status !== 'active') {
-      return reply.code(401).send({ error: 'User not found or inactive' })
-    }
-
-    const user = users[0]
-
-    // 生成新的access token
-    const sessionId = `${user.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      sessionId
-    };
-
-    // 只有当 department_id 存在且不为 null 时才添加到 payload 中
-    if (user.department_id !== null && user.department_id !== undefined) {
-      tokenPayload.department_id = user.department_id;
-    }
-
-    const newToken = jwt.sign(
-      tokenPayload,
-      JWT_SECRET,
-      { expiresIn: '1h' } // Access token有效期1小时
-    )
-
-    // 生成新的refresh token (可选，这里选择轮换)
-    const newRefreshToken = jwt.sign(
-      { id: user.id },
-      JWT_REFRESH_SECRET,
-      { expiresIn: '7d' } // Refresh token有效期7天
-    )
-
-    // 更新session_token
-    await pool.query(
-      'UPDATE users SET session_token = ?, session_created_at = NOW() WHERE id = ?',
-      [newToken, user.id]
-    )
-
-    // Redis 同步：更新 Session (有效期 7 天)
-    if (redis) {
-      await redis.set(`user:session:${user.id}`, newToken, 'EX', 7 * 24 * 3600);
-    }
-
-    return {
-      token: newToken,
-      refresh_token: newRefreshToken,
-      expiresIn: 3600
-    }
-  } catch (error) {
-    console.error('Token刷新失败:', error)
-    return reply.code(401).send({ error: 'Invalid refresh token' })
-  }
-})
-
-// 重置用户密码（管理员功能）
-fastify.post('/api/users/:userId/reset-password', async (request, reply) => {
-  const { userId } = request.params
-  const { newPassword } = request.body
-
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return reply.code(401).send({ success: false, message: '未登录' })
-    }
-
-    // 验证token
-    const decoded = jwt.verify(token, JWT_SECRET)
-
-    // 验证新密码
-    if (!newPassword || newPassword.length < 6) {
-      return reply.code(400).send({ success: false, message: '密码长度至少6位' })
-    }
-
-    // 加密新密码
-    const passwordHash = await bcrypt.hash(newPassword, 10)
-
-    // 更新密码并清除session_token（强制重新登录）
-    await pool.query(
-      'UPDATE users SET password_hash = ?, session_token = NULL, session_created_at = NULL WHERE id = ?',
-      [passwordHash, userId]
-    )
-
-    // Redis 同步：强制下线该用户
-    if (redis) {
-      await redis.del(`user:session:${userId}`);
-    }
-
-    // 记录操作日志（可选）
-
-    return {
-      success: true,
-      message: '密码重置成功'
-    }
-  } catch (error) {
-    console.error('重置密码失败:', error)
-    if (error.name === 'JsonWebTokenError') {
-      return reply.code(401).send({ success: false, message: 'Token无效' })
-    }
-    return reply.code(500).send({ success: false, message: '重置密码失败' })
-  }
-})
-
-// 验证token是否有效（用于单设备登录检查）
-fastify.get('/api/auth/verify-token', async (request, reply) => {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return reply.code(401).send({ success: false, message: '未登录', valid: false })
-    }
-
-    let decoded
-    try {
-      decoded = jwt.verify(token, JWT_SECRET)
-    } catch (err) {
-      return reply.code(401).send({ success: false, message: 'Token无效或已过期', valid: false })
-    }
-
-    // 检查数据库中的session_token是否匹配
-    const [users] = await pool.query(
-      'SELECT session_token FROM users WHERE id = ?',
-      [decoded.id]
-    )
-
-    if (users.length === 0) {
-      return reply.code(401).send({ success: false, message: '用户不存在', valid: false })
-    }
-
-    const user = users[0]
-
-    // 如果数据库中的token与当前token不匹配，说明用户在其他设备登录了
-    if (user.session_token !== token) {
-      return reply.code(401).send({
-        success: false,
-        message: '您的账号已在其他设备登录',
-        valid: false,
-        kicked: true // 标记为被踢出
-      })
-    }
-
-    return { success: true, valid: true }
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return reply.code(401).send({ success: false, message: 'Token已过期', valid: false })
-    }
-    console.error('Token验证失败:', error)
-    return reply.code(401).send({ success: false, message: 'Token无效', valid: false })
-  }
-})
-
-// 获取当前用户的权限列表
-fastify.get('/api/auth/permissions', async (request, reply) => {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return reply.code(401).send({ success: false, message: '未登录' })
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET)
-
-    // 获取用户的角色和权限
-    const [permissions] = await pool.query(`
-      SELECT DISTINCT p.code, p.name, p.resource, p.action, p.module
-      FROM permissions p
-      INNER JOIN role_permissions rp ON p.id = rp.permission_id
-      INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-      WHERE ur.user_id = ?
-    `, [decoded.id])
-
-    // 获取用户的角色信息
-    const [roles] = await pool.query(`
-      SELECT r.id, r.name
-      FROM roles r
-      INNER JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = ?
-    `, [decoded.id])
-
-    // 获取用户基本信息
-    const [user] = await pool.query('SELECT username, department_id FROM users WHERE id = ?', [decoded.id])
-
-    return {
-      success: true,
-      data: {
-        permissions: permissions.map(p => p.code),
-        permissionDetails: permissions,
-        roles: roles,
-        canViewAllDepartments: roles.some(r => r.name === '超级管理员'),
-        departmentId: user[0]?.department_id
-      }
-    }
-  } catch (error) {
-    console.error('获取权限失败:', error)
-    return reply.code(401).send({ success: false, message: '获取权限失败' })
-  }
-})
-
-// 批量强制下线用户
-fastify.post('/api/auth/batch-logout', async (request, reply) => {
-  const { userIds } = request.body;
-
-  if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-    return reply.code(400).send({ success: false, message: '请选择要下线的用户' });
-  }
-
-  try {
-    // 1. 清理 MySQL 中的 session_token
-    await pool.query(
-      'UPDATE users SET session_token = NULL, session_created_at = NULL WHERE id IN (?)',
-      [userIds]
-    );
-
-    // 2. 清理 Redis 中的活跃 Session
-    if (redis) {
-      const pipeline = redis.pipeline();
-      userIds.forEach(id => {
-        pipeline.del(`user:session:${id}`);
-        pipeline.del(`user:permissions:${id}`); // 同时清理权限缓存，确保下次登录获取最新
-      });
-      await pipeline.exec();
-    }
-
-    // 3. 🔔 实时推送下线指令 (WebSocket)
-    if (fastify.io) {
-      userIds.forEach(id => {
-        fastify.io.to(`user_${id}`).emit('kicked_out', {
-          message: '您的账号已被管理员强制下线',
-          timestamp: new Date()
-        });
-      });
-    }
-
-    // 稍微延迟一下返回，确保 WebSocket 指令已发出
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    return { success: true, message: `成功强制下线 ${userIds.length} 名用户` };
-  } catch (error) {
-    console.error('批量下线失败:', error);
-    return reply.code(500).send({ success: false, message: '操作失败' });
-  }
-})
-
-// 验证 token 校验
-async function verifyToken(request, reply) {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET)
-    request.user = decoded
-  } catch (error) {
-    return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-  }
-}
-
-// ==================== 员工管理 API ====================
-
-// 根据user_id获取员工信息
-fastify.get('/api/employees/by-user/:userId', async (request, reply) => {
-  const { userId } = request.params
-
-  try {
-    const [employees] = await pool.query(
-      `SELECT e.*, u.real_name, u.username, u.department_id, d.name as department_name
-       FROM employees e
-       LEFT JOIN users u ON e.user_id = u.id
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE e.user_id = ?`,
-      [userId]
-    )
-
-    if (employees.length === 0) {
-      return reply.code(404).send({
-        success: false,
-        message: '未找到员工信息，请联系管理员添加员工档案'
-      })
-    }
-
-    return {
-      success: true,
-      data: employees[0]
-    }
-  } catch (error) {
-    console.error('获取员工信息失败:', error)
-    return reply.code(500).send({ success: false, message: '获取员工信息失败' })
-  }
-})
+// 认证 API 已移至 start() 内部注册
 
 // ==================== 客服管理 API ====================
 
@@ -3822,6 +3211,368 @@ fastify.get('/api/users/:id/permissions-detail', async (request, reply) => {
 const start = async () => {
   try {
     await initDatabase();
+
+    // ==================== 认证 API (在数据库初始化后注册) ====================
+
+    // 检查用户名是否可用并提供建议
+    fastify.post('/api/auth/check-username', async (request, reply) => {
+      const { username, realName } = request.body
+
+      try {
+        // 检查用户名是否已存在
+        const [existing] = await pool.query('SELECT id FROM users WHERE username = ?', [username])
+
+        if (existing.length === 0) {
+          return { available: true, suggestions: [] }
+        }
+
+        // 生成建议用户名（类似 Google）
+        const suggestions = []
+        const baseUsername = username.toLowerCase()
+        const currentYear = new Date().getFullYear()
+
+        // 建议1: 用户名 + 随机3位数字
+        suggestions.push(`${baseUsername}${Math.floor(100 + Math.random() * 900)}`)
+
+        // 建议2: 用户名 + 当前年份
+        suggestions.push(`${baseUsername}${currentYear}`)
+
+        // 建议3: 用户名 + 随机4位数字
+        suggestions.push(`${baseUsername}${Math.floor(1000 + Math.random() * 9000)}`)
+
+        // 建议4: 如果有真实姓名，尝试姓+名首字母+数字
+        if (realName && realName.length >= 2) {
+          const pinyin = require('pinyin-pro')
+          const pinyinArray = pinyin.pinyin(realName, { toneType: 'none', type: 'array' })
+          if (pinyinArray.length >= 2) {
+            const firstNameInitial = pinyinArray[0][0]
+            const lastNameInitial = pinyinArray[pinyinArray.length - 1][0]
+            suggestions.push(`${firstNameInitial}${lastNameInitial}${Math.floor(10 + Math.random() * 90)}`)
+          }
+        }
+
+        // 建议5: 用户名 + "_" + 随机2位数字
+        suggestions.push(`${baseUsername}_${Math.floor(10 + Math.random() * 90)}`)
+
+        // 过滤掉已存在的建议
+        const uniqueSuggestions = []
+        for (const suggestion of suggestions) {
+          const [exists] = await pool.query('SELECT id FROM users WHERE username = ?', [suggestion])
+          if (exists.length === 0) {
+            uniqueSuggestions.push(suggestion)
+          }
+        }
+
+        return {
+          available: false,
+          suggestions: uniqueSuggestions.slice(0, 5) // 最多返回5个建议
+        }
+      } catch (error) {
+        console.error('检查用户名失败:', error)
+        return reply.code(500).send({ success: false, message: '检查用户名失败' })
+      }
+    })
+
+    // 用户注册
+    fastify.post('/api/auth/register', async (request, reply) => {
+      const { username, password, real_name, email, phone, department_id } = request.body
+
+      try {
+        // 检查用户名是否已存在
+        const [existingUsername] = await pool.query('SELECT id FROM users WHERE username = ?', [username])
+        if (existingUsername.length > 0) {
+          return reply.code(400).send({ success: false, message: '用户名已存在' })
+        }
+
+        // 检查邮箱是否已存在（仅当提供了邮箱时）
+        if (email && email.trim()) {
+          const [existingEmail] = await pool.query('SELECT id FROM users WHERE email = ?', [email])
+          if (existingEmail.length > 0) {
+            return reply.code(400).send({ success: false, message: '该邮箱已被注册' })
+          }
+        }
+
+        // 检查手机号是否已存在（仅当提供了手机号时）
+        if (phone && phone.trim()) {
+          const [existingPhone] = await pool.query('SELECT id FROM users WHERE phone = ?', [phone])
+          if (existingPhone.length > 0) {
+            return reply.code(400).send({ success: false, message: '该手机号已被注册' })
+          }
+        }
+
+        // 加密密码
+        const passwordHash = await bcrypt.hash(password, 10)
+
+        // 注册用户
+        // 注意：如果 email 或 phone 为空字符串，将其转换为 null，避免唯一索引冲突（如果数据库有唯一索引且允许 NULL）
+        const emailToSave = email && email.trim() ? email : null;
+        const phoneToSave = phone && phone.trim() ? phone : null;
+
+        const [result] = await pool.query(
+          'INSERT INTO users (username, password, real_name, email, phone, department_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+          [username, passwordHash, real_name, emailToSave, phoneToSave, department_id || null, 'pending']
+        )
+
+        return { success: true, userId: result.insertId, message: '注册成功，请等待管理员审核' }
+      } catch (error) {
+        console.error('注册失败:', error)
+        return reply.code(500).send({ success: false, message: '注册失败: ' + error.message })
+      }
+    })
+
+    // 检查会话状态
+    fastify.post('/api/auth/check-session', async (request, reply) => {
+      console.log('收到 /api/auth/check-session 请求:', request.body);
+      const { userId, sessionToken } = request.body
+
+      if (!userId || !sessionToken) {
+        return reply.code(400).send({ success: false, message: '参数不完整' })
+      }
+
+      try {
+        const [user] = await pool.query(
+          'SELECT id, session_token, status FROM users WHERE id = ?',
+          [userId]
+        )
+
+        if (user.length === 0) {
+          return { success: false, message: '用户不存在' }
+        }
+
+        if (user[0].status !== 'active') {
+          return { success: false, message: '账号未激活或已禁用' }
+        }
+
+        if (user[0].session_token !== sessionToken) {
+          return { success: false, message: '会话已过期或在其他设备登录' }
+        }
+
+        return { success: true }
+      } catch (error) {
+        console.error('检查会话失败:', error)
+        return reply.code(500).send({ success: false, message: '服务器错误' })
+      }
+    })
+
+    // 用户登录
+    fastify.post('/api/auth/login', async (request, reply) => {
+      const { username, password } = request.body
+
+      try {
+        const [users] = await pool.query(
+          'SELECT u.*, d.name as department_name FROM users u LEFT JOIN departments d ON u.department_id = d.id WHERE u.username = ? AND u.status = "active"',
+          [username]
+        )
+
+        if (users.length === 0) {
+          return reply.code(401).send({ success: false, message: '用户名或密码错误，或账号未审核' })
+        }
+
+        const user = users[0]
+        const isValid = await bcrypt.compare(password, user.password)
+
+        if (!isValid) {
+          return reply.code(401).send({ success: false, message: '用户名或密码错误' })
+        }
+
+        // 生成 Token
+        const token = jwt.sign(
+          { id: user.id, username: user.username, role: user.role },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        )
+
+        // 生成会话 Token 用于单设备登录校验
+        const sessionToken = Math.random().toString(36).substring(2) + Date.now().toString(36)
+
+        // 更新用户最后登录时间和会话 Token
+        await pool.query(
+          'UPDATE users SET last_login = NOW(), session_token = ?, session_created_at = NOW() WHERE id = ?',
+          [sessionToken, user.id]
+        )
+
+        // 缓存 Session 到 Redis
+        if (redis) {
+          await redis.set(`user:session:${user.id}`, sessionToken, 'EX', 86400);
+        }
+
+        // 不返回密码
+        const { password: _, ...userWithoutPassword } = user
+        return {
+          success: true,
+          token,
+          sessionToken,
+          user: userWithoutPassword
+        }
+      } catch (error) {
+        console.error('登录失败:', error)
+        return reply.code(500).send({ success: false, message: '服务器错误' })
+      }
+    })
+
+    // 退出登录
+    fastify.post('/api/auth/logout', async (request, reply) => {
+      try {
+        const token = request.headers.authorization?.replace('Bearer ', '')
+        if (!token) {
+          return { success: true }
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET)
+        const userId = decoded.id
+
+        // 清除 MySQL 会话
+        await pool.query(
+          'UPDATE users SET session_token = NULL, session_created_at = NULL WHERE id = ?',
+          [userId]
+        )
+
+        // 清除 Redis Session
+        if (redis) {
+          await redis.del(`user:session:${userId}`);
+        }
+
+        return { success: true }
+      } catch (error) {
+        console.error('退出登录失败:', error)
+        return { success: true } // 即使失败也返回成功，让前端清除本地存储
+      }
+    })
+
+    // 刷新 Token
+    fastify.post('/api/auth/refresh', async (request, reply) => {
+      const { refreshToken } = request.body
+
+      try {
+        const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET)
+        const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND status = "active"', [decoded.id])
+
+        if (users.length === 0) {
+          return reply.code(401).send({ success: false, message: '用户不存在或已禁用' })
+        }
+
+        const user = users[0]
+        const newToken = jwt.sign(
+          { id: user.id, username: user.username, role: user.role },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        )
+
+        return { success: true, token: newToken }
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的刷新令牌' })
+      }
+    })
+
+    // 验证 Token 是否有效
+    fastify.get('/api/auth/verify-token', async (request, reply) => {
+      try {
+        const token = request.headers.authorization?.replace('Bearer ', '')
+        if (!token) {
+          return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET)
+        return { success: true, user: decoded }
+      } catch (error) {
+        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
+      }
+    })
+
+    // 获取当前用户权限
+    fastify.get('/api/auth/permissions', async (request, reply) => {
+      try {
+        const token = request.headers.authorization?.replace('Bearer ', '')
+        if (!token) {
+          return reply.code(401).send({ success: false, message: '未提供认证令牌' })
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET)
+        const userId = decoded.id
+
+        // 查询用户角色
+        const [roles] = await pool.query(
+          `SELECT r.* FROM roles r
+           JOIN user_roles ur ON r.id = ur.role_id
+           WHERE ur.user_id = ?`,
+          [userId]
+        )
+
+        // 查询用户权限
+        const [permissions] = await pool.query(
+          `SELECT DISTINCT p.* FROM permissions p
+           JOIN role_permissions rp ON p.id = rp.permission_id
+           JOIN user_roles ur ON rp.role_id = ur.role_id
+           WHERE ur.user_id = ?`,
+          [userId]
+        )
+
+        // 获取用户基本信息，包括部门
+        const [user] = await pool.query(
+          'SELECT id, username, real_name, department_id FROM users WHERE id = ?',
+          [userId]
+        )
+
+        return {
+          success: true,
+          data: {
+            permissions: permissions.map(p => p.code),
+            permissionDetails: permissions,
+            roles: roles,
+            canViewAllDepartments: roles.some(r => r.name === '超级管理员'),
+            departmentId: user[0]?.department_id
+          }
+        }
+      } catch (error) {
+        console.error('获取权限失败:', error)
+        return reply.code(401).send({ success: false, message: '获取权限失败' })
+      }
+    })
+
+    // 批量强制下线用户
+    fastify.post('/api/auth/batch-logout', async (request, reply) => {
+      const { userIds } = request.body;
+
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return reply.code(400).send({ success: false, message: '请选择要下线的用户' });
+      }
+
+      try {
+        // 1. 清理 MySQL 中的 session_token
+        await pool.query(
+          'UPDATE users SET session_token = NULL, session_created_at = NULL WHERE id IN (?)',
+          [userIds]
+        );
+
+        // 2. 清理 Redis 中的活跃 Session
+        if (redis) {
+          const pipeline = redis.pipeline();
+          userIds.forEach(id => {
+            pipeline.del(`user:session:${id}`);
+            pipeline.del(`user:permissions:${id}`); // 同时清理权限缓存，确保下次登录获取最新
+          });
+          await pipeline.exec();
+        }
+
+        // 3. 🔔 实时推送下线指令 (WebSocket)
+        if (fastify.io) {
+          userIds.forEach(id => {
+            fastify.io.to(`user_${id}`).emit('kicked_out', {
+              message: '您的账号已被管理员强制下线',
+              timestamp: new Date()
+            });
+          });
+        }
+
+        // 稍微延迟一下返回，确保 WebSocket 指令已发出
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        return { success: true, message: `成功强制下线 ${userIds.length} 名用户` };
+      } catch (error) {
+        console.error('批量下线失败:', error);
+        return reply.code(500).send({ success: false, message: '操作失败' });
+      }
+    })
 
     // ==================== 核心业务路由 (加载前确保数据库已就绪) ====================
     fastify.register(require('./routes/quality-inspection-import-new'))
