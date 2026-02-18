@@ -3309,7 +3309,7 @@ const start = async () => {
         const phoneToSave = phone && phone.trim() ? phone : null;
 
         const [result] = await pool.query(
-          'INSERT INTO users (username, password, real_name, email, phone, department_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+          'INSERT INTO users (username, password_hash, real_name, email, phone, department_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
           [username, passwordHash, real_name, emailToSave, phoneToSave, department_id || null, 'pending']
         )
 
@@ -3369,7 +3369,7 @@ const start = async () => {
         }
 
         const user = users[0]
-        const isValid = await bcrypt.compare(password, user.password)
+        const isValid = await bcrypt.compare(password, user.password_hash)
 
         if (!isValid) {
           return reply.code(401).send({ success: false, message: '用户名或密码错误' })
