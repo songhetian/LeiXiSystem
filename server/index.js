@@ -3326,7 +3326,7 @@ const start = async () => {
       const { userId, sessionToken } = request.body
 
       if (!userId || !sessionToken) {
-        return reply.code(400).send({ success: false, message: '参数不完整' })
+        return { success: false, message: '会话信息不完整' }
       }
 
       try {
