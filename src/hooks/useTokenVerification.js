@@ -29,27 +29,18 @@ export const useTokenVerification = (onLogout, userId) => {
       // 🚨 只有明确返回 valid === false 时才踢出
       // 避免 undefined (数据没加载好) 或 null 导致误判定
       if (data && data.valid === false) {
-        console.warn('⚠️ Token 校验失败，执行自动退出:', data.message);
+        console.error('🔴 [DEBUG] Token 校验失败，本应退出，现已拦截:', data.message);
+        /*
         // Token无效，清除本地存储
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         localStorage.removeItem('sessionToken')
 
-        // 如果是被踢出（其他设备登录）
-        if (data.kicked) {
-          toast.error('您的账号已在其他设备登录，当前设备已退出')
-        }
-
-        // 停止检查
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
-        }
-
         // 触发退出回调
         if (onLogout) {
           onLogout()
         }
+        */
       }
     } catch (error) {
       // 忽略校验过程中的网络错误，避免误踢

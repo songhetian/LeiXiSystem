@@ -157,11 +157,12 @@ export const handleApiError = (error, customMessage = null) => {
         toast.error(message || '请求参数错误');
         break;
       case 401:
-        toast.error('未授权,请重新登录');
-        tokenManager.clearTokens();
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1500);
+        console.error('拦截到 401 错误，已禁用自动跳转以供调试:', message);
+        // toast.error('未授权,请重新登录');
+        // tokenManager.clearTokens();
+        // setTimeout(() => {
+        //   window.location.href = '/login';
+        // }, 1500);
         break;
       case 403:
         toast.error('没有权限执行此操作');
