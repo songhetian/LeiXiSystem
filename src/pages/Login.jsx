@@ -603,13 +603,13 @@ const Login = ({ onLoginSuccess }) => {
               </button>
               <button
                 onClick={async () => {
+                  console.log('用户确认强制登录，开始 performLogin(true)...');
                   setLoading(true)
                   try {
                     await performLogin(true)
-                    // 确保在任何情况下都关闭loading状态
-                    if (loading) {
-                      setLoading(false)
-                    }
+                    console.log('强制登录 performLogin(true) 执行成功');
+                    // 强制登录成功后关闭模态框
+                    setShowConfirmModal(false)
                   } catch (error) {
                     console.error('强制登录失败:', error)
                     setShowConfirmModal(false)

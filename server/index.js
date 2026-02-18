@@ -179,10 +179,16 @@ const dbConfig = {
   }
 
   try {
-    redis = new Redis(redisConfig);
-    redis.on('error', (err) => console.error('❌ Redis error:', err));
+    redis = new Redis({
+      ...redisConfig,
+      connectTimeout: 5000, // 5秒连接超时
+      maxRetriesPerRequest: 1 // 减少重试次数，快速失败
+    });
+    redis.on('error', (err) => {
+      console.error('❌ Redis error (降级模式运行):', err.message);
+    });
     fastify.decorate('redis', redis);
-    console.log('📦 Redis client created and decorated');
+    console.log('📦 Redis client created (Host: ' + redisConfig.host + ')');
   } catch (redisInitErr) {
     console.error('❌ Failed to initialize Redis:', redisInitErr);
   }
