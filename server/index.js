@@ -1837,12 +1837,14 @@ fastify.put('/api/employees/:id', async (request, reply) => {
 
     // 🔴 关键修复：更新成功后必须清理 Redis 缓存
     if (redis) {
-      const { cacheUserProfile } = require('./utils/personnelClosure');
-      const keys = await redis.keys('list:employees:default:*');
-      if (keys.length > 0) await redis.del(...keys);
-      await redis.del(`user:profile:${userId}`); // 同时清除该用户的详情缓存
-      await cacheUserProfile(pool, redis, userId); // 重新生成名片缓存
-      await redis.del(`user:identity:${userId}`); // 清除审计身份缓存
+      try {
+        const { cacheUserProfile } = require('./utils/personnelClosure');
+        await redis.del(`user:profile:${userId}`); // 清除该用户的详情缓存
+        await cacheUserProfile(pool, redis, userId); // 重新生成名片缓存
+        await redis.del(`user:identity:${userId}`); // 清除审计身份缓存
+      } catch (cacheErr) {
+        console.error('⚠️ [Cache Error] Failed to update user cache:', cacheErr);
+      }
     }
 
     // --- 自动化聊天群组同步 (闭环) ---
@@ -3837,81 +3839,81 @@ fastify.get('/api/users/:id/permissions-detail', async (request, reply) => {
 
 // ==================== 启动服务 ====================
 
-// ==================== 考勤管理路由 ====================
-fastify.register(require('./routes/attendance-clock'));
-fastify.register(require('./routes/leave'));
-fastify.register(require('./routes/overtime'));
-fastify.register(require('./routes/makeup'));
-fastify.register(require('./routes/attendance-stats'));
-fastify.register(require('./routes/attendance-settings'));
-fastify.register(require('./routes/shifts'));
-fastify.register(require('./routes/schedules'));
-fastify.register(require('./routes/schedule-excel'));
-fastify.register(require('./routes/attendance-approval'));
-
-// ==================== 工资管理路由 ====================
-fastify.register(require('./routes/payslips'));
-
-// ==================== 增强功能路由 ====================
-fastify.register(require('./routes/export'));
-fastify.register(require('./routes/smart-schedule'));
-
-// ==================== 职位管理路由 ====================
-fastify.register(require('./routes/positions'))
-
-// ==================== 员工管理路由 ====================
-
-
-// ==================== 权限管理路由 ====================
-fastify.register(require('./routes/permissions'))
-
-// ==================== 部门管理路由 ====================
-fastify.register(require('./routes/departments'))
-
-// ==================== 考核系统路由 ====================
-fastify.register(require('./routes/exams'))
-fastify.register(require('./routes/exam-categories'))
-fastify.register(require('./routes/assessment-plans'))
-fastify.register(require('./routes/assessment-results'))
-
-// ==================== 学习中心路由 ====================
-fastify.register(require('./routes/learning-tasks'))
-fastify.register(require('./routes/learning-plans'))
-fastify.register(require('./routes/learning-center'))
-
-// ==================== 假期管理路由 ====================
-fastify.register(require('./routes/vacation-settings'))
-fastify.register(require('./routes/holidays'))
-fastify.register(require('./routes/conversion-rules'))
-fastify.register(require('./routes/vacation-balance'))
-fastify.register(require('./routes/vacation-conversion'))
-fastify.register(require('./routes/compensatory-leave'))
-fastify.register(require('./routes/vacation-type-balances'))
-fastify.register(require('./routes/vacation-types'))
-
-// ==================== 知识库路由 ====================
-fastify.register(require('./routes/knowledge-reading'))
-fastify.register(require('./routes/knowledge-stats'))
-
-// ==================== 质检管理路由 ====================
-fastify.register(require('./routes/quality-inspection'))
-fastify.register(require('./routes/quality-tags'))
-fastify.register(require('./routes/case-categories'))
-fastify.register(require('./routes/quality-cases'))
-fastify.register(require('./routes/quality-case-interactions'))
-
-// ==================== 通知管理路由 ====================
-fastify.register(require('./routes/notifications'))
-
-// ==================== 备忘录管理路由 ====================
-fastify.register(require('./routes/memos'))
-
-// ==================== 系统广播路由 ====================
-fastify.register(require('./routes/broadcasts'))
-
 const start = async () => {
   try {
     await initDatabase();
+
+    // ==================== 考勤管理路由 ====================
+    fastify.register(require('./routes/attendance-clock'));
+    fastify.register(require('./routes/leave'));
+    fastify.register(require('./routes/overtime'));
+    fastify.register(require('./routes/makeup'));
+    fastify.register(require('./routes/attendance-stats'));
+    fastify.register(require('./routes/attendance-settings'));
+    fastify.register(require('./routes/shifts'));
+    fastify.register(require('./routes/schedules'));
+    fastify.register(require('./routes/schedule-excel'));
+    fastify.register(require('./routes/attendance-approval'));
+
+    // ==================== 工资管理路由 ====================
+    fastify.register(require('./routes/payslips'));
+
+    // ==================== 增强功能路由 ====================
+    fastify.register(require('./routes/export'));
+    fastify.register(require('./routes/smart-schedule'));
+
+    // ==================== 职位管理路由 ====================
+    fastify.register(require('./routes/positions'))
+
+    // ==================== 权限管理路由 ====================
+    fastify.register(require('./routes/permissions'))
+
+    // ==================== 部门管理路由 ====================
+    fastify.register(require('./routes/departments'))
+
+    // ==================== 考核系统路由 ====================
+    fastify.register(require('./routes/exams'))
+    fastify.register(require('./routes/exam-categories'))
+    fastify.register(require('./routes/assessment-plans'))
+    fastify.register(require('./routes/assessment-results'))
+
+    // ==================== 学习中心路由 ====================
+    fastify.register(require('./routes/learning-tasks'))
+    fastify.register(require('./routes/learning-plans'))
+    fastify.register(require('./routes/learning-center'))
+
+    // ==================== 假期管理路由 ====================
+    fastify.register(require('./routes/vacation-settings'))
+    fastify.register(require('./routes/holidays'))
+    fastify.register(require('./routes/conversion-rules'))
+    fastify.register(require('./routes/vacation-balance'))
+    fastify.register(require('./routes/vacation-conversion'))
+    fastify.register(require('./routes/compensatory-leave'))
+    fastify.register(require('./routes/vacation-type-balances'))
+    fastify.register(require('./routes/vacation-types'))
+
+    // ==================== 知识库路由 ====================
+    fastify.register(require('./routes/knowledge-reading'))
+    fastify.register(require('./routes/knowledge-stats'))
+
+    // ==================== 质检管理路由 ====================
+    fastify.register(require('./routes/quality-inspection'))
+    fastify.register(require('./routes/quality-tags'))
+    fastify.register(require('./routes/case-categories'))
+    fastify.register(require('./routes/quality-cases'))
+    fastify.register(require('./routes/quality-case-interactions'))
+
+    // ==================== 通知管理路由 ====================
+    fastify.register(require('./routes/notifications'))
+
+    // ==================== 备忘录管理路由 ====================
+    fastify.register(require('./routes/memos'))
+
+    // ==================== 系统广播路由 ====================
+    fastify.register(require('./routes/broadcasts'))
+
+    // ==================== 待办中心路由 ====================
+    fastify.register(require('./routes/todo-center'))
 
     const { setupWebSocket } = require('./websocket')
     // 设置WebSocket - 直接使用 fastify.server

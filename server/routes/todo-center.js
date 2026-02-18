@@ -4,12 +4,18 @@
  */
 
 module.exports = async function (fastify, opts) {
-  const pool = fastify.mysql
 
   fastify.get('/api/todo/list', async (request, reply) => {
+    // 延迟获取 pool 以确保数据库已初始化
+    const pool = fastify.mysql || global.pool;
     const { user_id } = request.query
     
     try {
+      if (!pool) {
+        console.error('❌ [Todo Center] Database pool not initialized');
+        return reply.code(500).send({ success: false, error: 'Database not initialized' });
+      }
+
       const { extractUserPermissions } = require('../middleware/checkPermission')
       const permissions = await extractUserPermissions(request, pool)
       if (!permissions) return reply.code(401).send({ success: false })
@@ -18,7 +24,7 @@ module.exports = async function (fastify, opts) {
       const [approverConfig] = await pool.query(
         'SELECT custom_type_name FROM approvers WHERE user_id = ? AND is_active = 1', [user_id]
       )
-      const customTypeNames = approverConfig.map(a => a.custom_type_name)
+      const customTypeNames = (approverConfig || []).map(a => a.custom_type_name)
 
       // --- 1. 获取报销申请 (基于灵活流程引擎) ---
       const myReimbursementCondition = `
