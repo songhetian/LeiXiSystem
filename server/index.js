@@ -188,45 +188,45 @@ const dbConfig = {
   let pool
   let redis;
   
-  // 初始化数据库连接池
-  async function initDatabase() {
-    try {
-      pool = mysql.createPool(dbConfig)
-  
-      // 设置时区为北京时间
-      const connection = await pool.getConnection()
-      await connection.query("SET time_zone = '+08:00'")
-      connection.release()
-  
-      // 将 pool 装饰到 fastify 实例上，供路由使用
-      fastify.decorate('mysql', pool)
-      console.error('✅ 数据库初始化成功')
-  
-      // 初始化 Redis
-      try {
-        redis = new Redis(redisConfig);
-        redis.on('error', (err) => {
-          console.error('❌ Redis 连接错误:', err);
-        });
-        redis.on('connect', () => {
-          console.log('✅ Redis 连接成功');
-        });
-        fastify.decorate('redis', redis);
-      } catch (redisError) {
-        console.error('❌ Redis 初始化失败:', redisError);
-      }
-    } catch (error) {
-      console.error('❌ 数据库初始化失败:', error)
-    }
+  // ==================== 初始化基础服务 ====================
+  // 同步创建连接池以保证后续 register 能立即获取装饰器
+  try {
+    pool = mysql.createPool(dbConfig);
+    fastify.decorate('mysql', pool);
+    console.log('📦 Database pool created and decorated');
+  } catch (dbInitErr) {
+    console.error('❌ Failed to create database pool:', dbInitErr);
+  }
+
+  try {
+    redis = new Redis(redisConfig);
+    redis.on('error', (err) => console.error('❌ Redis error:', err));
+    fastify.decorate('redis', redis);
+    console.log('📦 Redis client created and decorated');
+  } catch (redisInitErr) {
+    console.error('❌ Failed to initialize Redis:', redisInitErr);
   }
   
   // 优雅关闭
   fastify.addHook('onClose', async (instance) => {
     if (redis) {
       await redis.quit();
-      console.log('👋 Redis 已关闭');
+      console.log('👋 Redis connection closed');
     }
   });
+
+  // 以前的 initDatabase 函数现在变为可选的连接测试
+  async function initDatabase() {
+    try {
+      if (!pool) throw new Error('Pool not initialized');
+      const connection = await pool.getConnection();
+      await connection.query("SET time_zone = '+08:00'");
+      connection.release();
+      console.log('✅ Database connection verified (timezone set)');
+    } catch (error) {
+      console.error('⚠️ Database verification failed:', error);
+    }
+  }
 // 健康检查
 fastify.get('/api/health', async (request, reply) => {
   try {
@@ -3839,81 +3839,81 @@ fastify.get('/api/users/:id/permissions-detail', async (request, reply) => {
 
 // ==================== 启动服务 ====================
 
+// ==================== 考勤管理路由 ====================
+fastify.register(require('./routes/attendance-clock'));
+fastify.register(require('./routes/leave'));
+fastify.register(require('./routes/overtime'));
+fastify.register(require('./routes/makeup'));
+fastify.register(require('./routes/attendance-stats'));
+fastify.register(require('./routes/attendance-settings'));
+fastify.register(require('./routes/shifts'));
+fastify.register(require('./routes/schedules'));
+fastify.register(require('./routes/schedule-excel'));
+fastify.register(require('./routes/attendance-approval'));
+
+// ==================== 工资管理路由 ====================
+fastify.register(require('./routes/payslips'));
+
+// ==================== 增强功能路由 ====================
+fastify.register(require('./routes/export'));
+fastify.register(require('./routes/smart-schedule'));
+
+// ==================== 职位管理路由 ====================
+fastify.register(require('./routes/positions'))
+
+// ==================== 权限管理路由 ====================
+fastify.register(require('./routes/permissions'))
+
+// ==================== 部门管理路由 ====================
+fastify.register(require('./routes/departments'))
+
+// ==================== 考核系统路由 ====================
+fastify.register(require('./routes/exams'))
+fastify.register(require('./routes/exam-categories'))
+fastify.register(require('./routes/assessment-plans'))
+fastify.register(require('./routes/assessment-results'))
+
+// ==================== 学习中心路由 ====================
+fastify.register(require('./routes/learning-tasks'))
+fastify.register(require('./routes/learning-plans'))
+fastify.register(require('./routes/learning-center'))
+
+// ==================== 假期管理路由 ====================
+fastify.register(require('./routes/vacation-settings'))
+fastify.register(require('./routes/holidays'))
+fastify.register(require('./routes/conversion-rules'))
+fastify.register(require('./routes/vacation-balance'))
+fastify.register(require('./routes/vacation-conversion'))
+fastify.register(require('./routes/compensatory-leave'))
+fastify.register(require('./routes/vacation-type-balances'))
+fastify.register(require('./routes/vacation-types'))
+
+// ==================== 知识库路由 ====================
+fastify.register(require('./routes/knowledge-reading'))
+fastify.register(require('./routes/knowledge-stats'))
+
+// ==================== 质检管理路由 ====================
+fastify.register(require('./routes/quality-inspection'))
+fastify.register(require('./routes/quality-tags'))
+fastify.register(require('./routes/case-categories'))
+fastify.register(require('./routes/quality-cases'))
+fastify.register(require('./routes/quality-case-interactions'))
+
+// ==================== 通知管理路由 ====================
+fastify.register(require('./routes/notifications'))
+
+// ==================== 备忘录管理路由 ====================
+fastify.register(require('./routes/memos'))
+
+// ==================== 系统广播路由 ====================
+fastify.register(require('./routes/broadcasts'))
+
+// ==================== 待办中心路由 ====================
+fastify.register(require('./routes/todo-center'))
+
 const start = async () => {
   try {
     await initDatabase();
-
-    // ==================== 考勤管理路由 ====================
-    fastify.register(require('./routes/attendance-clock'));
-    fastify.register(require('./routes/leave'));
-    fastify.register(require('./routes/overtime'));
-    fastify.register(require('./routes/makeup'));
-    fastify.register(require('./routes/attendance-stats'));
-    fastify.register(require('./routes/attendance-settings'));
-    fastify.register(require('./routes/shifts'));
-    fastify.register(require('./routes/schedules'));
-    fastify.register(require('./routes/schedule-excel'));
-    fastify.register(require('./routes/attendance-approval'));
-
-    // ==================== 工资管理路由 ====================
-    fastify.register(require('./routes/payslips'));
-
-    // ==================== 增强功能路由 ====================
-    fastify.register(require('./routes/export'));
-    fastify.register(require('./routes/smart-schedule'));
-
-    // ==================== 职位管理路由 ====================
-    fastify.register(require('./routes/positions'))
-
-    // ==================== 权限管理路由 ====================
-    fastify.register(require('./routes/permissions'))
-
-    // ==================== 部门管理路由 ====================
-    fastify.register(require('./routes/departments'))
-
-    // ==================== 考核系统路由 ====================
-    fastify.register(require('./routes/exams'))
-    fastify.register(require('./routes/exam-categories'))
-    fastify.register(require('./routes/assessment-plans'))
-    fastify.register(require('./routes/assessment-results'))
-
-    // ==================== 学习中心路由 ====================
-    fastify.register(require('./routes/learning-tasks'))
-    fastify.register(require('./routes/learning-plans'))
-    fastify.register(require('./routes/learning-center'))
-
-    // ==================== 假期管理路由 ====================
-    fastify.register(require('./routes/vacation-settings'))
-    fastify.register(require('./routes/holidays'))
-    fastify.register(require('./routes/conversion-rules'))
-    fastify.register(require('./routes/vacation-balance'))
-    fastify.register(require('./routes/vacation-conversion'))
-    fastify.register(require('./routes/compensatory-leave'))
-    fastify.register(require('./routes/vacation-type-balances'))
-    fastify.register(require('./routes/vacation-types'))
-
-    // ==================== 知识库路由 ====================
-    fastify.register(require('./routes/knowledge-reading'))
-    fastify.register(require('./routes/knowledge-stats'))
-
-    // ==================== 质检管理路由 ====================
-    fastify.register(require('./routes/quality-inspection'))
-    fastify.register(require('./routes/quality-tags'))
-    fastify.register(require('./routes/case-categories'))
-    fastify.register(require('./routes/quality-cases'))
-    fastify.register(require('./routes/quality-case-interactions'))
-
-    // ==================== 通知管理路由 ====================
-    fastify.register(require('./routes/notifications'))
-
-    // ==================== 备忘录管理路由 ====================
-    fastify.register(require('./routes/memos'))
-
-    // ==================== 系统广播路由 ====================
-    fastify.register(require('./routes/broadcasts'))
-
-    // ==================== 待办中心路由 ====================
-    fastify.register(require('./routes/todo-center'))
 
     const { setupWebSocket } = require('./websocket')
     // 设置WebSocket - 直接使用 fastify.server
