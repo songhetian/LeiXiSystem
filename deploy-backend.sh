@@ -32,5 +32,67 @@ echo "🔄 重启 PM2 服务..."
 npx pm2 delete leixi-system || true
 npx pm2 start server/index.js --name "leixi-system" --env production -- PORT=3001
 
+# 5. 生成 Nginx 配置示例
+echo "📝 生成 Nginx 配置文件: leixi.conf"
+cat <<EOF > leixi.conf
+server {
+    listen 80;
+    server_name localhost; # 请修改为您的域名或公网IP
+
+    # 前端静态资源
+    root $PROJECT_PATH/dist;
+    index index.html;
+
+    # 开启 Gzip 压缩
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # 处理前端路由 (React Router)
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # API 转发
+    location /api {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Socket.io 转发
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    # 上传文件路径直接映射
+    location /uploads/ {
+        alias $PROJECT_PATH/server/uploads/;
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+        access_log off;
+    }
+}
+EOF
+
+echo "------------------------------------------------"
 echo "✅ 后端部署完成！"
-echo "请确保 Nginx 配置已指向 $PROJECT_PATH/dist"
+echo "1. 后端服务已通过 PM2 启动在 3001 端口。"
+echo "2. Nginx 配置文件已生成: leixi.conf"
+echo ""
+echo "👉 下一步操作 (如果需要更新 Nginx 配置)："
+echo "   sudo cp leixi.conf /etc/nginx/conf.d/"
+echo "   sudo nginx -t"
+echo "   sudo systemctl restart nginx"
+echo "------------------------------------------------"
