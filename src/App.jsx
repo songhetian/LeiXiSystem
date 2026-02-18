@@ -162,16 +162,6 @@ function App() {
   };
 
   useEffect(() => {
-    // 监听 auth:logout 自定义事件，由 apiClient 在 token 失效时触发
-    const handleAuthLogout = (event) => {
-      console.error('收到登录失效事件:', event.detail?.reason);
-      handleLogout();
-    };
-    window.addEventListener('auth:logout', handleAuthLogout);
-    return () => window.removeEventListener('auth:logout', handleAuthLogout);
-  }, [handleLogout]);
-
-  useEffect(() => {
 
   }, [activeTab]);
 
@@ -452,6 +442,17 @@ function App() {
     setUser(null)
     toast.info('已退出登录')
   }, [])
+
+  // 监听 auth:logout 自定义事件，由 apiClient 在 token 失效时触发
+  // 必须放在 handleLogout 定义之后，避免暂时性死区错误
+  useEffect(() => {
+    const handleAuthLogout = (event) => {
+      console.error('收到登录失效事件:', event.detail?.reason);
+      handleLogout();
+    };
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => window.removeEventListener('auth:logout', handleAuthLogout);
+  }, [handleLogout]);
 
   const handleSetActiveTab = (tabName, params = {}) => {
     const newTab = { name: tabName, params };
