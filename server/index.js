@@ -3466,36 +3466,53 @@ const start = async () => {
 
     // 验证 Token 是否有效
     fastify.get('/api/auth/verify-token', async (request, reply) => {
+      console.log('🔍 [VerifyToken] 开始校验，Header:', request.headers.authorization);
       try {
-        const token = request.headers.authorization?.replace('Bearer ', '')
-        if (!token) {
-          return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-        }
-
-        const decoded = jwt.verify(token, JWT_SECRET)
-        const userId = decoded.id
-
-        // 🚨 增加单设备登录校验
-        const [user] = await pool.query(
-          'SELECT session_token, status FROM users WHERE id = ?',
-          [userId]
-        )
-
-        if (user.length === 0 || user[0].status !== 'active') {
-          return reply.code(401).send({ valid: false, message: '用户不存在或已禁用' })
-        }
-
-        // 如果提供了 sessionToken (从自定义 header 或查询参数)，则进行比对
-        // 注意：前端可能通过 localStorage 获取后传参，或者我们可以直接在后端从数据库取最新 session_token
-        // 这里我们默认返回有效，除非有明确的踢出逻辑
+        const authHeader = request.headers.authorization;
+        const token = authHeader?.replace('Bearer ', '');
         
+        if (!token) {
+          console.warn('⚠️ [VerifyToken] 未提供 Token');
+          return { valid: false, message: '未提供认证令牌' };
+        }
+
+        let decoded;
+        try {
+          decoded = jwt.verify(token, JWT_SECRET);
+          console.log('✅ [VerifyToken] JWT 解析成功，Payload:', decoded);
+        } catch (jwtErr) {
+          console.error('❌ [VerifyToken] JWT 校验失败:', jwtErr.message);
+          return { valid: false, message: '令牌无效或已过期' };
+        }
+
+        const userId = decoded.id;
+
+        // 🚨 检查用户状态
+        const [userRows] = await pool.query(
+          'SELECT id, username, session_token, status FROM users WHERE id = ?',
+          [userId]
+        );
+
+        if (userRows.length === 0) {
+          console.error(`❌ [VerifyToken] 用户 ID ${userId} 不存在`);
+          return { valid: false, message: '用户不存在' };
+        }
+
+        const user = userRows[0];
+        if (user.status !== 'active') {
+          console.warn(`⚠️ [VerifyToken] 用户 ${user.username} 状态为 ${user.status}，非活跃`);
+          return { valid: false, message: '账号未激活或已禁用' };
+        }
+
+        console.log(`✅ [VerifyToken] 校验通过，用户: ${user.username}`);
         return { 
           success: true, 
           valid: true, 
           user: decoded 
-        }
+        };
       } catch (error) {
-        return reply.code(401).send({ valid: false, message: '无效的认证令牌' })
+        console.error('🔥 [VerifyToken] 系统错误:', error);
+        return { valid: false, message: '服务器校验出错' };
       }
     })
 
