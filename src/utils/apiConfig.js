@@ -60,27 +60,6 @@ export const getApiBaseUrl = () => {
   return 'http://localhost:3001/api';
 }
 
-  // 2. Electron环境 (File协议): 使用构建时的环境变量
-  // 注意：import.meta.env 只在构建时可用
-  try {
-    const env = import.meta?.env;
-    if (env?.VITE_API_BASE_URL) {
-      return env.VITE_API_BASE_URL;
-    }
-  } catch (e) {
-    // 忽略错误
-  }
-
-  // 3. 从环境变量获取
-  const apiUrl = import.meta.env?.VITE_API_BASE_URL;
-  if (apiUrl) {
-    return apiUrl.endsWith('/api') ? apiUrl : apiUrl + '/api';
-  }
-  
-  // 4. 默认兜底
-  return 'http://localhost:3001/api';
-}
-
 /**
  * 异步获取 API Base URL，优先从运行时配置加载
  * 用于 Electron 打包后的应用
