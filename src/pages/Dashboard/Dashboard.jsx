@@ -3,10 +3,10 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, List, Avatar, Tag, Button, Empty, Skeleton, Typography, Space } from 'antd';
-import { 
-  UserOutlined, 
-  CheckCircleOutlined, 
-  ClockCircleOutlined, 
+import {
+  UserOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
   RocketOutlined,
   CalendarOutlined,
   WalletOutlined,
@@ -40,12 +40,10 @@ const Dashboard = ({ onNavigate }) => {
     if (!userId) return;
 
     try {
-      const response = await api.get('/notifications', {
+      const data = await apiGet('/notifications', {
         params: { userId, pageSize: 5 }
       });
-      if (response.data.success) {
-        setNotifications(response.data.data || []);
-      }
+      setNotifications(data.data || []);
     } catch (error) {
       console.error('Fetch notifications failed:', error);
     }
@@ -53,7 +51,7 @@ const Dashboard = ({ onNavigate }) => {
 
   const fetchStats = async () => {
     const userId = localStorage.getItem('userId') || JSON.parse(localStorage.getItem('user'))?.id;
-    
+
     if (!userId) {
       console.warn('Dashboard: No userId found, skipping stats fetch');
       setLoading(false);
@@ -62,12 +60,10 @@ const Dashboard = ({ onNavigate }) => {
 
     setLoading(true);
     try {
-      const response = await api.get('/dashboard/stats', {
+      const data = await apiGet('/dashboard/stats', {
         params: { user_id: userId }
       });
-      if (response.data.success) {
-        setStats(response.data.data);
-      }
+      setStats(data.data);
     } catch (error) {
       console.error('Fetch dashboard stats failed:', error);
     } finally {
@@ -108,7 +104,7 @@ const Dashboard = ({ onNavigate }) => {
                 </Button>
               </Card>
             </Col>
-            
+
             {stats?.adminStats && (
               <Col xs={24} sm={12} lg={6}>
                 <Card bordered={false} hoverable style={{ borderRadius: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
@@ -153,13 +149,13 @@ const Dashboard = ({ onNavigate }) => {
           <Row gutter={[24, 24]}>
             {/* 左侧：快捷操作 */}
             <Col xs={24} lg={12}>
-              <Card 
+              <Card
                 title={<Title level={5} style={{ margin: 0 }}>快捷入口</Title>}
                 bordered={false}
                 style={{ borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.04)', height: '100%' }}
               >
                 <div className="grid grid-cols-2 gap-6 mt-4">
-                  <div 
+                  <div
                     className="p-8 bg-blue-50 rounded-3xl cursor-pointer hover:bg-blue-100 transition-all hover:scale-[1.02] text-center"
                     onClick={() => onNavigate('reimbursement-apply')}
                   >
@@ -167,7 +163,7 @@ const Dashboard = ({ onNavigate }) => {
                     <div className="text-lg font-bold text-blue-900">申请报销</div>
                     <div className="text-xs text-blue-400 mt-1">快速提交费用报销</div>
                   </div>
-                  <div 
+                  <div
                     className="p-8 bg-purple-50 rounded-3xl cursor-pointer hover:bg-purple-100 transition-all hover:scale-[1.02] text-center"
                     onClick={() => onNavigate('attendance-leave-apply')}
                   >
@@ -175,7 +171,7 @@ const Dashboard = ({ onNavigate }) => {
                     <div className="text-lg font-bold text-purple-900">请假申请</div>
                     <div className="text-xs text-purple-400 mt-1">在线提交请假流程</div>
                   </div>
-                  <div 
+                  <div
                     className="p-8 bg-orange-50 rounded-3xl cursor-pointer hover:bg-orange-100 transition-all hover:scale-[1.02] text-center"
                     onClick={() => onNavigate('my-exams')}
                   >
@@ -183,7 +179,7 @@ const Dashboard = ({ onNavigate }) => {
                     <div className="text-lg font-bold text-orange-900">参加考试</div>
                     <div className="text-xs text-orange-400 mt-1">查看待完成考核</div>
                   </div>
-                  <div 
+                  <div
                     className="p-8 bg-green-50 rounded-3xl cursor-pointer hover:bg-green-100 transition-all hover:scale-[1.02] text-center"
                     onClick={() => onNavigate('knowledge-articles')}
                   >
@@ -197,7 +193,7 @@ const Dashboard = ({ onNavigate }) => {
 
             {/* 右侧：最新通知 */}
             <Col xs={24} lg={12}>
-              <Card 
+              <Card
                 title={<Title level={5} style={{ margin: 0 }}>最新通知</Title>}
                 bordered={false}
                 style={{ borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.04)', height: '100%' }}
@@ -224,10 +220,10 @@ const Dashboard = ({ onNavigate }) => {
                     </List.Item>
                   )}
                 />
-                <Button 
-                  type="link" 
-                  block 
-                  style={{ marginTop: 16 }} 
+                <Button
+                  type="link"
+                  block
+                  style={{ marginTop: 16 }}
                   onClick={() => onNavigate('my-notifications')}
                 >
                   查看全部通知

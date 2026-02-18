@@ -31,7 +31,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const errorMsg = error.response?.data?.message || error.message || '未知错误';
-    
+
     if (error.response) {
       switch (error.response.status) {
         case 401:
@@ -39,11 +39,21 @@ api.interceptors.response.use(
           // 如果是二级密码验证失败，不跳转
           const message = error.response.data?.message || '';
           const isPasswordError = message.includes('二级密码') || message.includes('需要验证');
-          
+
           if (!isPasswordError) {
+            const logoutReason = `[src/api.js] 401 Unauthorized, URL: ${error.config?.url || 'unknown'}`;
+            console.error('🔴', logoutReason);
+            // 将原因存入 localStorage 以便刷新后查看
+            localStorage.setItem('last_logout_reason', logoutReason);
+            localStorage.setItem('last_logout_stack', new Error().stack);
+
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            window.location.href = '/';
+
+            // 触发退出事件
+            window.dispatchEvent(new CustomEvent('auth:logout', {
+              detail: { reason: 'api_401', url: error.config?.url }
+            }));
           } else {
             import('sonner').then(({ toast }) => toast.error(errorMsg));
           }

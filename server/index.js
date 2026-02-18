@@ -3417,9 +3417,9 @@ const start = async () => {
           [sessionToken, user.id]
         )
 
-        // 缓存 Session 到 Redis
+        // 缓存 Session 到 Redis - 存储完整的 JWT Token 以供 checkPermission 中间件校验
         if (redis) {
-          await redis.set(`user:session:${user.id}`, sessionToken, 'EX', 86400);
+          await redis.set(`user:session:${user.id}`, token, 'EX', 86400);
         }
 
         // 不返回密码

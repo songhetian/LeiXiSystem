@@ -161,6 +161,19 @@ function App() {
     localStorage.setItem('contentZoom', value);
   };
 
+  // 持久化日志检查
+  useEffect(() => {
+    const reason = localStorage.getItem('last_logout_reason');
+    const stack = localStorage.getItem('last_logout_stack');
+    if (reason) {
+      console.warn('🕵️ 上一次注销的原因 (来自持久化日志):', reason);
+      if (stack) console.warn('📚 堆栈信息:', stack);
+      // 清除之后不再重复显示在控制台
+      localStorage.removeItem('last_logout_reason');
+      localStorage.removeItem('last_logout_stack');
+    }
+  }, []);
+
   useEffect(() => {
 
   }, [activeTab]);
@@ -413,7 +426,11 @@ function App() {
     })
   }
 
-  const handleLogout = React.useCallback(async () => {
+  const handleLogout = React.useCallback(async (reason = 'manual') => {
+    console.warn(`🛑 [App] handleLogout 被调用！原因: ${reason}`);
+    localStorage.setItem('last_logout_reason', `handleLogout triggered by: ${reason}`);
+    localStorage.setItem('last_logout_stack', new Error().stack);
+    console.trace();
     // 调用后端API清除session
     try {
       await apiPost('/api/auth/logout', {})
@@ -444,11 +461,12 @@ function App() {
   }, [])
 
   // 监听 auth:logout 自定义事件，由 apiClient 在 token 失效时触发
-  // 必须放在 handleLogout 定义之后，避免暂时性死区错误
   useEffect(() => {
     const handleAuthLogout = (event) => {
-      console.error('收到登录失效事件:', event.detail?.reason);
-      handleLogout();
+      const reason = event.detail?.reason || 'unknown_event';
+      const url = event.detail?.url || '';
+      console.error('收到登录失效事件:', reason, url);
+      handleLogout(`event:${reason}${url ? ' ' + url : ''}`);
     };
     window.addEventListener('auth:logout', handleAuthLogout);
     return () => window.removeEventListener('auth:logout', handleAuthLogout);
