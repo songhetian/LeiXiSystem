@@ -128,8 +128,15 @@ toast.success = (message, options) => {
 
 function App() {
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    return !!(token && savedUser);
+  })
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  })
   const [activeTab, setActiveTab] = useState(() => {
     const saved = localStorage.getItem('activeTab');
     if (saved) {
@@ -397,6 +404,8 @@ function App() {
 
 
   const handleLoginSuccess = (userData) => {
+    console.log('🎉 handleLoginSuccess 触发，用户信息:', userData);
+    localStorage.setItem('user', JSON.stringify(userData));
     setIsLoggedIn(true)
     setUser(userData)
     // 登录成功后清除旧的权限缓存
@@ -410,6 +419,8 @@ function App() {
   }
 
   const handleLogout = React.useCallback(async () => {
+    console.warn('🛑 handleLogout 被调用！追踪堆栈:');
+    console.trace();
     // 调用后端API清除session
     try {
       await apiPost('/api/auth/logout', {})
