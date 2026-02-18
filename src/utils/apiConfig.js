@@ -34,11 +34,18 @@ async function loadRuntimeConfig() {
 
 export const getApiBaseUrl = () => {
   // 1. 浏览器环境 (HTTP/HTTPS): 动态获取当前主机名
-  // 这样如果服务器IP变了，浏览器端会自动适应，不需要重新构建；
   if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
     const hostname = window.location.hostname;
-    const port = import.meta.env?.VITE_API_PORT || '3001';
-    return `http://${hostname}:${port}/api`;
+    
+    // 如果是生产环境 IP 或 域名，返回相对路径 /api
+    // 只有在 localhost 开发且不是通过 Nginx 访问时才返回带端口的地址
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      const port = import.meta.env?.VITE_API_PORT || '3001';
+      return `http://${hostname}:${port}/api`;
+    }
+    
+    // 生产环境：使用相对路径，让 Nginx 处理转发，解决 CORS 问题
+    return '/api';
   }
 
   // 2. Electron环境 (File协议): 使用构建时的环境变量
@@ -70,6 +77,12 @@ export async function getApiBaseUrlAsync() {
   // 1. 浏览器环境 (HTTP/HTTPS): 动态获取当前主机名
   if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
     const hostname = window.location.hostname;
+    
+    // 如果是生产环境 IP 或 域名，返回相对路径 /api
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return '/api';
+    }
+    
     return `http://${hostname}:3001/api`;
   }
 
