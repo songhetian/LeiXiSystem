@@ -162,9 +162,14 @@ function App() {
   };
 
   useEffect(() => {
-
-    console.log('Current Active Tab:', activeTab);
-  }, []);
+    // 监听 auth:logout 自定义事件，由 apiClient 在 token 失效时触发
+    const handleAuthLogout = (event) => {
+      console.error('收到登录失效事件:', event.detail?.reason);
+      handleLogout();
+    };
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => window.removeEventListener('auth:logout', handleAuthLogout);
+  }, [handleLogout]);
 
   useEffect(() => {
 
@@ -304,11 +309,11 @@ function App() {
         error: toast.error,
         announcement: toast.info
       }
-      
+
       const toastMethod = typeConfig[broadcast.type] || toast.info
-      
+
       console.log('📣 准备显示广播Toast:', broadcast.title);
-      
+
       toastMethod(broadcast.title || '系统广播', {
         description: broadcast.content,
         duration: 10000, // 广播停留时间长一点
@@ -419,8 +424,6 @@ function App() {
   }
 
   const handleLogout = React.useCallback(async () => {
-    console.warn('🛑 handleLogout 被调用！追踪堆栈:');
-    console.trace();
     // 调用后端API清除session
     try {
       await apiPost('/api/auth/logout', {})
@@ -451,7 +454,6 @@ function App() {
   }, [])
 
   const handleSetActiveTab = (tabName, params = {}) => {
-    console.trace('Trace for handleSetActiveTab');
     const newTab = { name: tabName, params };
     setActiveTab(newTab);
     localStorage.setItem('activeTab', JSON.stringify(newTab));

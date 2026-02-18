@@ -55,7 +55,7 @@ export const getApiBaseUrl = () => {
   if (apiUrl) {
     return apiUrl.endsWith('/api') ? apiUrl : apiUrl + '/api';
   }
-  
+
   // 4. 默认兜底
   return 'http://localhost:3001/api';
 }
@@ -65,16 +65,10 @@ export const getApiBaseUrl = () => {
  * 用于 Electron 打包后的应用
  */
 export async function getApiBaseUrlAsync() {
-  // 1. 浏览器环境 (HTTP/HTTPS): 动态获取当前主机名
+  // 1. 浏览器环境 (HTTP/HTTPS): 统一使用相对路径 /api
+  // 开发环境依靠 Vite 代理，生产环境依靠 Nginx 代理，转发到后端 3001 端口
   if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
-    const hostname = window.location.hostname;
-    
-    // 如果是生产环境 IP 或 域名，返回相对路径 /api
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      return '/api';
-    }
-    
-    return `http://${hostname}:3001/api`;
+    return '/api';
   }
 
   // 2. 尝试加载运行时配置（用于打包后的 Electron 应用）
@@ -93,7 +87,7 @@ export async function getApiBaseUrlAsync() {
     // 忽略错误
   }
 
-  // 4. 默认兜底
+  // 4. 默认兜底（Electron 等非 HTTP 环境）
   const port = import.meta.env?.VITE_API_PORT || '3001';
   return 'http://localhost:' + port + '/api';
 }

@@ -155,19 +155,19 @@ const dbConfig = {
   queueLimit: 0,
       timezone: '+08:00'  // 设置为北京时间
   }
-  
+
   // Redis 配置
   const Redis = require('ioredis');
   const redisConfig = {
-    host: (dbConfigJson.redis && dbConfigJson.redis.host) || process.env.REDIS_HOST || '127.0.0.1',
+    host: process.env.REDIS_HOST || (dbConfigJson.redis && dbConfigJson.redis.host) || '127.0.0.1',
     port: (dbConfigJson.redis && dbConfigJson.redis.port) || process.env.REDIS_PORT || 6379,
     password: (dbConfigJson.redis && dbConfigJson.redis.password) || process.env.REDIS_PASSWORD || '',
     db: (dbConfigJson.redis && dbConfigJson.redis.db) || process.env.REDIS_DB || 0
   };
-  
+
   let pool
   let redis;
-  
+
   // ==================== 初始化基础服务 ====================
   // 同步创建连接池以保证后续 register 能立即获取装饰器
   try {
@@ -192,7 +192,7 @@ const dbConfig = {
   } catch (redisInitErr) {
     console.error('❌ Failed to initialize Redis:', redisInitErr);
   }
-  
+
   // 优雅关闭
   fastify.addHook('onClose', async (instance) => {
     if (redis) {
@@ -432,8 +432,8 @@ fastify.post('/api/customers', async (request, reply) => {
             // Post Welcome System Message
             if (redis) {
                 const sysMsg = {
-                    sender_id: 0, group_id: groupId, 
-                    content: `欢迎新同事 ${name} 加入本部门`, 
+                    sender_id: 0, group_id: groupId,
+                    content: `欢迎新同事 ${name} 加入本部门`,
                     msg_type: 'system', created_at: new Date()
                 };
                 await redis.publish('chat_messages', JSON.stringify(sysMsg));
@@ -491,13 +491,13 @@ fastify.put('/api/customers/:id', async (request, reply) => {
             if (oldGroups.length > 0) {
                 const oldGroupId = oldGroups[0].id;
                 await pool.query('DELETE FROM chat_group_members WHERE group_id = ? AND user_id = ?', [oldGroupId, id]);
-                
+
                 // Post Leave System Message
                 const [u] = await pool.query('SELECT real_name FROM users WHERE id = ?', [id]);
                 if (u.length > 0 && redis) {
                     const sysMsg = {
-                        sender_id: 0, group_id: oldGroupId, 
-                        content: `${u[0].real_name} 已调离本部门`, 
+                        sender_id: 0, group_id: oldGroupId,
+                        content: `${u[0].real_name} 已调离本部门`,
                         msg_type: 'system', created_at: new Date()
                     };
                     await redis.publish('chat_messages', JSON.stringify(sysMsg));
@@ -516,8 +516,8 @@ fastify.put('/api/customers/:id', async (request, reply) => {
                 const [u] = await pool.query('SELECT real_name FROM users WHERE id = ?', [id]);
                 if (u.length > 0 && redis) {
                     const sysMsg = {
-                        sender_id: 0, group_id: newGroupId, 
-                        content: `欢迎 ${u[0].real_name} 加入本群组`, 
+                        sender_id: 0, group_id: newGroupId,
+                        content: `欢迎 ${u[0].real_name} 加入本群组`,
                         msg_type: 'system', created_at: new Date()
                     };
                     await redis.publish('chat_messages', JSON.stringify(sysMsg));
@@ -545,11 +545,11 @@ fastify.put('/api/customers/:id', async (request, reply) => {
     if (redis && status !== 'active') {
       await redis.del(`user:session:${id}`);
       await redis.del(`user:permissions:${id}`);
-      
+
       // --- Auto-Leave All Chat Groups on Inactivation ---
       try {
           await pool.query('DELETE FROM chat_group_members WHERE user_id = ?', [id]);
-          
+
           // --- NEW: Auto-Recover Devices on Deactivation ---
           const [userDevices] = await pool.query('SELECT id, asset_no FROM devices WHERE current_user_id = ?', [id]);
           if (userDevices.length > 0) {
@@ -968,9 +968,9 @@ fastify.get('/api/employees', async (request, reply) => {
     // 为每个员工查询其部门权限
     const employeesWithDepts = await Promise.all(rows.map(async (emp) => {
       const [depts] = await pool.query(
-        `SELECT d.id, d.name 
-         FROM departments d 
-         INNER JOIN user_departments ud ON d.id = ud.department_id 
+        `SELECT d.id, d.name
+         FROM departments d
+         INNER JOIN user_departments ud ON d.id = ud.department_id
          WHERE ud.user_id = ?`,
         [emp.user_id]
       );
@@ -1101,7 +1101,7 @@ fastify.post('/api/employees', async (request, reply) => {
     try {
       if (status === 'active' && department_id) {
         await syncUserChatGroups(pool, userResult.insertId, department_id, true, redis, fastify.io);
-        
+
         // 发送欢迎系统消息
         if (redis) {
           const [groups] = await pool.query('SELECT id FROM chat_groups WHERE department_id = ?', [department_id]);
@@ -1139,7 +1139,7 @@ fastify.put('/api/employees/:id', async (request, reply) => {
   try {
     // 获取员工的旧信息用于同步判断
     const [empRows] = await pool.query(
-      'SELECT e.user_id, e.status as old_status, u.department_id as old_department_id, u.real_name FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = ?', 
+      'SELECT e.user_id, e.status as old_status, u.department_id as old_department_id, u.real_name FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = ?',
       [id]
     );
     if (empRows.length === 0) {
@@ -1228,7 +1228,7 @@ fastify.put('/api/employees/:id', async (request, reply) => {
       if (old_status === 'active' && finalStatus !== 'active') {
         console.log(`[Sync] Offboarding user ${userId}...`);
         await syncUserChatGroups(pool, userId, finalDeptId, false, redis, fastify.io);
-        
+
         // 🚨 强制断开连接
         const { forceDisconnectUser } = require('./websocket');
         if (typeof forceDisconnectUser === 'function') {
@@ -1251,7 +1251,7 @@ fastify.put('/api/employees/:id', async (request, reply) => {
             await redis.publish('chat_messages', JSON.stringify(sysMsg));
           }
         }
-      } 
+      }
       // 2. 如果状态变更为在职，或者在职状态下部门发生变更
       else if (finalStatus === 'active') {
         if (old_status !== 'active' || old_department_id !== finalDeptId) {
@@ -1296,20 +1296,20 @@ fastify.put('/api/employees/:id', async (request, reply) => {
 fastify.delete('/api/employees/:id', async (request, reply) => {
   const { id } = request.params;
   const permissions = await extractUserPermissions(request, pool);
-  
+
   try {
     // 开启事务确保一致性
     const connection = await pool.getConnection();
     await connection.beginTransaction();
-    
+
     try {
       // 1. 获取员工及用户信息用于记录日志（修正：real_name 在 users 表中）
       const [empRows] = await connection.query(`
-        SELECT e.user_id, u.real_name, e.employee_no 
-        FROM employees e 
+        SELECT e.user_id, u.real_name, e.employee_no
+        FROM employees e
         LEFT JOIN users u ON e.user_id = u.id
         WHERE e.id = ?`, [id]);
-      
+
       if (empRows.length === 0) {
         await connection.rollback();
         connection.release();
@@ -1317,16 +1317,16 @@ fastify.delete('/api/employees/:id', async (request, reply) => {
       }
 
       const employee = empRows[0];
-      
+
       // 2. 将员工状态设置为 deleted
       await connection.query('UPDATE employees SET status = ? WHERE id = ?', ['deleted', id]);
-      
+
       // 2.5 自动回收物理设备
       await connection.query('UPDATE devices SET device_status = "idle", current_user_id = NULL WHERE current_user_id = ?', [employee.user_id]);
-      
+
       // 3. 同时将对应的用户状态也设置为 deleted（防止登录）
       await connection.query('UPDATE users SET status = ? WHERE id = ?', ['deleted', employee.user_id]);
-      
+
       // 3.5 自动化聊天群组清理
       try {
         await syncUserChatGroups(connection, employee.user_id, null, false, redis, fastify.io);
@@ -1336,7 +1336,7 @@ fastify.delete('/api/employees/:id', async (request, reply) => {
       } catch (chatErr) {
         console.error('Failed to cleanup chat groups during deletion:', chatErr);
       }
-      
+
       // Redis 同步：强制下线并清理权限缓存
       if (redis) {
         await redis.del(`user:session:${employee.user_id}`);
@@ -1352,7 +1352,7 @@ fastify.delete('/api/employees/:id', async (request, reply) => {
         const opId = permissions?.userId;
         let opRealName = '系统用户';
         let opUsername = 'unknown';
-        
+
         if (opId) {
           const [opRows] = await connection.query('SELECT real_name, username FROM users WHERE id = ?', [opId]);
           if (opRows.length > 0) {
@@ -1375,7 +1375,7 @@ fastify.delete('/api/employees/:id', async (request, reply) => {
       } catch (logErr) {
         console.error('记录删除日志失败:', logErr);
       }
-      
+
       await connection.commit();
       connection.release();
       return { success: true, message: '员工及其关联账号已成功删除' };
@@ -1542,13 +1542,13 @@ fastify.post('/api/employees/batch-import', async (request, reply) => {
           failCount++;
         }
       }
-    
+
       // 🔴 Redis 同步：批量导入后清理列表缓存
       if (redis) {
         const keys = await redis.keys('list:employees:default:*');
         if (keys.length > 0) await redis.del(...keys);
       }
-    
+
       return {    success: true,
     message: `导入完成：成功 ${successCount} 名，失败 ${failCount} 名`,
     successCount,
@@ -1865,13 +1865,13 @@ fastify.post('/api/employee-changes/create', async (request, reply) => {
 
     // 1. 实时抓取当前档案数据 (通过关联 users 表获取部门 ID)
     const [current] = await pool.query(
-      `SELECT e.position_id, u.department_id 
-       FROM employees e 
-       JOIN users u ON e.user_id = u.id 
+      `SELECT e.position_id, u.department_id
+       FROM employees e
+       JOIN users u ON e.user_id = u.id
        WHERE e.id = ?`,
       [employee_id]
     );
-    
+
     const dbOldPosId = current[0]?.position_id || null;
     const dbOldDeptId = current[0]?.department_id || null;
 
@@ -1888,9 +1888,9 @@ fastify.post('/api/employee-changes/create', async (request, reply) => {
       const finalDate = change_date ? change_date.split('T')[0] : dayjs().format('YYYY-MM-DD');
       const [res] = await pool.query(
         `INSERT INTO employee_changes
-        (employee_id, user_id, change_type, change_date, 
-         old_department_id, new_department_id, 
-         old_position, new_position, 
+        (employee_id, user_id, change_type, change_date,
+         old_department_id, new_department_id,
+         old_position, new_position,
          old_position_id, new_position_id, reason, remarks)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -1927,9 +1927,9 @@ fastify.post('/api/employee-changes/create', async (request, reply) => {
     return { success: true, id: insertId };
   } catch (error) {
     console.error('❌ 创建变动记录严重错误:', error);
-    return reply.code(500).send({ 
-      success: false, 
-      error: '变动记录写入失败', 
+    return reply.code(500).send({
+      success: false,
+      error: '变动记录写入失败',
       db_message: error.message,
       sql_state: error.sqlState
     });
@@ -3328,7 +3328,6 @@ const start = async () => {
 
     // 检查会话状态
     fastify.post('/api/auth/check-session', async (request, reply) => {
-      console.log('收到 /api/auth/check-session 请求:', request.body);
       const { userId, sessionToken, username } = request.body
 
       // 场景1：登录前的活跃会话检查（通过用户名）
@@ -3339,10 +3338,10 @@ const start = async () => {
             [username]
           );
           if (user.length > 0 && user[0].session_token) {
-            return { 
-              success: true, 
-              hasActiveSession: true, 
-              lastLogin: user[0].last_login 
+            return {
+              success: true,
+              hasActiveSession: true,
+              lastLogin: user[0].last_login
             };
           }
           return { success: true, hasActiveSession: false };
@@ -3429,6 +3428,7 @@ const start = async () => {
           success: true,
           token,
           sessionToken,
+          expiresIn: 86400, // 24小时，与 JWT expiresIn: '24h' 保持一致
           user: userWithoutPassword
         }
       } catch (error) {
@@ -3493,13 +3493,11 @@ const start = async () => {
 
     // 验证 Token 是否有效
     fastify.get('/api/auth/verify-token', async (request, reply) => {
-      console.log('🔍 [VerifyToken] 开始校验，Header:', request.headers.authorization);
       try {
         const authHeader = request.headers.authorization;
         const token = authHeader?.replace('Bearer ', '');
-        
+
         if (!token) {
-          console.warn('⚠️ [VerifyToken] 未提供 Token');
           return { valid: false, message: '未提供认证令牌' };
         }
 
@@ -3507,13 +3505,13 @@ const start = async () => {
         try {
           decoded = jwt.verify(token, JWT_SECRET);
         } catch (jwtErr) {
-          console.error('❌ [VerifyToken] JWT 校验失败:', jwtErr.message);
+          console.error('[VerifyToken] JWT 校验失败:', jwtErr.message);
           return { valid: false, message: '令牌无效或已过期' };
         }
 
         const userId = decoded.id;
 
-        // 🚨 检查用户状态
+        // 检查用户状态
         const [userRows] = await pool.query(
           'SELECT id, username, session_token, status FROM users WHERE id = ?',
           [userId]
@@ -3528,14 +3526,13 @@ const start = async () => {
           return { valid: false, message: '账号未激活或已禁用' };
         }
 
-        console.log(`✅ [VerifyToken] 校验通过，用户: ${user.username}`);
-        return { 
-          success: true, 
-          valid: true, 
-          user: decoded 
+        return {
+          success: true,
+          valid: true,
+          user: decoded
         };
       } catch (error) {
-        console.error('🔥 [VerifyToken] 系统错误:', error);
+        console.error('[VerifyToken] 系统错误:', error);
         return { valid: false, message: '服务器校验出错' };
       }
     })
@@ -3745,7 +3742,7 @@ const start = async () => {
           const queue = new MessageQueue(pool, redis);
           io.messageQueue = queue;
           await queue.initSequence();
-          
+
           // 每 5 秒批量存入数据库一次
           setInterval(() => {
             queue.flush().catch(e => console.error('Message Flush Error:', e));

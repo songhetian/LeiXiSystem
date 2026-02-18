@@ -54,13 +54,22 @@ class TokenManager {
 
   /**
    * 检查token是否过期
+   * 优先使用本地存储的过期时间，若不存在则解析 JWT payload 中的 exp 字段
    */
   isTokenExpired() {
     const expiryTime = localStorage.getItem(this.tokenExpiryKey);
-    if (!expiryTime) return true;
+    if (expiryTime) {
+      // 提前2分钟判断为过期，留出刷新时间
+      return Date.now() > (parseInt(expiryTime) - 2 * 60 * 1000);
+    }
 
-    // 提前5分钟判断为过期,留出刷新时间
-    return Date.now() > (parseInt(expiryTime) - 5 * 60 * 1000);
+    // 兜底：解析 JWT payload 中的 exp 字段
+    const token = this.getToken();
+    if (!token) return true;
+    const payload = this.parseToken(token);
+    if (!payload || !payload.exp) return true;
+    // JWT exp 是秒级时间戳，提前2分钟判断
+    return Date.now() > (payload.exp * 1000 - 2 * 60 * 1000);
   }
 
   /**
@@ -125,8 +134,8 @@ class TokenManager {
     } catch (error) {
       console.error('Token刷新失败:', error);
       this.clearTokens();
-      // 跳转到登录页
-      window.location.href = '/login';
+      // 触发自定义事件，由 App.jsx 监听并执行退出，避免 SPA 中强制页面刷新
+      window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'token_refresh_failed' } }));
       throw error;
     }
   }
@@ -157,12 +166,12 @@ export const handleApiError = (error, customMessage = null) => {
         toast.error(message || '请求参数错误');
         break;
       case 401:
-        console.error('拦截到 401 错误，已禁用自动跳转以供调试:', message);
-        // toast.error('未授权,请重新登录');
-        // tokenManager.clearTokens();
-        // setTimeout(() => {
-        //   window.location.href = '/login';
-        // }, 1500);
+        toast.error('登录已过期，请重新登录');
+        tokenManager.clearTokens();
+        localStorage.removeItem('user');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: '401_unauthorized' } }));
+        }, 1500);
         break;
       case 403:
         toast.error('没有权限执行此操作');

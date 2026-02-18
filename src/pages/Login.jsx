@@ -148,7 +148,6 @@ const Login = ({ onLoginSuccess }) => {
 
   // 执行登录
   const performLogin = async (forceLogin = false) => {
-    console.log('执行登录，forceLogin:', forceLogin);
     try {
       const response = await axios.post(getApiUrl('/api/auth/login'), {
         username: formData.username,
@@ -158,10 +157,9 @@ const Login = ({ onLoginSuccess }) => {
         timeout: 10000 // 10秒超时
       })
 
-      console.log('登录API响应:', response.data);
-
       if (response.data.success) {
-        tokenManager.setToken(response.data.token, response.data.expiresIn || 3600)
+        // 使用后端返回的 expiresIn，若无则固定 86400s（24小时），与后端 JWT 保持一致
+        tokenManager.setToken(response.data.token, response.data.expiresIn || 86400)
         if (response.data.refresh_token) {
           tokenManager.setRefreshToken(response.data.refresh_token)
         }
@@ -203,65 +201,44 @@ const Login = ({ onLoginSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    console.log('.handleSubmit开始执行');
     setLoading(true)
     setErrorMessage('') // 清除之前的错误
 
     // 表单验证
     if (!validateForm()) {
-      console.log('表单验证失败');
       setLoading(false)
       return
     }
 
-    console.log('开始登录流程，用户名:', formData.username);
-
     try {
       if (isLogin) {
-        console.log('检查活跃会话');
         // 先检查是否有活跃会话
-        console.log('发送检查会话请求到:', getApiUrl('/api/auth/check-session'));
         const checkResponse = await axios.post(getApiUrl('/api/auth/check-session'), {
           username: formData.username
         }, {
           timeout: 10000 // 10秒超时
         })
 
-        console.log('检查会话响应:', checkResponse.data);
-
         if (checkResponse.data.hasActiveSession) {
           // 有活跃会话，显示确认对话框
-          console.log('检测到活跃会话，显示确认对话框');
           setSessionInfo(checkResponse.data)
           setShowConfirmModal(true)
           setLoading(false)
           return
         }
 
-        console.log('没有活跃会话，直接登录');
         // 没有活跃会话，直接登录
         await performLogin(false)
-        // 确保在任何情况下都关闭loading状态
-        if (loading) {
-          setLoading(false)
-        }
       } else {
-        console.log('注册流程');
         // 注册
         const response = await axios.post(getApiUrl('/api/auth/register'), formData, {
           timeout: 10000 // 10秒超时
         })
 
-        console.log('注册响应:', response.data);
-
         if (response.data.success) {
           setShowSuccessModal(true)
           setFormData({ username: '', password: '', real_name: '', email: '', phone: '', department_id: '' })
           setFieldErrors({})
-        }
-        // 确保在任何情况下都关闭loading状态
-        if (loading) {
-          setLoading(false)
         }
       }
     } catch (error) {
@@ -603,11 +580,9 @@ const Login = ({ onLoginSuccess }) => {
               </button>
               <button
                 onClick={async () => {
-                  console.log('用户确认强制登录，开始 performLogin(true)...');
                   setLoading(true)
                   try {
                     await performLogin(true)
-                    console.log('强制登录 performLogin(true) 执行成功');
                     // 强制登录成功后关闭模态框
                     setShowConfirmModal(false)
                   } catch (error) {

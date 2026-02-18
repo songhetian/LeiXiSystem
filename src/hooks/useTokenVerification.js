@@ -26,11 +26,9 @@ export const useTokenVerification = (onLogout, userId) => {
         skipRefresh: true
       })
 
-      // 🚨 只有明确返回 valid === false 时才踢出
-      // 避免 undefined (数据没加载好) 或 null 导致误判定
+      // 只有明确返回 valid === false 时才踢出
       if (data && data.valid === false) {
-        console.error('🔴 [DEBUG] Token 校验失败，本应退出，现已拦截:', data.message);
-        /*
+        console.error('Token 校验失败:', data.message);
         // Token无效，清除本地存储
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -40,7 +38,6 @@ export const useTokenVerification = (onLogout, userId) => {
         if (onLogout) {
           onLogout()
         }
-        */
       }
     } catch (error) {
       // 忽略校验过程中的网络错误，避免误踢
