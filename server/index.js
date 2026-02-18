@@ -173,7 +173,8 @@ const dbConfig = {
   try {
     pool = mysql.createPool(dbConfig);
     fastify.decorate('mysql', pool);
-    console.log('📦 Database pool created and decorated');
+    global.pool = pool; // 兜底：供某些未正确获取 fastify 实例的模块使用
+    console.log('📦 Database pool created and decorated (global.pool set)');
   } catch (dbInitErr) {
     console.error('❌ Failed to create database pool:', dbInitErr);
   }
@@ -3753,7 +3754,15 @@ const start = async () => {
           const { cacheUserProfile } = require('./utils/personnelClosure');
           const [activeUsers] = await pool.query('SELECT id FROM users WHERE status = "active"');
           for (const u of activeUsers) {
-            await cacheUserProfile(pool, redis, u.id);
+            try {
+              await cacheUserProfile(pool, redis, u.id);
+            } catch (preheatErr) {
+              // 如果报错说明类型冲突，强制清理后重试
+              if (preheatErr.message.includes('WRONGTYPE')) {
+                await redis.del(`user:profile:${u.id}`);
+                await cacheUserProfile(pool, redis, u.id);
+              }
+            }
           }
           console.log(`✅ 已预热 ${activeUsers.length} 个用户缓存`);
         } catch (queueErr) {

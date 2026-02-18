@@ -85,13 +85,12 @@ async function cacheUserProfile(pool, redis, userId) {
     if (rows.length > 0) {
       const user = rows[0];
       const cacheKey = `user:profile:${userId}`;
-      await redis.hset(cacheKey, {
+      await redis.set(cacheKey, JSON.stringify({
         id: user.id,
         name: user.name,
         avatar: user.avatar || '',
         dept: user.dept || ''
-      });
-      await redis.expire(cacheKey, 86400 * 7); // 7天过期
+      }), 'EX', 86400 * 7); // 7天过期
     }
   } catch (err) { console.error('Cache User Profile Failed:', err); }
 }
