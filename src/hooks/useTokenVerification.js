@@ -7,7 +7,7 @@ import { apiGet } from '../utils/apiClient'
  * Token验证Hook - 实现单设备登录
  * 定期检查token有效性，如果在其他设备登录则自动退出
  */
-export const useTokenVerification = (onLogout) => {
+export const useTokenVerification = (onLogout, userId) => {
   const intervalRef = useRef(null)
   const isCheckingRef = useRef(false)
 
@@ -26,21 +26,18 @@ export const useTokenVerification = (onLogout) => {
         skipRefresh: true
       })
 
-      if (!data.valid) {
+      // 🚨 只有明确返回 valid === false 时才踢出
+      // 避免 undefined (数据没加载好) 或 null 导致误判定
+      if (data && data.valid === false) {
+        console.warn('⚠️ Token 校验失败，执行自动退出:', data.message);
         // Token无效，清除本地存储
         localStorage.removeItem('token')
         localStorage.removeItem('user')
+        localStorage.removeItem('sessionToken')
 
         // 如果是被踢出（其他设备登录）
         if (data.kicked) {
-          toast.error('您的账号已在其他设备登录，当前设备已退出', {
-            position: 'top-center',
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-          })
+          toast.error('您的账号已在其他设备登录，当前设备已退出')
         }
 
         // 停止检查
@@ -55,23 +52,8 @@ export const useTokenVerification = (onLogout) => {
         }
       }
     } catch (error) {
-      // 401错误会被apiClient抛出，我们需要捕获它
-      if (error.response && error.response.status === 401) {
-         // Token无效，清除本地存储
-         localStorage.removeItem('token')
-         localStorage.removeItem('user')
-
-         // 如果是被踢出
-         if (error.response.data && error.response.data.kicked) {
-            toast.error('您的账号已在其他设备登录，当前设备已退出', {
-              position: 'top-center',
-              autoClose: 5000
-            })
-         }
-
-         if (onLogout) onLogout()
-      }
-      // 静默处理其他错误
+      // 忽略校验过程中的网络错误，避免误踢
+      console.error('Token 校验过程异常:', error);
     } finally {
       isCheckingRef.current = false
     }
@@ -79,12 +61,13 @@ export const useTokenVerification = (onLogout) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) return
+    if (!token || !userId) return
 
     // 立即执行一次验证
     verifyToken()
 
     // 每30秒检查一次token有效性
+    if (intervalRef.current) clearInterval(intervalRef.current)
     intervalRef.current = setInterval(verifyToken, 30000)
 
     // 清理函数
@@ -94,7 +77,7 @@ export const useTokenVerification = (onLogout) => {
         intervalRef.current = null
       }
     }
-  }, [onLogout])
+  }, [onLogout, userId]) // 🚨 监听 userId 变化
 
   return { verifyToken }
 }

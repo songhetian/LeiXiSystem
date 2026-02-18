@@ -3479,7 +3479,6 @@ const start = async () => {
         let decoded;
         try {
           decoded = jwt.verify(token, JWT_SECRET);
-          console.log('✅ [VerifyToken] JWT 解析成功，Payload:', decoded);
         } catch (jwtErr) {
           console.error('❌ [VerifyToken] JWT 校验失败:', jwtErr.message);
           return { valid: false, message: '令牌无效或已过期' };
@@ -3494,13 +3493,11 @@ const start = async () => {
         );
 
         if (userRows.length === 0) {
-          console.error(`❌ [VerifyToken] 用户 ID ${userId} 不存在`);
           return { valid: false, message: '用户不存在' };
         }
 
         const user = userRows[0];
         if (user.status !== 'active') {
-          console.warn(`⚠️ [VerifyToken] 用户 ${user.username} 状态为 ${user.status}，非活跃`);
           return { valid: false, message: '账号未激活或已禁用' };
         }
 
