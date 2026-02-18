@@ -234,6 +234,12 @@ async function userManagementRoutes(fastify, options) {
         await redis.del(`user:profile:${userId}`);
         await redis.del(`user:permissions:${userId}`);
         await redis.del(`user:identity:${userId}`);
+        
+        // 🚨 新增：清理员工列表缓存，确保员工管理页面同步更新
+        const keys = await redis.keys('list:employees:default:*');
+        if (keys.length > 0) {
+          await redis.del(...keys);
+        }
       }
 
       return { success: true, message: '个人资料更新成功' }
