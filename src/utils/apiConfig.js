@@ -128,9 +128,33 @@ export async function getApiUrlAsync(path) {
   return baseUrl + path;
 }
 
+/**
+ * 获取 WebSocket 连接的绝对基础 URL（不含 /api 路径）
+ * Socket.IO 不支持相对路径，必须使用绝对 URL
+ */
+export const getWsBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    const hostname = window.location.hostname;
+    const port = window.location.port;
+
+    // 开发环境（Vite dev server 在 5173，后端在 3001）
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `http://${hostname}:3001`;
+    }
+
+    // 生产环境：使用当前页面的 host（Nginx 反向代理处理 /socket.io）
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+  }
+
+  // Electron 等非 HTTP 环境
+  return 'http://localhost:3001';
+};
+
 export default {
   getApiBaseUrl,
   getApiBaseUrlAsync,
   getApiUrl,
-  getApiUrlAsync
+  getApiUrlAsync,
+  getWsBaseUrl
 }

@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client'
-import { getApiUrl } from '../utils/apiConfig'
+import { getWsBaseUrl } from '../utils/apiConfig'
 
 /**
  * WebSocket管理器
@@ -31,12 +31,12 @@ class WebSocketManager {
 
     this.isConnecting = true
 
-    // 获取API地址 - 使用动态获取的方式而不是硬编码
-    const API_BASE_URL = getApiUrl('').replace('/api', '')
+    // 获取 WebSocket 服务器绝对 URL（Socket.IO 不支持相对路径）
+    const WS_BASE_URL = getWsBaseUrl()
 
-    console.log(`🔌 [WebSocket] 正在连接到 ${API_BASE_URL}...`)
+    console.log(`🔌 [WebSocket] 正在连接到 ${WS_BASE_URL}...`)
 
-    this.socket = io(API_BASE_URL, {
+    this.socket = io(WS_BASE_URL, {
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,
