@@ -316,7 +316,8 @@ function App() {
 
     // 监听下线指令
     const handleKickedOut = (data) => {
-      console.log('🚨 账号被强制下线:', data.message)
+      console.log('🚨 [DEBUG] 收到下线指令，已拦截防止自动退出:', data.message)
+      /*
       toast.error('登录失效', {
         description: data.message || '您的账号已被管理员强制下线',
         duration: null, // 永久显示直到用户点击
@@ -329,6 +330,7 @@ function App() {
       setTimeout(() => {
         handleLogout()
       }, 3000)
+      */
     }
 
     // 清除旧的监听器，防止重复注册

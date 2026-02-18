@@ -38,9 +38,10 @@ axiosInstance.interceptors.response.use(
         // 重试原始请求
         return axiosInstance(originalRequest)
       } catch (refreshError) {
-        // 刷新失败，清除 token 并跳转到登录页
+        // 刷新失败，清除 token
         tokenManager.clearTokens()
-        window.location.href = '/login'
+        console.error('Token 刷新失败，已清除缓存，禁用自动跳转以供调试');
+        // window.location.href = '/login'
         return Promise.reject(refreshError)
       }
     }
