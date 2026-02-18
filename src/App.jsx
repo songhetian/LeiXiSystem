@@ -437,9 +437,6 @@ function App() {
     toast.info('已退出登录')
   }, [])
 
-  // 使用token验证hook，实现单设备登录
-  useTokenVerification(handleLogout, user?.id)
-
   const handleSetActiveTab = (tabName, params = {}) => {
     console.trace('Trace for handleSetActiveTab');
     const newTab = { name: tabName, params };
