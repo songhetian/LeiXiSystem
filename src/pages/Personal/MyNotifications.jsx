@@ -13,11 +13,12 @@ import {
   MagnifyingGlassIcon,
   FunnelIcon,
   XMarkIcon,
-  CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  MegaphoneIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 export default function MyNotifications({ unreadCount: propUnreadCount, setUnreadCount: propSetUnreadCount }) {
@@ -59,9 +60,8 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
   const tabs = [
     { id: 'all', label: '全部通知', icon: BellIcon },
     { id: 'unread', label: '未读消息', icon: ExclamationCircleIcon, badge: unreadCount },
-    { id: 'system', label: '系统通知', icon: BellIcon },
+    { id: 'broadcast', label: '系统广播', icon: MegaphoneIcon },
     { id: 'approval', label: '审批通知', icon: DocumentTextIcon },
-    { id: 'attendance', label: '考勤通知', icon: ClockIcon },
     { id: 'exam', label: '考试通知', icon: CheckCircleIcon }
   ];
 
@@ -70,12 +70,10 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
     switch (tab) {
       case 'unread':
         return { isRead: 'false' };
-      case 'system':
-        return { type: 'system' };
+      case 'broadcast':
+        return { type: 'broadcast' };
       case 'approval':
         return { type: 'leave_approval,overtime_approval,makeup_approval' };
-      case 'attendance':
-        return { type: 'clock_reminder,schedule_change,attendance_abnormal' };
       case 'exam':
         return { type: 'exam_notification,exam_result' };
       default:
@@ -89,7 +87,7 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       const tabFilters = getTypeFilterByTab(activeTab);
       const params = {
         page: pagination.page,
-        limit: pagination.pageSize,
+        pageSize: pagination.pageSize,
         userId,
         search: filters.search || undefined,
         type: filters.type || tabFilters.type || undefined,
@@ -127,7 +125,6 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
     if (userId) {
       loadNotifications();
       loadUnreadCount();
-      setLoading(false);
     }
   }, [userId, pagination.page, filters, activeTab]);
 
@@ -140,19 +137,22 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
     }
   };
 
-  const markAsRead = async (id) => {
+  const markAsRead = async (notification) => {
+    if (notification.is_read) return;
     try {
-      await axios.put(getApiUrl(`/api/notifications/${id}/read`));
+      const url = notification.category === 'broadcast' 
+        ? getApiUrl(`/api/broadcasts/${notification.id}/read`)
+        : getApiUrl(`/api/notifications/${notification.id}/read`);
+      await axios.put(url);
       setNotifications(prev => prev.map(n =>
-        n.id === id ? { ...n, is_read: true } : n
+        (n.id === notification.id && n.category === notification.category) ? { ...n, is_read: true } : n
       ));
       loadUnreadCount();
-      if (selectedNotification?.id === id) {
+      if (selectedNotification?.id === notification.id) {
         setSelectedNotification(prev => ({ ...prev, is_read: true }));
       }
     } catch (error) {
       console.error('标记已读失败:', error);
-      toast.error('操作失败');
     }
   };
 
@@ -164,31 +164,33 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       toast.success('全部已读');
     } catch (error) {
       console.error('标记全部已读失败:', error);
-      toast.error('操作失败');
     }
   };
 
   const markSelectedAsRead = async () => {
-    if (selectedIds.length === 0) {
-      toast.warning('请先选择通知');
-      return;
-    }
+    if (selectedIds.length === 0) return;
     try {
-      await Promise.all(selectedIds.map(id =>
-        axios.put(getApiUrl(`/api/notifications/${id}/read`))
-      ));
+      // 简化处理，由于后端接口限制，循环调用或等待后端支持批量
+      await Promise.all(selectedIds.map(id => {
+        const n = notifications.find(notif => notif.id === id);
+        const url = n?.category === 'broadcast' 
+          ? getApiUrl(`/api/broadcasts/${id}/read`)
+          : getApiUrl(`/api/notifications/${id}/read`);
+        return axios.put(url);
+      }));
       loadNotifications();
       loadUnreadCount();
       setSelectedIds([]);
-      toast.success(`已标记 ${selectedIds.length} 条通知为已读`);
-    } catch (error) {
-      console.error('批量标记已读失败:', error);
-      toast.error('操作失败');
-    }
+      toast.success('操作成功');
+    } catch (error) {}
   };
 
-  const deleteNotification = async (id, e) => {
+  const deleteNotification = async (id, category, e) => {
     e?.stopPropagation();
+    if (category === 'broadcast') {
+      toast.error('系统广播暂不支持删除');
+      return;
+    }
     if (!window.confirm('确定要删除这条通知吗？')) return;
 
     try {
@@ -201,15 +203,11 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       }
     } catch (error) {
       console.error('删除通知失败:', error);
-      toast.error('删除失败');
     }
   };
 
   const deleteSelected = async () => {
-    if (selectedIds.length === 0) {
-      toast.warning('请先选择通知');
-      return;
-    }
+    if (selectedIds.length === 0) return;
     if (!window.confirm(`确定要删除选中的 ${selectedIds.length} 条通知吗？`)) return;
 
     try {
@@ -219,19 +217,14 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       loadNotifications();
       loadUnreadCount();
       setSelectedIds([]);
-      toast.success(`已删除 ${selectedIds.length} 条通知`);
-    } catch (error) {
-      console.error('批量删除失败:', error);
-      toast.error('操作失败');
-    }
+      toast.success('操作成功');
+    } catch (error) {}
   };
 
   const handleNotificationClick = (notification) => {
     setSelectedNotification(notification);
     setShowModal(true);
-    if (!notification.is_read) {
-      markAsRead(notification.id);
-    }
+    markAsRead(notification);
   };
 
   const handleSelectAll = () => {
@@ -269,21 +262,14 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
           endDate: today.toISOString().split('T')[0]
         }));
         break;
-      case 'month':
-        startDate.setMonth(today.getMonth() - 1);
-        setFilters(prev => ({
-          ...prev,
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: today.toISOString().split('T')[0]
-        }));
-        break;
       default:
         break;
     }
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  const getIcon = (type) => {
+  const getIcon = (type, category) => {
+    if (category === 'broadcast') return <MegaphoneIcon className="w-5 h-5" />;
     switch (type) {
       case 'clock_reminder': return <ClockIcon className="w-5 h-5" />;
       case 'leave_approval': return <DocumentTextIcon className="w-5 h-5" />;
@@ -298,22 +284,18 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
     }
   };
 
-  const getColorClass = (type) => {
+  const getColorClass = (type, category) => {
+    if (category === 'broadcast') return 'bg-yellow-100 text-yellow-600';
     switch (type) {
       case 'clock_reminder': return 'bg-orange-100 text-orange-600';
       case 'leave_approval': return 'bg-green-100 text-green-600';
-      case 'overtime_approval': return 'bg-purple-100 text-purple-600';
-      case 'makeup_approval': return 'bg-cyan-100 text-cyan-600';
-      case 'schedule_change': return 'bg-blue-100 text-blue-600';
-      case 'attendance_abnormal': return 'bg-red-100 text-red-600';
       case 'exam_notification': return 'bg-indigo-100 text-indigo-600';
-      case 'exam_result': return 'bg-teal-100 text-teal-600';
-      case 'system': return 'bg-gray-100 text-gray-600';
-      default: return 'bg-gray-100 text-gray-600';
+      default: return 'bg-blue-100 text-blue-600';
     }
   };
 
-  const getTypeName = (type) => {
+  const getTypeName = (type, category) => {
+    if (category === 'broadcast') return '系统广播';
     const names = {
       'clock_reminder': '打卡提醒',
       'leave_approval': '请假审批',
@@ -341,13 +323,12 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
 
   return (
     <div className="h-full flex flex-col bg-gray-50/50">
-      {/* 1. Header & Tabs (Sticky) */}
+      {/* 1. Header & Tabs */}
       <div className="bg-white border-b border-gray-100 shadow-sm z-20 sticky top-0 backdrop-blur-xl bg-white/90">
         <div className="max-w-6xl mx-auto w-full">
-          {/* Header Top */}
           <div className="px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 text-white">
+              <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20 text-white">
                 <BellIcon className="w-6 h-6" />
               </div>
               <div>
@@ -361,33 +342,12 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
             <div className="flex gap-2">
               {selectedIds.length > 0 && (
                 <>
-                  <button
-                    onClick={markSelectedAsRead}
-                    className="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors text-sm font-semibold"
-                  >
-                    标记已读 ({selectedIds.length})
-                  </button>
-                  <button
-                    onClick={deleteSelected}
-                    className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-semibold"
-                  >
-                    删除 ({selectedIds.length})
-                  </button>
+                  <button onClick={markSelectedAsRead} className="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors text-sm font-semibold">标记已读 ({selectedIds.length})</button>
+                  <button onClick={deleteSelected} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-semibold">删除 ({selectedIds.length})</button>
                 </>
               )}
-              <button
-                onClick={markAllAsRead}
-                disabled={unreadCount === 0}
-                className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors disabled:opacity-50 text-sm font-medium"
-              >
-                全部已读
-              </button>
-              <button
-                onClick={loadNotifications}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-md shadow-gray-900/10"
-              >
-                刷新
-              </button>
+              <button onClick={markAllAsRead} disabled={unreadCount === 0} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors disabled:opacity-50 text-sm font-medium">全部已读</button>
+              <button onClick={loadNotifications} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium shadow-md shadow-gray-900/10">刷新</button>
             </div>
           </div>
 
@@ -434,140 +394,117 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       {/* 2. Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto bg-gray-50/50">
         <div className="max-w-6xl mx-auto w-full px-6 py-6 pb-24">
-          {/* Filters */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+          {/* Filters Area */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
             <div className="flex items-center gap-3">
               <div className="flex-1 relative">
                 <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="搜索通知..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-lg focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-sm"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-sm font-medium"
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 />
               </div>
 
-               {/* 快速日期筛选 */}
               <div className="flex gap-2">
-                <button onClick={() => setQuickDateFilter('today')} className="px-3 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">今天</button>
-                <button onClick={() => setQuickDateFilter('week')} className="px-3 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">本周</button>
-                <button onClick={() => setShowFilters(!showFilters)} className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${showFilters ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>
+                <button onClick={() => setQuickDateFilter('today')} className="px-4 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors text-sm font-bold">今天</button>
+                <button onClick={() => setShowFilters(!showFilters)} className={`px-4 py-2 rounded-xl transition-colors flex items-center gap-2 text-sm font-bold ${showFilters ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>
                    <FunnelIcon className="w-4 h-4" /> 筛选 {showFilters ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Advanced Filters */}
             {showFilters && (
-              <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-4 gap-4 animate-in slide-in-from-top-2 duration-200">
-                <select className="px-3 py-2.5 bg-gray-50 border-transparent rounded-lg focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm outline-none transition-all" value={filters.type} onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}>
+              <div className="mt-4 pt-4 border-t border-gray-50 grid grid-cols-4 gap-4 animate-in slide-in-from-top-2 duration-200">
+                <select className="px-3 py-2.5 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 text-sm font-bold outline-none" value={filters.type} onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}>
                    <option value="">全部类型</option>
                    <option value="leave_approval">请假审批</option>
-                   <option value="overtime_approval">加班审批</option>
                    <option value="makeup_approval">补卡审批</option>
-                   <option value="schedule_change">排班变更</option>
-                   <option value="attendance_abnormal">考勤异常</option>
-                   <option value="clock_reminder">打卡提醒</option>
                    <option value="exam_notification">考试通知</option>
-                   <option value="exam_result">考试成绩</option>
                    <option value="system">系统通知</option>
                 </select>
-                <select className="px-3 py-2.5 bg-gray-50 border-transparent rounded-lg focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm outline-none transition-all" value={filters.isRead} onChange={(e) => setFilters(prev => ({ ...prev, isRead: e.target.value }))}>
+                <select className="px-3 py-2.5 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 text-sm font-bold outline-none" value={filters.isRead} onChange={(e) => setFilters(prev => ({ ...prev, isRead: e.target.value }))}>
                    <option value="">全部状态</option>
                    <option value="false">未读</option>
                    <option value="true">已读</option>
                 </select>
-                <input type="date" className="px-3 py-2.5 bg-gray-50 border-transparent rounded-lg focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm outline-none transition-all" value={filters.startDate} onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))} />
-                <input type="date" className="px-3 py-2.5 bg-gray-50 border-transparent rounded-lg focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm outline-none transition-all" value={filters.endDate} onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))} />
+                <input type="date" className="px-3 py-2.5 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 text-sm outline-none" value={filters.startDate} onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))} />
+                <input type="date" className="px-3 py-2.5 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 text-sm outline-none" value={filters.endDate} onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))} />
               </div>
             )}
-             {(filters.search || filters.type || filters.isRead || filters.startDate || filters.endDate) && (
-               <div className="mt-4 flex items-center justify-between pt-2 border-t border-gray-50">
-                   <div className="text-xs text-gray-500">找到 <span className="font-bold text-gray-900">{pagination.total}</span> 条结果</div>
-                   <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><XMarkIcon className="w-3 h-3"/> 清除条件</button>
-               </div>
-             )}
           </div>
 
-          {/* Batch Actions (Check All) */}
+          {/* Selection Info */}
           {notifications.length > 0 && (
-            <div className="flex items-center justify-between mb-3 px-2">
+            <div className="flex items-center justify-between mb-4 px-2">
                <label className="flex items-center gap-3 cursor-pointer group">
-                  <input type="checkbox" checked={selectedIds.length === notifications.length && notifications.length > 0} onChange={handleSelectAll} className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition-all cursor-pointer" />
-                  <span className="text-sm font-medium text-gray-600 group-hover:text-gray-900">全选本页</span>
+                  <input type="checkbox" checked={selectedIds.length === notifications.length && notifications.length > 0} onChange={handleSelectAll} className="w-5 h-5 text-blue-600 border-gray-300 rounded-lg focus:ring-blue-500 transition-all cursor-pointer" />
+                  <span className="text-sm font-bold text-gray-500 group-hover:text-gray-900 uppercase tracking-widest">Select All</span>
                </label>
                {selectedIds.length > 0 && (
-                 <span className="text-sm text-blue-600 font-medium bg-blue-50 px-3 py-1 rounded-full animate-in fade-in">已选择 {selectedIds.length} 项</span>
+                 <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{selectedIds.length} ITEMS SELECTED</span>
                )}
             </div>
           )}
 
-          {/* List */}
+          {/* List Area */}
           <div className="space-y-3 min-h-[400px]">
             {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="text-gray-500 mt-4 text-sm font-medium">正在加载通知...</p>
-                </div>
+              <div className="flex items-center justify-center py-20 opacity-50">
+                <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-24 bg-white rounded-2xl border border-dashed border-gray-200">
+              <div className="flex items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-gray-100 opacity-40">
                 <div className="text-center">
-                  <div className="bg-gray-50 rounded-full p-6 inline-block mb-4">
-                     <BellIcon className="w-12 h-12 text-gray-300" />
-                  </div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-1">暂无通知</h3>
-                  <p className="text-gray-500 text-sm">当前列表没有新的消息通知</p>
+                  <BellIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-sm font-black uppercase tracking-widest">No Notifications Found</h3>
                 </div>
               </div>
             ) : (
               notifications.map(notification => (
                 <div
-                  key={notification.id}
+                  key={`${notification.category}-${notification.id}`}
                   onClick={() => handleNotificationClick(notification)}
                   className={`
-                    group relative bg-white rounded-xl p-5 border transition-all duration-200 cursor-pointer
+                    group relative bg-white rounded-2xl p-5 border transition-all duration-200 cursor-pointer
                     ${notification.is_read
                       ? 'border-gray-100 hover:shadow-md hover:border-gray-200'
-                      : 'border-blue-100 shadow-sm shadow-blue-500/5 hover:shadow-md hover:border-blue-200 bg-blue-50/10'
+                      : 'border-blue-100 shadow-sm shadow-blue-500/5 hover:border-blue-200 bg-blue-50/10'
                     }
                   `}
                 >
                   <div className="flex items-start gap-5">
-                    {/* Checkbox */}
                     <div className={`pt-1 ${selectedIds.length > 0 || selectedIds.includes(notification.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`} onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedIds.includes(notification.id)} onChange={(e) => handleSelectOne(notification.id, e)} className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer" />
+                      <input type="checkbox" checked={selectedIds.includes(notification.id)} onChange={(e) => handleSelectOne(notification.id, e)} className="w-5 h-5 text-blue-600 border-gray-300 rounded-lg focus:ring-blue-500 cursor-pointer" />
                     </div>
 
-                    {/* Icon */}
-                    <div className={`p-3 rounded-2xl shrink-0 ${getColorClass(notification.type)} bg-opacity-80 shadow-sm`}>
-                      {getIcon(notification.type)}
+                    <div className={`p-3 rounded-2xl shrink-0 ${getColorClass(notification.type, notification.category)} border border-transparent group-hover:border-current transition-all`}>
+                      {getIcon(notification.type, notification.category)}
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4 mb-2">
                          <div className="flex items-center gap-3 flex-wrap min-w-0">
-                           {!notification.is_read && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 animate-pulse"></span>}
-                           <h3 className={`font-semibold text-base truncate ${notification.is_read ? 'text-gray-700' : 'text-gray-900'}`}>
+                           {!notification.is_read && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 animate-pulse"></span>}
+                           <h3 className={`font-black text-base truncate ${notification.is_read ? 'text-gray-600' : 'text-gray-900'}`}>
                              {notification.title}
                            </h3>
-                           <span className={`px-2.5 py-0.5 text-[10px] rounded-md font-semibold tracking-wide uppercase border ${notification.is_read ? 'bg-gray-50 text-gray-500 border-gray-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                             {getTypeName(notification.type)}
+                           <span className={`px-2 py-0.5 text-[9px] rounded-md font-black tracking-widest uppercase border ${notification.is_read ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                             {getTypeName(notification.type, notification.category)}
                            </span>
                          </div>
                          <div className="flex items-center gap-3 shrink-0">
-                           <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded">
+                           <span className="text-[10px] text-gray-400 font-black uppercase bg-gray-50 px-2 py-1 rounded">
                              {new Date(notification.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                            </span>
-                           <button onClick={(e) => deleteNotification(notification.id, e)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100" title="删除">
+                           <button onClick={(e) => deleteNotification(notification.id, notification.category, e)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                              <TrashIcon className="w-4 h-4" />
                            </button>
                          </div>
                       </div>
-                      <p className={`text-sm leading-relaxed line-clamp-2 ${notification.is_read ? 'text-gray-500' : 'text-gray-700'}`}>{notification.content}</p>
+                      <p className={`text-sm leading-relaxed line-clamp-2 font-medium ${notification.is_read ? 'text-gray-400' : 'text-gray-600'}`}>{notification.content}</p>
                     </div>
                   </div>
                 </div>
@@ -577,44 +514,14 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-             <div className="mt-8 flex items-center justify-center gap-4">
-                <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-                  disabled={pagination.page === 1}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                >
-                  <ChevronLeftIcon className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-1">
-                   {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                      let p = i + 1;
-                      if (pagination.totalPages > 5 && pagination.page > 3) {
-                         p = pagination.page - 2 + i;
-                         if (p > pagination.totalPages) p = pagination.totalPages - (4 - i);
-                      }
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => setPagination(prev => ({ ...prev, page: p }))}
-                          className={`w-10 h-10 rounded-xl font-medium text-sm transition-all shadow-sm
-                             ${pagination.page === p
-                               ? 'bg-blue-600 text-white shadow-blue-500/30'
-                               : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                             }
-                          `}
-                        >
-                          {p}
-                        </button>
-                      );
-                   })}
+             <div className="mt-10 flex items-center justify-center gap-2">
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))} disabled={pagination.page === 1} className="p-2 rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-gray-900 disabled:opacity-20 transition-all shadow-sm"><ChevronLeftIcon className="w-5 h-5" /></button>
+                <div className="flex gap-1">
+                   {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => (
+                     <button key={i} onClick={() => setPagination(p => ({ ...p, page: i + 1 }))} className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${pagination.page === i + 1 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-white border border-gray-100 text-gray-400 hover:bg-gray-50'}`}>{i + 1}</button>
+                   ))}
                 </div>
-                <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
-                  disabled={pagination.page === pagination.totalPages}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-                >
-                  <ChevronRightIcon className="w-5 h-5" />
-                </button>
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))} disabled={pagination.page === pagination.totalPages} className="p-2 rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-gray-900 disabled:opacity-20 transition-all shadow-sm"><ChevronRightIcon className="w-5 h-5" /></button>
              </div>
           )}
         </div>
@@ -622,44 +529,31 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
 
       {/* Detail Modal */}
       {showModal && selectedNotification && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100">
-            {/* Modal Header */}
-            <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden transform transition-all scale-100 border border-white/20">
+            <div className="px-8 py-6 flex items-center justify-between border-b border-gray-50 bg-gray-50/30">
               <div className="flex items-center gap-4">
-                <div className={`p-2.5 rounded-xl ${getColorClass(selectedNotification.type)}`}>
-                  {getIcon(selectedNotification.type)}
+                <div className={`p-3 rounded-2xl ${getColorClass(selectedNotification.type, selectedNotification.category)} border border-current/10`}>
+                  {getIcon(selectedNotification.type, selectedNotification.category)}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">{getTypeName(selectedNotification.type)}</h3>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">{new Date(selectedNotification.created_at).toLocaleString('zh-CN')}</p>
+                  <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">{getTypeName(selectedNotification.type, selectedNotification.category)}</h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{new Date(selectedNotification.created_at).toLocaleString()}</p>
                 </div>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"><XMarkIcon className="w-6 h-6" /></button>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-100"><XMarkIcon className="w-6 h-6" /></button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 leading-tight max-w-md">{selectedNotification.title}</h2>
-              <div className="bg-gray-50 p-6 rounded-2xl text-gray-700 leading-relaxed text-sm border border-gray-100 font-medium">
+            <div className="p-10">
+              <h2 className="text-2xl font-black text-gray-900 mb-6 leading-tight tracking-tight">{selectedNotification.title}</h2>
+              <div className="bg-gray-50/50 p-8 rounded-3xl text-gray-600 leading-loose text-base border border-gray-100 font-medium">
                 {selectedNotification.content}
               </div>
-              {selectedNotification.related_id && (
-                <div className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 inline-flex px-3 py-1.5 rounded-lg border border-gray-100">
-                  <DocumentTextIcon className="w-4 h-4" />
-                  <span>ID: {selectedNotification.related_id}</span>
-                </div>
-              )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => deleteNotification(selectedNotification.id)} className="px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2 text-sm font-semibold">
-                <TrashIcon className="w-4 h-4" /> 删除
-              </button>
-              <button onClick={() => setShowModal(false)} className="px-6 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-gray-900/10 text-sm font-semibold">
-                关闭
-              </button>
+            <div className="px-8 py-6 bg-gray-50/50 border-t border-gray-50 flex justify-between items-center">
+              <button onClick={() => deleteNotification(selectedNotification.id, selectedNotification.category)} className="px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest">Delete Message</button>
+              <button onClick={() => setShowModal(false)} className="px-10 py-3 bg-gray-900 text-white rounded-2xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-900/20 text-xs font-black uppercase tracking-widest">Close</button>
             </div>
           </div>
         </div>

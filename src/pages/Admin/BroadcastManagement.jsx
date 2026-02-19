@@ -1,38 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { getApiUrl } from '../../utils/apiConfig'
 import {
   Table, Button, Modal, Form, Input, Select,
-  Tag, message, Card, Space, Tooltip, DatePicker,
-  Divider, Alert, Typography
+  Tag, message, Card, Space, DatePicker, Typography
 } from 'antd'
 import {
   Megaphone,
   Plus,
-  Users,
-  Building2,
-  ShieldCheck,
   Info,
   AlertTriangle,
   CheckCircle2,
   XCircle,
   BellRing,
-  Calendar,
-  Search,
   Eye,
   Send,
-  History,
-  RefreshCw,
-  MoreHorizontal
+  RefreshCw
 } from 'lucide-react'
-import dayjs from 'dayjs'
 import { formatDate, getBeijingDate } from '../../utils/date'
 import Breadcrumb from '../../components/Breadcrumb'
 
 const { Option } = Select
 const { TextArea } = Input
 const { RangePicker } = DatePicker
-const { Title, Text, Paragraph } = Typography
+const { Title, Paragraph } = Typography
 
 const BroadcastManagement = () => {
   const [broadcasts, setBroadcasts] = useState([])
@@ -48,7 +39,6 @@ const BroadcastManagement = () => {
 
   // 筛选状态
   const [quickFilter, setQuickFilter] = useState('')
-  const [dateRange, setDateRange] = useState(null)
   const [queryParams, setQueryParams] = useState({ startDate: undefined, endDate: undefined })
 
   const token = localStorage.getItem('token')
@@ -56,7 +46,6 @@ const BroadcastManagement = () => {
   useEffect(() => {
     loadBroadcasts()
     loadDepartments()
-    loadEmployees()
     loadEmployees()
   }, [queryParams, pagination.current, pagination.pageSize])
 
@@ -106,7 +95,6 @@ const BroadcastManagement = () => {
 
   const handleQuickFilter = (type) => {
     setQuickFilter(type)
-    setDateRange(null)
     if (!type) {
       setQueryParams({ startDate: undefined, endDate: undefined })
       return
@@ -233,7 +221,7 @@ const BroadcastManagement = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mt-8 mb-10">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">系统广播中心</h1>
-            <p className="text-slate-500 mt-1">发布全员或定向消息通知，支持实时推送到桌面端</p>
+            <p className="text-slate-500 mt-1 font-medium">发布全员或定向消息通知，支持实时推送到桌面端</p>
           </div>
           <Button
             type="primary"
@@ -274,7 +262,7 @@ const BroadcastManagement = () => {
           <button onClick={loadBroadcasts} className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-auto"><RefreshCw className={`w-4 h-4 text-slate-400 ${loading ? 'animate-spin' : ''}`} /></button>
         </div>
 
-        <Card bordered={false} className="rounded-3xl border border-slate-200 shadow-sm overflow-hidden" bodyStyle={{ padding: 0 }}>
+        <Card bordered={false} className="rounded-3xl border border-slate-200 shadow-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
           <Table
             columns={columns}
             dataSource={broadcasts}
@@ -283,15 +271,11 @@ const BroadcastManagement = () => {
             pagination={{
               ...pagination,
               showTotal: (total) => `共 ${total} 条`,
-              showSizeChanger: false, // 强制不显示页码切换器，保持样式简洁
+              showSizeChanger: false,
               position: ['bottomRight']
             }}
             onChange={(newPagination) => {
               setPagination(prev => ({ ...prev, current: newPagination.current, pageSize: newPagination.pageSize }))
-              // 这里需要注意，loadBroadcasts 依赖的 pagination 是此时的 state，
-              // 直接调用可能会用旧值。更好的方式是用 useEffect 监听 pagination 变化，或者传参。
-              // 由于 useEffect 依赖 queryParams，我们可以将 pagination 加入依赖，或者在这里直接 setParam。
-              // 简单改法：不在这里调用 load，而是由 useEffect[pagination] 触发，或修改 loadBroadcasts 接收参数
             }}
             className="custom-table-shadcn"
           />
@@ -335,10 +319,10 @@ const BroadcastManagement = () => {
 
           <Form.Item name="targetType" label={<span className="text-xs font-black uppercase tracking-wider text-slate-400">投放目标</span>}>
             <Select className="h-11" onChange={() => form.setFieldsValue({ targetDepartments: [], targetRoles: [], targetUsers: [] })}>
-              <Option value="all">全体员工 (Broad Broadcast)</Option>
-              <Option value="department">指定部门 (Department Only)</Option>
-              <Option value="role">指定角色 (Role Based)</Option>
-              <Option value="individual">指定个人 (Direct Message)</Option>
+              <Option value="all">全体员工</Option>
+              <Option value="department">指定部门</Option>
+              <Option value="role">指定角色</Option>
+              <Option value="individual">指定个人</Option>
             </Select>
           </Form.Item>
 
@@ -355,7 +339,7 @@ const BroadcastManagement = () => {
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-50 mt-4">
             <Button size="large" className="rounded-xl border-slate-200 font-bold" onClick={() => setModalVisible(false)}>取消</Button>
             <Button size="large" icon={<Eye className="w-4 h-4" />} className="rounded-xl border-slate-200 font-bold" onClick={handleOpenPreview}>预览效果</Button>
-            <Button type="primary" size="large" icon={<Send className="w-4 h-4" />} className="bg-slate-900 border-none rounded-xl px-10 font-bold" onClick={handleOpenPreview}>下一步</Button>
+            <Button type="primary" size="large" icon={<Send className="w-4 h-4" />} className="bg-slate-900 border-none rounded-xl px-10 font-bold" onClick={handleOpenPreview}>确认发布</Button>
           </div>
         </Form>
       </Modal>
@@ -368,7 +352,7 @@ const BroadcastManagement = () => {
         footer={null}
         centered
         width={400}
-        bodyStyle={{ padding: 0 }}
+        styles={{ body: { padding: 0 } }}
         closable={false}
       >
         <div className="p-8 bg-white rounded-3xl">
@@ -381,7 +365,7 @@ const BroadcastManagement = () => {
           </div>
 
           <div className={`p-6 rounded-2xl bg-${typeConfig[previewData?.type]?.color}-50/50 border border-${typeConfig[previewData?.type]?.color}-100 mb-8`}>
-            <Title level={5} className="!mb-2">{previewData?.title}</Title>
+            <Title level={5} className="!mb-2 font-bold">{previewData?.title}</Title>
             <Paragraph className="text-xs text-slate-600 !mb-0">{previewData?.content}</Paragraph>
           </div>
 
