@@ -1,27 +1,26 @@
 /**
- * 管理员专属数据看板
+ * 企业管理看板 - iCloud 模块化风格
  */
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Skeleton, Typography, Space, Table, Tag, Empty } from 'antd';
+import { Card, Row, Col, Statistic, Skeleton, Typography, Space, Table, Tag, Empty, Button } from 'antd';
 import { 
   TeamOutlined, 
   SafetyCertificateOutlined, 
   AccountBookOutlined, 
   AuditOutlined,
   BarChartOutlined,
-  PieChartOutlined
+  SyncOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  RiseOutlined
 } from '@ant-design/icons';
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer 
 } from 'recharts';
 import api from '../../api';
-import Breadcrumb from '../../components/Breadcrumb';
 import RealtimeAttendanceCard from './RealtimeAttendanceCard';
 
 const { Title, Text } = Typography;
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -41,102 +40,169 @@ const AdminDashboard = () => {
         setData(response.data.data);
       }
     } catch (error) {
-      console.error('Fetch admin stats failed:', error);
+      console.error('获取管理员统计数据失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <div className="p-8"><Skeleton active /></div>;
+  const StatCard = ({ title, value, suffix, subValue, subLabel, icon, color, trend }) => (
+    <Card bordered={false} className="rounded-[32px] shadow-sm hover:shadow-md transition-all border-none h-full">
+      <div className="flex items-start justify-between mb-4">
+        <div className={`p-3 rounded-2xl ${color} text-white shadow-lg shadow-gray-100`}>
+          {React.cloneElement(icon, { style: { fontSize: 20 } })}
+        </div>
+        {trend && (
+          <Tag color={trend > 0 ? 'success' : 'error'} className="border-none rounded-full font-bold text-[10px]">
+            {trend > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(trend)}%
+          </Tag>
+        )}
+      </div>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+      <Statistic
+        value={value}
+        suffix={suffix}
+        valueStyle={{ color: '#1d1d1f', fontWeight: 900, fontSize: 32, letterSpacing: '-1px' }}
+      />
+      <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+        <Text className="text-[10px] font-bold text-slate-400">{subLabel}</Text>
+        <Text className="text-xs font-black text-slate-700">{subValue}</Text>
+      </div>
+    </Card>
+  );
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="mb-6">
-        <Breadcrumb items={['首页', '企业看板']} />
-      </div>
-      <div style={{ marginBottom: 32 }}>
-        <Title level={2} style={{ margin: 0, fontWeight: 800 }}>企业管理看板 (Admin)</Title>
-        <Text type="secondary">全局视角：监控公司人力资源、财务支出及系统安全状态</Text>
-      </div>
-
-      {/* 核心指标卡片 */}
-      <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition-shadow" style={{ borderRadius: 16 }}>
-            <Statistic
-              title={<Space><TeamOutlined /> 总用户数</Space>}
-              value={data?.overview?.totalUsers}
-              valueStyle={{ color: '#1890ff', fontWeight: 700 }}
-            />
-            <div className="mt-2 text-xs text-gray-400">待审核用户: <span className="text-orange-500 font-bold">{data?.overview?.pendingUsers}</span></div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition-shadow" style={{ borderRadius: 16 }}>
-            <Statistic
-              title={<Space><SafetyCertificateOutlined /> 今日考勤率</Space>}
-              value={data?.overview?.totalUsers ? (data.overview.todayClocks / data.overview.totalUsers * 100).toFixed(1) : 0}
-              suffix="%"
-              valueStyle={{ color: '#52c41a', fontWeight: 700 }}
-            />
-            <div className="mt-2 text-xs text-gray-400">今日已打卡: {data?.overview?.todayClocks} 人</div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition-shadow" style={{ borderRadius: 16 }}>
-            <Statistic
-              title={<Space><AccountBookOutlined /> 本月报销支出</Space>}
-              value={data?.overview?.monthReimbursement}
-              precision={2}
-              prefix="¥"
-              valueStyle={{ color: '#cf1322', fontWeight: 700 }}
-            />
-            <div className="mt-2 text-xs text-gray-400">统计范围: 本月已通过单据</div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition-shadow" style={{ borderRadius: 16 }}>
-            <Statistic
-              title={<Space><AuditOutlined /> 今日操作日志</Space>}
-              value={data?.overview?.todayLogs}
-              valueStyle={{ color: '#722ed1', fontWeight: 700 }}
-            />
-            <div className="mt-2 text-xs text-gray-400">包含所有增删改行为</div>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[24, 24]}>
-        {/* 部门实时考勤 - 列表与详情 */}
-        <Col xs={24} lg={12}>
-          <RealtimeAttendanceCard />
-        </Col>
-
-        {/* 报销费用分布 - 柱状图 */}
-        <Col xs={24} lg={12}>
-          <Card 
-            title={<Space><BarChartOutlined /> 本月费用分类统计 (已通过)</Space>} 
-            bordered={false} 
-            style={{ borderRadius: 16, height: '400px' }}
+    <div className="min-h-full bg-[#f2f2f7] p-6 lg:p-8 animate-in fade-in duration-700">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* 顶部标题与刷新 */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">企业管理看板</h1>
+            <p className="text-slate-400 text-sm font-medium mt-1">全局数字化视野：实时监控人力、考勤与财务状态</p>
+          </div>
+          <Button 
+            icon={<SyncOutlined spin={loading} />} 
+            onClick={fetchAdminStats}
+            className="rounded-xl border-none shadow-sm font-bold text-xs bg-white h-10 px-6"
           >
-            <div style={{ width: '100%', height: 300 }}>
-              {data?.charts?.reimbursementByType?.length > 0 ? (
-                <ResponsiveContainer>
-                  <BarChart data={data?.charts?.reimbursementByType}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{fill: '#f5f5f5'}} />
-                    <Bar dataKey="value" name="金额 (¥)" fill="#667eea" radius={[4, 4, 0, 0]} barSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <Empty description="本月暂无已通过的报销数据" style={{ marginTop: 60 }} />
-              )}
-            </div>
-          </Card>
-        </Col>
-      </Row>
+            同步实时数据
+          </Button>
+        </div>
+
+        {loading ? (
+          <Skeleton active avatar paragraph={{ rows: 12 }} />
+        ) : (
+          <>
+            {/* 核心指标矩阵 */}
+            <Row gutter={[20, 20]}>
+              <Col xs={24} sm={12} lg={6}>
+                <StatCard 
+                  title="用户规模" 
+                  value={data?.overview?.totalUsers} 
+                  subLabel="待审核用户" 
+                  subValue={data?.overview?.pendingUsers}
+                  icon={<TeamOutlined />} 
+                  color="bg-blue-500"
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <StatCard 
+                  title="今日考勤率" 
+                  value={data?.overview?.totalUsers ? (data.overview.todayClocks / data.overview.totalUsers * 100).toFixed(1) : 0} 
+                  suffix="%"
+                  subLabel="今日已签到" 
+                  subValue={`${data?.overview?.todayClocks} 人`}
+                  icon={<SafetyCertificateOutlined />} 
+                  color="bg-emerald-500"
+                  trend={2.4}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <StatCard 
+                  title="本月报销支出" 
+                  value={data?.overview?.monthReimbursement} 
+                  prefix="¥"
+                  subLabel="统计范围" 
+                  subValue="已通过单据"
+                  icon={<AccountBookOutlined />} 
+                  color="bg-rose-500"
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <StatCard 
+                  title="今日安全轨迹" 
+                  value={data?.overview?.todayLogs} 
+                  subLabel="操作日志" 
+                  subValue="全行为监控"
+                  icon={<AuditOutlined />} 
+                  color="bg-slate-800"
+                />
+              </Col>
+            </Row>
+
+            <Row gutter={[20, 20]}>
+              {/* 部门实时考勤 */}
+              <Col xs={24} lg={14}>
+                <div className="h-full">
+                  <RealtimeAttendanceCard />
+                </div>
+              </Col>
+
+              {/* 报销费用分析 */}
+              <Col xs={24} lg={10}>
+                <Card 
+                  title={<Space><BarChartOutlined className="text-indigo-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">费用分类统计</span></Space>} 
+                  bordered={false} 
+                  className="rounded-[32px] shadow-sm border-none h-full min-h-[400px]"
+                >
+                  <div className="h-[300px] w-full mt-4">
+                    {data?.charts?.reimbursementByType?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data?.charts?.reimbursementByType} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                          />
+                          <RechartsTooltip 
+                            cursor={{ fill: '#f8fafc' }}
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px' }}
+                          />
+                          <Bar 
+                            dataKey="value" 
+                            fill="url(#barGradient)" 
+                            radius={[6, 6, 0, 0]} 
+                            barSize={32} 
+                          >
+                            <defs>
+                              <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6366f1" />
+                                <stop offset="100%" stopColor="#818cf8" />
+                              </linearGradient>
+                            </defs>
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center opacity-40">
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="本月暂无数据" />
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+          </>
+        )}
+      </div>
     </div>
   );
 };
