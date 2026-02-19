@@ -3,9 +3,9 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Tag, Space, Card, Typography, Empty, Badge, Radio, Divider } from 'antd';
-import { 
-  RocketOutlined, 
-  CheckCircleOutlined, 
+import {
+  RocketOutlined,
+  CheckCircleOutlined,
   ClockCircleOutlined,
   ArrowRightOutlined,
   ContainerOutlined,
@@ -31,8 +31,10 @@ const TodoCenter = ({ onNavigate }) => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = userData.id;
       const response = await api.get('/todo/list', {
-        params: { user_id: localStorage.getItem('userId') }
+        params: { user_id: userId }
       });
       if (response.data.success) {
         setTasks(response.data.data);
@@ -119,8 +121,8 @@ const TodoCenter = ({ onNavigate }) => {
       width: 120,
       align: 'center',
       render: (_, record) => (
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           size="middle"
           icon={<ArrowRightOutlined />}
           onClick={() => onNavigate(record.tab)}
@@ -139,8 +141,8 @@ const TodoCenter = ({ onNavigate }) => {
           <Title level={2} style={{ margin: 0, fontWeight: 700 }}>待办中心</Title>
           <Text type="secondary">您有 <strong style={{ color: '#f5222d' }}>{tasks.length}</strong> 项任务等待处理</Text>
         </div>
-        <Button 
-          icon={<ReloadOutlined />} 
+        <Button
+          icon={<ReloadOutlined />}
           onClick={fetchTasks}
           loading={loading}
           style={{ borderRadius: 8 }}
@@ -185,10 +187,10 @@ const TodoCenter = ({ onNavigate }) => {
             <Radio.Button value="audit">审核</Radio.Button>
           </Radio.Group>
         </div>
-        
-        <Table 
-          columns={columns} 
-          dataSource={filteredTasks} 
+
+        <Table
+          columns={columns}
+          dataSource={filteredTasks}
           rowKey={(record) => `${record.task_type}-${record.id}`}
           loading={loading}
           pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 项待处理` }}

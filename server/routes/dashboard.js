@@ -49,7 +49,7 @@ module.exports = async function (fastify, opts) {
         // 管理员数据 (复用部分缓存逻辑或直接查询)
         const [[{ totalEmployees }]] = await pool.query('SELECT COUNT(*) as totalEmployees FROM employees WHERE status != "deleted"');
         const [[{ todayClockIn }]] = await pool.query('SELECT COUNT(DISTINCT user_id) as todayClockIn FROM attendance_records WHERE attendance_date = ?', [today]);
-        
+
         adminStats = {
           totalEmployees,
           todayClockIn
@@ -59,10 +59,10 @@ module.exports = async function (fastify, opts) {
       // 个人数据 (员工/主管通用)
       // 最近一次打卡
       const [lastClock] = await pool.query(
-        'SELECT clock_in_time as clock_in, clock_out_time as clock_out FROM attendance_records WHERE user_id = ? AND attendance_date = ?', 
+        'SELECT clock_in_time as clock_in, clock_out_time as clock_out FROM attendance_records WHERE user_id = ? AND attendance_date = ?',
         [user_id, today]
       );
-      
+
       // 本月考勤异常数
       const [[{ absents }]] = await pool.query(
         'SELECT COUNT(*) as absents FROM attendance_records WHERE user_id = ? AND attendance_date >= ? AND (status = "absent" OR status = "late")',
@@ -92,8 +92,13 @@ module.exports = async function (fastify, opts) {
         data: finalData
       };
     } catch (error) {
-      console.error('Dashboard Stats Error:', error);
-      return reply.code(500).send({ success: false });
+      console.error('❌ [Dashboard] Stats Error:', error);
+      return reply.code(500).send({
+        success: false,
+        message: '获取仪表盘统计失败',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      });
     }
   });
 };

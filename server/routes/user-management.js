@@ -22,7 +22,12 @@ async function userManagementRoutes(fastify, options) {
       return { success: true, permissions }
     } catch (error) {
       console.error('获取权限失败:', error)
-      return reply.code(500).send({ success: false, message: '获取权限失败' })
+      return reply.code(500).send({
+        success: false,
+        message: '获取权限失败',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      })
     }
   })
 
@@ -78,10 +83,11 @@ async function userManagementRoutes(fastify, options) {
     }
 
     const { userId } = request.params
+    const pool = fastify.mysql || global.pool;
+
     // 检查用户是否在查看自己的资料
     if (decoded.id != userId) {
       // 如果不是查看自己的资料，需要检查权限
-      const pool = fastify.mysql
       const [userRoles] = await pool.query(
         `SELECT r.name
          FROM roles r
@@ -130,7 +136,12 @@ async function userManagementRoutes(fastify, options) {
       return { success: true, data: rows[0] }
     } catch (error) {
       console.error('获取个人资料失败:', error)
-      return reply.code(500).send({ success: false, message: '获取失败' })
+      return reply.code(500).send({
+        success: false,
+        message: '获取个人资料失败',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      })
     }
   })
 
@@ -234,7 +245,7 @@ async function userManagementRoutes(fastify, options) {
         await redis.del(`user:profile:${userId}`);
         await redis.del(`user:permissions:${userId}`);
         await redis.del(`user:identity:${userId}`);
-        
+
         // 🚨 新增：清理员工列表缓存，确保员工管理页面同步更新
         const keys = await redis.keys('list:employees:default:*');
         if (keys.length > 0) {
@@ -248,6 +259,30 @@ async function userManagementRoutes(fastify, options) {
       return reply.code(500).send({ success: false, message: '更新失败' })
     }
   })
+
+  // 根据用户 ID 获取关联员工信息 (修复 404)
+  fastify.get('/api/employees/by-user/:userId', async (request, reply) => {
+    const { userId } = request.params;
+    try {
+      const [rows] = await pool.query(
+        `SELECT e.*, u.real_name, u.username, d.name as department_name
+         FROM employees e
+         JOIN users u ON e.user_id = u.id
+         LEFT JOIN departments d ON u.department_id = d.id
+         WHERE u.id = ?`,
+        [userId]
+      );
+
+      if (rows.length === 0) {
+        return reply.code(404).send({ success: false, message: '该用户未关联员工基本信息' });
+      }
+
+      return { success: true, data: rows[0] };
+    } catch (error) {
+      console.error('获取员工关联信息失败:', error);
+      return reply.code(500).send({ success: false, message: '服务器内部错误' });
+    }
+  });
 }
 
 module.exports = userManagementRoutes

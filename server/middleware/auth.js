@@ -59,7 +59,12 @@ function requirePermission(permissionCode) {
       if (error.name === 'JsonWebTokenError') {
         return reply.code(401).send({ success: false, message: '无效的令牌' })
       }
-      return reply.code(500).send({ success: false, message: '服务器内部错误' })
+      return reply.code(500).send({
+        success: false,
+        message: '权限中间件执行失败',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      })
     }
   }
 }

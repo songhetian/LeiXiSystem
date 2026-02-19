@@ -42,7 +42,9 @@ fastify.setErrorHandler((error, request, reply) => {
 
 // 注册 CORS
 fastify.register(cors, {
-  origin: true, // 允许所有来源，解决开发环境IP变动导致的连接问题
+  // 生产环境下为了支持 Electron 客户端和可能的跨域部署，暂时允许所有来源
+  // 如果系统部署在固定域名且不需要跨域访问，建议将 origin 设置为具体的域名以增强安全性
+  origin: true, 
   methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Payslip-Token'],
   credentials: true,

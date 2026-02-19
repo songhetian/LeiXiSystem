@@ -133,6 +133,9 @@ class TokenManager {
       throw new Error('Invalid refresh response');
     } catch (error) {
       console.error('Token刷新失败:', error);
+      const logoutReason = `Token refresh failed: ${error.message}`;
+      localStorage.setItem('last_logout_reason', logoutReason);
+      localStorage.setItem('last_logout_stack', new Error().stack);
       this.clearTokens();
       // 触发自定义事件，由 App.jsx 监听并执行退出，避免 SPA 中强制页面刷新
       window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'token_refresh_failed' } }));
@@ -166,11 +169,13 @@ export const handleApiError = (error, customMessage = null) => {
         toast.error(message || '请求参数错误');
         break;
       case 401:
+        console.error(`🔴 [apiClient] 收到 401 Unauthorized, URL: ${error.config?.url || 'unknown'}, 消息: ${message}`);
         toast.error('登录已过期，请重新登录');
         tokenManager.clearTokens();
         localStorage.removeItem('user');
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: '401_unauthorized' } }));
+          console.warn('📢 [apiClient] 正在触发 auth:logout 事件...');
+          window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: '401_unauthorized', url: error.config?.url } }));
         }, 1500);
         break;
       case 403:
@@ -223,10 +228,16 @@ export const apiRequest = async (url, options = {}) => {
   try {
     const response = await fetch(url, config);
 
+    if (response.status === 401) {
+      console.warn(`⚠️ [apiClient] 请求返回 401: ${url}`);
+    }
+
     // 处理401错误 - token可能在请求过程中过期
     if (response.status === 401 && !skipRefresh) {
+      console.log('🔄 [apiClient] 尝试刷新 Token...');
       try {
         await tokenManager.refreshToken();
+        console.log('✅ [apiClient] Token 刷新成功，重试请求...');
         // 重试请求
         const retryResponse = await fetch(url, {
           ...config,
@@ -242,6 +253,7 @@ export const apiRequest = async (url, options = {}) => {
 
         return await retryResponse.json();
       } catch (refreshError) {
+        console.error('❌ [apiClient] Token 刷新失败或被取消');
         throw refreshError;
       }
     }

@@ -19,10 +19,16 @@ echo "📦 安装 Node.js 依赖..."
 npm install --production
 
 # 3. 安装前端构建依赖并构建
-# 注意：前端构建需要 vite，它在 devDependencies 中
 echo "🛠️ 构建前端静态资源..."
 npm install vite @vitejs/plugin-react cross-env --no-save
 NODE_OPTIONS="--max-old-space-size=4096" npm run build
+
+# 3.1 确保打包后的目录名为 dist (Vite 默认输出到 dist-react)
+if [ -d "dist-react" ]; then
+    echo "📦 重命名 dist-react 为 dist..."
+    rm -rf dist || true
+    mv dist-react dist
+fi
 
 # 4. 检查 PM2 是否安装
 if ! command -v pm2 &> /dev/null; then

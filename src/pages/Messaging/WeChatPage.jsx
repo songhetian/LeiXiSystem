@@ -16,6 +16,7 @@ import {
 import { message, Modal, Upload, Avatar, Badge, Tooltip, Image, Drawer, List, Dropdown, Mentions } from 'antd';
 import { tokenManager, apiGet, apiPost } from '../../utils/apiClient';
 import { io } from 'socket.io-client';
+import { getWsBaseUrl, getApiUrl } from '../../utils/apiConfig';
 
 const { Option } = Mentions;
 
@@ -87,7 +88,7 @@ const WeChatPage = () => {
 
     fetchContacts();
 
-    const socketUrl = window.location.port === '5173' ? 'http://localhost:3001' : window.location.origin;
+    const socketUrl = getWsBaseUrl();
     const newSocket = io(socketUrl, {
       auth: { token },
       transports: ['websocket']
@@ -300,15 +301,18 @@ const WeChatPage = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const baseUrl = window.location.port === '5173' ? 'http://localhost:3001' : window.location.origin;
-      const res = await fetch(`${baseUrl}/api/upload`, {
+      const uploadUrl = getApiUrl('/api/upload');
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` },
         body: formData
       });
       const data = await res.json();
       if (data.success) {
-        const fullUrl = `${baseUrl}${data.url}`;
+        // 这里的 data.url 应该是相对路径，如 /uploads/xxx
+        // 我们需要转换为绝对路径
+        const wsBase = getWsBaseUrl();
+        const fullUrl = `${wsBase}${data.url}`;
         sendMessage(data.filename, file.type.startsWith('image/') ? 'image' : 'file', fullUrl);
       }
     } catch (err) {
