@@ -9,7 +9,7 @@ import {
   UserOutlined,
   WarningOutlined,
   ClockCircleOutlined,
-  RightOutlined
+  ArrowRightOutlined
 } from '@ant-design/icons';
 import api from '../../api';
 import { getFileUrl } from '../../utils/apiConfig';
@@ -63,12 +63,13 @@ const RealtimeAttendanceCard = () => {
 
   const columns = [
     {
-      title: '组织单元',
+      title: '组织架构',
       dataIndex: 'name',
       key: 'name',
+      width: '25%',
       render: (text, record) => (
-        <div className="flex items-center gap-2 py-1">
-          <span className="font-black text-slate-800 text-sm">{text}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-800">{text}</span>
           {!record.hasSchedulePlan && (
             <Tooltip title="今日尚未排班">
               <WarningOutlined className="text-amber-400 text-xs" />
@@ -78,20 +79,21 @@ const RealtimeAttendanceCard = () => {
       )
     },
     {
-      title: '在岗/应到',
+      title: '在岗概况',
       key: 'stats',
       align: 'center',
+      width: '25%',
       render: (_, record) => {
-        if (!record.hasSchedulePlan) return <Text className="text-[10px] text-slate-300 font-bold uppercase">No Plan</Text>;
+        if (!record.hasSchedulePlan) return <Text className="text-[10px] text-slate-300 font-bold uppercase">无计划</Text>;
         const onDuty = record.onDutyCount;
         const totalDuty = record.onDutyCount + record.absentCount;
         const percentage = totalDuty > 0 ? (onDuty / totalDuty * 100).toFixed(0) : 0;
         return (
           <div className="flex items-center justify-center gap-3">
-            <span className="text-xs font-black text-slate-600">{onDuty} / {totalDuty}</span>
-            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${parseFloat(percentage) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+            <span className="text-xs font-bold text-slate-600">{onDuty} / {totalDuty}</span>
+            <Tag bordered={false} className={`m-0 text-[10px] font-bold rounded-full px-2 ${parseFloat(percentage) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
               {percentage}%
-            </span>
+            </Tag>
           </div>
         );
       }
@@ -101,23 +103,29 @@ const RealtimeAttendanceCard = () => {
       dataIndex: 'onlineCount',
       key: 'onlineCount',
       align: 'center',
-      render: (count) => <span className="text-emerald-600 font-black text-base">{count}</span>
+      width: '20%',
+      render: (count) => <span className="text-emerald-600 font-black text-lg">{count}</span>
     },
     {
-      title: '异常/缺勤',
+      title: '缺勤异常',
       dataIndex: 'absentCount',
       key: 'absentCount',
       align: 'center',
-      render: (count) => <span className={count > 0 ? "text-rose-500 font-black text-base" : "text-slate-200 font-medium"}>{count}</span>
+      width: '20%',
+      render: (count) => <span className={count > 0 ? "text-rose-500 font-black text-lg" : "text-slate-200 font-medium"}>{count}</span>
     },
     {
       title: '详情',
       key: 'action',
       align: 'right',
+      width: '10%',
       render: (_, record) => (
-        <Button type="text" className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg p-1" onClick={() => showDetail(record)}>
-          <RightOutlined className="text-xs" />
-        </Button>
+        <Button 
+          type="text" 
+          icon={<ArrowRightOutlined className="text-slate-300 group-hover:text-blue-500 transition-colors" />} 
+          onClick={() => showDetail(record)}
+          className="hover:bg-blue-50 rounded-xl"
+        />
       )
     }
   ];
@@ -126,7 +134,7 @@ const RealtimeAttendanceCard = () => {
     switch (status) {
       case 'on_duty': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="success">在岗</Tag>;
       case 'absent': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="error">缺勤</Tag>;
-      case 'resting_online': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="processing">休息(在线)</Tag>;
+      case 'resting_online': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="processing">休息在线</Tag>;
       default: return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="default">离线</Tag>;
     }
   };
@@ -135,40 +143,52 @@ const RealtimeAttendanceCard = () => {
     <>
       <Card 
         title={
-          <div className="flex justify-between items-center py-2 px-1">
+          <div className="flex justify-between items-center py-1">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shadow-inner">
                 <TeamOutlined />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">实时考勤监视器</span>
-              <div className={`w-1.5 h-1.5 rounded-full ${isSocketConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+              <div className="flex flex-col">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-widest">实时考勤监视</span>
+                <span className={`text-[9px] font-bold ${isSocketConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {isSocketConnected ? '● 实时链路已就绪' : '○ 通讯链路断开'}
+                </span>
+              </div>
             </div>
-            <Button size="small" type="text" className="text-slate-300 font-bold" icon={<SyncOutlined spin={loading} />} onClick={fetchAttendance}>REFRESH</Button>
+            <Button 
+              size="small" 
+              type="text" 
+              className="text-slate-400 font-bold hover:text-blue-600" 
+              icon={<SyncOutlined spin={loading} />} 
+              onClick={fetchAttendance}
+            >
+              刷新数据
+            </Button>
           </div>
         }
         bordered={false} 
-        className="rounded-[32px] shadow-sm border-none flex flex-col h-full"
-        bodyStyle={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}
+        className="rounded-[32px] shadow-sm border-none flex flex-col h-full overflow-hidden"
+        styles={{ body: { flex: 1, overflowY: 'auto', padding: '8px 24px 24px' } }}
       >
         <Table 
           columns={columns} 
           dataSource={data} 
           rowKey="id" 
           pagination={false} 
-          size="small"
+          size="middle"
           loading={loading}
-          className="compact-modern-table"
-          locale={{ emptyText: <Empty description="无实时数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+          className="admin-dashboard-table"
+          locale={{ emptyText: <Empty description="当前无实时数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
         />
       </Card>
 
       <Modal
         title={
           <div className="flex items-center gap-3 py-2">
-            <div className="p-2 bg-slate-900 text-white rounded-xl"><TeamOutlined /></div>
+            <div className="p-2 bg-slate-900 text-white rounded-xl shadow-lg"><TeamOutlined /></div>
             <div>
-              <div className="text-lg font-black text-slate-900 uppercase tracking-tight">{selectedDept?.name}</div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Employee Real-time Status</div>
+              <div className="text-lg font-black text-slate-900">{selectedDept?.name}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">实时员工状态名单</div>
             </div>
           </div>
         }
@@ -186,7 +206,7 @@ const RealtimeAttendanceCard = () => {
             renderItem={emp => (
               <List.Item
                 extra={getEmployeeStatusUI(emp.status)}
-                className="border-b border-slate-50 last:border-none py-4 px-2"
+                className="border-b border-slate-50 last:border-none py-4 px-2 hover:bg-slate-50/50 rounded-2xl transition-all"
               >
                 <List.Item.Meta
                   avatar={
@@ -194,10 +214,10 @@ const RealtimeAttendanceCard = () => {
                       <Avatar src={getFileUrl(emp.avatar)} className="rounded-xl border border-slate-100 shadow-sm" icon={<UserOutlined />} />
                     </Badge>
                   }
-                  title={<span className="font-black text-slate-800">{emp.name}</span>}
+                  title={<span className="font-bold text-slate-800">{emp.name}</span>}
                   description={
                     <div className="text-[10px] font-bold text-slate-400 flex items-center gap-2">
-                      <ClockCircleOutlined /> {emp.shift || '未安排'}
+                      <ClockCircleOutlined /> {emp.shift || '未安排班次'}
                       {emp.reason && <span className="text-rose-500 italic ml-2">({emp.reason})</span>}
                     </div>
                   }
@@ -206,19 +226,19 @@ const RealtimeAttendanceCard = () => {
             )}
           />
         </div>
-        <div className="mt-6 p-5 bg-slate-50 rounded-[24px] border border-slate-100 flex justify-around">
+        <div className="mt-6 p-5 bg-slate-50 rounded-[24px] border border-slate-100 flex justify-around shadow-inner">
           <div className="text-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">On Duty</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">正在岗位</p>
             <Text className="text-lg font-black text-emerald-600">{selectedDept?.onDutyCount}</Text>
           </div>
           <div className="w-[1px] bg-slate-200" />
           <div className="text-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Absence</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">考勤缺勤</p>
             <Text className="text-lg font-black text-rose-500">{selectedDept?.absentCount}</Text>
           </div>
           <div className="w-[1px] bg-slate-200" />
           <div className="text-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Online</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">当前在线</p>
             <Text className="text-lg font-black text-slate-800">{selectedDept?.onlineCount}</Text>
           </div>
         </div>

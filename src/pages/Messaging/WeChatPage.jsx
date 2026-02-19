@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import { message, Modal, Upload, Avatar, Badge, Tooltip, Image, Drawer, List, Mentions } from 'antd';
 import { tokenManager, apiGet, apiPost } from '../../utils/apiClient';
-import { getWsBaseUrl, getApiUrl } from '../../utils/apiConfig';
+import { getWsBaseUrl, getApiUrl, getFileUrl } from '../../utils/apiConfig';
 import { wsManager } from '../../services/websocket';
 import { useChatStore } from '../../hooks/useChatStore';
 
@@ -76,9 +76,24 @@ const WeChatPage = () => {
   useEffect(() => {
     const token = tokenManager.getToken();
     if (!token) return;
-    const user = tokenManager.parseToken(token);
-    setCurrentUser(user);
-
+    
+    // 优先从解析的 Token 获取基础信息
+    const decodedUser = tokenManager.parseToken(token);
+    
+    // 补全头像：Token 可能不包含大体积的 Base64 头像，尝试从 localStorage 获取完整 user 对象
+    const savedUserStr = localStorage.getItem('user');
+    let finalUser = { ...decodedUser };
+    
+    if (savedUserStr) {
+      try {
+        const savedUser = JSON.parse(savedUserStr);
+        if (String(savedUser.id) === String(decodedUser.id)) {
+          finalUser = { ...savedUser, ...decodedUser, avatar: savedUser.avatar || decodedUser.avatar };
+        }
+      } catch (e) { console.error('解析本地用户信息失败', e); }
+    }
+    
+    setCurrentUser(finalUser);
     fetchContacts();
 
     const handleMemberUpdate = (data) => {
@@ -286,7 +301,7 @@ const WeChatPage = () => {
             {contacts.map(g => (
               <div key={`g-${g.id}`} onClick={() => selectChat(g)} className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${activeChat?.id === g.id ? 'bg-[#c6c6c6] shadow-sm' : 'hover:bg-green-50'}`}>
                 <Badge count={g.is_muted ? 0 : (g.unread_count || 0)} dot={g.is_muted && g.unread_count > 0} size="small" offset={[-5, 5]}>
-                   <Avatar shape="square" icon={<TeamOutlined />} className="bg-green-600" src={g.avatar} />
+                   <Avatar shape="square" icon={<TeamOutlined />} className="bg-green-600" src={getFileUrl(g.avatar)} />
                 </Badge>
                 <div className="ml-3 font-medium text-gray-800 flex-1 truncate">
                     <div className="flex justify-between items-center">
@@ -324,15 +339,22 @@ const WeChatPage = () => {
                 const amIMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
                 return (
                   <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    {!isMe && <Avatar src={msg.sender_avatar} className="mr-2 mt-1 flex-shrink-0" size="small" icon={<UserOutlined />} />}
+                    {!isMe && <Avatar src={getFileUrl(msg.sender_avatar)} className="mr-2 mt-1 flex-shrink-0" size="small" icon={<UserOutlined />} />}
                     <div className="max-w-[70%]">
                       {!isMe && <div className="text-xs text-gray-400 mb-1 ml-1">{msg.sender_name}</div>}
                       <div className={`px-4 py-2 rounded-lg text-sm relative break-words shadow-sm ${isMe ? 'bg-[#95ec69] text-black' : (amIMentioned ? 'bg-amber-100 border border-amber-200 text-amber-900 ring-2 ring-amber-400 ring-opacity-20' : 'bg-white text-gray-800')}`}>
-                        {msg.msg_type === 'image' ? <Image src={msg.file_url} className="rounded-md" style={{ maxHeight: '200px' }} /> : 
-                         msg.msg_type === 'file' ? <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center underline"><FileOutlined className="mr-2"/> {msg.content}</a> : msg.content}
+                        {msg.msg_type === 'image' ? <Image src={getFileUrl(msg.file_url)} className="rounded-md" style={{ maxHeight: '200px' }} /> : 
+                         msg.msg_type === 'file' ? <a href={getFileUrl(msg.file_url)} target="_blank" rel="noopener noreferrer" className="flex items-center underline"><FileOutlined className="mr-2"/> {msg.content}</a> : msg.content}
                       </div>
                     </div>
-                    {isMe && <Avatar src={currentUser?.avatar} className="ml-2 mt-1 flex-shrink-0 bg-gray-200" size="small" icon={<UserOutlined />} />}
+                    {isMe && (
+                      <Avatar 
+                        src={getFileUrl(currentUser?.avatar || JSON.parse(localStorage.getItem('user') || '{}').avatar)} 
+                        className="ml-2 mt-1 flex-shrink-0" 
+                        size="small" 
+                        icon={<UserOutlined />} 
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -358,7 +380,7 @@ const WeChatPage = () => {
             <span className="text-sm font-medium text-gray-700">消息免打扰</span>
             <button onClick={() => toggleMute(activeChat?.id, activeChat?.is_muted)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${activeChat?.is_muted ? 'bg-green-500' : 'bg-gray-200'}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${activeChat?.is_muted ? 'translate-x-6' : 'translate-x-1'}`} /></button>
         </div>
-        <List itemLayout="horizontal" dataSource={currentGroupMembers} renderItem={item => (<List.Item><List.Item.Meta avatar={<Avatar src={item.avatar} icon={<UserOutlined />} />} title={item.name} description={<div className="text-xs">{item.role === 'admin' && <span className="text-orange-500 mr-2">[群主]</span>}{item.department_name}</div>} /></List.Item>)} />
+        <List itemLayout="horizontal" dataSource={currentGroupMembers} renderItem={item => (<List.Item><List.Item.Meta avatar={<Avatar src={getFileUrl(item.avatar)} icon={<UserOutlined />} />} title={item.name} description={<div className="text-xs">{item.role === 'admin' && <span className="text-orange-500 mr-2">[群主]</span>}{item.department_name}</div>} /></List.Item>)} />
       </Drawer>
     </div>
   );

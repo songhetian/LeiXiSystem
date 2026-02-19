@@ -271,7 +271,9 @@ function App() {
     console.log('🔌 正在连接WebSocket...')
     // 使用setTimeout确保WebSocket连接不会阻塞主流程
     setTimeout(() => {
-      wsManager.connect()
+      wsManager.connect({
+        avatar: user?.avatar
+      })
     }, 0)
 
     // 初始化声音管理器（需要用户交互后才能初始化AudioContext）

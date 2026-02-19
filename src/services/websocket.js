@@ -16,14 +16,15 @@ class WebSocketManager {
 
   /**
    * 连接到WebSocket服务器
+   * @param {Object} options - 连接配置
    */
-  connect() {
+  connect(options = {}) {
     if (this.socket?.connected || this.isConnecting) {
       console.log('⚠️ [WebSocket] 已连接或正在连接中')
       return
     }
 
-    const token = localStorage.getItem('token')
+    const token = options.token || localStorage.getItem('token')
     if (!token) {
       console.warn('⚠️ [WebSocket] 未登录，无法连接')
       return
@@ -37,7 +38,10 @@ class WebSocketManager {
     console.log(`🔌 [WebSocket] 正在连接到 ${WS_BASE_URL}...`)
 
     this.socket = io(WS_BASE_URL, {
-      auth: { token },
+      auth: { 
+        token,
+        avatar: options.avatar || null
+      },
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

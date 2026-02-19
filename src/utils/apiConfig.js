@@ -155,14 +155,12 @@ export const getWsBaseUrl = () => {
     const hostname = window.location.hostname;
     const port = window.location.port;
 
-    // 开发环境 (Vite 默认端口 5173)
-    // 如果是通过 localhost 访问且在 5173 端口，说明是开发环境，通常后端在 3001
-    if ((hostname === 'localhost' || hostname === '127.0.0.1') && port === '5173') {
+    // 开发环境：如果访问的是 Vite 端口 (5173)
+    if (port === '5173') {
       return `http://${hostname}:3001`;
     }
 
-    // 如果是通过 IP 访问（如局域网调试），或者是非 5173 端口
-    // 优先尝试使用当前 origin，依靠 Vite 代理或 Nginx 代理转发 /socket.io
+    // 生产环境或通过代理访问
     return window.location.origin;
   }
 
@@ -175,11 +173,37 @@ export const getWsBaseUrl = () => {
   return 'http://localhost:3001';
 };
 
+/**
+ * 将相对路径转换为完整的文件访问 URL
+ * @param {string} path - 相对路径，如 '/uploads/xxx.png'
+ */
+export const getFileUrl = (path) => {
+  if (!path) return '';
+  
+  // 如果是绝对地址、Base64 或已经包含协议，直接返回
+  if (
+    path.startsWith('http://') || 
+    path.startsWith('https://') || 
+    path.startsWith('data:') ||
+    path.startsWith('blob:')
+  ) {
+    return path;
+  }
+  
+  // 确保路径以 / 开头
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  
+  // 获取基础 URL (不带 /api)
+  const wsBase = getWsBaseUrl();
+  return `${wsBase}${cleanPath}`;
+}
+
 export default {
   getApiBaseUrl,
   getApiBaseUrlAsync,
   getApiUrl,
   getApiUrlAsync,
   getWsBaseUrl,
+  getFileUrl,
   loadRuntimeConfig
 }

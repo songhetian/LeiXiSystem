@@ -63,7 +63,8 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         params: {
           userId,
           page: 1,
-          pageSize: 5, // Only show latest 5
+          pageSize: 10, // 增加显示条数
+          isRead: 'false', // 仅获取未读消息
         }
       });
 
@@ -92,8 +93,8 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   const markAllAsRead = async () => {
     try {
       await axios.put(getApiUrl('/api/notifications/read-all'), { userId });
-      // Update local state immediately
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
+      // 清空本地列表，因为我们只显示未读
+      setNotifications([]);
       setUnreadCount(0);
       if (onUpdateUnread) {
         onUpdateUnread(0);
@@ -111,9 +112,8 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         ? getApiUrl(`/api/broadcasts/${id}/read`)
         : getApiUrl(`/api/notifications/${id}/read`);
       await axios.put(url);
-      setNotifications(prev => prev.map(n =>
-        (n.id === id && n.category === category) ? { ...n, is_read: 1 } : n
-      ));
+      // 从本地列表中移除该项
+      setNotifications(prev => prev.filter(n => !(n.id === id && n.category === category)));
       loadUnreadCount();
     } catch (error) {
       console.error('Failed to mark as read:', error);
@@ -121,9 +121,8 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   };
 
   const handleNotificationClick = (notification) => {
-    if (!notification.is_read) {
-      markAsRead(notification.id, notification.category);
-    }
+    // 立即标记为已读并从列表中移除
+    markAsRead(notification.id, notification.category);
 
     // Handle broadcast type
     if (notification.category === 'broadcast' || notification.related_type === 'broadcast') {
@@ -180,20 +179,20 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   };
 
   const getColorClass = (type, category) => {
-    if (category === 'broadcast') return 'bg-yellow-100 text-yellow-600';
+    if (category === 'broadcast') return 'bg-violet-50 text-violet-600';
 
     switch (type) {
-      case 'clock_reminder': return 'bg-orange-100 text-orange-600';
-      case 'leave_approval': return 'bg-green-100 text-green-600';
-      case 'overtime_approval': return 'bg-purple-100 text-purple-600';
-      case 'makeup_approval': return 'bg-cyan-100 text-cyan-600';
-      case 'schedule_change': return 'bg-blue-100 text-blue-600';
-      case 'attendance_abnormal': return 'bg-red-100 text-red-600';
-      case 'exam_notification': return 'bg-indigo-100 text-indigo-600';
-      case 'exam_result': return 'bg-teal-100 text-teal-600';
-      case 'payslip': return 'bg-green-100 text-green-600';
-      case 'system': return 'bg-gray-100 text-gray-600';
-      default: return 'bg-gray-100 text-gray-600';
+      case 'clock_reminder': return 'bg-orange-50 text-orange-600';
+      case 'leave_approval': return 'bg-green-50 text-green-600';
+      case 'overtime_approval': return 'bg-purple-50 text-purple-600';
+      case 'makeup_approval': return 'bg-cyan-50 text-cyan-600';
+      case 'schedule_change': return 'bg-blue-50 text-blue-600';
+      case 'attendance_abnormal': return 'bg-red-50 text-red-600';
+      case 'exam_notification': return 'bg-indigo-50 text-indigo-600';
+      case 'exam_result': return 'bg-teal-50 text-teal-600';
+      case 'payslip': return 'bg-green-50 text-green-600';
+      case 'system': return 'bg-gray-50 text-gray-600';
+      default: return 'bg-gray-50 text-gray-600';
     }
   };
 
@@ -206,7 +205,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       {/* Header */}
       <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-bold text-gray-800">通知</h3>
+          <h3 className="text-sm font-bold text-gray-800">未读通知</h3>
           {unreadCount > 0 && (
             <span className="bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full leading-none">
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -231,7 +230,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         ) : notifications.length === 0 ? (
           <div className="p-6 text-center">
             <BellIcon className="w-8 h-8 text-gray-200 mx-auto mb-1" />
-            <p className="text-gray-400 text-xs">暂无新通知</p>
+            <p className="text-gray-400 text-xs">暂无未读消息</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -239,17 +238,14 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
               <div
                 key={`${notification.category}-${notification.id}`}
                 onClick={() => handleNotificationClick(notification)}
-                className={`
-                  p-2.5 hover:bg-gray-50 transition-colors cursor-pointer flex gap-2.5
-                  ${!notification.is_read ? 'bg-blue-50/30' : ''}
-                `}
+                className="p-2.5 hover:bg-gray-50 transition-colors cursor-pointer flex gap-2.5 bg-blue-50/10"
               >
                 <div className={`p-1.5 rounded-md h-fit shrink-0 ${getColorClass(notification.type, notification.category)}`}>
                   {React.cloneElement(getIcon(notification.type, notification.category), { className: 'w-4 h-4' })}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-0.5">
-                    <h4 className={`text-xs font-bold truncate pr-1 ${!notification.is_read ? 'text-gray-900' : 'text-gray-600'}`}>
+                    <h4 className="text-xs font-bold truncate pr-1 text-gray-900">
                       {notification.title}
                     </h4>
                     <span className="text-[9px] text-gray-400 shrink-0 font-medium">

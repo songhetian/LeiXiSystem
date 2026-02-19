@@ -146,6 +146,17 @@ io.use((socket, next) => {
             }
 
             // 1. 快速入队并获取 ID
+            const { getUserProfile } = require('./utils/personnelClosure');
+            let senderAvatar = socket.handshake.auth.avatar;
+            
+            // 如果前端没传头像，尝试从缓存/数据库补全
+            if (!senderAvatar) {
+                try {
+                    const profile = await getUserProfile(pool, redis, userId);
+                    senderAvatar = profile?.avatar;
+                } catch (e) { console.error('补全头像失败:', e); }
+            }
+
             const msgToQueue = {
                 sender_id: userId,
                 group_id: targetId,
@@ -153,7 +164,7 @@ io.use((socket, next) => {
                 msg_type: type,
                 file_url: fileUrl,
                 sender_name: socket.username,
-                sender_avatar: socket.handshake.auth.avatar // 假设前端传了，没传也没关系
+                sender_avatar: senderAvatar
             };
 
             const savedMsg = await io.messageQueue.enqueue(msgToQueue);

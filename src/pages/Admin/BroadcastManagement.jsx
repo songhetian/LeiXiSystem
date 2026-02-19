@@ -3,7 +3,7 @@ import axios from 'axios'
 import { getApiUrl } from '../../utils/apiConfig'
 import {
   Table, Button, Modal, Form, Input, Select,
-  Tag, message, Card, Space, DatePicker, Typography
+  Tag, message, Card, Space, DatePicker, Typography, Tooltip
 } from 'antd'
 import {
   Megaphone,
@@ -16,7 +16,10 @@ import {
   Eye,
   Send,
   RefreshCw,
-  Users
+  Users,
+  Search,
+  History,
+  ArrowRight
 } from 'lucide-react'
 import { formatDate, getBeijingDate } from '../../utils/date'
 import Breadcrumb from '../../components/Breadcrumb'
@@ -24,7 +27,7 @@ import Breadcrumb from '../../components/Breadcrumb'
 const { Option } = Select
 const { TextArea } = Input
 const { RangePicker } = DatePicker
-const { Title, Paragraph } = Typography
+const { Title, Text, Paragraph } = Typography
 
 const BroadcastManagement = () => {
   const [broadcasts, setBroadcasts] = useState([])
@@ -139,7 +142,7 @@ const BroadcastManagement = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (response.data.success) {
-        message.success('广播已全网实时发布')
+        message.success('广播已成功发布至全网')
         setPreviewVisible(false)
         setModalVisible(false)
         form.resetFields()
@@ -153,18 +156,18 @@ const BroadcastManagement = () => {
   }
 
   const typeConfig = {
-    info: { label: '信息', color: 'blue', icon: <Info className="w-4 h-4" /> },
-    warning: { label: '警告', color: 'orange', icon: <AlertTriangle className="w-4 h-4" /> },
-    success: { label: '成功', color: 'green', icon: <CheckCircle2 className="w-4 h-4" /> },
-    error: { label: '错误', color: 'red', icon: <XCircle className="w-4 h-4" /> },
-    announcement: { label: '公告', color: 'purple', icon: <BellRing className="w-4 h-4" /> }
+    info: { label: '通知', color: 'blue', icon: <Info /> },
+    warning: { label: '提醒', color: 'orange', icon: <AlertTriangle /> },
+    success: { label: '成功', color: 'green', icon: <CheckCircle2 /> },
+    error: { label: '警告', color: 'red', icon: <XCircle /> },
+    announcement: { label: '公告', color: 'purple', icon: <BellRing /> }
   };
 
   const priorityConfig = {
-    low: { label: '低', color: 'bg-slate-100 text-slate-600' },
-    normal: { label: '普通', color: 'bg-blue-50 text-blue-600' },
-    high: { label: '高', color: 'bg-orange-50 text-orange-600' },
-    urgent: { label: '紧急', color: 'bg-red-50 text-red-600' }
+    low: { label: '低', color: 'bg-slate-100 text-slate-500 border-slate-200' },
+    normal: { label: '普通', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+    high: { label: '高', color: 'bg-amber-50 text-amber-600 border-amber-200' },
+    urgent: { label: '紧急', color: 'bg-rose-50 text-rose-600 border-rose-200' }
   };
 
   const columns = [
@@ -172,25 +175,25 @@ const BroadcastManagement = () => {
       title: '广播主题',
       dataIndex: 'title',
       render: (text, record) => (
-        <div className="flex items-center gap-4 py-1">
-          <div className={`p-2.5 rounded-xl bg-${typeConfig[record.type]?.color}-50 text-${typeConfig[record.type]?.color}-600 shadow-sm border border-${typeConfig[record.type]?.color}-100`}>
-            {React.cloneElement(typeConfig[record.type]?.icon, { className: 'w-5 h-5' })}
+        <div className="flex items-center gap-3 py-1">
+          <div className={`p-2 rounded-lg bg-${typeConfig[record.type]?.color}-50 text-${typeConfig[record.type]?.color}-600 border border-${typeConfig[record.type]?.color}-100`}>
+            {React.cloneElement(typeConfig[record.type]?.icon, { size: 18 })}
           </div>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col">
             <span className="font-bold text-slate-800 text-sm">{text}</span>
-            <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">REF: #{record.id.toString().padStart(4, '0')}</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">编号: #{record.id}</span>
           </div>
         </div>
       )
     },
     {
-      title: '优先级',
+      title: '紧急程度',
       dataIndex: 'priority',
       width: 100,
       render: (p) => (
-        <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${priorityConfig[p]?.color} border border-current opacity-80`}>
+        <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[p]?.color}`}>
           {priorityConfig[p]?.label}
-        </div>
+        </span>
       )
     },
     {
@@ -200,202 +203,165 @@ const BroadcastManagement = () => {
       render: (_, r) => {
         const percentage = Math.round((r.read_count / (r.recipient_count || 1)) * 100);
         return (
-          <div className="flex flex-col gap-1.5 py-1">
-            <div className="flex justify-between items-end">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Reach Rate</span>
-              <span className="text-xs font-black text-slate-700">{percentage}%</span>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-bold text-slate-400">已读率</span>
+              <span className="text-[10px] font-black text-slate-700">{percentage}%</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-50">
-              <div 
-                className="h-full bg-gradient-to-r from-indigo-500 to-blue-400 transition-all duration-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]" 
-                style={{ width: `${percentage}%` }} 
-              />
+            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: `${percentage}%` }} />
             </div>
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-slate-300" />
-              <span className="text-[10px] text-slate-400 font-bold">{r.read_count} / {r.recipient_count} 确认已读</span>
-            </div>
+            <span className="text-[9px] text-slate-400 font-medium">{r.read_count} / {r.recipient_count} 人已确认</span>
           </div>
         );
       }
     },
     {
-      title: '发布轨迹',
+      title: '发布日期',
       dataIndex: 'created_at',
       width: 180,
       render: (t) => (
-        <div className="flex flex-col">
-          <span className="text-slate-600 text-xs font-bold">{new Date(t).toLocaleDateString()}</span>
-          <span className="text-slate-400 text-[10px] font-medium uppercase tracking-tighter">{new Date(t).toLocaleTimeString()}</span>
+        <div className="text-xs text-slate-500 font-medium">
+          {new Date(t).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </div>
       )
     }
   ];
 
   return (
-    <div className="min-h-full bg-[#f8fafc] p-6 lg:p-10">
-      <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-        <Breadcrumb items={['控制面板', '协同办公', '广播管理']} />
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* 标题栏 */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+           <div className="bg-slate-900 p-2 rounded-lg text-white shadow-sm">
+              <Megaphone className="w-5 h-5" />
+           </div>
+           <div>
+              <h1 className="text-xl font-bold text-gray-900">广播发布管理</h1>
+              <p className="text-xs text-gray-500">发布全员或定向通知，实时同步业务动态</p>
+           </div>
+        </div>
+        <button onClick={loadBroadcasts} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors">
+          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-2">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-slate-900 rounded-2xl text-white shadow-xl shadow-slate-200">
-                <Megaphone className="w-6 h-6" />
-              </div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">Broadcast Center</h1>
-            </div>
-            <p className="text-slate-500 font-medium pl-1 text-sm">发布实时全员通知与精准业务广播，驱动组织高效协同</p>
-          </div>
-          <Button
-            type="primary"
-            size="large"
-            icon={<Plus className="w-4 h-4" />}
-            className="bg-slate-900 hover:bg-slate-800 border-none rounded-2xl px-8 h-14 shadow-2xl shadow-slate-200 font-black text-sm uppercase tracking-widest flex items-center gap-2"
-            onClick={() => setModalVisible(true)}
-          >
-            Create New Signal
-          </Button>
+      {/* 筛选与操作工具栏 */}
+      <div className="px-6 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+           <div className="flex bg-gray-100 p-1 rounded-lg">
+              {[
+                { id: '', label: '全部记录' },
+                { id: 'today', label: '今天' },
+                { id: 'last7days', label: '近七天' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleQuickFilter(item.id)}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${quickFilter === item.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+           </div>
+           
+           <RangePicker
+              className="rounded-lg border-gray-200 h-9 bg-gray-50"
+              placeholder={['开始时间', '结束时间']}
+              onChange={(dates) => {
+                if (dates) setQueryParams({ startDate: dates[0].format('YYYY-MM-DD 00:00:00'), endDate: dates[1].format('YYYY-MM-DD 23:59:59') });
+                else setQueryParams({ startDate: undefined, endDate: undefined });
+              }}
+            />
         </div>
 
-        {/* 智能过滤器 */}
-        <div className="bg-white/80 backdrop-blur-xl p-2 rounded-[24px] border border-slate-200/60 shadow-sm flex flex-wrap items-center gap-4">
-          <div className="flex bg-slate-100/80 p-1.5 rounded-[18px] gap-1">
-            {[
-              { id: '', label: 'All signals' },
-              { id: 'today', label: 'Today' },
-              { id: 'yesterday', label: 'Yesterday' },
-              { id: 'last7days', label: 'Past 7 days' },
-            ].map(item => (
-              <button
-                key={item.id}
-                onClick={() => handleQuickFilter(item.id)}
-                className={`px-5 py-2 text-[11px] font-black uppercase tracking-wider rounded-[14px] transition-all duration-300 ${quickFilter === item.id ? 'bg-white text-slate-900 shadow-md scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          
-          <div className="h-10 w-[1px] bg-slate-200 mx-2 hidden md:block" />
-          
-          <RangePicker
-            className="rounded-2xl border-slate-200 h-11 px-4 bg-transparent hover:border-slate-400 transition-colors"
-            placeholder={['Start Date', 'End Date']}
-            onChange={(dates) => {
-              if (dates) setQueryParams({ startDate: dates[0].format('YYYY-MM-DD 00:00:00'), endDate: dates[1].format('YYYY-MM-DD 23:59:59') });
-              else setQueryParams({ startDate: undefined, endDate: undefined });
-            }}
-          />
-          
-          <button 
-            onClick={loadBroadcasts} 
-            className="p-3 hover:bg-slate-100 rounded-2xl transition-all duration-300 ml-auto group"
-          >
-            <RefreshCw className={`w-5 h-5 text-slate-400 group-hover:text-slate-900 group-active:rotate-180 transition-transform ${loading ? 'animate-spin text-slate-900' : ''}`} />
-          </button>
-        </div>
-
-        <Card 
-          bordered={false} 
-          className="rounded-[32px] border border-slate-200/60 shadow-xl shadow-slate-200/40 overflow-hidden" 
-          styles={{ body: { padding: 0 } }}
+        <Button
+          type="primary"
+          icon={<Plus size={16} />}
+          className="bg-blue-600 hover:bg-blue-700 border-none rounded-lg px-6 h-10 font-bold shadow-md shadow-blue-100"
+          onClick={() => setModalVisible(true)}
         >
+          发布新广播
+        </Button>
+      </div>
+
+      {/* 列表区域 */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <Table
             columns={columns}
             dataSource={broadcasts}
             rowKey="id"
             loading={loading}
-            scroll={{ x: 800 }}
             pagination={{
               ...pagination,
-              showTotal: (total) => <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total {total} entries</span>,
+              showTotal: (total) => <span className="text-xs font-bold text-gray-400">共计 {total} 条记录</span>,
               showSizeChanger: false,
               position: ['bottomRight'],
               className: "px-6 py-4"
             }}
             onChange={(newPagination) => {
-              setPagination(prev => ({ ...prev, current: newPagination.current, pageSize: newPagination.pageSize }))
+              setPagination(prev => ({ ...prev, current: newPagination.current }))
             }}
-            className="modern-slate-table"
+            className="compact-table"
           />
-        </Card>
+        </div>
       </div>
 
-      {/* 构建广播表单弹窗 */}
+      {/* 发布表单弹窗 */}
       <Modal
         title={
-          <div className="flex items-center gap-4 py-4 px-2">
-            <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
-              <Megaphone className="w-6 h-6" />
+          <div className="flex items-center gap-3 py-2">
+            <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+              <Megaphone size={20} />
             </div>
-            <div>
-              <Title level={3} className="!mb-0 !font-black tracking-tight uppercase">Compose Broadcast</Title>
-              <Text className="text-slate-400 text-xs font-bold uppercase tracking-widest">Broadcast engine v2.0</Text>
-            </div>
+            <span className="text-lg font-bold text-gray-900">撰写广播内容</span>
           </div>
         }
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        width={720}
+        width={650}
         destroyOnClose
         centered
         className="refined-modal"
-        styles={{ body: { padding: '0 32px 32px' } }}
       >
-        <Form form={form} layout="vertical" className="space-y-6" initialValues={{ type: 'info', priority: 'normal', targetType: 'all' }}>
-          <Form.Item 
-            name="title" 
-            label={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Broadcast Subject</span>} 
-            rules={[{ required: true }]}
-          >
-            <Input placeholder="输入广播的核心主题..." className="h-14 rounded-2xl border-slate-200 px-5 font-bold text-base focus:border-slate-900 hover:border-slate-400 transition-all shadow-sm" />
+        <Form form={form} layout="vertical" className="mt-4 space-y-4" initialValues={{ type: 'info', priority: 'normal', targetType: 'all' }}>
+          <Form.Item name="title" label={<span className="text-xs font-bold text-gray-500 uppercase tracking-wider">广播主题</span>} rules={[{ required: true }]}>
+            <Input placeholder="输入广播的核心主题..." className="h-11 rounded-lg border-gray-200 font-bold" />
           </Form.Item>
 
-          <Form.Item 
-            name="content" 
-            label={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Detailed Content</span>} 
-            rules={[{ required: true }]}
-          >
-            <TextArea 
-              placeholder="请详细描述通知内容，支持 Markdown 或纯文本格式..." 
-              rows={6} 
-              className="rounded-2xl border-slate-200 p-5 text-base focus:border-slate-900 hover:border-slate-400 transition-all shadow-sm" 
-            />
+          <Form.Item name="content" label={<span className="text-xs font-bold text-gray-500 uppercase tracking-wider">详细内容</span>} rules={[{ required: true }]}>
+            <TextArea placeholder="详细描述通知内容..." rows={5} className="rounded-lg border-gray-200 p-3" />
           </Form.Item>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50 p-6 rounded-[24px] border border-slate-100">
-            <Form.Item name="type" label={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Visual Type</span>}>
-              <Select className="h-12 refined-select">
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="type" label={<span className="text-xs font-bold text-gray-500 uppercase tracking-wider">消息分类</span>}>
+              <Select className="h-11 refined-select">
                 {Object.keys(typeConfig).map(k => (
                   <Option key={k} value={k}>
-                    <Space className="font-bold">
-                      <span className={`text-${typeConfig[k].color}-500 flex items-center`}>{typeConfig[k].icon}</span>
-                      <span className="text-slate-700">{typeConfig[k].label}</span>
-                    </Space>
+                    <div className="flex items-center gap-2 font-medium">
+                      <span className={`text-${typeConfig[k].color}-500 flex`}>{React.cloneElement(typeConfig[k].icon, { size: 14 })}</span>
+                      {typeConfig[k].label}
+                    </div>
                   </Option>
                 ))}
               </Select>
             </Form.Item>
-            <Form.Item name="priority" label={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Priority Level</span>}>
-              <Select className="h-12 refined-select">
-                {Object.keys(priorityConfig).map(k => <Option key={k} value={k} className="font-bold text-slate-700">{priorityConfig[k].label}</Option>)}
+            <Form.Item name="priority" label={<span className="text-xs font-bold text-gray-500 uppercase tracking-wider">紧急程度</span>}>
+              <Select className="h-11">
+                {Object.keys(priorityConfig).map(k => <Option key={k} value={k}>{priorityConfig[k].label}</Option>)}
               </Select>
             </Form.Item>
           </div>
 
-          <div className="p-8 bg-slate-900 rounded-[28px] shadow-2xl shadow-indigo-200/50">
-            <Form.Item name="targetType" label={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400/60">Target Destination</span>} className="!mb-0">
-              <Select 
-                className="h-14 refined-select-dark"
-                dropdownClassName="dark-dropdown"
-                onChange={() => form.setFieldsValue({ targetDepartments: [], targetRoles: [], targetUsers: [] })}
-              >
-                <Option value="all" className="font-black text-xs uppercase">Broadcast to all members</Option>
-                <Option value="department" className="font-black text-xs uppercase">Targeted Departments</Option>
-                <Option value="role" className="font-black text-xs uppercase">Role-based transmission</Option>
-                <Option value="individual" className="font-black text-xs uppercase">Individual direct signals</Option>
+          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+            <Form.Item name="targetType" label={<span className="text-xs font-bold text-slate-500 uppercase tracking-wider">投放目标</span>} className="!mb-0">
+              <Select className="h-11 font-bold" onChange={() => form.setFieldsValue({ targetDepartments: [], targetRoles: [], targetUsers: [] })}>
+                <Option value="all">全体员工</Option>
+                <Option value="department">指定部门</Option>
+                <Option value="role">指定角色</Option>
+                <Option value="individual">指定个人</Option>
               </Select>
             </Form.Item>
 
@@ -404,20 +370,20 @@ const BroadcastManagement = () => {
                 const t = getFieldValue('targetType');
                 if (t === 'all') return null;
                 return (
-                  <div className="mt-6 pt-6 border-t border-white/10 animate-in slide-in-from-top-4 duration-300">
+                  <div className="mt-4 pt-4 border-t border-slate-200">
                     {t === 'department' && (
-                      <Form.Item name="targetDepartments" label={<span className="text-[10px] font-bold text-white/40 uppercase">Select Target Sectors</span>} rules={[{ required: true }]}>
-                        <Select mode="multiple" className="refined-select-dark min-h-[50px]" placeholder="选择部门..." options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                      <Form.Item name="targetDepartments" label="选择目标部门" rules={[{ required: true }]}>
+                        <Select mode="multiple" className="min-h-[44px]" placeholder="请选择部门..." options={departments.map(d => ({ label: d.name, value: d.id }))} />
                       </Form.Item>
                     )}
                     {t === 'role' && (
-                      <Form.Item name="targetRoles" label={<span className="text-[10px] font-bold text-white/40 uppercase">Select Recipient Roles</span>} rules={[{ required: true }]}>
-                        <Select mode="multiple" className="refined-select-dark min-h-[50px]" placeholder="选择角色..." options={['超级管理员', '部门管理员', '普通员工'].map(r => ({ label: r, value: r }))} />
+                      <Form.Item name="targetRoles" label="选择目标角色" rules={[{ required: true }]}>
+                        <Select mode="multiple" className="min-h-[44px]" placeholder="请选择角色..." options={['超级管理员', '部门管理员', '普通员工'].map(r => ({ label: r, value: r }))} />
                       </Form.Item>
                     )}
                     {t === 'individual' && (
-                      <Form.Item name="targetUsers" label={<span className="text-[10px] font-bold text-white/40 uppercase">Select Target Entities</span>} rules={[{ required: true }]}>
-                        <Select mode="multiple" className="refined-select-dark min-h-[50px]" placeholder="搜索员工..." options={employees.map(e => ({ label: `${e.real_name} (@${e.username})`, value: e.user_id }))} />
+                      <Form.Item name="targetUsers" label="选择目标员工" rules={[{ required: true }]}>
+                        <Select mode="multiple" className="min-h-[44px]" placeholder="搜索员工..." options={employees.map(e => ({ label: `${e.real_name} (@${e.username})`, value: e.user_id }))} />
                       </Form.Item>
                     )}
                   </div>
@@ -426,98 +392,52 @@ const BroadcastManagement = () => {
             </Form.Item>
           </div>
 
-          <div className="flex justify-end gap-4 pt-4">
-            <Button 
-              size="large" 
-              className="rounded-2xl border-slate-200 h-14 px-8 font-black uppercase text-xs tracking-widest text-slate-400 hover:text-slate-600 transition-all" 
-              onClick={() => setModalVisible(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              size="large" 
-              icon={<Eye className="w-4 h-4" />} 
-              className="rounded-2xl border-slate-200 h-14 px-8 font-black uppercase text-xs tracking-widest text-slate-600 hover:border-slate-900 transition-all" 
-              onClick={handleOpenPreview}
-            >
-              Preview
-            </Button>
-            <Button 
-              type="primary" 
-              size="large" 
-              icon={<Send className="w-4 h-4" />} 
-              className="bg-slate-900 border-none rounded-2xl h-14 px-12 font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-slate-200" 
-              onClick={handleOpenPreview}
-            >
-              Execute
-            </Button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <Button size="large" className="rounded-xl border-gray-200 px-8 text-sm font-bold text-gray-500" onClick={() => setModalVisible(false)}>取消</Button>
+            <Button size="large" icon={<Eye size={16} />} className="rounded-xl border-gray-200 px-8 text-sm font-bold text-gray-700" onClick={handleOpenPreview}>预览</Button>
+            <Button type="primary" size="large" icon={<Send size={16} />} className="bg-slate-900 hover:bg-slate-800 border-none rounded-xl px-10 text-sm font-bold shadow-lg shadow-slate-200" onClick={handleOpenPreview}>确认发布</Button>
           </div>
         </Form>
       </Modal>
 
-      {/* 预览确认弹窗 - 沉浸式设计 */}
+      {/* 预览对话框 */}
       <Modal
         title={null}
         open={previewVisible}
         onCancel={() => setPreviewVisible(false)}
         footer={null}
         centered
-        width={480}
+        width={450}
         styles={{ body: { padding: 0 } }}
         closable={false}
-        className="preview-modal"
       >
-        <div className="overflow-hidden rounded-[32px] bg-white">
-          <div className="p-10 text-center space-y-6">
-            <div className={`w-20 h-20 mx-auto rounded-3xl bg-${typeConfig[previewData?.type]?.color}-50 flex items-center justify-center text-${typeConfig[previewData?.type]?.color}-600 shadow-inner border border-${typeConfig[previewData?.type]?.color}-100 animate-bounce-slow`}>
-              {previewData?.type && React.cloneElement(typeConfig[previewData?.type]?.icon, { className: 'w-10 h-10' })}
+        <div className="bg-white rounded-2xl overflow-hidden shadow-2xl">
+          <div className="p-8 text-center space-y-4">
+            <div className={`w-16 h-16 mx-auto rounded-2xl bg-${typeConfig[previewData?.type]?.color}-50 flex items-center justify-center text-${typeConfig[previewData?.type]?.color}-600 border border-${typeConfig[previewData?.type]?.color}-100`}>
+              {previewData?.type && React.cloneElement(typeConfig[previewData?.type]?.icon, { size: 32 })}
             </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Confirm Emission?</h3>
-              <p className="text-slate-400 text-sm font-bold leading-relaxed px-4">
-                You are about to transmit this signal across the entire network. This action cannot be revoked.
-              </p>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">确认发布此广播内容？</h3>
+              <p className="text-sm text-gray-400 mt-1">发布后将立即推送给所选目标，无法撤回</p>
             </div>
           </div>
 
-          <div className="px-10 pb-4">
-            <div className={`p-8 rounded-[24px] bg-${typeConfig[previewData?.type]?.color}-50/40 border border-${typeConfig[previewData?.type]?.color}-100/50 relative overflow-hidden group`}>
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                {previewData?.type && React.cloneElement(typeConfig[previewData?.type]?.icon, { className: 'w-24 h-24' })}
-              </div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${priorityConfig[previewData?.priority]?.color}`}>
+          <div className="px-8 pb-4">
+            <div className={`p-6 rounded-xl bg-gray-50 border border-gray-100 relative`}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[previewData?.priority]?.color}`}>
                   {priorityConfig[previewData?.priority]?.label}
                 </span>
-                <div className="w-1 h-1 rounded-full bg-slate-300" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter italic">Signal ready</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">就绪信号</span>
               </div>
-              <Title level={4} className="!mb-3 !font-black text-slate-900">{previewData?.title}</Title>
-              <Paragraph className="text-slate-600 text-sm leading-relaxed !mb-0 font-medium line-clamp-4">
-                {previewData?.content}
-              </Paragraph>
+              <h4 className="font-bold text-gray-900 text-base mb-2">{previewData?.title}</h4>
+              <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">{previewData?.content}</p>
             </div>
           </div>
 
-          <div className="p-10 pt-6 grid grid-cols-2 gap-4">
-            <Button 
-              block 
-              size="large" 
-              className="h-14 rounded-2xl font-black uppercase text-xs tracking-widest border-slate-200 text-slate-400 hover:text-slate-600 transition-all" 
-              onClick={() => setPreviewVisible(false)}
-            >
-              Back
-            </Button>
-            <Button 
-              block 
-              type="primary" 
-              size="large" 
-              loading={submitting} 
-              className="h-14 bg-slate-900 border-none rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-200 transition-all active:scale-95" 
-              onClick={handleFinalSubmit}
-            >
-              Transmit
-            </Button>
+          <div className="p-8 pt-4 grid grid-cols-2 gap-3">
+            <Button block size="large" className="h-12 rounded-xl font-bold border-gray-200 text-gray-500" onClick={() => setPreviewVisible(false)}>修改</Button>
+            <Button block type="primary" size="large" loading={submitting} className="h-12 bg-slate-900 border-none rounded-xl font-bold shadow-lg" onClick={handleFinalSubmit}>立即发送</Button>
           </div>
         </div>
       </Modal>
