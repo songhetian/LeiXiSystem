@@ -23,8 +23,8 @@ function RoleDepartmentModal({ isOpen, onClose, role, onSuccess }) {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
-      // 使用新的 /api/departments/all 端点获取所有部门
-      const response = await fetch(getApiUrl('/api/departments/all'), { headers })
+      // 使用新的 /api/departments/all 端点获取所有部门 (包括停用的)
+      const response = await fetch(getApiUrl('/api/departments/all?includeInactive=true'), { headers })
       const result = await response.json()
 
       if (result.success) {

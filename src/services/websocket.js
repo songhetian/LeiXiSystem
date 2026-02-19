@@ -93,6 +93,25 @@ class WebSocketManager {
       this.emit('unread_count', data)
     })
 
+    // --- 新增聊天相关监听 ---
+    
+    // 收到新消息
+    this.socket.on('receive_message', (msg) => {
+      console.log('💬 [WebSocket] 收到新消息:', msg)
+      this.emit('chat_message', msg)
+    })
+
+    // 群成员变动
+    this.socket.on('member_update', (data) => {
+      console.log('👥 [WebSocket] 群成员变动:', data)
+      this.emit('member_update', data)
+    })
+
+    // 未读计数精准更新
+    this.socket.on('unread_count_update', (data) => {
+      this.emit('unread_count_update', data)
+    })
+
     // Pong响应
     this.socket.on('pong', (data) => {
       // console.log('🏓 [WebSocket] Pong received')

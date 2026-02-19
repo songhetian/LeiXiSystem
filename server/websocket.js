@@ -58,15 +58,20 @@ function setupWebSocket(server, redis, getPool) {
     redis.del('online_users').catch(err => console.error('Redis 清理在线列表失败:', err));
   }
 
-  io.use((socket, next) => {
+io.use((socket, next) => {
     const token = socket.handshake.auth.token
     if (!token) return next(new Error('Authentication error: No token provided'))
     try {
-      const decoded = jwt.verify(token, JWT_SECRET)
-      socket.userId = String(decoded.id); // 强制转字符串
+      // 统一使用全局 JWT_SECRET
+      const secret = process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ';
+      const decoded = jwt.verify(token, secret)
+      socket.userId = String(decoded.id); // 强制转字符串，确保后续查询一致
       socket.username = decoded.username || decoded.real_name
       next()
-    } catch (err) { next(new Error('Authentication error: Invalid token')) }
+    } catch (err) { 
+      console.error(`❌ [WebSocket] 认证失败: ${err.message}`);
+      next(new Error('Authentication error: Invalid token')) 
+    }
   })
 
   io.on('connection', async (socket) => {
@@ -94,6 +99,23 @@ function setupWebSocket(server, redis, getPool) {
       if (redis) await redis.sadd('online_users', userId);
       socket.emit('pong', { timestamp: Date.now() })
     })
+
+    // --- Notification Events ---
+    
+    // 响应未读数请求
+    socket.on('request_unread_count', async () => {
+        try {
+            const pool = getPool ? getPool() : null;
+            if (!pool) return;
+            const [result] = await pool.query(
+                'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+                [userId]
+            );
+            socket.emit('unread_count', { count: result[0].count });
+        } catch (err) {
+            console.error('Failed to fetch unread count via Socket:', err);
+        }
+    });
 
     // --- Chat Events ---
 
@@ -195,13 +217,30 @@ function broadcastNotification(io, userIds, notification) {
 }
 
 function sendBroadcast(io, userIds, broadcast) {
-  userIds.forEach(userId => {
-    if (io.redis) {
-        io.redis.publish('system_notifications', JSON.stringify({ ...broadcast, userId, category: 'broadcast' }));
+  // 1. 如果有 Redis，通过 Redis 发布实现跨服务器同步（这是推荐方式）
+  if (io.redis) {
+    if (!userIds || userIds.length === 0) {
+      // 全体广播
+      io.redis.publish('system_notifications', JSON.stringify({ ...broadcast, category: 'broadcast' }));
     } else {
-        io.to(`user_${userId}`).emit('new_broadcast', broadcast)
+      // 定向广播
+      userIds.forEach(userId => {
+        io.redis.publish('system_notifications', JSON.stringify({ ...broadcast, userId: String(userId), category: 'broadcast' }));
+      });
     }
-  });
+    return;
+  }
+
+  // 2. 本地 Socket.io 推送兜底
+  if (!userIds || userIds.length === 0) {
+    // 全体广播
+    io.emit('new_broadcast', broadcast);
+  } else {
+    // 定向广播给在线用户
+    userIds.forEach(userId => {
+      io.to(`user_${String(userId)}`).emit('new_broadcast', broadcast);
+    });
+  }
 }
 
 function sendMemoToUser(io, userId, memo) {

@@ -12,7 +12,8 @@ module.exports = async function (fastify, opts) {
     if (!token) {
       throw new Error('未登录')
     }
-    const decoded = jwt.verify(token, JWT_SECRET)
+    // 使用 process.env.JWT_SECRET 确保与主服务一致
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ')
     return decoded
   }
 
@@ -211,18 +212,20 @@ module.exports = async function (fastify, opts) {
 
           // 1. 如果有 Redis，通过 Redis 发布，实现跨服务器同步
           if (fastify.redis) {
+            const redisPayload = JSON.stringify({
+              ...broadcastData,
+              category: 'broadcast'
+            });
+
             if (targetType === 'all') {
               console.log('[Broadcast] 通过 Redis 发布全体广播');
-              fastify.redis.publish('system_notifications', JSON.stringify({
-                ...broadcastData,
-                category: 'broadcast'
-              }));
+              fastify.redis.publish('system_notifications', redisPayload);
             } else {
               console.log(`[Broadcast] 通过 Redis 向 ${targetUserIds.length} 个用户发布定向广播`);
               targetUserIds.forEach(targetId => {
                 fastify.redis.publish('system_notifications', JSON.stringify({
                   ...broadcastData,
-                  userId: targetId,
+                  userId: String(targetId),
                   category: 'broadcast'
                 }));
               });

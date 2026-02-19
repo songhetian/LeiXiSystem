@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Table, Select, Button, message, Tag, Space, Typography } from 'antd'
-import { BellOutlined, SaveOutlined } from '@ant-design/icons'
+import { Card, Table, Select, Button, message, Tag, Space, Typography, Switch } from 'antd'
+import { BellOutlined, SaveOutlined, MessageOutlined, DesktopOutlined } from '@ant-design/icons'
 import { getApiUrl } from '../utils/apiConfig'
 import { apiGet, apiPut } from '../utils/apiClient'
-
-const { Title, Text } = Typography
-const { Option } = Select
-
+import { useChatStore } from '../hooks/useChatStore'
 import Breadcrumb from './Breadcrumb'
+
+const { Title, Text, Paragraph } = Typography
+const { Option } = Select
 
 const NotificationSettings = () => {
   const [loading, setLoading] = useState(false)
+  const { 
+    notificationEnabled, 
+    toggleNotification, 
+    systemNotificationEnabled, 
+    toggleSystemNotification 
+  } = useChatStore();
+  
   /* --- State Variables --- */
   const [settings, setSettings] = useState([])
   const [roles, setRoles] = useState([])
@@ -137,10 +144,53 @@ const NotificationSettings = () => {
   })
 
   return (
-    <div className="p-6">
-      <Card title={<Title level={4}>通知设置</Title>} bordered={false}>
+    <div className="p-6 max-w-4xl mx-auto">
+      <Breadcrumb items={['系统管理', '通知设置']} />
+      
+      <Card 
+        className="mb-6 rounded-xl shadow-sm border-gray-100" 
+        title={<Space><MessageOutlined className="text-green-500" /><span>个人消息提醒设置</span></Space>}
+      >
+        <div className="space-y-6 p-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <Text strong className="text-base">全局消息弹窗</Text>
+              <Paragraph type="secondary" className="mb-0">
+                收到新聊天消息时，在页面右上角显示实时悬浮提示
+              </Paragraph>
+            </div>
+            <Switch 
+              checked={notificationEnabled} 
+              onChange={toggleNotification}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Text strong className="text-base">系统级桌面通知</Text>
+              <Paragraph type="secondary" className="mb-0">
+                当浏览器处于后台或最小化时，通过操作系统发送桌面通知
+              </Paragraph>
+            </div>
+            <Switch 
+              checked={systemNotificationEnabled} 
+              onChange={toggleSystemNotification}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card 
+        title={<Space><BellOutlined className="text-blue-500" /><span>业务通知规则配置</span></Space>} 
+        bordered={false}
+        className="rounded-xl shadow-sm border-gray-100"
+      >
         <div className="mb-4 text-gray-500">
-          配置各类系统事件触发时，哪些角色的用户会收到通知弹窗。
+          管理员配置：各类系统业务事件（如审批、考试）触发时，哪些角色的用户会收到推送。
         </div>
         <Table
           columns={columns}

@@ -76,17 +76,23 @@ const permissionRoutes = async (fastify, options) => {
   }, async (request, reply) => {
     const connection = await fastify.mysql.getConnection();
     try {
-      const [roles] = await connection.query('SELECT id, name, description, level, is_system, created_at, updated_at FROM roles ORDER BY id');
+      // 优化查询逻辑，使用多表关联减少查询次数
+      const [roles] = await connection.query(`
+        SELECT id, name, description, level, is_system, created_at, updated_at 
+        FROM roles 
+        ORDER BY id
+      `);
 
-      // Get permissions for each role
+      // 获取所有角色关联的权限，通过一次查询获取，然后在内存中映射
+      const [allPermissions] = await connection.query(`
+        SELECT rp.role_id, p.*
+        FROM permissions p
+        JOIN role_permissions rp ON p.id = rp.permission_id
+      `);
+
+      // 将权限数据映射到各个角色
       for (let role of roles) {
-        const [perms] = await connection.query(`
-          SELECT p.*
-          FROM permissions p
-          JOIN role_permissions rp ON p.id = rp.permission_id
-          WHERE rp.role_id = ?
-        `, [role.id]);
-        role.permissions = perms;
+        role.permissions = allPermissions.filter(p => p.role_id === role.id);
       }
 
       return { success: true, data: roles };
@@ -112,15 +118,15 @@ const permissionRoutes = async (fastify, options) => {
   fastify.post('/api/roles', {
     preHandler: requirePermission('system:role:manage')
   }, async (request, reply) => {
-    const { name, description, permissionIds } = request.body;
+    const { name, description, permissionIds, is_system } = request.body;
     const connection = await fastify.mysql.getConnection();
     try {
       await connection.beginTransaction();
 
       // 检查是否尝试创建同名的超级管理员角色
-      if (name === '超级管理员') {
+      if (name === '超级管理员' || (is_system && is_system === 1)) {
         await connection.rollback();
-        return reply.code(403).send({ success: false, message: '不能创建名称为超级管理员的角色' });
+        return reply.code(403).send({ success: false, message: '不能创建系统内置角色' });
       }
 
       // 检查是否已存在同名角色
@@ -135,7 +141,7 @@ const permissionRoutes = async (fastify, options) => {
       }
 
       const [result] = await connection.query(
-        'INSERT INTO roles (name, description) VALUES (?, ?)',
+        'INSERT INTO roles (name, description, is_system) VALUES (?, ?, 0)',
         [name, description]
       );
       const roleId = result.insertId;
@@ -168,17 +174,25 @@ const permissionRoutes = async (fastify, options) => {
     try {
       await connection.beginTransaction();
 
-      // 检查是否为超级管理员角色
+      // 获取角色当前信息进行验证
       const [roleRows] = await connection.query('SELECT name, is_system FROM roles WHERE id = ?', [id]);
-      if (roleRows.length > 0) {
-        const role = roleRows[0];
-        // 如果是系统角色且原名称为'超级管理员'，不允许修改名称
-        if (role.is_system === 1 && role.name === '超级管理员' && name !== '超级管理员') {
+      if (roleRows.length === 0) {
+        await connection.rollback();
+        return reply.code(404).send({ success: false, message: '角色不存在' });
+      }
+
+      const role = roleRows[0];
+      
+      // 核心保护：禁止修改系统内置标识
+      // 如果尝试修改名称，验证是否为超级管理员保护的角色
+      if (role.is_system === 1) {
+        if (role.name === '超级管理员' && name !== '超级管理员') {
           await connection.rollback();
           return reply.code(403).send({ success: false, message: '不能修改超级管理员角色的名称' });
         }
       }
 
+      // 更新基本信息，明确排除 is_system 的修改
       await connection.query(
         'UPDATE roles SET name = ?, description = ? WHERE id = ?',
         [name, description, id]
@@ -623,11 +637,16 @@ const permissionRoutes = async (fastify, options) => {
       await connection.query('DELETE FROM role_departments WHERE role_id = ?', [id]);
 
       if (Array.isArray(department_ids) && department_ids.length > 0) {
-        const values = department_ids.map(deptId => [id, deptId]);
-        await connection.query(
-          'INSERT INTO role_departments (role_id, department_id) VALUES ?',
-          [values]
-        );
+        // Filter out invalid or non-numeric IDs to prevent SQL errors
+        const validDeptIds = department_ids.filter(id => id && !isNaN(id));
+        
+        if (validDeptIds.length > 0) {
+          const values = validDeptIds.map(deptId => [id, deptId]);
+          await connection.query(
+            'INSERT INTO role_departments (role_id, department_id) VALUES ?',
+            [values]
+          );
+        }
       }
 
       await connection.commit();

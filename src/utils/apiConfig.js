@@ -37,6 +37,12 @@ export async function loadRuntimeConfig() {
 }
 
 export const getApiBaseUrl = () => {
+  // 0. 开发环境 (npm run dev): 强制使用 Vite 代理
+  // 忽略 config.json 配置，确保连接本地后端
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+
   // 1. 优先尝试从 localStorage 获取运行时配置（供同步调用）
   const savedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('runtime_api_base_url') : null;
   if (savedUrl) {
@@ -69,6 +75,11 @@ export const getApiBaseUrl = () => {
  * 用于 Electron 打包后的应用
  */
 export async function getApiBaseUrlAsync() {
+  // 0. 开发环境 (npm run dev): 强制使用 Vite 代理
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+
   // 1. 尝试加载运行时配置
   const runtimeConfig = await loadRuntimeConfig();
   if (runtimeConfig?.apiBaseUrl) {

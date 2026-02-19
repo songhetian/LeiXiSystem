@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const { broadcastNotification } = require('../websocket')
 const { recordLog } = require('../utils/logger')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const JWT_SECRET = process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ'
 
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
@@ -338,6 +338,41 @@ module.exports = async function (fastify, opts) {
           return reply.code(500).send({ success: false })
       }
   })
+
+  // 7. Mark Messages as Read
+  fastify.post('/api/chat/read', async (request, reply) => {
+    try {
+      const user = getUserFromToken(request);
+      const { groupId, messageId } = request.body;
+
+      if (!groupId) return reply.code(400).send({ success: false, message: 'Missing groupId' });
+
+      // 如果提供了 messageId，则更新到该位置；否则尝试获取最新一条消息 ID
+      let finalId = messageId;
+      if (!finalId) {
+        const [lastMsg] = await pool.query(
+          'SELECT id FROM chat_messages WHERE group_id = ? ORDER BY id DESC LIMIT 1',
+          [groupId]
+        );
+        finalId = lastMsg[0]?.id || 0;
+      }
+
+      await pool.query(
+        'UPDATE chat_group_members SET last_read_message_id = ? WHERE group_id = ? AND user_id = ?',
+        [finalId, groupId, user.id]
+      );
+
+      // 如果有 Socket.io，可以选发一个未读数更新事件
+      if (fastify.io) {
+        fastify.io.to(`user_${user.id}`).emit('unread_count_update', { groupId, lastReadId: finalId });
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('[Chat Read] Error:', err);
+      return reply.code(500).send({ success: false });
+    }
+  });
 
   // 8. Update Group (Admin/Owner only)
   fastify.put('/api/chat/groups/:id', async (request, reply) => {

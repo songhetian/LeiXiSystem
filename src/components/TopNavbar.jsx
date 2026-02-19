@@ -16,23 +16,6 @@ import NotificationDropdown from './NotificationDropdown';
 
 const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread, onNavigate, zoomLevel = 100, onZoomChange }) => {
   const [showNotifications, setShowNotifications] = useState(false);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchUnreadCount();
-    }
-  }, [user?.id]);
-
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await axios.get(getApiUrl(`/api/notifications/unread-count?userId=${user.id}`));
-      if (response.data.success && onUpdateUnread) {
-        onUpdateUnread(response.data.count);
-      }
-    } catch (error) {
-      console.error('Failed to fetch unread count in TopNavbar:', error);
-    }
-  };
   // Menu items definition (copied from Sidebar for breadcrumb mapping)
   // Ideally this should be in a shared config file
   // Menu items definition (copied from Sidebar for breadcrumb mapping)

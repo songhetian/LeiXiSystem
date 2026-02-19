@@ -172,7 +172,7 @@ function DepartmentManagement() {
   // 抽离状态变更逻辑
   const performStatusChange = async (newStatus) => {
     try {
-      const response = await fetch(getApiUrl(`/api/departments/${statusChangingDept.id}`), {
+      const response = await fetch(getApiUrl(`/api/departments/update/${statusChangingDept.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,8 +206,8 @@ function DepartmentManagement() {
     e.preventDefault()
     try {
       const url = editingDept
-        ? getApiUrl(`/api/departments/${editingDept.id}`)
-        : getApiUrl('/api/departments')
+        ? getApiUrl(`/api/departments/update/${editingDept.id}`)
+        : getApiUrl('/api/departments/create')
 
       const response = await fetch(url, {
         method: editingDept ? 'PUT' : 'POST',
@@ -216,13 +216,21 @@ function DepartmentManagement() {
       })
 
       if (response.ok) {
-        toast.success(editingDept ? '部门更新成功' : '部门创建成功')
+        const result = await response.json();
+        if (editingDept) {
+          toast.success('部门更新成功')
+        } else {
+          toast.success('部门及关联聊天群组创建成功')
+        }
         setIsModalOpen(false)
         fetchDepartments()
         resetForm()
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.message || '操作失败')
       }
     } catch (error) {
-      toast.error('操作失败')
+      toast.error('网络连接失败')
     }
   }
 
@@ -252,7 +260,7 @@ function DepartmentManagement() {
       message: confirmMsg,
       onConfirm: async () => {
         try {
-          const response = await fetch(getApiUrl(`/api/departments/${dept.id}`), {
+          const response = await fetch(getApiUrl(`/api/departments/delete/${dept.id}`), {
             method: 'DELETE'
           })
           if (response.ok) {
@@ -274,7 +282,7 @@ function DepartmentManagement() {
       message: '确定要恢复这个部门吗？\n\n恢复后部门和员工状态将变为启用。',
       onConfirm: async () => {
         try {
-          const response = await fetch(getApiUrl(`/api/departments/${id}/restore`), {
+          const response = await fetch(getApiUrl(`/api/departments/restore/${id}`), {
             method: 'POST'
           })
           if (response.ok) {
@@ -293,6 +301,32 @@ function DepartmentManagement() {
     setFormData({ name: '', description: '', status: 'active' })
     setEditingDept(null)
   }
+
+  const handleSyncGroups = async () => {
+    setConfirmDialogConfig({
+      title: '一键同步群组',
+      message: '系统将扫描所有部门，自动补全缺失的聊天群组，并将部门下的所有在职员工同步加入群聊。是否继续？',
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(getApiUrl('/api/departments/sync-all-groups'), {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const result = await response.json();
+          if (response.ok) {
+            toast.success(result.message);
+            fetchDepartments();
+          } else {
+            toast.error(result.message || '同步失败');
+          }
+        } catch (error) {
+          toast.error('网络错误，请稍后再试');
+        }
+      }
+    });
+    setIsConfirmDialogOpen(true);
+  };
 
   return (
     <div className="p-6">
@@ -346,6 +380,15 @@ function DepartmentManagement() {
             />
             显示已删除
           </label>
+          <button
+            onClick={handleSyncGroups}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            同步群组
+          </button>
           <button
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors shadow-sm"

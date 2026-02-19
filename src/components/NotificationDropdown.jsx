@@ -10,7 +10,8 @@ import {
   DocumentTextIcon,
   CalendarIcon,
   ExclamationCircleIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  MegaphoneIcon
 } from '@heroicons/react/24/outline';
 
 const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
@@ -62,7 +63,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         params: {
           userId,
           page: 1,
-          limit: 5, // Only show latest 5
+          pageSize: 5, // Only show latest 5
         }
       });
 
@@ -104,11 +105,14 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     }
   };
 
-  const markAsRead = async (id) => {
+  const markAsRead = async (id, category) => {
     try {
-      await axios.put(getApiUrl(`/api/notifications/${id}/read`));
+      const url = category === 'broadcast' 
+        ? getApiUrl(`/api/broadcasts/${id}/read`)
+        : getApiUrl(`/api/notifications/${id}/read`);
+      await axios.put(url);
       setNotifications(prev => prev.map(n =>
-        n.id === id ? { ...n, is_read: 1 } : n
+        (n.id === id && n.category === category) ? { ...n, is_read: 1 } : n
       ));
       loadUnreadCount();
     } catch (error) {
@@ -118,7 +122,14 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
 
   const handleNotificationClick = (notification) => {
     if (!notification.is_read) {
-      markAsRead(notification.id);
+      markAsRead(notification.id, notification.category);
+    }
+
+    // Handle broadcast type
+    if (notification.category === 'broadcast' || notification.related_type === 'broadcast') {
+      onNavigate('messaging-broadcast');
+      onClose();
+      return;
     }
 
     // Check if it is an exam notification
@@ -150,7 +161,9 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     onClose();
   };
 
-  const getIcon = (type) => {
+  const getIcon = (type, category) => {
+    if (category === 'broadcast') return <MegaphoneIcon className="w-5 h-5" />;
+    
     switch (type) {
       case 'clock_reminder': return <ClockIcon className="w-5 h-5" />;
       case 'leave_approval': return <DocumentTextIcon className="w-5 h-5" />;
@@ -166,7 +179,9 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     }
   };
 
-  const getColorClass = (type) => {
+  const getColorClass = (type, category) => {
+    if (category === 'broadcast') return 'bg-yellow-100 text-yellow-600';
+
     switch (type) {
       case 'clock_reminder': return 'bg-orange-100 text-orange-600';
       case 'leave_approval': return 'bg-green-100 text-green-600';
@@ -186,21 +201,21 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     <>
     <div
       ref={dropdownRef}
-      className="absolute top-12 right-0 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-fade-in-down"
+      className="absolute top-10 right-0 w-72 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in-down"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-gray-800">通知中心</h3>
+      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-bold text-gray-800">通知</h3>
           {unreadCount > 0 && (
-            <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+            <span className="bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full leading-none">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
         </div>
         <button
           onClick={markAllAsRead}
-          className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline disabled:opacity-50 disabled:no-underline"
+          className="text-[10px] text-blue-600 hover:text-blue-700 font-bold disabled:opacity-50"
           disabled={unreadCount === 0}
         >
           全部已读
@@ -208,53 +223,43 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       </div>
 
       {/* List */}
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
         {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-4 text-center text-gray-400 text-[10px]">
             加载中...
           </div>
         ) : notifications.length === 0 ? (
-          <div className="p-8 text-center">
-            <BellIcon className="w-12 h-12 text-gray-200 mx-auto mb-2" />
-            <p className="text-gray-400 text-sm">暂无新通知</p>
+          <div className="p-6 text-center">
+            <BellIcon className="w-8 h-8 text-gray-200 mx-auto mb-1" />
+            <p className="text-gray-400 text-xs">暂无新通知</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
             {notifications.map(notification => (
               <div
-                key={notification.id}
+                key={`${notification.category}-${notification.id}`}
                 onClick={() => handleNotificationClick(notification)}
                 className={`
-                  p-4 hover:bg-gray-50 transition-colors cursor-pointer flex gap-3
+                  p-2.5 hover:bg-gray-50 transition-colors cursor-pointer flex gap-2.5
                   ${!notification.is_read ? 'bg-blue-50/30' : ''}
                 `}
               >
-                <div className={`p-2 rounded-lg h-fit shrink-0 ${getColorClass(notification.type)}`}>
-                  {getIcon(notification.type)}
+                <div className={`p-1.5 rounded-md h-fit shrink-0 ${getColorClass(notification.type, notification.category)}`}>
+                  {React.cloneElement(getIcon(notification.type, notification.category), { className: 'w-4 h-4' })}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className={`text-sm font-medium truncate pr-2 ${!notification.is_read ? 'text-gray-900' : 'text-gray-600'}`}>
+                  <div className="flex justify-between items-start mb-0.5">
+                    <h4 className={`text-xs font-bold truncate pr-1 ${!notification.is_read ? 'text-gray-900' : 'text-gray-600'}`}>
                       {notification.title}
                     </h4>
-                    <span className="text-xs text-gray-400 shrink-0">
-                      {new Date(notification.created_at).toLocaleString('zh-CN', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                    <span className="text-[9px] text-gray-400 shrink-0 font-medium">
+                      {new Date(notification.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] text-gray-500 line-clamp-1 leading-tight">
                     {notification.content}
                   </p>
                 </div>
-                {!notification.is_read && (
-                  <div className="shrink-0 self-center">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -262,13 +267,13 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       </div>
 
       {/* Footer */}
-      <div className="p-2 border-t border-gray-100 bg-gray-50/50">
+      <div className="border-t border-gray-100 bg-gray-50/30">
         <button
           onClick={() => {
             onNavigate('my-notifications');
             onClose();
           }}
-          className="w-full py-2 text-center text-sm text-gray-600 hover:text-blue-600 hover:bg-gray-100 font-medium transition-colors rounded-lg"
+          className="w-full py-2 text-center text-[11px] text-gray-500 hover:text-blue-600 hover:bg-gray-100 font-bold transition-colors"
         >
           查看全部通知
         </button>

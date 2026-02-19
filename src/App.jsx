@@ -12,6 +12,7 @@ import NotFound from './pages/NotFound'
 import { wsManager } from './services/websocket'
 import { soundManager } from './utils/soundManager'
 import { PermissionProvider, usePermission } from './contexts/PermissionContext'
+import { useChatStore } from './hooks/useChatStore'
 
 // Lazy-loaded components
 const Login = lazy(() => import('./pages/Login'));
@@ -148,6 +149,71 @@ function App() {
     }
     return { name: 'dashboard', params: {} };
   });
+
+  const { 
+    setTotalUnreadCount, 
+    incrementUnreadCount,
+    notificationEnabled,
+    systemNotificationEnabled 
+  } = useChatStore();
+
+  // 全局聊天消息处理
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const handleGlobalChatMessage = (msg) => {
+      // 1. 如果已经在聊天页面，不显示全局弹窗（由页面内部处理）
+      const isOnChatPage = activeTab.name === 'messaging-chat';
+      
+      // 2. 更新未读计数 (如果是他人发送的)
+      if (!isOnChatPage && String(msg.sender_id) !== String(user?.id)) {
+        incrementUnreadCount();
+        
+        // 3. 显示全局 Toast (如果通知已开启)
+        if (notificationEnabled) {
+          const senderName = msg.sender_name || '新消息';
+          const content = msg.msg_type === 'text' ? msg.content : '[图片/文件]';
+          
+          toast(senderName, {
+            description: content,
+            action: {
+              label: '查看',
+              onClick: () => handleSetActiveTab('messaging-chat')
+            },
+            duration: 5000
+          });
+        }
+
+        // 4. 显示系统桌面通知
+        if (systemNotificationEnabled && "Notification" in window && Notification.permission === "granted") {
+          new Notification(msg.sender_name || '新消息', {
+            body: msg.msg_type === 'text' ? msg.content : '[图片/文件]',
+            icon: '/icons/logo.ico'
+          });
+        }
+      }
+    };
+
+    wsManager.on('chat_message', handleGlobalChatMessage);
+    
+    // 初始化请求总未读数
+    const loadInitialChatUnread = async () => {
+      try {
+        const res = await fetch(getApiUrl('/api/chat/contacts'), {
+          headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          const total = data.data.reduce((sum, g) => sum + (g.is_muted ? 0 : (g.unread_count || 0)), 0);
+          setTotalUnreadCount(total);
+        }
+      } catch (e) {}
+    };
+    
+    loadInitialChatUnread();
+
+    return () => wsManager.off('chat_message', handleGlobalChatMessage);
+  }, [activeTab.name, notificationEnabled, systemNotificationEnabled, isLoggedIn, user?.id]);
   const [showMemoPopup, setShowMemoPopup] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0) // 未读通知数
 
@@ -313,20 +379,29 @@ function App() {
         announcement: toast.info
       }
 
-      const toastMethod = typeConfig[broadcast.type] || toast.info
+      // 确保 toastMethod 始终是一个有效的函数
+      const toastType = broadcast.type || 'info';
+      const toastMethod = typeConfig[toastType] || toast.info;
 
-      console.log('📣 准备显示广播Toast:', broadcast.title);
+      console.log(`📣 准备显示广播Toast: "${broadcast.title}", 类型: ${toastType}`);
+
+      if (typeof toastMethod !== 'function') {
+        console.error('❌ toastMethod is not a function!', toastMethod);
+        toast.info(broadcast.title || '系统广播', { description: broadcast.content });
+        return;
+      }
 
       toastMethod(broadcast.title || '系统广播', {
         description: broadcast.content,
-        duration: 10000, // 广播停留时间长一点
+        duration: 10000, 
         position: 'bottom-right',
-        className: 'broadcast-toast',
         action: {
           label: '查看',
           onClick: () => handleSetActiveTab('messaging-broadcast')
         }
       })
+      // 📊 新增：广播也应该更新未读数（小铃铛红点）
+      setUnreadCount(prev => prev + 1)
     }
 
     // 监听下线指令
@@ -425,6 +500,15 @@ function App() {
       checkUnreadNotifications()
     })
   }
+
+  // 初始化请求通知权限
+  useEffect(() => {
+    if (isLoggedIn && systemNotificationEnabled && "Notification" in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, [isLoggedIn, systemNotificationEnabled]);
 
   const handleLogout = React.useCallback(async (reason = 'manual') => {
     console.warn(`🛑 [App] handleLogout 被调用！原因: ${reason}`);

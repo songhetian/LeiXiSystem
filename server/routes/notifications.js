@@ -21,8 +21,11 @@ module.exports = async function (fastify, opts) {
       }
 
       const offset = (parseInt(page) - 1) * parseInt(pageSize)
-      let query = `
-        SELECT
+      
+      // 构建合并查询：普通通知 + 系统广播
+      // 字段映射：id, user_id, type, title, content, related_id, related_type, is_read, created_at, category
+      let baseQuery = `
+        (SELECT
           id,
           user_id,
           type,
@@ -31,55 +34,74 @@ module.exports = async function (fastify, opts) {
           related_id,
           related_type,
           is_read,
-          created_at
+          created_at,
+          'notification' as category
         FROM notifications
-        WHERE user_id = ?
+        WHERE user_id = ?)
+        UNION ALL
+        (SELECT
+          b.id,
+          br.user_id,
+          b.type as type,
+          b.title,
+          b.content,
+          NULL as related_id,
+          'broadcast' as related_type,
+          br.is_read,
+          b.created_at,
+          'broadcast' as category
+        FROM broadcast_recipients br
+        INNER JOIN broadcasts b ON br.broadcast_id = b.id
+        WHERE br.user_id = ? AND (b.expires_at IS NULL OR b.expires_at > NOW()))
       `
-      const params = [userId]
+      
+      let params = [userId, userId]
+      let whereConditions = []
+      let filterParams = []
+
+      // 包装一层以便进行整体过滤
+      let wrapperQuery = `SELECT * FROM (${baseQuery}) as combined WHERE 1=1`
 
       // 搜索筛选
       if (search) {
-        query += ' AND (title LIKE ? OR content LIKE ?)'
-        params.push(`%${search}%`, `%${search}%`)
+        wrapperQuery += ' AND (title LIKE ? OR content LIKE ?)'
+        filterParams.push(`%${search}%`, `%${search}%`)
       }
 
-      // 类型筛选（支持多个类型，逗号分隔）
+      // 类型筛选
       if (type) {
         const types = type.split(',').map(t => t.trim())
         const placeholders = types.map(() => '?').join(',')
-        query += ` AND type IN (${placeholders})`
-        params.push(...types)
+        wrapperQuery += ` AND type IN (${placeholders})`
+        filterParams.push(...types)
       }
 
       // 已读状态筛选
       if (isRead !== undefined && isRead !== '') {
-        query += ' AND is_read = ?'
-        params.push(isRead === 'true' || isRead === '1' ? 1 : 0)
+        wrapperQuery += ' AND is_read = ?'
+        filterParams.push(isRead === 'true' || isRead === '1' ? 1 : 0)
       }
 
       // 日期范围筛选
       if (startDate) {
-        query += ' AND DATE(created_at) >= ?'
-        params.push(startDate)
+        wrapperQuery += ' AND DATE(created_at) >= ?'
+        filterParams.push(startDate)
       }
       if (endDate) {
-        query += ' AND DATE(created_at) <= ?'
-        params.push(endDate)
+        wrapperQuery += ' AND DATE(created_at) <= ?'
+        filterParams.push(endDate)
       }
 
       // 获取总数
-      const countQuery = query.replace(
-        'SELECT\n          id,\n          user_id,\n          type,\n          title,\n          content,\n          related_id,\n          related_type,\n          is_read,\n          created_at',
-        'SELECT COUNT(*) as total'
-      )
-      const [countResult] = await pool.query(countQuery, params)
+      const countQuery = `SELECT COUNT(*) as total FROM (${wrapperQuery}) as t`
+      const [countResult] = await pool.query(countQuery, [...params, ...filterParams])
       const total = countResult[0].total
 
       // 分页查询
-      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
-      params.push(parseInt(pageSize), offset)
+      const finalQuery = `${wrapperQuery} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      const finalParams = [...params, ...filterParams, parseInt(pageSize), offset]
 
-      const [notifications] = await pool.query(query, params)
+      const [notifications] = await pool.query(finalQuery, finalParams)
 
       return {
         success: true,
@@ -118,12 +140,22 @@ module.exports = async function (fastify, opts) {
       }
 
       // 2. Redis 没有，查 MySQL
-      const [result] = await pool.query(
+      // 同时统计通知表和广播接收表
+      const [[notifResult]] = await pool.query(
         'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
         [userId]
-      )
+      );
+      
+      const [[broadcastResult]] = await pool.query(
+        `SELECT COUNT(*) as count 
+         FROM broadcast_recipients br
+         INNER JOIN broadcasts b ON br.broadcast_id = b.id
+         WHERE br.user_id = ? AND br.is_read = FALSE
+         AND (b.expires_at IS NULL OR b.expires_at > NOW())`,
+        [userId]
+      );
 
-      const count = result[0].count;
+      const count = (notifResult.count || 0) + (broadcastResult.count || 0);
 
       // 3. 写入 Redis
       if (redis) {
@@ -167,6 +199,16 @@ module.exports = async function (fastify, opts) {
         await redis.del(`user:unread_count:${userId}`);
       }
 
+      // 🔴 实时推送未读数更新到前端
+      if (fastify.io) {
+        const [result] = await pool.query(
+          'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+          [userId]
+        );
+        const count = result[0].count;
+        fastify.io.to(`user_${userId}`).emit('unread_count', { count });
+      }
+
       return {
         success: true,
         message: '已标记为已读'
@@ -191,10 +233,21 @@ module.exports = async function (fastify, opts) {
         'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0',
         [userId]
       )
+      
+      // 同时标记广播为已读
+      await pool.query(
+        'UPDATE broadcast_recipients SET is_read = 1, read_at = NOW() WHERE user_id = ? AND is_read = 0',
+        [userId]
+      )
 
       // 更新 Redis 缓存为 0
       if (redis) {
         await redis.set(`user:unread_count:${userId}`, 0, 'EX', 3600);
+      }
+
+      // 🔴 实时推送未读数 0 到前端
+      if (fastify.io) {
+        fastify.io.to(`user_${userId}`).emit('unread_count', { count: 0 });
       }
 
       return {
@@ -232,6 +285,16 @@ module.exports = async function (fastify, opts) {
       // 清理 Redis 缓存
       if (redis) {
         await redis.del(`user:unread_count:${userId}`);
+      }
+
+      // 🔴 实时推送未读数更新到前端
+      if (fastify.io) {
+        const [result] = await pool.query(
+          'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+          [userId]
+        );
+        const count = result[0].count;
+        fastify.io.to(`user_${userId}`).emit('unread_count', { count });
       }
 
       return {

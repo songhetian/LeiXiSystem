@@ -18,8 +18,24 @@
   {
     "Field": "agent_id",
     "Type": "int",
-    "Null": "NO",
+    "Null": "YES",
     "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "external_agent_id",
+    "Type": "int",
+    "Null": "YES",
+    "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "agent_name",
+    "Type": "varchar(100)",
+    "Null": "YES",
+    "Key": "",
     "Default": null,
     "Extra": ""
   },
@@ -28,6 +44,14 @@
     "Type": "varchar(50)",
     "Null": "YES",
     "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "customer_name",
+    "Type": "varchar(100)",
+    "Null": "YES",
+    "Key": "",
     "Default": null,
     "Extra": ""
   },
@@ -97,7 +121,7 @@
   },
   {
     "Field": "grade",
-    "Type": "enum('excellent','good','average','poor')",
+    "Type": "varchar(20)",
     "Null": "YES",
     "Key": "MUL",
     "Default": null,
@@ -120,6 +144,22 @@
     "Extra": ""
   },
   {
+    "Field": "platform_id",
+    "Type": "int",
+    "Null": "YES",
+    "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "shop_id",
+    "Type": "int",
+    "Null": "YES",
+    "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
     "Field": "created_at",
     "Type": "datetime",
     "Null": "NO",
@@ -134,21 +174,5 @@
     "Key": "",
     "Default": "CURRENT_TIMESTAMP",
     "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
-  },
-  {
-    "Field": "platform",
-    "Type": "varchar(255)",
-    "Null": "NO",
-    "Key": "",
-    "Default": null,
-    "Extra": ""
-  },
-  {
-    "Field": "shop",
-    "Type": "varchar(255)",
-    "Null": "NO",
-    "Key": "",
-    "Default": null,
-    "Extra": ""
   }
 ]

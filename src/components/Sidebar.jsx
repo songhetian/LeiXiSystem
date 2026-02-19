@@ -43,6 +43,7 @@ import {
 
 import { Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { useChatStore } from '../hooks/useChatStore';
 
 // --- Component Definition ---
 
@@ -57,12 +58,16 @@ const Sidebar = ({
   onNavigate,
   theme = { background: '#F3F4F6' }
 }) => {
+  const { totalUnreadCount, notificationEnabled } = useChatStore();
+  
   // State to manage which menus are expanded
   const [expandedMenus, setExpandedMenus] = useState(['hr', 'hr-employee', 'collaboration', 'information']);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { hasPermission } = usePermission();
 
+  // ... (allMenuItems definition remains the same internally but will be accessed via props or context if needed)
+  
   // Recursive function to filter children based on permissions
   const filterChildren = (children) => {
     return children
@@ -232,6 +237,8 @@ const Sidebar = ({
           expandedMenus={expandedMenus}
           toggleMenu={toggleMenu}
           searchQuery={searchQuery}
+          chatUnreadCount={totalUnreadCount}
+          showChatBadge={notificationEnabled}
         />
       </div>
 
@@ -289,7 +296,7 @@ const UserInfo = ({ user, onNavigate }) => (
   </div>
 );
 
-const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery }) => (
+const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery, chatUnreadCount, showChatBadge }) => (
   <nav className="space-y-1">
     {menuItems.map(item => (
       <MenuItem
@@ -301,13 +308,15 @@ const MainMenu = ({ menuItems, activeTab, setActiveTab, expandedMenus, toggleMen
         expandedMenus={expandedMenus}
         toggleMenu={toggleMenu}
         searchQuery={searchQuery}
+        chatUnreadCount={chatUnreadCount}
+        showChatBadge={showChatBadge}
       />
     ))}
   </nav>
 );
 
 // Recursive MenuItem component
-const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery }) => {
+const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleMenu, searchQuery, chatUnreadCount, showChatBadge }) => {
   const isExpanded = expandedMenus.includes(item.id);
   const hasChildren = item.children && item.children.length > 0;
   const isActive = activeTab === item.id;
@@ -393,13 +402,23 @@ const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleM
         onClick={handleMenuClick}
         className={`w-full flex items-center justify-between ${styles.button}`}
       >
-        <div className="flex items-center gap-2.5">
-          <span className={styles.icon}>{item.icon}</span>
-          <span className={styles.text}>{highlightText(item.label)}</span>
+        <div className="flex-1 flex items-center justify-between min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={styles.icon}>{item.icon}</span>
+            <span className={styles.text + " truncate"}>{highlightText(item.label)}</span>
+          </div>
+          
+          {/* 未读数徽标 */}
+          {item.id === 'messaging-chat' && showChatBadge && chatUnreadCount > 0 && (
+            <span className="flex-shrink-0 ml-2 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full leading-none min-w-[18px] text-center">
+              {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+            </span>
+          )}
         </div>
+        
         {hasChildren && (
           <RightOutlined
-            className={`text-xs transition-transform duration-200 ${
+            className={`text-xs transition-transform duration-200 flex-shrink-0 ml-2 ${
               isExpanded ? 'rotate-90' : ''
             } ${isActive ? 'text-blue-600' : 'text-gray-400'}`}
           />
@@ -419,6 +438,8 @@ const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleM
               expandedMenus={expandedMenus}
               toggleMenu={toggleMenu}
               searchQuery={searchQuery}
+              chatUnreadCount={chatUnreadCount}
+              showChatBadge={showChatBadge}
             />
           ))}
         </div>
