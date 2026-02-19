@@ -31,7 +31,8 @@ import {
   FileSearchOutlined,
   ThunderboltOutlined,
   ReconciliationOutlined,
-  AuditOutlined
+  AuditOutlined,
+  PlusOutlined
 } from '@ant-design/icons';
 import { apiGet } from '../../utils/apiClient';
 import dayjs from 'dayjs';
