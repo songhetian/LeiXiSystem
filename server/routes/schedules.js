@@ -199,7 +199,7 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 批量创建排班
+  // 批量创建排班 (高性能原子版)
   fastify.post('/api/schedules/batch', async (request, reply) => {
     const { schedules } = request.body
 
@@ -207,52 +207,35 @@ module.exports = async function (fastify, opts) {
       return reply.code(400).send({ success: false, message: '排班数据不能为空' })
     }
 
-    const connection = await pool.getConnection()
-    await connection.beginTransaction()
-
     try {
-      let successCount = 0
-      let skipCount = 0
+      // 性能优化：使用 ON DUPLICATE KEY UPDATE 语法实现单次批量写入
+      // 假设 employee_id 和 schedule_date 构成了联合唯一索引或主键的一部分
+      const values = schedules.map(s => [
+        s.employee_id, 
+        s.shift_id || null, 
+        s.schedule_date, 
+        s.is_rest_day ? 1 : 0
+      ]);
 
-      for (const schedule of schedules) {
-        const { employee_id, shift_id, schedule_date, is_rest_day } = schedule
+      const sql = `
+        INSERT INTO shift_schedules (employee_id, shift_id, schedule_date, is_rest_day)
+        VALUES ?
+        ON DUPLICATE KEY UPDATE
+          shift_id = VALUES(shift_id),
+          is_rest_day = VALUES(is_rest_day),
+          updated_at = NOW()
+      `;
 
-        // 检查是否已有排班
-        const [existing] = await connection.query(
-          'SELECT id FROM shift_schedules WHERE employee_id = ? AND schedule_date = ?',
-          [employee_id, schedule_date]
-        )
-
-        if (existing.length > 0) {
-          // 更新现有排班
-          await connection.query(
-            'UPDATE shift_schedules SET shift_id = ?, is_rest_day = ? WHERE id = ?',
-            [shift_id || null, is_rest_day ? 1 : 0, existing[0].id]
-          )
-          successCount++
-        } else {
-          // 创建新排班
-          await connection.query(
-            'INSERT INTO shift_schedules (employee_id, shift_id, schedule_date, is_rest_day) VALUES (?, ?, ?, ?)',
-            [employee_id, shift_id || null, schedule_date, is_rest_day ? 1 : 0]
-          )
-          successCount++
-        }
-      }
-
-      await connection.commit()
-      connection.release()
+      const [result] = await pool.query(sql, [values]);
 
       return {
         success: true,
-        message: `批量排班成功，共处理 ${successCount} 条记录`,
-        data: { successCount, skipCount }
+        message: `批量排班成功，共处理 ${schedules.length} 条记录`,
+        data: { affectedRows: result.affectedRows }
       }
     } catch (error) {
-      await connection.rollback()
-      connection.release()
       console.error('批量创建排班失败:', error)
-      return reply.code(500).send({ success: false, message: '批量创建失败' })
+      return reply.code(500).send({ success: false, message: '批量处理失败: ' + error.message })
     }
   })
 

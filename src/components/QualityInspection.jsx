@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+// --- 性能优化巡检标识 ---
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js'

@@ -83,13 +83,21 @@ async function getUserPermissions(pool, userId, departmentIdFromToken, redis) {
     // 去重
     const uniqueViewableDepartmentIds = [...new Set(viewableDepartmentIds)];
 
+    // --- 性能优化：预生成 SQL 过滤片段 ---
+    const placeholders = uniqueViewableDepartmentIds.map(() => '?').join(',');
+    
     const permissions = {
       userId: user.id,
       username: user.username,
       departmentId: effectiveDepartmentId,
-      viewableDepartmentIds: uniqueViewableDepartmentIds, // 可查看的部门ID列表
-      canViewAllDepartments: canViewAllDepartments, // 是否可以查看所有部门
-      roles: roles
+      viewableDepartmentIds: uniqueViewableDepartmentIds, 
+      canViewAllDepartments: canViewAllDepartments, 
+      roles: roles,
+      // 预存占位符和逻辑片段
+      _filterCache: {
+        placeholders: placeholders,
+        isRestricted: !canViewAllDepartments
+      }
     };
 
     // 3. 写入 Redis 缓存 (有效期 1 小时)
@@ -147,39 +155,21 @@ async function extractUserPermissions(request, pool) {
  * @returns {Object} { query, params } - 修改后的查询和参数
  */
 function applyDepartmentFilter(permissions, query, params, departmentField = 'u.department_id', userField = 'u.id') {
-  console.log('[applyDepartmentFilter] Permissions:', {
-    userId: permissions.userId,
-    departmentId: permissions.departmentId,
-    canViewAllDepartments: permissions.canViewAllDepartments,
-    viewableDepartmentIds: permissions.viewableDepartmentIds
-  })
-
-  // 超级管理员可以查看所有数据，直接返回无过滤
-  if (permissions && permissions.canViewAllDepartments) {
-    console.log('[applyDepartmentFilter] Super admin - no department filtering')
+  // 超级管理员或无限制：直接通过
+  if (!permissions || permissions.canViewAllDepartments || !permissions._filterCache?.isRestricted) {
     return { query, params }
   }
 
-  // 如果没有权限信息（未登录或无角色），限制为看不到任何数据
-  if (!permissions) {
-    console.log('[applyDepartmentFilter] No permissions, blocking all data')
-    query += ` AND 1=0`
-    return { query, params }
-  }
+  const { placeholders } = permissions._filterCache;
 
-  // 严格根据 viewableDepartmentIds 过滤
-  if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
-    console.log(`[applyDepartmentFilter] Filtering by viewableDepartmentIds: ${permissions.viewableDepartmentIds.join(',')}`)
-    const placeholders = permissions.viewableDepartmentIds.map(() => '?').join(',')
-
-    // 允许查看指定部门的员工 OR 自己的记录
+  // 1. 如果有明确的部门列表：(dept IN (...) OR user = self)
+  if (placeholders) {
     query += ` AND (${departmentField} IN (${placeholders}) OR ${userField} = ?)`
     params.push(...permissions.viewableDepartmentIds, permissions.userId)
     return { query, params }
   }
 
-  // 如果没有可查看的部门列表，只能查看自己
-  console.log('[applyDepartmentFilter] No viewable departments, restricting to self')
+  // 2. 兜底逻辑：仅能看自己
   query += ` AND ${userField} = ?`
   params.push(permissions.userId)
   return { query, params }

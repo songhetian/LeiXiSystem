@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Card, Tag, Space, Modal, message, Input, Checkbox, Select, Form, Typography } from 'antd';
-import { UserOutlined, TeamOutlined, ReloadOutlined, EyeOutlined, LockOutlined } from '@ant-design/icons';
+import { Table, Button, Card, Tag, Space, Modal, message, Input, Checkbox, Select, Form, Typography, Badge, Tooltip } from 'antd';
+import { 
+  UserOutlined, 
+  TeamOutlined, 
+  ReloadOutlined, 
+  EyeOutlined, 
+  LockOutlined, 
+  CheckOutlined,
+  SafetyCertificateOutlined
+} from '@ant-design/icons';
 import { getApiUrl } from '../../utils/apiConfig';
 import { apiGet, apiPut, apiPost } from '../../utils/apiClient';
 // 导入部门权限模态框组件
@@ -21,8 +29,17 @@ const UserRoleManagement = () => {
   const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false);
   const [selectedUserForDepartment, setSelectedUserForDepartment] = useState(null);
 
-  // 搜索状态
+  // --- 性能优化：搜索防抖 ---
   const [searchText, setSearchText] = useState('');
+  const [displaySearchText, setDisplaySearchText] = useState(''); // 用于输入框实时显示
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchText(displaySearchText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [displaySearchText]);
+
   const [searchDepartment, setSearchDepartment] = useState('');
   const [searchRole, setSearchRole] = useState('');
 
@@ -44,37 +61,8 @@ const UserRoleManagement = () => {
     try {
       const response = await apiGet('/api/users-with-roles');
       if (response.success) {
-        // 获取每个用户的部门权限信息
-        const usersWithDepartments = await Promise.all(response.data.map(async (user) => {
-          try {
-            const deptResponse = await apiGet(`/api/users/${user.id}/departments`);
-            if (deptResponse.success) {
-              // 确保部门数据格式正确
-              const departments = Array.isArray(deptResponse.data) ? deptResponse.data : [];
-              return { ...user, departments: departments };
-            }
-          } catch (error) {
-            console.error(`获取用户 ${user.real_name} 的部门权限失败:`, error);
-          }
-          return { ...user, departments: [] };
-        }));
-        setUsers(usersWithDepartments);
-      } else if (Array.isArray(response)) {
-        // 兼容旧的API格式，也需要获取部门权限
-        const usersWithDepartments = await Promise.all(response.map(async (user) => {
-          try {
-            const deptResponse = await apiGet(`/api/users/${user.id}/departments`);
-            if (deptResponse.success) {
-              // 确保部门数据格式正确
-              const departments = Array.isArray(deptResponse.data) ? deptResponse.data : [];
-              return { ...user, departments: departments };
-            }
-          } catch (error) {
-            console.error(`获取用户 ${user.real_name} 的部门权限失败:`, error);
-          }
-          return { ...user, departments: [] };
-        }));
-        setUsers(usersWithDepartments);
+        // 性能优化：直接使用后端返回的聚合数据，消除 N+1 循环调用
+        setUsers(response.data || []);
       }
     } catch (error) {
       console.error('获取用户列表失败:', error);
@@ -138,7 +126,7 @@ const UserRoleManagement = () => {
 
   const handleManageRoles = (user) => {
     setSelectedUser(user);
-    // 提取用户当前的角色ID（单选）
+    // 性能优化：严格控制单角色逻辑
     const userRoleId = user.roles && user.roles.length > 0 ? user.roles[0].id : null;
     setSelectedRoles(userRoleId ? [userRoleId] : []);
     setModalVisible(true);
@@ -146,20 +134,23 @@ const UserRoleManagement = () => {
 
   const handleSaveRoles = async () => {
     try {
-      await apiPut(`/api/users/${selectedUser.id}/roles`, {
+      // 保持后端原子接口调用，但前端强制仅传一个或零个角色ID
+      await apiPut('/api/users/roles/batch', {
+        userIds: [selectedUser.id],
         roleIds: selectedRoles
       });
 
       message.success('角色分配成功');
       setModalVisible(false);
-      fetchUsers(); // 刷新用户列表
+      fetchUsers(); 
     } catch (error) {
       message.error('分配失败: ' + (error.message || '未知错误'));
     }
   };
 
-  const handleRoleChange = (roleIds) => {
-    setSelectedRoles(roleIds);
+  const handleRoleChange = (roleId) => {
+    // 将单选结果封装为数组，以适配后端批量接口
+    setSelectedRoles(roleId ? [roleId] : []);
   };
 
   // 处理员工部门权限管理
@@ -213,48 +204,67 @@ const UserRoleManagement = () => {
     {
       title: '用户信息',
       key: 'user-info',
+      width: 220,
       align: 'center',
       render: (_, record) => (
-        <div className="flex items-center justify-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-            <UserOutlined className="text-blue-600 text-sm" />
-          </div>
-          <div>
-            <div className="font-semibold text-gray-900">{record.real_name}</div>
-            <div className="text-xs text-gray-500">@{record.username}</div>
+        <div className="flex items-center justify-center gap-3 p-1 text-left">
+          <Badge dot status={record.status === 'active' ? 'success' : 'default'} offset={[-2, 32]}>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-100 overflow-hidden">
+              {record.avatar ? (
+                <img src={record.avatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <UserOutlined className="text-white text-lg" />
+              )}
+            </div>
+          </Badge>
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-slate-800 truncate">{record.real_name}</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter truncate">
+              @{record.username}
+            </span>
           </div>
         </div>
       ),
     },
     {
-      title: '部门',
+      title: '所属部门',
       dataIndex: 'department_name',
       key: 'department_name',
+      width: 150,
       align: 'center',
       render: (text) => (
-        <span className="text-sm text-gray-600">{text || '未分配'}</span>
+        <Tag bordered={false} className="bg-slate-100 text-slate-600 font-bold text-[11px] rounded-lg px-2.5 py-0.5">
+          {text || '未分配'}
+        </Tag>
       ),
     },
     {
-      title: '角色',
+      title: '权限角色',
       key: 'roles',
       align: 'center',
       render: (_, record) => (
-        <div>
+        <div className="flex flex-wrap gap-1.5 justify-center">
           {record.roles && record.roles.length > 0 ? (
-            <Tag
-              color="blue"
-              className="cursor-pointer"
-              onClick={() => handleManageRoles(record)}
-            >
-              {record.roles[0].name}
-            </Tag>
+            record.roles.map(role => (
+              <Tag
+                key={role.id}
+                bordered={false}
+                className={`cursor-pointer m-0 font-black text-[10px] px-2 py-0.5 rounded-md transition-all hover:scale-105 ${
+                  role.name === '超级管理员' 
+                    ? 'bg-rose-500 text-white shadow-sm shadow-rose-100' 
+                    : 'bg-blue-50 text-blue-600'
+                }`}
+                onClick={() => handleManageRoles(record)}
+              >
+                {role.name.toUpperCase()}
+              </Tag>
+            ))
           ) : (
             <Button
-              type="link"
+              type="dashed"
               size="small"
               onClick={() => handleManageRoles(record)}
-              className="text-blue-600 hover:text-blue-700 p-0"
+              className="text-[10px] font-bold text-slate-400 border-slate-200 rounded-lg hover:text-blue-500 hover:border-blue-200"
             >
               + 分配角色
             </Button>
@@ -263,7 +273,7 @@ const UserRoleManagement = () => {
       ),
     },
     {
-      title: '可查看部门',
+      title: '可查看范围',
       key: 'view-departments',
       align: 'center',
       render: (_, record) => {
@@ -276,42 +286,32 @@ const UserRoleManagement = () => {
               {displayDeps.map(dept => (
                 <span
                   key={dept.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-black text-purple-600 bg-purple-50 rounded-md border border-purple-100 uppercase tracking-tighter"
                 >
-                  <EyeOutlined className="text-xs" />
+                  <EyeOutlined className="text-[9px]" />
                   {dept.name}
                 </span>
               ))}
               {remainingCount > 0 && (
-                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg">
+                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-black text-purple-400 bg-white rounded-md border border-slate-100">
                   +{remainingCount}
                 </span>
               )}
             </div>
           );
         } else {
-          if (record.roles && record.roles.length > 0) {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 rounded-lg">
-                <EyeOutlined className="text-xs" />
-                默认权限
-              </span>
-            );
-          } else {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg">
-                <EyeOutlined className="text-xs" />
-                未分配
-              </span>
-            );
-          }
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-slate-300 bg-slate-50 rounded-md border border-slate-100 uppercase italic tracking-widest">
+              仅本人可见
+            </span>
+          );
         }
       },
     },
     {
       title: '操作',
       key: 'action',
-      width: 140,
+      width: 180,
       align: 'center',
       render: (_, record) => (
         <Space size="small">
@@ -319,7 +319,7 @@ const UserRoleManagement = () => {
             type="link"
             size="small"
             onClick={() => handleManageRoles(record)}
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 font-bold"
           >
             分配角色
           </Button>
@@ -327,7 +327,7 @@ const UserRoleManagement = () => {
             type="link"
             size="small"
             onClick={() => handleManageUserDepartments(record)}
-            className="text-purple-600 hover:text-purple-700"
+            className="text-purple-600 font-bold"
           >
             部门权限
           </Button>
@@ -342,34 +342,25 @@ const UserRoleManagement = () => {
       return;
     }
     setIsProcessingBatch(true);
-    setBatchProgress({ done: 0, total: selectedUserIds.length });
     try {
-      let failCount = 0;
-      for (let i = 0; i < selectedUserIds.length; i++) {
-        const userId = selectedUserIds[i];
-        try {
-          await apiPut(`/api/users/${userId}/roles`, { roleIds: [batchAssignRoleId] });
-        } catch (e) {
-          console.error(`为用户${userId}分配角色失败:`, e);
-          failCount += 1;
-        }
-        setBatchProgress(prev => ({ ...prev, done: i + 1 }));
+      // --- 性能优化：改用原子批量接口 ---
+      const response = await apiPut('/api/users/roles/batch', {
+        userIds: selectedUserIds,
+        roleIds: [batchAssignRoleId]
+      });
+
+      if (response.success) {
+        message.success(response.message || '批量分配成功');
+        setIsBatchAssignOpen(false);
+        setBatchAssignRoleId(null);
+        setSelectedUserIds([]);
+        fetchUsers();
       }
-      if (failCount === 0) {
-        message.success('分配角色成功');
-      } else {
-        message.error(`分配角色完成，但有 ${failCount} 人失败`);
-      }
-      setIsBatchAssignOpen(false);
-      setBatchAssignRoleId(null);
-      setSelectedUserIds([]);
-      fetchUsers();
     } catch (error) {
       console.error('批量分配失败:', error);
       message.error('批量分配失败: ' + (error.message || '未知错误'));
     } finally {
       setIsProcessingBatch(false);
-      setBatchProgress({ done: 0, total: 0 });
     }
   };
 
@@ -379,33 +370,24 @@ const UserRoleManagement = () => {
       return;
     }
     setIsProcessingBatch(true);
-    setBatchProgress({ done: 0, total: selectedUserIds.length });
     try {
-      let failCount = 0;
-      for (let i = 0; i < selectedUserIds.length; i++) {
-        const userId = selectedUserIds[i];
-        try {
-          await apiPut(`/api/users/${userId}/roles`, { roleIds: [] });
-        } catch (e) {
-          console.error(`从用户${userId}移除角色失败:`, e);
-          failCount += 1;
-        }
-        setBatchProgress(prev => ({ ...prev, done: i + 1 }));
+      // --- 性能优化：改用原子批量接口 (传空 roleIds 即为移除) ---
+      const response = await apiPut('/api/users/roles/batch', {
+        userIds: selectedUserIds,
+        roleIds: []
+      });
+
+      if (response.success) {
+        message.success(response.message || '批量移除成功');
+        setIsBatchRemoveOpen(false);
+        setSelectedUserIds([]);
+        fetchUsers();
       }
-      if (failCount === 0) {
-        message.success('删除角色成功');
-      } else {
-        message.error(`删除角色完成，但有 ${failCount} 人失败`);
-      }
-      setIsBatchRemoveOpen(false);
-      setSelectedUserIds([]);
-      fetchUsers();
     } catch (error) {
       console.error('批量移除失败:', error);
       message.error('批量移除失败: ' + (error.message || '未知错误'));
     } finally {
       setIsProcessingBatch(false);
-      setBatchProgress({ done: 0, total: 0 });
     }
   };
 
@@ -420,40 +402,35 @@ const UserRoleManagement = () => {
           </div>
         </div>
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">总员工数</div>
-                <div className="text-3xl font-bold text-gray-900">{filteredUsers.length}</div>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <UserOutlined className="w-6 h-6 text-blue-600" />
+        {/* 统计卡片 (视觉优化) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-[24px] p-6 shadow-xl shadow-blue-100 relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-blue-100 text-xs font-black uppercase tracking-widest mb-1">员工总数</div>
+              <div className="text-4xl font-black text-white">{filteredUsers.length}</div>
+              <div className="text-[10px] text-blue-200 mt-2 font-bold flex items-center gap-1">
+                <CheckOutlined className="text-[10px]" /> 在职成员已就绪
               </div>
             </div>
+            <UserOutlined className="absolute -right-4 -bottom-4 text-white/10 text-8xl transition-transform group-hover:scale-110" />
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">已选员工</div>
-                <div className="text-3xl font-bold text-gray-900">{selectedUserIds.length}</div>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <TeamOutlined className="w-6 h-6 text-purple-600" />
-              </div>
+
+          <div className="bg-white border border-slate-100 rounded-[24px] p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">已选重点</div>
+              <div className="text-4xl font-black text-slate-800">{selectedUserIds.length}</div>
+              <div className="text-[10px] text-indigo-500 mt-2 font-bold">可执行批量操作</div>
             </div>
+            <TeamOutlined className="absolute -right-4 -bottom-4 text-slate-50 text-8xl transition-transform group-hover:scale-110" />
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">角色数量</div>
-                <div className="text-3xl font-bold text-gray-900">{roles.length}</div>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <LockOutlined className="w-6 h-6 text-green-600" />
-              </div>
+
+          <div className="bg-slate-900 rounded-[24px] p-6 shadow-xl shadow-slate-200 relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">权限角色</div>
+              <div className="text-4xl font-black text-white">{roles.length}</div>
+              <div className="text-[10px] text-emerald-400 mt-2 font-bold uppercase">系统安全防护中</div>
             </div>
+            <LockOutlined className="absolute -right-4 -bottom-4 text-white/5 text-8xl transition-transform group-hover:scale-110" />
           </div>
         </div>
 
@@ -461,8 +438,8 @@ const UserRoleManagement = () => {
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Input
             placeholder="搜索姓名、用户名、邮箱或手机号..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            value={displaySearchText}
+            onChange={(e) => setDisplaySearchText(e.target.value)}
             allowClear
             style={{ width: 250 }}
           />
@@ -517,7 +494,8 @@ const UserRoleManagement = () => {
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`
           }}
-          scroll={{ x: 'max-content' }}
+          className="overflow-hidden"
+          scroll={{ x: 800 }} // 锁定最小滚动宽度，防止无限扩张
         />
       </div>
 
@@ -541,7 +519,7 @@ const UserRoleManagement = () => {
           <Select
             placeholder="请选择角色"
             value={selectedRoles.length > 0 ? selectedRoles[0] : null}
-            onChange={(value) => handleRoleChange(value ? [value] : [])}
+            onChange={handleRoleChange}
             style={{ width: '100%' }}
             size="large"
             allowClear

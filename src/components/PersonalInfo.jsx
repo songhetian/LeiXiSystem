@@ -103,68 +103,60 @@ const PersonalInfo = () => {
   const loadUserInfo = async () => {
     try {
       const token = localStorage.getItem('token')
-      const savedUser = localStorage.getItem('user')
+      const savedUserStr = localStorage.getItem('user')
+      let initialUser = null;
 
-      if (!token) {
-        console.error('未找到登录token')
-        return
+      if (savedUserStr) {
+        try {
+          initialUser = JSON.parse(savedUserStr);
+          setUser(initialUser);
+          // 预填充表单，防止白屏
+          setFormData(prev => ({
+            ...prev,
+            real_name: initialUser.real_name || '',
+            email: initialUser.email || '',
+            phone: initialUser.phone || '',
+            emergency_contact: initialUser.emergency_contact || '',
+            emergency_phone: initialUser.emergency_phone || '',
+            address: initialUser.address || '',
+            education: initialUser.education || '',
+            id_card_front_url: initialUser.id_card_front_url || '',
+            id_card_back_url: initialUser.id_card_back_url || ''
+          }));
+        } catch (e) {}
       }
 
-      // 优先从服务器获取最新数据
-      try {
-        const userId = savedUser ? JSON.parse(savedUser).id : null
-        if (userId) {
-          const API_BASE_URL = getApiBaseUrl()
-          const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+      if (!token) return;
+
+      // 异步获取服务器最新数据
+      const userId = initialUser?.id || (savedUserStr ? JSON.parse(savedUserStr).id : null);
+      if (!userId) return;
+
+      const API_BASE_URL = getApiBaseUrl()
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        const userData = result.success ? result.data : result
+
+        if (userData && userData.username) {
+          setUser(userData)
+          setFormData({
+            real_name: userData.real_name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            emergency_contact: userData.emergency_contact || '',
+            emergency_phone: userData.emergency_phone || '',
+            address: userData.address || '',
+            education: userData.education || '',
+            id_card_front_url: userData.id_card_front_url || '',
+            id_card_back_url: userData.id_card_back_url || ''
           })
-
-          if (response.ok) {
-            const data = await response.json()
-            const userData = data.success ? data.data : data
-
-            // 更新localStorage,但不包含图片URL(避免缓存问题)
-            const userDataForStorage = { ...userData }
-            delete userDataForStorage.id_card_front_url
-            delete userDataForStorage.id_card_back_url
-            localStorage.setItem('user', JSON.stringify(userDataForStorage))
-
-            setUser(userData)
-            setFormData({
-              real_name: userData.real_name || '',
-              email: userData.email || '',
-              phone: userData.phone || '',
-              emergency_contact: userData.emergency_contact || '',
-              emergency_phone: userData.emergency_phone || '',
-              address: userData.address || '',
-              education: userData.education || '',
-              id_card_front_url: userData.id_card_front_url || '',
-              id_card_back_url: userData.id_card_back_url || ''
-            })
-            return
-          }
+          // 更新缓存
+          localStorage.setItem('user', JSON.stringify(userData))
         }
-      } catch (serverError) {
-        console.warn('从服务器获取用户信息失败,使用本地缓存:', serverError)
-      }
-
-      // 如果服务器获取失败,使用localStorage数据
-      if (savedUser) {
-        const userData = JSON.parse(savedUser)
-        setUser(userData)
-        setFormData({
-          real_name: userData.real_name || '',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          emergency_contact: userData.emergency_contact || '',
-          emergency_phone: userData.emergency_phone || '',
-          address: userData.address || '',
-          education: userData.education || '',
-          id_card_front_url: userData.id_card_front_url || '',
-          id_card_back_url: userData.id_card_back_url || ''
-        })
       }
     } catch (error) {
       console.error('加载用户信息失败:', error)

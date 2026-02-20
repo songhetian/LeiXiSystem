@@ -1,17 +1,43 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner';
 import { getCurrentUser, isSystemAdmin } from '../../utils/auth'
 import { getApiUrl } from '../../utils/apiConfig'
 
-// 辅助函数：获取星期几
-const getWeekday = (date) => {
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return weekdays[date.getDay()]
-}
+// --- 性能优化：Memo化的排班单元格组件 ---
+const ScheduleCell = React.memo(({ day, employee, schedule, conflict, onClick, getShiftStyle }) => {
+  const isConflict = conflict && schedule && !schedule.is_rest_day;
+  
+  return (
+    <td
+      onClick={() => onClick(employee, day)}
+      className={`px-1.5 py-2 text-center border-r cursor-pointer relative transition-all ${
+        isConflict 
+          ? 'bg-amber-50 ring-2 ring-inset ring-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)] animate-pulse' 
+          : schedule 
+            ? 'hover:opacity-80 font-medium' 
+            : 'hover:bg-blue-50'
+      }`}
+      style={schedule && schedule.color && !isConflict ? getShiftStyle(schedule.color) : {}}
+    >
+      <div className="flex flex-col items-center">
+        <span className={isConflict ? 'text-amber-700 font-bold' : ''}>
+          {schedule?.shift_name || '-'}
+        </span>
+        {isConflict && (
+          <span className="text-[8px] text-amber-600 font-black leading-none mt-0.5">冲突</span>
+        )}
+      </div>
+      {(schedule?.is_rest_day == 1 || schedule?.is_rest_day === true) && (
+        <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+      )}
+    </td>
+  );
+});
 
 export default function ScheduleManagement() {
   const [schedules, setSchedules] = useState([])
+  const [leaves, setLeaves] = useState([]) // 新增：请假记录
   const [employees, setEmployees] = useState([])
   const [shifts, setShifts] = useState([])
   const [departments, setDepartments] = useState([])
@@ -21,6 +47,45 @@ export default function ScheduleManagement() {
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1
   })
+
+  // --- 性能优化：构建 O(1) 排班索引映射 ---
+  const scheduleMap = useMemo(() => {
+    const map = new Map();
+    schedules.forEach(s => {
+      let dateStr = s.schedule_date;
+      if (dateStr instanceof Date) dateStr = dateStr.toISOString().split('T')[0];
+      else if (typeof dateStr === 'string') dateStr = dateStr.split('T')[0];
+      const key = `${s.employee_id}_${dateStr}`;
+      map.set(key, s);
+    });
+    return map;
+  }, [schedules]);
+
+  // --- 关键优化：构建请假冲突映射 ---
+  const conflictMap = useMemo(() => {
+    const map = new Map();
+    leaves.forEach(l => {
+      if (l.status !== 'approved') return;
+      const start = new Date(l.start_date);
+      const end = new Date(l.end_date);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const key = `${l.employee_id}_${dateStr}`;
+        map.set(key, l);
+      }
+    });
+    return map;
+  }, [leaves]);
+
+  const getScheduleOptimized = useCallback((employeeId, day) => {
+    const dateStr = `${selectedMonth.year}-${String(selectedMonth.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return scheduleMap.get(`${employeeId}_${dateStr}`);
+  }, [scheduleMap, selectedMonth]);
+
+  const getConflictOptimized = useCallback((employeeId, day) => {
+    const dateStr = `${selectedMonth.year}-${String(selectedMonth.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return conflictMap.get(`${employeeId}_${dateStr}`);
+  }, [conflictMap, selectedMonth]);
 
   // 辅助函数：获取每月天数
   const getDaysInMonth = () => {
@@ -280,8 +345,16 @@ export default function ScheduleManagement() {
   const handleScheduleSubmit = async () => {
     if (submitting) return // 防止重复提交
 
-    const { employee, dateStr, existing, selectedShiftId } = scheduleModalData
+    const { employee, dateStr, existing, selectedShiftId, conflict } = scheduleModalData
     const is_rest_day = selectedShiftId === ''
+
+    // --- 🚨 关键加固：冲突二次确认逻辑 ---
+    if (conflict && !is_rest_day) {
+      const confirmed = window.confirm(
+        `【排班冲突提醒】\n\n员工 ${employee?.real_name} 在 ${dateStr} 已有已审批的“${conflict.leave_type}”记录。\n\n如果继续排班，可能会导致考勤结算异常。是否确定要强制排班？`
+      );
+      if (!confirmed) return; // 用户取消，拦截提交
+    }
 
     // 将 shift_id 转换为数字（如果不为空）
     const shift_id = selectedShiftId ? parseInt(selectedShiftId) : null
@@ -623,29 +696,17 @@ export default function ScheduleManagement() {
                   <td className="px-3 py-2 font-medium text-gray-800 border-r whitespace-nowrap">
                     {employee.real_name}
                   </td>
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                    const schedule = getSchedule(employee.id, day)
-                    const shiftStyle = schedule?.color ? getShiftStyle(schedule.color) : {}
-
-                    return (
-                      <td
-                        key={day}
-                        onClick={() => handleCellClick(employee, day)}
-                        className={`px-1.5 py-2 text-center border-r cursor-pointer transition-all ${
-                          schedule
-                            ? 'hover:opacity-80 font-medium'
-                            : 'hover:bg-blue-50'
-                        }`}
-                        style={schedule && schedule.color ? getShiftStyle(schedule.color) : {}}
-                      >
-                        {schedule?.shift_name || '-'}
-                        {/* 如果是休息日且有请假记录，显示红点 */}
-                        {(schedule?.is_rest_day == 1 || schedule?.is_rest_day === true) && (
-                          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                        )}
-                      </td>
-                    )
-                  })}
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
+                    <ScheduleCell
+                      key={`${employee.id}_${day}`}
+                      day={day}
+                      employee={employee}
+                      schedule={getScheduleOptimized(employee.id, day)}
+                      conflict={getConflictOptimized(employee.id, day)}
+                      onClick={handleCellClick}
+                      getShiftStyle={getShiftStyle}
+                    />
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -656,8 +717,36 @@ export default function ScheduleManagement() {
       {/* 单个排班模态框 */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">设置排班</h2>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl border-t-4 border-blue-500 overflow-hidden">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
+              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              设置工作排班
+            </h2>
+
+            {/* 🚨 冲突强提醒区域 */}
+            {scheduleModalData.conflict && (
+              <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl animate-in zoom-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="bg-amber-400 p-1.5 rounded-lg text-white shadow-sm">
+                    <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-amber-800 font-black text-sm uppercase tracking-tight">排班冲突警告</h4>
+                    <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                      检测到员工 <b>{scheduleModalData.employee?.real_name}</b> 在此日期已有 
+                      <span className="bg-amber-200/50 px-1.5 py-0.5 rounded mx-1">
+                        {scheduleModalData.conflict.leave_type || '请假'}
+                      </span> 
+                      记录（已审批）。强制排班将导致考勤数据异常。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               {/* 员工信息 */}

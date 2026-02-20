@@ -1,5 +1,7 @@
 const { requirePermission } = require('../middleware/auth')
 const { recordLog } = require('../utils/logger')
+const jwt = require('jsonwebtoken')
+const { JWT_SECRET } = require('../config')
 
 const permissionRoutes = async (fastify, options) => {
   const connInit = await fastify.mysql.getConnection();
@@ -220,7 +222,57 @@ const permissionRoutes = async (fastify, options) => {
     }
   });
 
-  // Get users with their roles
+  // 获取带有角色和部门权限的用户列表 (高性能版 - 彻底消除 N+1)
+  fastify.get('/api/users-with-roles', {
+    preHandler: requirePermission('system:role:view')
+  }, async (request, reply) => {
+    const connection = await fastify.mysql.getConnection();
+    try {
+      const [users] = await connection.query(`
+        SELECT u.id, u.username, u.real_name, u.email, u.phone, d.name as department_name, u.department_id
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.id
+        WHERE u.status != 'deleted'
+        ORDER BY u.id DESC
+      `);
+
+      if (users.length === 0) return { success: true, data: [] };
+      const userIds = users.map(u => u.id);
+
+      const [allRoles] = await connection.query(`
+        SELECT ur.user_id, r.id, r.name FROM roles r
+        JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id IN (?)
+      `, [userIds]);
+
+      const [allDepts] = await connection.query(`
+        SELECT ud.user_id, d.id, d.name FROM departments d
+        JOIN user_departments ud ON d.id = ud.department_id WHERE ud.user_id IN (?)
+      `, [userIds]);
+
+      const rolesMap = allRoles.reduce((acc, curr) => {
+        if (!acc[curr.user_id]) acc[curr.user_id] = [];
+        acc[curr.user_id].push({ id: curr.id, name: curr.name });
+        return acc;
+      }, {});
+
+      const deptsMap = allDepts.reduce((acc, curr) => {
+        if (!acc[curr.user_id]) acc[curr.user_id] = [];
+        acc[curr.user_id].push({ id: curr.id, name: curr.name });
+        return acc;
+      }, {});
+
+      return {
+        success: true,
+        data: users.map(u => ({
+          ...u,
+          roles: rolesMap[u.id] || [],
+          departments: deptsMap[u.id] || []
+        }))
+      };
+    } finally { connection.release(); }
+  });
+
+  // Get users with their roles (Deprecated: use /api/users-with-roles for better performance)
   fastify.get('/api/users/roles', {
     preHandler: requirePermission('system:role:view')
   }, async (request, reply) => {
@@ -894,6 +946,162 @@ const permissionRoutes = async (fastify, options) => {
     try {
       await connection.query('DELETE FROM permission_templates WHERE id = ?', [id]);
       return { success: true };
+    } finally {
+      connection.release();
+    }
+  });
+
+  // 检查权限
+  fastify.get('/api/check-permission', async (request, reply) => {
+    try {
+      const { permission } = request.query;
+      const token = request.headers.authorization?.replace('Bearer ', '');
+      if (!token) return { hasPermission: false };
+
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const userId = decoded.id;
+
+      const { getUserPermissions } = require('../utils/permission');
+      const userPermissions = await getUserPermissions(fastify.mysql, userId);
+
+      return { hasPermission: userPermissions.includes(permission) };
+    } catch (error) {
+      console.error(error);
+      reply.code(500).send({ error: 'Failed to check permission' });
+    }
+  });
+
+  // 获取用户的详细权限信息（包括角色和部门权限）
+  fastify.get('/api/users/:id/permissions-detail', async (request, reply) => {
+    const { id } = request.params;
+    const pool = fastify.mysql;
+    try {
+      // 获取用户基本信息
+      const [users] = await pool.query('SELECT id, username, real_name, department_id FROM users WHERE id = ?', [id]);
+      if (users.length === 0) {
+        return reply.code(404).send({ success: false, message: '用户不存在' });
+      }
+      const user = users[0];
+
+      // 获取用户角色
+      const [roles] = await pool.query(`
+        SELECT r.id, r.name, r.description, r.level, r.is_system
+        FROM roles r
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = ?
+        ORDER BY r.level DESC, r.id
+      `, [id]);
+
+      // 获取用户权限（通过角色）
+      const [permissions] = await pool.query(`
+        SELECT DISTINCT p.*
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+        WHERE ur.user_id = ?
+        ORDER BY p.module, p.id
+      `, [id]);
+
+      // 获取用户个人部门权限
+      const [userDepartments] = await pool.query(`
+        SELECT DISTINCT d.*
+        FROM departments d
+        INNER JOIN user_departments ud ON d.id = ud.department_id
+        WHERE ud.user_id = ?
+        ORDER BY d.sort_order, d.id
+      `, [id]);
+
+      // 获取用户角色部门权限
+      const [roleDepartments] = await pool.query(`
+        SELECT DISTINCT d.*
+        FROM departments d
+        INNER JOIN role_departments rd ON d.id = rd.department_id
+        INNER JOIN user_roles ur ON rd.role_id = ur.role_id
+        WHERE ur.user_id = ?
+        ORDER BY d.sort_order, d.id
+      `, [id]);
+
+      // 检查是否是超级管理员
+      const isAdmin = roles.some(r => r.name === '超级管理员');
+
+      // 构建权限详情对象
+      const permissionDetails = {
+        user: {
+          id: user.id,
+          username: user.username,
+          real_name: user.real_name,
+          department_id: user.department_id
+        },
+        roles: roles,
+        permissions: permissions.map(p => p.code),
+        permissionObjects: permissions,
+        userDepartments: userDepartments,
+        roleDepartments: roleDepartments,
+        isAdmin: isAdmin,
+        // 合并用户个人部门权限和角色部门权限，去重
+        viewableDepartments: [...new Map([...userDepartments, ...roleDepartments].map(item => [item.id, item])).values()]
+      };
+
+      return { success: true, data: permissionDetails };
+    } catch (error) {
+      console.error(error);
+      reply.code(500).send({ success: false, error: 'Failed to fetch user permission details' });
+    }
+  });
+
+  // 批量更新用户角色 (高性能原子操作)
+  fastify.put('/api/users/roles/batch', {
+    preHandler: requirePermission('system:role:manage')
+  }, async (request, reply) => {
+    const { userIds, roleIds } = request.body;
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return reply.code(400).send({ success: false, message: '请选择目标用户' });
+    }
+
+    const connection = await fastify.mysql.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 1. 批量删除旧角色关系
+      await connection.query('DELETE FROM user_roles WHERE user_id IN (?)', [userIds]);
+
+      // 2. 如果提供了新角色，批量插入
+      if (roleIds && roleIds.length > 0) {
+        const values = [];
+        userIds.forEach(uid => {
+          roleIds.forEach(rid => {
+            values.push([uid, rid]);
+          });
+        });
+        
+        if (values.length > 0) {
+          await connection.query('INSERT INTO user_roles (user_id, role_id) VALUES ?', [values]);
+        }
+      }
+
+      await connection.commit();
+
+      // 3. 🔴 关键优化：批量清理 Redis 缓存并推送实时通知
+      if (fastify.redis) {
+        const pipeline = fastify.redis.pipeline();
+        userIds.forEach(uid => {
+          pipeline.del(`user:permissions:${uid}`);
+          pipeline.del(`user:identity:${uid}`);
+        });
+        await pipeline.exec();
+      }
+
+      // 4. WebSocket 广播（静默刷新指令）
+      if (fastify.io) {
+        userIds.forEach(uid => {
+          fastify.io.to(`user_${uid}`).emit('permissions_updated', { message: '您的权限已由管理员更新' });
+        });
+      }
+
+      return { success: true, message: `成功处理 ${userIds.length} 名用户的角色变更` };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
     } finally {
       connection.release();
     }

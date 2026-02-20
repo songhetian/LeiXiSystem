@@ -1,8 +1,7 @@
 const jwt = require('jsonwebtoken')
 const { broadcastNotification } = require('../websocket')
 const { recordLog } = require('../utils/logger')
-
-const JWT_SECRET = process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ'
+const { JWT_SECRET } = require('../config')
 
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
@@ -61,34 +60,54 @@ module.exports = async function (fastify, opts) {
       const [groups] = await pool.query(query, params)
 
       const redis = fastify.redis;
-      // Enrich groups with last message
-      const enrichedGroups = await Promise.all(groups.map(async (g) => {
-          let lastMsg = null;
-          if (redis) {
-              const cached = await redis.get(`chat:group:${g.id}:last_msg`);
-              if (cached) lastMsg = JSON.parse(cached);
-          }
-          
-          if (!lastMsg) {
-              const [dbMsg] = await pool.query(
-                  'SELECT content, created_at as time, msg_type FROM chat_messages WHERE group_id = ? ORDER BY id DESC LIMIT 1',
-                  [g.id]
-              );
-              if (dbMsg.length > 0) {
-                  lastMsg = {
-                      content: dbMsg[0].msg_type === 'text' ? dbMsg[0].content : (dbMsg[0].msg_type === 'image' ? '[图片]' : '[文件]'),
-                      time: dbMsg[0].time
-                  };
-              }
-          }
-          
+      const groupIds = groups.map(g => g.id);
+      let enrichedGroups = groups;
+
+      if (groupIds.length > 0) {
+        // --- 性能优化：批量获取最后一条消息预览 (消除 N+1) ---
+        let lastMsgsMap = {};
+
+        // 1. 优先尝试从 Redis 批量获取
+        if (redis) {
+          const cacheKeys = groupIds.map(id => `chat:group:${id}:last_msg`);
+          const cachedValues = await redis.mget(...cacheKeys);
+          cachedValues.forEach((val, index) => {
+            if (val) lastMsgsMap[groupIds[index]] = JSON.parse(val);
+          });
+        }
+
+        // 2. 补全 Redis 中缺失的数据（通过高效的子查询）
+        const missingIds = groupIds.filter(id => !lastMsgsMap[id]);
+        if (missingIds.length > 0) {
+          const [dbMsgs] = await pool.query(`
+            SELECT m1.group_id, m1.content, m1.created_at as time, m1.msg_type
+            FROM chat_messages m1
+            INNER JOIN (
+              SELECT MAX(id) as max_id FROM chat_messages 
+              WHERE group_id IN (?) 
+              GROUP BY group_id
+            ) m2 ON m1.id = m2.max_id
+          `, [missingIds]);
+
+          dbMsgs.forEach(m => {
+            lastMsgsMap[m.group_id] = {
+              content: m.msg_type === 'text' ? m.content : (m.msg_type === 'image' ? '[图片]' : '[文件]'),
+              time: m.time
+            };
+          });
+        }
+
+        // 3. 合并数据
+        enrichedGroups = groups.map(g => {
+          const lastMsg = lastMsgsMap[g.id];
           return {
-              ...g,
-              is_muted: !!g.is_muted,
-              last_message: lastMsg?.content || '暂无消息',
-              last_message_time: lastMsg?.time || null
+            ...g,
+            is_muted: !!g.is_muted,
+            last_message: lastMsg?.content || '暂无消息',
+            last_message_time: lastMsg?.time || null
           };
-      }));
+        });
+      }
 
       return { success: true, data: enrichedGroups }
     } catch (err) {

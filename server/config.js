@@ -1,30 +1,12 @@
-// 数据库配置
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
 module.exports = {
-  database: {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root',
-    database: process.env.DB_NAME || 'leixin_customer_service_v1',
-    port: process.env.DB_PORT || 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  },
-
-  redis: {
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || '',
-    db: process.env.REDIS_DB || 0
-  },
-
-  server: {
-    port: process.env.PORT || 3001,
-    host: process.env.HOST || '0.0.0.0'
-  },
-
-  jwt: {
-    secret: process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ',
-    expiresIn: '7d'
-  }
-}
+  // 核心安全配置：优先从 .env 读取，开发环境提供固定回退值确保一致性
+  JWT_SECRET: process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ',
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'REFRESH_SECRET_LX_SYSTEM_2024_PROD',
+  
+  // 数据库与环境
+  isProd: process.env.NODE_ENV === 'production',
+  PORT: process.env.PORT || 3001
+};

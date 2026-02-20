@@ -78,10 +78,44 @@ class MessageQueue {
       // 移除已成功写入的消息
       await this.redis.ltrim(this.queueKey, messages.length, -1);
       
+      // --- 关键优化：同步 Redis 未读数到 MySQL ---
+      await this.syncUnreadCounts();
+      
     } catch (err) {
       console.error('❌ [MessageQueue] 持久化失败:', err);
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  /**
+   * 将 Redis 中的未读数差异刷入 MySQL
+   */
+  async syncUnreadCounts() {
+    try {
+      // 1. 扫描所有用户的未读数哈希键
+      let cursor = '0';
+      const userUnreadKeys = [];
+      do {
+        const [nextCursor, keys] = await this.redis.scan(cursor, 'MATCH', 'chat:unread:*', 'COUNT', 100);
+        cursor = nextCursor;
+        userUnreadKeys.push(...keys);
+      } while (cursor !== '0');
+
+      for (const key of userUnreadKeys) {
+        const userId = key.split(':')[2];
+        const unreadMap = await this.redis.hgetall(key);
+        
+        for (const [groupId, count] of Object.entries(unreadMap)) {
+          // 同步到群组关联表（假设表名为 chat_group_members，包含 unread_count 字段）
+          await this.pool.query(
+            'UPDATE chat_group_members SET unread_count = ? WHERE group_id = ? AND user_id = ?',
+            [parseInt(count), groupId, userId]
+          );
+        }
+      }
+    } catch (e) {
+      console.error('⚠️ [MessageQueue] 未读数同步异常:', e.message);
     }
   }
 }

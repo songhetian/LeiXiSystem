@@ -24,16 +24,51 @@ import RealtimeAttendanceCard from './RealtimeAttendanceCard';
 
 const { Text } = Typography;
 
+// --- 性能优化：使用 React.memo 封装静态指标卡片，防止重复重绘 ---
+const StatCard = React.memo(({ title, value, suffix, subValue, subLabel, icon, color, trend }) => (
+  <Card bordered={false} className="rounded-[32px] shadow-sm hover:shadow-md transition-all border-none h-full">
+    <div className="flex items-start justify-between mb-4">
+      <div className={`p-3 rounded-2xl ${color} text-white shadow-lg shadow-gray-100`}>
+        {React.cloneElement(icon, { style: { fontSize: 20 } })}
+      </div>
+      {trend && (
+        <Tag color={trend > 0 ? 'success' : 'error'} className="border-none rounded-full font-bold text-[10px]">
+          {trend > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(trend)}%
+        </Tag>
+      )}
+    </div>
+    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+    <Statistic
+      value={value}
+      suffix={suffix}
+      valueStyle={{ color: '#1d1d1f', fontWeight: 900, fontSize: 32, letterSpacing: '-1px' }}
+    />
+    <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+      <Text className="text-[10px] font-bold text-slate-400">{subLabel}</Text>
+      <Text className="text-xs font-black text-slate-700">{subValue}</Text>
+    </div>
+  </Card>
+));
+
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // 新增：静默刷新状态
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetchAdminStats();
+    fetchAdminStats(true); // 首次加载显示 Skeleton
+
+    // --- 性能优化：自动每 5 分钟静默刷新数据 ---
+    const timer = setInterval(() => {
+      fetchAdminStats(false);
+    }, 1000 * 60 * 5);
+
+    return () => clearInterval(timer);
   }, []);
 
-  const fetchAdminStats = async () => {
-    setLoading(true);
+  const fetchAdminStats = async (showSkeleton = false) => {
+    if (showSkeleton) setLoading(true);
+    setRefreshing(true);
     try {
       const response = await api.get('/admin/dashboard/stats', {
         params: { user_id: localStorage.getItem('userId') }
@@ -45,51 +80,33 @@ const AdminDashboard = () => {
       console.error('获取管理员统计数据失败:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
-
-  const StatCard = ({ title, value, suffix, subValue, subLabel, icon, color, trend }) => (
-    <Card bordered={false} className="rounded-[32px] shadow-sm hover:shadow-md transition-all border-none h-full">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`p-3 rounded-2xl ${color} text-white shadow-lg shadow-gray-100`}>
-          {React.cloneElement(icon, { style: { fontSize: 20 } })}
-        </div>
-        {trend && (
-          <Tag color={trend > 0 ? 'success' : 'error'} className="border-none rounded-full font-bold text-[10px]">
-            {trend > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(trend)}%
-          </Tag>
-        )}
-      </div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-      <Statistic
-        value={value}
-        suffix={suffix}
-        valueStyle={{ color: '#1d1d1f', fontWeight: 900, fontSize: 32, letterSpacing: '-1px' }}
-      />
-      <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-        <Text className="text-[10px] font-bold text-slate-400">{subLabel}</Text>
-        <Text className="text-xs font-black text-slate-700">{subValue}</Text>
-      </div>
-    </Card>
-  );
 
   return (
     <div className="min-h-full bg-[#f2f2f7] p-6 lg:p-10 animate-in fade-in duration-700">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* 顶部操作条 - 移除标题，仅保留核心操作 */}
+        {/* 顶部操作条 */}
         <div className="flex justify-end mb-2">
           <Button 
-            icon={<SyncOutlined spin={loading} />} 
-            onClick={fetchAdminStats}
+            icon={<SyncOutlined spin={refreshing} />} 
+            onClick={() => fetchAdminStats(true)}
             className="rounded-xl border-none shadow-sm font-bold text-xs bg-white h-10 px-6 hover:text-blue-600"
           >
-            同步实时数据
+            {refreshing ? '正在同步...' : '同步实时数据'}
           </Button>
         </div>
 
         {loading ? (
-          <Skeleton active avatar paragraph={{ rows: 12 }} />
+          <div className="space-y-8">
+            <Row gutter={[20, 20]}><Col span={24}><Skeleton active paragraph={{ rows: 2 }} /></Col></Row>
+            <Row gutter={[20, 20]}>
+              {[1,2,3,4].map(i => <Col key={i} xs={24} sm={12} lg={6}><Skeleton.Button active block style={{ height: 160, borderRadius: 32 }} /></Col>)}
+            </Row>
+            <Skeleton active paragraph={{ rows: 8 }} />
+          </div>
         ) : (
           <>
             {/* 1. 核心指标矩阵 */}

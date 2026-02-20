@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken')
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const { JWT_SECRET } = require('../config')
 const { requirePermission } = require('../middleware/auth')
 
 async function userManagementRoutes(fastify, options) {
@@ -13,7 +13,20 @@ async function userManagementRoutes(fastify, options) {
     }
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET)
+      let decoded;
+      try {
+        decoded = jwt.verify(token, JWT_SECRET)
+      } catch (jwtErr) {
+        if (jwtErr.name === 'TokenExpiredError') {
+          return reply.code(401).send({ 
+            success: false, 
+            message: '登录已过期', 
+            errorCode: 'TOKEN_EXPIRED' 
+          });
+        }
+        throw jwtErr;
+      }
+      
       const userId = decoded.id
 
       const { getUserPermissions } = require('../utils/permission')
@@ -79,6 +92,13 @@ async function userManagementRoutes(fastify, options) {
     try {
       decoded = jwt.verify(token, JWT_SECRET)
     } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return reply.code(401).send({ 
+          success: false, 
+          message: '登录已过期', 
+          errorCode: 'TOKEN_EXPIRED' 
+        });
+      }
       return reply.code(401).send({ success: false, message: '令牌无效' })
     }
 
@@ -103,37 +123,47 @@ async function userManagementRoutes(fastify, options) {
 
     try {
       const redis = fastify.redis;
-      const cacheKey = `user:profile:${userId}`;
+      const targetUserId = parseInt(userId); // 性能优化：显式转为数字，确保索引命中
+      const cacheKey = `user:profile:${targetUserId}`;
 
       // 1. 尝试从 Redis 获取
       if (redis) {
         const cached = await redis.get(cacheKey);
-        if (cached) return { success: true, data: JSON.parse(cached) };
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          // 健壮性检查：如果缓存里没有关键字段，则视为坏缓存，穿透到 DB
+          if (parsed && parsed.username) return { success: true, data: parsed };
+        }
       }
 
-      // 2. 缓存未命中，联表查询 users 和 employees 表
+      // 2. 缓存未命中或失效，联表查询
       const [rows] = await pool.query(
         `SELECT
           u.id, u.username, u.real_name, u.email, u.phone, u.avatar, u.department_id,
-          u.id_card_front_url, u.id_card_back_url,
+          u.id_card_front_url, u.id_card_back_url, u.role, u.is_department_manager,
+          d.name as department_name,
+          e.employee_no, e.hire_date, e.rating, e.status as employee_status,
           e.emergency_contact, e.emergency_phone, e.address, e.education,
-          e.skills, e.remark, e.employee_no, e.hire_date, e.rating, u.updated_at
+          e.skills, e.remark, u.updated_at
          FROM users u
          LEFT JOIN employees e ON u.id = e.user_id
+         LEFT JOIN departments d ON u.department_id = d.id
          WHERE u.id = ?`,
-        [userId]
+        [targetUserId]
       )
 
       if (rows.length === 0) {
         return reply.code(404).send({ success: false, message: '用户不存在' })
       }
 
+      const userData = rows[0];
+
       // 3. 写入 Redis (缓存 1 小时)
       if (redis) {
-        await redis.set(cacheKey, JSON.stringify(rows[0]), 'EX', 3600);
+        await redis.set(cacheKey, JSON.stringify(userData), 'EX', 3600);
       }
 
-      return { success: true, data: rows[0] }
+      return { success: true, data: userData }
     } catch (error) {
       console.error('获取个人资料失败:', error)
       return reply.code(500).send({
@@ -161,6 +191,13 @@ async function userManagementRoutes(fastify, options) {
     try {
       decoded = jwt.verify(token, JWT_SECRET)
     } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return reply.code(401).send({ 
+          success: false, 
+          message: '登录已过期', 
+          errorCode: 'TOKEN_EXPIRED' 
+        });
+      }
       return reply.code(401).send({ success: false, message: '令牌无效' })
     }
 

@@ -1,7 +1,6 @@
 const socketIO = require('socket.io')
 const jwt = require('jsonwebtoken')
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const { JWT_SECRET } = require('./config')
 
 // 存储用户连接 userId -> Set of socket ids
 const userConnections = new Map()
@@ -63,7 +62,7 @@ io.use((socket, next) => {
     if (!token) return next(new Error('Authentication error: No token provided'))
     try {
       // 统一使用全局 JWT_SECRET
-      const secret = process.env.JWT_SECRET || 'TZafsqtgW5t5EHRLJ49ca46rzoEfk37Lmx2hwxQR5m9KoQDYUmM5KhRyPKtxRccQ';
+      const secret = JWT_SECRET;
       const decoded = jwt.verify(token, secret)
       socket.userId = String(decoded.id); // 强制转字符串，确保后续查询一致
       socket.username = decoded.username || decoded.real_name
@@ -130,6 +129,14 @@ io.use((socket, next) => {
         socket.leave(`group_${groupId}`);
     });
 
+    // 标记已读 (性能优化)
+    socket.on('mark_read', async (groupId) => {
+        if (redis) {
+            await redis.hdel(`chat:unread:${userId}`, groupId);
+            // 这里后续可以扩展：异步同步回 MySQL 的 unread_count 表
+        }
+    });
+
     // 发送消息
     socket.on('send_message', async (data) => {
         const pool = getPool ? getPool() : null;
@@ -189,6 +196,22 @@ io.use((socket, next) => {
             await redis.lpush(historyKey, JSON.stringify(savedMsg));
             await redis.ltrim(historyKey, 0, 99);
             await redis.expire(historyKey, 86400 * 3);
+
+            // --- 性能优化：在 Redis 中维护未读计数 ---
+            // 获取群组成员列表 (排除发送者)
+            const membersKey = `chat:group:${targetId}:members`;
+            const members = await redis.smembers(membersKey);
+            
+            if (members.length > 0) {
+                const pipeline = redis.pipeline();
+                members.forEach(memberId => {
+                    if (String(memberId) !== String(userId)) {
+                        // 增加该用户在该群组的未读数
+                        pipeline.hincrby(`chat:unread:${memberId}`, targetId, 1);
+                    }
+                });
+                await pipeline.exec();
+            }
 
         } catch (err) {
             console.error('Chat Send Error:', err);

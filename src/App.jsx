@@ -14,6 +14,9 @@ import { soundManager } from './utils/soundManager'
 import { PermissionProvider, usePermission } from './contexts/PermissionContext'
 import { useChatStore } from './hooks/useChatStore'
 
+import QualityInspection from './components/QualityInspection';
+
+// Vite Dependency Refresh Token: 2026-02-20-17-30
 // Lazy-loaded components
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
@@ -21,7 +24,6 @@ const AdminDashboard = lazy(() => import('./pages/Dashboard/AdminDashboard'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const CustomerList = lazy(() => import('./components/CustomerList'));
 const SessionManagement = lazy(() => import('./components/SessionManagement'));
-const QualityInspection = lazy(() => import('./components/QualityInspection'));
 const DepartmentManagement = lazy(() => import('./components/DepartmentManagement'));
 const PositionManagement = lazy(() => import('./components/PositionManagement'));
 const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'));
@@ -373,36 +375,10 @@ function App() {
         console.warn('播放声音失败:', e)
       }
 
-      const typeConfig = {
-        info: toast.info,
-        warning: toast.warning,
-        success: toast.success,
-        error: toast.error,
-        announcement: toast.info
-      }
-
-      // 确保 toastMethod 始终是一个有效的函数
-      const toastType = broadcast.type || 'info';
-      const toastMethod = typeConfig[toastType] || toast.info;
-
-      console.log(`📣 准备显示广播Toast: "${broadcast.title}", 类型: ${toastType}`);
-
-      if (typeof toastMethod !== 'function') {
-        console.error('❌ toastMethod is not a function!', toastMethod);
-        toast.info(broadcast.title || '系统广播', { description: broadcast.content });
-        return;
-      }
-
-      toastMethod(broadcast.title || '系统广播', {
-        description: broadcast.content,
-        duration: 10000, 
-        position: 'bottom-right',
-        action: {
-          label: '查看',
-          onClick: () => handleSetActiveTab('messaging-broadcast')
-        }
-      })
-      // 📊 新增：广播也应该更新未读数（小铃铛红点）
+      // --- 性能与交互优化：移除右下角冗余弹窗 ---
+      // 理由：广播内容已在 TopNavbar 的霓虹通告栏中展示，此处不再弹出 Toast
+      
+      // 📊 仅更新未读数（小铃铛红点）
       setUnreadCount(prev => prev + 1)
     }
 

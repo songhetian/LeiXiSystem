@@ -6,7 +6,7 @@ import { getApiUrl } from '../../utils/apiConfig';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../utils/apiClient';
 import '../../styles/antd-custom.css';
 import { Table, Button, Form, Input, Tree, Drawer, Select, Space, Tag, Card, Modal as AntdModal } from 'antd';
-import { EyeOutlined, LockOutlined, UserOutlined, PlusOutlined, CopyOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { EyeOutlined, LockOutlined, UserOutlined, TeamOutlined, PlusOutlined, CopyOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
@@ -151,10 +151,27 @@ const RoleManagement = () => {
     device: '设备管理'
   };
 
-  const permissionTreeData = useMemo(() => {
+  const [activeTemplateKey, setActiveTemplateKey] = useState('');
+  const [permissionSearchText, setPermissionSearchText] = useState(''); // 新增：权限树搜索
+
+  // --- 性能优化：过滤后的权限树数据 ---
+  const filteredPermissionTreeData = useMemo(() => {
     const modules = {};
+    const searchLower = permissionSearchText.toLowerCase();
+
     permissions.forEach(p => {
       const mod = p.module || 'system';
+      const description = p.description || '未命名权限';
+      const code = p.code || '';
+
+      // 搜索过滤逻辑
+      if (permissionSearchText && 
+          !description.toLowerCase().includes(searchLower) && 
+          !code.toLowerCase().includes(searchLower) &&
+          !(moduleNames[mod] || '').toLowerCase().includes(searchLower)) {
+        return;
+      }
+
       if (!modules[mod]) {
         modules[mod] = {
           title: moduleNames[mod] || '系统管理',
@@ -163,15 +180,13 @@ const RoleManagement = () => {
         };
       }
       modules[mod].children.push({
-        title: `${p.description || '未命名权限'}`,
+        title: `${description} (${code})`,
         key: p.id.toString(),
         isLeaf: true
       });
     });
     return Object.values(modules);
-  }, [permissions]);
-
-  const [activeTemplateKey, setActiveTemplateKey] = useState('');
+  }, [permissions, permissionSearchText]);
 
   const handleAdd = () => {
     setEditingRole(null);
@@ -747,46 +762,35 @@ const RoleManagement = () => {
           </div>
         </div>
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">总角色数</div>
-                <div className="text-3xl font-bold text-gray-900">{roles.length}</div>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+        {/* 统计卡片 (视觉优化) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[24px] p-6 shadow-xl shadow-indigo-100 relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-indigo-100 text-xs font-black uppercase tracking-widest mb-1">总角色数</div>
+              <div className="text-4xl font-black text-white">{roles.length}</div>
+              <div className="text-[10px] text-indigo-200 mt-2 font-bold uppercase flex items-center gap-1">
+                <LockOutlined className="w-3 h-3" /> 系统鉴权中心
               </div>
             </div>
+            <LockOutlined className="absolute -right-4 -bottom-4 text-white/10 text-8xl transition-transform group-hover:scale-110" />
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">系统角色</div>
-                <div className="text-3xl font-bold text-gray-900">{roles.filter(r => r.is_system).length}</div>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
+
+          <div className="bg-white border border-slate-100 rounded-[24px] p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">系统内置</div>
+              <div className="text-4xl font-black text-slate-800">{roles.filter(r => r.is_system).length}</div>
+              <div className="text-[10px] text-rose-500 mt-2 font-bold uppercase">核心安全保护</div>
             </div>
+            <TeamOutlined className="absolute -right-4 -bottom-4 text-slate-50 text-8xl transition-transform group-hover:scale-110" />
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">自定义角色</div>
-                <div className="text-3xl font-bold text-gray-900">{roles.filter(r => !r.is_system).length}</div>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </div>
+
+          <div className="bg-slate-900 rounded-[24px] p-6 shadow-xl shadow-slate-200 relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">自定义定义</div>
+              <div className="text-4xl font-black text-white">{roles.filter(r => !r.is_system).length}</div>
+              <div className="text-[10px] text-emerald-400 mt-2 font-bold uppercase">灵活权限分配</div>
             </div>
+            <SettingOutlined className="absolute -right-4 -bottom-4 text-white/5 text-8xl transition-transform group-hover:scale-110" />
           </div>
         </div>
 
@@ -929,13 +933,25 @@ const RoleManagement = () => {
           )}
 
           <Form.Item label="权限配置">
-            <div className="border rounded-lg p-3 max-h-80 overflow-y-auto bg-gray-50">
+            <div className="mb-3">
+              <Input
+                placeholder="搜索功能名称或代码..."
+                prefix={<EyeOutlined className="text-gray-400" />}
+                value={permissionSearchText}
+                onChange={e => setPermissionSearchText(e.target.value)}
+                allowClear
+                className="rounded-lg"
+              />
+            </div>
+            <div className="border rounded-lg p-3 max-h-80 overflow-y-auto bg-gray-50 shadow-inner">
               <Tree
                 checkable
-                defaultExpandAll
+                defaultExpandAll={!permissionSearchText} // 搜索时自动展开，不搜索时保持原有逻辑
                 onCheck={onCheck}
                 checkedKeys={checkedKeys}
-                treeData={permissionTreeData}
+                treeData={filteredPermissionTreeData}
+                virtual
+                height={300} // 固定高度开启虚拟滚动
               />
             </div>
           </Form.Item>

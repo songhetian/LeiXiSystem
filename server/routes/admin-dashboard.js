@@ -21,8 +21,18 @@ module.exports = async function (fastify, opts) {
       }
       const today = dayjs().format('YYYY-MM-DD');
       const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
-      const [[{ totalUsers }]] = await pool.query('SELECT COUNT(*) as totalUsers FROM users WHERE status != "deleted"');
-      const [[{ pendingUsers }]] = await pool.query('SELECT COUNT(*) as pendingUsers FROM users WHERE status = "pending"');
+
+      // --- 性能优化：合并概览统计查询 (Single Query Optimization) ---
+      const [[overviewRaw]] = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM users WHERE status != 'deleted') as totalUsers,
+          (SELECT COUNT(*) FROM users WHERE status = 'pending') as pendingUsers,
+          (SELECT COUNT(DISTINCT user_id) FROM attendance_records WHERE attendance_date = ?) as todayClocks,
+          (SELECT COUNT(*) FROM operation_logs WHERE created_at >= ?) as todayLogs
+      `, [today, today + ' 00:00:00']);
+
+      const [[{ total: monthReimbursement }]] = await pool.query('SELECT SUM(total_amount) as total FROM reimbursements WHERE created_at >= ? AND status = "approved"', [startOfMonth + ' 00:00:00']);
+      
       const [deptDistribution] = await pool.query(`
         SELECT d.name, COUNT(u.id) as value 
         FROM departments d 
@@ -30,17 +40,40 @@ module.exports = async function (fastify, opts) {
         WHERE d.status = 'active'
         GROUP BY d.id
       `);
-      const [[{ todayClocks }]] = await pool.query('SELECT COUNT(DISTINCT user_id) as todayClocks FROM attendance_records WHERE attendance_date = ?', [today]);
-      const [[{ monthReimbursement }]] = await pool.query('SELECT SUM(total_amount) as total FROM reimbursements WHERE created_at >= ? AND status = "approved"', [startOfMonth + ' 00:00:00']);
+
       const [reimbursementByTypeRaw] = await pool.query(`SELECT type as name, SUM(total_amount) as value FROM reimbursements WHERE created_at >= ? AND status = "approved" GROUP BY type`, [startOfMonth + ' 00:00:00']);
+      
+      // --- 性能优化：增加近七日出勤趋势统计 ---
+      const [trendRaw] = await pool.query(`
+        SELECT 
+          DATE_FORMAT(attendance_date, '%m-%d') as name,
+          COUNT(DISTINCT user_id) as value
+        FROM attendance_records
+        WHERE attendance_date >= DATE_SUB(?, INTERVAL 6 DAY)
+        GROUP BY attendance_date
+        ORDER BY attendance_date ASC
+      `, [today]);
+
       const typeLabels = { travel: '差旅费', office: '办公费', entertainment: '招待费', training: '培训费', other: '其他' };
       const reimbursementByType = reimbursementByTypeRaw.map(item => ({ name: typeLabels[item.name] || item.name, value: parseFloat(item.value || 0) }));
-      const [[{ todayLogs }]] = await pool.query('SELECT COUNT(*) as total FROM operation_logs WHERE created_at >= ?', [today + ' 00:00:00']);
+
       const finalData = {
-        overview: { totalUsers, pendingUsers, todayClocks, monthReimbursement: parseFloat(monthReimbursement?.total || 0), todayLogs },
-        charts: { deptDistribution: deptDistribution.map(d => ({ name: d.name, value: parseInt(d.value) })), reimbursementByType: reimbursementByType.length > 0 ? reimbursementByType : [] }
+        overview: { 
+          totalUsers: overviewRaw.totalUsers, 
+          pendingUsers: overviewRaw.pendingUsers, 
+          todayClocks: overviewRaw.todayClocks, 
+          monthReimbursement: parseFloat(monthReimbursement || 0), 
+          todayLogs: overviewRaw.todayLogs 
+        },
+        charts: { 
+          deptDistribution: deptDistribution.map(d => ({ name: d.name, value: parseInt(d.value) })), 
+          reimbursementByType: reimbursementByType.length > 0 ? reimbursementByType : [],
+          attendanceTrend: trendRaw // 返回真实趋势数据
+        }
       };
-      if (redis) await redis.set(cacheKey, JSON.stringify(finalData), 'EX', 600);
+
+      // 优化缓存策略：动态数据缓存 2 分钟，确保实时感
+      if (redis) await redis.set(cacheKey, JSON.stringify(finalData), 'EX', 120);
       return { success: true, data: finalData };
     } catch (error) {
       console.error('Admin Dashboard Error:', error);

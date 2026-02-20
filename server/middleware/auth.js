@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken')
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const { JWT_SECRET } = require('../config')
 
 /**
  * 验证用户是否拥有指定权限
@@ -55,10 +55,22 @@ function requirePermission(permissionCode) {
       }
 
     } catch (error) {
+      // --- 关键优化：精准处理 Token 过期 (降低日志级别) ---
+      if (error.name === 'TokenExpiredError') {
+        console.warn(`[Auth] Token expired at ${error.expiredAt}`);
+        return reply.code(401).send({ 
+          success: false, 
+          message: '登录已过期，正在尝试续期...', 
+          errorCode: 'TOKEN_EXPIRED' 
+        });
+      }
+
       console.error('权限验证失败:', error)
+
       if (error.name === 'JsonWebTokenError') {
         return reply.code(401).send({ success: false, message: '无效的令牌' })
       }
+      
       return reply.code(500).send({
         success: false,
         message: '权限中间件执行失败',

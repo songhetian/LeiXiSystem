@@ -10,16 +10,48 @@ import {
   HomeOutlined,
   BellOutlined,
   FontSizeOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import NotificationDropdown from './NotificationDropdown';
+import { wsManager } from '../services/websocket';
 
 const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread, onNavigate, zoomLevel = 100, onZoomChange }) => {
   const [showNotifications, setShowNotifications] = useState(false);
-  // Menu items definition (copied from Sidebar for breadcrumb mapping)
-  // Ideally this should be in a shared config file
-  // Menu items definition (copied from Sidebar for breadcrumb mapping)
-  // Ideally this should be in a shared config file
+  const [latestBroadcast, setLatestBroadcast] = useState(null); // 新增：存储最新的一条广播
+
+  // --- 性能与体验优化：监听系统广播并实时展示 ---
+  useEffect(() => {
+    const handleNewBroadcast = (broadcast) => {
+      setLatestBroadcast(broadcast);
+      // 30秒后自动淡出提示
+      setTimeout(() => setLatestBroadcast(null), 30000);
+    };
+
+    const fetchLatestBroadcast = async () => {
+      try {
+        const res = await axios.get(getApiUrl('/api/broadcasts/my-broadcasts'), { 
+          params: { limit: 1, isRead: false },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.data.success && res.data.data.length > 0) {
+          setLatestBroadcast(res.data.data[0]);
+        }
+      } catch (e) {}
+    };
+
+    fetchLatestBroadcast();
+    
+    // 监听 WebSocket 事件 (wsManager 已经在 App.jsx 中初始化并连接)
+    wsManager.on('broadcast', handleNewBroadcast);
+    wsManager.on('new_broadcast', handleNewBroadcast);
+
+    return () => {
+      wsManager.off('broadcast', handleNewBroadcast);
+      wsManager.off('new_broadcast', handleNewBroadcast);
+    };
+  }, []);
+
   const menuItems = [
     {
       id: 'dashboard',
@@ -222,6 +254,39 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
             )}
           </React.Fragment>
         ))}
+      </div>
+
+      {/* Center: Live Broadcast Ticker (性能与交互优化) */}
+      <div className="flex-1 max-w-2xl mx-8">
+        {latestBroadcast && (
+          <div 
+            onClick={() => {
+              onNavigate('messaging-broadcast');
+              setLatestBroadcast(null); // 点击后立即消失
+            }}
+            className={`flex items-center gap-3 px-5 py-2 rounded-xl cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] animate-in slide-in-from-top-4 duration-500 ${
+              latestBroadcast.type === 'warning' || latestBroadcast.priority === 'urgent' 
+                ? 'bg-rose-500 text-white border-none shadow-[0_0_20px_rgba(244,63,94,0.4)]' 
+                : 'bg-indigo-600 text-white border-none shadow-[0_0_20px_rgba(79,70,229,0.4)]'
+            }`}
+          >
+            <div className="animate-pulse flex items-center">
+              <ExclamationCircleOutlined className="text-base shadow-sm" />
+            </div>
+            <span className="text-xs font-black uppercase tracking-wider truncate flex-1">
+              {latestBroadcast.priority === 'urgent' ? '🚨 紧急公告：' : '📢 系统广播：'}
+              <span className="font-bold ml-2 normal-case text-sm tracking-normal">{latestBroadcast.title}</span>
+            </span>
+            <div className="h-4 w-px bg-white/20 mx-1" />
+            <CloseOutlined 
+              className="text-xs opacity-60 hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-md" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setLatestBroadcast(null);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Right: User Info & Logout */}

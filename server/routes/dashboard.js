@@ -33,11 +33,12 @@ module.exports = async function (fastify, opts) {
       const [userRows] = await pool.query('SELECT real_name, username, department_id FROM users WHERE id = ?', [user_id]);
       const user = userRows[0];
 
-      // --- 2. 待办事项总数 ---
+      // --- 2. 待办事项总数 (性能优化) ---
       const [[{ pendingCount }]] = await pool.query(`
         SELECT (
-          (SELECT COUNT(*) FROM reimbursements WHERE status IN ('pending', 'approving')) +
-          (SELECT COUNT(*) FROM users WHERE status = 'pending')
+          SELECT COUNT(*) FROM reimbursements WHERE status IN ('pending', 'approving')
+        ) + (
+          SELECT COUNT(*) FROM users WHERE status = 'pending'
         ) as pendingCount
       `);
 
@@ -46,32 +47,31 @@ module.exports = async function (fastify, opts) {
       let personalStats = {};
 
       if (permissions.canViewAllDepartments) {
-        // 管理员数据 (复用部分缓存逻辑或直接查询)
-        const [[{ totalEmployees }]] = await pool.query('SELECT COUNT(*) as totalEmployees FROM employees WHERE status != "deleted"');
-        const [[{ todayClockIn }]] = await pool.query('SELECT COUNT(DISTINCT user_id) as todayClockIn FROM attendance_records WHERE attendance_date = ?', [today]);
+        // 管理员数据：合并查询提升性能
+        const [[adminOverview]] = await pool.query(`
+          SELECT 
+            (SELECT COUNT(*) FROM employees WHERE status != "deleted") as totalEmployees,
+            (SELECT COUNT(DISTINCT user_id) FROM attendance_records WHERE attendance_date = ?) as todayClockIn
+        `, [today]);
 
         adminStats = {
-          totalEmployees,
-          todayClockIn
+          totalEmployees: adminOverview.totalEmployees,
+          todayClockIn: adminOverview.todayClockIn
         };
       }
 
       // 个人数据 (员工/主管通用)
-      // 最近一次打卡
-      const [lastClock] = await pool.query(
-        'SELECT clock_in_time as clock_in, clock_out_time as clock_out FROM attendance_records WHERE user_id = ? AND attendance_date = ?',
-        [user_id, today]
-      );
-
-      // 本月考勤异常数
-      const [[{ absents }]] = await pool.query(
-        'SELECT COUNT(*) as absents FROM attendance_records WHERE user_id = ? AND attendance_date >= ? AND (status = "absent" OR status = "late")',
-        [user_id, startOfMonth]
-      );
+      // 性能优化：合并个人统计查询
+      const [[personalOverview]] = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM attendance_records WHERE user_id = ? AND attendance_date >= ? AND (status = "absent" OR status = "late")) as absents,
+          (SELECT clock_in_time FROM attendance_records WHERE user_id = ? AND attendance_date = ?) as clock_in,
+          (SELECT clock_out_time FROM attendance_records WHERE user_id = ? AND attendance_date = ?) as clock_out
+      `, [user_id, startOfMonth, user_id, today, user_id, today]);
 
       personalStats = {
-        todayClock: lastClock[0] || null,
-        monthAbsents: absents
+        todayClock: personalOverview.clock_in ? { clock_in: personalOverview.clock_in, clock_out: personalOverview.clock_out } : null,
+        monthAbsents: personalOverview.absents
       };
 
       const finalData = {
@@ -82,7 +82,7 @@ module.exports = async function (fastify, opts) {
         serverTime: new Date()
       };
 
-      // 2. 写入 Redis (有效期 2 分钟，因为待办数和打卡状态需要相对实时)
+      // 优化：缓存 2 分钟，平衡实时性与压力
       if (redis) {
         await redis.set(cacheKey, JSON.stringify(finalData), 'EX', 120);
       }

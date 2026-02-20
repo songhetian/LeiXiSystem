@@ -21,6 +21,87 @@ import { useChatStore } from '../../hooks/useChatStore';
 
 const { Option } = Mentions;
 
+// --- 性能优化：消息条目组件 Memo 化 ---
+const ChatMessage = React.memo(({ msg, currentUser, getFileUrl }) => {
+  if (msg.msg_type === 'system' || msg.sender_id === 0) {
+    return (
+      <div className="flex justify-center my-2">
+        <span className="bg-gray-200/50 text-gray-500 text-[10px] px-3 py-0.5 rounded-full uppercase italic">
+          {msg.content}
+        </span>
+      </div>
+    );
+  }
+
+  const isMe = String(msg.sender_id) === String(currentUser?.id);
+  const myName = currentUser?.real_name || currentUser?.name;
+  const amIMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
+
+  return (
+    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-300`}>
+      {!isMe && (
+        <Avatar 
+          src={getFileUrl(msg.sender_avatar)} 
+          className="mr-2 mt-1 flex-shrink-0" 
+          size="small" 
+          icon={<UserOutlined />} 
+        />
+      )}
+      <div className="max-w-[70%]">
+        {!isMe && <div className="text-xs text-gray-400 mb-1 ml-1">{msg.sender_name}</div>}
+        <div className={`px-4 py-2 rounded-lg text-sm relative break-words shadow-sm ${
+          isMe ? 'bg-[#95ec69] text-black' : 
+          (amIMentioned ? 'bg-amber-100 border border-amber-200 text-amber-900 ring-2 ring-amber-400 ring-opacity-20' : 'bg-white text-gray-800')
+        }`}>
+          {msg.msg_type === 'image' ? (
+            <Image src={getFileUrl(msg.file_url)} className="rounded-md" style={{ maxHeight: '200px' }} />
+          ) : msg.msg_type === 'file' ? (
+            <a href={getFileUrl(msg.file_url)} target="_blank" rel="noopener noreferrer" className="flex items-center underline">
+              <FileOutlined className="mr-2"/> {msg.content}
+            </a>
+          ) : msg.content}
+        </div>
+      </div>
+      {isMe && (
+        <Avatar 
+          src={getFileUrl(currentUser?.avatar)} 
+          className="ml-2 mt-1 flex-shrink-0" 
+          size="small" 
+          icon={<UserOutlined />} 
+        />
+      )}
+    </div>
+  );
+});
+
+// --- 性能优化：联系人条目组件 Memo 化 ---
+const ContactItem = React.memo(({ g, isActive, onClick, getFileUrl }) => (
+  <div 
+    onClick={() => onClick(g)} 
+    className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${
+      isActive ? 'bg-[#c6c6c6] shadow-sm' : 'hover:bg-green-50'
+    }`}
+  >
+    <Badge count={g.is_muted ? 0 : (g.unread_count || 0)} dot={g.is_muted && g.unread_count > 0} size="small" offset={[-5, 5]}>
+       <Avatar shape="square" icon={<TeamOutlined />} className="bg-green-600" src={getFileUrl(g.avatar)} />
+    </Badge>
+    <div className="ml-3 font-medium text-gray-800 flex-1 truncate">
+        <div className="flex justify-between items-center">
+            <span className="truncate">{g.name}</span>
+            {g.last_message_time && (
+              <span className="text-[10px] text-gray-400">
+                {new Date(g.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              </span>
+            )}
+        </div>
+        <div className="text-xs text-gray-500 truncate">
+            {g.has_mention && <span className="text-red-500 font-bold mr-1">[有人@我]</span>}
+            {g.last_message || '暂无消息'}
+        </div>
+    </div>
+  </div>
+));
+
 // Simple UI Components
 const Button = ({ children, onClick, variant = 'primary', className = '', ...props }) => {
   const baseStyle = "px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
@@ -44,6 +125,49 @@ const Input = ({ className = '', ...props }) => (
   />
 );
 
+// --- 性能优化：将输入框拆分为独立组件，防止打字时触发整个页面的全量重绘 ---
+const ChatInput = React.memo(({ onSend, currentGroupMembers, currentUser, handleFileUpload }) => {
+  const [text, setText] = useState('');
+
+  const handlePressEnter = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!text.trim()) return;
+      onSend(text);
+      setText('');
+    }
+  };
+
+  return (
+    <div className="bg-[#f5f5f5] border-t border-[#e7e7e7] p-4">
+      <div className="flex items-center gap-5 mb-3 px-2 text-gray-500">
+        <Upload beforeUpload={handleFileUpload} showUploadList={false} accept="image/*">
+          <PictureOutlined className="text-xl hover:text-[#07c160] cursor-pointer" />
+        </Upload>
+        <Upload beforeUpload={handleFileUpload} showUploadList={false}>
+          <FileOutlined className="text-xl hover:text-[#07c160] cursor-pointer" />
+        </Upload>
+      </div>
+      <Mentions 
+        autoSize={{ minRows: 2, maxRows: 6 }} 
+        className="w-full bg-transparent border-none focus:ring-0 text-sm p-2 shadow-none resize-none" 
+        placeholder="发送消息..." 
+        value={text} 
+        onChange={setText} 
+        onKeyDown={handlePressEnter} 
+        options={currentGroupMembers
+          .filter(m => m.id !== currentUser?.id)
+          .map(m => ({ value: m.name, label: m.name, key: m.id }))
+        } 
+      />
+      <div className="flex justify-between items-center mt-2">
+        <div className="text-xs text-gray-400">Enter 发送, @ 提醒成员</div>
+        <Button onClick={() => { if(text.trim()) { onSend(text); setText(''); } }}>发送</Button>
+      </div>
+    </div>
+  );
+});
+
 const WeChatPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const { 
@@ -56,7 +180,6 @@ const WeChatPage = () => {
   
   const [activeChat, setActiveChat] = useState(null); 
   const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
@@ -104,13 +227,14 @@ const WeChatPage = () => {
 
     const handleChatMessage = (msg) => {
         const currentChat = activeChatRef.current;
-        const myName = user?.real_name || user?.name;
+        const myName = currentUser?.real_name || currentUser?.name;
         const isMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
 
         // 1. 如果是当前聊天窗口
         if (currentChat && String(msg.group_id) === String(currentChat.id)) {
              setMessages(prev => [...prev, msg]);
-             apiPost('/api/chat/read', { groupId: currentChat.id, messageId: msg.id });
+             // 性能优化：改用 Socket 标记已读
+             if (wsManager.socket) wsManager.socket.emit('mark_read', currentChat.id);
              setTimeout(scrollToBottom, 50);
         } else {
             // 2. 如果不是当前窗口，显示通知（App.jsx 已经处理了全局 Toast，这里处理组件内逻辑）
@@ -177,7 +301,8 @@ const WeChatPage = () => {
             setMessages(newMsgs);
             setHasMore(newMsgs.length === limit);
             if (newMsgs.length > 0) {
-                apiPost('/api/chat/read', { groupId: chat.id, messageId: newMsgs[newMsgs.length - 1].id });
+                // 性能优化：改用 Socket 标记已读
+                if (wsManager.socket) wsManager.socket.emit('mark_read', chat.id);
             }
             setTimeout(scrollToBottom, 100);
         } else {
@@ -234,17 +359,16 @@ const WeChatPage = () => {
     setContacts(contacts.map(c => String(c.id) === String(item.id) ? { ...c, unread_count: 0, has_mention: false } : c));
     fetchHistory(item);
     fetchMembers(item.id); 
-    apiPost('/api/chat/read', { groupId: item.id });
+    // 性能优化：改用 Socket 标记已读
+    if (wsManager.socket) wsManager.socket.emit('mark_read', item.id);
     if (wsManager.socket) wsManager.socket.emit('join_group', item.id);
   };
 
-  const sendMessage = async (content = inputText, type = 'text', fileUrl = null) => {
-    if ((!content || !content.trim() && !fileUrl) || !activeChat || !wsManager.socket) return;
+  const sendMessage = React.useCallback(async (content, type = 'text', fileUrl = null) => {
+    if (!activeChat || !wsManager.socket) return;
     const payload = { targetId: activeChat.id, targetType: 'group', content, type, fileUrl };
     wsManager.socket.emit('send_message', payload);
-    setInputText('');
     
-    // 立即更新侧边栏预览
     setContacts(prev => {
         const index = prev.findIndex(g => String(g.id) === String(activeChat.id));
         if (index === -1) return prev;
@@ -255,9 +379,9 @@ const WeChatPage = () => {
         updated.splice(index, 1);
         return [group, ...updated];
     });
-  };
+  }, [activeChat]);
 
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = React.useCallback(async (file) => {
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -273,7 +397,7 @@ const WeChatPage = () => {
       }
     } catch (err) { message.error('上传失败'); }
     return false;
-  };
+  }, [sendMessage]);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
@@ -299,21 +423,13 @@ const WeChatPage = () => {
         </div>
         <div className="overflow-y-auto h-full space-y-2 p-2">
             {contacts.map(g => (
-              <div key={`g-${g.id}`} onClick={() => selectChat(g)} className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${activeChat?.id === g.id ? 'bg-[#c6c6c6] shadow-sm' : 'hover:bg-green-50'}`}>
-                <Badge count={g.is_muted ? 0 : (g.unread_count || 0)} dot={g.is_muted && g.unread_count > 0} size="small" offset={[-5, 5]}>
-                   <Avatar shape="square" icon={<TeamOutlined />} className="bg-green-600" src={getFileUrl(g.avatar)} />
-                </Badge>
-                <div className="ml-3 font-medium text-gray-800 flex-1 truncate">
-                    <div className="flex justify-between items-center">
-                        <span className="truncate">{g.name}</span>
-                        {g.last_message_time && <span className="text-[10px] text-gray-400">{new Date(g.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                        {g.has_mention && <span className="text-red-500 font-bold mr-1">[有人@我]</span>}
-                        {g.last_message || '暂无消息'}
-                    </div>
-                </div>
-              </div>
+              <ContactItem 
+                key={`g-${g.id}`} 
+                g={g} 
+                isActive={activeChat?.id === g.id} 
+                onClick={selectChat} 
+                getFileUrl={getFileUrl} 
+              />
             ))}
         </div>
       </div>
@@ -330,44 +446,23 @@ const WeChatPage = () => {
                <Button variant="ghost" onClick={() => setIsMembersDrawerOpen(true)}><MoreOutlined className="text-xl" /></Button>
             </div>
             <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.map((msg, idx) => {
-                if (msg.msg_type === 'system' || msg.sender_id === 0) return (
-                    <div key={idx} className="flex justify-center my-2"><span className="bg-gray-200/50 text-gray-500 text-[10px] px-3 py-0.5 rounded-full uppercase italic">{msg.content}</span></div>
-                );
-                const isMe = String(msg.sender_id) === String(currentUser?.id);
-                const myName = currentUser?.real_name || currentUser?.name;
-                const amIMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
-                return (
-                  <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    {!isMe && <Avatar src={getFileUrl(msg.sender_avatar)} className="mr-2 mt-1 flex-shrink-0" size="small" icon={<UserOutlined />} />}
-                    <div className="max-w-[70%]">
-                      {!isMe && <div className="text-xs text-gray-400 mb-1 ml-1">{msg.sender_name}</div>}
-                      <div className={`px-4 py-2 rounded-lg text-sm relative break-words shadow-sm ${isMe ? 'bg-[#95ec69] text-black' : (amIMentioned ? 'bg-amber-100 border border-amber-200 text-amber-900 ring-2 ring-amber-400 ring-opacity-20' : 'bg-white text-gray-800')}`}>
-                        {msg.msg_type === 'image' ? <Image src={getFileUrl(msg.file_url)} className="rounded-md" style={{ maxHeight: '200px' }} /> : 
-                         msg.msg_type === 'file' ? <a href={getFileUrl(msg.file_url)} target="_blank" rel="noopener noreferrer" className="flex items-center underline"><FileOutlined className="mr-2"/> {msg.content}</a> : msg.content}
-                      </div>
-                    </div>
-                    {isMe && (
-                      <Avatar 
-                        src={getFileUrl(currentUser?.avatar || JSON.parse(localStorage.getItem('user') || '{}').avatar)} 
-                        className="ml-2 mt-1 flex-shrink-0" 
-                        size="small" 
-                        icon={<UserOutlined />} 
-                      />
-                    )}
-                  </div>
-                );
-              })}
+              {messages.map((msg, idx) => (
+                <ChatMessage 
+                  key={msg.id || `msg-${idx}`} 
+                  msg={msg} 
+                  currentUser={currentUser} 
+                  getFileUrl={getFileUrl} 
+                />
+              ))}
               <div ref={messagesEndRef} />
             </div>
-            <div className="bg-[#f5f5f5] border-t border-[#e7e7e7] p-4">
-              <div className="flex items-center gap-5 mb-3 px-2 text-gray-500">
-                <Upload beforeUpload={handleFileUpload} showUploadList={false} accept="image/*"><PictureOutlined className="text-xl hover:text-[#07c160] cursor-pointer" /></Upload>
-                <Upload beforeUpload={handleFileUpload} showUploadList={false}><FileOutlined className="text-xl hover:text-[#07c160] cursor-pointer" /></Upload>
-              </div>
-              <Mentions autoSize={{ minRows: 2, maxRows: 6 }} className="w-full bg-transparent border-none focus:ring-0 text-sm p-2 shadow-none resize-none" placeholder="发送消息..." value={inputText} onChange={setInputText} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} options={currentGroupMembers.filter(m => m.id !== currentUser?.id).map(m => ({ value: m.name, label: m.name, key: m.id }))} />
-              <div className="flex justify-between items-center mt-2"><div className="text-xs text-gray-400">Enter 发送, @ 提醒成员</div><Button onClick={() => sendMessage()}>发送</Button></div>
-            </div>
+            
+            <ChatInput 
+              onSend={sendMessage} 
+              currentGroupMembers={currentGroupMembers} 
+              currentUser={currentUser}
+              handleFileUpload={handleFileUpload}
+            />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400"><TeamOutlined style={{ fontSize: 64, marginBottom: 16, opacity: 0.2 }} /><p>选择一个联系人开始聊天</p></div>

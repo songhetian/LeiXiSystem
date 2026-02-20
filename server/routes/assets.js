@@ -341,9 +341,41 @@ module.exports = async function (fastify, opts) {
   })
 
   fastify.get('/api/assets/employee/:userId', async (request) => {
-    const [rows] = await pool.query(`SELECT dev.*, am.name as model_name, adf.name as form_name FROM devices dev JOIN asset_models am ON dev.model_id = am.id LEFT JOIN asset_device_forms adf ON am.form_id = adf.id WHERE dev.current_user_id = ? AND (dev.status != 'deleted' OR dev.status IS NULL) AND dev.device_status = 'in_use'`, [request.params.userId]);
-    const data = await Promise.all(rows.map(async (dev) => { const config = await refreshDeviceConfig(dev.id); return { ...dev, components: config }; }));
-    return sendSuccess(data);
+    const userId = request.params.userId;
+    // 1. 先获取基础设备列表
+    const [devices] = await pool.query(`
+      SELECT dev.*, am.name as model_name, adf.name as form_name 
+      FROM devices dev 
+      JOIN asset_models am ON dev.model_id = am.id 
+      LEFT JOIN asset_device_forms adf ON am.form_id = adf.id 
+      WHERE dev.current_user_id = ? AND (dev.status != 'deleted' OR dev.status IS NULL) AND dev.device_status = 'in_use'
+    `, [userId]);
+
+    if (devices.length === 0) return sendSuccess([]);
+
+    // 2. 性能优化：批量查询所有设备的配件配置 (消除 N+1)
+    const deviceIds = devices.map(d => d.id);
+    const [allConfigs] = await pool.query(`
+      SELECT dcd.*, ct.name as type_name, c.name as component_name, c.model as component_model
+      FROM device_config_details dcd
+      JOIN asset_component_types ct ON dcd.component_type_id = ct.id
+      JOIN asset_components c ON dcd.component_id = c.id
+      WHERE dcd.device_id IN (?) AND (dcd.status = 'active' OR dcd.status IS NULL)
+    `, [deviceIds]);
+
+    // 3. 将配置映射回设备
+    const configMap = allConfigs.reduce((acc, curr) => {
+      if (!acc[curr.device_id]) acc[curr.device_id] = [];
+      acc[curr.device_id].push(curr);
+      return acc;
+    }, {});
+
+    const enrichedData = devices.map(dev => ({
+      ...dev,
+      components: configMap[dev.id] || []
+    }));
+
+    return sendSuccess(enrichedData);
   })
 
   // 审批

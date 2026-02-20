@@ -160,44 +160,53 @@ module.exports = async function (fastify, opts) {
         }
       }
 
-      // 创建广播记录
-      const [result] = await pool.query(
-        `INSERT INTO broadcasts (title, content, type, priority, target_type, target_departments, target_roles, target_users, creator_id, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          title,
-          content,
-          type,
-          priority,
-          targetType,
-          targetDepartments ? JSON.stringify(JSON.parse(targetDepartments)) : null,
-          targetRoles ? JSON.stringify(JSON.parse(targetRoles)) : null,
-          targetUsers ? JSON.stringify(JSON.parse(targetUsers)) : null,
-          user.id,
-          expiresAt || null
-        ]
-      )
+      // 3. 开始事务处理
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
 
-      const broadcastId = result.insertId
-
-      // 获取目标用户列表
-      const targetUserIds = await getTargetUsers(
-        targetType,
-        targetDepartments,
-        targetRoles,
-        targetUsers,
-        creatorDepartmentId
-      )
-
-      // 创建接收记录
-      if (targetUserIds.length > 0) {
-        const values = targetUserIds.map(userId => [broadcastId, userId])
-        await pool.query(
-          'INSERT INTO broadcast_recipients (broadcast_id, user_id) VALUES ?',
-          [values]
+      try {
+        // 创建广播记录
+        const [result] = await connection.query(
+          `INSERT INTO broadcasts (title, content, type, priority, target_type, target_departments, target_roles, target_users, creator_id, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            title,
+            content,
+            type,
+            priority,
+            targetType,
+            targetDepartments ? JSON.stringify(JSON.parse(targetDepartments)) : null,
+            targetRoles ? JSON.stringify(JSON.parse(targetRoles)) : null,
+            targetUsers ? JSON.stringify(JSON.parse(targetUsers)) : null,
+            user.id,
+            expiresAt || null
+          ]
         )
 
-        // 🔔 实时推送广播（WebSocket & Redis）
+        const broadcastId = result.insertId
+
+        // 获取目标用户列表
+        const targetUserIds = await getTargetUsers(
+          targetType,
+          targetDepartments,
+          targetRoles,
+          targetUsers,
+          creatorDepartmentId
+        )
+
+        // 创建接收记录
+        if (targetUserIds.length > 0) {
+          const values = targetUserIds.map(userId => [broadcastId, userId])
+          await connection.query(
+            'INSERT INTO broadcast_recipients (broadcast_id, user_id) VALUES ?',
+            [values]
+          )
+        }
+
+        await connection.commit();
+        connection.release();
+
+        // 🔔 4. 实时分发优化 (分层推送)
         if (fastify.io) {
           const broadcastData = {
             id: broadcastId,
@@ -208,20 +217,15 @@ module.exports = async function (fastify, opts) {
             created_at: new Date()
           };
 
-          console.log(`[Broadcast] 开始推送广播: "${title}", ID: ${broadcastId}, 类型: ${targetType}`);
-
-          // 1. 如果有 Redis，通过 Redis 发布，实现跨服务器同步
           if (fastify.redis) {
-            const redisPayload = JSON.stringify({
-              ...broadcastData,
-              category: 'broadcast'
-            });
-
             if (targetType === 'all') {
-              console.log('[Broadcast] 通过 Redis 发布全体广播');
-              fastify.redis.publish('system_notifications', redisPayload);
+              // 性能优化：全员广播仅需一次 Publish
+              fastify.redis.publish('system_notifications', JSON.stringify({
+                ...broadcastData,
+                category: 'broadcast'
+              }));
             } else {
-              console.log(`[Broadcast] 通过 Redis 向 ${targetUserIds.length} 个用户发布定向广播`);
+              // 定向推送
               targetUserIds.forEach(targetId => {
                 fastify.redis.publish('system_notifications', JSON.stringify({
                   ...broadcastData,
@@ -230,25 +234,22 @@ module.exports = async function (fastify, opts) {
                 }));
               });
             }
+          } else if (targetType === 'all') {
+            fastify.io.emit('new_broadcast', broadcastData);
           } else {
-            console.log(`[Broadcast] 使用本地 Socket.IO 推送给 ${targetUserIds.length} 个用户`);
-            // 2. 兜底本地 Socket.io 发送
             sendBroadcast(fastify.io, targetUserIds, broadcastData);
           }
-
-          console.log(`📣 广播逻辑处理完毕，目标用户: ${targetUserIds.length}`);
-        } else {
-          console.warn('[Broadcast] 推送失败: fastify.io 未定义');
         }
-      }
 
-      return {
-        success: true,
-        message: '广播发送成功',
-        data: {
-          id: broadcastId,
-          recipientCount: targetUserIds.length
+        return {
+          success: true,
+          message: '广播发送成功',
+          data: { id: broadcastId, recipientCount: targetUserIds.length }
         }
+      } catch (err) {
+        await connection.rollback();
+        connection.release();
+        throw err;
       }
     } catch (error) {
       console.error('创建广播失败:', error)

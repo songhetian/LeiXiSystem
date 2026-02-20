@@ -17,6 +17,29 @@ import { wsManager } from '../../services/websocket';
 
 const { Text } = Typography;
 
+// --- 性能优化：提取员工列表项并 Memo 化，减少详情弹窗滚动/刷新时的重绘 ---
+const EmployeeItem = React.memo(({ emp, getEmployeeStatusUI }) => (
+  <List.Item
+    extra={getEmployeeStatusUI(emp.status)}
+    className="border-b border-slate-50 last:border-none py-4 px-2 hover:bg-slate-50/50 rounded-2xl transition-all"
+  >
+    <List.Item.Meta
+      avatar={
+        <Badge dot status={emp.isOnline ? 'success' : 'default'} offset={[-2, 28]}>
+          <Avatar src={getFileUrl(emp.avatar)} className="rounded-xl border border-slate-100 shadow-sm" icon={<UserOutlined />} />
+        </Badge>
+      }
+      title={<span className="font-bold text-slate-800">{emp.name}</span>}
+      description={
+        <div className="text-[10px] font-bold text-slate-400 flex items-center gap-2">
+          <ClockCircleOutlined /> {emp.shift || '未安排班次'}
+          {emp.reason && <span className="text-rose-500 italic ml-2">({emp.reason})</span>}
+        </div>
+      }
+    />
+  </List.Item>
+));
+
 const RealtimeAttendanceCard = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -61,7 +84,8 @@ const RealtimeAttendanceCard = () => {
     setDetailModalVisible(true);
   };
 
-  const columns = [
+  // --- 性能优化：使用 useMemo 缓存 Table 列配置 ---
+  const columns = React.useMemo(() => [
     {
       title: '组织架构',
       dataIndex: 'name',
@@ -128,16 +152,17 @@ const RealtimeAttendanceCard = () => {
         />
       )
     }
-  ];
+  ], []);
 
-  const getEmployeeStatusUI = (status) => {
+  // --- 性能优化：使用 useCallback 稳定状态渲染函数 ---
+  const getEmployeeStatusUI = React.useCallback((status) => {
     switch (status) {
       case 'on_duty': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="success">在岗</Tag>;
       case 'absent': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="error">缺勤</Tag>;
       case 'resting_online': return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="processing">休息在线</Tag>;
       default: return <Tag className="border-none rounded-full px-3 font-bold text-[10px]" color="default">离线</Tag>;
     }
-  };
+  }, []);
 
   return (
     <>
@@ -204,25 +229,11 @@ const RealtimeAttendanceCard = () => {
             itemLayout="horizontal"
             dataSource={selectedDept?.employees || []}
             renderItem={emp => (
-              <List.Item
-                extra={getEmployeeStatusUI(emp.status)}
-                className="border-b border-slate-50 last:border-none py-4 px-2 hover:bg-slate-50/50 rounded-2xl transition-all"
-              >
-                <List.Item.Meta
-                  avatar={
-                    <Badge dot status={emp.isOnline ? 'success' : 'default'} offset={[-2, 28]}>
-                      <Avatar src={getFileUrl(emp.avatar)} className="rounded-xl border border-slate-100 shadow-sm" icon={<UserOutlined />} />
-                    </Badge>
-                  }
-                  title={<span className="font-bold text-slate-800">{emp.name}</span>}
-                  description={
-                    <div className="text-[10px] font-bold text-slate-400 flex items-center gap-2">
-                      <ClockCircleOutlined /> {emp.shift || '未安排班次'}
-                      {emp.reason && <span className="text-rose-500 italic ml-2">({emp.reason})</span>}
-                    </div>
-                  }
-                />
-              </List.Item>
+              <EmployeeItem 
+                key={emp.id} 
+                emp={emp} 
+                getEmployeeStatusUI={getEmployeeStatusUI} 
+              />
             )}
           />
         </div>

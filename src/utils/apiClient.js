@@ -147,6 +147,18 @@ class TokenManager {
 // 创建单例
 export const tokenManager = new TokenManager();
 
+// --- 性能与稳定性优化：解决高并发下的 Token 续期冲突 ---
+let isRefreshing = false;
+let refreshQueue = [];
+
+const processQueue = (error, token = null) => {
+  refreshQueue.forEach(prom => {
+    if (error) prom.reject(error);
+    else prom.resolve(token);
+  });
+  refreshQueue = [];
+};
+
 /**
  * 统一的错误处理
  */
@@ -234,26 +246,41 @@ export const apiRequest = async (url, options = {}) => {
 
     // 处理401错误 - token可能在请求过程中过期
     if (response.status === 401 && !skipRefresh) {
+      if (isRefreshing) {
+        // 如果正在刷新中，将当前请求挂起
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject });
+        }).then(newToken => {
+          return fetch(url, {
+            ...config,
+            headers: { ...config.headers, 'Authorization': `Bearer ${newToken}` }
+          }).then(res => res.json());
+        });
+      }
+
       console.log('🔄 [apiClient] 尝试刷新 Token...');
+      isRefreshing = true;
+
       try {
-        await tokenManager.refreshToken();
+        const newToken = await tokenManager.refreshToken();
         console.log('✅ [apiClient] Token 刷新成功，重试请求...');
-        // 重试请求
+        isRefreshing = false;
+        processQueue(null, newToken); // 放行队列中的请求
+
+        // 重试当前请求
         const retryResponse = await fetch(url, {
           ...config,
           headers: {
             ...config.headers,
-            'Authorization': `Bearer ${tokenManager.getToken()}`,
+            'Authorization': `Bearer ${newToken}`,
           },
         });
 
-        if (!retryResponse.ok) {
-          throw new Error(`HTTP error! status: ${retryResponse.status}`);
-        }
-
         return await retryResponse.json();
       } catch (refreshError) {
-        console.error('❌ [apiClient] Token 刷新失败或被取消');
+        isRefreshing = false;
+        processQueue(refreshError);
+        console.error('❌ [apiClient] Token 刷新失败');
         throw refreshError;
       }
     }

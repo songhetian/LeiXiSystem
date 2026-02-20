@@ -167,7 +167,38 @@ function getLeaveTypeText(type) {
   return map[type] || type;
 }
 
+/**
+ * 通用流式导出 (性能优化版)
+ * 适用于大数据量场景，防止 Node.js 内存溢出
+ * @param {Response} reply - Fastify reply object
+ * @param {string} filename - 导出文件名
+ * @param {Array} columns - 列定义 [{header, key, width}]
+ * @param {AsyncGenerator|Stream} dataProvider - 数据源
+ */
+async function streamExport(reply, filename, columns, dataProvider) {
+  reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}.xlsx"`);
+
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+    stream: reply.raw,
+    useStyles: true,
+    useSharedStrings: true
+  });
+
+  const worksheet = workbook.addWorksheet('Sheet1');
+  worksheet.columns = columns;
+
+  // 写入数据
+  for await (const row of dataProvider) {
+    worksheet.addRow(row).commit();
+  }
+
+  worksheet.commit();
+  await workbook.commit();
+}
+
 module.exports = {
   exportVacationBalances,
-  exportVacationHistory
+  exportVacationHistory,
+  streamExport
 };

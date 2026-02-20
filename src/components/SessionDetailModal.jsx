@@ -10,7 +10,8 @@ import {
     ArrowPathIcon,
     SwatchIcon
 } from '@heroicons/react/24/outline';
-import { StarIcon } from '@heroicons/react/24/solid';
+// 性能优化：直接引入具体图标，避免 Vite 预构建整个 solid 库导致 504 错误
+import StarIcon from '@heroicons/react/24/solid/StarIcon';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI';
 import Modal from './Modal';

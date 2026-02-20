@@ -12,7 +12,19 @@ const Win11MyKnowledgeBase = () => {
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  // --- 性能优化：搜索防抖控制 ---
+  const [displaySearchTerm, setDisplaySearchTerm] = useState(''); // 用于输入框显示
+  const [searchTerm, setSearchTerm] = useState(''); // 用于实际过滤
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(displaySearchTerm);
+      setCurrentPage(1);
+    }, 300); // 300ms 防抖
+    return () => clearTimeout(timer);
+  }, [displaySearchTerm]);
+
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null);
   const [folderSearchTerm, setFolderSearchTerm] = useState('');
@@ -719,11 +731,9 @@ const Win11MyKnowledgeBase = () => {
                 placeholder={currentFolderCategory
                   ? `在 ${currentFolderCategory.name} 中搜索...`
                   : '搜索所有文档...'}
-                value={searchTerm}
+                value={displaySearchTerm}
                 onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                  // Also reset category pagination if needed, though usually handled separately
+                  setDisplaySearchTerm(e.target.value);
                 }}
                 className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
               />
