@@ -132,6 +132,24 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
 
     // --- Effects ---
 
+    // 性能优化：监听键盘快捷键 (1-5 分)
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (readOnly || showEditSession || showAddToCase || showConfirmSave) return;
+            
+            // 如果焦点在 textarea，不触发快捷键
+            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+            if (e.key >= '1' && e.key <= '5') {
+                setRating(parseInt(e.key));
+                toast.info(`已快捷评分: ${e.key} 星`, { duration: 1000 });
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [readOnly, showEditSession, showAddToCase, showConfirmSave]);
+
     // Sync messages with prop when it changes
     useEffect(() => {
         setMessages(initialMessages);
@@ -700,6 +718,16 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                         加入案例
                                     </button>
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        setRating(5);
+                                        setEditContent('服务规范，专业度高，予以通过。');
+                                        setShowConfirmSave(true);
+                                    }}
+                                    className="w-full py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 mb-1"
+                                >
+                                    ✨ 优秀会话 (一键100分)
+                                </button>
                                 <button
                                     onClick={() => setShowConfirmSave(true)}
                                     className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
