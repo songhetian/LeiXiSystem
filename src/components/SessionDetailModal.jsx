@@ -8,6 +8,7 @@ import {
     Save, 
     RotateCcw, 
     AlertCircle,
+    CheckCircle2,
     Layers,
     LayoutList,
     Search,
