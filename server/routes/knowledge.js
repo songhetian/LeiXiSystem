@@ -221,6 +221,48 @@ async function knowledgeRoutes(fastify, options) {
     }
   });
 
+  // 获取单篇知识文章
+  fastify.get('/api/knowledge/articles/:id', async (request, reply) => {
+    const { id } = request.params;
+    try {
+      const [rows] = await pool.query('SELECT * FROM knowledge_articles WHERE id = ? AND is_deleted = 0', [id]);
+      if (rows.length === 0) return reply.code(404).send({ error: 'Article not found' });
+      return rows[0];
+    } catch (error) {
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // 更新知识文章
+  fastify.put('/api/knowledge/articles/:id', async (request, reply) => {
+    const { id } = request.params;
+    const updates = request.body;
+    try {
+      const { title, content, summary, category_id, is_public, status, attachments, notes } = updates;
+      
+      await pool.query(
+        `UPDATE knowledge_articles SET 
+          title = COALESCE(?, title),
+          content = COALESCE(?, content),
+          summary = COALESCE(?, summary),
+          category_id = ?,
+          is_public = COALESCE(?, is_public),
+          status = COALESCE(?, status),
+          attachments = COALESCE(?, attachments),
+          notes = COALESCE(?, notes),
+          updated_at = NOW()
+        WHERE id = ?`,
+        [title, content, summary, category_id, is_public, status, 
+         attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null,
+         notes, id]
+      );
+      return { success: true };
+    } catch (error) {
+      console.error('Update article failed:', error);
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
   // ==================== 我的知识库 (My Knowledge) 专项接口 ====================
 
   // 获取个人分类

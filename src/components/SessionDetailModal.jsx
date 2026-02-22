@@ -243,6 +243,22 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
         setSessionTags(newTags);
     };
 
+    // --- 性能与交互优化：点击标签定位消息 ---
+    const messageRefs = useRef({}); // 存储消息DOM引用
+
+    const handleTagClick = (messageId) => {
+        const element = messageRefs.current[messageId];
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 添加高亮动画类
+            element.classList.add('highlight-flash');
+            setTimeout(() => element.classList.remove('highlight-flash'), 2000);
+            setSelectedMessageId(messageId);
+        } else {
+            toast.info('未找到对应消息，可能已加载更多');
+        }
+    };
+
     const handleMessageTagsChange = (newTags) => {
         if (!selectedMessageId) return;
 
@@ -466,7 +482,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 return (
                                     <div
                                         key={msg.id || index}
-                                        className={`flex ${isAgent ? 'justify-end' : 'justify-start'} group`}
+                                        ref={el => messageRefs.current[msg.id] = el}
+                                        className={`flex ${isAgent ? 'justify-end' : 'justify-start'} group transition-all duration-500`}
                                         onClick={() => setSelectedMessageId(msg.id)}
                                     >
                                         <div className={`flex max-w-[92%] gap-3 ${isAgent ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -492,10 +509,14 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                                         {msgTags.map(tag => (
                                                             <span
                                                                 key={tag.id}
-                                                                className="tag-chip"
+                                                                className="tag-chip cursor-pointer hover:opacity-80 transition-opacity"
                                                                 style={{
                                                                     backgroundColor: tag.color,
                                                                     color: getContrastColor(tag.color)
+                                                                }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleTagClick(tag.messageId);
                                                                 }}
                                                             >
                                                                 {tag.text}

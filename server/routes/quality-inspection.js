@@ -275,6 +275,94 @@ module.exports = async function (fastify, opts) {
         }
     });
 
+    // GET /api/quality/sessions/export - 高性能双 Sheet 导出 (对齐导入模板)
+    fastify.get('/api/quality/sessions/export', async (request, reply) => {
+        const { search, status, channel, startDate, endDate } = request.query;
+        
+        try {
+            // 1. 构建查询条件并获取会话数据
+            let sessionQuery = `
+                SELECT
+                    qs.id, qs.session_no, COALESCE(u.real_name, ea.name, qs.agent_name) as agent_name,
+                    qs.customer_name, qs.customer_id, qs.channel, qs.start_time, qs.end_time,
+                    qs.duration, qs.message_count, qs.score, qs.grade, qs.status
+                FROM quality_sessions qs
+                LEFT JOIN users u ON qs.agent_id = u.id
+                LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
+                WHERE 1=1
+            `;
+            const params = [];
+            if (search) {
+                sessionQuery += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
+                params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            }
+            if (status) { sessionQuery += ` AND qs.status = ?`; params.push(status); }
+            if (startDate) { sessionQuery += ` AND qs.created_at >= ?`; params.push(startDate); }
+            if (endDate) { sessionQuery += ` AND qs.created_at <= ?`; params.push(endDate); }
+
+            const [sessions] = await pool.query(sessionQuery + ' ORDER BY qs.created_at DESC', params);
+            
+            if (sessions.length === 0) {
+                return reply.code(400).send({ success: false, message: '没有符合条件的记录可供导出' });
+            }
+
+            // 2. 批量拉取聊天记录 (彻底消除 N+1)
+            const sessionIds = sessions.map(s => s.id);
+            const [messages] = await pool.query(
+                `SELECT sm.*, qs.session_no
+                 FROM session_messages sm
+                 JOIN quality_sessions qs ON sm.session_id = qs.id
+                 WHERE sm.session_id IN (?)
+                 ORDER BY sm.session_id, sm.timestamp ASC`,
+                [sessionIds]
+            );
+
+            // 3. 构建 Excel
+            const workbook = new ExcelJS.Workbook();
+            
+            // Sheet 1: 会话信息
+            const sessionSheet = workbook.addWorksheet('会话信息');
+            sessionSheet.columns = [
+                { header: '会话编号', key: 'session_no', width: 20 },
+                { header: '客服姓名', key: 'agent_name', width: 15 },
+                { header: '客户姓名', key: 'customer_name', width: 15 },
+                { header: '客户ID', key: 'customer_id', width: 15 },
+                { header: '沟通渠道', key: 'channel', width: 10 },
+                { header: '开始时间', key: 'start_time', width: 20 },
+                { header: '结束时间', key: 'end_time', width: 20 },
+                { header: '时长(秒)', key: 'duration', width: 10 },
+                { header: '消息数量', key: 'message_count', width: 10 },
+                { header: '得分', key: 'score', width: 8 },
+                { header: '等级', key: 'grade', width: 8 },
+                { header: '状态', key: 'status', width: 10 }
+            ];
+            sessionSheet.addRows(sessions);
+
+            // Sheet 2: 聊天记录
+            const messageSheet = workbook.addWorksheet('聊天记录');
+            messageSheet.columns = [
+                { header: '会话编号', key: 'session_no', width: 20 },
+                { header: '发送者姓名', key: 'sender_name', width: 15 },
+                { header: '发送者类型', key: 'sender_type', width: 15 },
+                { header: '消息内容', key: 'content', width: 50 },
+                { header: '发送时间', key: 'timestamp', width: 20 }
+            ];
+            messageSheet.addRows(messages);
+
+            // 4. 设置响应头并流式导出
+            const filename = `quality_export_${new Date().getTime()}.xlsx`;
+            reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            reply.header('Content-Disposition', `attachment; filename=${filename}`);
+            
+            const buffer = await workbook.xlsx.writeBuffer();
+            return reply.send(buffer);
+
+        } catch (error) {
+            console.error('Export failed:', error);
+            reply.code(500).send({ success: false, message: '导出失败: ' + error.message });
+        }
+    });
+
     // GET /api/quality/sessions/:id - Get session details
     fastify.get('/api/quality/sessions/:id', async (request, reply) => {
         const { id } = request.params;

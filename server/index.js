@@ -78,6 +78,37 @@ const { extractUserPermissions, applyDepartmentFilter } = require('./middleware/
 const { recordLog } = require('./utils/logger')
 // 引入人事闭环工具
 const { syncUserChatGroups } = require('./utils/personnelClosure')
+const cron = require('node-cron');
+
+// ... 之前的逻辑 ...
+
+// --- 知识库优化：Redis 阅读量同步任务 (每 10 分钟一次) ---
+cron.schedule('*/10 * * * *', async () => {
+  const pool = fastify.mysql || global.pool;
+  const redis = fastify.redis;
+  if (!pool || !redis) return;
+
+  try {
+    const views = await redis.hgetall('stats:article:views');
+    const articleIds = Object.keys(views);
+    
+    if (articleIds.length > 0) {
+      console.log(`[Cron] 正在同步 ${articleIds.length} 篇文章的阅读量...`);
+      for (const id of articleIds) {
+        const count = parseInt(views[id]);
+        await pool.query(
+          'UPDATE knowledge_articles SET view_count = view_count + ?, updated_at = updated_at WHERE id = ?',
+          [count, id]
+        );
+      }
+      // 同步完成后清理 Redis 增量
+      await redis.del('stats:article:views');
+      console.log('✅ 知识库阅读量同步完成');
+    }
+  } catch (error) {
+    console.error('❌ 阅读量同步任务失败:', error);
+  }
+});
 
 // 注册文件上传// 注意：multipart 只处理 multipart/form-data，不影响 application/json
 fastify.register(multipart, {

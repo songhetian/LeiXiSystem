@@ -48,6 +48,12 @@ module.exports = async function (fastify, opts) {
                 return reply.code(400).send({ success: false, message: 'Invalid Excel file: missing session sheet.' });
             }
 
+            // --- 核心工具：智能表头匹配器 ---
+            const getColValue = (rowData, possibleNames) => {
+                const foundName = possibleNames.find(name => rowData[name] !== undefined);
+                return foundName ? rowData[foundName] : null;
+            };
+
             // Helper function to get or create external agent
             async function getOrCreateExternalAgent(name, platformId, shopId, connection) {
                 if (!name) return null;
@@ -109,7 +115,7 @@ module.exports = async function (fastify, opts) {
 
             if (messageSheet) {
                 messageSheet.getRow(1).eachCell((cell, colNumber) => {
-                    messageHeaders[colNumber] = cell.value;
+                    messageHeaders[colNumber] = cell.value?.toString().trim();
                 });
 
                 // Parse all messages
@@ -118,23 +124,25 @@ module.exports = async function (fastify, opts) {
 
                     const rowData = {};
                     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        rowData[messageHeaders[colNumber]] = cell.value;
+                        const header = messageHeaders[colNumber];
+                        if (header) rowData[header] = cell.value;
                     });
 
-                    const sessionNo = rowData['会话编号'];
-                    const senderType = rowData['发送者类型'];
-                    const senderName = rowData['发送者姓名'];
-                    const content = rowData['消息内容'];
-                    const timestamp = rowData['发送时间'];
+                    const sessionNo = getColValue(rowData, ['会话编号', '会话ID', 'SessionNo', 'SessionID']);
+                    const senderType = getColValue(rowData, ['发送者类型', '角色', 'SenderType', 'Role']);
+                    const senderName = getColValue(rowData, ['发送者姓名', '昵称', 'SenderName', 'Nickname']);
+                    const content = getColValue(rowData, ['消息内容', '内容', 'Message', 'Content', 'Text']);
+                    const timestamp = getColValue(rowData, ['发送时间', '时间', 'Time', 'Timestamp']);
 
                     if (sessionNo && content) {
-                        if (!messagesMap.has(sessionNo)) {
-                            messagesMap.set(sessionNo, []);
+                        const normalizedSessionNo = sessionNo.toString().trim();
+                        if (!messagesMap.has(normalizedSessionNo)) {
+                            messagesMap.set(normalizedSessionNo, []);
                         }
-                        messagesMap.get(sessionNo).push({
-                            sender_type: senderType || 'agent',
-                            sender_name: senderName,
-                            content,
+                        messagesMap.get(normalizedSessionNo).push({
+                            sender_type: (senderType?.toString() || '').includes('客') ? 'customer' : 'agent',
+                            sender_name: senderName?.toString() || '',
+                            content: content.toString(),
                             timestamp: timestamp || new Date()
                         });
                     }
@@ -148,14 +156,15 @@ module.exports = async function (fastify, opts) {
             try {
                 await connection.beginTransaction();
 
-                // Collect all rows first (eachRow doesn't support async/await properly)
+                // Collect all rows first
                 const sessionRows = [];
                 sessionSheet.eachRow((row, rowNumber) => {
-                    if (rowNumber === 1) return; // Skip header
+                    if (rowNumber === 1) return;
 
                     const rowData = {};
                     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        rowData[sessionHeaders[colNumber]] = cell.value;
+                        const header = sessionHeaders[colNumber]?.toString().trim();
+                        if (header) rowData[header] = cell.value;
                     });
 
                     sessionRows.push({ rowNumber, rowData });
@@ -164,43 +173,53 @@ module.exports = async function (fastify, opts) {
                 // Process each session sequentially
                 for (const { rowNumber, rowData } of sessionRows) {
                     try {
-                        const sessionNo = rowData['会话编号'];
-                        const agentName = rowData['客服姓名'];
-                        const customerName = rowData['客户姓名'];
-                        const customerId = rowData['客户ID'];
-                        const channel = rowData['沟通渠道'] || 'chat';
-                        const startTime = rowData['开始时间'];
-                        const endTime = rowData['结束时间'];
-                        const duration = rowData['时长(秒)'] || 0;
-                        const messageCount = rowData['消息数量'] || 0;
+                        const sessionNo = getColValue(rowData, ['会话编号', '会话ID', 'SessionNo'])?.toString().trim();
+                        const agentName = getColValue(rowData, ['客服姓名', '客服', 'AgentName', 'Agent'])?.toString().trim();
+                        const customerName = getColValue(rowData, ['客户姓名', '客户', 'CustomerName', 'Customer'])?.toString().trim();
+                        const customerId = getColValue(rowData, ['客户ID', 'CustomerID', 'Uid'])?.toString().trim();
+                        const channel = (getColValue(rowData, ['沟通渠道', '渠道', 'Channel']) || 'chat').toString().trim();
+                        const startTime = getColValue(rowData, ['开始时间', 'Start']);
+                        const endTime = getColValue(rowData, ['结束时间', 'End']);
+                        const duration = parseInt(getColValue(rowData, ['时长', 'Duration']) || 0);
 
-                        if (!sessionNo || !agentName) {
-                            errors.push(`Row ${rowNumber}: Missing session_no or agent_name`);
-                            continue;
+                        if (!sessionNo) continue;
+
+                        // --- 核心优化：智能身份识别 ---
+                        let agentId = null;
+                        let externalAgentId = null;
+
+                        // 1. 尝试匹配内部员工 (按真实姓名)
+                        if (agentName) {
+                            const [internalUser] = await connection.query(
+                                'SELECT id FROM users WHERE real_name = ? AND status = "active" LIMIT 1',
+                                [agentName]
+                            );
+                            if (internalUser.length > 0) {
+                                agentId = internalUser[0].id;
+                            } else {
+                                // 2. 匹配失败则走外部客服流程
+                                externalAgentId = await getOrCreateExternalAgent(agentName, platformId, shopId, connection);
+                            }
                         }
 
-                        // Get or create external agent
-                        const externalAgentId = await getOrCreateExternalAgent(agentName, platformId, shopId, connection);
+                        // Get messages for this session
+                        const messages = messagesMap.get(sessionNo) || [];
 
-                        // Get or create customer (if customerId provided)
-                        const customerDbId = customerId ? await getOrCreateCustomer(customerId, customerName, platformId, shopId, connection) : null;
-
-                        // Insert session
+                        // Insert session with both ID fields
                         const [sessionResult] = await connection.query(
                             `INSERT INTO quality_sessions
-                             (session_no, external_agent_id, agent_name, customer_id, customer_name,
+                             (session_no, agent_id, external_agent_id, agent_name, customer_id, customer_name,
                               channel, start_time, end_time, duration, message_count,
                               platform_id, shop_id, status)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-                            [sessionNo, externalAgentId, agentName, customerId, customerName,
-                             channel, startTime, endTime, duration, messageCount,
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                            [sessionNo, agentId, externalAgentId, agentName, customerId, customerName,
+                             channel, startTime, endTime, duration, messages.length,
                              platformId, shopId]
                         );
 
                         const sessionId = sessionResult.insertId;
 
-                        // Insert messages if available
-                        const messages = messagesMap.get(sessionNo) || [];
+                        // Insert messages with improved type matching
                         for (const msg of messages) {
                             await connection.query(
                                 `INSERT INTO session_messages
@@ -213,7 +232,7 @@ module.exports = async function (fastify, opts) {
                         successCount++;
                     } catch (err) {
                         console.error(`Error processing row ${rowNumber}:`, err);
-                        errors.push(`Row ${rowNumber}: ${err.message}`);
+                        errors.push(`第 ${rowNumber} 行：${err.message}`);
                     }
                 }
 
