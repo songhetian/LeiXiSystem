@@ -1,48 +1,78 @@
-/* SessionDetailModal.css - 边框驱动版 */
+/* SessionDetailModal.css - 强感知驱动版 */
 
-/* 1. 基础动画 */
 .animate-in {
-    animation-duration: 200ms;
+    animation-duration: 250ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 .fade-in { animation-name: fadeIn; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* 2. 聊天气泡：拒绝背景变色，锁定边框反馈 */
+/* 1. 消息气泡：极致边框反馈 */
 .message-bubble-container {
-    transition: all 0.2s ease;
-    border: 2px solid transparent; /* 预留边框空间，防止跳动 */
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 3px solid transparent; /* 增加到 3px */
 }
 
-/* 选中状态：强力边框高亮 */
+/* 选中态：靛蓝霓虹光效 - 极其醒目 */
 .message-selected {
-    border-color: #6366f1 !important; /* indigo-500 */
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    border-color: #4f46e5 !important; /* indigo-600 */
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.4); /* 霓虹光晕 */
+    transform: scale(1.015);
+    z-index: 20;
+}
+
+.message-hover:hover:not(.message-selected) {
+    border-color: #cbd5e1 !important; /* slate-300 */
     transform: scale(1.005);
 }
 
-/* 悬停状态：淡灰色边框提示 */
-.message-hover:hover:not(.message-selected) {
-    border-color: #e2e8f0 !important; /* slate-200 */
+/* 2. 模式切换页签 (Tabs) */
+.mode-tabs {
+    display: flex;
+    background: #f1f5f9; /* slate-100 */
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 24px;
 }
 
-/* 强制文字颜色稳定性 */
-.message-text-white { color: #ffffff !important; }
-.message-text-slate { color: #334155 !important; }
+.mode-tab-item {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+    border-radius: 8px;
+    transition: all 0.2s;
+    cursor: pointer;
+    color: #64748b;
+}
 
-/* 3. 滚动条与标签云优化 */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+.mode-tab-item.active {
+    background: white;
+    color: #4f46e5;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
 
-/* 标签组样式 */
-.tag-group-title {
-    font-size: 9px;
+/* 3. 标签分类标题 */
+.tag-group-header {
+    font-size: 10px;
     font-weight: 900;
     color: #94a3b8;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    padding-left: 0.25rem;
-    border-left: 2px solid #e2e8f0;
+    letter-spacing: 0.15em;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    display: flex;
+    items-center: center;
+    gap: 8px;
 }
+
+.tag-group-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #f1f5f9;
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
