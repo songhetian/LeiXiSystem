@@ -14,14 +14,28 @@
 @keyframes slideInRight { from { transform: translateX(10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes zoomIn95 { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* 2. 聊天气泡核心样式 - 解决文字变白问题 */
+/* 2. 聊天气泡核心样式 - 彻底解决文字变白问题 */
 .message-bubble {
     transition: all 0.2s ease;
 }
 
-/* 移除所有可能导致文字变白的全局 hover 规则 */
-.message-bubble:hover {
-    filter: brightness(0.98);
+/* 强力锁定文字颜色与背景，防止被全局样式或 AntD 覆盖 */
+.group:hover .px-5.py-3 {
+    background-color: rgba(99, 102, 241, 0.05) !important; /* 极淡蓝背景 */
+    border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+/* 针对不同发送者的悬停颜色细分 */
+.group:hover .bg-indigo-600 {
+    background-color: #4338ca !important; /* 客服气泡悬停时稍微加深靛蓝 */
+}
+
+.group:hover .text-white {
+    color: #ffffff !important;
+}
+
+.group:hover .text-slate-700 {
+    color: #1e293b !important;
 }
 
 /* 3. 滚动条美化 */

@@ -74,11 +74,14 @@ const MessageItem = React.memo(({
                             className={`px-5 py-3 rounded-2xl text-[13px] leading-relaxed transition-all cursor-pointer border ${
                                 isSelected 
                                     ? 'ring-2 ring-indigo-500 ring-offset-2 shadow-lg border-indigo-100 scale-[1.01]' 
-                                    : 'hover:bg-slate-50 border-transparent shadow-sm'
+                                    : 'border-transparent shadow-sm'
                             } ${isAgent ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white border-slate-200 text-slate-700 rounded-tl-none'}`}
+                            style={{ 
+                                color: isAgent ? '#ffffff' : '#334155',
+                                backgroundColor: isAgent ? undefined : '#ffffff' 
+                            }}
                         >
-                            {/* 锁定文字颜色，防止变白 */}
-                            <span style={{ color: isAgent ? '#ffffff' : '#334155' }}>{msg.content}</span>
+                            {msg.content}
                         </div>
                     )}
 
@@ -134,7 +137,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
     useEffect(() => {
         const loadAvailableTags = async () => {
             try {
-                const res = await qualityAPI.getAllTags();
+                // 修正：API方法名为 getTags
+                const res = await qualityAPI.getTags();
                 const flattened = flattenTags(res.data.data || []);
                 setAvailableTags(flattened.sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0)));
             } catch (e) { console.error('标签加载失败'); }
