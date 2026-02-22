@@ -1,78 +1,48 @@
-/* SessionDetailModal.css - 极简扁平化精修版 */
+/* SessionDetailModal.css - 边框驱动版 */
 
-/* 1. 基础容器与动画 */
+/* 1. 基础动画 */
 .animate-in {
-    animation-duration: 250ms;
+    animation-duration: 200ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .fade-in { animation-name: fadeIn; }
-.slide-in-from-right-4 { animation-name: slideInRight; }
-.zoom-in-95 { animation-name: zoomIn95; }
-
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideInRight { from { transform: translateX(10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes zoomIn95 { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* 2. 聊天气泡核心样式 - 彻底解决文字变白问题 */
-.message-bubble {
+/* 2. 聊天气泡：拒绝背景变色，锁定边框反馈 */
+.message-bubble-container {
     transition: all 0.2s ease;
+    border: 2px solid transparent; /* 预留边框空间，防止跳动 */
 }
 
-/* 强力锁定文字颜色与背景，防止被全局样式或 AntD 覆盖 */
-.group:hover .px-5.py-3 {
-    background-color: rgba(99, 102, 241, 0.05) !important; /* 极淡蓝背景 */
-    border-color: rgba(99, 102, 241, 0.2) !important;
+/* 选中状态：强力边框高亮 */
+.message-selected {
+    border-color: #6366f1 !important; /* indigo-500 */
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    transform: scale(1.005);
 }
 
-/* 针对不同发送者的悬停颜色细分 */
-.group:hover .bg-indigo-600 {
-    background-color: #4338ca !important; /* 客服气泡悬停时稍微加深靛蓝 */
+/* 悬停状态：淡灰色边框提示 */
+.message-hover:hover:not(.message-selected) {
+    border-color: #e2e8f0 !important; /* slate-200 */
 }
 
-.group:hover .text-white {
-    color: #ffffff !important;
-}
+/* 强制文字颜色稳定性 */
+.message-text-white { color: #ffffff !important; }
+.message-text-slate { color: #334155 !important; }
 
-.group:hover .text-slate-700 {
-    color: #1e293b !important;
-}
+/* 3. 滚动条与标签云优化 */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
 
-/* 3. 滚动条美化 */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #e2e8f0; /* slate-200 */
-    border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #cbd5e1; /* slate-300 */
-}
-
-/* 4. 高亮脉冲动画 */
-.highlight-pulse {
-    animation: highlightPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1);
-}
-
-@keyframes highlightPulse {
-    0%, 100% { transform: scale(1); background-color: transparent; }
-    50% { transform: scale(1.02); background-color: rgba(99, 102, 241, 0.05); border-color: #6366f1; }
-}
-
-/* 5. 极简按钮微动效 */
-button:active {
-    transform: scale(0.96);
-}
-
-/* 6. 解决特定 z-index 遮挡问题 */
-.z-10 { z-index: 10; }
-
-/* 7. 输入框聚焦优化 */
-textarea:focus {
-    outline: none;
-    box-shadow: none;
+/* 标签组样式 */
+.tag-group-title {
+    font-size: 9px;
+    font-weight: 900;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    padding-left: 0.25rem;
+    border-left: 2px solid #e2e8f0;
 }
