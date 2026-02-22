@@ -40,7 +40,6 @@ const MessageItem = React.memo(({
             onClick={() => onSelect(msg.id)}
         >
             <div className={`flex items-end gap-4 max-w-[85%] ${isAgent ? 'flex-row-reverse' : 'flex-row'}`}>
-                {/* 扁平化头像 */}
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white shadow-sm shrink-0 ${isAgent ? 'bg-indigo-500' : 'bg-slate-800'}`}>
                     {isAgent ? '客服' : '客户'}
                 </div>
@@ -114,9 +113,10 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
     const [activeTab, setActiveTab] = useState('session'); 
     const [tagSearch, setTagSearch] = useState('');
 
-    const draftKey = `session_draft_v12_${session?.id}`;
-    const messageRefs = useRef({});
+    const draftKey = `session_draft_v13_${session?.id}`;
+    const initializedIdRef = useRef(null); // 关键：防止重入导致的初始化覆盖
 
+    // 当点击消息时，自动切换到“单条对话”页
     useEffect(() => {
         if (selectedMessageId) setActiveTab('message');
     }, [selectedMessageId]);
@@ -154,8 +154,9 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
         return { frequent, grouped };
     }, [availableTags, tagSearch]);
 
+    // --- 严谨的数据初始化逻辑 ---
     useEffect(() => {
-        if (isOpen && session) {
+        if (isOpen && session && initializedIdRef.current !== session.id) {
             setMessages(initialMessages);
             const savedDraft = localStorage.getItem(draftKey);
             if (savedDraft) {
@@ -176,7 +177,10 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                 });
                 setTags(allTags);
             }
+            initializedIdRef.current = session.id; // 标记已初始化
         }
+        
+        if (!isOpen) initializedIdRef.current = null; // 关闭时重置
     }, [isOpen, session, initialMessages, draftKey]);
 
     const toggleTag = (tag) => {
@@ -243,8 +247,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                         await qualityAPI.updateMessage(id, { content: inlineEditValue });
                                         setMessages(m => m.map(item => item.id === id ? {...item, content: inlineEditValue} : item));
                                         setEditingMessageId(null);
-                                        toast.success('修正成功');
-                                    } catch(e) { toast.error('失败'); }
+                                        toast.success('对话修正成功');
+                                    } catch(e) { toast.error('修正失败'); }
                                 }}
                                 onEditCancel={() => setEditingMessageId(null)}
                                 inlineValue={inlineEditValue}
@@ -254,11 +258,11 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                         ))}
                     </div>
 
-                    {/* 右侧：属性侧边栏 (极速丝滑切换版) */}
+                    {/* 右侧：属性侧边栏 (星芒圆形评价与硬件加速切换) */}
                     <aside className="w-[360px] border-l border-slate-100 bg-white flex flex-col shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]">
                         <div className="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
                             
-                            {/* 1. 评分模块 - 星芒重设计 */}
+                            {/* 1. 评分模块 - 极致居中星芒 */}
                             <section>
                                 <div className="flex items-center justify-between mb-2 px-1">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -272,6 +276,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                     {[1, 2, 3, 4, 5].map(star => (
                                         <button 
                                             key={star} 
+                                            type="button"
                                             onClick={() => !readOnly && setRating(star)} 
                                             className={`star-orb ${star <= rating ? 'active' : ''}`}
                                         >
@@ -281,7 +286,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 </div>
                             </section>
 
-                            {/* 2. 标签模块 - 硬件加速切换 */}
+                            {/* 2. 标签模块 - 硬件加速丝滑切换 */}
                             <section className="space-y-6">
                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                                     <TagIcon size={12} className="text-emerald-500" /> 快捷标注
@@ -296,7 +301,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 <div className="relative group">
                                     <input 
                                         type="text"
-                                        placeholder="快速定位标签..."
+                                        placeholder="快速搜索标签..."
                                         value={tagSearch}
                                         onChange={e => setTagSearch(e.target.value)}
                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-bold text-slate-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
@@ -336,7 +341,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 </h3>
                                 <textarea 
                                     className="w-full h-32 bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-[12px] font-medium text-slate-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all outline-none resize-none shadow-inner"
-                                    placeholder="请输入反馈评语..."
+                                    placeholder="请输入具体的反馈评语..."
                                     value={editContent}
                                     onChange={e => setEditContent(e.target.value)}
                                 />
@@ -351,13 +356,13 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                     className="w-full h-12 bg-slate-950 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-slate-200"
                                 >
                                     {isSaving ? <RotateCcw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                    同步质检分析
+                                    确认同步分析结果
                                 </button>
                                 <button 
-                                    onClick={() => { setRating(5); setEditContent('表现优秀，服务规范。'); }}
+                                    onClick={() => { setRating(5); setEditContent('服务规范，表现优秀。'); }}
                                     className="w-full h-10 bg-white border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                                 >
-                                    ✨ 一键满分
+                                    ✨ 一键满分通过
                                 </button>
                             </footer>
                         )}
