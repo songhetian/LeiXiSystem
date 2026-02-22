@@ -40,7 +40,8 @@ const MessageItem = React.memo(({
             onClick={() => onSelect(msg.id)}
         >
             <div className={`flex items-end gap-3 max-w-[85%] ${isAgent ? 'flex-row-reverse' : 'flex-row'}`}>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black text-white shadow-md shrink-0 ${isAgent ? 'bg-indigo-600' : 'bg-slate-800'}`}>
+                {/* 扁平化头像 */}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black text-white shadow-sm shrink-0 ${isAgent ? 'bg-indigo-500' : 'bg-slate-800'}`}>
                     {isAgent ? '客服' : '客户'}
                 </div>
                 
@@ -75,16 +76,18 @@ const MessageItem = React.memo(({
                                 isSelected ? 'message-selected' : 'message-hover border-slate-100'
                             } ${isAgent ? 'bg-indigo-600 text-white' : 'bg-white shadow-sm text-slate-700'}`}
                         >
-                            {msg.content}
+                            {/* 锁定文字颜色，防止变白 */}
+                            <span style={{ color: isAgent ? '#ffffff' : '#334155' }}>{msg.content}</span>
                         </div>
                     )}
 
+                    {/* 消息标签展示 */}
                     {msgTags.length > 0 && (
                         <div className={`flex flex-wrap gap-1.5 mt-2 ${isAgent ? 'justify-end' : 'justify-start'}`}>
                             {msgTags.map((tag, idx) => (
                                 <span 
                                     key={idx} 
-                                    className="text-[10px] font-black px-2 py-0.5 rounded-md border tracking-tight shadow-sm"
+                                    className="text-[9px] font-black px-2 py-0.5 rounded-md border tracking-tighter shadow-sm"
                                     style={{ color: tag.color, backgroundColor: `${tag.color}15`, borderColor: `${tag.color}30` }}
                                 >
                                     {tag.text}
@@ -99,50 +102,60 @@ const MessageItem = React.memo(({
 });
 
 const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], readOnly = false }) => {
+    // --- 状态 ---
     const [messages, setMessages] = useState(initialMessages);
     const [selectedMessageId, setSelectedMessageId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [rating, setRating] = useState(0);
-    const [tags, setTags] = useState([]); 
-    const [sessionTags, setSessionTags] = useState([]);
-    const [availableTags, setAvailableTags] = useState([]); 
+    const [tags, setTags] = useState([]); // 消息级标签
+    const [sessionTags, setSessionTags] = useState([]); // 会话级标签
+    const [availableTags, setAvailableTags] = useState([]); // 平铺后的备选池
     const [editContent, setEditContent] = useState('');
     const [editingMessageId, setEditingMessageId] = useState(null);
     const [inlineEditValue, setInlineEditValue] = useState('');
     
-    const [activeTab, setActiveTab] = useState('session'); 
+    // --- 交互模式优化 ---
+    const [activeTab, setActiveTab] = useState('session'); // 'session' | 'message'
     const [tagSearch, setTagSearch] = useState('');
 
-    const draftKey = `session_draft_v9_${session?.id}`;
+    const draftKey = `session_draft_v10_${session?.id}`;
     const messageRefs = useRef({});
 
+    // 当点击消息时，自动切换到“单条对话”页
     useEffect(() => {
         if (selectedMessageId) setActiveTab('message');
     }, [selectedMessageId]);
 
+    // --- 标签树平铺算法 ---
     const flattenTags = useCallback((tagTree) => {
         let result = [];
         tagTree.forEach(tag => {
-            result.push({ id: tag.id, name: tag.name, color: tag.color, usage_count: tag.usage_count, category: tag.category_name || '其他' });
-            if (tag.children && tag.children.length > 0) result = result.concat(flattenTags(tag.children));
+            result.push({ id: tag.id, name: tag.name, color: tag.color, usage_count: tag.usage_count, category: tag.category_name || '常规' });
+            if (tag.children && tag.children.length > 0) {
+                result = result.concat(flattenTags(tag.children));
+            }
         });
         return result;
     }, []);
 
+    // --- 加载数据 ---
     useEffect(() => {
-        const loadTags = async () => {
+        const loadAvailableTags = async () => {
             try {
                 const res = await qualityAPI.getTags();
-                setAvailableTags(flattenTags(res.data.data || []));
-            } catch (e) {}
+                const flattened = flattenTags(res.data.data || []);
+                setAvailableTags(flattened);
+            } catch (e) { console.error('标签加载失败'); }
         };
-        if (isOpen) loadTags();
+        if (isOpen) loadAvailableTags();
     }, [isOpen, flattenTags]);
 
+    // 标签分类与过滤逻辑
     const tagData = useMemo(() => {
         const search = tagSearch.trim().toLowerCase();
         let list = availableTags;
         if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
+        
         const frequent = [...availableTags].sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0)).slice(0, 8);
         const grouped = list.reduce((acc, tag) => {
             const cat = tag.category;
@@ -150,6 +163,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
             acc[cat].push(tag);
             return acc;
         }, {});
+        
         return { frequent, grouped };
     }, [availableTags, tagSearch]);
 
@@ -169,25 +183,28 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                 setRating(session.score ? Math.round(session.score / 20) : 0);
                 setEditContent(session.comment || '');
                 setSessionTags(session.tags || []);
-                const allTags = [];
+                const allMsgTags = [];
                 initialMessages.forEach(msg => {
-                    if (msg.tags) msg.tags.forEach(t => allTags.push({ messageId: msg.id, tagId: t.id, text: t.name, color: t.color }));
+                    if (msg.tags) msg.tags.forEach(t => allMsgTags.push({ messageId: msg.id, tagId: t.id, text: t.name, color: t.color }));
                 });
-                setTags(allTags);
+                setTags(allMsgTags);
             }
         }
     }, [isOpen, session, initialMessages, draftKey]);
 
+    // --- 快捷操作 ---
     const toggleTag = (tag) => {
         if (activeTab === 'message' && selectedMessageId) {
             setTags(prev => {
-                const exist = prev.find(t => t.messageId === selectedMessageId && t.tagId === tag.id);
-                return exist ? prev.filter(t => !(t.messageId === selectedMessageId && t.tagId === tag.id)) : [...prev, { messageId: selectedMessageId, tagId: tag.id, text: tag.name, color: tag.color }];
+                const isExist = prev.find(t => t.messageId === selectedMessageId && t.tagId === tag.id);
+                if (isExist) return prev.filter(t => !(t.messageId === selectedMessageId && t.tagId === tag.id));
+                return [...prev, { messageId: selectedMessageId, tagId: tag.id, text: tag.name, color: tag.color }];
             });
         } else {
             setSessionTags(prev => {
-                const exist = prev.find(t => t.id === tag.id);
-                return exist ? prev.filter(t => t.id !== tag.id) : [...prev, tag];
+                const isExist = prev.find(t => t.id === tag.id);
+                if (isExist) return prev.filter(t => t.id !== tag.id);
+                return [...prev, tag];
             });
         }
     };
@@ -196,18 +213,22 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
         setIsSaving(true);
         try {
             await qualityAPI.submitReview(session.id, {
-                score: rating * 20, grade: (rating * 20) >= 90 ? 'A' : (rating * 20) >= 80 ? 'B' : 'C',
-                comment: editContent, session_tags: sessionTags, message_tags: tags
+                score: rating * 20,
+                grade: (rating * 20) >= 90 ? 'A' : (rating * 20) >= 80 ? 'B' : 'C',
+                comment: editContent,
+                session_tags: sessionTags,
+                message_tags: tags
             });
             localStorage.removeItem(draftKey);
-            toast.success('同步完成');
+            toast.success('质检数据同步成功');
             onClose();
-        } catch (e) { toast.error('同步失败'); }
+        } catch (e) { toast.error('保存失败'); }
         setIsSaving(false);
     };
 
     const activeTagIds = useMemo(() => {
-        return (activeTab === 'message' && selectedMessageId) ? tags.filter(t => t.messageId === selectedMessageId).map(t => t.tagId) : sessionTags.map(t => t.id);
+        if (activeTab === 'message' && selectedMessageId) return tags.filter(t => t.messageId === selectedMessageId).map(t => t.tagId);
+        return sessionTags.map(t => t.id);
     }, [tags, sessionTags, selectedMessageId, activeTab]);
 
     if (!isOpen) return null;
@@ -217,17 +238,17 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
             <div className="bg-white w-full h-full max-w-[1440px] rounded-[32px] border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-300">
                 
                 <header className="h-16 border-b border-slate-100 flex items-center justify-between px-8 bg-white shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
                             <MessageSquare size={20} strokeWidth={3} />
                         </div>
-                        <h2 className="text-base font-black text-slate-900 tracking-tight">质检分析工作台 <span className="ml-2 font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border text-xs">#{session?.session_code}</span></h2>
+                        <h2 className="text-base font-black text-slate-900 tracking-tight">质检分析台 <span className="ml-2 font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border text-xs">#{session?.session_code}</span></h2>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-400 transition-all active:scale-90"><X size={24} /></button>
                 </header>
 
                 <div className="flex-1 flex overflow-hidden bg-slate-50/30">
-                    {/* 左侧：聊天主轴 */}
+                    {/* 左侧：聊天轴 */}
                     <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
                         {messages.map((msg) => (
                             <MessageItem 
@@ -242,7 +263,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                         await qualityAPI.updateMessage(id, { content: inlineEditValue });
                                         setMessages(m => m.map(item => item.id === id ? {...item, content: inlineEditValue} : item));
                                         setEditingMessageId(null);
-                                        toast.success('对话修正成功');
+                                        toast.success('修正成功');
                                     } catch(e) { toast.error('修正失败'); }
                                 }}
                                 onEditCancel={() => setEditingMessageId(null)}
@@ -253,37 +274,37 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                         ))}
                     </div>
 
-                    {/* 右侧：精修侧边栏 */}
+                    {/* 右侧：属性侧边栏 (绝对居中评分与样式复原标签) */}
                     <aside className="w-[360px] border-l border-slate-100 bg-white flex flex-col shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]">
                         <div className="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
                             
-                            {/* 1. 评分模块 - 模块化重塑 */}
+                            {/* 1. 评分模块 - 极致居中 */}
                             <section>
                                 <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                                         <Star size={12} className="text-amber-500" /> 服务综合评价
                                     </h3>
-                                    <div className="score-badge">
+                                    <div className="px-4 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-lg font-black font-mono">
                                         {rating * 20}
                                     </div>
                                 </div>
-                                <div className="flex justify-center gap-3 py-6 bg-slate-50/50 rounded-[24px] border border-slate-100 shadow-inner">
+                                <div className="flex justify-center items-center gap-3 py-6 bg-slate-50/50 rounded-[24px] border border-slate-100 shadow-inner">
                                     {[1, 2, 3, 4, 5].map(star => (
                                         <button 
                                             key={star} 
                                             onClick={() => !readOnly && setRating(star)} 
-                                            className={`star-btn ${star <= rating ? 'active text-amber-400' : 'text-slate-200'}`}
+                                            className={`star-btn ${star <= rating ? 'active text-amber-400 border-amber-200 bg-amber-50/50 shadow-md shadow-amber-100' : 'text-slate-200'}`}
                                         >
-                                            <Star size={24} fill={star <= rating ? "currentColor" : "none"} strokeWidth={2.5} />
+                                            <Star size={26} fill={star <= rating ? "currentColor" : "none"} strokeWidth={2.5} />
                                         </button>
                                     ))}
                                 </div>
                             </section>
 
-                            {/* 2. 标签模块 */}
+                            {/* 2. 标签模块 - 样式复原 */}
                             <section className="space-y-6">
                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <TagIcon size={12} className="text-emerald-500" /> 快捷标注体系
+                                    <TagIcon size={12} className="text-indigo-500" /> 快捷标注体系
                                 </h3>
 
                                 <div className="mode-tabs">
@@ -297,7 +318,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                         placeholder="快速搜索标签..."
                                         value={tagSearch}
                                         onChange={e => setTagSearch(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-bold text-slate-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
                                     />
                                     <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
                                 </div>
@@ -306,9 +327,15 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                     {!tagSearch && (
                                         <div>
                                             <div className="tag-group-header">高频常用 <Flame size={10} className="text-rose-500" /></div>
-                                            <div className="flex flex-wrap gap-2">
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {tagData.frequent.map(tag => (
-                                                    <button key={tag.id} onClick={() => toggleTag(tag)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${activeTagIds.includes(tag.id) ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-emerald-300 hover:bg-emerald-50/30'}`}>{tag.name}</button>
+                                                    <button 
+                                                        key={tag.id} 
+                                                        onClick={() => toggleTag(tag)} 
+                                                        className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}
+                                                    >
+                                                        {tag.name}
+                                                    </button>
                                                 ))}
                                             </div>
                                         </div>
@@ -317,9 +344,15 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                     {Object.entries(tagData.grouped).map(([category, tags]) => (
                                         <div key={category}>
                                             <div className="tag-group-header">{category}</div>
-                                            <div className="flex flex-wrap gap-2">
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {tags.map(tag => (
-                                                    <button key={tag.id} onClick={() => toggleTag(tag)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${activeTagIds.includes(tag.id) ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-slate-300'}`}>{tag.name}</button>
+                                                    <button 
+                                                        key={tag.id} 
+                                                        onClick={() => toggleTag(tag)} 
+                                                        className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}
+                                                    >
+                                                        {tag.name}
+                                                    </button>
                                                 ))}
                                             </div>
                                         </div>
@@ -334,7 +367,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 </h3>
                                 <textarea 
                                     className="w-full h-32 bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-[12px] font-medium text-slate-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all outline-none resize-none shadow-inner"
-                                    placeholder="请输入具体的质检反馈..."
+                                    placeholder="请输入具体的反馈评语..."
                                     value={editContent}
                                     onChange={e => setEditContent(e.target.value)}
                                 />
@@ -346,7 +379,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 <button
                                     onClick={handleSaveAll}
                                     disabled={isSaving}
-                                    className="w-full h-12 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-slate-200"
+                                    className="w-full h-12 bg-slate-950 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-slate-200"
                                 >
                                     {isSaving ? <RotateCcw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                                     确认同步分析结果
