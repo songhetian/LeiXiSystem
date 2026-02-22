@@ -173,22 +173,25 @@ module.exports = async function (fastify, opts) {
                 // Process each session sequentially
                 for (const { rowNumber, rowData } of sessionRows) {
                     try {
-                        const sessionNo = getColValue(rowData, ['会话编号', '会话ID', 'SessionNo'])?.toString().trim();
+                        const originalSessionNo = getColValue(rowData, ['会话编号', '会话ID', 'SessionNo'])?.toString().trim();
                         const agentName = getColValue(rowData, ['客服姓名', '客服', 'AgentName', 'Agent'])?.toString().trim();
                         const customerName = getColValue(rowData, ['客户姓名', '客户', 'CustomerName', 'Customer'])?.toString().trim();
                         const customerId = getColValue(rowData, ['客户ID', 'CustomerID', 'Uid'])?.toString().trim();
-                        const channel = (getColValue(rowData, ['沟通渠道', '渠道', 'Channel']) || 'chat').toString().trim();
+                        const channel = (getColValue(rowData, ['沟通渠道', '渠道', 'Channel']) || '聊天').toString().trim();
                         const startTime = getColValue(rowData, ['开始时间', 'Start']);
                         const endTime = getColValue(rowData, ['结束时间', 'End']);
                         const duration = parseInt(getColValue(rowData, ['时长', 'Duration']) || 0);
 
-                        if (!sessionNo) continue;
+                        // --- 核心优化 1：自动生成规范化编号 ---
+                        const now = new Date();
+                        const datePart = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+                        const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+                        const autoSessionNo = `QS-${datePart}-${randomPart}`;
 
-                        // --- 核心优化：智能身份识别 ---
+                        // --- 核心优化 2：智能身份识别 ---
                         let agentId = null;
                         let externalAgentId = null;
 
-                        // 1. 尝试匹配内部员工 (按真实姓名)
                         if (agentName) {
                             const [internalUser] = await connection.query(
                                 'SELECT id FROM users WHERE real_name = ? AND status = "active" LIMIT 1',
@@ -197,13 +200,13 @@ module.exports = async function (fastify, opts) {
                             if (internalUser.length > 0) {
                                 agentId = internalUser[0].id;
                             } else {
-                                // 2. 匹配失败则走外部客服流程
                                 externalAgentId = await getOrCreateExternalAgent(agentName, platformId, shopId, connection);
                             }
                         }
 
-                        // Get messages for this session
-                        const messages = messagesMap.get(sessionNo) || [];
+                        // --- 核心优化 3：关联聊天记录 (增加容错) ---
+                        // 寻找对应消息：优先用原始编号，若无则跳过消息（不影响会话主表创建）
+                        const messages = originalSessionNo ? (messagesMap.get(originalSessionNo) || []) : [];
 
                         // Insert session with both ID fields
                         const [sessionResult] = await connection.query(
@@ -212,14 +215,14 @@ module.exports = async function (fastify, opts) {
                               channel, start_time, end_time, duration, message_count,
                               platform_id, shop_id, status)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-                            [sessionNo, agentId, externalAgentId, agentName, customerId, customerName,
+                            [autoSessionNo, agentId, externalAgentId, agentName, customerId, customerName,
                              channel, startTime, endTime, duration, messages.length,
                              platformId, shopId]
                         );
 
                         const sessionId = sessionResult.insertId;
 
-                        // Insert messages with improved type matching
+                        // --- 核心优化 4：强制插入消息明细 ---
                         for (const msg of messages) {
                             await connection.query(
                                 `INSERT INTO session_messages

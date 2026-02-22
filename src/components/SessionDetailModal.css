@@ -1,148 +1,78 @@
-/* SessionDetailModal.css */
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+/* SessionDetailModal.css - 扁平化重构版 */
+
+/* 1. 基础动画 */
+.animate-in {
+    animation-duration: 300ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+.fade-in {
+    animation-name: fadeIn;
+}
+
+.zoom-in-95 {
+    animation-name: zoomIn95;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+@keyframes zoomIn95 {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
+/* 2. 滚动条美化 (Shadcn 风格) */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+    width: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
-  border-radius: 3px;
+    background: #e2e8f0; /* slate-200 */
+    border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(107, 114, 128, 0.8);
+    background: #cbd5e1; /* slate-300 */
 }
 
-.resizer {
-  width: 1px; /* Thinner line */
-  background: #e5e7eb;
-  cursor: col-resize;
-  position: relative;
-  transition: background 0.2s;
-  z-index: 10;
+/* 3. 对话气泡微动效 */
+.highlight-pulse {
+    animation: highlightPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.resizer:hover, .resizer.dragging {
-  background: #3b82f6;
-  width: 2px; /* Slightly wider on hover */
+@keyframes highlightPulse {
+    0%, 100% {
+        transform: scale(1);
+        background-color: transparent;
+    }
+    50% {
+        transform: scale(1.01);
+        background-color: rgba(251, 191, 36, 0.05); /* amber-50ish */
+        border-color: rgba(251, 191, 36, 0.3);
+    }
 }
 
-.resizer-handle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px;
-  height: 32px;
-  background-color: #d1d5db;
-  border-radius: 2px;
-  transition: background-color 0.2s;
+/* 4. 行内编辑容器 */
+textarea:focus {
+    outline: none;
+    box-shadow: none;
 }
 
-.resizer:hover .resizer-handle, .resizer.dragging .resizer-handle {
-  background-color: #3b82f6;
+/* 5. 评分星星发光效果 */
+.drop-shadow-sm {
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.05));
 }
 
-/* Chat Bubbles */
-.message-container {
-    max-width: 100%;
-}
-
-.chat-info-area {
-    margin-bottom: 4px;
-    font-size: 11px;
-    display: flex;
-    gap: 8px;
-    color: #6b7280;
-}
-
-.message-bubble {
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    position: relative;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    max-width: fit-content;
-    word-break: break-word;
-}
-
-.message-bubble.customer {
-    background-color: #ffffff;
-    color: #1f2937;
-    border-top-left-radius: 2px;
-    border: 1px solid #e5e7eb;
-}
-
-.message-bubble.agent {
-    background-color: #dbeafe; /* Blue-50 */
-    color: #1e40af;
-    border-top-right-radius: 2px;
-    border: 1px solid #bfdbfe;
-}
-
-.message-bubble.selected {
-    ring: 2px solid #3b82f6;
-    ring-offset: 2px;
-}
-
-.avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 14px;
-    color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.avatar.customer {
-    background: linear-gradient(135deg, #f59e0b, #d97706); /* Amber */
-}
-
-.avatar.agent {
-    background: linear-gradient(135deg, #3b82f6, #2563eb); /* Blue */
-}
-
-.tag-chip {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-}
-
-/* --- 关键动画：消息高亮闪烁 --- */
-@keyframes highlightFlash {
-    0%, 100% { background-color: transparent; transform: scale(1); }
-    50% { background-color: #fef3c7; transform: scale(1.02); } /* Amber-100 highlight */
-}
-
-.highlight-flash {
-    animation: highlightFlash 1.5s ease-in-out;
-    border-radius: 8px;
-    z-index: 10;
+/* 6. 响应式布局微调 */
+@media (max-width: 1024px) {
+    .max-w-7xl {
+        max-width: 95vw;
+    }
 }

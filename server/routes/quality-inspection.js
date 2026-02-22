@@ -323,28 +323,28 @@ module.exports = async function (fastify, opts) {
             // Sheet 1: 会话信息
             const sessionSheet = workbook.addWorksheet('会话信息');
             sessionSheet.columns = [
-                { header: '会话编号', key: 'session_no', width: 20 },
+                { header: '会话编号', key: 'session_no', width: 25 },
                 { header: '客服姓名', key: 'agent_name', width: 15 },
                 { header: '客户姓名', key: 'customer_name', width: 15 },
                 { header: '客户ID', key: 'customer_id', width: 15 },
-                { header: '沟通渠道', key: 'channel', width: 10 },
+                { header: '沟通渠道', key: 'channel', width: 12 },
                 { header: '开始时间', key: 'start_time', width: 20 },
                 { header: '结束时间', key: 'end_time', width: 20 },
                 { header: '时长(秒)', key: 'duration', width: 10 },
                 { header: '消息数量', key: 'message_count', width: 10 },
                 { header: '得分', key: 'score', width: 8 },
                 { header: '等级', key: 'grade', width: 8 },
-                { header: '状态', key: 'status', width: 10 }
+                { header: '状态', key: 'status', width: 12 }
             ];
             sessionSheet.addRows(sessions);
 
             // Sheet 2: 聊天记录
             const messageSheet = workbook.addWorksheet('聊天记录');
             messageSheet.columns = [
-                { header: '会话编号', key: 'session_no', width: 20 },
+                { header: '会话编号', key: 'session_no', width: 25 },
                 { header: '发送者姓名', key: 'sender_name', width: 15 },
                 { header: '发送者类型', key: 'sender_type', width: 15 },
-                { header: '消息内容', key: 'content', width: 50 },
+                { header: '消息内容', key: 'content', width: 60 },
                 { header: '发送时间', key: 'timestamp', width: 20 }
             ];
             messageSheet.addRows(messages);

@@ -213,7 +213,7 @@ const QualityInspection = () => {
                   <td colSpan="9" className="text-center py-20 text-gray-400 bg-gray-50/10">
                     <div className="flex flex-col items-center gap-3">
                       <span className="text-5xl opacity-10">📭</span>
-                      <p className="text-sm font-bold tracking-tight text-gray-300">NO INSPECTION DATA FOUND</p>
+                      <p className="text-sm font-bold tracking-tight text-gray-300">暂无质检记录</p>
                     </div>
                   </td>
                 </tr>
@@ -232,13 +232,13 @@ const QualityInspection = () => {
                         </span>
                         {inspection.external_agent_id && (
                           <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">
-                            EXTERNAL
+                            外部客服
                           </span>
                         )}
                       </div>
                     </td>
                     <td style={{ textAlign: 'center' }} className="py-5 px-4 border-b border-gray-50 text-gray-500 font-medium text-xs">
-                      {inspection.communication_channel || 'CHAT'}
+                      {inspection.communication_channel || '聊天'}
                     </td>
                     <td style={{ textAlign: 'center' }} className="py-5 px-4 border-b border-gray-50">
                       <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 uppercase">
@@ -257,7 +257,7 @@ const QualityInspection = () => {
                             }`}>
                             {inspection.score}
                           </span>
-                          <span className="text-[9px] font-black text-gray-300 mt-1 uppercase tracking-widest">Score</span>
+                          <span className="text-[9px] font-black text-gray-300 mt-1 uppercase tracking-widest">分</span>
                         </div>
                       ) : (
                         <div className="w-8 h-1 bg-gray-100 rounded-full mx-auto" />
@@ -268,7 +268,7 @@ const QualityInspection = () => {
                         ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                         : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'
                         }`}>
-                        {inspection.quality_status === 'completed' ? 'Done' : 'Pending'}
+                        {inspection.quality_status === 'completed' ? '已质检' : '待处理'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }} className="py-5 px-4 border-b border-gray-50 text-gray-400 text-[10px] font-bold">
@@ -281,20 +281,20 @@ const QualityInspection = () => {
                             onClick={() => handleInspect(inspection)}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black px-4 py-2 rounded-xl transition-all shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-wider"
                           >
-                            Assess
+                            开始质检
                           </button>
                         ) : (
                           <button
                             onClick={() => handleInspect(inspection)}
                             className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 text-[10px] font-black px-4 py-2 rounded-xl transition-all shadow-sm active:scale-95 uppercase tracking-wider"
                           >
-                            View
+                            详情
                           </button>
                         )}
                         <button
                           onClick={() => handleDelete(inspection.id)}
                           className="text-rose-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-all active:scale-90"
-                          title="Delete Record"
+                          title="删除记录"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
