@@ -271,10 +271,10 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                     <Star size={12} className="text-amber-500" /> 会话服务评价
                                 </h3>
                                 <div className="flex items-center justify-between bg-slate-50/50 rounded-[20px] p-5 border border-slate-100 shadow-inner">
-                                    <div className="flex gap-1.5">
+                                    <div className="flex gap-4">
                                         {[1, 2, 3, 4, 5].map(star => (
                                             <button key={star} onClick={() => !readOnly && setRating(star)} className={`transition-all duration-300 ${star <= rating ? 'text-amber-400 scale-110 drop-shadow-sm' : 'text-slate-200 hover:text-amber-200 hover:scale-105'}`}>
-                                                <Star size={30} fill={star <= rating ? "currentColor" : "none"} strokeWidth={2.5} />
+                                                <Star size={32} fill={star <= rating ? "currentColor" : "none"} strokeWidth={2.5} />
                                             </button>
                                         ))}
                                     </div>
