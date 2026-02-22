@@ -1,81 +1,115 @@
-/* SessionDetailModal.css - 自然美学精修版 */
+/* SessionDetailModal.css - 灵动滑块 & 靛蓝视觉版 */
 
 .animate-in {
-    animation-duration: 250ms;
+    animation-duration: 300ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 .fade-in { animation-name: fadeIn; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* 1. 消息气泡：改为淡绿色强力边框 */
+/* 1. 消息气泡：动态缩放与聚焦 */
 .message-bubble-container {
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 3px solid transparent; 
-}
-
-/* 选中态：翡翠绿霓虹光效 - 自然且醒目 */
-.message-selected {
-    border-color: #10b981 !important; /* emerald-500 */
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); 
-    transform: scale(1.01);
-    z-index: 20;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 3px solid transparent;
+    z-index: 10;
 }
 
 .message-hover:hover:not(.message-selected) {
-    border-color: #d1fae5 !important; /* emerald-100 */
+    border-color: #d1fae5 !important;
+    transform: scale(1.2); 
+    z-index: 50;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
 }
 
-/* 2. 模式切换页签 (Tabs) */
-.mode-tabs {
+.message-selected {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.3); 
+    transform: scale(1);
+    z-index: 40;
+}
+
+.message-text-white { color: #ffffff !important; }
+.message-text-slate { color: #334155 !important; }
+
+/* 2. 🚀 灵动滑块切换器 (Mode Slider) */
+.mode-tabs-container {
+    position: relative;
     display: flex;
-    background: #f8fafc; 
+    background: #f1f5f9; /* slate-100 */
     padding: 4px;
     border-radius: 14px;
     margin-bottom: 24px;
-    border: 1px solid #f1f5f9;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
 }
 
+/* 蓝色背景滑块 */
+.mode-slider-indicator {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: calc(50% - 4px);
+    background: #4f46e5; /* indigo-600 */
+    border-radius: 10px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    z-index: 1;
+}
+
+/* 根据状态移动滑块 */
+.slider-left { transform: translateX(0); }
+.slider-right { transform: translateX(100%); }
+
 .mode-tab-item {
+    position: relative;
     flex: 1;
     padding: 10px 4px;
     font-size: 11px;
     font-weight: 900;
     text-align: center;
-    border-radius: 10px;
-    transition: all 0.2s;
+    transition: color 0.3s;
     cursor: pointer;
-    color: #94a3b8;
+    z-index: 10; /* 置于滑块上方 */
+    color: #64748b; /* 未选中灰色 */
 }
 
 .mode-tab-item.active {
-    background: white;
-    color: #10b981;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+    color: white !important; /* 选中白色 */
 }
 
-/* 3. 星星容器绝对居中 */
+/* 3. 其他精修 */
 .star-btn {
-    width: 48px;
-    height: 48px;
+    width: 46px;
+    height: 46px;
     display: flex;
-    align-items: center; /* 垂直居中 */
-    justify-content: center; /* 水平居中 */
-    border-radius: 12px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
     background: white;
     border: 1px solid #f1f5f9;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-.star-btn svg {
-    display: block;
-    margin: 0 auto;
+.star-btn.active {
+    border-color: #fbbf24;
+    background: #fffbeb;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.1);
 }
 
-/* 4. 快捷标签复原 (扁平化圆角矩形) */
+.score-badge {
+    padding: 4px 16px;
+    background: #ecfdf5;
+    color: #059669;
+    border-radius: 99px;
+    font-size: 20px;
+    font-weight: 900;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    border: 1px solid #d1fae5;
+}
+
 .tag-button-standard {
-    padding: 6px 12px;
-    border-radius: 8px; /* 还原为 8px 圆角矩形 */
+    padding: 7px 14px;
+    border-radius: 8px;
     font-size: 11px;
     font-weight: 700;
     text-align: left;
@@ -86,15 +120,22 @@
 }
 
 .tag-button-standard.active {
-    background: #4f46e5; /* indigo-600 */
-    border-color: #4f46e5;
+    background: #10b981;
+    border-color: #10b981;
     color: white;
-    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
 }
 
-.tag-button-standard:hover:not(.active) {
-    border-color: #cbd5e1;
-    background: #f1f5f9;
+.tag-group-header {
+    font-size: 10px;
+    font-weight: 900;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-top: 24px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
