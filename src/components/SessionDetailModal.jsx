@@ -174,7 +174,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                             </div>
 
                                             {isEditing ? (
-                                                <div className="bg-white border-2 border-indigo-500 rounded-2xl p-3 w-full min-w-[350px] shadow-2xl animate-in zoom-in-95 duration-200">
+                                                <div className="bg-white border-2 border-indigo-500 rounded-xl p-3 w-full min-w-[350px] shadow-2xl animate-in zoom-in-95 duration-200">
                                                     <textarea 
                                                         autoFocus
                                                         className="w-full text-sm text-slate-700 bg-transparent border-none focus:ring-0 p-0 resize-none min-h-[80px]"
@@ -182,14 +182,14 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                                         onChange={e => setInlineEditValue(e.target.value)}
                                                     />
                                                     <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-50">
-                                                        <button onClick={() => setEditingMessageId(null)} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 px-3 py-1">Discard</button>
-                                                        <button onClick={() => handleInlineEditSave(msg.id)} className="bg-indigo-600 text-white text-[11px] font-black px-4 py-1.5 rounded-lg shadow-md shadow-indigo-100">Update</button>
+                                                        <button onClick={() => setEditingMessageId(null)} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 px-3 py-1">放弃</button>
+                                                        <button onClick={() => handleInlineEditSave(msg.id)} className="bg-indigo-600 text-white text-[11px] font-black px-4 py-1.5 rounded-lg shadow-md shadow-indigo-100">保存修改</button>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div 
                                                     onDoubleClick={() => !readOnly && (setEditingMessageId(msg.id), setInlineEditValue(msg.content))}
-                                                    className={`px-5 py-3 rounded-2xl text-[13px] leading-relaxed shadow-sm transition-all cursor-pointer relative ${
+                                                    className={`px-5 py-3 rounded-lg text-[13px] leading-relaxed shadow-sm transition-all cursor-pointer relative ${
                                                         isSelected 
                                                             ? 'ring-2 ring-indigo-500 ring-offset-2 scale-[1.01]' 
                                                             : 'hover:bg-slate-50 border border-transparent'
@@ -212,10 +212,10 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                                     {msgTags.map((tag, idx) => (
                                                         <span 
                                                             key={idx} 
-                                                            className="text-[9px] font-black px-2 py-0.5 rounded-md border tracking-tighter"
+                                                            className="text-[9px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 tracking-tighter uppercase"
                                                             style={{ color: tag.color, backgroundColor: `${tag.color}15`, borderColor: `${tag.color}30` }}
                                                         >
-                                                            {tag.text.toUpperCase()}
+                                                            {tag.text}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -228,7 +228,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                     </main>
 
                     {/* 右侧：极简侧边栏 (Shadcn 风格) */}
-                    <aside className="w-[360px] border-l border-slate-100 flex flex-col bg-white shrink-0">
+                    <aside className="w-[320px] border-l border-slate-100 flex flex-col bg-white shrink-0">
                         <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
                             
                             {/* 评分模块 */}
