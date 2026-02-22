@@ -1,4 +1,4 @@
-/* SessionDetailModal.css - 强感知 & 极致平滑版 */
+/* SessionDetailModal.css - 自然美学精修版 */
 
 .animate-in {
     animation-duration: 250ms;
@@ -7,93 +7,88 @@
 .fade-in { animation-name: fadeIn; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* 1. 消息气泡：极致边框反馈 */
+/* 1. 消息气泡：改为淡绿色强力边框 */
 .message-bubble-container {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border: 3px solid transparent; 
 }
 
-/* 选中态：靛蓝霓虹光效 - 极其醒目 */
+/* 选中态：翡翠绿霓虹光效 - 自然且醒目 */
 .message-selected {
-    border-color: #4f46e5 !important; 
-    box-shadow: 0 0 20px rgba(79, 70, 229, 0.4); 
-    transform: scale(1.015);
+    border-color: #10b981 !important; /* emerald-500 */
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); 
+    transform: scale(1.01);
     z-index: 20;
 }
 
 .message-hover:hover:not(.message-selected) {
-    border-color: #cbd5e1 !important; 
-    transform: scale(1.005);
+    border-color: #d1fae5 !important; /* emerald-100 */
 }
-
-/* 强制文字颜色稳定性 */
-.message-text-white { color: #ffffff !important; }
-.message-text-slate { color: #334155 !important; }
 
 /* 2. 模式切换页签 (Tabs) */
 .mode-tabs {
     display: flex;
-    background: #f1f5f9; 
+    background: #f8fafc; 
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 14px;
     margin-bottom: 24px;
+    border: 1px solid #f1f5f9;
 }
 
 .mode-tab-item {
     flex: 1;
-    padding: 8px 4px;
+    padding: 10px 4px;
     font-size: 11px;
     font-weight: 900;
     text-align: center;
-    border-radius: 8px;
+    border-radius: 10px;
     transition: all 0.2s;
     cursor: pointer;
-    color: #64748b;
+    color: #94a3b8;
 }
 
 .mode-tab-item.active {
     background: white;
-    color: #4f46e5;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    color: #10b981;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
 }
 
-/* 3. 标签与滚动反馈 */
-.tag-group-header {
-    font-size: 10px;
-    font-weight: 900;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-top: 20px;
-    margin-bottom: 8px;
+/* 3. 星星容器高级感 */
+.star-btn {
+    width: 44px;
+    height: 44px;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    items-center: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid #f1f5f9;
+    transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-.tag-group-header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #f1f5f9;
+.star-btn:hover {
+    border-color: #fde68a;
+    background: #fffbeb;
 }
 
-/* 🌀 极丝滑的消息定位动画 */
-@keyframes highlightPulse {
-    0%, 100% { 
-        transform: scale(1); 
-        background-color: transparent;
-    }
-    30% {
-        transform: scale(1.02);
-        background-color: rgba(79, 70, 229, 0.1);
-        border-color: #4f46e5;
-    }
+.star-btn.active {
+    border-color: #fbbf24;
+    background: #fffbeb;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.15);
 }
 
-.highlight-pulse {
-    animation: highlightPulse 1.5s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 16px;
+/* 4. 分数勋章 */
+.score-badge {
+    padding: 4px 16px;
+    background: #ecfdf5;
+    color: #059669;
+    border-radius: 99px;
+    font-size: 20px;
+    font-weight: 900;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    border: 1px solid #d1fae5;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
