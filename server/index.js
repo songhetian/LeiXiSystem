@@ -818,6 +818,10 @@ const start = async () => {
     // 先准备fastify
     await fastify.ready()
 
+    // --- 性能优化：执行缓存预热 ---
+    const { warmUp } = require('./utils/cacheWarmer');
+    await warmUp(fastify);
+
     // 启动服务器
     fastify.listen({ port: process.env.PORT || 3001, host: '0.0.0.0' }, async (err, address) => {
       if (err) {

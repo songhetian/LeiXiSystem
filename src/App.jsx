@@ -14,8 +14,6 @@ import { soundManager } from './utils/soundManager'
 import { PermissionProvider, usePermission } from './contexts/PermissionContext'
 import { useChatStore } from './hooks/useChatStore'
 
-import QualityInspection from './components/QualityInspection';
-
 // Vite Dependency Refresh Token: 2026-02-20-17-30
 // Lazy-loaded components
 const Login = lazy(() => import('./pages/Login'));
@@ -24,6 +22,7 @@ const AdminDashboard = lazy(() => import('./pages/Dashboard/AdminDashboard'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const CustomerList = lazy(() => import('./components/CustomerList'));
 const SessionManagement = lazy(() => import('./components/SessionManagement'));
+const QualityInspection = lazy(() => import('./components/QualityInspection'));
 const DepartmentManagement = lazy(() => import('./components/DepartmentManagement'));
 const PositionManagement = lazy(() => import('./components/PositionManagement'));
 const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'));

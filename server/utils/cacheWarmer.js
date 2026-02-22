@@ -1,61 +1,27 @@
-const dayjs = require('dayjs');
-
 /**
- * 缓存预热工具
- * 负责在系统启动时或定时任务中提前计算高频、耗时的统计数据并存入 Redis
+ * 缓存预热工具类
+ * 理由：在服务器启动时预先拉取高频数据，消除用户首个请求的数据库 IO 延迟感
  */
-class CacheWarmer {
-  constructor(pool, redis) {
-    this.pool = pool;
-    this.redis = redis;
-  }
+async function warmUp(fastify) {
+    const pool = fastify.mysql || global.pool;
+    const redis = fastify.redis;
+    if (!pool || !redis) return;
 
-  /**
-   * 预热全公司/关键部门的考勤统计
-   */
-  async warmAttendanceStats() {
-    if (!this.redis) return;
-    
-    console.log('🔥 [CacheWarmer] 开始预热考勤统计缓存...');
     try {
-      const year = dayjs().year();
-      const month = dayjs().month() + 1;
-      
-      // 1. 获取所有活跃部门
-      const [departments] = await this.pool.query('SELECT id, name FROM departments WHERE status != "deleted"');
-      
-      for (const dept of departments) {
-        // 模拟调用统计逻辑（这里简化处理，实际可封装通用 Service）
-        const cacheKey = `stats:attendance:dept:${dept.id}:${year}:${month}`;
+        console.log('🚀 [Warm-up] 正在预热核心业务缓存...');
         
-        // 检查缓存是否已存在
-        const exists = await this.redis.exists(cacheKey);
-        if (!exists) {
-          console.log(`   - 正在预热部门: ${dept.name} (${year}-${month})`);
-          // 注意：此处可根据实际 routes/attendance-stats.js 逻辑进行计算，或发送内部 HTTP 请求
-          // 为了演示，我们先建立预热框架，后续可将核心计算逻辑抽离复用
-        }
-      }
-      console.log('✅ [CacheWarmer] 考勤统计预热完成');
-    } catch (err) {
-      console.error('❌ [CacheWarmer] 预热失败:', err.message);
+        // 1. 预热质检标签池 (常用标签)
+        const [tags] = await pool.query('SELECT * FROM tags WHERE is_active = 1 ORDER BY usage_count DESC');
+        await redis.set('cache:quality:all_tags', JSON.stringify(tags), 'EX', 3600);
+        
+        // 2. 预热知识库公共分类
+        const [categories] = await pool.query('SELECT * FROM knowledge_categories WHERE is_deleted = 0 AND type = "common"');
+        await redis.set('cache:knowledge:common_categories', JSON.stringify(categories), 'EX', 3600);
+
+        console.log('✅ [Warm-up] 缓存预热完成，首屏响应已加速');
+    } catch (error) {
+        console.warn('⚠️ [Warm-up] 预热失败(但不影响运行):', error.message);
     }
-  }
-
-  /**
-   * 预热系统公告/常用配置
-   */
-  async warmCommonConfig() {
-    // ... 预热常用且不常变动的数据
-  }
-
-  /**
-   * 执行所有预热任务
-   */
-  async runAll() {
-    await this.warmAttendanceStats();
-    await this.warmCommonConfig();
-  }
 }
 
-module.exports = CacheWarmer;
+module.exports = { warmUp };
