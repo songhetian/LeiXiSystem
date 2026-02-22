@@ -861,7 +861,9 @@ const start = async () => {
 
           // --- 复杂统计数据预热 ---
           const CacheWarmer = require('./utils/cacheWarmer');
-          const warmer = new CacheWarmer(pool, redis);
+          // 容错处理：确保拿到构造函数
+          const WarmerClass = typeof CacheWarmer === 'function' ? CacheWarmer : CacheWarmer.CacheWarmer;
+          const warmer = new (WarmerClass || CacheWarmer)(pool, redis);
           warmer.runAll().catch(e => console.error('❌ Cache Preheat Error:', e));
 
           // --- 自动化考勤终盘 (Daily Cron Job) ---
