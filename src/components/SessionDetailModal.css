@@ -1,78 +1,64 @@
-/* SessionDetailModal.css - 扁平化重构版 */
+/* SessionDetailModal.css - 极简扁平化精修版 */
 
-/* 1. 基础动画 */
+/* 1. 基础容器与动画 */
 .animate-in {
-    animation-duration: 300ms;
+    animation-duration: 250ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.fade-in {
-    animation-name: fadeIn;
+.fade-in { animation-name: fadeIn; }
+.slide-in-from-right-4 { animation-name: slideInRight; }
+.zoom-in-95 { animation-name: zoomIn95; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideInRight { from { transform: translateX(10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes zoomIn95 { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* 2. 聊天气泡核心样式 - 解决文字变白问题 */
+.message-bubble {
+    transition: all 0.2s ease;
 }
 
-.zoom-in-95 {
-    animation-name: zoomIn95;
+/* 移除所有可能导致文字变白的全局 hover 规则 */
+.message-bubble:hover {
+    filter: brightness(0.98);
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes zoomIn95 {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-/* 2. 滚动条美化 (Shadcn 风格) */
+/* 3. 滚动条美化 */
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #e2e8f0; /* slate-200 */
     border-radius: 10px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #cbd5e1; /* slate-300 */
 }
 
-/* 3. 对话气泡微动效 */
+/* 4. 高亮脉冲动画 */
 .highlight-pulse {
-    animation: highlightPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: highlightPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
 @keyframes highlightPulse {
-    0%, 100% {
-        transform: scale(1);
-        background-color: transparent;
-    }
-    50% {
-        transform: scale(1.01);
-        background-color: rgba(251, 191, 36, 0.05); /* amber-50ish */
-        border-color: rgba(251, 191, 36, 0.3);
-    }
+    0%, 100% { transform: scale(1); background-color: transparent; }
+    50% { transform: scale(1.02); background-color: rgba(99, 102, 241, 0.05); border-color: #6366f1; }
 }
 
-/* 4. 行内编辑容器 */
+/* 5. 极简按钮微动效 */
+button:active {
+    transform: scale(0.96);
+}
+
+/* 6. 解决特定 z-index 遮挡问题 */
+.z-10 { z-index: 10; }
+
+/* 7. 输入框聚焦优化 */
 textarea:focus {
     outline: none;
     box-shadow: none;
-}
-
-/* 5. 评分星星发光效果 */
-.drop-shadow-sm {
-    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.05));
-}
-
-/* 6. 响应式布局微调 */
-@media (max-width: 1024px) {
-    .max-w-7xl {
-        max-width: 95vw;
-    }
 }
