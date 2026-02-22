@@ -239,14 +239,16 @@ module.exports = async function (fastify, opts) {
                 params.push(`%${search}%`, `%${search}%`);
             }
 
-            query += ' ORDER BY t.category_id, t.id ASC';
+            // 性能与交互优化：优先按使用频率排序，其次按 ID
+            query += ' ORDER BY t.usage_count DESC, t.id ASC';
 
             const [rows] = await pool.query(query, params);
 
-            // 构建树形结构
+            // 构建树形结构 (保持有序)
             const buildTree = (items, parentId = null) => {
                 return items
                     .filter(item => item.parent_id === parentId)
+                    .sort((a, b) => b.usage_count - a.usage_count) // 确保树形节点内部也是按热度排序
                     .map(item => ({
                         ...item,
                         children: buildTree(items, item.id)

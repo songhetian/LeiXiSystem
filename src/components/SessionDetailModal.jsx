@@ -288,13 +288,19 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                                 <button
                                                     key={tag.id}
                                                     onClick={() => toggleTag(tag)}
-                                                    className={`px-3 py-2 rounded-lg text-[11px] font-bold text-left transition-all border ${
+                                                    className={`group px-3 py-2 rounded-lg text-[11px] font-bold text-left transition-all border relative overflow-hidden ${
                                                         currentMsgTags.includes(tag.id)
                                                             ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                                            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-slate-300'
+                                                            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-indigo-200 hover:bg-indigo-50/30'
                                                     }`}
                                                 >
-                                                    {tag.name}
+                                                    <span className="relative z-10">{tag.name}</span>
+                                                    {/* 高频标签微标识 */}
+                                                    {tag.usage_count > 10 && (
+                                                        <div className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center ${currentMsgTags.includes(tag.id) ? 'text-indigo-300' : 'text-indigo-400/40'}`}>
+                                                            <Star size={8} fill="currentColor" />
+                                                        </div>
+                                                    )}
                                                 </button>
                                             ))}
                                         </div>

@@ -73,14 +73,14 @@ const QualityStatisticsPage = () => {
   }
 
   const statusDistributionData = {
-    labels: statistics.statusDistribution.map(s => s.quality_status),
+    labels: statistics.statusDistribution.map(s => s.quality_status === 'completed' ? '已完成' : '待处理'),
     datasets: [
       {
         label: '会话状态分布',
         data: statistics.statusDistribution.map(s => s.count),
-        backgroundColor: ['#22c55e', '#eab308', '#3b82f6', '#ef4444'],
-        borderColor: ['#22c55e', '#eab308', '#3b82f6', '#ef4444'],
-        borderWidth: 1,
+        backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#ef4444'],
+        borderColor: ['#ffffff'],
+        borderWidth: 2,
       },
     ],
   };
@@ -89,63 +89,80 @@ const QualityStatisticsPage = () => {
     labels: statistics.topCustomerService.map(cs => cs.customer_service_name),
     datasets: [
       {
-        label: '客服平均分',
+        label: '客服平均得分',
         data: statistics.topCustomerService.map(cs => cs.average_score),
-        backgroundColor: '#0ea5e9',
-        borderColor: '#0ea5e9',
-        borderWidth: 1,
+        backgroundColor: '#6366f1',
+        borderRadius: 8,
       },
     ],
   };
 
   return (
-    <div className="p-6">
-      <div className="business-card">
-        <div className="business-card-header">
-          <h2 className="business-card-title">质检统计分析</h2>
+    <div className="p-6 md:p-8 bg-slate-50/50 min-h-full">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">质检效能看板</h2>
+            <p className="text-slate-500 text-sm mt-1">实时监测服务质量与质检进度</p>
+          </div>
           <div className="flex gap-3">
             <button
-              className="business-btn business-btn-primary"
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all shadow-sm"
               onClick={() => handleExport('sessions')}
             >
-              导出质检会话
+              导出质检清单
             </button>
             <button
-              className="business-btn business-btn-success"
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-all shadow-md shadow-slate-200"
               onClick={() => handleExport('cases')}
             >
-              导出案例数据
+              导出案例库
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
-            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">总质检会话数</p>
-            <p className="text-4xl font-bold text-primary-800 mt-2">{statistics.totalSessions}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="relative z-10">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">总质检量</p>
+              <p className="text-4xl font-black text-slate-900 mt-2">{statistics.totalSessions}</p>
+            </div>
+            <MessageSquare className="absolute -right-4 -bottom-4 text-slate-50 w-24 h-24" />
           </div>
-          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
-            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">平均质检分数</p>
-            <p className="text-4xl font-bold text-primary-800 mt-2">{statistics.averageScore ? statistics.averageScore.toFixed(2) : 'N/A'}</p>
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="relative z-10">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">平均得分</p>
+              <p className="text-4xl font-black text-indigo-600 mt-2">{statistics.averageScore ? statistics.averageScore.toFixed(1) : '0.0'}</p>
+            </div>
+            <Star className="absolute -right-4 -bottom-4 text-slate-50 w-24 h-24" />
           </div>
-          <div className="bg-primary-50 rounded-lg p-6 border border-primary-100 shadow-sm">
-            <p className="text-sm text-primary-600 font-medium uppercase tracking-wider">待补充指标</p>
-            <p className="text-4xl font-bold text-primary-800 mt-2">...</p>
+          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="relative z-10">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">质检覆盖率</p>
+              <p className="text-4xl font-black text-emerald-600 mt-2">100%</p>
+            </div>
+            <CheckCircle2 className="absolute -right-4 -bottom-4 text-slate-50 w-24 h-24" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">会话状态分布</h3>
-            <div className="h-80">
-              <Pie data={statusDistributionData} options={{ maintainAspectRatio: false }} />
+          <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-800 mb-8 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              会话处理状态分布
+            </h3>
+            <div className="h-72">
+              <Pie data={statusDistributionData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } } }} />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">客服平均分排名 (Top 5)</h3>
-            <div className="h-80">
-              <Bar data={topCustomerServiceData} options={{ maintainAspectRatio: false }} />
+          <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-800 mb-8 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              优秀客服排行榜
+            </h3>
+            <div className="h-72">
+              <Bar data={topCustomerServiceData} options={{ maintainAspectRatio: false, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, max: 100 } } }} />
             </div>
           </div>
         </div>
