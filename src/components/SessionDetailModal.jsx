@@ -114,7 +114,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
     const [activeTab, setActiveTab] = useState('session'); 
     const [tagSearch, setTagSearch] = useState('');
 
-    const draftKey = `session_draft_v11_${session?.id}`;
+    const draftKey = `session_draft_v12_${session?.id}`;
     const messageRefs = useRef({});
 
     useEffect(() => {
@@ -243,8 +243,8 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                         await qualityAPI.updateMessage(id, { content: inlineEditValue });
                                         setMessages(m => m.map(item => item.id === id ? {...item, content: inlineEditValue} : item));
                                         setEditingMessageId(null);
-                                        toast.success('对话修正成功');
-                                    } catch(e) { toast.error('修正失败'); }
+                                        toast.success('修正成功');
+                                    } catch(e) { toast.error('失败'); }
                                 }}
                                 onEditCancel={() => setEditingMessageId(null)}
                                 inlineValue={inlineEditValue}
@@ -254,60 +254,49 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                         ))}
                     </div>
 
-                    {/* 右侧：属性侧边栏 (优化边距与样式) */}
+                    {/* 右侧：属性侧边栏 (极速丝滑切换版) */}
                     <aside className="w-[360px] border-l border-slate-100 bg-white flex flex-col shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]">
                         <div className="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
                             
-                            {/* 1. 评分模块 - 增加边距与质感 */}
+                            {/* 1. 评分模块 - 星芒重设计 */}
                             <section>
-                                <div className="flex items-center justify-between mb-6 px-1">
+                                <div className="flex items-center justify-between mb-2 px-1">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <Star size={12} className="text-amber-500" /> 服务综合评价
+                                        <Star size={12} className="text-amber-500" /> 服务评价
                                     </h3>
-                                    <div className="px-4 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-lg font-black font-mono">
+                                    <div className="score-badge">
                                         {rating * 20}
                                     </div>
                                 </div>
-                                <div className="mx-2 flex justify-center items-center gap-3 py-6 bg-slate-50/50 rounded-[32px] border border-slate-100 shadow-inner">
+                                <div className="star-rating-wrapper">
                                     {[1, 2, 3, 4, 5].map(star => (
                                         <button 
                                             key={star} 
                                             onClick={() => !readOnly && setRating(star)} 
-                                            className={`star-btn ${star <= rating ? 'active text-amber-400 border-amber-200 bg-amber-50/50 shadow-md shadow-amber-100' : 'text-slate-200'}`}
+                                            className={`star-orb ${star <= rating ? 'active' : ''}`}
                                         >
-                                            <Star size={26} fill={star <= rating ? "currentColor" : "none"} strokeWidth={2.5} />
+                                            <Star size={24} fill={star <= rating ? "currentColor" : "none"} strokeWidth={star <= rating ? 0 : 2.5} />
                                         </button>
                                     ))}
                                 </div>
                             </section>
 
-                            {/* 2. 标签模块 */}
+                            {/* 2. 标签模块 - 硬件加速切换 */}
                             <section className="space-y-6">
                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <TagIcon size={12} className="text-emerald-500" /> 快捷标注体系
+                                    <TagIcon size={12} className="text-emerald-500" /> 快捷标注
                                 </h3>
 
-                                {/* 🚀 灵动滑块切换器 */}
                                 <div className="mode-tabs-container">
                                     <div className={`mode-slider-indicator ${activeTab === 'session' ? 'slider-left' : 'slider-right'}`} />
-                                    <div 
-                                        className={`mode-tab-item ${activeTab === 'session' ? 'active' : ''}`} 
-                                        onClick={() => setActiveTab('session')}
-                                    >
-                                        会话整体
-                                    </div>
-                                    <div 
-                                        className={`mode-tab-item ${activeTab === 'message' ? 'active' : ''}`} 
-                                        onClick={() => setActiveTab('message')}
-                                    >
-                                        单条对话
-                                    </div>
+                                    <div className={`mode-tab-item ${activeTab === 'session' ? 'active' : ''}`} onClick={() => setActiveTab('session')}>会话整体</div>
+                                    <div className={`mode-tab-item ${activeTab === 'message' ? 'active' : ''}`} onClick={() => setActiveTab('message')}>单条对话</div>
                                 </div>
 
                                 <div className="relative group">
                                     <input 
                                         type="text"
-                                        placeholder="搜索或浏览标签..."
+                                        placeholder="快速定位标签..."
                                         value={tagSearch}
                                         onChange={e => setTagSearch(e.target.value)}
                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-bold text-slate-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
@@ -321,13 +310,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                             <div className="tag-group-header">常用热门 <Flame size={10} className="text-rose-500" /></div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {tagData.frequent.map(tag => (
-                                                    <button 
-                                                        key={tag.id} 
-                                                        onClick={() => toggleTag(tag)} 
-                                                        className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}
-                                                    >
-                                                        {tag.name}
-                                                    </button>
+                                                    <button key={tag.id} onClick={() => toggleTag(tag)} className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}>{tag.name}</button>
                                                 ))}
                                             </div>
                                         </div>
@@ -338,13 +321,7 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                             <div className="tag-group-header">{category}</div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {tags.map(tag => (
-                                                    <button 
-                                                        key={tag.id} 
-                                                        onClick={() => toggleTag(tag)} 
-                                                        className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}
-                                                    >
-                                                        {tag.name}
-                                                    </button>
+                                                    <button key={tag.id} onClick={() => toggleTag(tag)} className={`tag-button-standard ${activeTagIds.includes(tag.id) ? 'active' : ''}`}>{tag.name}</button>
                                                 ))}
                                             </div>
                                         </div>
@@ -352,14 +329,14 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 </div>
                             </section>
 
-                            {/* 3. 评语模块 */}
+                            {/* 3. 评语建议 */}
                             <section>
                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                    <Edit3 size={12} className="text-indigo-500" /> 质检改善建议
+                                    <Edit3 size={12} className="text-indigo-500" /> 质检改进建议
                                 </h3>
                                 <textarea 
                                     className="w-full h-32 bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-[12px] font-medium text-slate-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all outline-none resize-none shadow-inner"
-                                    placeholder="请输入具体的质检反馈..."
+                                    placeholder="请输入反馈评语..."
                                     value={editContent}
                                     onChange={e => setEditContent(e.target.value)}
                                 />
@@ -371,16 +348,16 @@ const SessionDetailModal = ({ isOpen, onClose, session, initialMessages = [], re
                                 <button
                                     onClick={handleSaveAll}
                                     disabled={isSaving}
-                                    className="w-full h-12 bg-slate-950 hover:bg-black text-white rounded-2xl text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-slate-200"
+                                    className="w-full h-12 bg-slate-950 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-[0.1em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-slate-200"
                                 >
                                     {isSaving ? <RotateCcw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                    确认同步分析结果
+                                    同步质检分析
                                 </button>
                                 <button 
-                                    onClick={() => { setRating(5); setEditContent('服务规范，表现优秀。'); }}
+                                    onClick={() => { setRating(5); setEditContent('表现优秀，服务规范。'); }}
                                     className="w-full h-10 bg-white border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                                 >
-                                    ✨ 一键满分通过
+                                    ✨ 一键满分
                                 </button>
                             </footer>
                         )}

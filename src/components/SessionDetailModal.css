@@ -1,4 +1,4 @@
-/* SessionDetailModal.css - 灵动滑块 & 靛蓝视觉版 */
+/* SessionDetailModal.css - 极致性能 & 顶级工艺版 */
 
 .animate-in {
     animation-duration: 300ms;
@@ -31,34 +31,36 @@
 .message-text-white { color: #ffffff !important; }
 .message-text-slate { color: #334155 !important; }
 
-/* 2. 🚀 灵动滑块切换器 (Mode Slider) */
+/* 2. 🚀 极致丝滑滑块 (GPU Accelerated) */
 .mode-tabs-container {
     position: relative;
     display: flex;
-    background: #f1f5f9; /* slate-100 */
+    background: #f1f5f9; 
     padding: 4px;
     border-radius: 14px;
     margin-bottom: 24px;
     border: 1px solid #e2e8f0;
     overflow: hidden;
+    will-change: transform; /* 提醒浏览器开启优化 */
 }
 
-/* 蓝色背景滑块 */
 .mode-slider-indicator {
     position: absolute;
     top: 4px;
     bottom: 4px;
+    left: 4px;
     width: calc(50% - 4px);
-    background: #4f46e5; /* indigo-600 */
+    background: #4f46e5; 
     border-radius: 10px;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    /* 使用 translate3d 开启硬件加速 */
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
     z-index: 1;
 }
 
-/* 根据状态移动滑块 */
-.slider-left { transform: translateX(0); }
-.slider-right { transform: translateX(100%); }
+/* 左右移动逻辑 */
+.slider-left { transform: translate3d(0, 0, 0); }
+.slider-right { transform: translate3d(100%, 0, 0); }
 
 .mode-tab-item {
     position: relative;
@@ -67,35 +69,55 @@
     font-size: 11px;
     font-weight: 900;
     text-align: center;
-    transition: color 0.3s;
+    transition: color 0.3s ease;
     cursor: pointer;
-    z-index: 10; /* 置于滑块上方 */
-    color: #64748b; /* 未选中灰色 */
+    z-index: 10;
+    color: #64748b;
 }
 
 .mode-tab-item.active {
-    color: white !important; /* 选中白色 */
+    color: white !important;
 }
 
-/* 3. 其他精修 */
-.star-btn {
-    width: 46px;
-    height: 46px;
+/* 3. ⭐ 星芒评价系统 (Redesign) */
+.star-rating-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 0;
+    width: 100%;
+}
+
+.star-orb {
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 14px;
+    border-radius: 50%; /* 圆形底座 */
     background: white;
     border: 1px solid #f1f5f9;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #e2e8f0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
-.star-btn.active {
-    border-color: #fbbf24;
+.star-orb:hover {
+    transform: scale(1.1);
+    border-color: #fde68a;
+    color: #fde68a;
+}
+
+.star-orb.active {
     background: #fffbeb;
-    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.1);
+    border-color: #fbbf24;
+    color: #fbbf24;
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+    transform: scale(1.15);
 }
 
+/* 4. 辅助样式 */
 .score-badge {
     padding: 4px 16px;
     background: #ecfdf5;
@@ -103,7 +125,6 @@
     border-radius: 99px;
     font-size: 20px;
     font-weight: 900;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     border: 1px solid #d1fae5;
 }
 
@@ -123,19 +144,6 @@
     background: #10b981;
     border-color: #10b981;
     color: white;
-}
-
-.tag-group-header {
-    font-size: 10px;
-    font-weight: 900;
-    color: #cbd5e1;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-top: 24px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
