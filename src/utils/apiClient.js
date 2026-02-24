@@ -104,6 +104,8 @@ class TokenManager {
   async refreshToken() {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
+      this.clearTokens();
+      window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'no_refresh_token' } }));
       throw new Error('No refresh token available');
     }
 
@@ -111,9 +113,7 @@ class TokenManager {
       const apiUrl = await getApiUrlAsync('/api/auth/refresh');
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken })
       });
 
@@ -123,7 +123,8 @@ class TokenManager {
 
       const data = await response.json();
       if (data.token) {
-        this.setToken(data.token, data.expiresIn || 3600);
+        // 关键：同步后端颁发的 30 天有效期 (2592000秒)
+        this.setToken(data.token, data.expiresIn || 2592000);
         if (data.refresh_token) {
           this.setRefreshToken(data.refresh_token);
         }
@@ -132,12 +133,9 @@ class TokenManager {
 
       throw new Error('Invalid refresh response');
     } catch (error) {
-      console.error('Token刷新失败:', error);
-      const logoutReason = `Token refresh failed: ${error.message}`;
-      localStorage.setItem('last_logout_reason', logoutReason);
-      localStorage.setItem('last_logout_stack', new Error().stack);
+      console.error('🔴 [TokenManager] 严重：Token 续期失败，强制退出...', error);
       this.clearTokens();
-      // 触发自定义事件，由 App.jsx 监听并执行退出，避免 SPA 中强制页面刷新
+      // 核心：强制触发 App.jsx 的退出重定向逻辑
       window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'token_refresh_failed' } }));
       throw error;
     }
@@ -212,7 +210,18 @@ export const handleApiError = (error, customMessage = null) => {
  * 统一的API请求封装
  */
 export const apiRequest = async (url, options = {}) => {
-  const { skipRefresh = false, ...fetchOptions } = options;
+  const { skipRefresh = false, params, ...fetchOptions } = options;
+
+  // 处理查询参数
+  let targetUrl = url;
+  if (params && Object.keys(params).length > 0) {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
+    ).toString();
+    if (queryString) {
+      targetUrl += (targetUrl.includes('?') ? '&' : '?') + queryString;
+    }
+  }
 
   // 检查token是否过期
   if (!skipRefresh && tokenManager.isTokenExpired()) {
@@ -238,10 +247,10 @@ export const apiRequest = async (url, options = {}) => {
   };
 
   try {
-    const response = await fetch(url, config);
+    const response = await fetch(targetUrl, config);
 
     if (response.status === 401) {
-      console.warn(`⚠️ [apiClient] 请求返回 401: ${url}`);
+      console.warn(`⚠️ [apiClient] 请求返回 401: ${targetUrl}`);
     }
 
     // 处理401错误 - token可能在请求过程中过期
@@ -251,7 +260,7 @@ export const apiRequest = async (url, options = {}) => {
         return new Promise((resolve, reject) => {
           refreshQueue.push({ resolve, reject });
         }).then(newToken => {
-          return fetch(url, {
+          return fetch(targetUrl, {
             ...config,
             headers: { ...config.headers, 'Authorization': `Bearer ${newToken}` }
           }).then(res => res.json());
@@ -268,7 +277,7 @@ export const apiRequest = async (url, options = {}) => {
         processQueue(null, newToken); // 放行队列中的请求
 
         // 重试当前请求
-        const retryResponse = await fetch(url, {
+        const retryResponse = await fetch(targetUrl, {
           ...config,
           headers: {
             ...config.headers,

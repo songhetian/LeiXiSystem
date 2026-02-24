@@ -4,7 +4,8 @@ import Modal from './Modal'
 import EmployeeDetail from './EmployeeDetail'
 import EmployeeBatchOperations from './EmployeeBatchOperations'
 import UserDepartmentModal from './UserDepartmentModal'  // 添加这一行
-import { getApiUrl, getFileUrl } from '../utils/apiConfig'
+import { getApiUrl } from '../utils/apiConfig'
+import { getImageUrl } from '../utils/fileUtils'
 import { formatDate, getBeijingDateString, getLocalDateString } from '../utils/date'
 import { Switch } from 'antd'
 
@@ -1280,7 +1281,7 @@ function EmployeeManagement() {
                           onClick={() => handleViewDetail(emp)}
                         >
                           {emp.avatar ? (
-                            <img src={getFileUrl(emp.avatar)} alt={emp.real_name} className="w-full h-full object-cover" />
+                            <img src={getImageUrl(emp.avatar)} alt={emp.real_name} className="w-full h-full object-cover" />
                           ) : (
                             emp.real_name?.charAt(0) || '-'
                           )}
@@ -1482,7 +1483,7 @@ function EmployeeManagement() {
             <div className="relative">
               <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-2xl font-medium text-gray-600 overflow-hidden border border-gray-200">
                 {avatarPreview ? (
-                  <img src={getFileUrl(avatarPreview)} alt="头像预览" className="w-full h-full object-cover" />
+                  <img src={getImageUrl(avatarPreview)} alt="头像预览" className="w-full h-full object-cover" />
                 ) : (
                   <span>{formData.real_name?.charAt(0) || '员'}</span>
                 )}
@@ -1891,7 +1892,7 @@ function EmployeeManagement() {
                 <div className="text-center mb-5">
                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xl font-medium text-gray-600 mx-auto mb-3 overflow-hidden">
                     {managerChangingEmp?.avatar ? (
-                      <img src={getFileUrl(managerChangingEmp.avatar)} alt="" className="w-full h-full object-cover" />
+                      <img src={managerChangingEmp.avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
                       managerChangingEmp?.real_name?.charAt(0)
                     )}
