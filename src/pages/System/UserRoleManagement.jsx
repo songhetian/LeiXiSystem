@@ -129,6 +129,11 @@ const UserRoleManagement = () => {
     } finally { setIsProcessingBatch(false); }
   };
 
+  const handleUserDepartmentSuccess = () => {
+    toast.success('成员部门可见性范围已更新');
+    fetchUsers(); 
+  };
+
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       if (searchText) {
