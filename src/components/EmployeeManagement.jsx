@@ -7,7 +7,7 @@ import UserDepartmentModal from './UserDepartmentModal'  // 添加这一行
 import { getApiUrl } from '../utils/apiConfig'
 import { getImageUrl } from '../utils/fileUtils'
 import { formatDate, getBeijingDateString, getLocalDateString } from '../utils/date'
-import { Switch } from 'antd'
+import { Switch, Select } from 'antd'
 
 function EmployeeManagement() {
   const [employees, setEmployees] = useState([])
@@ -176,6 +176,11 @@ function EmployeeManagement() {
     setPageSize(size)
     setCurrentPage(1)
   }
+
+  // 分页控制
+  const handlePageChange = (p) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); setJumpPage(null); }
+  const handlePageSizeChange = (s) => { setPageSize(s); setCurrentPage(1); }
+  const handleJumpPage = () => { if (jumpPage >= 1 && jumpPage <= totalPages) setCurrentPage(jumpPage); setJumpPage(null); }
 
   const handleSearchChange = (field, value) => {
     setSearchFilters(prev => ({
@@ -919,10 +924,10 @@ function EmployeeManagement() {
     <div className="p-8">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         {/* 头部 */}
-        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">员工管理</h1>
-            <p className="text-sm text-gray-500 mt-1">管理公司员工信息、权限与状态</p>
+        <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center bg-white rounded-t-2xl">
+          <div className="flex flex-col text-left">
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">员工名册</h1>
+            <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1 tracking-tighter">企业人才档案管理与在职状态同步中心</p>
           </div>
           <div className="flex items-center gap-3">
             <EmployeeBatchOperations onImportSuccess={fetchEmployees} />
@@ -932,10 +937,10 @@ function EmployeeManagement() {
                 setEditingEmp(null);
                 setIsModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-900 to-gray-800 text-white text-sm font-medium rounded-lg hover:from-gray-800 hover:to-gray-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+              className="h-11 px-8 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black shadow-lg flex items-center gap-2 transition-all active:scale-95 border-[1px] border-slate-800"
             >
-              <span className="text-lg">+</span>
-              <span>新增员工</span>
+              <Plus size={16} />
+              <span>添加成员</span>
             </button>
             <button
               onClick={() => {
@@ -954,21 +959,21 @@ function EmployeeManagement() {
 
                 window.open(getApiUrl(exportUrl), '_blank');
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 hover:shadow-lg transition-all duration-200"
+              className="h-11 px-8 bg-indigo-50 text-indigo-600 font-black rounded-lg text-xs hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-200"
             >
-              <span>📤</span>
-              <span>导出员工</span>
+              <Download size={16} />
+              <span>下载名册</span>
             </button>
           </div>
         </div>
 
         {/* 搜索筛选区 */}
-        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+        <div className="bg-slate-50/40 px-10 py-8">
           {/* 批量操作按钮区域 */}
           {selectedEmployeeIds.length > 0 && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-              <div className="text-sm text-blue-700">
-                已选择 <span className="font-bold">{selectedEmployeeIds.length}</span> 名员工
+            <div className="mb-6 p-4 bg-slate-900 rounded-xl flex items-center justify-between px-10 animate-in slide-in-from-top-4 shadow-xl">
+              <div className="text-xs font-black text-white bg-white/10 px-4 py-1.5 rounded-full border border-white/10">
+                已锁定 <span className="text-indigo-400">{selectedEmployeeIds.length}</span> 名成员
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -976,18 +981,18 @@ function EmployeeManagement() {
                     setBatchOperationType('active')
                     setIsBatchModalOpen(true)
                   }}
-                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors"
+                  className="h-9 px-6 bg-emerald-600 text-white font-black rounded-lg text-[11px] hover:bg-emerald-500 transition-all border-[1px] border-emerald-400"
                 >
-                  一键在职
+                  一键激活
                 </button>
                 <button
                   onClick={() => {
                     setBatchOperationType('inactive')
                     setIsBatchModalOpen(true)
                   }}
-                  className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded hover:bg-yellow-700 transition-colors"
+                  className="h-9 px-6 bg-amber-600 text-white font-black rounded-lg text-[11px] hover:bg-amber-500 transition-all border-[1px] border-amber-400"
                 >
-                  一键停用
+                  批量停用
                 </button>
                 <button
                   onClick={() => {
@@ -1013,76 +1018,74 @@ function EmployeeManagement() {
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="w-48">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">搜索</label>
-              <input
-                type="text"
-                placeholder="姓名 / 工号 / 手机号"
-                value={searchFilters.keyword}
-                onChange={(e) => handleSearchChange('keyword', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all"
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[240px]">
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">快速检索成员</label>
+              <div className="relative group">
+                <input
+                  type="text"
+                  placeholder="姓名 / 工号 / 手机号..."
+                  value={searchFilters.keyword}
+                  onChange={(e) => handleSearchChange('keyword', e.target.value)}
+                  className="w-full h-11 pl-10 pr-4 bg-white border-[1px] border-slate-500 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+                />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600" size={16} />
+              </div>
+            </div>
+            <div className="w-44">
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">部门</label>
+              <Select
+                showSearch
+                allowClear
+                placeholder="全部部门"
+                className="w-full h-11 font-black"
+                style={{ border:'1px solid #64748b', borderRadius:'8px' }}
+                variant="borderless"
+                value={searchFilters.department || undefined}
+                onChange={(val) => handleSearchDepartmentChange(val)}
+                options={departments.map(dept => ({ label: dept.name, value: String(dept.id) }))}
+              />
+            </div>
+            <div className="w-44">
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">职位</label>
+              <Select
+                showSearch
+                allowClear
+                placeholder="全部职位"
+                className="w-full h-11 font-black"
+                style={{ border:'1px solid #64748b', borderRadius:'8px' }}
+                variant="borderless"
+                disabled={!searchFilters.department}
+                value={searchFilters.position || undefined}
+                onChange={(val) => handleSearchChange('position', val)}
+                options={searchFilteredPositions.map(pos => ({ label: pos.name, value: pos.name }))}
               />
             </div>
             <div className="w-36">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">部门</label>
-              <select
-                value={searchFilters.department}
-                onChange={(e) => handleSearchDepartmentChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all bg-white"
-              >
-                <option value="">全部</option>
-                {departments.map(dept => (
-                  <option key={dept.id} value={dept.id}>{dept.name}</option>
-                ))}
-              </select>
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">在职状态</label>
+              <Select
+                placeholder="全部"
+                className="w-full h-11 font-black"
+                style={{ border:'1px solid #64748b', borderRadius:'8px' }}
+                variant="borderless"
+                value={searchFilters.status || undefined}
+                onChange={(val) => handleSearchChange('status', val)}
+                options={[
+                  { label: '🟢 激活在职', value: 'active' },
+                  { label: '🟡 锁定停用', value: 'inactive' },
+                  { label: '🔴 离职注销', value: 'resigned' },
+                  { label: '⚪ 全部状态', value: '' }
+                ]}
+              />
             </div>
-            <div className="w-36">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">职位</label>
-              <select
-                value={searchFilters.position}
-                onChange={(e) => handleSearchChange('position', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all bg-white"
-                disabled={!searchFilters.department}
-              >
-                <option value="">全部</option>
-                {searchFilteredPositions.map(pos => (
-                  <option key={pos.id} value={pos.name}>{pos.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-32">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">状态</label>
-              <select value={searchFilters.status} onChange={(e) => handleSearchChange('status', e.target.value)} className="w-full px-3 py-2 border border-gray-200 text-sm rounded bg-white">
-                <option value="active">在职</option>
-                <option value="inactive">停用</option>
-                <option value="resigned">离职</option>
-                <option value="deleted">已删除</option>
-                <option value="">全部</option>
-              </select>
-            </div>
-            <div className="w-28">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">评级</label>
-              <select
-                value={searchFilters.rating}
-                onChange={(e) => handleSearchChange('rating', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all bg-white"
-              >
-                <option value="">全部</option>
-                <option value="5">5星</option>
-                <option value="4">4星</option>
-                <option value="3">3星</option>
-                <option value="2">2星</option>
-                <option value="1">1星</option>
-              </select>
-            </div>
-            <div className="w-32">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">入职开始</label>
-              <input
-                type="date"
-                value={searchFilters.dateFrom}
-                onChange={(e) => handleSearchChange('dateFrom', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all"
+            <button
+              onClick={clearFilters}
+              className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm"
+            >
+              <X size={14} />
+              重置
+            </button>
+          </div>
               />
             </div>
             <div className="w-32">
@@ -1105,101 +1108,27 @@ function EmployeeManagement() {
           </div>
 
           {/* 快捷时间选择按钮 */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">快捷选择：</span>
-            <button
-              onClick={() => {
-                const today = getLocalDateString()
-                setSearchFilters({ ...searchFilters, dateFrom: today, dateTo: today })
-              }}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                searchFilters.dateFrom === searchFilters.dateTo && searchFilters.dateFrom === getLocalDateString()
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              今天
-            </button>
-            <button
-              onClick={() => {
-                const yesterday = new Date()
-                yesterday.setDate(yesterday.getDate() - 1)
-                const dateStr = getLocalDateString(yesterday)
-                setSearchFilters({ ...searchFilters, dateFrom: dateStr, dateTo: dateStr })
-              }}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                (() => {
-                  const yesterday = new Date()
-                  yesterday.setDate(yesterday.getDate() - 1)
-                  const dateStr = getLocalDateString(yesterday)
-                  return searchFilters.dateFrom === searchFilters.dateTo && searchFilters.dateFrom === dateStr
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                })()
-              }`}
-            >
-              昨天
-            </button>
-            <button
-              onClick={() => {
-                const now = new Date()
-                const threeDaysAgo = new Date(now)
-                threeDaysAgo.setDate(threeDaysAgo.getDate() - 2)
-                setSearchFilters({
-                  ...searchFilters,
-                  dateFrom: getLocalDateString(threeDaysAgo),
-                  dateTo: getLocalDateString(now)
-                })
-              }}
-              className="px-3 py-1.5 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              近3天
-            </button>
-            <button
-              onClick={() => {
-                const now = new Date()
-                const sevenDaysAgo = new Date(now)
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-                setSearchFilters({
-                  ...searchFilters,
-                  dateFrom: getLocalDateString(sevenDaysAgo),
-                  dateTo: getLocalDateString(now)
-                })
-              }}
-              className="px-3 py-1.5 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              近7天
-            </button>
-            <button
-              onClick={() => {
-                const now = new Date()
-                const thirtyDaysAgo = new Date(now)
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
-                setSearchFilters({
-                  ...searchFilters,
-                  dateFrom: getLocalDateString(thirtyDaysAgo),
-                  dateTo: getLocalDateString(now)
-                })
-              }}
-              className="px-3 py-1.5 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              近30天
-            </button>
-            <button
-              onClick={() => {
-                const now = new Date()
-                const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-                setSearchFilters({
-                  ...searchFilters,
-                  dateFrom: getLocalDateString(firstDayOfMonth),
-                  dateTo: getLocalDateString(now)
-                })
-              }}
-              className="px-3 py-1.5 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              本月
-            </button>
-            <button
+          <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">自定义周期：</span>
+            <div className="flex items-center gap-2">
+                <input type="date" value={searchFilters.dateFrom} onChange={e => handleSearchChange('dateFrom', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+                <span className="text-slate-400 font-black">→</span>
+                <input type="date" value={searchFilters.dateTo} onChange={e => handleSearchChange('dateTo', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+            </div>
+            <div className="h-4 w-[1px] bg-slate-300 mx-2" />
+            {[
+                { id: 'today', label: '今天', f: getLocalDateString(), t: getLocalDateString() },
+                { id: 'yesterday', label: '昨天', f: getLocalDateString(new Date(new Date().setDate(new Date().getDate()-1))), t: getLocalDateString(new Date(new Date().setDate(new Date().getDate()-1))) },
+                { id: 'last7', label: '近 7 天', f: getLocalDateString(new Date(new Date().setDate(new Date().getDate()-6))), t: getLocalDateString() },
+                { id: 'last30', label: '近 30 天', f: getLocalDateString(new Date(new Date().setDate(new Date().getDate()-29))), t: getLocalDateString() },
+                { id: 'thisMonth', label: '本月累计', f: getLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), t: getLocalDateString() }
+            ].map(btn => (
+                <button key={btn.id} onClick={() => { setSearchFilters({...searchFilters, dateFrom: btn.f, dateTo: btn.t}); setCurrentPage(1); }}
+                    className={`h-9 px-5 rounded-lg text-[11px] font-black transition-all ${searchFilters.dateFrom === btn.f && searchFilters.dateTo === btn.t ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>
+                    {btn.label}
+                </button>
+            ))}
+          </div>
               onClick={() => {
                 const now = new Date()
                 const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -1338,38 +1267,38 @@ function EmployeeManagement() {
                     />
                   </td>
 
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-6 py-6 text-center">
                       <button
                         onClick={() => handleStatusClick(emp)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${emp.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-800'
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border-[1px] transition-all ${emp.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                             : emp.status === 'resigned'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                           }`}
                       >
-                        {emp.status === 'active' ? '在职' : emp.status === 'resigned' ? '离职' : '停用'}
+                        {emp.status === 'active' ? '已激活' : emp.status === 'resigned' ? '已注销' : '锁定中'}
                       </button>
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="px-6 py-6 text-center">
+                      <div className="flex items-center justify-center gap-2 font-black">
                         <button
                           onClick={() => handleManageUserDepartments(emp)}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors"
+                          className="px-3 py-1.5 text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white rounded-lg border-[1px] border-indigo-200 transition-all shadow-sm"
                         >
-                          部门权限
+                          可见性
                         </button>
                         <button
                           onClick={() => handleEdit(emp)}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded transition-colors"
+                          className="px-3 py-1.5 text-[11px] text-amber-600 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-lg border-[1px] border-amber-200 transition-all shadow-sm"
                         >
-                          编辑
+                          修改
                         </button>
                         <button
                           onClick={() => handleDeleteClick(emp)}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded transition-colors"
+                          className="px-3 py-1.5 text-[11px] text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border-[1px] border-rose-200 transition-all shadow-sm"
                         >
-                          删除
+                          移除
                         </button>
                       </div>
                     </td>
