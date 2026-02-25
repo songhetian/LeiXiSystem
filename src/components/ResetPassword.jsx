@@ -1,29 +1,50 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner';
 import Modal from './Modal'
 import { getApiUrl } from '../utils/apiConfig'
+import { 
+    KeyRound, 
+    Search, 
+    X, 
+    RefreshCcw, 
+    Users, 
+    Building2, 
+    Lock, 
+    ArrowRight,
+    ArrowLeft,
+    CheckCircle2,
+    ShieldCheck,
+    UserCheck,
+    Smartphone,
+    Mail
+} from 'lucide-react';
+import { Select, ConfigProvider, Tooltip, InputNumber } from 'antd';
+
+const { Option } = Select;
 
 function ResetPassword() {
   const [employees, setEmployees] = useState([])
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [searchFilters, setSearchFilters] = useState({
-    keyword: '',
-    department: ''
-  })
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // 分页状态
+  // 分页状态 - 遵循标准化规范
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [totalPages, setTotalPages] = useState(0)
+  const [pageSize, setPageSize] = useState(10) // 默认 10 条
+  const [jumpPage, setJumpPage] = useState(null)
+
+  // 搜索条件
+  const [searchFilters, setSearchFilters] = useState({
+    keyword: '',
+    department: ''
+  })
 
   useEffect(() => {
-    fetchEmployees()
-    fetchDepartments()
+    fetchEmployees();
+    fetchDepartments();
   }, [])
 
   const fetchEmployees = async () => {
@@ -31,17 +52,13 @@ function ResetPassword() {
       setLoading(true)
       const token = localStorage.getItem('token')
       const response = await fetch(getApiUrl('/api/employees'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-
       if (response.ok) {
         const data = await response.json()
         setEmployees(data)
       }
     } catch (error) {
-      console.error('获取员工列表失败:', error)
       toast.error('获取员工列表失败')
     } finally {
       setLoading(false)
@@ -52,37 +69,21 @@ function ResetPassword() {
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(getApiUrl('/api/departments'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
       setDepartments(data.filter(d => d.status === 'active'))
-    } catch (error) {
-      console.error('获取部门列表失败')
-    }
+    } catch (error) {}
   }
 
   const handleResetPassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      toast.error('请输入新密码')
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.error('两次输入的密码不一致')
-      return
-    }
-
-    if (newPassword.length < 6) {
-      toast.error('密码长度至少6位')
-      return
-    }
+    if (!newPassword || !confirmPassword) return toast.error('请输入新密码');
+    if (newPassword !== confirmPassword) return toast.error('两次输入的密码不一致');
+    if (newPassword.length < 6) return toast.error('密码长度至少6位');
 
     try {
       setLoading(true)
       const token = localStorage.getItem('token')
-
       const response = await fetch(getApiUrl(`/api/users/${selectedEmployee.id}/reset-password`), {
         method: 'POST',
         headers: {
@@ -93,341 +94,204 @@ function ResetPassword() {
       })
 
       if (response.ok) {
-        toast.success('密码重置成功')
-        setIsModalOpen(false)
-        setNewPassword('')
-        setConfirmPassword('')
-        setSelectedEmployee(null)
+        toast.success('账户密码已重置成功');
+        setIsModalOpen(false); setNewPassword(''); setConfirmPassword(''); setSelectedEmployee(null);
       } else {
         const data = await response.json()
-        toast.error(data.message || '密码重置失败')
+        toast.error(data.message || '操作失败')
       }
     } catch (error) {
-      console.error('密码重置失败:', error)
-      toast.error('密码重置失败')
+      toast.error('网络通讯失败')
     } finally {
       setLoading(false)
     }
   }
 
-  // 过滤员工
-  const filteredEmployees = employees.filter(emp => {
-    const matchKeyword = !searchFilters.keyword ||
-      emp.real_name?.toLowerCase().includes(searchFilters.keyword.toLowerCase()) ||
-      emp.username?.toLowerCase().includes(searchFilters.keyword.toLowerCase()) ||
-      emp.employee_no?.toLowerCase().includes(searchFilters.keyword.toLowerCase())
+  // 搜索过滤逻辑
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      const kw = searchFilters.keyword.toLowerCase();
+      const matchKW = !kw || (emp.real_name?.toLowerCase().includes(kw) || emp.username?.toLowerCase().includes(kw) || emp.employee_no?.toLowerCase().includes(kw));
+      const matchDept = !searchFilters.department || String(emp.department_id) === String(searchFilters.department);
+      return matchKW && matchDept;
+    });
+  }, [searchFilters, employees])
 
-    const matchDepartment = !searchFilters.department ||
-      emp.department_id === parseInt(searchFilters.department)
+  const totalUsers = filteredEmployees.length
+  const totalPages = Math.ceil(totalUsers / pageSize)
+  const getCurrentPageData = () => filteredEmployees.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
 
-    return matchKeyword && matchDepartment
-  })
+  const handlePageChange = (p) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); setJumpPage(null); }
+  const handleJumpPage = () => { if (jumpPage >= 1 && jumpPage <= totalPages) setCurrentPage(jumpPage); setJumpPage(null); }
 
-  // 更新总页数
-  useEffect(() => {
-    setTotalPages(Math.ceil(filteredEmployees.length / pageSize))
-  }, [filteredEmployees, pageSize])
+  const handleSearchChange = (field, value) => { setSearchFilters(prev => ({ ...prev, [field]: value })); setCurrentPage(1); }
+  const clearFilters = () => { setSearchFilters({ keyword: '', department: '' }); setCurrentPage(1); }
 
-  // 获取当前页数据
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * pageSize
-    return filteredEmployees.slice(startIndex, startIndex + pageSize)
+  const renderPageNumbers = () => {
+    const pages = []; const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2)
+    for (let i = start; i <= end; i++) {
+      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg scale-110' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{i}</button>)
+    }
+    return pages
   }
 
-  // 分页控制
-  const handlePageChange = (page) => setCurrentPage(page)
-  const handlePageSizeChange = (size) => {
-    setPageSize(size)
-    setCurrentPage(1)
-  }
-
-  const handleSearchChange = (field, value) => {
-    setSearchFilters(prev => ({ ...prev, [field]: value }))
-    setCurrentPage(1)
-  }
-
-  const clearFilters = () => {
-    setSearchFilters({
-      keyword: '',
-      department: ''
-    })
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">加载中...</div>
-      </div>
-    )
-  }
+  if (loading && employees.length === 0) return <div className="flex items-center justify-center h-64 text-slate-900 font-black">系统数据加载中...</div>
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        {/* 页面标题 */}
-        <div className="px-6 py-5 border-b border-gray-100">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">重置密码</h1>
-            <p className="text-sm text-gray-500 mt-1">为员工重置登录密码</p>
+    <ConfigProvider theme={{
+        token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44 },
+        components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff' } }
+    }}>
+    <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left">
+      {/* 1. 顶栏 */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-10 py-6 border-b border-slate-50">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-12 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-xl shadow-slate-200"><KeyRound size={26} /></div>
+            <div className="flex flex-col">
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">账户重置中心</h1>
+                <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1">系统登录凭证核准与密码强制重置</p>
+            </div>
           </div>
+          <button onClick={fetchEmployees} className="h-11 w-11 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all shadow-inner"><RefreshCcw size={18} /></button>
         </div>
 
-        {/* 筛选区域 */}
-        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">搜索</label>
-              <input
-                type="text"
-                placeholder="姓名 / 用户名 / 工号"
-                value={searchFilters.keyword}
-                onChange={(e) => handleSearchChange('keyword', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all"
-              />
+        {/* 2. 横向紧凑搜索条 */}
+        <div className="bg-slate-50/40 px-10 py-8">
+            <div className="flex items-center gap-4 max-w-5xl">
+                <div className="flex-1 relative group">
+                    <input type="text" placeholder="检索姓名、用户名或工号关键字..." value={searchFilters.keyword} onChange={e => handleSearchChange('keyword', e.target.value)}
+                        className="w-full h-11 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500" size={18} />
+                </div>
+                <div className="w-[240px]">
+                    <Select showSearch allowClear placeholder="🏢 所属部门过滤" className="w-full h-11 font-black" variant="borderless" style={{ border:'2px solid #e2e8f0', borderRadius:'8px', background:'#fff' }}
+                        value={searchFilters.department || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
+                </div>
+                <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border border-indigo-100"><X size={14} /> 重置</button>
             </div>
-            <div className="w-36">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5 tracking-wide uppercase">部门</label>
-              <select
-                value={searchFilters.department}
-                onChange={(e) => handleSearchChange('department', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all bg-white"
-              >
-                <option value="">全部</option>
-                {departments.map(dept => (
-                  <option key={dept.id} value={dept.id}>{dept.name}</option>
-                ))}
-              </select>
-            </div>
-            {(searchFilters.keyword || searchFilters.department) && (
-              <button
-                onClick={clearFilters}
-                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 border border-gray-200 rounded hover:border-gray-300 hover:bg-white transition-all"
-              >
-                清空筛选
-              </button>
-            )}
-          </div>
         </div>
+      </div>
 
-        {/* 员工列表 */}
+      {/* 3. 员工主表：全居中 + 字体扩张 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-xl hover:shadow-slate-200/50">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 tracking-wide uppercase">工号</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 tracking-wide uppercase">姓名</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 tracking-wide uppercase">用户名</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 tracking-wide uppercase">部门</th>
-                <th className="px-5 py-3.5 text-center text-xs font-semibold text-gray-500 tracking-wide uppercase">状态</th>
-                <th className="px-5 py-3.5 text-center text-xs font-semibold text-gray-500 tracking-wide uppercase">操作</th>
+              <tr className="border-b border-slate-200 bg-slate-100/50">
+                <th className="px-8 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">工号标识</th>
+                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">员工实名</th>
+                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">系统账号</th>
+                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">所属部门</th>
+                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">账号状态</th>
+                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">管理操作</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredEmployees.length > 0 ? (
-                getCurrentPageData().map((employee) => (
-                  <tr key={employee.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-4 text-sm text-gray-600">{employee.employee_no || '-'}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-sm font-medium text-gray-600 flex-shrink-0">
-                          {employee.real_name?.charAt(0) || 'U'}
+            <tbody className="divide-y divide-slate-100 text-center font-black">
+              {getCurrentPageData().length === 0 ? (
+                <tr><td colSpan="6" className="py-32 text-center text-slate-900 font-black tracking-widest text-[15px] uppercase italic">未发现符合条件的成员档案</td></tr>
+              ) : (
+                getCurrentPageData().map((emp) => (
+                  <tr key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group">
+                    <td className="px-8 py-6 text-[15px] text-slate-900">{emp.employee_no || 'NA'}</td>
+                    <td className="px-6 py-6 text-center">
+                      <div className="flex items-center justify-center gap-4">
+                        <div className="w-11 h-11 rounded-lg bg-slate-200 flex items-center justify-center text-sm font-black text-slate-700 overflow-hidden border-2 border-white shadow-sm group-hover:scale-110 transition-transform">
+                          {emp.avatar ? <img src={emp.avatar} className="w-full h-full object-cover" /> : emp.real_name?.charAt(0)}
                         </div>
-                        <div className="text-sm font-medium text-gray-900">{employee.real_name}</div>
+                        <span className="text-[15px] font-black text-slate-900">{emp.real_name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-600">{employee.username || '-'}</td>
-                    <td className="px-5 py-4 text-sm text-gray-600">
-                      {departments.find(d => d.id === employee.department_id)?.name || '-'}
+                    <td className="px-6 py-6 text-[13px] text-slate-600 tracking-tighter">@{emp.username}</td>
+                    <td className="px-6 py-6 text-[13px] text-slate-700">
+                        <span className="bg-slate-100 px-2 py-1 rounded text-slate-600">{departments.find(d => d.id === emp.department_id)?.name || '未分配'}</span>
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        employee.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                        employee.status === 'resigned' ? 'bg-rose-100 text-rose-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {employee.status === 'active' ? '在职' :
-                         employee.status === 'resigned' ? '离职' : '停用'}
-                      </span>
+                    <td className="px-6 py-6 text-center">
+                        <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border border-white/50
+                            ${emp.status === 'active' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-500'}`}>
+                            {emp.status === 'active' ? '正常运行' : '锁定停用'}
+                        </span>
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => {
-                          setSelectedEmployee(employee)
-                          setIsModalOpen(true)
-                        }}
-                        className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
-                      >
-                        重置密码
-                      </button>
+                    <td className="px-6 py-6 text-center">
+                        <button onClick={() => { setSelectedEmployee(emp); setIsModalOpen(true); }} 
+                            className="h-9 px-6 bg-slate-900 text-white text-[11px] font-black rounded-lg hover:bg-black transition-all active:scale-95 shadow-lg shadow-slate-200">
+                            强制重置密码
+                        </button>
                     </td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-5 py-16 text-center">
-                    <p className="text-gray-400 text-sm">暂无员工数据</p>
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* 分页 */}
-        {filteredEmployees.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>每页</span>
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
-                className="px-2.5 py-1.5 border border-gray-200 text-sm rounded focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none transition-all bg-white"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span>条，共 {filteredEmployees.length} 条</span>
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handlePageChange(1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded disabled:text-gray-300 disabled:border-gray-100 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 transition-all"
-                >
-                  首页
-                </button>
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded disabled:text-gray-300 disabled:border-gray-100 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 transition-all"
-                >
-                  上一页
-                </button>
-
-                <div className="flex gap-1">
-                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                    let pageNum
-                    if (totalPages <= 7) {
-                      pageNum = i + 1
-                    } else if (currentPage <= 4) {
-                      pageNum = i + 1
-                    } else if (currentPage >= totalPages - 3) {
-                      pageNum = totalPages - 6 + i
-                    } else {
-                      pageNum = currentPage - 3 + i
-                    }
-
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`px-3 py-1.5 text-sm border rounded transition-all ${
-                          currentPage === pageNum
-                            ? 'bg-gray-900 text-white border-gray-900'
-                            : 'border-gray-200 hover:bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded disabled:text-gray-300 disabled:border-gray-100 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 transition-all"
-                >
-                  下一页
-                </button>
-                <button
-                  onClick={() => handlePageChange(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded disabled:text-gray-300 disabled:border-gray-100 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 transition-all"
-                >
-                  末页
-                </button>
+        {/* 4. 标准化分页器 */}
+        {totalUsers > 10 && (
+          <div className="px-10 py-8 bg-slate-50/50 flex items-center justify-between border-t border-slate-200 rounded-b-2xl">
+              <div className="flex items-center gap-4 text-left">
+                  <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">共计发现 <span className="text-indigo-600">{totalUsers}</span> 个成员档案</span>
+                  <div className="h-4 w-[1px] bg-slate-300 mx-2" />
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">每页显示</span>
+                  <Select size="small" value={pageSize} onChange={handlePageSizeChange} variant="borderless" className="bg-white rounded-lg shadow-sm border border-slate-300 text-[12px] font-black text-slate-900 w-24" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
               </div>
-            )}
+              <div className="flex items-center gap-3">
+                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-2 border-slate-200 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 transition-all shadow-sm">← 上一页</button>
+                  <div className="flex gap-1.5 mx-2">{renderPageNumbers()}</div>
+                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-2 border-slate-200 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 transition-all shadow-sm">下一页 →</button>
+                  <div className="flex items-center gap-2 ml-4">
+                      <span className="text-[11px] font-black text-slate-500 uppercase">跳至</span>
+                      <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-2 border-slate-200" controls={false} />
+                      <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg"><ArrowRight size={16} /></button>
+                  </div>
+              </div>
           </div>
         )}
       </div>
 
-      {/* 重置密码模态框 */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setNewPassword('')
-          setConfirmPassword('')
-          setSelectedEmployee(null)
-        }}
-        title="重置密码"
-      >
+      {/* 重置密码决策 Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setNewPassword(''); setConfirmPassword(''); setSelectedEmployee(null); }} title="强制重置账户凭证">
         {selectedEmployee && (
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <div className="text-sm">
-                <span className="text-gray-600">员工：</span>
-                <span className="font-medium text-gray-900">{selectedEmployee.real_name}</span>
-              </div>
+          <div className="space-y-6 text-left font-black">
+            <div className="p-6 bg-slate-50 rounded-xl border-2 border-white shadow-inner">
+                <div className="flex items-center gap-5">
+                    <div className="w-16 h-16 rounded-xl bg-white border-2 border-slate-200 flex items-center justify-center text-2xl font-black text-slate-400">
+                        {selectedEmployee.real_name?.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                        <h2 className="text-lg font-black text-slate-900">{selectedEmployee.real_name}</h2>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Personnel Account Security</p>
+                    </div>
+                </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                新密码
-              </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="请输入新密码（至少6位）"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
+                <Lock size={20} className="text-amber-600 shrink-0" />
+                <p className="text-xs text-amber-800 leading-relaxed">重置操作将立即使该账户当前的登录态失效，且新密码在下次登录时必须通过安全校验。</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                确认密码
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="请再次输入新密码"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">定义新登录密码</label>
+                    <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="设置至少 6 位安全字符..."
+                        className="w-full h-12 px-4 border-2 border-slate-100 rounded-lg focus:border-indigo-500 outline-none text-[15px]" />
+                </div>
+                <div>
+                    <label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">重复确认新密码</label>
+                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="请再次键入以防误操作..."
+                        className="w-full h-12 px-4 border-2 border-slate-100 rounded-lg focus:border-indigo-500 outline-none text-[15px]" />
+                </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                onClick={() => {
-                  setIsModalOpen(false)
-                  setNewPassword('')
-                  setConfirmPassword('')
-                  setSelectedEmployee(null)
-                }}
-                className="px-5 py-2 border border-gray-200 text-sm text-gray-700 hover:text-gray-900 rounded-lg hover:border-gray-300 hover:bg-white transition-all"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleResetPassword}
-                disabled={loading}
-                className="px-5 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? '重置中...' : '确认重置'}
-              </button>
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-50">
+              <button onClick={() => setIsModalOpen(false)} className="h-11 px-8 border-2 border-slate-100 text-slate-600 rounded-lg font-black uppercase text-xs">取消操作</button>
+              <button onClick={handleResetPassword} disabled={loading} className="h-11 px-8 bg-slate-900 text-white rounded-lg font-black uppercase text-xs shadow-lg hover:bg-black transition-all">确认物理重置</button>
             </div>
           </div>
         )}
       </Modal>
     </div>
+    </ConfigProvider>
   )
 }
 
-export default ResetPassword
+export default ResetPassword;
