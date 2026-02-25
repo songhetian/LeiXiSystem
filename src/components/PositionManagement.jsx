@@ -19,7 +19,8 @@ import {
     Edit3,
     Trash2,
     CheckCircle2,
-    Power
+    Power,
+    ShieldAlert
 } from 'lucide-react';
 import { Select, ConfigProvider, Tooltip, InputNumber } from 'antd';
 
@@ -56,15 +57,17 @@ function PositionManagement() {
   const fetchDepartments = async () => {
     try {
       const res = await fetch(getApiUrl('/api/departments'), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
-      const data = await res.json(); const depts = Array.isArray(data) ? data : (data.success ? data.data : [])
+      const data = await res.json(); 
+      const depts = Array.isArray(data) ? data : (data.success ? data.data : [])
       setDepartments(depts.filter(d => d.status === 'active'))
     } catch (e) {}
   }
 
   const filteredPositions = useMemo(() => {
     return positions.filter(pos => {
-      const kw = searchFilters.keyword.toLowerCase();
+      const kw = (searchFilters.keyword || '').toLowerCase();
       const matchKW = !kw || (pos.name?.toLowerCase().includes(kw) || pos.description?.toLowerCase().includes(kw));
+      // 鲁棒性修复：确保类型匹配
       const matchDept = !searchFilters.department || String(pos.department_id) === String(searchFilters.department);
       return matchKW && matchDept;
     });
@@ -104,11 +107,11 @@ function PositionManagement() {
 
   const renderPageNumbers = () => {
     const pages = []; const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2)
-    for (let i = start; i <= end; i++) {
-      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>{i}</button>)
-    }
+    for (let i = start; i <= end; i++) pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>{i}</button>)
     return pages
   }
+
+  const resetForm = () => { setFormData({ name: '', department_id: '', description: '', status: 'active' }); setEditingPos(null); }
 
   return (
     <ConfigProvider theme={{
@@ -116,6 +119,7 @@ function PositionManagement() {
         components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b', colorBorderHover: '#4f46e5' }, Input: { colorBorder: '#64748b', colorBorderHover: '#4f46e5' } }
     }}>
     <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left font-black">
+      {/* 1. 顶栏 */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6">
         <div className="flex items-center justify-between gap-4 px-10 py-6 border-b border-slate-50">
           <div className="flex items-center gap-5">
@@ -126,7 +130,7 @@ function PositionManagement() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => { setEditingPos(null); setFormData({name:'', department_id:'', description:'', status:'active'}); setIsModalOpen(true); }} className="h-11 px-8 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black shadow-lg flex items-center gap-2"><Plus size={16} /> 定义新岗位</button>
+            <button onClick={() => { setEditingPos(null); resetForm(); setIsModalOpen(true); }} className="h-11 px-8 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black shadow-lg flex items-center gap-2"><Plus size={16} /> 定义新岗位</button>
             <div className="flex bg-slate-100 p-1 rounded-xl">
                 <button onClick={() => setViewMode('card')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><LayoutGrid size={18} /></button>
                 <button onClick={() => setViewMode('table')} className={`p-2.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><TableIcon size={18} /></button>
@@ -146,7 +150,7 @@ function PositionManagement() {
                 </div>
                 <div className="w-[240px]">
                     <Select showSearch allowClear placeholder="🏢 所属部门筛选" className="w-full h-11 font-black"
-                        value={searchFilters.department || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
+                        value={searchDepartment || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
                 </div>
                 <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm">重置</button>
             </div>
@@ -170,16 +174,16 @@ function PositionManagement() {
                 <tr key={pos.id} className="hover:bg-slate-50 transition-all">
                   <td className="px-8 py-6 text-[15px] text-slate-900">{pos.name}</td>
                   <td className="px-6 py-6 text-[13px] text-slate-700">
-                    <span className="bg-slate-50 px-2 py-1 rounded-md border-[1px] border-slate-400 text-slate-600 font-bold">{departments.find(d => d.id === pos.department_id)?.name || '未分配'}</span>
+                    <span className="bg-slate-50 px-2 py-1 rounded-md border-[1px] border-slate-400 text-slate-600 font-bold">{departments.find(d => String(d.id) === String(pos.department_id))?.name || '未分配'}</span>
                   </td>
                   <td className="px-6 py-6 text-[13px] text-slate-600 max-w-xs truncate mx-auto">{pos.description || '-'}</td>
                   <td className="px-6 py-6 text-center">
-                    <button onClick={() => { setStatusChangingPos(pos); setIsStatusModalOpen(true); }} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border-[1px] transition-all ${pos.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-500 hover:bg-amber-100'}`}>{pos.status === 'active' ? '运行中' : '已锁定'}</button>
+                    <button onClick={() => { setStatusChangingPos(pos); setIsStatusModalOpen(true); }} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border-[1px] transition-all ${pos.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}>{pos.status === 'active' ? '运行中' : '已锁定'}</button>
                   </td>
                   <td className="px-6 py-6">
                     <div className="flex items-center justify-center gap-2">
                         <button onClick={() => handleEdit(pos)} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-600 hover:text-white transition-all border-[1px] border-indigo-500 font-black text-[11px]"><Edit3 size={14} /> 修改</button>
-                        <button onClick={() => handleDelete(pos.id)} className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all border-[1px] border-rose-500 font-black text-[11px]"><Trash2 size={14} /> 销毁</button>
+                        <button onClick={() => handleDelete(pos.id)} className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all border-[1px] border-rose-100 font-black text-[11px]"><Trash2 size={14} /> 销毁</button>
                     </div>
                   </td>
                 </tr>
@@ -193,9 +197,9 @@ function PositionManagement() {
             <div key={pos.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm group hover:shadow-xl hover:border-indigo-200 transition-all">
                 <div className="flex justify-between items-start mb-4">
                     <h3 className="text-[15px] font-black text-slate-900">{pos.name}</h3>
-                    <button onClick={() => { setStatusChangingPos(pos); setIsStatusModalOpen(true); }} className={`px-2 py-0.5 rounded text-[10px] font-black border-[1px] ${pos.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-500' : 'bg-amber-50 text-amber-700 border-amber-500'}`}>{pos.status === 'active' ? 'ACTIVE' : 'LOCKED'}</button>
+                    <button onClick={() => { setStatusChangingPos(pos); setIsStatusModalOpen(true); }} className={`px-2 py-0.5 rounded text-[10px] font-black border-[1px] ${pos.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-500' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{pos.status === 'active' ? '在职' : '锁定'}</button>
                 </div>
-                <div className="flex items-center gap-2 text-[13px] font-bold text-slate-500 mb-4"><Building2 size={14} className="text-slate-400" />{departments.find(d => d.id === pos.department_id)?.name || '未分配部门'}</div>
+                <div className="flex items-center gap-2 text-[13px] font-bold text-slate-500 mb-4"><Building2 size={14} className="text-slate-400" />{departments.find(d => String(d.id) === String(pos.department_id))?.name || '未分配部门'}</div>
                 <p className="text-[13px] text-slate-600 line-clamp-2 min-h-[40px] mb-6 leading-relaxed font-bold">{pos.description || '暂无职能说明...'}</p>
                 <div className="flex gap-2 pt-4 border-t border-slate-50 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => handleEdit(pos)} className="flex-1 h-10 bg-white border-[1px] border-indigo-500 text-indigo-700 text-[11px] font-black rounded-lg hover:bg-indigo-600 hover:text-white transition-all">编辑修改</button>
@@ -219,7 +223,7 @@ function PositionManagement() {
                 <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">下一页 →</button>
                 <div className="flex items-center gap-2 ml-4">
                     <span className="text-[10px] font-black text-slate-500 uppercase">跳至</span>
-                    <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1" controls={false} />
+                    <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-[1px] border-slate-500" controls={false} />
                     <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg shadow-slate-200"><ArrowRight size={16} /></button>
                 </div>
             </div>
@@ -251,7 +255,5 @@ function PositionManagement() {
     </ConfigProvider>
   )
 }
-
-function resetForm() {} // 占位符
 
 export default PositionManagement;
