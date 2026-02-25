@@ -43,7 +43,9 @@ import {
     Settings,
     Star,
     History,
-    TrendingUp
+    TrendingUp,
+    Calendar,
+    ShieldAlert
 } from 'lucide-react';
 
 const { Option } = Select;
@@ -133,8 +135,10 @@ function EmployeeManagement() {
   }
 
   const fetchRoles = async () => {
-    const res = await fetch(getApiUrl('/api/roles'), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
-    if(res.ok) setRoles(await res.json())
+    try {
+      const res = await fetch(getApiUrl('/api/roles'), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+      if(res.ok) setRoles(await res.json())
+    } catch (e) {}
   }
 
   useEffect(() => {
@@ -153,6 +157,8 @@ function EmployeeManagement() {
       if (searchFilters.department) result = result.filter(e => String(e.department_id) === String(searchFilters.department))
       if (searchFilters.position) result = result.filter(e => e.position === searchFilters.position)
       if (searchFilters.status) result = result.filter(e => e.status === searchFilters.status)
+      if (searchFilters.dateFrom) result = result.filter(e => formatDate(e.hire_date) >= searchFilters.dateFrom)
+      if (searchFilters.dateTo) result = result.filter(e => formatDate(e.hire_date) <= searchFilters.dateTo)
       setFilteredEmployees(result)
       setCurrentPage(1)
     }, 300)
@@ -194,7 +200,7 @@ function EmployeeManagement() {
     try {
       const url = editingEmp ? getApiUrl(`/api/employees/${editingEmp.id}`) : getApiUrl('/api/employees')
       const res = await fetch(url, { method: editingEmp ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify(formData) })
-      if ((await res.json()).success) { toast.success('名册更新成功'); setIsModalOpen(false); fetchEmployees(); resetForm(); }
+      if ((await res.json()).success) { toast.success('名册已更新'); setIsModalOpen(false); fetchEmployees(); resetForm(); }
     } catch (e) { toast.error('网络同步失败'); }
   }
 
@@ -248,7 +254,7 @@ function EmployeeManagement() {
   const handleStatusClick = (emp) => { setStatusChangingEmp(emp); setStatusChangeData({ ...statusChangeData, newStatus: emp.status, changeDate: getLocalDateString() }); setIsStatusModalOpen(true); }
   const handleEdit = (emp) => { setEditingEmp(emp); setFormData({ ...emp, role_id: emp.role_id || '' }); setAvatarPreview(emp.avatar || ''); setIsModalOpen(true); }
   const handleManageUserDepartments = (emp) => { setSelectedUserForDepartment({ ...emp, id: emp.user_id }); setIsUserDepartmentModalOpen(true); }
-  const handleUserDepartmentSuccess = () => { toast.success('数据权限已同步'); fetchEmployees(); };
+  const handleUserDepartmentSuccess = () => { toast.success('权限已同步'); fetchEmployees(); };
   const resetForm = () => { setFormData({ employee_no: '', real_name: '', email: '', phone: '', department_id: '', position: '', hire_date: getLocalDateString(), rating: 3, status: 'active', avatar: '', emergency_contact: '', emergency_phone: '', address: '', education: '', skills: '', remark: '', role_id: '', is_department_manager: false, username: '' }); setAvatarPreview(''); setEditingEmp(null); }
 
   const totalPages = Math.ceil(filteredEmployees.length / pageSize)
@@ -260,32 +266,58 @@ function EmployeeManagement() {
     return pages
   }
 
+  const handleDateQuickSelect = (type) => {
+    const now = new Date(); let from = '', to = getLocalDateString(now);
+    switch(type) {
+      case 'today': from = to; break;
+      case 'yesterday': const yest = new Date(); yest.setDate(yest.getDate() - 1); from = to = getLocalDateString(yest); break;
+      case 'last7': const last7 = new Date(); last7.setDate(last7.getDate() - 6); from = getLocalDateString(last7); break;
+      case 'last30': const last30 = new Date(); last30.setDate(last30.getDate() - 29); from = getLocalDateString(last30); break;
+      case 'thisMonth': from = getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1)); break;
+    }
+    setSearchFilters(prev => ({ ...prev, dateFrom: from, dateTo: to })); setCurrentPage(1);
+  }
+
+  const isDateActive = (f, t) => searchFilters.dateFrom === f && searchFilters.dateTo === t;
+
   return (
     <ConfigProvider theme={{
         token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
         components: { 
-            Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b', colorBorderHover: '#4f46e5', optionSelectedBg: '#f5f3ff', optionSelectedColor: '#4f46e5', paddingSM: 12 }, 
+            Select: { 
+                controlOutline: 'transparent', 
+                selectorBg: '#ffffff', 
+                colorBorder: '#64748b', 
+                colorBorderHover: '#4f46e5',
+                optionSelectedBg: '#f5f3ff',
+                optionSelectedColor: '#4f46e5',
+                paddingSM: 12,
+                borderRadius: 8,
+                colorText: '#0f172a'
+            }, 
             Input: { colorBorder: '#64748b', colorBorderHover: '#4f46e5' } 
         }
     }}>
     <div className="p-6 bg-[#f8fafc] min-h-screen select-none font-black text-left text-slate-900">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* 头部 */}
         <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center bg-white">
           <div className="flex flex-col text-left">
             <h1 className="text-xl font-black text-slate-900 tracking-tight">员工名册</h1>
-            <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1 tracking-tighter">企业人才档案管理与在职状态同步中心</p>
+            <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1 tracking-tighter">企业人才档案管理与在职状态实时同步</p>
           </div>
           <div className="flex items-center gap-3">
             <EmployeeBatchOperations onImportSuccess={fetchEmployees} />
             <button onClick={() => { setEditingEmp(null); resetForm(); setIsModalOpen(true); }} className="h-11 px-8 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black shadow-lg flex items-center gap-2 transition-all active:scale-95 border-[1px] border-slate-800"><Plus size={16} /> 添加成员</button>
             <button onClick={handleExport} className="h-11 px-8 bg-indigo-50 text-indigo-600 font-black rounded-lg text-xs hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-200"><Download size={16} /> 下载名册</button>
-            <button onClick={fetchEmployees} className="h-11 w-11 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-all border-[1px] border-slate-200"><RefreshCcw size={18} /></button>
+            <button onClick={fetchEmployees} className="h-11 w-11 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-all border-[1px] border-slate-200 shadow-inner"><RefreshCcw size={18} /></button>
           </div>
         </div>
 
-        <div className="bg-slate-50/40 px-10 py-8">
+        {/* 搜索区域：全部置顶 */}
+        <div className="bg-slate-50/40 px-10 py-8 space-y-6">
           {selectedEmployeeIds.length > 0 && (
-            <div className="mb-6 p-4 bg-slate-900 rounded-xl flex items-center justify-between px-10 animate-in shadow-xl">
+            <div className="p-4 bg-slate-900 rounded-xl flex items-center justify-between px-10 animate-in shadow-xl">
               <div className="text-xs font-black text-white bg-white/10 px-4 py-1.5 rounded-full border border-white/10">已锁定 <span className="text-indigo-400">{selectedEmployeeIds.length}</span> 名成员</div>
               <div className="flex gap-2">
                 <button onClick={() => { setBatchOperationType('active'); setIsBatchModalOpen(true); }} className="h-9 px-6 bg-emerald-600 text-white font-black rounded-lg text-[11px] hover:bg-emerald-500 border-[1px] border-emerald-400">一键激活</button>
@@ -297,7 +329,7 @@ function EmployeeManagement() {
 
           <div className="flex flex-wrap gap-4 items-end">
             <div className="flex-1 min-w-[280px]">
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">检索成员</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">检索关键字</label>
               <div className="relative group">
                 <input type="text" placeholder="姓名 / 工号 / 手机号..." value={searchFilters.keyword} onChange={e => handleSearchChange('keyword', e.target.value)}
                   className="w-full h-11 pl-10 pr-4 bg-white border-[1px] border-slate-500 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" />
@@ -305,16 +337,41 @@ function EmployeeManagement() {
               </div>
             </div>
             <div className="w-44">
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">部门</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">部门筛选</label>
               <Select showSearch allowClear placeholder="全部部门" className="w-full h-11 font-black"
                 value={searchFilters.department || undefined} onChange={v => handleSearchDepartmentChange(v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
             </div>
             <div className="w-44">
+              <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">职位筛选</label>
+              <Select showSearch allowClear placeholder="全部职位" className="w-full h-11 font-black"
+                disabled={!searchFilters.department} value={searchFilters.position || undefined} onChange={v => handleSearchChange('position', v)} options={searchFilteredPositions.map(p => ({ label: p.name, value: p.name }))} />
+            </div>
+            <div className="w-36">
               <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">在职状态</label>
               <Select placeholder="筛选状态" className="w-full h-11 font-black"
-                value={searchFilters.status || undefined} onChange={v => handleSearchChange('status', v)} options={[{label:'🟢 激活在职',value:'active'},{label:'🟡 锁定停用',value:'inactive'},{label:'🔴 离职注销',value:'resigned'},{label:'⚪ 全部状态',value:''}]} />
+                value={searchFilters.status || undefined} onChange={v => handleSearchChange('status', v)} options={[{label:'🟢 激活在职',value:'active'},{label:'🟡 停用锁定',value:'inactive'},{label:'🔴 离职注销',value:'resigned'},{label:'⚪ 全部状态',value:''}]} />
             </div>
             <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm">重置</button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-6">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">入职周期：</span>
+            <div className="flex items-center gap-2">
+                <input type="date" value={searchFilters.dateFrom} onChange={e => handleSearchChange('dateFrom', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+                <span className="text-slate-400 font-black">→</span>
+                <input type="date" value={searchFilters.dateTo} onChange={e => handleSearchChange('dateTo', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+            </div>
+            <div className="h-4 w-[1px] bg-slate-300 mx-2" />
+            {[
+                { id: 'today', label: '今天', f: getLocalDateString(), t: getLocalDateString() },
+                { id: 'last7', label: '近 7 天', f: getLocalDateString(new Date(new Date().setDate(new Date().getDate()-6))), t: getLocalDateString() },
+                { id: 'thisMonth', label: '本月累计', f: getLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), t: getLocalDateString() }
+            ].map(btn => (
+                <button key={btn.id} onClick={() => { setSearchFilters({...searchFilters, dateFrom: btn.f, dateTo: btn.t}); setCurrentPage(1); }}
+                    className={`h-9 px-5 rounded-lg text-[11px] font-black transition-all ${searchFilters.dateFrom === btn.f && searchFilters.dateTo === btn.t ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>
+                    {btn.label}
+                </button>
+            ))}
           </div>
         </div>
 
@@ -323,16 +380,16 @@ function EmployeeManagement() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/50">
                 <th className="px-6 py-6 text-center w-12"><input type="checkbox" checked={selectedEmployeeIds.length === filteredEmployees.length && filteredEmployees.length > 0} onChange={e => setSelectedEmployeeIds(e.target.checked ? filteredEmployees.map(e => e.id) : [])} className="w-4 h-4 rounded border-slate-400" /></th>
-                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">成员档案</th>
-                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">组织部门</th>
+                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">成员信息</th>
+                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">组织架构</th>
                 <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">入职日期</th>
-                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">运行状态</th>
-                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">操作中枢</th>
+                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">状态</th>
+                <th className="px-6 py-6 text-center text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-center">
+            <tbody className="divide-y divide-slate-100 text-center font-black">
               {getCurrentPageData().length === 0 ? (
-                <tr><td colSpan="6" className="py-32 text-center text-slate-900 font-black tracking-widest text-[15px] uppercase">暂无符合条件的成员记录</td></tr>
+                <tr><td colSpan="6" className="py-32 text-center text-slate-900 font-black tracking-widest text-[15px] uppercase italic">暂无符合条件的成员记录</td></tr>
               ) : (
                 getCurrentPageData().map((emp) => (
                   <tr key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group">
@@ -342,16 +399,19 @@ function EmployeeManagement() {
                         <div className="w-11 h-11 rounded-lg bg-slate-200 flex items-center justify-center text-sm font-black text-slate-700 overflow-hidden border-2 border-white shadow-sm group-hover:scale-110 transition-transform">
                           {emp.avatar ? <img src={getImageUrl(emp.avatar)} className="w-full h-full object-cover" /> : emp.real_name?.charAt(0)}
                         </div>
-                        <div className="text-left font-black">
+                        <div className="text-left">
                           <div className="text-[15px] text-slate-900 leading-tight">{emp.real_name}</div>
-                          <div className="text-[12px] text-slate-500 mt-0.5 tracking-tighter">工号: {emp.employee_no}</div>
+                          <div className="text-[12px] text-slate-500 mt-0.5 tracking-tighter font-bold">工号: {emp.employee_no}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-center font-black">
-                        <span className="text-[13px] text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border-[1px] border-slate-300">{emp.department_name}</span>
+                    <td className="px-6 py-6 text-center">
+                        <div className="flex flex-col items-center">
+                            <span className="text-[13px] text-slate-900 font-black">{emp.department_name}</span>
+                            <span className="text-[11px] text-slate-500 font-bold mt-0.5">{emp.position_name || '未设职位'}</span>
+                        </div>
                     </td>
-                    <td className="px-6 py-6 text-center font-black">
+                    <td className="px-6 py-6 text-center">
                         <span className="text-[13px] text-slate-900">{formatDate(emp.hire_date)}</span>
                     </td>
                     <td className="px-6 py-6 text-center">
@@ -375,9 +435,9 @@ function EmployeeManagement() {
         </div>
 
         {filteredEmployees.length > 10 && (
-          <div className="px-10 py-8 bg-slate-50/50 flex items-center justify-between border-t border-slate-200 rounded-b-2xl shadow-inner">
+          <div className="px-10 py-8 bg-slate-50/50 flex items-center justify-between border-t border-slate-200 rounded-b-2xl">
               <div className="flex items-center gap-4 text-left font-black">
-                  <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">共管理 <span className="text-indigo-600">{filteredEmployees.length}</span> 名成员</span>
+                  <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">共管理 <span className="text-indigo-600">{filteredEmployees.length}</span> 名在册成员</span>
                   <div className="h-4 w-[1px] bg-slate-400 mx-2" />
                   <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">展示条数</span>
                   <Select size="small" value={pageSize} onChange={handlePageSizeChange} className="w-24 font-black" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
@@ -389,15 +449,14 @@ function EmployeeManagement() {
                   <div className="flex items-center gap-2 ml-4">
                       <span className="text-[10px] font-black text-slate-500 uppercase">跳至</span>
                       <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-[1px] border-slate-500" controls={false} />
-                      <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black shadow-lg"><ArrowRight size={16} /></button>
+                      <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg shadow-slate-200"><ArrowRight size={16} /></button>
                   </div>
               </div>
           </div>
         )}
       </div>
 
-      {/* --- 全量 Modal 逻辑 100% 物理还原 --- */}
-      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title={editingEmp ? '资料修改' : '成员录入'}>
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title={editingEmp ? '修改成员信息' : '添加新成员'}>
         <form onSubmit={handleSubmit} className="space-y-4 font-black text-left">
           <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
             <div className="w-20 h-20 rounded-xl bg-slate-50 flex items-center justify-center text-2xl font-black text-slate-400 overflow-hidden border-[1px] border-slate-300">
@@ -428,7 +487,7 @@ function EmployeeManagement() {
             <input type="date" value={formData.hire_date} onChange={e => setFormData({...formData, hire_date: e.target.value})} className="w-full h-11 px-3 border-[1px] border-slate-500 rounded-lg text-sm font-black" /></div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-6 py-2 border-[1px] border-slate-400 text-slate-600 rounded-lg font-black text-xs hover:bg-slate-50">取消</button>
+            <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-6 py-2 border-[1px] border-slate-400 text-slate-600 rounded-lg font-black text-xs">取消</button>
             <button type="submit" className="px-8 py-2 bg-slate-900 text-white rounded-lg font-black text-xs shadow-lg hover:bg-black">保存入库</button>
           </div>
         </form>
@@ -438,7 +497,7 @@ function EmployeeManagement() {
         <div className="space-y-4 font-black text-left">
           {statusChangingEmp && (
             <div className="p-4 bg-slate-50 border-[1px] border-slate-300 rounded-xl text-sm">
-              <p><span className="text-slate-400 uppercase text-[10px] block mb-1">目标成员</span><span className="text-slate-900 font-black">{statusChangingEmp.real_name} (工号: {statusChangingEmp.employee_no})</span></p>
+              <p><span className="text-slate-400 uppercase text-[10px] block mb-1">当前成员</span><span className="text-slate-900 font-black">{statusChangingEmp.real_name} (工号: {statusChangingEmp.employee_no})</span></p>
             </div>
           )}
           <div><label className="block text-[11px] text-slate-500 mb-1.5 uppercase font-black">目标状态 *</label>
@@ -485,7 +544,7 @@ function EmployeeManagement() {
           <p className="text-[10px] text-slate-400 italic font-bold leading-relaxed">确认后，上述资产将自动转为“闲置”并解除绑定。</p>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button onClick={() => { setIsAssetConfirmModalOpen(false); setPendingAction(null); }} className="px-6 py-2 border-[1px] border-slate-400 rounded-lg text-xs">取消操作</button>
-            <button onClick={async () => { if (pendingAction) await pendingAction(); setIsAssetConfirmModalOpen(false); setPendingAction(null); }} className="px-8 py-2 bg-amber-600 text-white rounded-lg text-xs shadow-lg">确认并继续</button>
+            <button onClick={async () => { if (pendingAction) await pendingAction(); setIsAssetConfirmModalOpen(true); setPendingAction(null); }} className="px-8 py-2 bg-amber-600 text-white rounded-lg text-xs shadow-lg">确认并继续</button>
           </div>
         </div>
       </Modal>
