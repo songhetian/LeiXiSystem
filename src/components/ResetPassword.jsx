@@ -31,21 +31,16 @@ function ResetPassword() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // 分页状态 - 遵循标准化规范
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10) // 默认 10 条
+  const [pageSize, setPageSize] = useState(10)
   const [jumpPage, setJumpPage] = useState(null)
 
-  // 搜索条件
   const [searchFilters, setSearchFilters] = useState({
     keyword: '',
     department: ''
   })
 
-  useEffect(() => {
-    fetchEmployees();
-    fetchDepartments();
-  }, [])
+  useEffect(() => { fetchEmployees(); fetchDepartments(); }, [])
 
   const fetchEmployees = async () => {
     try {
@@ -58,11 +53,7 @@ function ResetPassword() {
         const data = await response.json()
         setEmployees(data)
       }
-    } catch (error) {
-      toast.error('获取员工列表失败')
-    } finally {
-      setLoading(false)
-    }
+    } catch (error) { toast.error('获取员工列表失败') } finally { setLoading(false) }
   }
 
   const fetchDepartments = async () => {
@@ -86,10 +77,7 @@ function ResetPassword() {
       const token = localStorage.getItem('token')
       const response = await fetch(getApiUrl(`/api/users/${selectedEmployee.id}/reset-password`), {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword })
       })
 
@@ -100,14 +88,9 @@ function ResetPassword() {
         const data = await response.json()
         toast.error(data.message || '操作失败')
       }
-    } catch (error) {
-      toast.error('网络通讯失败')
-    } finally {
-      setLoading(false)
-    }
+    } catch (error) { toast.error('网络通讯失败') } finally { setLoading(false) }
   }
 
-  // 搜索过滤逻辑
   const filteredEmployees = useMemo(() => {
     return employees.filter(emp => {
       const kw = searchFilters.keyword.toLowerCase();
@@ -130,7 +113,7 @@ function ResetPassword() {
   const renderPageNumbers = () => {
     const pages = []; const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2)
     for (let i = start; i <= end; i++) {
-      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg scale-110' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{i}</button>)
+      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{i}</button>)
     }
     return pages
   }
@@ -142,7 +125,7 @@ function ResetPassword() {
         token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44 },
         components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff' } }
     }}>
-    <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left">
+    <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left font-black">
       {/* 1. 顶栏 */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
         <div className="flex items-center justify-between gap-4 px-10 py-6 border-b border-slate-50">
@@ -153,27 +136,27 @@ function ResetPassword() {
                 <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1">系统登录凭证核准与密码强制重置</p>
             </div>
           </div>
-          <button onClick={fetchEmployees} className="h-11 w-11 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all shadow-inner"><RefreshCcw size={18} /></button>
+          <button onClick={fetchEmployees} className="h-11 w-11 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border-[1px] border-indigo-100"><RefreshCcw size={18} /></button>
         </div>
 
-        {/* 2. 横向紧凑搜索条 */}
+        {/* 2. 横向紧凑搜索条 - 精细边框 1px */}
         <div className="bg-slate-50/40 px-10 py-8">
             <div className="flex items-center gap-4 max-w-5xl">
                 <div className="flex-1 relative group">
                     <input type="text" placeholder="检索姓名、用户名或工号关键字..." value={searchFilters.keyword} onChange={e => handleSearchChange('keyword', e.target.value)}
-                        className="w-full h-11 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" />
+                        className="w-full h-11 pl-12 pr-4 bg-white border-[1px] border-slate-300 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500" size={18} />
                 </div>
                 <div className="w-[240px]">
-                    <Select showSearch allowClear placeholder="🏢 所属部门过滤" className="w-full h-11 font-black" variant="borderless" style={{ border:'2px solid #e2e8f0', borderRadius:'8px', background:'#fff' }}
+                    <Select showSearch allowClear placeholder="🏢 所属部门过滤" className="w-full h-11 font-black" variant="borderless" style={{ border:'1px solid #cbd5e1', borderRadius:'8px', background:'#fff' }}
                         value={searchFilters.department || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
                 </div>
-                <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border border-indigo-100"><X size={14} /> 重置</button>
+                <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all border-[1px] border-indigo-100 shadow-sm">重置</button>
             </div>
         </div>
       </div>
 
-      {/* 3. 员工主表：全居中 + 字体扩张 */}
+      {/* 3. 员工主表 */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:shadow-xl hover:shadow-slate-200/50">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -183,13 +166,12 @@ function ResetPassword() {
                 <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">员工实名</th>
                 <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">系统账号</th>
                 <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">所属部门</th>
-                <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">账号状态</th>
                 <th className="px-6 py-6 text-center text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">管理操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-center font-black">
               {getCurrentPageData().length === 0 ? (
-                <tr><td colSpan="6" className="py-32 text-center text-slate-900 font-black tracking-widest text-[15px] uppercase italic">未发现符合条件的成员档案</td></tr>
+                <tr><td colSpan="5" className="py-32 text-center text-slate-900 font-black tracking-widest text-[15px] uppercase italic">未发现符合条件的成员档案</td></tr>
               ) : (
                 getCurrentPageData().map((emp) => (
                   <tr key={emp.id} className="hover:bg-slate-50 transition-all duration-300 group">
@@ -204,18 +186,12 @@ function ResetPassword() {
                     </td>
                     <td className="px-6 py-6 text-[13px] text-slate-600 tracking-tighter">@{emp.username}</td>
                     <td className="px-6 py-6 text-[13px] text-slate-700">
-                        <span className="bg-slate-100 px-2 py-1 rounded text-slate-600">{departments.find(d => d.id === emp.department_id)?.name || '未分配'}</span>
-                    </td>
-                    <td className="px-6 py-6 text-center">
-                        <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border border-white/50
-                            ${emp.status === 'active' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-500'}`}>
-                            {emp.status === 'active' ? '正常运行' : '锁定停用'}
-                        </span>
+                        <span className="bg-slate-50 border-[1px] border-slate-200 px-2 py-1 rounded-md text-slate-600">{departments.find(d => d.id === emp.department_id)?.name || '未分配'}</span>
                     </td>
                     <td className="px-6 py-6 text-center">
                         <button onClick={() => { setSelectedEmployee(emp); setIsModalOpen(true); }} 
-                            className="h-9 px-6 bg-slate-900 text-white text-[11px] font-black rounded-lg hover:bg-black transition-all active:scale-95 shadow-lg shadow-slate-200">
-                            强制重置密码
+                            className="h-9 px-6 bg-indigo-50 text-indigo-700 text-[11px] font-black rounded-lg hover:bg-indigo-600 hover:text-white transition-all border-[1px] border-indigo-100 shadow-sm">
+                            物理重置凭证
                         </button>
                     </td>
                   </tr>
@@ -231,60 +207,50 @@ function ResetPassword() {
               <div className="flex items-center gap-4 text-left">
                   <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">共计发现 <span className="text-indigo-600">{totalUsers}</span> 个成员档案</span>
                   <div className="h-4 w-[1px] bg-slate-300 mx-2" />
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">每页显示</span>
-                  <Select size="small" value={pageSize} onChange={handlePageSizeChange} variant="borderless" className="bg-white rounded-lg shadow-sm border border-slate-300 text-[12px] font-black text-slate-900 w-24" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">单页展示</span>
+                  <Select size="small" value={pageSize} onChange={handlePageSizeChange} variant="borderless" className="bg-white rounded-lg border-[1px] border-slate-300 text-[12px] font-black text-slate-900 w-24 shadow-sm" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
               </div>
               <div className="flex items-center gap-3">
-                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-2 border-slate-200 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 transition-all shadow-sm">← 上一页</button>
+                  <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-[1px] border-slate-300 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">← 上一页</button>
                   <div className="flex gap-1.5 mx-2">{renderPageNumbers()}</div>
-                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-2 border-slate-200 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 transition-all shadow-sm">下一页 →</button>
+                  <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-[1px] border-slate-300 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">下一页 →</button>
                   <div className="flex items-center gap-2 ml-4">
-                      <span className="text-[11px] font-black text-slate-500 uppercase">跳至</span>
-                      <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-2 border-slate-200" controls={false} />
-                      <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg"><ArrowRight size={16} /></button>
+                      <span className="text-[10px] font-black text-slate-500 uppercase">跳至</span>
+                      <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-[1px] border-slate-300" controls={false} />
+                      <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg shadow-slate-200"><ArrowRight size={16} /></button>
                   </div>
               </div>
           </div>
         )}
       </div>
 
-      {/* 重置密码决策 Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setNewPassword(''); setConfirmPassword(''); setSelectedEmployee(null); }} title="强制重置账户凭证">
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setNewPassword(''); setConfirmPassword(''); setSelectedEmployee(null); }} title="账户安全策略强制执行">
         {selectedEmployee && (
           <div className="space-y-6 text-left font-black">
-            <div className="p-6 bg-slate-50 rounded-xl border-2 border-white shadow-inner">
+            <div className="p-6 bg-slate-50 rounded-xl border-[1px] border-slate-200 shadow-inner">
                 <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-xl bg-white border-2 border-slate-200 flex items-center justify-center text-2xl font-black text-slate-400">
-                        {selectedEmployee.real_name?.charAt(0)}
-                    </div>
+                    <div className="w-16 h-16 rounded-xl bg-white border-[1px] border-slate-200 flex items-center justify-center text-2xl font-black text-slate-400">{selectedEmployee.real_name?.charAt(0)}</div>
                     <div className="text-left">
                         <h2 className="text-lg font-black text-slate-900">{selectedEmployee.real_name}</h2>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Personnel Account Security</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1 tracking-tighter">Personnel Account Authority</p>
                     </div>
                 </div>
             </div>
-
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
-                <Lock size={20} className="text-amber-600 shrink-0" />
-                <p className="text-xs text-amber-800 leading-relaxed">重置操作将立即使该账户当前的登录态失效，且新密码在下次登录时必须通过安全校验。</p>
-            </div>
-
             <div className="space-y-4">
                 <div>
                     <label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">定义新登录密码</label>
-                    <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="设置至少 6 位安全字符..."
-                        className="w-full h-12 px-4 border-2 border-slate-100 rounded-lg focus:border-indigo-500 outline-none text-[15px]" />
+                    <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="至少 6 位安全字符..."
+                        className="w-full h-12 px-4 border-[1px] border-slate-300 rounded-lg focus:border-indigo-500 outline-none text-[15px] font-black shadow-inner" />
                 </div>
                 <div>
-                    <label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">重复确认新密码</label>
-                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="请再次键入以防误操作..."
-                        className="w-full h-12 px-4 border-2 border-slate-100 rounded-lg focus:border-indigo-500 outline-none text-[15px]" />
+                    <label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">重复确认密码</label>
+                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="请再次输入..."
+                        className="w-full h-12 px-4 border-[1px] border-slate-300 rounded-lg focus:border-indigo-500 outline-none text-[15px] font-black shadow-inner" />
                 </div>
             </div>
-
-            <div className="flex justify-end gap-3 pt-6 border-t border-slate-50">
-              <button onClick={() => setIsModalOpen(false)} className="h-11 px-8 border-2 border-slate-100 text-slate-600 rounded-lg font-black uppercase text-xs">取消操作</button>
-              <button onClick={handleResetPassword} disabled={loading} className="h-11 px-8 bg-slate-900 text-white rounded-lg font-black uppercase text-xs shadow-lg hover:bg-black transition-all">确认物理重置</button>
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+              <button onClick={() => setIsModalOpen(false)} className="h-11 px-8 border-[1px] border-slate-200 text-slate-600 rounded-lg font-black uppercase text-xs hover:bg-slate-50 transition-all">取消</button>
+              <button onClick={handleResetPassword} disabled={loading} className="h-11 px-8 bg-slate-900 text-white rounded-lg font-black uppercase text-xs shadow-xl hover:bg-black transition-all">确认强制执行</button>
             </div>
           </div>
         )}
