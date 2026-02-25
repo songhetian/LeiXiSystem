@@ -105,7 +105,7 @@ function PositionManagement() {
   const renderPageNumbers = () => {
     const pages = []; const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2)
     for (let i = start; i <= end; i++) {
-      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900 hover:bg-slate-50'}`}>{i}</button>)
+      pages.push(<button key={i} onClick={() => handlePageChange(i)} className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>{i}</button>)
     }
     return pages
   }
@@ -113,10 +113,9 @@ function PositionManagement() {
   return (
     <ConfigProvider theme={{
         token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
-        components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b' }, Input: { colorBorder: '#64748b' } }
+        components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b', colorBorderHover: '#4f46e5' }, Input: { colorBorder: '#64748b', colorBorderHover: '#4f46e5' } }
     }}>
     <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left font-black">
-      {/* 1. 顶栏 */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6">
         <div className="flex items-center justify-between gap-4 px-10 py-6 border-b border-slate-50">
           <div className="flex items-center gap-5">
@@ -136,7 +135,6 @@ function PositionManagement() {
           </div>
         </div>
 
-        {/* 2. 横向紧凑搜索条 - 边框颜色加深至 slate-500 */}
         <div className="bg-slate-50/40 px-10 py-8">
             <div className="flex flex-wrap items-center gap-4">
                 <div className="flex-1 min-w-[300px]">
@@ -147,7 +145,7 @@ function PositionManagement() {
                     </div>
                 </div>
                 <div className="w-[240px]">
-                    <Select showSearch allowClear placeholder="🏢 所属部门筛选" className="w-full h-11 font-black" variant="borderless" style={{ border:'1px solid #64748b', borderRadius:'8px', background:'#fff' }}
+                    <Select showSearch allowClear placeholder="🏢 所属部门筛选" className="w-full h-11 font-black"
                         value={searchFilters.department || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
                 </div>
                 <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm">重置</button>
@@ -155,7 +153,6 @@ function PositionManagement() {
         </div>
       </div>
 
-      {/* 3. 视图展现：文字操作带 1px 语义化边框 */}
       {viewMode === 'table' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full border-collapse">
@@ -209,13 +206,12 @@ function PositionManagement() {
         </div>
       )}
 
-      {/* 4. 分页器 - 高轮廓边框 */}
       {filteredPositions.length > 10 && (
         <div className="mt-8 px-10 py-8 bg-slate-50/50 border border-slate-200 rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-4 text-left">
                 <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">管理共计 <span className="text-indigo-600">{filteredPositions.length}</span> 个职位节点</span>
                 <div className="h-4 w-[1px] bg-slate-400 mx-2" />
-                <Select size="small" value={pageSize} onChange={handlePageSizeChange} variant="borderless" className="bg-white rounded-lg border-[1px] border-slate-500 text-[12px] font-black text-slate-900 w-24 shadow-sm" options={[8, 12, 24, 48].map(v => ({ label: `${v} 项`, value: v }))} />
+                <Select size="small" value={pageSize} onChange={handlePageSizeChange} className="w-24 font-black" options={[8, 12, 24, 48].map(v => ({ label: `${v} 项`, value: v }))} />
             </div>
             <div className="flex items-center gap-3">
                 <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">← 上一页</button>
@@ -223,18 +219,17 @@ function PositionManagement() {
                 <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">下一页 →</button>
                 <div className="flex items-center gap-2 ml-4">
                     <span className="text-[10px] font-black text-slate-500 uppercase">跳至</span>
-                    <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-[1px] border-slate-500" controls={false} />
-                    <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg"><ArrowRight size={16} /></button>
+                    <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1" controls={false} />
+                    <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg shadow-slate-200"><ArrowRight size={16} /></button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* Modals - 高轮廓输入框 */}
       <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title={editingPos ? '职位架构修订' : '定义新职位'}>
         <form onSubmit={async (e) => { e.preventDefault(); const res = await fetch(getApiUrl(editingPos ? `/api/positions/${editingPos.id}` : '/api/positions'), { method: editingPos ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify(formData) }); if((await res.json()).success){ toast.success('同步成功'); setIsModalOpen(false); fetchPositions(); resetForm(); } }} className="space-y-6 text-left font-black">
           <div><label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">职位官方名称 <span className="text-rose-500">*</span></label><input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full h-12 px-4 border-[1px] border-slate-500 rounded-lg focus:border-indigo-500 outline-none text-[15px] font-black shadow-inner" /></div>
-          <div><label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">所属组织部门</label><Select value={formData.department_id || undefined} onChange={v => setFormData({...formData, department_id: v})} placeholder="请选择部门..." className="w-full h-12 font-black" size="large" style={{ border:'1px solid #64748b', borderRadius:'8px' }} variant="borderless">{departments.map(d => <Option key={d.id} value={d.id}>{d.name}</Option>)}</Select></div>
+          <div><label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">所属组织部门</label><Select value={formData.department_id || undefined} onChange={v => setFormData({...formData, department_id: v})} placeholder="请选择部门..." className="w-full h-12 font-black" size="large">{departments.map(d => <Option key={d.id} value={d.id}>{d.name}</Option>)}</Select></div>
           <div><label className="block text-[13px] text-slate-700 uppercase mb-2 tracking-widest ml-1">职能详细说明</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows="3" className="w-full p-4 border-[1px] border-slate-500 rounded-lg focus:border-indigo-500 outline-none text-[15px] font-black resize-none shadow-inner" /></div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100"><button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-8 h-11 border-[1px] border-slate-400 text-slate-600 rounded-lg font-black uppercase text-xs hover:bg-slate-50">取消</button><button type="submit" className="px-8 h-11 bg-slate-900 text-white rounded-lg font-black uppercase text-xs shadow-xl shadow-slate-200 hover:bg-black transition-all">保存职位</button></div>
         </form>
@@ -245,8 +240,8 @@ function PositionManagement() {
             <div className="p-6 bg-slate-50 rounded-xl border-[1px] border-slate-400 shadow-inner"><p className="text-[10px] text-slate-500 uppercase mb-1">当前目标职位</p><h2 className="text-lg text-slate-900">{statusChangingPos.name}</h2></div>
             <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border-[1px] border-amber-400"><ShieldAlert className="text-amber-600 shrink-0" size={20} /><p className="text-xs text-amber-800 leading-relaxed">变更状态将强制同步所有关联成员的访问权限，请核实后执行。</p></div>
             <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => handleStatusChange('active')} className={`p-6 border-[1px] rounded-2xl transition-all ${statusChangingPos.status === 'active' ? 'border-emerald-600 bg-emerald-50 shadow-md scale-[1.02]' : 'border-slate-400 hover:border-emerald-500'}`}><Power size={24} className="mx-auto mb-3 text-emerald-600" /><div className="text-sm">立即启用</div></button>
-                <button onClick={() => handleStatusChange('inactive')} className={`p-6 border-[1px] rounded-2xl transition-all ${statusChangingPos.status === 'inactive' ? 'border-rose-600 bg-rose-50 shadow-md scale-[1.02]' : 'border-slate-400 hover:border-rose-500'}`}><Power size={24} className="mx-auto mb-3 text-rose-600" /><div className="text-sm">锁定停用</div></button>
+                <button onClick={() => handleStatusChange('active')} className={`p-6 border-[1px] rounded-2xl transition-all ${statusChangingPos.status === 'active' ? 'border-emerald-600 bg-emerald-50 shadow-md' : 'border-slate-400 hover:border-emerald-500'}`}><Power size={24} className="mx-auto mb-3 text-emerald-600" /><div className="text-sm">立即启用</div></button>
+                <button onClick={() => handleStatusChange('inactive')} className={`p-6 border-[1px] rounded-2xl transition-all ${statusChangingPos.status === 'inactive' ? 'border-rose-600 bg-rose-50 shadow-md' : 'border-slate-400 hover:border-rose-500'}`}><Power size={24} className="mx-auto mb-3 text-rose-600" /><div className="text-sm">锁定停用</div></button>
             </div>
         </div>}
       </Modal>
@@ -257,8 +252,6 @@ function PositionManagement() {
   )
 }
 
-function resetForm() {
-    // 这是一个占位符，实际逻辑在组件内部，确保 handleSubmit 成功调用
-}
+function resetForm() {} // 占位符
 
 export default PositionManagement;

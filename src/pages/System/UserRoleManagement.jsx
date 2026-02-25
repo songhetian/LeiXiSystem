@@ -6,7 +6,6 @@ import {
     Tag, 
     Space, 
     Modal, 
-    message, 
     Input, 
     Checkbox, 
     Select, 
@@ -81,14 +80,13 @@ const UserRoleManagement = () => {
     try {
       const response = await apiGet('/api/users-with-roles');
       if (response.success) setUsers(response.data || []);
-    } catch (e) { toast.error('获取用户列表失败'); } finally { setLoading(false); }
+    } catch (e) { toast.error('获取列表失败'); } finally { setLoading(false); }
   };
 
   const fetchRoles = async () => {
     try {
       const response = await apiGet('/api/roles');
-      const rolesData = response.success ? (response.data || []) : (Array.isArray(response) ? response : []);
-      setRoles(rolesData);
+      setRoles(response.success ? (response.data || []) : (Array.isArray(response) ? response : []));
     } catch (e) {}
   };
 
@@ -109,21 +107,18 @@ const UserRoleManagement = () => {
   const handleSaveRoles = async () => {
     try {
       await apiPut('/api/users/roles/batch', { userIds: [selectedUser.id], roleIds: selectedRoles });
-      toast.success('成员角色已更新'); setModalVisible(false); fetchUsers(); 
-    } catch (e) { toast.error('分配失败'); }
+      toast.success('授权已同步'); setModalVisible(false); fetchUsers(); 
+    } catch (e) { toast.error('操作失败'); }
   };
 
-  const handleUserDepartmentSuccess = () => {
-    toast.success('数据可见性范围已更新');
-    fetchUsers(); 
-  };
+  const handleUserDepartmentSuccess = () => { toast.success('数据范围已更新'); fetchUsers(); };
 
   const handleBatchAssignRoles = async () => {
-    if (!batchAssignRoleId) return toast.error('请选择目标角色');
+    if (!batchAssignRoleId) return toast.error('请选择角色');
     setIsProcessingBatch(true);
     try {
       await apiPut('/api/users/roles/batch', { userIds: selectedUserIds, roleIds: [batchAssignRoleId] });
-      toast.success('批量授权已完成'); setIsBatchAssignOpen(false); setBatchAssignRoleId(null); setSelectedUserIds([]); fetchUsers();
+      toast.success('批量授权完成'); setIsBatchAssignOpen(false); setBatchAssignRoleId(null); setSelectedUserIds([]); fetchUsers();
     } finally { setIsProcessingBatch(false); }
   };
 
@@ -131,7 +126,7 @@ const UserRoleManagement = () => {
     setIsProcessingBatch(true);
     try {
       await apiPut('/api/users/roles/batch', { userIds: selectedUserIds, roleIds: [] });
-      toast.success('已清空选中成员角色'); setIsBatchRemoveOpen(false); setSelectedUserIds([]); fetchUsers();
+      toast.success('权限已注销'); setIsBatchRemoveOpen(false); setSelectedUserIds([]); fetchUsers();
     } finally { setIsProcessingBatch(false); }
   };
 
@@ -174,7 +169,7 @@ const UserRoleManagement = () => {
                 <Tag key={role.id} variant="borderless" className={`m-0 font-black text-[11px] px-2.5 py-0.5 rounded-md border-[1px] ${role.name === '超级管理员' ? 'bg-rose-50 text-rose-600 border-rose-300' : 'bg-indigo-50 text-indigo-600 border-indigo-300'}`}>
                     {role.name.toUpperCase()}
                 </Tag>
-            )) : <button onClick={() => handleManageRoles(r)} className="text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-all">+ 待分配角色</button>}
+            )) : <button onClick={() => handleManageRoles(r)} className="text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-all italic">+ 待分配角色</button>}
         </div>
     )},
     { title: '数据可见性', key: 'scope', align: 'center', render: (_, r) => (
@@ -200,10 +195,9 @@ const UserRoleManagement = () => {
   return (
     <ConfigProvider theme={{
         token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
-        components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b' } }
+        components: { Select: { controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b', colorBorderHover: '#4f46e5' }, Input: { colorBorder: '#64748b', colorBorderHover: '#4f46e5' } }
     }}>
     <div className="p-6 bg-[#f8fafc] min-h-screen select-none animate-in fade-in duration-500 text-slate-900 text-left font-black">
-      {/* 1. 顶栏 */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
         <div className="flex items-center justify-between gap-4 px-10 py-6 border-b border-slate-50">
           <div className="flex items-center gap-5">
@@ -216,7 +210,7 @@ const UserRoleManagement = () => {
           <button onClick={fetchUsers} className="h-11 w-11 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border-[1px] border-indigo-200"><RefreshCcw size={18} /></button>
         </div>
 
-        {/* 2. 横向紧凑搜索条 - 高轮廓边框 */}
+        {/* 核心修正：移除 Select 的内联 style，完全信任 ConfigProvider */}
         <div className="bg-slate-50/40 px-10 py-8">
             <div className="flex items-center gap-4 max-w-5xl">
                 <div className="flex-1 relative group">
@@ -225,7 +219,7 @@ const UserRoleManagement = () => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-600" size={18} />
                 </div>
                 <div className="w-[240px]">
-                    <Select showSearch allowClear placeholder="🏢 所属部门筛选" className="w-full h-11 font-black" variant="borderless" style={{ border:'1px solid #64748b', borderRadius:'8px', background:'#fff' }}
+                    <Select showSearch allowClear placeholder="🏢 所属部门筛选" className="w-full h-11 font-black"
                         value={searchDepartment || undefined} onChange={setSearchDepartment} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
                 </div>
                 <button onClick={() => { setDisplaySearchText(''); setSearchDepartment(''); setCurrentPage(1); }} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm">重置</button>
@@ -233,7 +227,6 @@ const UserRoleManagement = () => {
         </div>
       </div>
 
-      {/* 3. 看板 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-left">
           {[
               { label: '注册成员总量', val: filteredUsers.length, color: 'blue', icon: Users, desc: '当前人才库活跃节点' },
@@ -253,7 +246,6 @@ const UserRoleManagement = () => {
           ))}
       </div>
 
-      {/* 4. 批量操作条 */}
       {selectedUserIds.length > 0 && (
         <div className="mb-4 p-4 bg-slate-900 rounded-xl flex items-center justify-between px-10 animate-in slide-in-from-top-4 shadow-xl">
             <span className="text-xs font-black text-white bg-white/10 px-4 py-1.5 rounded-full border border-white/10">已选中 {selectedUserIds.length} 名成员</span>
@@ -265,19 +257,17 @@ const UserRoleManagement = () => {
         </div>
       )}
 
-      {/* 5. 主表 - 全量应用高轮廓 */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <Table columns={columns} dataSource={getCurrentPageData()} rowKey="id" loading={loading} pagination={false}
           rowSelection={{ selectedRowKeys: selectedUserIds, onChange: setSelectedUserIds, preserveSelectedRowKeys: true, columnWidth: 50 }} />
         
-        {/* 6. 标准化分页器 */}
         {filteredUsers.length > 10 && (
           <div className="px-10 py-8 bg-slate-50/50 flex items-center justify-between border-t border-slate-200 rounded-b-2xl">
               <div className="flex items-center gap-4 text-left">
                   <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">共计发现 <span className="text-blue-600">{filteredUsers.length}</span> 名已注册成员</span>
                   <div className="h-4 w-[1px] bg-slate-400 mx-2" />
                   <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">展示条数</span>
-                  <Select size="small" value={pageSize} onChange={handlePageSizeChange} variant="borderless" className="bg-white rounded-lg border-[1px] border-slate-500 text-[12px] font-black text-slate-900 w-24 shadow-sm" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
+                  <Select size="small" value={pageSize} onChange={handlePageSizeChange} className="w-24 font-black" options={[10, 20, 50].map(v => ({ label: `${v} 条`, value: v }))} />
               </div>
               <div className="flex items-center gap-3">
                   <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">← 上一页</button>
@@ -285,7 +275,7 @@ const UserRoleManagement = () => {
                   <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="flex items-center gap-2 h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 hover:text-indigo-600 font-black text-xs disabled:opacity-30 shadow-sm transition-all">下一页 →</button>
                   <div className="flex items-center gap-2 ml-4 text-left">
                       <span className="text-[10px] font-black text-slate-500 uppercase">跳至</span>
-                      <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1 border-[1px] border-slate-500" controls={false} />
+                      <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-14 h-10 rounded-lg font-black text-center pt-1" controls={false} />
                       <button onClick={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-black transition-all shadow-lg shadow-slate-200"><ArrowRight size={16} /></button>
                   </div>
               </div>
@@ -293,11 +283,10 @@ const UserRoleManagement = () => {
         )}
       </div>
 
-      {/* Modals - 高轮廓精修 */}
       <Modal title={`级联授权 - ${selectedUser?.real_name}`} open={modalVisible} onCancel={() => setModalVisible(false)} footer={null} width={480} centered>
         <div className="py-6 text-left space-y-4 font-black">
             <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">请指定目标职能角色</label>
-            <Select placeholder="搜索系统角色..." value={selectedRoles[0] || null} onChange={v => setSelectedRoles(v ? [v] : [])} className="w-full h-12 font-black" size="large" allowClear style={{ border:'1px solid #64748b', borderRadius:'8px' }} variant="borderless">
+            <Select placeholder="搜索系统角色..." value={selectedRoles[0] || null} onChange={v => setSelectedRoles(v ? [v] : [])} className="w-full h-12 font-black" size="large" allowClear>
                 {roles.map(r => <Option key={r.id} value={r.id}><div className="flex items-center justify-between font-black"><span>{r.name}</span>{r.is_system && <span className="text-[9px] font-black bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded border-[1px] border-rose-300">核心预置</span>}</div></Option>)}
             </Select>
             <div className="pt-4 flex gap-2">
@@ -310,7 +299,7 @@ const UserRoleManagement = () => {
       <Modal title="批量执行角色分配" open={isBatchAssignOpen} onCancel={() => setIsBatchAssignOpen(false)} footer={null} width={480} centered>
         <div className="py-6 text-left space-y-4 font-black">
             <div className="p-4 bg-blue-50 rounded-xl border-[1px] border-blue-300 text-blue-800 text-xs shadow-inner">已锁定 {selectedUserIds.length} 名成员进行批量处理</div>
-            <Select placeholder="选择要授予的角色..." value={batchAssignRoleId} onChange={setBatchAssignRoleId} className="w-full h-12 font-black" size="large" style={{ border:'1px solid #64748b', borderRadius:'8px' }} variant="borderless">
+            <Select placeholder="选择要授予的角色..." value={batchAssignRoleId} onChange={setBatchAssignRoleId} className="w-full h-12 font-black" size="large">
                 {roles.map(r => <Option key={r.id} value={r.id}>{r.name}</Option>)}
             </Select>
             <div className="pt-4 flex gap-2">
