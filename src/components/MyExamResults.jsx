@@ -152,7 +152,7 @@ const MyExamResults = ({ onNavigate }) => {
 
   return (
     <div className="my-exam-results-container">
-      <Card title="我的考试结果" bordered={false} className="shadow-sm">
+      <Card title="我的考试结果" variant="borderless" className="shadow-sm">
         <div className="exam-results-controls">
           <div className="exam-results-search">
             <Input.Search

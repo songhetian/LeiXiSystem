@@ -188,7 +188,7 @@ const AssetRequestAudit = () => {
         <ShadcnButton variant="outline" icon={<ReloadOutlined />} onClick={fetchRequests}>刷新列表</ShadcnButton>
       </div>
 
-      <Card bordered={false} className="shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+      <Card variant="borderless" className="shadow-sm border border-slate-200 rounded-xl overflow-hidden">
         <Tabs activeKey={activeTab} onChange={setActiveTab} className="asset-tabs" items={[
           { key: 'pending', label: <span className="px-4 font-bold">待我处理</span> },
           { key: 'approved', label: <span className="px-4 font-bold">已通过</span> },

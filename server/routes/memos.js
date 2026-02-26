@@ -1,7 +1,5 @@
 // 备忘录管理 API
-const jwt = require('jsonwebtoken')
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const { requirePermission } = require('../middleware/auth')
 
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
@@ -9,20 +7,11 @@ module.exports = async function (fastify, opts) {
   // ==================== 个人备忘录 API ====================
 
   // 创建个人备忘录
-  fastify.post('/api/memos/personal', async (request, reply) => {
+  fastify.post('/api/memos/personal', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { title, content, priority = 'normal' } = request.body
 
       if (!title || !content) {
@@ -32,7 +21,7 @@ module.exports = async function (fastify, opts) {
       const [result] = await pool.query(
         `INSERT INTO memos (user_id, title, content, type, priority)
          VALUES (?, ?, ?, 'personal', ?)`,
-        [decoded.id, title, content, priority]
+        [user_id, title, content, priority]
       )
 
       return {
@@ -47,24 +36,14 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取我的备忘录列表（个人创建的 + 接收到的部门备忘录）
-  fastify.get('/api/memos/my-memos', async (request, reply) => {
+  fastify.get('/api/memos/my-memos', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { page = 1, pageSize = 20, isRead, priority, search } = request.query
       const offset = (page - 1) * pageSize
 
-      let whereClauses = []
       let params = []
 
       // 构建查询：个人备忘录 OR 接收到的部门备忘录
@@ -98,7 +77,7 @@ module.exports = async function (fastify, opts) {
           OR (m.type = 'department' AND mr.user_id = ?)
         )
       `
-      params.push(decoded.id, decoded.id, decoded.id)
+      params.push(user_id, user_id, user_id)
 
       // 筛选条件
       if (isRead !== undefined) {
@@ -147,20 +126,11 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取未读备忘录数量
-  fastify.get('/api/memos/unread-count', async (request, reply) => {
+  fastify.get('/api/memos/unread-count', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const [result] = await pool.query(
         `SELECT COUNT(*) as count FROM (
           SELECT m.id FROM memos m
@@ -176,7 +146,7 @@ module.exports = async function (fastify, opts) {
           AND mr.user_id = ?
           AND mr.is_read = 0
         ) as unread_memos`,
-        [decoded.id, decoded.id]
+        [user_id, user_id]
       )
 
       return {
@@ -190,20 +160,11 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取未读备忘录列表（用于弹窗）
-  fastify.get('/api/memos/unread-list', async (request, reply) => {
+  fastify.get('/api/memos/unread-list', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const [memos] = await pool.query(
         `SELECT
           m.id,
@@ -222,7 +183,7 @@ module.exports = async function (fastify, opts) {
           OR (m.type = 'department' AND mr.user_id = ? AND mr.is_read = 0)
         )
         ORDER BY m.priority DESC, m.created_at DESC`,
-        [decoded.id, decoded.id, decoded.id]
+        [user_id, user_id, user_id]
       )
 
       return {
@@ -236,20 +197,11 @@ module.exports = async function (fastify, opts) {
   })
 
   // 标记备忘录为已读
-  fastify.put('/api/memos/:id/read', async (request, reply) => {
+  fastify.put('/api/memos/:id/read', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { id } = request.params
 
       // 获取备忘录信息
@@ -266,7 +218,7 @@ module.exports = async function (fastify, opts) {
 
       if (memo.type === 'personal') {
         // 个人备忘录：更新memos表
-        if (memo.user_id !== decoded.id) {
+        if (memo.user_id !== user_id) {
           return reply.code(403).send({ success: false, message: '无权操作此备忘录' })
         }
 
@@ -278,7 +230,7 @@ module.exports = async function (fastify, opts) {
         // 部门备忘录：更新memo_recipients表
         await pool.query(
           'UPDATE memo_recipients SET is_read = 1, read_at = NOW() WHERE memo_id = ? AND user_id = ?',
-          [id, decoded.id]
+          [id, user_id]
         )
       }
 
@@ -293,20 +245,11 @@ module.exports = async function (fastify, opts) {
   })
 
   // 更新个人备忘录
-  fastify.put('/api/memos/personal/:id', async (request, reply) => {
+  fastify.put('/api/memos/personal/:id', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { id } = request.params
       const { title, content, priority } = request.body
 
@@ -326,7 +269,7 @@ module.exports = async function (fastify, opts) {
         return reply.code(403).send({ success: false, message: '部门备忘录不允许修改' })
       }
 
-      if (memo.user_id !== decoded.id) {
+      if (memo.user_id !== user_id) {
         return reply.code(403).send({ success: false, message: '无权修改此备忘录' })
       }
 
@@ -368,20 +311,11 @@ module.exports = async function (fastify, opts) {
   })
 
   // 删除个人备忘录（软删除）
-  fastify.delete('/api/memos/personal/:id', async (request, reply) => {
+  fastify.delete('/api/memos/personal/:id', {
+    preHandler: [requirePermission('user:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { id } = request.params
 
       // 验证权限
@@ -400,7 +334,7 @@ module.exports = async function (fastify, opts) {
         return reply.code(403).send({ success: false, message: '部门备忘录不允许删除' })
       }
 
-      if (memo.user_id !== decoded.id) {
+      if (memo.user_id !== user_id) {
         return reply.code(403).send({ success: false, message: '无权删除此备忘录' })
       }
 
@@ -423,23 +357,12 @@ module.exports = async function (fastify, opts) {
   // ==================== 部门备忘录 API ====================
 
   // 创建部门备忘录
-  fastify.post('/api/memos/department', async (request, reply) => {
+  fastify.post('/api/memos/department', {
+    preHandler: [requirePermission('personnel:memo:manage')]
+  }, async (request, reply) => {
     const connection = await pool.getConnection()
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        connection.release()
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        connection.release()
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { title, content, priority = 'normal', sendMode, targetDepartmentId, targetUserId } = request.body
 
       if (!title || !content) {
@@ -468,7 +391,7 @@ module.exports = async function (fastify, opts) {
       const [memoResult] = await connection.query(
         `INSERT INTO memos (user_id, title, content, type, priority, target_department_id, target_user_id)
          VALUES (?, ?, ?, 'department', ?, ?, ?)`,
-        [decoded.id, title, content, priority, targetDepartmentId || null, targetUserId || null]
+        [user_id, title, content, priority, targetDepartmentId || null, targetUserId || null]
       )
 
       const memoId = memoResult.insertId
@@ -505,12 +428,10 @@ module.exports = async function (fastify, opts) {
       await connection.commit()
       connection.release()
 
-      // 实时推送功能 - 获取WebSocket实例并发送通知
+      // 实时推送功能
       try {
         const { sendMemoToUser } = require('../websocket')
         const io = fastify.io
-
-        // 构造备忘录对象用于推送
         const memoForPush = {
           id: memoId,
           title: title,
@@ -520,33 +441,17 @@ module.exports = async function (fastify, opts) {
           created_at: new Date().toISOString()
         }
 
-        // 向所有目标用户推送备忘录
-        let successCount = 0
-        let failCount = 0
-
         targetUsers.forEach(user => {
           try {
             sendMemoToUser(io, user.id, memoForPush)
-            successCount++
-          } catch (userPushError) {
-            console.error(`向用户 ${user.id} 推送备忘录失败:`, userPushError)
-            failCount++
-          }
+          } catch (e) { console.error(e) }
         })
-
-        console.log(`📝 [WebSocket] 备忘录推送完成 - 成功: ${successCount}, 失败: ${failCount}, 总计: ${targetUsers.length}`)
-      } catch (pushError) {
-        console.error('实时推送备忘录失败:', pushError)
-        // 不影响主流程，继续执行
-      }
+      } catch (pushError) { console.error(pushError) }
 
       return {
         success: true,
         message: '备忘录发送成功',
-        data: {
-          id: memoId,
-          recipientCount: targetUsers.length
-        }
+        data: { id: memoId, recipientCount: targetUsers.length }
       }
     } catch (error) {
       await connection.rollback()
@@ -557,24 +462,13 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取我创建的部门备忘录列表
-  fastify.get('/api/memos/department/created', async (request, reply) => {
+  fastify.get('/api/memos/department/created', {
+    preHandler: [requirePermission('personnel:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { page = 1, pageSize = 20, departmentId, startDate, endDate } = request.query
       const offset = (page - 1) * pageSize
-
-      console.log('API /memos/department/created received:', { departmentId, startDate, endDate });
 
       let query = `
         SELECT
@@ -596,7 +490,7 @@ module.exports = async function (fastify, opts) {
         AND m.user_id = ?
         AND m.deleted_at IS NULL
       `
-      const params = [decoded.id]
+      const params = [user_id]
 
       if (departmentId) {
         query += ` AND m.target_department_id = ?`
@@ -612,12 +506,10 @@ module.exports = async function (fastify, opts) {
         params.push(endDate)
       }
 
-      // 获取总数
       const countQuery = query.replace(/SELECT[\s\S]*FROM/, 'SELECT COUNT(*) as total FROM')
       const [countResult] = await pool.query(countQuery, params)
       const total = countResult[0].total
 
-      // 分页查询
       query += ` ORDER BY m.created_at DESC LIMIT ? OFFSET ?`
       params.push(parseInt(pageSize), offset)
 
@@ -640,23 +532,13 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取部门备忘录详情及接收者列表
-  fastify.get('/api/memos/department/:id/recipients', async (request, reply) => {
+  fastify.get('/api/memos/department/:id/recipients', {
+    preHandler: [requirePermission('personnel:memo:manage')]
+  }, async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未提供认证令牌' })
-      }
-
-      let decoded
-      try {
-        decoded = jwt.verify(token, JWT_SECRET)
-      } catch (error) {
-        return reply.code(401).send({ success: false, message: '无效的认证令牌' })
-      }
-
+      const user_id = request.user.id
       const { id } = request.params
 
-      // 获取备忘录详情
       const [memos] = await pool.query(
         `SELECT
           m.*,
@@ -675,12 +557,10 @@ module.exports = async function (fastify, opts) {
 
       const memo = memos[0]
 
-      // 验证权限：只有创建者可以查看接收者列表
-      if (memo.user_id !== decoded.id) {
+      if (memo.user_id !== user_id) {
         return reply.code(403).send({ success: false, message: '无权查看此备忘录的接收者列表' })
       }
 
-      // 获取接收者列表
       const [recipients] = await pool.query(
         `SELECT
           mr.user_id,
@@ -699,10 +579,7 @@ module.exports = async function (fastify, opts) {
 
       return {
         success: true,
-        data: {
-          memo,
-          recipients
-        }
+        data: { memo, recipients }
       }
     } catch (error) {
       console.error('获取备忘录接收者列表失败:', error)

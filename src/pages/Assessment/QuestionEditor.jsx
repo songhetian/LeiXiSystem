@@ -182,7 +182,7 @@ const QuestionEditor = () => {
                     placeholder="请选择题型"
                     onChange={handleQuestionTypeChange}
                     className="w-40"
-                    bordered={false}
+                    variant="borderless"
                     suffixIcon={<span className="text-gray-400">▼</span>}
                     dropdownStyle={{ borderRadius: '12px', padding: '8px' }}
                   >

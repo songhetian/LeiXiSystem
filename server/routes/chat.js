@@ -23,16 +23,19 @@ module.exports = async function (fastify, opts) {
 
       console.log(`[Chat Contacts] User: ${user.real_name}, Role: ${user.role}, canViewAll: ${permissions?.canViewAllDepartments}`);
 
-      // Base query
+      // Base query - 核心修复：统计未读数时排除自己发送的消息
       let query = `
         SELECT DISTINCT g.id, g.name, g.owner_id, 'group' as type, g.avatar, g.department_id,
                gm.is_muted,
-               (SELECT COUNT(*) FROM chat_messages m WHERE m.group_id = g.id AND m.id > IFNULL(gm.last_read_message_id, 0)) as unread_count
+               (SELECT COUNT(*) FROM chat_messages m 
+                WHERE m.group_id = g.id 
+                AND m.id > IFNULL(gm.last_read_message_id, 0)
+                AND m.sender_id != ?) as unread_count
         FROM chat_groups g
         LEFT JOIN chat_group_members gm ON g.id = gm.group_id AND gm.user_id = ?
         WHERE (1=0 
       `
-      const params = [currentUserId]
+      const params = [currentUserId, currentUserId]
 
       // Super Admin bypass: Show all department groups, but only show custom groups if they are a member
       if (user.role === '超级管理员' || user.role === 'admin' || (permissions && permissions.canViewAllDepartments)) {
@@ -97,7 +100,7 @@ module.exports = async function (fastify, opts) {
           });
         }
 
-        // 3. 合并数据
+        // 3. 合并数据并根据时间倒序排列 (置顶逻辑)
         enrichedGroups = groups.map(g => {
           const lastMsg = lastMsgsMap[g.id];
           return {
@@ -106,6 +109,10 @@ module.exports = async function (fastify, opts) {
             last_message: lastMsg?.content || '暂无消息',
             last_message_time: lastMsg?.time || null
           };
+        }).sort((a, b) => {
+          const timeA = new Date(a.last_message_time || 0).getTime();
+          const timeB = new Date(b.last_message_time || 0).getTime();
+          return timeB - timeA;
         });
       }
 
@@ -133,8 +140,8 @@ module.exports = async function (fastify, opts) {
 
       const { name, memberIds, avatar } = request.body
 
-      if (!name || !memberIds || memberIds.length === 0) {
-        return reply.code(400).send({ success: false, message: 'Invalid group data' })
+      if (!name) {
+        return reply.code(400).send({ success: false, message: '请填写群组名称' })
       }
 
       // Create Group
@@ -144,19 +151,27 @@ module.exports = async function (fastify, opts) {
       )
       const groupId = result.insertId
 
-      // Add Members
-      const membersToAdd = [...new Set([...memberIds, user.id])]
+      // Add Members (Always include the creator)
+      const memberArray = Array.isArray(memberIds) ? memberIds : [];
+      const membersToAdd = [...new Set([...memberArray, user.id])].filter(Boolean)
       const values = membersToAdd.map(uid => [groupId, uid, uid === user.id ? 'admin' : 'member'])
       
+      console.log(`[Chat Group] Adding members to group ${groupId}:`, membersToAdd);
+
+      // mysql2 expects [values] for bulk insert when using VALUES ?
       await pool.query(
         'INSERT INTO chat_group_members (group_id, user_id, role) VALUES ?',
         [values]
       )
 
       // --- 同步到 Redis ---
-      if (fastify.redis) {
-          await fastify.redis.sadd(`chat:group:${groupId}:members`, ...membersToAdd);
-          await fastify.redis.expire(`chat:group:${groupId}:members`, 86400 * 7);
+      if (fastify.redis && membersToAdd.length > 0) {
+          try {
+            await fastify.redis.sadd(`chat:group:${groupId}:members`, ...membersToAdd);
+            await fastify.redis.expire(`chat:group:${groupId}:members`, 86400 * 7);
+          } catch (redisErr) {
+            console.error('❌ [Chat Group] Redis member sync failed:', redisErr);
+          }
       }
 
       await recordLog(pool, {
@@ -366,20 +381,25 @@ module.exports = async function (fastify, opts) {
 
       if (!groupId) return reply.code(400).send({ success: false, message: 'Missing groupId' });
 
-      // 如果提供了 messageId，则更新到该位置；否则尝试获取最新一条消息 ID
+      // 场景：标记已读。如果没传 messageId，则自动获取当前群组中最大的一条消息 ID
       let finalId = messageId;
       if (!finalId) {
         const [lastMsg] = await pool.query(
-          'SELECT id FROM chat_messages WHERE group_id = ? ORDER BY id DESC LIMIT 1',
+          'SELECT MAX(id) as max_id FROM chat_messages WHERE group_id = ?',
           [groupId]
         );
-        finalId = lastMsg[0]?.id || 0;
+        finalId = lastMsg[0]?.max_id || 0;
       }
 
       await pool.query(
         'UPDATE chat_group_members SET last_read_message_id = ? WHERE group_id = ? AND user_id = ?',
         [finalId, groupId, user.id]
       );
+
+      // --- 关键：同时更新 Redis 缓存中的最后一条消息状态 ---
+      if (fastify.redis) {
+        await fastify.redis.hdel(`chat:unread:${user.id}`, groupId);
+      }
 
       // 如果有 Socket.io，可以选发一个未读数更新事件
       if (fastify.io) {

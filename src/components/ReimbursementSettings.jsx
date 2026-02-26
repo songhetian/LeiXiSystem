@@ -253,7 +253,7 @@ const ReimbursementTypesManager = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={handleSave}
-        destroyOnClose
+        destroyOnHidden
         centered
         width={400}
         okText="保存配置"
@@ -462,7 +462,7 @@ const ExpenseTypesManager = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={handleSave}
-        destroyOnClose
+        destroyOnHidden
         centered
         width={400}
         okText="保存配置"

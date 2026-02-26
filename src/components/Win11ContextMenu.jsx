@@ -1,97 +1,60 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-const Win11ContextMenu = ({
-  x,
-  y,
-  visible,
-  onClose,
-  items,
-  onAction
-}) => {
+const Win11ContextMenu = ({ x, y, visible, onClose, items }) => {
+  const [shouldRender, setShouldRender] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
-
-    const handleEscapeKey = (event) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
+    let timer;
     if (visible) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscapeKey);
-    }
+      // 延迟 50ms 渲染，躲避触发右键时的点击事件冒泡
+      timer = setTimeout(() => setShouldRender(true), 50);
+      
+      const handleGlobalClose = (e) => {
+        if (menuRef.current && !menuRef.current.contains(e.target)) {
+          onClose();
+        }
+      };
 
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
+      window.addEventListener('mousedown', handleGlobalClose);
+      window.addEventListener('scroll', onClose, true);
+      window.addEventListener('resize', onClose);
+
+      return () => {
+        window.removeEventListener('mousedown', handleGlobalClose);
+        window.removeEventListener('scroll', onClose, true);
+        window.removeEventListener('resize', onClose);
+        clearTimeout(timer);
+      };
+    } else {
+      setShouldRender(false);
+    }
   }, [visible, onClose]);
 
-  if (!visible) return null;
+  if (!visible || !shouldRender || !items || items.length === 0) return null;
 
-  // 计算菜单位置，确保不会超出视窗边界
-  const getPosition = () => {
-    const menuWidth = 200; // 假设菜单宽度为200px
-    const menuHeight = items.length * 32 + 16; // 假设每项高度32px，加上padding
-
-    let left = x;
-    let top = y;
-
-    // 检查右侧是否超出边界
-    if (x + menuWidth > window.innerWidth) {
-      left = window.innerWidth - menuWidth - 10;
-    }
-
-    // 检查底部是否超出边界
-    if (y + menuHeight > window.innerHeight) {
-      top = window.innerHeight - menuHeight - 10;
-    }
-
-    return { left, top };
-  };
-
-  const position = getPosition();
+  // 边界检查
+  const menuWidth = 180;
+  const menuHeight = items.length * 38;
+  const adjustedX = x + menuWidth > window.innerWidth ? x - menuWidth : x;
+  const adjustedY = y + menuHeight > window.innerHeight ? y - menuHeight : y;
 
   return (
     <div
       ref={menuRef}
-      className="fixed z-[10000] rounded-lg shadow-lg border border-gray-300 bg-white py-2"
-      style={{
-        left: `${position.left}px`,
-        top: `${position.top}px`,
-        minWidth: '200px',
-        backdropFilter: 'blur(10px)',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)'
-      }}
+      className="fixed z-[99999] w-[180px] bg-white/95 backdrop-blur-2xl border border-slate-200 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] py-1.5 animate-in fade-in zoom-in-95 duration-100"
+      style={{ left: adjustedX, top: adjustedY }}
+      onClick={e => e.stopPropagation()}
+      onContextMenu={e => e.preventDefault()}
     >
-      {items.map((item, index) => (
+      {items.map((item, i) => (
         <button
-          key={index}
-          onClick={() => {
-            if (item.action) {
-              item.action();
-            }
-            if (onAction) {
-              onAction(item);
-            }
-            onClose();
-          }}
-          disabled={item.disabled}
-          className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors ${
-            item.disabled
-              ? 'text-gray-400 cursor-not-allowed'
-              : 'text-gray-800 hover:bg-blue-100'
-          }`}
+          key={i}
+          onClick={(e) => { e.stopPropagation(); item.action(); onClose(); }}
+          className="w-full text-left px-4 py-2.5 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-3 group"
         >
-          {item.icon && <span className="text-base">{item.icon}</span>}
-          <span>{item.label}</span>
+          <span className="text-base group-hover:scale-110 transition-transform">{item.icon}</span>
+          <span className="text-[11px] font-black tracking-tight">{item.label}</span>
         </button>
       ))}
     </div>

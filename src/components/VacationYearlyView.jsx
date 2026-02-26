@@ -223,7 +223,7 @@ const VacationYearlyView = ({ employeeId, year: initialYear }) => {
         {/* Monthly Breakdown */}
         {data.length > 0 ? (
           <Collapse
-            bordered={false}
+            variant="borderless"
             expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
             className="bg-white"
           >

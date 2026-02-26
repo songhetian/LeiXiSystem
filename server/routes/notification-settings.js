@@ -1,10 +1,13 @@
 const { sendNotificationToUser } = require('../websocket')
+const { requirePermission } = require('../middleware/auth')
 
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
 
   // 获取通知设置列表
-  fastify.get('/api/notification-settings', async (request, reply) => {
+  fastify.get('/api/notification-settings', {
+    preHandler: [requirePermission('system:notification:settings')]
+  }, async (request, reply) => {
     try {
       const [settings] = await pool.query('SELECT * FROM notification_settings')
       return {
@@ -18,16 +21,13 @@ module.exports = async function (fastify, opts) {
   })
 
   // 更新通知设置
-  fastify.put('/api/notification-settings/:eventType', async (request, reply) => {
+  fastify.put('/api/notification-settings/:eventType', {
+    preHandler: [requirePermission('system:notification:settings')]
+  }, async (request, reply) => {
     const { eventType } = request.params
     const { targetRoles } = request.body
 
     try {
-      // 验证角色是否存在
-      if (targetRoles && targetRoles.length > 0) {
-        // 这里简单验证，实际可以查询 roles 表
-      }
-
       const [result] = await pool.query(
         `INSERT INTO notification_settings (event_type, target_roles)
          VALUES (?, ?)
@@ -46,7 +46,9 @@ module.exports = async function (fastify, opts) {
   })
 
   // 获取所有可用角色（用于前端选择）
-  fastify.get('/api/notification-settings/roles', async (request, reply) => {
+  fastify.get('/api/notification-settings/roles', {
+    preHandler: [requirePermission('system:notification:settings')]
+  }, async (request, reply) => {
     try {
       const [roles] = await pool.query('SELECT name FROM roles ORDER BY id')
       return {

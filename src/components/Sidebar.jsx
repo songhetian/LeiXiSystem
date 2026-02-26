@@ -564,76 +564,10 @@ const allMenuItems = [
     icon: <ClockCircleOutlined />,
     permission: 'attendance:record:view',
     children: [
-      {
-        id: 'attendance-records-section',
-        label: '考勤记录',
-        icon: <FileTextOutlined />,
-        children: [
-          { id: 'attendance-home', label: '考勤主页', icon: <HomeOutlined />, permission: 'attendance:record:view' },
-          { id: 'attendance-records', label: '考勤记录', icon: <FileTextOutlined />, permission: 'attendance:record:view' },
-        ]
-      },
-      {
-        id: 'leave-section',
-        label: '请假管理',
-        icon: <FormOutlined />,
-        children: [
-          { id: 'attendance-leave-apply', label: '请假申请', icon: <FormOutlined />, permission: 'attendance:record:view' },
-          { id: 'attendance-leave-records', label: '请假记录', icon: <FileTextOutlined />, permission: 'attendance:record:view' },
-        ]
-      },
-      {
-        id: 'overtime-section',
-        label: '加班管理',
-        icon: <ClockCircleOutlined />,
-        children: [
-          { id: 'attendance-overtime-apply', label: '加班申请', icon: <FormOutlined />, permission: 'attendance:record:view' },
-          { id: 'attendance-overtime-records', label: '加班记录', icon: <FileTextOutlined />, permission: 'attendance:record:view' },
-        ]
-      },
-      {
-        id: 'makeup-section',
-        label: '补卡管理',
-        icon: <FormOutlined />,
-        children: [
-          { id: 'attendance-makeup', label: '补卡申请', icon: <FormOutlined />, permission: 'attendance:record:view' },
-        ]
-      },
-      {
-        id: 'reports-section',
-        label: '统计报表',
-        icon: <BarChartOutlined />,
-        children: [
-          { id: 'attendance-stats', label: '考勤统计', icon: <BarChartOutlined />, permission: 'attendance:report:view' },
-          { id: 'attendance-department', label: '部门考勤统计', icon: <ApartmentOutlined />, permission: 'attendance:report:view' },
-        ]
-      },
-      {
-        id: 'schedule-section',
-        label: '排班管理',
-        icon: <CalendarOutlined />,
-        children: [
-          { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined />, permission: 'attendance:config:manage' },
-          { id: 'attendance-schedule', label: '排班管理', icon: <CalendarOutlined />, permission: 'attendance:schedule:manage' },
-          { id: 'attendance-smart-schedule', label: '智能排班', icon: <ThunderboltOutlined />, permission: 'attendance:schedule:manage' },
-        ]
-      },
-      {
-        id: 'approval-section',
-        label: '审批管理',
-        icon: <CheckCircleOutlined />,
-        children: [
-          { id: 'attendance-approval', label: '审批管理', icon: <CheckCircleOutlined />, permission: 'attendance:approval:manage' },
-        ]
-      },
-      {
-        id: 'attendance-settings-section',
-        label: '系统设置',
-        icon: <SettingOutlined />,
-        children: [
-          { id: 'attendance-settings', label: '考勤设置', icon: <SettingOutlined />, permission: 'attendance:config:manage' },
-        ]
-      },
+      { id: 'attendance-home', label: '考勤自助中心', icon: <UserOutlined />, permission: 'attendance:record:view' },
+      { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined />, permission: 'attendance:config:manage' },
+      { id: 'attendance-schedule', label: '智能调度中心', icon: <CalendarOutlined />, permission: 'attendance:schedule:manage' },
+      { id: 'attendance-approval', label: '审计与配置', icon: <SafetyOutlined />, permission: 'attendance:approval:manage' },
     ],
   },
   {
@@ -642,39 +576,8 @@ const allMenuItems = [
     icon: <CalendarOutlined />,
     permission: 'vacation:record:view',
     children: [
-      {
-        id: 'vacation-application',
-        label: '假期申请',
-        icon: <FormOutlined />,
-        children: [
-          { id: 'compensatory-apply', label: '申请调休', icon: <FormOutlined />, permission: 'vacation:record:view' },
-        ]
-      },
-      {
-        id: 'vacation-records',
-        label: '假期记录',
-        icon: <FileTextOutlined />,
-        children: [
-          { id: 'vacation-details', label: '假期明细', icon: <FileTextOutlined />, permission: 'vacation:record:view' },
-          { id: 'vacation-summary', label: '假期汇总', icon: <BarChartOutlined />, permission: 'vacation:record:view' },
-        ]
-      },
-      {
-        id: 'vacation-approval',
-        label: '审批管理',
-        icon: <CheckCircleOutlined />,
-        children: [
-          { id: 'compensatory-approval', label: '调休审批', icon: <CheckCircleOutlined />, permission: 'vacation:approval:manage' },
-        ]
-      },
-      {
-        id: 'vacation-settings',
-        label: '系统设置',
-        icon: <SettingOutlined />,
-        children: [
-          { id: 'quota-config', label: '额度配置', icon: <SettingOutlined />, permission: 'vacation:config:manage' },
-        ]
-      },
+      { id: 'vacation-details', label: '假期自助中心', icon: <UserOutlined />, permission: 'vacation:record:view' },
+      { id: 'compensatory-approval', label: '假期审计管理', icon: <SafetyOutlined />, permission: 'vacation:approval:manage' },
     ],
   },
   {

@@ -209,7 +209,7 @@ const DeviceList = () => {
         footer={null} 
         width={550} 
         centered 
-        destroyOnClose
+        destroyOnHidden
       >
         <div className="py-6 px-2">
           <div className="mb-8">
@@ -250,7 +250,7 @@ const DeviceList = () => {
       </Modal>
 
       {/* 档案全历程弹窗 */}
-      <Modal title={<Space><DesktopOutlined className="text-slate-900" /><span>设备全生命周期档案 - {currentDevice?.asset_no}</span></Space>} open={isDetailOpen} onCancel={() => setIsDetailOpen(false)} footer={null} width={1000} centered destroyOnClose>
+      <Modal title={<Space><DesktopOutlined className="text-slate-900" /><span>设备全生命周期档案 - {currentDevice?.asset_no}</span></Space>} open={isDetailOpen} onCancel={() => setIsDetailOpen(false)} footer={null} width={1000} centered destroyOnHidden>
         {currentDevice && (
           <div className="py-4">
             <Row gutter={24}>

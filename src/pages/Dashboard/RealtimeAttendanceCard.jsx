@@ -115,7 +115,7 @@ const RealtimeAttendanceCard = () => {
         return (
           <div className="flex items-center justify-center gap-3">
             <span className="text-xs font-bold text-slate-600">{onDuty} / {totalDuty}</span>
-            <Tag bordered={false} className={`m-0 text-[10px] font-bold rounded-full px-2 ${parseFloat(percentage) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+            <Tag variant="borderless" className={`m-0 text-[10px] font-bold rounded-full px-2 ${parseFloat(percentage) >= 90 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
               {percentage}%
             </Tag>
           </div>
@@ -191,7 +191,7 @@ const RealtimeAttendanceCard = () => {
             </Button>
           </div>
         }
-        bordered={false} 
+        variant="borderless" 
         className="rounded-[32px] shadow-sm border-none flex flex-col h-full overflow-hidden"
         styles={{ body: { flex: 1, overflowY: 'auto', padding: '8px 24px 24px' } }}
       >

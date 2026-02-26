@@ -75,6 +75,20 @@ const KnowledgeFolderView = () => {
   useEffect(() => {
     fetchCategories()
     fetchArticles()
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setShowArticleModal(false)
+        setShowFolderModal(false)
+        setShowCategoryModal(false)
+        setShowMoveModal(false)
+        setShowDeleteModal(false)
+        setPreviewFile(null)
+        setFilePreview(null)
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
   }, [])
 
   const fetchCategories = async () => {
@@ -372,65 +386,56 @@ const KnowledgeFolderView = () => {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">📚 我的知识库</h1>
-        <p className="text-gray-600 mt-1">管理我收藏的知识文档</p>
-      </div>
-
+    <div className="p-4">
       {/* 操作栏 */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex-1 flex gap-3 items-center">
-            <div className="relative flex-1 max-w-2xl">
+      <div className="bg-white rounded-xl shadow-sm p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-center justify-between">
+          <div className="flex-1 flex gap-2 items-center min-w-[300px]">
+            <div className="relative flex-1">
               <input
                 type="text"
-                placeholder={selectedCategory ? `在 ${selectedCategory.name} 中搜索...` : '搜索所有文档...'}
+                placeholder={selectedCategory ? `在 ${selectedCategory.name} 中搜索...` : '搜索文档...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all outline-none"
               />
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
                 🔍
               </div>
             </div>
+            <button
+              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
+                showAdvancedSearch
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              高级搜索
+            </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 if (selectedCategory) {
-                  // 添加文档逻辑
                   setShowArticleModal(true);
                 } else {
-                  // 添加分类逻辑
                   resetCategoryForm();
                   setShowCategoryModal(true);
                 }
               }}
-              className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
+              className="px-4 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm font-bold transition-all shadow-sm flex items-center gap-2"
             >
               {selectedCategory ? '📄 添加文档' : '📁 添加分类'}
             </button>
             
             <button
-              onClick={() => setShowRecycleBin(true)}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title="回收站"
+              onClick={() => setShowTrashModal(true)}
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              title="垃圾箱"
             >
               🗑️
-            </button>
-            
-            <button
-              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-              className={`p-2 rounded-lg transition-colors ${
-                showAdvancedSearch
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              title="高级搜索"
-            >
-              ⚙️
             </button>
           </div>
         </div>
@@ -637,8 +642,14 @@ const KnowledgeFolderView = () => {
 
       {/* 文件夹内容模态框 */}
       {showFolderModal && currentFolderCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowFolderModal(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* 头部 */}
             <div className="p-8 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex items-center gap-4">
@@ -852,8 +863,14 @@ const KnowledgeFolderView = () => {
 
       {/* 文章详情模态框 */}
       {showArticleModal && selectedArticle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`bg-white rounded-lg w-full ${articleModalWidth} ${articleModalHeight} overflow-hidden flex flex-col`}>
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowArticleModal(false)}
+        >
+          <div 
+            className={`bg-white rounded-lg w-full ${articleModalWidth} ${articleModalHeight} overflow-hidden flex flex-col`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-gray-200 flex items-start justify-between">
               <div className="flex-1 pr-10">
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -999,8 +1016,17 @@ const KnowledgeFolderView = () => {
       )}
   
       {showCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowCategoryModal(false)
+            resetCategoryForm()
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-800">
                 {editingCategory ? '编辑分类' : '创建分类'}

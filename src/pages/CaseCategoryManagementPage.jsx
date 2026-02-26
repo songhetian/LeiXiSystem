@@ -1,13 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { 
+    Plus, 
+    Edit3, 
+    Trash2, 
+    Layers, 
+    ArrowUpNarrowWide, 
+    Power,
+    X,
+    FolderTree,
+    Info,
+    CheckCircle2
+} from 'lucide-react';
 import qualityAPI from '../api/qualityAPI.js';
-import Modal from '../components/Modal';
+import { 
+    ConfigProvider, 
+    Input, 
+    InputNumber, 
+    Switch, 
+    Button, 
+    Empty,
+    Tooltip
+} from 'antd';
+
+const { TextArea } = Input;
 
 const CaseCategoryManagementPage = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
@@ -27,29 +51,14 @@ const CaseCategoryManagementPage = () => {
       setCategories(response.data.flatData || []);
     } catch (error) {
       toast.error('加载分类列表失败');
-      console.error('Error loading categories:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setCategoryForm({
-      ...categoryForm,
-      [name]: type === 'checkbox' ? checked : value,
-    });
-  };
-
   const openCreateModal = () => {
     setCurrentCategory(null);
-    setCategoryForm({
-      name: '',
-      description: '',
-      parent_id: null,
-      sort_order: 0,
-      is_active: true,
-    });
+    setCategoryForm({ name: '', description: '', parent_id: null, sort_order: 0, is_active: true });
     setIsModalOpen(true);
   };
 
@@ -66,6 +75,8 @@ const CaseCategoryManagementPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (!categoryForm.name.trim()) return toast.error('请输入分类名称');
+    setSubmitting(true);
     try {
       const payload = {
         ...categoryForm,
@@ -75,28 +86,29 @@ const CaseCategoryManagementPage = () => {
 
       if (currentCategory) {
         await qualityAPI.updateCaseCategory(currentCategory.id, payload);
-        toast.success('分类更新成功');
+        toast.success('分类信息已更新');
       } else {
         await qualityAPI.createCaseCategory(payload);
-        toast.success('分类创建成功');
+        toast.success('新分类已成功创建');
       }
       setIsModalOpen(false);
       loadCategories();
     } catch (error) {
-      toast.error('操作失败: ' + (error.response?.data?.message || error.message));
-      console.error('Error submitting category:', error);
+      const msg = error.response?.data?.message || error.message;
+      toast.error(`操作失败: ${msg}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('确定要删除这个分类吗？')) {
+    if (window.confirm('确定要删除这个案例分类吗？此操作不可恢复。')) {
       try {
         await qualityAPI.deleteCaseCategory(id);
-        toast.success('分类删除成功');
+        toast.success('分类已彻底移除');
         loadCategories();
       } catch (error) {
-        toast.error('删除失败: ' + (error.response?.data?.message || error.message));
-        console.error('Error deleting category:', error);
+        toast.error('删除失败，该分类可能已被引用');
       }
     }
   };
@@ -104,90 +116,117 @@ const CaseCategoryManagementPage = () => {
   const handleToggleActive = async (category) => {
     try {
       await qualityAPI.updateCaseCategory(category.id, { is_active: !category.is_active });
-      toast.success('分类状态更新成功');
+      toast.success(category.is_active ? '分类已禁用' : '分类已启用');
       loadCategories();
     } catch (error) {
-      toast.error('更新状态失败: ' + (error.response?.data?.message || error.message));
-      console.error('Error toggling category status:', error);
+      toast.error('状态切换失败');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-primary-600 text-xl">加载中...</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <div className="business-card">
-        <div className="business-card-header">
-          <div>
-            <h2 className="business-card-title">案例分类管理</h2>
-            <p className="text-gray-500 text-sm mt-1">共 {categories.length} 个分类</p>
+    <ConfigProvider theme={{
+        token: {
+            colorPrimary: '#2563eb',
+            borderRadius: 10,
+        }
+    }}>
+    <div className="p-4 bg-[#f8fafc] min-h-screen select-none">
+      {/* 极简单行顶栏 */}
+      <div className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-sm p-3 mb-4 sticky top-0 z-50">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 pl-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-100">
+                <FolderTree size={18} />
+            </div>
+            <div className="flex flex-col">
+                <h1 className="text-sm font-black text-slate-800">案例分类管理</h1>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    共计 {categories.length} 个活跃节点
+                </span>
+            </div>
           </div>
-          <button
-            onClick={openCreateModal}
-            className="business-btn business-btn-primary"
-          >
-            新增分类
-          </button>
-        </div>
 
+          <div className="flex gap-2 pr-1">
+            <button
+              onClick={openCreateModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-black py-1.5 px-5 rounded-xl text-[10px] shadow-md shadow-blue-100 active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              <Plus size={14} strokeWidth={3} /> 新增根分类
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="business-table">
+          <table className="w-full border-separate border-spacing-0">
             <thead>
-              <tr>
-                <th>分类名称</th>
-                <th>描述</th>
-                <th>排序</th>
-                <th>状态</th>
-                <th className="text-center">操作</th>
+              <tr className="bg-slate-50/50">
+                <th className="py-4 px-6 text-left font-black text-slate-400 text-[10px] uppercase tracking-widest">分类名称</th>
+                <th className="py-4 px-6 text-left font-black text-slate-400 text-[10px] uppercase tracking-widest">描述信息</th>
+                <th className="py-4 px-4 text-center font-black text-slate-400 text-[10px] uppercase tracking-widest">排序权重</th>
+                <th className="py-4 px-4 text-center font-black text-slate-400 text-[10px] uppercase tracking-widest">当前状态</th>
+                <th className="py-4 px-6 text-center font-black text-slate-400 text-[10px] uppercase tracking-widest">操作管理</th>
               </tr>
             </thead>
-            <tbody>
-              {categories.length === 0 ? (
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-5 px-6"><div className="h-4 w-32 bg-slate-100 rounded-lg"></div></td>
+                    <td className="py-5 px-6"><div className="h-4 w-48 bg-slate-100 rounded-lg"></div></td>
+                    <td className="py-5 px-4"><div className="h-4 w-8 bg-slate-100 rounded-lg mx-auto"></div></td>
+                    <td className="py-5 px-4"><div className="h-4 w-12 bg-slate-100 rounded-full mx-auto"></div></td>
+                    <td className="py-5 px-6"><div className="h-8 w-24 bg-slate-100 rounded-xl mx-auto"></div></td>
+                  </tr>
+                ))
+              ) : categories.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-8 text-gray-500">
-                    暂无分类数据
+                  <td colSpan="5" className="text-center py-20">
+                    <Empty description={<span className="text-[10px] font-black text-slate-300 uppercase">未发现分类数据</span>} />
                   </td>
                 </tr>
               ) : (
                 categories.map((category) => (
-                  <tr key={category.id}>
-                    <td className="font-medium">{category.name}</td>
-                    <td className="text-gray-600">{category.description || '-'}</td>
-                    <td>{category.sort_order}</td>
-                    <td>
-                      <span className={`business-badge ${category.is_active
-                          ? 'business-badge-success'
-                          : 'business-badge-error'
+                  <tr key={category.id} className="group hover:bg-slate-50/80 transition-all duration-300">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-4 rounded-full ${category.is_active ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                        <span className="font-black text-slate-700 text-xs">{category.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-[11px] text-slate-500 font-medium line-clamp-1">{category.description || '暂无描述'}</span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/50">{category.sort_order}</span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${category.is_active
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          : 'bg-slate-50 text-slate-400 border-slate-200'
                         }`}>
-                        {category.is_active ? '已启用' : '已禁用'}
+                        {category.is_active ? '● 已启用' : '○ 已禁用'}
                       </span>
                     </td>
-                    <td className="text-center space-x-2">
-                      <button
-                        onClick={() => openEditModal(category)}
-                        className="business-btn business-btn-secondary business-btn-sm"
-                      >
-                        编辑
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(category)}
-                        className={`business-btn business-btn-sm ${category.is_active ? 'business-btn-warning' : 'business-btn-success'
-                          }`}
-                      >
-                        {category.is_active ? '禁用' : '启用'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(category.id)}
-                        className="business-btn business-btn-danger business-btn-sm"
-                      >
-                        删除
-                      </button>
+                    <td className="py-4 px-6 text-center">
+                      <div className="flex gap-2 justify-center">
+                        <Tooltip title="编辑详情">
+                            <button onClick={() => openEditModal(category)} className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-xl transition-all shadow-sm active:scale-90">
+                                <Edit3 size={14} />
+                            </button>
+                        </Tooltip>
+                        <Tooltip title={category.is_active ? '禁用分类' : '启用分类'}>
+                            <button onClick={() => handleToggleActive(category)} className={`p-2 border rounded-xl transition-all shadow-sm active:scale-90 ${category.is_active ? 'bg-white border-amber-200 text-amber-500 hover:bg-amber-50' : 'bg-white border-emerald-200 text-emerald-500 hover:bg-emerald-50'}`}>
+                                <Power size={14} />
+                            </button>
+                        </Tooltip>
+                        <Tooltip title="彻底删除">
+                            <button onClick={() => handleDelete(category.id)} className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-200 rounded-xl transition-all shadow-sm active:scale-90">
+                                <Trash2 size={14} />
+                            </button>
+                        </Tooltip>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -197,68 +236,86 @@ const CaseCategoryManagementPage = () => {
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentCategory ? '编辑分类' : '新增分类'}>
-        <div className="space-y-4">
-          <div>
-            <label className="business-label">分类名称 *</label>
-            <input
-              type="text"
-              name="name"
-              value={categoryForm.name}
-              onChange={handleFormChange}
-              className="business-input"
-              placeholder="请输入分类名称"
-            />
-          </div>
-          <div>
-            <label className="business-label">描述</label>
-            <textarea
-              name="description"
-              value={categoryForm.description}
-              onChange={handleFormChange}
-              rows="3"
-              className="business-textarea"
-              placeholder="请输入分类描述"
-            ></textarea>
-          </div>
-          <div>
-            <label className="business-label">排序权重</label>
-            <input
-              type="number"
-              name="sort_order"
-              value={categoryForm.sort_order}
-              onChange={handleFormChange}
-              className="business-input"
-              placeholder="数字越小排序越靠前"
-            />
-          </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="is_active"
-              checked={categoryForm.is_active}
-              onChange={handleFormChange}
-              className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            />
-            <label className="ml-2 block text-sm text-gray-900">启用</label>
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="business-btn business-btn-secondary"
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSubmit}
-              className="business-btn business-btn-primary"
-            >
-              {currentCategory ? '更新' : '创建'}
-            </button>
-          </div>
+      {/* 重构后的弹窗 */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setIsModalOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <Layers size={18} />
+                        </div>
+                        <h3 className="text-sm font-black text-slate-800">{currentCategory ? '修改分类属性' : '创建新案例分类'}</h3>
+                    </div>
+                    <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><X size={20} /></button>
+                </div>
+                
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">分类名称 *</label>
+                        <Input 
+                            placeholder="如：服务规范、异常处理..." 
+                            value={categoryForm.name} 
+                            onChange={e => setCategoryForm({...categoryForm, name: e.target.value})}
+                            className="h-11 font-bold text-slate-700"
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">描述说明</label>
+                        <TextArea 
+                            rows={3} 
+                            placeholder="简要说明该分类涵盖的案例范围..." 
+                            value={categoryForm.description}
+                            onChange={e => setCategoryForm({...categoryForm, description: e.target.value})}
+                            className="font-medium text-slate-600 p-3"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                <ArrowUpNarrowWide size={10} /> 排序权重
+                            </label>
+                            <InputNumber 
+                                min={0} 
+                                className="w-full h-11 flex items-center font-bold"
+                                value={categoryForm.sort_order}
+                                onChange={val => setCategoryForm({...categoryForm, sort_order: val})}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                <CheckCircle2 size={10} /> 启用状态
+                            </label>
+                            <div className="h-11 flex items-center pl-1">
+                                <Switch 
+                                    checked={categoryForm.is_active} 
+                                    onChange={checked => setCategoryForm({...categoryForm, is_active: checked})}
+                                    checkedChildren="启用"
+                                    unCheckedChildren="禁用"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex justify-end gap-3">
+                    <Button type="text" onClick={() => setIsModalOpen(false)} className="font-black text-slate-400">放弃修改</Button>
+                    <Button 
+                        type="primary" 
+                        loading={submitting}
+                        onClick={handleSubmit} 
+                        className="h-10 px-8 rounded-xl font-black shadow-lg shadow-blue-100"
+                    >
+                        {currentCategory ? '更新保存' : '立即创建'}
+                    </Button>
+                </div>
+            </div>
         </div>
-      </Modal>
+      )}
     </div>
+    </ConfigProvider>
   );
 };
 

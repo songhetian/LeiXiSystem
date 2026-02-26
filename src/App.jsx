@@ -57,6 +57,11 @@ const MyMemos = lazy(() => import('./pages/Personal/MyMemos'));
 const MyAssets = lazy(() => import('./pages/Personal/MyAssets'));
 const EmployeeMemos = lazy(() => import('./pages/Employee/EmployeeMemos'));
 const UnreadMemoPopup = lazy(() => import('./components/UnreadMemoPopup'));
+const MyAttendanceHub = lazy(() => import('./pages/Attendance/MyAttendanceHub'));
+const SchedulingHub = lazy(() => import('./pages/Attendance/SchedulingHub'));
+const AttendanceAuditHub = lazy(() => import('./pages/Attendance/AttendanceAuditHub'));
+const VacationSelfServiceHub = lazy(() => import('./pages/Personal/VacationSelfServiceHub'));
+const VacationManagementHub = lazy(() => import('./pages/Personal/VacationManagementHub'));
 
 const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'));
 const CaseCategoryManagementPage = lazy(() => import('./pages/CaseCategoryManagementPage'));
@@ -153,7 +158,7 @@ function App() {
 
   const { 
     setTotalUnreadCount, 
-    incrementUnreadCount,
+    handleNewMessage,
     notificationEnabled,
     systemNotificationEnabled 
   } = useChatStore();
@@ -163,14 +168,14 @@ function App() {
     if (!isLoggedIn) return;
 
     const handleGlobalChatMessage = (msg) => {
-      // 1. 如果已经在聊天页面，不显示全局弹窗（由页面内部处理）
+      // 1. 同步更新 Store 中的数据 (确保侧边栏红点实时变化)
+      handleNewMessage(msg, user?.id);
+
+      // 2. 如果已经在聊天页面，不显示全局弹窗（由页面内部处理）
       const isOnChatPage = activeTab.name === 'messaging-chat';
       
-      // 2. 更新未读计数 (如果是他人发送的)
+      // 3. 显示全局 Toast (如果通知已开启且不是自己发的)
       if (!isOnChatPage && String(msg.sender_id) !== String(user?.id)) {
-        incrementUnreadCount();
-        
-        // 3. 显示全局 Toast (如果通知已开启)
         if (notificationEnabled) {
           const senderName = msg.sender_name || '新消息';
           const content = msg.msg_type === 'text' ? msg.content : '[图片/文件]';
@@ -580,21 +585,14 @@ function App() {
 
       // 考勤管理
       case 'attendance-home':
-        return <AttendanceHome onNavigate={handleSetActiveTab} />
       case 'attendance-records':
-        return <AttendanceRecords />
       case 'attendance-makeup':
-        return <MakeupApply />
       case 'attendance-leave-apply':
-        return <LeaveApply />
       case 'attendance-leave-records':
-        return <LeaveRecords onNavigate={handleSetActiveTab} />
       case 'attendance-overtime-apply':
-        return <OvertimeApply />
       case 'attendance-overtime-records':
-        return <OvertimeRecords onNavigate={handleSetActiveTab} />
       case 'attendance-stats':
-        return <AttendanceStats />
+        return <MyAttendanceHub />
       case 'attendance-department':
         return <DepartmentStats />
 
@@ -602,27 +600,23 @@ function App() {
       case 'attendance-shift':
         return <ShiftManagement />
       case 'attendance-schedule':
-        return <ScheduleManagement />
       case 'attendance-smart-schedule':
-        return <SmartSchedule />
+        return <SchedulingHub />
       case 'attendance-approval':
-        return <ApprovalManagement />
+      case 'attendance-department':
       case 'attendance-settings':
-        return <AttendanceSettings />
+        return <AttendanceAuditHub />
 
       // 假期管理
       case 'compensatory-apply':
-        return <CompensatoryApply />
       case 'vacation-details':
-        return <VacationDetailsNew />
-      case 'quota-config':
-        return <QuotaConfigLayout />
       case 'vacation-summary':
-        return <VacationSummary />
+        return <VacationSelfServiceHub />
       case 'compensatory-approval':
-        return <CompensatoryApproval />
+      case 'quota-config':
+      case 'vacation-summary-admin': // 预留
       case 'vacation-permissions':
-        return <VacationPermissions />
+        return <VacationManagementHub />
 
       // 工资管理
       case 'my-payslips':
@@ -684,14 +678,14 @@ function App() {
       // 知识库
       case 'knowledge-articles':
         return <Win11KnowledgeBase />
-      case 'knowledge-articles-win11':
-        return <Win11KnowledgeFolderView />
       case 'knowledge-base':
-        return <Win11KnowledgeFolderView />
-      case 'knowledge-base-win11':
-        return <Win11KnowledgeBase />
+        return <KnowledgeManagement />
       case 'my-knowledge':
         return <Win11MyKnowledgeBase />
+      case 'knowledge-articles-win11':
+        return <Win11KnowledgeBase />
+      case 'knowledge-base-win11':
+        return <KnowledgeManagement />
       case 'my-knowledge-win11':
         return <Win11MyKnowledgeBase />
 
@@ -839,12 +833,12 @@ function App() {
               </div>
             </main>
             <Toaster
-              position="bottom-right"
+              position="top-center"
               expand={false}
-              richColors={false}
+              richColors
               closeButton
-              duration={5000}
-              visibleToasts={3}
+              duration={3000}
+              visibleToasts={1}
             />
 
             {/* 未读备忘录弹窗 */}

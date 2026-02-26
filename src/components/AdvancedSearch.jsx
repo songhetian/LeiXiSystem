@@ -226,6 +226,22 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
     return Math.ceil(totalResults / pageSize)
   }
 
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
+  }
+
+  const nextPage = () => {
+    if (currentPage < getTotalPages()) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const goToPage = (page) => {
+    setCurrentPage(page)
+  }
+
   const parseAttachments = (attachments) => {
     if (!attachments) return []
     if (Array.isArray(attachments)) return attachments

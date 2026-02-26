@@ -173,9 +173,9 @@ const WeChatPage = () => {
   const { 
     contacts, 
     setContacts, 
-    updateContact, 
-    totalUnreadCount, 
-    setTotalUnreadCount 
+    updateContact,
+    setActiveChatId,
+    handleNewMessage
   } = useChatStore();
   
   const [activeChat, setActiveChat] = useState(null); 
@@ -195,6 +195,12 @@ const WeChatPage = () => {
   const activeChatRef = useRef(null);
 
   const isAdmin = useMemo(() => currentUser?.role === '超级管理员' || currentUser?.role === 'admin', [currentUser]);
+
+  const currentUserRef = useRef(currentUser);
+  const contactsRef = useRef(contacts);
+
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+  useEffect(() => { contactsRef.current = contacts; }, [contacts]);
 
   useEffect(() => {
     const token = tokenManager.getToken();
@@ -225,43 +231,16 @@ const WeChatPage = () => {
         }
     };
 
+    // --- 极简消息处理：仅负责当前窗口的 UI 消息追加 ---
     const handleChatMessage = (msg) => {
         const currentChat = activeChatRef.current;
-        const myName = currentUser?.real_name || currentUser?.name;
-        const isMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
-
-        // 1. 如果是当前聊天窗口
         if (currentChat && String(msg.group_id) === String(currentChat.id)) {
              setMessages(prev => [...prev, msg]);
-             // 性能优化：改用 Socket 标记已读
+             // 仅执行物理同步，红点和置顶逻辑已经由 App.jsx 里的全局监听器完成了
+             apiPost('/api/chat/read', { groupId: currentChat.id }).catch(() => {});
              if (wsManager.socket) wsManager.socket.emit('mark_read', currentChat.id);
              setTimeout(scrollToBottom, 50);
-        } else {
-            // 2. 如果不是当前窗口，显示通知（App.jsx 已经处理了全局 Toast，这里处理组件内逻辑）
-            if (document.hidden || !currentChat || String(currentChat.id) !== String(msg.group_id)) {
-                showNotification(msg); 
-            }
         }
-
-        // 3. 更新侧边栏联系人列表（置顶、最后消息）
-        setContacts(prev => {
-            const isCurrent = currentChat && String(msg.group_id) === String(currentChat.id);
-            const index = prev.findIndex(g => String(g.id) === String(msg.group_id));
-            if (index === -1) return prev;
-
-            const updated = [...prev];
-            const group = { ...updated[index] };
-            group.last_message = msg.msg_type === 'text' ? msg.content : (msg.msg_type === 'image' ? '[图片]' : '[文件]');
-            group.last_message_time = msg.created_at;
-            
-            if (!isCurrent) {
-                group.unread_count = (group.unread_count || 0) + 1;
-                group.has_mention = group.has_mention || isMentioned;
-            }
-
-            updated.splice(index, 1);
-            return [group, ...updated];
-        });
     };
 
     wsManager.on('member_update', handleMemberUpdate);
@@ -270,6 +249,8 @@ const WeChatPage = () => {
     return () => {
       wsManager.off('member_update', handleMemberUpdate);
       wsManager.off('chat_message', handleChatMessage);
+      // 卸载时清除活跃状态，恢复全局计数逻辑
+      setActiveChatId(null);
     };
   }, []);
 
@@ -278,12 +259,33 @@ const WeChatPage = () => {
   const fetchContacts = async () => {
     try {
       const res = await apiGet('/api/chat/contacts');
-      if (res.success) {
-        setContacts(res.data);
-        const total = res.data.reduce((sum, g) => sum + (g.is_muted ? 0 : (g.unread_count || 0)), 0);
-        setTotalUnreadCount(total);
+      // 强健的响应解析逻辑
+      let contactsData = [];
+      if (Array.isArray(res)) {
+        contactsData = res;
+      } else if (res && res.success && Array.isArray(res.data)) {
+        contactsData = res.data;
+      } else if (res && Array.isArray(res.data)) {
+        contactsData = res.data;
       }
-    } catch (err) { message.error('加载群组失败'); }
+      
+      // --- 关键：如果当前正开着聊天窗口，抹除列表中的红点并物理同步后端 ---
+      const activeChatId = activeChatRef.current?.id;
+      if (activeChatId) {
+        contactsData = contactsData.map(c => 
+          String(c.id) === String(activeChatId) 
+            ? { ...c, unread_count: 0, has_mention: false } 
+            : c
+        );
+        apiPost('/api/chat/read', { groupId: activeChatId }).catch(() => {});
+      }
+
+      setContacts(contactsData);
+    } catch (err) { 
+      console.error('Fetch contacts failed:', err);
+      // 如果报错，设置为空数组防止 map 报错，但不弹出错误提示以免造成干扰
+      setContacts([]);
+    }
   };
 
   const fetchHistory = async (chat, beforeId = null) => {
@@ -334,7 +336,9 @@ const WeChatPage = () => {
       try {
           const res = await apiPost('/api/chat/mute', { groupId, isMuted: !currentMute });
           if (res.success) {
-              setContacts(contacts.map(c => c.id === groupId ? { ...c, is_muted: !currentMute } : c));
+              if (Array.isArray(contacts)) {
+                setContacts(contacts.map(c => c.id === groupId ? { ...c, is_muted: !currentMute } : c));
+              }
               if (activeChat?.id === groupId) setActiveChat(prev => ({ ...prev, is_muted: !currentMute }));
               message.success(!currentMute ? '已开启免打扰' : '已关闭免打扰');
           }
@@ -343,7 +347,7 @@ const WeChatPage = () => {
 
   const showNotification = (msg) => {
       if (!("Notification" in window) || Notification.permission !== "granted") return;
-      const group = contacts.find(c => String(c.id) === String(msg.group_id));
+      const group = Array.isArray(contacts) ? contacts.find(c => String(c.id) === String(msg.group_id)) : null;
       const myName = currentUser?.real_name || currentUser?.name;
       const isMentioned = msg.content && myName && msg.content.includes(`@${myName}`);
       if (group?.is_muted && !isMentioned) return;
@@ -355,13 +359,29 @@ const WeChatPage = () => {
   }
 
   const selectChat = (item) => {
-    setActiveChat({ ...item, type: 'group' });
-    setContacts(contacts.map(c => String(c.id) === String(item.id) ? { ...c, unread_count: 0, has_mention: false } : c));
+    setActiveChat({ ...item, type: 'group', unread_count: 0, has_mention: false });
+    // 核心：告诉 Store 我正在这个群组，不要增加未读数
+    setActiveChatId(String(item.id));
+    
+    // 立即本地抹零
+    const currentContacts = contactsRef.current;
+    if (Array.isArray(currentContacts)) {
+      const updatedContacts = currentContacts.map(c => 
+        String(c.id) === String(item.id) 
+          ? { ...c, unread_count: 0, has_mention: false } 
+          : c
+      );
+      setContacts(updatedContacts);
+    }
+
     fetchHistory(item);
     fetchMembers(item.id); 
-    // 性能优化：改用 Socket 标记已读
-    if (wsManager.socket) wsManager.socket.emit('mark_read', item.id);
-    if (wsManager.socket) wsManager.socket.emit('join_group', item.id);
+    
+    if (wsManager.socket) {
+        wsManager.socket.emit('mark_read', item.id);
+        wsManager.socket.emit('join_group', item.id);
+    }
+    apiPost('/api/chat/read', { groupId: item.id }).catch(() => {});
   };
 
   const sendMessage = React.useCallback(async (content, type = 'text', fileUrl = null) => {
@@ -369,17 +389,14 @@ const WeChatPage = () => {
     const payload = { targetId: activeChat.id, targetType: 'group', content, type, fileUrl };
     wsManager.socket.emit('send_message', payload);
     
-    setContacts(prev => {
-        const index = prev.findIndex(g => String(g.id) === String(activeChat.id));
-        if (index === -1) return prev;
-        const updated = [...prev];
-        const group = { ...updated[index] };
-        group.last_message = type === 'text' ? content : (type === 'image' ? '[图片]' : '[文件]');
-        group.last_message_time = new Date().toISOString();
-        updated.splice(index, 1);
-        return [group, ...updated];
-    });
-  }, [activeChat]);
+    // 核心：通过 Store 的逻辑来统一处理置顶和已读抹零
+    handleNewMessage({
+        ...payload,
+        group_id: activeChat.id,
+        sender_id: currentUserRef.current?.id,
+        created_at: new Date().toISOString()
+    }, currentUserRef.current?.id);
+  }, [activeChat, handleNewMessage]);
 
   const handleFileUpload = React.useCallback(async (file) => {
     const formData = new FormData();
@@ -422,7 +439,7 @@ const WeChatPage = () => {
            </div>
         </div>
         <div className="overflow-y-auto h-full space-y-2 p-2">
-            {contacts.map(g => (
+            {Array.isArray(contacts) && contacts.map(g => (
               <ContactItem 
                 key={`g-${g.id}`} 
                 g={g} 

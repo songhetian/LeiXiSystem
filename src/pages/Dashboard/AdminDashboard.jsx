@@ -1,20 +1,20 @@
-/**
- * 企业管理看板 - 增强分析版 (iCloud 风格)
- */
-import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Skeleton, Typography, Space, Tag, Empty, Button } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, Row, Col, Statistic, Skeleton, Typography, Space, Tag, Empty, Button, ConfigProvider } from 'antd';
 import { 
-  TeamOutlined, 
-  SafetyCertificateOutlined, 
-  AccountBookOutlined, 
-  AuditOutlined,
-  BarChartOutlined,
-  SyncOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  LineChartOutlined,
-  AreaChartOutlined
-} from '@ant-design/icons';
+    LayoutDashboard,
+    Users,
+    ShieldCheck,
+    Wallet,
+    History,
+    RefreshCw,
+    TrendingUp,
+    TrendingDown,
+    LineChart,
+    BarChart3,
+    Activity,
+    Clock,
+    PieChart
+} from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   AreaChart, Area
@@ -24,45 +24,48 @@ import RealtimeAttendanceCard from './RealtimeAttendanceCard';
 
 const { Text } = Typography;
 
-// --- 性能优化：使用 React.memo 封装静态指标卡片，防止重复重绘 ---
-const StatCard = React.memo(({ title, value, suffix, subValue, subLabel, icon, color, trend }) => (
-  <Card bordered={false} className="rounded-[32px] shadow-sm hover:shadow-md transition-all border-none h-full">
-    <div className="flex items-start justify-between mb-4">
-      <div className={`p-3 rounded-2xl ${color} text-white shadow-lg shadow-gray-100`}>
-        {React.cloneElement(icon, { style: { fontSize: 20 } })}
+// --- 1. 子组件：精致统计磁贴 ---
+const StatCard = React.memo(({ title, value, suffix, subValue, subLabel, icon: Icon, colorClass, trend }) => (
+  <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-xl hover:border-blue-500/20 transition-all duration-500 group relative overflow-hidden h-full">
+    {/* 背景修饰 */}
+    <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-[0.03] transition-transform group-hover:scale-150 duration-700 ${colorClass}`} />
+    
+    <div className="flex items-start justify-between mb-6 relative z-10">
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg ${colorClass}`}>
+        <Icon size={22} strokeWidth={2.5} />
       </div>
       {trend && (
-        <Tag color={trend > 0 ? 'success' : 'error'} className="border-none rounded-full font-bold text-[10px]">
-          {trend > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(trend)}%
-        </Tag>
+        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          {Math.abs(trend)}%
+        </div>
       )}
     </div>
-    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-    <Statistic
-      value={value}
-      suffix={suffix}
-      valueStyle={{ color: '#1d1d1f', fontWeight: 900, fontSize: 32, letterSpacing: '-1px' }}
-    />
-    <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-      <Text className="text-[10px] font-bold text-slate-400">{subLabel}</Text>
-      <Text className="text-xs font-black text-slate-700">{subValue}</Text>
+
+    <div className="relative z-10">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">{title}</p>
+        <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-black text-slate-800 tracking-tighter">{value || 0}</span>
+            {suffix && <span className="text-xs font-black text-slate-400">{suffix}</span>}
+        </div>
     </div>
-  </Card>
+
+    <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between relative z-10">
+      <span className="text-[10px] font-bold text-slate-400">{subLabel}</span>
+      <span className="text-[11px] font-black text-slate-700">{subValue}</span>
+    </div>
+  </div>
 ));
 
+// --- 2. 主看板组件 ---
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // 新增：静默刷新状态
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetchAdminStats(true); // 首次加载显示 Skeleton
-
-    // --- 性能优化：自动每 5 分钟静默刷新数据 ---
-    const timer = setInterval(() => {
-      fetchAdminStats(false);
-    }, 1000 * 60 * 5);
-
+    fetchAdminStats(true);
+    const timer = setInterval(() => fetchAdminStats(false), 1000 * 60 * 5);
     return () => clearInterval(timer);
   }, []);
 
@@ -73,96 +76,114 @@ const AdminDashboard = () => {
       const response = await api.get('/admin/dashboard/stats', {
         params: { user_id: localStorage.getItem('userId') }
       });
-      if (response.data.success) {
-        setData(response.data.data);
-      }
-    } catch (error) {
-      console.error('获取管理员统计数据失败:', error);
+      if (response.data.success) setData(response.data.data);
+    } catch (e) {
+      toast.error('数据同步失败');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  const syncTime = useMemo(() => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), [data]);
+
   return (
-    <div className="min-h-full bg-[#f2f2f7] p-6 lg:p-10 animate-in fade-in duration-700">
+    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+    <div className="min-h-full bg-[#f8fafc] p-6 lg:p-10 animate-in fade-in duration-700 select-none">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* 顶部操作条 */}
-        <div className="flex justify-end mb-2">
-          <Button 
-            icon={<SyncOutlined spin={refreshing} />} 
+        {/* 极致单行顶栏 */}
+        <div className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-sm p-3 mb-4 sticky top-0 z-50 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 pl-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-100">
+                <LayoutDashboard size={18} />
+            </div>
+            <div className="flex flex-col">
+                <h1 className="text-sm font-black text-slate-800">企业数字化看板</h1>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <Clock size={8} /> 最后同步时间: {syncTime}
+                </span>
+            </div>
+          </div>
+
+          <button 
             onClick={() => fetchAdminStats(true)}
-            className="rounded-xl border-none shadow-sm font-bold text-xs bg-white h-10 px-6 hover:text-blue-600"
+            className="bg-white border border-slate-200 text-slate-600 font-black py-1.5 px-6 rounded-xl text-[10px] hover:bg-slate-50 active:scale-95 transition-all shadow-sm flex items-center gap-2"
           >
-            {refreshing ? '正在同步...' : '同步实时数据'}
-          </Button>
+            <RefreshCw size={14} className={refreshing ? 'animate-spin text-blue-600' : ''} />
+            {refreshing ? '正在拉取...' : '同步实时数据'}
+          </button>
         </div>
 
         {loading ? (
           <div className="space-y-8">
             <Row gutter={[20, 20]}><Col span={24}><Skeleton active paragraph={{ rows: 2 }} /></Col></Row>
             <Row gutter={[20, 20]}>
-              {[1,2,3,4].map(i => <Col key={i} xs={24} sm={12} lg={6}><Skeleton.Button active block style={{ height: 160, borderRadius: 32 }} /></Col>)}
+              {[1,2,3,4].map(i => <Col key={i} xs={24} sm={12} lg={6}><Skeleton.Button active block style={{ height: 180, borderRadius: 16 }} /></Col>)}
             </Row>
-            <Skeleton active paragraph={{ rows: 8 }} />
           </div>
         ) : (
           <>
-            {/* 1. 核心指标矩阵 */}
+            {/* 指标矩阵 */}
             <Row gutter={[20, 20]}>
               <Col xs={24} sm={12} lg={6}>
                 <StatCard 
-                  title="用户规模" 
+                  title="全员用户规模" 
                   value={data?.overview?.totalUsers} 
-                  subLabel="待审核用户" 
-                  subValue={data?.overview?.pendingUsers}
-                  icon={<TeamOutlined />} 
-                  color="bg-blue-500"
+                  subLabel="当前待审核" 
+                  subValue={`${data?.overview?.pendingUsers || 0} 位`}
+                  icon={Users} 
+                  colorClass="bg-gradient-to-br from-blue-500 to-blue-700"
                 />
               </Col>
               <Col xs={24} sm={12} lg={6}>
                 <StatCard 
-                  title="今日考勤率" 
+                  title="今日综合出勤率" 
                   value={data?.overview?.totalUsers ? (data.overview.todayClocks / data.overview.totalUsers * 100).toFixed(1) : 0} 
                   suffix="%"
-                  subLabel="今日已签到" 
-                  subValue={`${data?.overview?.todayClocks} 人`}
-                  icon={<SafetyCertificateOutlined />} 
-                  color="bg-emerald-500"
+                  subLabel="实到人数" 
+                  subValue={`${data?.overview?.todayClocks || 0} 人`}
+                  icon={ShieldCheck} 
+                  colorClass="bg-gradient-to-br from-emerald-500 to-teal-600"
                   trend={2.4}
                 />
               </Col>
               <Col xs={24} sm={12} lg={6}>
                 <StatCard 
-                  title="本月报销支出" 
-                  value={data?.overview?.monthReimbursement} 
-                  prefix="¥"
-                  subLabel="统计范围" 
-                  subValue="已通过单据"
-                  icon={<AccountBookOutlined />} 
-                  color="bg-rose-500"
+                  title="本月运营支出" 
+                  value={data?.overview?.monthReimbursement || 0} 
+                  suffix="元 (人民币)"
+                  subLabel="报销统计" 
+                  subValue="已核销单据"
+                  icon={Wallet} 
+                  colorClass="bg-gradient-to-br from-indigo-500 to-indigo-700"
                 />
               </Col>
               <Col xs={24} sm={12} lg={6}>
                 <StatCard 
-                  title="系统操作轨迹" 
-                  value={data?.overview?.todayLogs} 
-                  subLabel="安全日志" 
-                  subValue="今日总行为"
-                  icon={<AuditOutlined />} 
-                  color="bg-slate-800"
+                  title="全站操作审计" 
+                  value={data?.overview?.todayLogs || 0} 
+                  subLabel="安全轨迹" 
+                  subValue="今日总触发"
+                  icon={History} 
+                  colorClass="bg-gradient-to-br from-slate-700 to-slate-900"
                 />
               </Col>
             </Row>
 
-            {/* 2. 趋势分析图表 - 新增 */}
-            <Card 
-              title={<Space><AreaChartOutlined className="text-blue-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">近七日活跃度与考勤趋势</span></Space>}
-              bordered={false}
-              className="rounded-[32px] shadow-sm border-none overflow-hidden"
-            >
-              <div className="h-[300px] w-full mt-4">
+            {/* 趋势分析图表 */}
+            <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><Activity size={18} /></div>
+                    <h3 className="text-sm font-black text-slate-800">近七日系统活跃度与出勤趋势</h3>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" /><span className="text-[10px] font-black text-slate-400 uppercase">出勤比率</span></div>
+                </div>
+              </div>
+              
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart 
                     data={data?.charts?.attendanceTrend || [
@@ -174,7 +195,7 @@ const AdminDashboard = () => {
                   >
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
@@ -183,74 +204,55 @@ const AdminDashboard = () => {
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} 
+                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 800 }} 
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} 
+                      tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 800 }} 
                     />
                     <RechartsTooltip 
-                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }}
+                      itemStyle={{ fontSize: '11px', fontWeight: 900, color: '#1e293b' }}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3}
+                      stroke="#2563eb" 
+                      strokeWidth={4}
                       fillOpacity={1} 
                       fill="url(#colorValue)" 
-                      name="出勤率 (%)"
+                      name="出勤率"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </Card>
+            </div>
 
             <Row gutter={[20, 20]}>
-              {/* 部门实时考勤 */}
               <Col xs={24} lg={14}>
-                <div className="h-full">
-                  <RealtimeAttendanceCard />
-                </div>
+                <RealtimeAttendanceCard />
               </Col>
 
-              {/* 报销费用分布 */}
               <Col xs={24} lg={10}>
-                <Card 
-                  title={<Space><BarChartOutlined className="text-indigo-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">本月费用分类统计</span></Space>} 
-                  bordered={false} 
-                  className="rounded-[32px] shadow-sm border-none h-full min-h-[400px]"
-                >
-                  <div className="h-[300px] w-full mt-4">
+                <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm h-full flex flex-col">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><PieChart size={18} /></div>
+                    <h3 className="text-sm font-black text-slate-800">月度运营费用分布</h3>
+                  </div>
+                  
+                  <div className="flex-1 min-h-[300px]">
                     {data?.charts?.reimbursementByType?.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data?.charts?.reimbursementByType} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                          />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                          />
-                          <RechartsTooltip 
-                            cursor={{ fill: '#f8fafc' }}
-                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                          />
-                          <Bar 
-                            dataKey="value" 
-                            fill="url(#barGradient)" 
-                            radius={[6, 6, 0, 0]} 
-                            barSize={32} 
-                          >
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} />
+                          <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                          <Bar dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} barSize={28}>
                             <defs>
-                              <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#6366f1" />
+                              <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#4f46e5" />
                                 <stop offset="100%" stopColor="#818cf8" />
                               </linearGradient>
                             </defs>
@@ -258,18 +260,17 @@ const AdminDashboard = () => {
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="h-full flex items-center justify-center opacity-40">
-                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无分类数据" />
-                      </div>
+                      <div className="h-full flex items-center justify-center opacity-30"><Empty description="暂无数据" /></div>
                     )}
                   </div>
-                </Card>
+                </div>
               </Col>
             </Row>
           </>
         )}
       </div>
     </div>
+    </ConfigProvider>
   );
 };
 

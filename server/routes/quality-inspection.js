@@ -1,4 +1,6 @@
 const ExcelJS = require('exceljs');
+const { extractUserPermissions, applyDepartmentFilter } = require('../middleware/checkPermission');
+
 module.exports = async function (fastify, opts) {
     const pool = fastify.mysql;
 
@@ -156,8 +158,14 @@ module.exports = async function (fastify, opts) {
 
     // GET /api/quality/sessions - Get session list (with filtering)
     fastify.get('/api/quality/sessions', async (request, reply) => {
-        const { page = 1, pageSize = 10, search = '', customerServiceId, status, channel, startDate, endDate } = request.query;
+        const { page = 1, pageSize = 10, search = '', customerServiceId, status, channel, startDate, endDate, platformId, shopId } = request.query;
         const offset = (page - 1) * pageSize;
+
+        // 1. 权限提取
+        const permissions = await extractUserPermissions(request, pool);
+        if (!permissions) {
+            return reply.code(401).send({ success: false, message: '未授权访问' });
+        }
 
         let query = `
             SELECT
@@ -194,7 +202,7 @@ module.exports = async function (fastify, opts) {
             LEFT JOIN shops s ON qs.shop_id = s.id
             WHERE 1=1
         `;
-        const params = [];
+        let params = [];
 
         if (search) {
             query += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
@@ -220,6 +228,19 @@ module.exports = async function (fastify, opts) {
             query += ` AND qs.created_at <= ?`;
             params.push(endDate);
         }
+        if (platformId) {
+            query += ` AND qs.platform_id = ?`;
+            params.push(platformId);
+        }
+        if (shopId) {
+            query += ` AND qs.shop_id = ?`;
+            params.push(shopId);
+        }
+
+        // 2. 应用部门数据隔离 (针对内部客服 agent_id)
+        const filterResult = applyDepartmentFilter(permissions, query, params, 'u.department_id', 'u.id');
+        query = filterResult.query;
+        params = filterResult.params;
 
         try {
             // Build count query
@@ -231,28 +252,48 @@ module.exports = async function (fastify, opts) {
                 WHERE 1=1
             `;
 
+            let countParams = [];
             // Add same filters to count query
             if (search) {
                 countQuery += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
+                countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
             }
             if (customerServiceId) {
                 countQuery += ` AND qs.agent_id = ?`;
+                countParams.push(customerServiceId);
             }
             if (status) {
                 countQuery += ` AND qs.status = ?`;
+                countParams.push(status);
             }
             if (channel) {
                 countQuery += ` AND qs.channel = ?`;
+                countParams.push(channel);
             }
             if (startDate) {
                 countQuery += ` AND qs.created_at >= ?`;
+                countParams.push(startDate);
             }
             if (endDate) {
                 countQuery += ` AND qs.created_at <= ?`;
+                countParams.push(endDate);
+            }
+            if (platformId) {
+                countQuery += ` AND qs.platform_id = ?`;
+                countParams.push(platformId);
+            }
+            if (shopId) {
+                countQuery += ` AND qs.shop_id = ?`;
+                countParams.push(shopId);
             }
 
+            // 应用同样的部门隔离
+            const countFilterResult = applyDepartmentFilter(permissions, countQuery, countParams, 'u.department_id', 'u.id');
+            countQuery = countFilterResult.query;
+            countParams = countFilterResult.params;
+
             // Get total count
-            const [countResult] = await pool.query(countQuery, params);
+            const [countResult] = await pool.query(countQuery, countParams);
             const total = countResult[0].total;
 
             query += ` ORDER BY qs.created_at DESC LIMIT ? OFFSET ?`;
@@ -277,8 +318,23 @@ module.exports = async function (fastify, opts) {
 
     // GET /api/quality/sessions/export - 高性能双 Sheet 导出 (对齐导入模板)
     fastify.get('/api/quality/sessions/export', async (request, reply) => {
-        const { search, status, channel, startDate, endDate } = request.query;
+        const { search, status, channel, startDate, endDate, platformId, shopId } = request.query;
         
+        // 权限提取
+        const permissions = await extractUserPermissions(request, pool);
+        if (!permissions) {
+            return reply.code(401).send({ success: false, message: '未授权访问' });
+        }
+
+        // 检查具体权限
+        const hasExportPermission = permissions.canViewAllDepartments || 
+                                   permissions.roles.some(r => r.name === '超级管理员') ||
+                                   (await pool.query('SELECT COUNT(*) as count FROM role_permissions rp INNER JOIN permissions p ON rp.permission_id = p.id INNER JOIN user_roles ur ON rp.role_id = ur.role_id WHERE ur.user_id = ? AND p.code = ?', [permissions.userId, 'quality:session:export']))[0][0].count > 0;
+
+        if (!hasExportPermission) {
+            return reply.code(403).send({ success: false, message: '没有导出权限' });
+        }
+
         try {
             // 1. 构建查询条件并获取会话数据
             let sessionQuery = `
@@ -291,7 +347,7 @@ module.exports = async function (fastify, opts) {
                 LEFT JOIN external_agents ea ON qs.external_agent_id = ea.id
                 WHERE 1=1
             `;
-            const params = [];
+            let params = [];
             if (search) {
                 sessionQuery += ` AND (qs.session_no LIKE ? OR qs.agent_name LIKE ? OR qs.customer_name LIKE ?)`;
                 params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -299,6 +355,13 @@ module.exports = async function (fastify, opts) {
             if (status) { sessionQuery += ` AND qs.status = ?`; params.push(status); }
             if (startDate) { sessionQuery += ` AND qs.created_at >= ?`; params.push(startDate); }
             if (endDate) { sessionQuery += ` AND qs.created_at <= ?`; params.push(endDate); }
+            if (platformId) { sessionQuery += ` AND qs.platform_id = ?`; params.push(platformId); }
+            if (shopId) { sessionQuery += ` AND qs.shop_id = ?`; params.push(shopId); }
+
+            // 应用部门数据隔离
+            const filterResult = applyDepartmentFilter(permissions, sessionQuery, params, 'u.department_id', 'u.id');
+            sessionQuery = filterResult.query;
+            params = filterResult.params;
 
             const [sessions] = await pool.query(sessionQuery + ' ORDER BY qs.created_at DESC', params);
             

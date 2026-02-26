@@ -10,7 +10,8 @@ const ConfirmDialog = ({
   confirmText = '确认',
   cancelText = '取消',
   confirmVariant = 'danger',
-  isLoading = false
+  isLoading = false,
+  zIndex = 4000
 }) => {
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -32,7 +33,7 @@ const ConfirmDialog = ({
       onClose={onClose}
       title={title}
       size="small"
-      variant="danger"
+      zIndex={zIndex}
     >
       <div className="space-y-6">
         <div className="text-gray-700">

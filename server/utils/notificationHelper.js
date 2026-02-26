@@ -1,6 +1,6 @@
 const getNotificationTargets = async (pool, eventType, context = {}) => {
   try {
-    // 1. 获取通知配置
+    // 1. 物理查询通知配置
     const [settings] = await pool.query(
       'SELECT target_roles FROM notification_settings WHERE event_type = ?',
       [eventType]
@@ -11,95 +11,86 @@ const getNotificationTargets = async (pool, eventType, context = {}) => {
       targetRoles = typeof settings[0].target_roles === 'string'
         ? JSON.parse(settings[0].target_roles)
         : settings[0].target_roles
-    } else {
-      // 默认回退策略
-      if (eventType === 'leave_apply') targetRoles = ['部门管理员']
-      else if (eventType === 'leave_approval' || eventType === 'leave_rejection') targetRoles = ['申请人']
-      else if (eventType === 'leave_cancel') targetRoles = ['部门管理员']
-      else if (eventType === 'overtime_apply') targetRoles = ['部门管理员']
-      else if (eventType === 'overtime_approval' || eventType === 'overtime_rejection') targetRoles = ['申请人']
-      else if (eventType === 'makeup_apply') targetRoles = ['部门管理员']
-      else if (eventType === 'makeup_approval' || eventType === 'makeup_rejection') targetRoles = ['申请人']
-      else if (eventType === 'exam_publish') targetRoles = ['全体员工']
-      else if (eventType === 'exam_result') targetRoles = ['考生']
     }
 
-    if (targetRoles.length === 0) return []
+    if (!targetRoles || targetRoles.length === 0) return [];
 
     let targetUserIds = new Set()
 
-    // 2. 处理特殊角色 "申请人" 和 "考生"
-    if (targetRoles.includes('申请人') && context.applicantId) {
+    // 2. 动态虚拟角色处理 (物理驱动)
+    
+    // A. 业务发起人 (本人)
+    if (targetRoles.some(r => ['申请人', '业务发起人 (本人)'].includes(r)) && context.applicantId) {
       targetUserIds.add(context.applicantId)
-      targetRoles = targetRoles.filter(r => r !== '申请人')
     }
 
-    if (targetRoles.includes('考生') && context.examineeId) {
-      targetUserIds.add(context.examineeId)
-      targetRoles = targetRoles.filter(r => r !== '考生')
+    // B. 其所属部门主管 (隔离逻辑)
+    if (targetRoles.some(r => ['部门主管', '其所属部门主管'].includes(r)) && context.departmentId) {
+      const [managers] = await pool.query(
+        `SELECT DISTINCT u.id FROM users u WHERE u.department_id = ? AND u.is_department_manager = 1 AND u.status = 'active'`,
+        [context.departmentId]
+      );
+      managers.forEach(m => targetUserIds.add(m.id));
     }
 
-    if (targetRoles.length === 0) return Array.from(targetUserIds)
+    // C. 审批流下一环节待办人 (新规：基于 workflow 上下文)
+    if (targetRoles.includes('next_approver') && context.nextApproverId) {
+      // 支持单个 ID 或数组
+      if (Array.isArray(context.nextApproverId)) {
+        context.nextApproverId.forEach(id => targetUserIds.add(id));
+      } else {
+        targetUserIds.add(context.nextApproverId);
+      }
+    }
 
-    // 3. 查询拥有指定角色的用户
-    // 注意：不再根据部门上下文过滤，完全按照配置的角色发送
-    const placeholders = targetRoles.map(() => '?').join(',')
+    // D. 任务指派受众 (新规：基于任务分发上下文)
+    if (targetRoles.includes('task_audience') && context.targetAudienceIds) {
+      if (Array.isArray(context.targetAudienceIds)) {
+        context.targetAudienceIds.forEach(id => targetUserIds.add(id));
+      }
+    }
 
-    let query = `
-      SELECT DISTINCT u.id
-      FROM users u
-      JOIN user_roles ur ON u.id = ur.user_id
-      JOIN roles r ON ur.role_id = r.id
-      WHERE r.name IN (${placeholders}) AND u.status = 'active'
-    `
+    // 3. 处理静态角色 (如: 超级管理员)
+    const staticRoles = targetRoles.filter(r => ![
+      '申请人', '业务发起人 (本人)', 
+      '部门主管', '其所属部门主管', 
+      'next_approver', 'task_audience',
+      '考生'
+    ].includes(r));
 
-    const [users] = await pool.query(query, targetRoles)
-
-    for (const user of users) {
-      targetUserIds.add(user.id)
+    if (staticRoles.length > 0) {
+      const placeholders = staticRoles.map(() => '?').join(',')
+      const [users] = await pool.query(
+        `SELECT DISTINCT u.id FROM users u 
+         JOIN user_roles ur ON u.id = ur.user_id 
+         JOIN roles r ON ur.role_id = r.id 
+         WHERE r.name IN (${placeholders}) AND u.status = 'active'`,
+        staticRoles
+      )
+      users.forEach(u => targetUserIds.add(u.id));
     }
 
     return Array.from(targetUserIds)
   } catch (error) {
-    console.error('获取通知目标用户失败:', error)
+    console.error('[通知引擎] 分发审计失败:', error)
     return []
   }
 }
 
-/**
- * 创建并发送通知 (包含 DB 写入、Redis 缓存失效、WebSocket 推送)
- */
 async function createNotification(pool, redis, io, { userId, type, title, content, relatedId, relatedType }) {
   try {
-    // 1. 写入数据库
     const [result] = await pool.query(
-      `INSERT INTO notifications (user_id, type, title, content, related_id, related_type)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO notifications (user_id, type, title, content, related_id, related_type) VALUES (?, ?, ?, ?, ?, ?)`,
       [userId, type, title, content, relatedId || null, relatedType || null]
     );
-
-    // 2. 失效 Redis 缓存
-    if (redis) {
-      await redis.del(`user:unread_count:${userId}`);
-    }
-
-    // 3. WebSocket 推送
+    if (redis) await redis.del(`user:unread_count:${userId}`);
     if (io) {
       const { sendNotificationToUser } = require('../websocket');
-      sendNotificationToUser(io, userId, {
-        id: result.insertId,
-        type,
-        title,
-        content,
-        related_id: relatedId,
-        related_type: relatedType,
-        created_at: new Date()
-      });
+      sendNotificationToUser(io, userId, { id: result.insertId, type, title, content, related_id: relatedId, related_type: relatedType, created_at: new Date() });
     }
-
     return result.insertId;
   } catch (error) {
-    console.error('创建通知失败:', error);
+    console.error('[通知引擎] 物理存证失败:', error);
     throw error;
   }
 }

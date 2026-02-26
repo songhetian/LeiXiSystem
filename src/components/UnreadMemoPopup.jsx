@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import './UnreadMemoPopup.css'
-
-import { getApiUrl } from '../utils/apiConfig'
+import { apiGet, apiPut } from '../utils/apiClient'
 
 const UnreadMemoPopup = ({ onClose }) => {
   const [unreadMemos, setUnreadMemos] = useState([])
@@ -17,11 +15,11 @@ const UnreadMemoPopup = ({ onClose }) => {
 
   const loadUnreadMemos = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/memos/unread-list'))
-      if (response.data.success && response.data.data.length > 0) {
-        setUnreadMemos(response.data.data)
+      const response = await apiGet('/api/memos/unread-list')
+      // apiClient returns res.json() directly, and it already handled checking for response.ok
+      if (response.success && response.data.length > 0) {
+        setUnreadMemos(response.data)
       } else {
-        // 没有未读备忘录，关闭弹窗
         onClose()
       }
     } catch (error) {
@@ -34,26 +32,16 @@ const UnreadMemoPopup = ({ onClose }) => {
 
   const handleMarkRead = async () => {
     if (unreadMemos.length === 0) return
-
     const currentMemo = unreadMemos[currentIndex]
 
     try {
-      await axios.put(getApiUrl(`/api/memos/${currentMemo.id}/read`))
-
-      // 移除当前备忘录
+      await apiPut(`/api/memos/${currentMemo.id}/read`)
       const newMemos = unreadMemos.filter((_, index) => index !== currentIndex)
       setUnreadMemos(newMemos)
-
-      if (newMemos.length === 0) {
-        // 没有更多未读备忘录
-        onClose()
-      } else if (currentIndex >= newMemos.length) {
-        // 如果当前索引超出范围，回到最后一个
-        setCurrentIndex(newMemos.length - 1)
-      }
+      if (newMemos.length === 0) onClose()
+      else if (currentIndex >= newMemos.length) setCurrentIndex(newMemos.length - 1)
     } catch (error) {
       console.error('标记已读失败:', error)
-      alert('标记已读失败')
     }
   }
 

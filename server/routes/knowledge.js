@@ -180,41 +180,76 @@ async function knowledgeRoutes(fastify, options) {
   // 获取知识文章列表
   fastify.get('/api/knowledge/articles', async (request, reply) => {
     try {
-      const { type, category_id, owner_id, is_public, status = 'published' } = request.query;
+      const { type, category_id, owner_id, is_public, status = 'published', search, page = 1, pageSize = 20 } = request.query;
+      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const limit = parseInt(pageSize);
 
       let query = `
         SELECT * FROM knowledge_articles
         WHERE is_deleted = 0 AND deleted_at IS NULL
       `;
+      let countQuery = `
+        SELECT COUNT(*) as total FROM knowledge_articles
+        WHERE is_deleted = 0 AND deleted_at IS NULL
+      `;
       const params = [];
 
+      if (search) {
+        const searchClause = ' AND (title LIKE ? OR summary LIKE ?)';
+        query += searchClause;
+        countQuery += searchClause;
+        params.push(`%${search}%`, `%${search}%`);
+      }
+
       if (type && type !== 'all') {
-        query += ' AND type = ?';
+        const typeClause = ' AND type = ?';
+        query += typeClause;
+        countQuery += typeClause;
         params.push(type);
       }
 
       if (category_id) {
-        query += ' AND category_id = ?';
+        const catClause = ' AND category_id = ?';
+        query += catClause;
+        countQuery += catClause;
         params.push(category_id);
       }
 
       if (owner_id) {
-        query += ' AND owner_id = ?';
+        const ownerClause = ' AND owner_id = ?';
+        query += ownerClause;
+        countQuery += ownerClause;
         params.push(owner_id);
       }
 
       if (is_public !== undefined) {
-        query += ' AND is_public = ?';
+        const publicClause = ' AND is_public = ?';
+        query += publicClause;
+        countQuery += publicClause;
         params.push(is_public === 'true' || is_public === '1' ? 1 : 0);
       }
 
       if (status) {
-        query += ' AND status = ?';
+        const statusClause = ' AND status = ?';
+        query += statusClause;
+        countQuery += statusClause;
         params.push(status);
       }
       
-      const [rows] = await pool.query(query + ' ORDER BY created_at DESC', params);
-      return rows;
+      const [countRows] = await pool.query(countQuery, params);
+      const total = countRows[0].total;
+
+      const [rows] = await pool.query(query + ' ORDER BY created_at DESC LIMIT ? OFFSET ?', [...params, limit, offset]);
+      
+      return {
+        data: rows,
+        pagination: {
+          total,
+          page: parseInt(page),
+          pageSize: limit,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
     } catch (error) {
       console.error(error);
       reply.code(500).send({ error: 'Failed to fetch knowledge articles' });
@@ -230,6 +265,31 @@ async function knowledgeRoutes(fastify, options) {
       return rows[0];
     } catch (error) {
       return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // 删除知识文章 (核心补全：支持取消收藏与删除)
+  fastify.delete('/api/knowledge/articles/:id', async (request, reply) => {
+    const { id } = request.params;
+    try {
+      // 1. 先检查文章类型
+      const [rows] = await pool.query('SELECT type, owner_id FROM knowledge_articles WHERE id = ?', [id]);
+      if (rows.length === 0) return reply.code(404).send({ error: '文档不存在' });
+
+      const article = rows[0];
+
+      // 2. 如果是个人库(收藏)内容，直接物理删除
+      if (article.type === 'personal') {
+        await pool.query('DELETE FROM knowledge_articles WHERE id = ?', [id]);
+        return { success: true, message: '已成功取消收藏' };
+      }
+
+      // 3. 如果是公共库内容，执行逻辑删除
+      await pool.query('UPDATE knowledge_articles SET is_deleted = 1, deleted_at = NOW() WHERE id = ?', [id]);
+      return { success: true, message: '文档已移至回收站' };
+    } catch (error) {
+      console.error('Delete article failed:', error);
+      return reply.code(500).send({ error: '操作失败', message: error.message });
     }
   });
 

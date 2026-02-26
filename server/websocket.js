@@ -129,11 +129,32 @@ io.use((socket, next) => {
         socket.leave(`group_${groupId}`);
     });
 
-    // 标记已读 (性能优化)
+    // 标记已读 (物理同步 + 缓存清理)
     socket.on('mark_read', async (groupId) => {
-        if (redis) {
-            await redis.hdel(`chat:unread:${userId}`, groupId);
-            // 这里后续可以扩展：异步同步回 MySQL 的 unread_count 表
+        try {
+            // 1. 清理 Redis 实时计数
+            if (redis) {
+                await redis.hdel(`chat:unread:${userId}`, groupId);
+            }
+
+            // 2. 物理同步回 MySQL (持久化)
+            const pool = getPool ? getPool() : null;
+            if (pool) {
+                // 获取最新一条消息 ID
+                const [lastMsg] = await pool.query(
+                    'SELECT id FROM chat_messages WHERE group_id = ? ORDER BY id DESC LIMIT 1',
+                    [groupId]
+                );
+                const finalId = lastMsg[0]?.id || 0;
+
+                await pool.query(
+                    'UPDATE chat_group_members SET last_read_message_id = ? WHERE group_id = ? AND user_id = ?',
+                    [finalId, groupId, userId]
+                );
+                console.log(`📌 [WebSocket] User ${userId} marked group ${groupId} as read (LastID: ${finalId})`);
+            }
+        } catch (err) {
+            console.error('❌ [WebSocket] Mark Read Persistence Error:', err);
         }
     });
 
@@ -196,6 +217,15 @@ io.use((socket, next) => {
             await redis.lpush(historyKey, JSON.stringify(savedMsg));
             await redis.ltrim(historyKey, 0, 99);
             await redis.expire(historyKey, 86400 * 3);
+
+            // --- 关键修复：发送即已读 ---
+            // 立即推进发送者的已读指针，防止刷新后显示为未读
+            if (pool && savedMsg.id) {
+                await pool.query(
+                    'UPDATE chat_group_members SET last_read_message_id = ? WHERE group_id = ? AND user_id = ?',
+                    [savedMsg.id, targetId, userId]
+                );
+            }
 
             // --- 性能优化：在 Redis 中维护未读计数 ---
             // 获取群组成员列表 (排除发送者)

@@ -15,11 +15,9 @@ function requirePermission(permissionCode) {
 
       const decoded = jwt.verify(token, JWT_SECRET)
       const userId = decoded.id
-
-      // 从数据库查询用户权限
-      // 注意：这里假设 request.server.mysql 已经挂载了 mysql 实例
-      // 如果 middleware 无法直接访问 fastify 实例，可能需要调整调用方式
-      // 但在 fastify 路由钩子中，request 上下文通常可以访问到 db
+      
+      // 挂载用户信息到 request，供后续路由使用
+      request.user = decoded;
 
       const pool = request.server.mysql
 

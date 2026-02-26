@@ -240,7 +240,7 @@ export const apiRequest = async (url, options = {}) => {
   const config = {
     ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
+      ...(fetchOptions.body && { 'Content-Type': 'application/json' }),
       ...(token && { 'Authorization': `Bearer ${token}` }),
       ...fetchOptions.headers,
     },

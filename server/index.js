@@ -151,13 +151,13 @@ try {
 
 // 创建上传目录
 // 优先使用配置文件中的 sharedDirectory，否则使用默认的 uploads 目录
-let uploadDir = path.join(__dirname, '../uploads')
+let uploadDir = path.join(process.cwd(), 'uploads')
 if (dbConfigJson.upload && dbConfigJson.upload.sharedDirectory) {
-  // 确保路径是绝对路径
+  // 确保路径是绝对路径，如果是相对路径则相对于项目根目录解析
   uploadDir = path.isAbsolute(dbConfigJson.upload.sharedDirectory)
     ? dbConfigJson.upload.sharedDirectory
-    : path.resolve(__dirname, dbConfigJson.upload.sharedDirectory)
-  console.log('使用配置的上传目录:', uploadDir)
+    : path.resolve(process.cwd(), dbConfigJson.upload.sharedDirectory)
+  console.log('🚀 使用配置的共享上传目录:', uploadDir)
 }
 
 if (!fs.existsSync(uploadDir)) {
@@ -509,7 +509,7 @@ const start = async () => {
         const token = jwt.sign(
           { id: user.id, username: user.username, role: user.role },
           JWT_SECRET,
-          { expiresIn: '24h' }
+          { expiresIn: '30d' }
         )
 
         // 生成会话 Token 用于单设备登录校验
@@ -521,9 +521,9 @@ const start = async () => {
           [sessionToken, user.id]
         )
 
-        // 缓存 Session 到 Redis - 存储完整的 JWT Token 以供 checkPermission 中间件校验
+        // 缓存 Session 到 Redis - 存储完整的 JWT Token
         if (redis) {
-          await redis.set(`user:session:${user.id}`, token, 'EX', 86400);
+          await redis.set(`user:session:${user.id}`, token, 'EX', 2592000); // 30天
         }
 
         // 不返回密码
@@ -532,7 +532,7 @@ const start = async () => {
           success: true,
           token,
           sessionToken,
-          expiresIn: 86400, // 24小时，与 JWT expiresIn: '24h' 保持一致
+          expiresIn: 2592000, // 30天
           user: userWithoutPassword
         }
       } catch (error) {
@@ -587,10 +587,14 @@ const start = async () => {
         const newToken = jwt.sign(
           { id: user.id, username: user.username, role: user.role },
           JWT_SECRET,
-          { expiresIn: '24h' }
+          { expiresIn: '30d' }
         )
 
-        return { success: true, token: newToken }
+        return { 
+          success: true, 
+          token: newToken,
+          expiresIn: 2592000 // 30天
+        }
       } catch (error) {
         return reply.code(401).send({ success: false, message: '无效的刷新令牌' })
       }

@@ -19,54 +19,60 @@ const permissionRoutes = async (fastify, options) => {
   } finally {
     connInit.release();
   }
-  // Create default employee template
+  // Create default system templates
   fastify.post('/api/permission-templates/create-default', {
     preHandler: requirePermission('system:role:manage')
   }, async (request, reply) => {
     const connection = await fastify.mysql.getConnection();
     try {
-      // 检查是否已存在同名模板
-      const [existing] = await connection.query(
-        'SELECT id FROM permission_templates WHERE name = ?',
-        ['员工基础权限']
-      );
+      const templates = [
+        {
+          name: '员工基础权限',
+          desc: '仅包含个人业务操作：打卡、申请、聊天、阅读知识库及个人记录。',
+          codes: [
+            'messaging:broadcast:view', 'attendance:clock:manage', 'attendance:record:view',
+            'vacation:record:view', 'attendance:leave:apply', 'attendance:overtime:apply',
+            'attendance:makeup:apply', 'knowledge:article:view', 'assessment:plan:view',
+            'assessment:result:view', 'user:profile:update', 'user:memo:manage',
+            'finance:payslip:view'
+          ]
+        },
+        {
+          name: '部门主管权限',
+          desc: '管理赋能：拥有本部门员工名册管理、考勤/报销审核及排班权限。',
+          codes: [
+            // 继承基础并扩展
+            'messaging:broadcast:view', 'attendance:clock:manage', 'attendance:record:view',
+            'vacation:record:view', 'knowledge:article:view', 'assessment:plan:view',
+            'assessment:result:view', 'user:profile:update', 'user:memo:manage',
+            'finance:payslip:view',
+            // 部门级管理权限
+            'personnel:employee:view', 'personnel:employee:manage', 'personnel:change:view',
+            'attendance:stats:view', 'attendance:approval:manage', 'vacation:approval:manage',
+            'attendance:schedule:view', 'attendance:schedule:manage', 'finance:reimbursement:audit',
+            'asset:device:view'
+          ]
+        }
+      ];
 
-      if (existing.length > 0) {
-        return { success: false, message: '员工基础权限模板已存在' };
+      for (const t of templates) {
+        // 先物理清理旧的同名模板，确保更新生效
+        await connection.query('DELETE FROM permission_templates WHERE name = ?', [t.name]);
+        
+        // 查找有效的权限 ID
+        const [perms] = await connection.query('SELECT id FROM permissions WHERE code IN (?)', [t.codes]);
+        const ids = perms.map(p => p.id);
+        
+        await connection.query(
+          'INSERT INTO permission_templates (name, description, permission_ids) VALUES (?, ?, ?)',
+          [t.name, t.desc, JSON.stringify(ids)]
+        );
       }
 
-      // 获取所需权限的ID
-      const [permissions] = await connection.query(`
-        SELECT id, code FROM permissions WHERE code IN (
-          'messaging:broadcast:view',
-          'attendance:record:view',
-          'vacation:record:view',
-          'attendance:approval:manage',
-          'vacation:approval:manage',
-          'knowledge:article:view',
-          'assessment:plan:view',
-          'assessment:result:view',
-          'user:profile:update',
-          'user:memo:manage'
-        )
-      `);
-
-      const permissionIds = permissions.map(p => p.id);
-
-      // 创建模板
-      const [result] = await connection.query(
-        'INSERT INTO permission_templates (name, description, permission_ids) VALUES (?, ?, ?)',
-        [
-          '员工基础权限',
-          '包含所有员工都需要的基本功能权限',
-          JSON.stringify(permissionIds)
-        ]
-      );
-
-      return { success: true, id: result.insertId, message: '员工基础权限模板创建成功' };
+      return { success: true, message: '系统预置：员工基础、部门主管模板已重新对齐并上线' };
     } catch (error) {
-      console.error('创建默认权限模板失败:', error);
-      return reply.code(500).send({ success: false, message: '创建模板失败' });
+      console.error('同步模板失败:', error);
+      return reply.code(500).send({ success: false, message: '模板对齐失败' });
     } finally {
       connection.release();
     }
@@ -944,8 +950,19 @@ const permissionRoutes = async (fastify, options) => {
     const { id } = request.params;
     const connection = await fastify.mysql.getConnection();
     try {
-      await connection.query('DELETE FROM permission_templates WHERE id = ?', [id]);
+      console.log(`[Permission Template] Attempting to delete template ID: ${id}`);
+      const [result] = await connection.query('DELETE FROM permission_templates WHERE id = ?', [id]);
+      
+      if (result.affectedRows === 0) {
+        console.warn(`⚠️ [Permission Template] No template found with ID: ${id}`);
+        return reply.code(404).send({ success: false, message: '未找到该模板，可能已被删除' });
+      }
+
+      console.log(`✅ [Permission Template] Successfully deleted template ID: ${id}`);
       return { success: true };
+    } catch (error) {
+      console.error('❌ [Permission Template] Delete Error:', error);
+      return reply.code(500).send({ success: false, message: '数据库操作失败' });
     } finally {
       connection.release();
     }

@@ -305,32 +305,40 @@ module.exports = async function (fastify, opts) {
         [approver_id, approval_note || null, id]
       );
 
-      // 发送通知给申请人
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, content, related_id, related_type)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          overtimeRecords[0].user_id,
-          'overtime_approval',
-          '加班申请已通过',
-          `您的加班申请（${formattedDate}，${overtimeRecords[0].hours}小时）已通过审批`,
-          id,
-          'overtime'
-        ]
-      );
-
-      // 🔔 实时推送通知给申请人（WebSocket）
-      if (fastify.io) {
-        const { sendNotificationToUser } = require('../websocket')
-        sendNotificationToUser(fastify.io, overtimeRecords[0].user_id, {
-          type: 'overtime_approval',
-          title: '加班申请已通过',
-          content: `您的加班申请（${formattedDate}，${overtimeRecords[0].hours}小时）已通过审批`,
-          related_id: id,
-          related_type: 'overtime',
-          created_at: new Date()
+      // --- 通知逻辑加固：接入配置中心 ---
+      try {
+        const title = '加班申请已通过'
+        const content = `您的加班申请（${formattedDate}，${overtimeRecords[0].hours}小时）已通过审批`
+        
+        const targetUserIds = await getNotificationTargets(pool, 'overtime_approval', {
+          applicantId: overtimeRecords[0].user_id,
+          departmentId: null
         })
-      }
+
+        if (targetUserIds.length === 0) targetUserIds.push(overtimeRecords[0].user_id)
+
+        const values = targetUserIds.map(uid => [
+          uid, 'overtime_approval', title, content, id, 'overtime'
+        ])
+
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, title, content, related_id, related_type) VALUES ?`,
+          [values]
+        )
+
+        if (fastify.io) {
+          targetUserIds.forEach(uid => {
+            sendNotificationToUser(fastify.io, uid, {
+              type: 'overtime_approval',
+              title,
+              content,
+              related_id: id,
+              related_type: 'overtime',
+              created_at: new Date()
+            })
+          })
+        }
+      } catch (notifyErr) { console.error('加班审批通知失败:', notifyErr) }
 
       return {
         success: true,
@@ -373,32 +381,39 @@ module.exports = async function (fastify, opts) {
         [approver_id, approval_note || null, id]
       );
 
-      // 发送通知给申请人
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, content, related_id, related_type)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          overtimeRecords[0].user_id,
-          'overtime_rejection',
-          '加班申请被拒绝',
-          approval_note || `您的加班申请（${formattedDate}）未通过审批`,
-          id,
-          'overtime'
-        ]
-      );
-
-      // 🔔 实时推送通知给申请人（WebSocket）
-      if (fastify.io) {
-        const { sendNotificationToUser } = require('../websocket')
-        sendNotificationToUser(fastify.io, overtimeRecords[0].user_id, {
-          type: 'overtime_rejection',
-          title: '加班申请被拒绝',
-          content: approval_note || `您的加班申请（${formattedDate}）未通过审批`,
-          related_id: id,
-          related_type: 'overtime',
-          created_at: new Date()
+      // --- 通知逻辑加固：接入配置中心 ---
+      try {
+        const title = '加班申请被拒绝'
+        const content = approval_note || `您的加班申请（${formattedDate}）未通过审批`
+        
+        const targetUserIds = await getNotificationTargets(pool, 'overtime_rejection', {
+          applicantId: overtimeRecords[0].user_id
         })
-      }
+
+        if (targetUserIds.length === 0) targetUserIds.push(overtimeRecords[0].user_id)
+
+        const values = targetUserIds.map(uid => [
+          uid, 'overtime_rejection', title, content, id, 'overtime'
+        ])
+
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, title, content, related_id, related_type) VALUES ?`,
+          [values]
+        )
+
+        if (fastify.io) {
+          targetUserIds.forEach(uid => {
+            sendNotificationToUser(fastify.io, uid, {
+              type: 'overtime_rejection',
+              title,
+              content,
+              related_id: id,
+              related_type: 'overtime',
+              created_at: new Date()
+            })
+          })
+        }
+      } catch (notifyErr) { console.error('加班拒绝通知失败:', notifyErr) }
 
       return {
         success: true,

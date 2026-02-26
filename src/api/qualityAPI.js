@@ -56,9 +56,9 @@ const qualityAPI = {
   // 获取质检报表摘要
   getSummaryReport: (params) => api.get('/quality/reports/summary', { params }),
   // 导出质检会话
-  exportSessions: () => api.get('/quality/export/sessions', { responseType: 'blob' }),
+  exportSessions: (params) => api.get('/quality/sessions/export', { params, responseType: 'blob' }),
   // 导出案例数据
-  exportCases: () => api.get('/quality/export/cases', { responseType: 'blob' }),
+  exportCases: (params) => api.get('/quality/export/cases', { params, responseType: 'blob' }),
 
   // --- 优秀案例 ---
   // 获取所有案例

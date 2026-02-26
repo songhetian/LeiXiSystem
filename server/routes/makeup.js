@@ -211,32 +211,40 @@ module.exports = async function (fastify, opts) {
         }
       }
 
-      // 发送通知给申请人
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, content, related_id, related_type)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          makeup.user_id,
-          'makeup_approval',
-          '补卡申请已通过',
-          `您的补卡申请（${makeup.record_date} ${makeup.clock_type === 'in' ? '上班' : '下班'}）已通过审批`,
-          id,
-          'makeup'
-        ]
-      )
-
-      // 🔔 实时推送通知（WebSocket）
-      if (fastify.io) {
-        const { sendNotificationToUser } = require('../websocket')
-        sendNotificationToUser(fastify.io, makeup.user_id, {
-          type: 'makeup_approval',
-          title: '补卡申请已通过',
-          content: `您的补卡申请（${makeup.record_date} ${makeup.clock_type === 'in' ? '上班' : '下班'}）已通过审批`,
-          related_id: id,
-          related_type: 'makeup',
-          created_at: new Date()
+      // --- 通知逻辑加固：接入配置中心 ---
+      try {
+        const title = '补卡申请已通过'
+        const content = `您的补卡申请（${makeup.record_date} ${makeup.clock_type === 'in' ? '上班' : '下班'}）已通过审批`
+        
+        const targetUserIds = await getNotificationTargets(pool, 'makeup_approval', {
+          applicantId: makeup.user_id,
+          departmentId: null
         })
-      }
+
+        if (targetUserIds.length === 0) targetUserIds.push(makeup.user_id)
+
+        const values = targetUserIds.map(uid => [
+          uid, 'makeup_approval', title, content, id, 'makeup'
+        ])
+
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, title, content, related_id, related_type) VALUES ?`,
+          [values]
+        )
+
+        if (fastify.io) {
+          targetUserIds.forEach(uid => {
+            sendNotificationToUser(fastify.io, uid, {
+              type: 'makeup_approval',
+              title,
+              content,
+              related_id: id,
+              related_type: 'makeup',
+              created_at: new Date()
+            })
+          })
+        }
+      } catch (notifyErr) { console.error('补卡审批通知失败:', notifyErr) }
 
       // 🔄 自动更新排班（如果适用）
       try {
@@ -317,32 +325,39 @@ module.exports = async function (fastify, opts) {
         [approver_id, approval_note || null, id]
       )
 
-      // 发送通知给申请人
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, content, related_id, related_type)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          makeupRecords[0].user_id,
-          'makeup_rejection',
-          '补卡申请被拒绝',
-          approval_note || '您的补卡申请未通过审批',
-          id,
-          'makeup'
-        ]
-      )
-
-      // 🔔 实时推送拒绝通知（WebSocket）
-      if (fastify.io) {
-        const { sendNotificationToUser } = require('../websocket')
-        sendNotificationToUser(fastify.io, makeupRecords[0].user_id, {
-          type: 'makeup_rejection',
-          title: '补卡申请被拒绝',
-          content: approval_note || '您的补卡申请未通过审批',
-          related_id: id,
-          related_type: 'makeup',
-          created_at: new Date()
+      // --- 通知逻辑加固：接入配置中心 ---
+      try {
+        const title = '补卡申请被拒绝'
+        const content = approval_note || '您的补卡申请未通过审批'
+        
+        const targetUserIds = await getNotificationTargets(pool, 'makeup_rejection', {
+          applicantId: makeupRecords[0].user_id
         })
-      }
+
+        if (targetUserIds.length === 0) targetUserIds.push(makeupRecords[0].user_id)
+
+        const values = targetUserIds.map(uid => [
+          uid, 'makeup_rejection', title, content, id, 'makeup'
+        ])
+
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, title, content, related_id, related_type) VALUES ?`,
+          [values]
+        )
+
+        if (fastify.io) {
+          targetUserIds.forEach(uid => {
+            sendNotificationToUser(fastify.io, uid, {
+              type: 'makeup_rejection',
+              title,
+              content,
+              related_id: id,
+              related_type: 'makeup',
+              created_at: new Date()
+            })
+          })
+        }
+      } catch (notifyErr) { console.error('补卡拒绝通知失败:', notifyErr) }
 
       return {
         success: true,

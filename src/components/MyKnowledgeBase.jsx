@@ -58,6 +58,29 @@ const MyKnowledgeBase = () => {
     data: null
   })
 
+  // 添加缺失的状态定义
+  const [showStats, setShowStats] = useState(false)
+  const [articleStats, setArticleStats] = useState([])
+  const [statsLoading, setStatsLoading] = useState(false)
+
+  const fetchArticleStats = async () => {
+    setStatsLoading(true)
+    try {
+      const res = await axios.get(getApiUrl('/api/knowledge/stats/reading'))
+      setArticleStats(res.data.data || [])
+    } catch (e) {
+      toast.error('获取统计失败')
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (showStats) {
+      fetchArticleStats()
+    }
+  }, [showStats])
+
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
     description: '',
@@ -278,16 +301,39 @@ const MyKnowledgeBase = () => {
     }
   }
 
-  const getFileIcon = (type) => {
-    if (type.startsWith('image/')) return '🖼️'
-    if (type.startsWith('video/')) return '🎬'
-    if (type.startsWith('audio/')) return '🎵'
-    if (type.includes('pdf')) return '📄'
-    if (type.includes('word') || type.includes('document')) return '📝'
-    if (type.includes('excel') || type.includes('sheet')) return '📊'
-    if (type.includes('powerpoint') || type.includes('presentation')) return '📽️'
-    return '📎'
+  const getFileIcon = (article) => {
+    const atts = parseAttachments(article.attachments);
+    if (atts.length === 0) return '📝';
+    const ext = atts[0].name?.split('.').pop().toLowerCase() || '';
+    const icons = {
+      pdf: '📄', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗',
+      ppt: '📙', pptx: '📙', jpg: '🖼️', png: '🖼️', mp4: '🎬',
+      zip: '📦', rar: '📦'
+    };
+    return icons[ext] || '📎';
   }
+
+  const handleEnhancedPreview = (article) => {
+    const atts = parseAttachments(article.attachments);
+    if (atts.length > 0) {
+      const f = atts[0];
+      const ext = f.name?.split('.').pop().toLowerCase();
+      const url = getAttachmentUrl(f.url);
+      const officeExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+      
+      if (officeExts.includes(ext)) {
+        setFilePreview({
+          name: f.name,
+          type: 'office',
+          url: `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+        });
+      } else {
+        setFilePreview({ name: f.name, type: ext, url });
+      }
+    } else {
+      setFilePreview({ name: article.title, type: 'note', url: null, content: article.content });
+    }
+  };
 
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 B'
@@ -324,6 +370,11 @@ const MyKnowledgeBase = () => {
       return matchesSearch
     })
   }
+
+  useEffect(() => {
+    const total = getCurrentFolderArticles().length
+    setTotalPages(Math.ceil(total / pageSize))
+  }, [articles, currentFolderCategory, folderSearchTerm, pageSize])
 
   const getPaginatedArticles = () => {
     const filtered = getCurrentFolderArticles()
@@ -730,25 +781,24 @@ const MyKnowledgeBase = () => {
                   {getPaginatedArticles().map(article => (
                     <div
                       key={article.id}
-                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full win11-file"
+                      onClick={() => handleEnhancedPreview(article)}
+                      className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all hover:border-blue-400 group flex flex-col h-full relative cursor-pointer"
                       onContextMenu={(e) => handleContextMenu(e, 'file', article)}
                     >
+                      {/* 选择框移到卡片内部，绝对定位 */}
+                      <div className="absolute top-3 left-3 z-20">
+                         {/* 如果需要多选功能，可以在这里添加 Checkbox */}
+                      </div>
+
                       {/* 大图标 */}
-                      <div
-                        className="flex items-center justify-center mb-4 flex-shrink-0 cursor-pointer"
-                        onClick={() => setPreviewFile(article)}
-                      >
+                      <div className="flex items-center justify-center mb-4 flex-shrink-0">
                         <span className="text-5xl group-hover:scale-110 transition-transform">
-                          {article.icon || '📄'}
+                          {getFileIcon(article)}
                         </span>
                       </div>
 
                       {/* 标题 */}
-                      <h3
-                        className="font-bold text-gray-900 mb-3 line-clamp-2 text-center text-lg cursor-pointer hover:text-blue-600 transition-colors flex-shrink-0"
-                        onClick={() => setPreviewFile(article)}
-                        title={article.title}
-                      >
+                      <h3 className="font-bold text-gray-900 mb-3 line-clamp-2 text-center text-lg group-hover:text-blue-600 transition-colors flex-shrink-0">
                         {article.title}
                       </h3>
 
@@ -759,37 +809,20 @@ const MyKnowledgeBase = () => {
                         </div>
                       )}
 
-                      {/* 操作按钮 */}
-                      <div className="mt-auto pt-4 border-t border-gray-100 flex-shrink-0">
-                        <div className="flex items-center justify-center gap-2 mb-3">
+                      {/* 底部信息 */}
+                      <div className="mt-auto pt-4 border-t border-gray-100 flex-shrink-0 flex justify-center gap-2">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleViewArticle(article)
-                            }}
-                            className="px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center gap-1 text-base font-medium"
-                            title="预览"
+                            onClick={(e) => { e.stopPropagation(); handleViewArticle(article); }}
+                            className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           >
-                            👁️ 预览
+                            详情
                           </button>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteArticle(article)
-                            }}
-                            className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all flex items-center gap-1 text-base font-medium"
-                            title="删除"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteArticle(article); }}
+                            className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            🗑️ 删除
+                            删除
                           </button>
-                        </div>
-
-                        {/* 附件信息 */}
-                        {parseAttachments(article.attachments).length > 0 && (
-                          <div className="text-sm text-gray-500 text-center bg-gray-100 px-3 py-2 rounded-lg">
-                            📎 {parseAttachments(article.attachments).length} 个附件
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}

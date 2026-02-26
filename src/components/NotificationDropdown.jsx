@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import { toast } from 'sonner';
+import { ChevronRight } from 'lucide-react';
 import {
   BellIcon,
   ClockIcon,
@@ -200,59 +201,62 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     <>
     <div
       ref={dropdownRef}
-      className="absolute top-10 right-0 w-72 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in-down"
+      className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white z-[3000] overflow-hidden animate-in slide-in-from-top-2 duration-300"
     >
       {/* Header */}
-      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-        <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-bold text-gray-800">未读通知</h3>
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-white/50">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">通知中心</h3>
           {unreadCount > 0 && (
-            <span className="bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 rounded-full leading-none">
+            <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none shadow-lg shadow-rose-100 animate-pulse">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
         </div>
         <button
           onClick={markAllAsRead}
-          className="text-[10px] text-blue-600 hover:text-blue-700 font-bold disabled:opacity-50"
+          className="text-[10px] text-blue-600 hover:text-blue-700 font-black disabled:opacity-50 transition-colors uppercase tracking-tighter"
           disabled={unreadCount === 0}
         >
-          全部已读
+          一键清除
         </button>
       </div>
 
       {/* List */}
-      <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
+      <div className="max-h-[400px] overflow-y-auto custom-scrollbar bg-slate-50/20">
         {loading ? (
-          <div className="p-4 text-center text-gray-400 text-[10px]">
-            加载中...
+          <div className="p-10 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest animate-pulse">
+            🔍 正在同步云端通知...
           </div>
         ) : notifications.length === 0 ? (
-          <div className="p-6 text-center">
-            <BellIcon className="w-8 h-8 text-gray-200 mx-auto mb-1" />
-            <p className="text-gray-400 text-xs">暂无未读消息</p>
+          <div className="p-12 text-center">
+            <BellIcon className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">名册尚无未读消息</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-50">
             {notifications.map(notification => (
               <div
                 key={`${notification.category}-${notification.id}`}
                 onClick={() => handleNotificationClick(notification)}
-                className="p-2.5 hover:bg-gray-50 transition-colors cursor-pointer flex gap-2.5 bg-blue-50/10"
+                className="p-4 hover:bg-white transition-all cursor-pointer flex gap-3 group relative overflow-hidden"
               >
-                <div className={`p-1.5 rounded-md h-fit shrink-0 ${getColorClass(notification.type, notification.category)}`}>
+                {/* 悬浮装饰 */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 transform -translate-x-full group-hover:translate-x-0 transition-transform" />
+                
+                <div className={`p-2 rounded-xl h-fit shrink-0 shadow-sm transition-transform group-hover:scale-110 ${getColorClass(notification.type, notification.category)}`}>
                   {React.cloneElement(getIcon(notification.type, notification.category), { className: 'w-4 h-4' })}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-0.5">
-                    <h4 className="text-xs font-bold truncate pr-1 text-gray-900">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="text-[12px] font-black text-slate-800 truncate pr-2 group-hover:text-blue-600 transition-colors">
                       {notification.title}
                     </h4>
-                    <span className="text-[9px] text-gray-400 shrink-0 font-medium">
+                    <span className="text-[9px] font-bold text-slate-300 shrink-0 uppercase">
                       {new Date(notification.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-500 line-clamp-1 leading-tight">
+                  <p className="text-[11px] font-medium text-slate-500 line-clamp-2 leading-relaxed">
                     {notification.content}
                   </p>
                 </div>
@@ -263,15 +267,15 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-100 bg-gray-50/30">
+      <div className="border-t border-slate-100 bg-white">
         <button
           onClick={() => {
             onNavigate('my-notifications');
             onClose();
           }}
-          className="w-full py-2 text-center text-[11px] text-gray-500 hover:text-blue-600 hover:bg-gray-100 font-bold transition-colors"
+          className="w-full py-3 text-center text-[10px] font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest"
         >
-          查看全部通知
+          进入全局通知中心 <ChevronRight size={10} className="inline ml-1" />
         </button>
       </div>
     </div>

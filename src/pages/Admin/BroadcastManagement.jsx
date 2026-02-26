@@ -322,7 +322,7 @@ const BroadcastManagement = () => {
         onCancel={() => setModalVisible(false)}
         footer={null}
         width={650}
-        destroyOnClose
+        destroyOnHidden
         centered
         className="refined-modal"
       >

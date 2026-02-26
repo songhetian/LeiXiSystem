@@ -346,7 +346,7 @@ const ResultManagement = () => {
         visible={gradingModalVisible}
         onCancel={() => setGradingModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={gradingForm} layout="vertical" onFinish={handleGradingSubmit}>
           <Form.Item label="题目内容">

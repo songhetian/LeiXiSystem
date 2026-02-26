@@ -183,7 +183,7 @@ const MyAssets = () => {
           <Text className="text-slate-500 font-medium">查看当前领用设备的实时硬件快照，或提交配置变更申请</Text>
       </div>
 
-      <Card bordered={false} className="shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+      <Card variant="borderless" className="shadow-sm border border-slate-200 rounded-xl overflow-hidden">
         <Tabs 
           activeKey={activeTab} 
           onChange={setActiveTab}

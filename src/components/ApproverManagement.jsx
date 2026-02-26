@@ -407,7 +407,7 @@ const ApproverManagement = () => {
         open={showModal}
         onCancel={() => setShowModal(false)}
         onOk={handleSave}
-        destroyOnClose
+        destroyOnHidden
         width={500}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
@@ -473,7 +473,7 @@ const ApproverManagement = () => {
         open={showDelegateModal}
         onCancel={() => setShowDelegateModal(false)}
         onOk={handleSaveDelegate}
-        destroyOnClose
+        destroyOnHidden
         width={450}
       >
         <Form form={delegateForm} layout="vertical" style={{ marginTop: 16 }}>

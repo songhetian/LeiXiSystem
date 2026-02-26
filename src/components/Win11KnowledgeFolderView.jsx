@@ -1,2547 +1,629 @@
-import React, { useState, useEffect } from 'react';
-import { formatDate } from '../utils/date'
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import { getAttachmentUrl } from '../utils/fileUtils';
 import Win11ContextMenu from './Win11ContextMenu';
+import { 
+    ChevronLeft, 
+    ChevronRight, 
+    FolderPlus, 
+    FilePlus, 
+    Globe, 
+    Lock, 
+    Trash2, 
+    Move, 
+    CheckCircle2,
+    X,
+    Search,
+    Download,
+    Star,
+    AlertCircle,
+    Archive,
+    FolderTree,
+    FolderCheck
+} from 'lucide-react';
+import { Select, ConfigProvider, Empty, Button, Spin } from 'antd';
 
-const Win11KnowledgeFolderView = () => {
+// --- 1. 高清图标组件 ---
+const FolderIcon = ({ isUncat, isPublic, mode }) => (
+  <svg width="60" height="60" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 14C6 11.7909 7.79086 10 10 10H24.5858C25.6467 10 26.6641 10.4214 27.4142 11.1716L32.8284 16.5858C33.5786 17.3359 34.5959 17.7574 35.6569 17.7574H54C56.2091 17.7574 58 19.5665 58 21.7756V50C58 52.2091 56.2091 54 54 54H10C7.79086 54 6 52.2091 6 50V14Z" fill={`url(#f_grad_${isUncat?'uncat':(mode==='personal'?'priv':'pub')})`} />
+    {isUncat && <path d="M32 25V40M25 32H39" stroke="white" strokeWidth="4" strokeLinecap="round" opacity="0.6" />}
+    {mode === 'personal' && !isUncat && <path d="M44 30c-2.2 0-4 1.8-4 4v4h-2v10h12V38h-2v-4c0-2.2-1.8-4-4-4zm2 8h-4v-4c0-1.1.9-2 2-2s2 .9 2 2v4z" fill="white" opacity="0.9" />}
+    <defs>
+      <linearGradient id="f_grad_pub" x1="6" y1="10" x2="58" y2="54"><stop offset="0" stopColor="#4FACFE" /><stop offset="1" stopColor="#0052D4" /></linearGradient>
+      <linearGradient id="f_grad_priv" x1="6" y1="10" x2="58" y2="54"><stop offset="0" stopColor="#3b82f6" /><stop offset="1" stopColor="#1d4ed8" /></linearGradient>
+      <linearGradient id="f_grad_uncat" x1="6" y1="10" x2="58" y2="54"><stop offset="0" stopColor="#A1C4FD" /><stop offset="1" stopColor="#C2E9FB" /></linearGradient>
+    </defs>
+  </svg>
+);
+
+const FileIcon = ({ ext, isNote }) => {
+  if (isNote) {
+    return (
+      <div className="relative w-10 h-12 bg-amber-50 border-2 border-amber-200 rounded-lg flex items-center justify-center shadow-sm">
+        <div className="absolute top-0 right-0 w-3 h-3 bg-amber-200" style={{ clipPath: 'polygon(0 0, 0 100%, 100% 100%)' }}></div>
+        <span className="text-[10px] font-black text-amber-600">NOTE</span>
+      </div>
+    );
+  }
+  const typeConfigs = {
+    pdf: { color: '#FF5252', label: 'PDF' },
+    doc: { color: '#2B579A', label: 'DOC' }, docx: { color: '#2B579A', label: 'DOCX' },
+    xls: { color: '#217346', label: 'XLS' }, xlsx: { color: '#217346', label: 'XLSX' },
+    ppt: { color: '#D24726', label: 'PPT' }, pptx: { color: '#D24726', label: 'PPTX' },
+    txt: { color: '#607D8B', label: 'TXT' }, md: { color: '#000', label: 'MD' },
+    jpg: { color: '#FF9800', label: 'JPG' }, jpeg: { color: '#FF9800', label: 'JPEG' },
+    png: { color: '#E91E63', label: 'PNG' }, gif: { color: '#9C27B0', label: 'GIF' },
+    mp4: { color: '#673AB7', label: 'MP4' }, zip: { color: '#FBBC05', label: 'ZIP' },
+    rar: { color: '#FBBC05', label: 'RAR' }
+  };
+  const conf = typeConfigs[ext] || { color: '#4FACFE', label: ext ? ext.toUpperCase() : 'FILE' };
+  return (
+    <div className="relative w-10 h-12 bg-white border-2 rounded-lg flex items-center justify-center shadow-sm" style={{ borderColor: conf.color }}>
+      <div className="absolute top-0 right-0 w-3 h-3" style={{ background: `linear-gradient(225deg, transparent 50%, ${conf.color} 50%)` }}></div>
+      <span className="text-[7px] font-black" style={{ color: conf.color }}>{conf.label}</span>
+    </div>
+  );
+};
+
+const parseAttachments = (raw) => {
+  if (!raw) return [];
+  
+  let current = raw;
+  // --- 深度脱壳逻辑 ---
+  // 如果是字符串，不断尝试解析，直到它不再是字符串或解析失败
+  try {
+    while (typeof current === 'string' && current.length > 2) {
+      const parsed = JSON.parse(current);
+      if (typeof parsed === 'string' && parsed === current) break; // 防止死循环
+      current = parsed;
+    }
+  } catch (e) {
+    // 如果解析失败，检查是否是原始 URL
+    if (typeof current === 'string' && (current.startsWith('http') || current.startsWith('/upload'))) {
+      return [{ url: current, name: current.split('/').pop() || 'file' }];
+    }
+  }
+
+  // --- 统一转为标准数组格式 ---
+  if (Array.isArray(current)) {
+    return current.map(item => {
+      if (typeof item === 'string') return { url: item, name: item.split('/').pop() };
+      const url = item.url || item.path || item.file_url || '';
+      return {
+        url: url,
+        name: item.name || item.filename || url.split('/').pop() || '未命名附件'
+      };
+    }).filter(i => i.url);
+  }
+  
+  if (current && typeof current === 'object') {
+    const url = current.url || current.path || current.file_url || '';
+    if (url) return [{ url, name: current.name || current.filename || url.split('/').pop() || '附件' }];
+  }
+
+  return [];
+};
+
+const ArticleCard = memo(({ article, isSelected, onToggle, onContextMenu, onPreview, index, mode, isSavedToPersonal }) => {
+  // 探测所有可能的附件字段名
+  const rawAttachments = article.attachments || article.attachment || article.file_url || article.path || article.files || article.url || '[]';
+  const attachments = useMemo(() => parseAttachments(rawAttachments), [rawAttachments]);
+  const isNote = attachments.length === 0;
+  const fileName = attachments[0]?.name || '';
+  const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onPreview(article); }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, 'file', article); }}
+      className={`relative bg-white p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center group z-10 ${isSelected ? 'border-blue-500 bg-blue-50/30 shadow-lg scale-[0.98]' : 'border-transparent shadow-sm hover:border-slate-200'}`}
+    >
+      {/* 只有点击勾选框才触发选择，增加 e.stopPropagation() 防止触发预览 */}
+      <div 
+        onClick={(e) => { e.stopPropagation(); onToggle(e, article.id, index); }}
+        className={`absolute top-3 left-3 w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center z-20 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 opacity-0 group-hover:opacity-100'}`}
+      >
+        {isSelected && '✓'}
+      </div>
+      
+      {isSavedToPersonal && (
+        <div className="absolute top-3 right-3 bg-amber-400 text-white p-1 rounded-full shadow-lg z-30 scale-90">
+            <Star size={10} fill="currentColor" />
+        </div>
+      )}
+
+      {mode !== 'personal' && !isSavedToPersonal && (
+        <div className={`absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${article.is_public ? 'bg-emerald-500 text-white':'bg-blue-500 text-white'}`}>
+          {!article.is_public && <span className="scale-75">🔒</span>}{article.is_public ? '公开':'草稿'}
+        </div>
+      )}
+
+      <div className="mt-4 mb-3 transform transition-transform group-hover:scale-105">
+        <FileIcon ext={ext} isNote={isNote} />
+      </div>
+      <h3 className="text-[11px] font-bold text-slate-800 line-clamp-2 h-8 leading-tight mb-1 text-center">{article.title}</h3>
+    </div>
+  );
+});
+
+// --- 4. 主视图组件 ---
+const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   const [articles, setArticles] = useState([]);
+  const [personalArticles, setPersonalArticles] = useState([]);
+  const [personalCategories, setPersonalCategories] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedArticle, setSelectedArticle] = useState(null);
   const [currentFolderCategory, setCurrentFolderCategory] = useState(null);
-  const [folderSearchTerm, setFolderSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1); // For articles
-  const [pageSize, setPageSize] = useState(30); // For articles
-  const [articleTotalPages, setArticleTotalPages] = useState(1); // New state for article total pages
-  const [totalArticleItems, setTotalArticleItems] = useState(0); // New state for total article items
+  const [selectedArticleIds, setSelectedArticleIds] = useState([]);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(40);
 
-  const [sortBy, setSortBy] = useState('asc');
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [viewMode, setViewMode] = useState('card'); // For articles
-  const [categoryViewMode, setCategoryViewMode] = useState('card'); // For categories
+  // --- 分页与过滤逻辑 ---
+  const filteredArticles = useMemo(() => {
+    let result = articles;
+    if (currentFolderCategory) {
+      if (currentFolderCategory.id === 'uncategorized') {
+        result = result.filter(a => !a.category_id);
+      } else {
+        result = result.filter(a => a.category_id === currentFolderCategory.id);
+      }
+    }
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      result = result.filter(a => 
+        a.title?.toLowerCase().includes(lower) || 
+        (a.content && a.content.toLowerCase().includes(lower))
+      );
+    }
+    return result;
+  }, [articles, currentFolderCategory, searchTerm]);
 
-  // Category Pagination
-  const [categoryCurrentPage, setCategoryCurrentPage] = useState(1);
-  const [categoryPageSize, setCategoryPageSize] = useState(10); // Default page size for categories
-  const [categoryTotalPages, setCategoryTotalPages] = useState(1);
-  const [totalCategoryItems, setTotalCategoryItems] = useState(0); // New state for total items
+  const totalPages = Math.ceil(filteredArticles.length / pageSize);
+  
+  const currentArticles = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredArticles.slice(start, start + pageSize);
+  }, [filteredArticles, currentPage, pageSize]);
 
-  // 新建分类状态
-  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, isDanger: false });
+  // 收藏弹窗增强：增加 selectedCatId 状态
+  const [saveToModal, setSaveToModal] = useState({ visible: false, targets: [], selectedCatId: undefined });
 
-  // 分类重命名状态
-  const [showRenameCategoryModal, setShowRenameCategoryModal] = useState(false);
-  const [renamingCategory, setRenamingCategory] = useState(null);
-  const [renameCategoryName, setRenameCategoryName] = useState('');
+  const config = useMemo(() => {
+    const modeConfigs = {
+        public: { title: '公共知识库', icon: '🌐', theme: 'emerald', label: '全员共享·只读' },
+        personal: { title: '我的知识库', icon: '⭐', theme: 'blue', label: '个人专属·私密' },
+        management: { title: '知识库管理', icon: '🛠️', theme: 'indigo', label: '知识维护·创作' }
+    };
+    return modeConfigs[viewMode] || modeConfigs.public;
+  }, [viewMode]);
 
-  // 新建/编辑文档状态
-  const [showCreateArticleModal, setShowCreateArticleModal] = useState(false);
-  const [creatingCategory, setCreatingCategory] = useState(null); // 右键的所属分类
+  const userStr = localStorage.getItem('user');
+  const currentUser = userStr ? JSON.parse(userStr) : null;
+  const canManage = viewMode === 'personal' || viewMode === 'management';
+
+  const [showArticleModal, setShowArticleModal] = useState(false);
+  const [articleFormData, setArticleFormData] = useState({ title: '', content: '', attachments: [], mode: 'file' });
   const [editingArticle, setEditingArticle] = useState(null);
-  const [articleFormData, setArticleFormData] = useState({
-    title: '',
-    category_id: '',
-    summary: '',
-    content: '',
-    type: 'personal',
-    status: 'published',
-    icon: '📄',
-    attachments: []
-  });
-  const [uploadingFiles, setUploadingFiles] = useState(false);
-
-  // 删除确认模态框
-  const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState(null);
-  const [deleteCategoryArticleCount, setDeleteCategoryArticleCount] = useState(0);
-
-  const [showDeleteArticleModal, setShowDeleteArticleModal] = useState(false);
-  const [articleToDelete, setArticleToDelete] = useState(null);
-
-  // 预览文档
-  const [previewFile, setPreviewFile] = useState(null);
-  const [showSaveToMyKnowledgeModal, setShowSaveToMyKnowledgeModal] = useState(false);
-  const [selectedArticleToSave, setSelectedArticleToSave] = useState(null);
-  const [targetCategory, setTargetCategory] = useState('');
-  const [myKnowledgeCategories, setMyKnowledgeCategories] = useState([]);
-  const [showMoveArticleModal, setShowMoveArticleModal] = useState(false);
-  const [articleToMove, setArticleToMove] = useState(null);
-  const [moveTargetCategory, setMoveTargetCategory] = useState('');
-
-  // 右键菜单状态
-  const [contextMenu, setContextMenu] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    type: '', // 'folder', 'file' or 'background'
-    data: null
-  });
-
-  // 添加调整弹出框宽高的状态
-  const [previewModalWidth, setPreviewModalWidth] = useState('max-w-4xl');
-  const [previewModalHeight, setPreviewModalHeight] = useState('max-h-[95vh]');
-  const [attachmentToPreview, setAttachmentToPreview] = useState(null);
-  const [nonPreviewableFile, setNonPreviewableFile] = useState(null);
-
-
-  // 回收站
-  const [showRecycleBin, setShowRecycleBin] = useState(false);
-  const [recycleCategories, setRecycleCategories] = useState([]);
-  const [recycleArticles, setRecycleArticles] = useState([]);
-  const [recycleLoading, setRecycleLoading] = useState(false);
-  const [recycleTab, setRecycleTab] = useState('categories'); // 'categories' | 'articles'
-  const [recycleContextMenu, setRecycleContextMenu] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    type: '', // 'category' | 'article'
-    data: null
-  });
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [previewData, setPreviewData] = useState(null);
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, type: '', data: null });
+  const [uploading, setUploading] = useState(false);
+  const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false);
 
   useEffect(() => {
-    fetchCategories();
-    fetchArticles();
-  }, [categoryCurrentPage, categoryPageSize]);
+    const timer = setTimeout(() => { setSearchTerm(debouncedSearchTerm); setCurrentPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [debouncedSearchTerm]);
 
-  const getToken = () => {
-    return localStorage.getItem('token') || localStorage.getItem('access_token') || '';
-  };
+  useEffect(() => { 
+    setCurrentFolderCategory(null);
+    setSelectedArticleIds([]);
+    fetchCategories(); 
+    fetchArticles(); 
+    fetchPersonalResources(); 
+  }, [viewMode]);
 
-  // 不再需要单独的公共分类列表，文档类型直接跟所属分类/固定规则走
-
-  const getCurrentUserId = () => {
+  const fetchPersonalResources = async () => {
     try {
-      const token = getToken();
-      if (!token) return null;
-      const jwt = token.startsWith('Bearer ') ? token.slice(7) : token;
-      const parts = jwt.split('.');
-      if (parts.length < 2) return null;
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-      return payload.userId || payload.user_id || payload.sub || payload.id || null;
-    } catch {
-      return null;
-    }
-  };
-
-  const isPublished = (item) => {
-    const s = (item?.status || '').toLowerCase();
-    if (s) return ['published', 'publish', 'active'].includes(s);
-    if (typeof item?.is_published !== 'undefined') return item.is_published === 1;
-    return true;
-  };
-
-  const isNotDeleted = (item) => {
-    if (typeof item?.is_deleted !== 'undefined') return item.is_deleted === 0;
-    if (typeof item?.deleted !== 'undefined') return item.deleted === 0;
-    if (Object.prototype.hasOwnProperty.call(item || {}, 'deleted_at')) return !item.deleted_at;
-    return true;
-  };
-
-  const isPublic = (item) => {
-    if (item?.is_public === 1) return true;
-    const t = (item?.type || '').toLowerCase();
-    if (t && ['common', 'public', 'global'].includes(t)) return true;
-    const v = (item?.visibility || '').toLowerCase();
-    if (v === 'public') return true;
-    return false;
-  };
-
-  const isOwnedBy = (item, userId) => {
-    const owner = item?.user_id || item?.owner_id || item?.uid || item?.created_by;
-    return userId ? String(owner) === String(userId) : false;
+        const resA = await axios.get(getApiUrl('/api/knowledge/articles'));
+        const allA = resA.data.data || resA.data || [];
+        setPersonalArticles(allA.filter(a => a.type === 'personal' && parseInt(a.owner_id) === parseInt(currentUser?.id)));
+        
+        const resC = await axios.get(getApiUrl('/api/knowledge/categories'));
+        const allC = resC.data.data || resC.data || [];
+        setPersonalCategories(allC.filter(c => c.type === 'personal' && parseInt(c.owner_id) === parseInt(currentUser?.id)));
+    } catch(e) {}
   };
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl(`/api/knowledge/categories?page=${categoryCurrentPage}&pageSize=${categoryPageSize}`));
-      console.log('Folder Categories API Response:', response.data); // 调试信息
-      // 确保返回的是数组
-      let categoriesData = response.data || [];
-      let totalItems = 0;
-
-      if (response.data && Array.isArray(response.data.data)) {
-        // If it's a paginated structure { data: [...], total: ..., page: ... }
-        categoriesData = response.data.data;
-        totalItems = response.data.total || categoriesData.length; // Ensure totalItems is set
-      } else if (Array.isArray(response.data)) {
-        // If it's a direct array (non-paginated from API, but we'll paginate client-side)
-        categoriesData = response.data;
-        totalItems = categoriesData.length;
-      }
-
-      const uid = getCurrentUserId();
-      const filtered = (categoriesData || []).filter(c => {
-        const t = String(c?.type || '').toLowerCase();
-        const notDeleted = !c.deleted_at && c.status !== 'deleted' && c.is_deleted !== 1;
-        const isActuallyPublic = c.is_public === 1 || t === 'common' || t === 'public';
-        
-        // 逻辑: (公开分类 OR 我创建的分类) AND 未删除
-        return (isActuallyPublic || isOwnedBy(c, uid)) && notDeleted;
-      });
-
-      setCategories(filtered);
-      // 使用过滤后的数据长度计算分页
-      const filteredTotalItems = filtered.length;
-      setTotalCategoryItems(filteredTotalItems);
-      const calculatedTotalPages = Math.ceil(filteredTotalItems / categoryPageSize);
-      setCategoryTotalPages(calculatedTotalPages);
-      console.log('Pagination Debug: filteredTotalItems =', filteredTotalItems, 'categoryPageSize =', categoryPageSize, 'calculatedTotalPages =', calculatedTotalPages);
-
-    } catch (error) {
-      console.error('获取分类失败:', error);
-    }
+      const res = await axios.get(getApiUrl(`/api/knowledge/categories`));
+      const allCats = res.data.data || res.data || [];
+      setCategories(allCats.filter(c => {
+        if (c.is_deleted == 1 || c.deleted_at != null) return false;
+        const ownerMatch = parseInt(c.owner_id) === parseInt(currentUser?.id);
+        if (viewMode === 'public') return c.type === 'common' && parseInt(c.is_public) === 1;
+        if (viewMode === 'management') return c.type === 'common' && ownerMatch;
+        return c.type === 'personal' && ownerMatch;
+      }));
+    } catch(e) { toast.error('分类加载失败'); }
   };
 
   const fetchArticles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(getApiUrl('/api/knowledge/articles'));
-      console.log('Folder Articles API Response:', response.data); // 调试信息
-      
-      // 确保获取到文章数据
-      let articlesData = [];
-      if (response.data && Array.isArray(response.data.data)) {
-        articlesData = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        articlesData = response.data;
-      }
-      
-      const uid = getCurrentUserId();
-      const filtered = (articlesData || []).filter(a => {
-        const notDeleted = !a.deleted_at && a.status !== 'deleted' && a.is_deleted !== 1;
-        const isActuallyPublic = a.is_public === 1 || String(a.type || '').toLowerCase() === 'common' || String(a.type || '').toLowerCase() === 'public';
-        
-        // 逻辑: (公开文章 OR 我创建的文章) AND 未删除
-        return (isActuallyPublic || isOwnedBy(a, uid)) && notDeleted;
-      });
-      setArticles(filtered);
-    } catch (error) {
-      console.error('获取文档失败:', error);
-      toast.error('获取文档失败');
-    } finally {
-      setLoading(false);
-    }
+      const res = await axios.get(getApiUrl('/api/knowledge/articles'));
+      const allArticles = res.data.data || res.data || [];
+      setArticles(allArticles.filter(a => {
+        if (a.is_deleted == 1 || a.deleted_at != null) return false;
+        const ownerMatch = parseInt(a.owner_id) === parseInt(currentUser?.id);
+        if (viewMode === 'public') return a.type === 'common' && parseInt(a.is_public) === 1;
+        if (viewMode === 'management') return a.type === 'common' && ownerMatch;
+        return a.type === 'personal' && ownerMatch;
+      }));
+    } catch(e) { toast.error('文档加载失败'); }
+    finally { setLoading(false); }
   };
 
-  const parseAttachments = (attachments) => {
-    if (!attachments) return [];
-    if (Array.isArray(attachments)) return attachments;
-    if (typeof attachments === 'string') {
-      try {
-        return JSON.parse(attachments);
-      } catch (e) {
-        return [];
-      }
+  // --- 收藏到个人库逻辑 (加固排重) ---
+  const handleOpenSaveToModal = (targets) => {
+    // 排重检查
+    const alreadySaved = targets.filter(t => personalArticles.some(p => p.title === t.title));
+    if (alreadySaved.length === targets.length) {
+        return toast.info('所选文档均已在个人知识库中，无需重复收藏');
     }
-    return [];
+    const filteredTargets = targets.filter(t => !personalArticles.some(p => p.title === t.title));
+    if (alreadySaved.length > 0) {
+        toast.info(`已自动过滤 ${alreadySaved.length} 篇已收藏文档`);
+    }
+    setSaveToModal({ visible: true, targets: filteredTargets, selectedCatId: undefined });
   };
 
-  const fetchMyKnowledgeCategories = async () => {
+  const handleExecuteSaveToPersonal = async () => {
+    const { targets, selectedCatId } = saveToModal;
+    if (targets.length === 0) return;
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/categories'));
-      setMyKnowledgeCategories(response.data || []);
-    } catch (error) {
-      console.error('获取我的知识库分类失败:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (showSaveToMyKnowledgeModal) {
-      (async () => {
-        await fetchMyKnowledgeCategories();
-        const list = myKnowledgeCategories || [];
-        if (!list.length) {
-          try {
-            const resp = await axios.post(getApiUrl('/api/knowledge/categories'), {
-              name: '默认分类',
-              description: '',
-              icon: '📁',
-              owner_id: getCurrentUserId(),
-              type: 'personal',
-              is_public: 1
+        setLoading(true);
+        await Promise.all(targets.map(item => {
+            return axios.post(getApiUrl('/api/knowledge/articles'), {
+                title: item.title, content: item.content, attachments: item.attachments,
+                type: 'personal', owner_id: currentUser?.id, is_public: 0, status: 'published',
+                category_id: selectedCatId || null
             });
-            const newId = resp.data?.id;
-            await fetchMyKnowledgeCategories();
-            if (newId) setTargetCategory(newId);
-          } catch (e) {
-          }
+        }));
+        toast.success(`成功存入“我的知识库” ${targets.length} 篇文档`);
+        setSaveToModal({ visible: false, targets: [], selectedCatId: undefined });
+        setSelectedArticleIds([]);
+        fetchPersonalResources();
+    } catch(e) { toast.error('转存失败'); }
+    finally { setLoading(false); }
+  };
+
+  const handleBatchVisibility = async (isPub) => {
+    try {
+      setLoading(true);
+      await Promise.all(selectedArticleIds.map(id => axios.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), is_public: isPub })));
+      toast.success('批量更新成功');
+      setSelectedArticleIds([]);
+      await fetchArticles();
+    } catch(e) { toast.error('失败'); }
+    finally { setLoading(false); }
+  };
+
+  const handleBatchDelete = async () => {
+    const isPersonalMode = viewMode === 'personal';
+    setConfirmModal({
+        visible: true,
+        title: isPersonalMode ? '批量取消收藏' : '批量删除确认',
+        message: isPersonalMode ? `确定从您的个人库中移除选中的 ${selectedArticleIds.length} 篇文档吗？` : `确定彻底删除选中的 ${selectedArticleIds.length} 篇文档吗？此操作无法撤销。`,
+        isDanger: true,
+        onConfirm: async () => {
+            try {
+                setLoading(true);
+                await Promise.all(selectedArticleIds.map(id => axios.delete(getApiUrl(`/api/knowledge/articles/${id}`))));
+                toast.success(isPersonalMode ? '批量取消成功' : '批量删除成功');
+                setSelectedArticleIds([]);
+                await fetchArticles();
+                await fetchPersonalResources();
+            } catch(e) { toast.error('操作失败'); }
+            finally { setLoading(false); setConfirmModal(prev => ({ ...prev, visible: false })); }
         }
-      })();
-    }
-  }, [showSaveToMyKnowledgeModal]);
+    });
+  };
 
-  const handleSaveToMyKnowledge = async () => {
-    if (!selectedArticleToSave) return;
+  const handleMoveArticles = async (tid) => {
     try {
       setLoading(true);
-      let categoryId = targetCategory;
-      if (targetCategory === 'new' && newCategoryName.trim()) {
-        const categoryResponse = await axios.post(getApiUrl('/api/knowledge/categories'), {
-          name: newCategoryName.trim(),
-          description: '',
-          icon: '📁',
-          owner_id: getCurrentUserId(),
-          type: 'personal',
-          is_public: 1
-        });
-        categoryId = categoryResponse.data.id;
-        toast.success(`分类 "${newCategoryName.trim()}" 创建成功`);
-        fetchMyKnowledgeCategories();
-      }
-      const response = await axios.post(getApiUrl('/api/my-knowledge/articles/save'), {
-        articleId: selectedArticleToSave.id,
-        categoryId: categoryId !== 'new' ? categoryId : null,
-        notes: ''
-      });
-      if (response.data?.success) {
-        toast.success(`文档 "${selectedArticleToSave.title}" 已保存到我的知识库`);
-        await fetchCategories();
-        await fetchArticles();
-      }
-      setShowSaveToMyKnowledgeModal(false);
-      setSelectedArticleToSave(null);
-      setTargetCategory('');
-      setNewCategoryName('');
-    } catch (error) {
-      console.error('保存到我的知识库失败:', error);
-      toast.error('保存失败');
-    } finally {
-      setLoading(false);
-    }
+      await Promise.all(selectedArticleIds.map(id => axios.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), category_id: tid })));
+      toast.success('移动成功');
+      setSelectedArticleIds([]);
+      setIsMoveMenuOpen(false);
+      await fetchArticles();
+    } catch(e) { toast.error('失败'); }
+    finally { setLoading(false); }
   };
 
-  const handleMoveArticle = async () => {
-    if (!articleToMove) return;
+  const handleUpload = async (files) => {
+    if (!files.length) return;
+    setUploading(true);
     try {
-      setLoading(true);
-      // 先获取最新文章数据以确保字段完整
-      const articleRes = await axios.get(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`));
-      const articleData = articleRes.data;
-
-      const updated = {
-        ...articleData,
-        category_id: moveTargetCategory || null,
-        // 确保关键字段不丢失
-        owner_id: articleData.owner_id || articleData.user_id || getCurrentUserId(),
-        is_public: articleData.is_public
-      };
-      await axios.put(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`), updated);
-      toast.success('文档已移动到目标分类');
-      setShowMoveArticleModal(false);
-      setArticleToMove(null);
-      setMoveTargetCategory('');
-      fetchArticles();
-    } catch (error) {
-      console.error('移动文档失败:', error);
-      toast.error('移动失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getFileIcon = (type) => {
-    if (!type) return '📄';
-    if (type.startsWith('image/')) return '📷';
-    if (type.startsWith('video/')) return '🎥';
-    if (type.startsWith('audio/')) return '🎧';
-    if (type.includes('pdf')) return '📕';
-    if (type.includes('word') || type.includes('document')) return '📝';
-    if (type.includes('excel') || type.includes('sheet')) return '📈';
-    if (type.includes('powerpoint') || type.includes('presentation')) return '🖥️';
-    if (type.includes('zip') || type.includes('compressed')) return '📦';
-    if (type.includes('text') || type.includes('plain')) return '🗒️';
-    if (type.includes('json')) return '📋';
-    if (type.includes('xml')) return '📊';
-    if (type.includes('html')) return '🌐';
-    if (type.includes('css')) return '🎨';
-    if (type.includes('javascript') || type.includes('js')) return '📜';
-    return '📄';
-  };
-
-  const getFileTypeName = (type) => {
-    if (!type) return '未知文件';
-    if (type.startsWith('image/')) return '图片文件';
-    if (type.startsWith('video/')) return '视频文件';
-    if (type.startsWith('audio/')) return '音频文件';
-    if (type.includes('pdf')) return 'PDF文档';
-    if (type.includes('word') || type.includes('document')) return 'Word文档';
-    if (type.includes('excel') || type.includes('sheet')) return 'Excel表格';
-    if (type.includes('powerpoint') || type.includes('presentation')) return '演示文稿';
-    if (type.includes('zip') || type.includes('compressed')) return '压缩文件';
-    if (type.includes('text') || type.includes('plain')) return '文本文件';
-    if (type.includes('json')) return 'JSON文件';
-    if (type.includes('xml')) return 'XML文件';
-    if (type.includes('html')) return 'HTML文件';
-    if (type.includes('css')) return 'CSS文件';
-    if (type.includes('javascript') || type.includes('js')) return 'JS文件';
-    return '文件';
-  };
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-
-  const inferFileType = (file) => {
-    if (!file) return '';
-    const t = (file.type || '').toLowerCase();
-    // If backend returns a generic type, still try to infer by extension
-    if (t && t !== 'application/octet-stream') return t;
-    const src = String(file.url || file.path || file.name || '').toLowerCase();
-    const ext = src.split('?')[0].split('#')[0].split('.').pop();
-    if (!ext || ext === src) return '';
-    switch (ext) {
-      case 'pdf': return 'application/pdf';
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp': return 'image/*';
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-      case 'mkv': return 'video/*';
-      case 'mp3':
-      case 'wav':
-      case 'aac': return 'audio/*';
-      case 'doc':
-      case 'docx': return 'application/word';
-      case 'xls':
-      case 'xlsx': return 'application/excel';
-      case 'ppt':
-      case 'pptx': return 'application/presentation';
-      case 'zip':
-      case 'rar':
-      case '7z': return 'application/zip';
-      case 'txt': return 'text/plain';
-      case 'json': return 'application/json';
-      case 'xml': return 'application/xml';
-      case 'html': return 'text/html';
-      case 'css': return 'text/css';
-      case 'js': return 'application/javascript';
-      default: return '';
-    }
-  };
-
-  // 打开文件夹
-  const handleOpenFolder = (category) => {
-    setCurrentFolderCategory(category);
-    setFolderSearchTerm('');
-    setCurrentPage(1);
-  };
-
-  // 获取当前文件夹的文档
-  const getCurrentFolderArticles = () => {
-    if (!currentFolderCategory) return [];
-
-    const categoryArticles = currentFolderCategory.id === 'uncategorized'
-      ? articles.filter(a => !a.category_id)
-      : articles.filter(a => a.category_id == currentFolderCategory.id);
-
-    // 过滤（支持中文，不改变大小写也可，但统一转小写不影响中文）
-    let filtered = categoryArticles.filter(article => {
-      const t = String(article.title || '').toLowerCase();
-      const s = String(article.summary || '').toLowerCase();
-      const q = String(folderSearchTerm || '').toLowerCase();
-      return t.includes(q) || s.includes(q);
-    });
-
-    // 排序
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-      switch (sortBy) {
-        case 'name':
-          aValue = String(a.title || '').toLowerCase();
-          bValue = String(b.title || '').toLowerCase();
-          break;
-        case 'date':
-          aValue = new Date(a.created_at);
-          bValue = new Date(b.created_at);
-          break;
-        case 'views':
-          aValue = a.view_count || 0;
-          bValue = b.view_count || 0;
-          break;
-        default:
-          return 0;
-      }
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  };
-
-  // 分页计算
-  const getPaginatedArticles = () => {
-    const filtered = getCurrentFolderArticles();
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filtered.slice(startIndex, endIndex);
-  };
-
-  const getTotalPages = () => {
-    const filtered = getCurrentFolderArticles();
-    return Math.ceil(filtered.length / pageSize);
-  };
-
-  // 打开重命名分类弹窗
-  const openRenameCategoryModal = (category) => {
-    setRenamingCategory(category);
-    setRenameCategoryName(category?.name || '');
-    setShowRenameCategoryModal(true);
-  };
-
-  // 提交重命名分类
-  const handleRenameCategory = async () => {
-    if (!renamingCategory || !renameCategoryName.trim()) {
-      toast.error('请输入新的分类名称');
-      return;
-    }
-
-    try {
-      await axios.put(getApiUrl(`/api/knowledge/categories/${renamingCategory.id}`), {
-        name: renameCategoryName.trim()
-      });
-      toast.success('分类名称已更新');
-      setShowRenameCategoryModal(false);
-      setRenamingCategory(null);
-      setRenameCategoryName('');
-      fetchCategories();
-    } catch (error) {
-      console.error('重命名分类失败:', error);
-      toast.error('重命名分类失败: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  // 打开新建文档弹窗（指定分类）
-  const openCreateArticleModalFromCategory = (category) => {
-    setCreatingCategory(category || null);
-    setEditingArticle(null);
-
-    setArticleFormData({
-      title: '',
-      category_id: category && category.id !== 'uncategorized' ? category.id : '',
-      summary: '',
-      content: '',
-      // 文档类型简化为固定值，由后端/列表统一处理
-      type: 'common',
-      status: 'published',
-      icon: '📄',
-      attachments: []
-    });
-    setShowCreateArticleModal(true);
-  };
-
-  const uploadFiles = async (files) => {
-    if (!files || files.length === 0) return;
-
-    setUploadingFiles(true);
-    try {
-      const uploadedFiles = [];
-
+      const uploaded = [];
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-
-        const response = await axios.post(getApiUrl('/upload'), formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
-        uploadedFiles.push({
-          name: file.name,
-          url: response.data.url,
-          type: file.type,
-          size: file.size
-        });
+        const res = await axios.post(getApiUrl('/upload'), formData);
+        if (res.data.url) uploaded.push({ name: file.name, url: res.data.url, type: file.type, size: file.size });
       }
-
-      setArticleFormData(prev => ({
-        ...prev,
-        attachments: [...(prev.attachments || []), ...uploadedFiles]
-      }));
-
-      toast.success(`成功上传 ${files.length} 个文件`);
-    } catch (error) {
-      console.error('文件上传失败:', error);
-      toast.error('文件上传失败');
-    } finally {
-      setUploadingFiles(false);
-    }
+      setArticleFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...uploaded] }));
+      toast.success('上传成功');
+    } catch(e) { toast.error('失败'); }
+    finally { setUploading(false); }
   };
 
-  // 处理附件上传（点击选择）
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    await uploadFiles(files);
-    // 允许重复选择同一文件
-    e.target.value = '';
-  };
-
-  // 处理附件拖拽上传
-  const handleFileDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const files = Array.from(e.dataTransfer?.files || []);
-    if (files.length === 0) return;
-    await uploadFiles(files);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'copy';
-    }
-  };
-
-  const handleRemoveAttachment = (index) => {
-    setArticleFormData(prev => ({
-      ...prev,
-      attachments: (prev.attachments || []).filter((_, i) => i !== index)
-    }));
-  };
-
-  // 提交新建/编辑文档
-  const handleCreateArticle = async () => {
-    if (!articleFormData.title.trim()) {
-      toast.error('请输入文档标题');
-      return;
-    }
-
+  const handleSaveArticle = async () => {
+    if (!articleFormData.title.trim()) return toast.error('标题必填');
+    setLoading(true);
     try {
-      setLoading(true);
-      // 始终优先使用右键点击时的分类作为归属分类，确保新建文档出现在该分类下
-      const finalCategoryId = creatingCategory
-        ? creatingCategory.id
-        : (articleFormData.category_id || null);
-
-      const payload = {
-        title: articleFormData.title.trim(),
-        category_id: finalCategoryId,
-        // 现在不需要摘要和正文内容，后端字段保持为空字符串
-        summary: '',
-        content: '',
-        // 文档类型为common，与当前视图过滤逻辑一致
-        type: 'common',
-        status: articleFormData.status || 'published',
-        // 图标优先使用分类图标，否则使用默认图标
-        icon: creatingCategory?.icon || '📄',
-        attachments: articleFormData.attachments || [],
-        is_public: 0
+      const payload = { 
+        title: articleFormData.title,
+        // 修改点：不再强行清空，如果上传了附件也保留描述，或者如果写了笔记也保留附件
+        content: articleFormData.content || '',
+        category_id: currentFolderCategory?.id === 'uncategorized' ? null : (currentFolderCategory?.id || null),
+        type: viewMode === 'personal' ? 'personal' : 'common',
+        is_public: 0, owner_id: currentUser?.id, status: 'published',
+        // 修改点：无论当前是哪个 mode，只要 attachments 数组里有东西就存进去
+        attachments: JSON.stringify(articleFormData.attachments || [])
       };
+      if (editingArticle) await axios.put(getApiUrl(`/api/knowledge/articles/${editingArticle.id}`), payload);
+      else await axios.post(getApiUrl('/api/knowledge/articles'), payload);
+      setShowArticleModal(false); await fetchArticles(); await fetchPersonalResources(); toast.success('保存成功');
+    } finally { setLoading(false); }
+  };
 
-      const response = await axios.post(getApiUrl('/api/knowledge/articles'), payload);
-      if (response.data && response.data.id) {
-        toast.success('文档创建成功');
-        setShowCreateArticleModal(false);
-        setCreatingCategory(null);
-        setEditingArticle(null);
-        setArticleFormData({
-          title: '',
-          category_id: '',
-          summary: '',
-          content: '',
-          type: 'personal',
-          status: 'published',
-          icon: '📄',
-          attachments: []
-        });
-        fetchArticles();
+  const handlePreview = (article) => {
+    const rawAttachments = article.attachments || article.attachment || article.file_url || article.path || article.files || article.url || '[]';
+    const atts = parseAttachments(rawAttachments);
+
+    if (atts.length > 0) {
+      const f = atts[0]; 
+      const fileName = f.name || '';
+      const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+      const finalUrl = getAttachmentUrl(f.url);
+      
+      // 仅保留浏览器能直接显示的格式
+      const directlyPreviewable = ['pdf','jpg','jpeg','png','gif','mp4','webm','ogg','mp3','wav','txt','md'];
+      
+      if (directlyPreviewable.includes(ext)) {
+        setPreviewData({ ...article, url: finalUrl, ext, mode: 'direct' });
+      } else {
+        // 其他所有格式（Office, Zip 等）点击直接下载
+        const link = document.createElement('a');
+        link.href = finalUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.info(`正在下载: ${fileName}`);
       }
-    } catch (error) {
-      console.error('创建文档失败:', error);
-      toast.error('创建文档失败: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 新建分类处理函数
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) {
-      toast.error('请输入分类名称');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await axios.post(getApiUrl('/api/knowledge/categories'), {
-        name: newCategoryName,
-        description: '',
-        icon: '\ud83d\udcc1',
-        owner_id: getCurrentUserId(),
-        type: 'common',
-        is_public: 0
-      });
-
-      if (response.data && response.data.id) {
-        toast.success('分类创建成功');
-        setShowCreateCategoryModal(false);
-        setNewCategoryName('');
-        fetchCategories(); // 重新获取分类列表
-      }
-    } catch (error) {
-      console.error('创建分类失败:', error);
-      toast.error('创建分类失败: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 打开删除分类模态框
-  const handleDeleteCategory = (categoryId) => {
-    const categoryArticles = articles.filter(a => a.category_id == categoryId);
-    const target = categories.find(c => c.id === categoryId) || null;
-    setCategoryToDelete(target);
-    setDeleteCategoryArticleCount(categoryArticles.length);
-    setShowDeleteCategoryModal(true);
-  };
-
-  // 确认删除分类（软删除到回收站）
-  const confirmDeleteCategory = async () => {
-    if (!categoryToDelete) return;
-    try {
-      await axios.post(getApiUrl(`/api/knowledge/categories/${categoryToDelete.id}/soft-delete`));
-      toast.success('分类已移至回收站');
-      setShowDeleteCategoryModal(false);
-      setCategoryToDelete(null);
-      setDeleteCategoryArticleCount(0);
-      fetchCategories();
-      fetchArticles();
-    } catch (error) {
-      console.error('删除分类失败:', error);
-      toast.error('删除分类失败: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  // 处理分类显示/隐藏
-  const handleToggleCategoryVisibility = async (categoryId, isHidden) => {
-    try {
-      await axios.post(getApiUrl(`/api/knowledge/categories/${categoryId}/toggle-visibility`), { is_hidden: isHidden });
-      toast.success(isHidden === 1 ? '分类已隐藏' : '分类已显示');
-      // 重新获取分类列表
-      fetchCategories();
-    } catch (error) {
-      console.error('更新分类可见性失败:', error);
-      toast.error('操作失败');
-    }
-  };
-
-  // 处理分类公开/不公开
-  const handleToggleCategoryPublic = async (categoryId, isPublic) => {
-    try {
-      await axios.put(getApiUrl(`/api/knowledge/categories/${categoryId}`), { is_public: isPublic });
-      toast.success(isPublic === 1 ? '分类已公开（含文档）' : '分类已设为不公开');
-      // 公开状态影响文章在公共知识库的展示，这里也刷新文章
-      fetchCategories();
-      fetchArticles();
-    } catch (error) {
-      console.error('更新分类公开状态失败:', error);
-      toast.error('操作失败');
-    }
-  };
-
-  /// 处理文档公开/不公开
-  const handleToggleArticlePublic = async (article, isPublic) => {
-    try {
-      const articleRes = await axios.get(getApiUrl(`/api/knowledge/articles/${article.id}`));
-      const articleData = articleRes.data;
-
-      // 只验证 title,content 可以为空(文档可能只有附件)
-      if (!articleData.title) {
-        toast.error('文档数据不完整,无法更新');
-        return;
-      }
-
-      // 确保 content 字段存在(即使为空字符串)
-      if (articleData.content === undefined || articleData.content === null) {
-        articleData.content = '';
-      }
-
-      await axios.put(getApiUrl(`/api/knowledge/articles/${article.id}`), {
-        ...articleData,
-        is_public: isPublic
-      });
-      toast.success(isPublic === 1 ? '文档已公开' : '文档已设为不公开');
-      fetchArticles();
-    } catch (error) {
-      console.error('更新文档公开状态失败:', error);
-      console.error('Error response:', error.response?.data);
-      toast.error('操作失败: ' + (error.response?.data?.error || error.message));
-    }
-  };
-  // 按分类分组文档
-  const articlesByCategory = {};
-  const uncategorizedArticles = [];
-  articles.forEach(article => {
-    const t = String(article.title || '').toLowerCase();
-    const s = String(article.summary || '').toLowerCase();
-    const q = String(searchTerm || '').toLowerCase();
-    const matchesSearch = t.includes(q) || s.includes(q);
-    if (!matchesSearch) return;
-    if (article.category_id) {
-      if (!articlesByCategory[article.category_id]) {
-        articlesByCategory[article.category_id] = [];
-      }
-      articlesByCategory[article.category_id].push(article);
     } else {
-      uncategorizedArticles.push(article);
-    }
-  });
-  // 右键菜单处理函数
-  const handleContextMenu = (e, type, data) => {
-    e.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      type,
-      data
-    });
-  };
-
-  const handleContextMenuClose = () => {
-    setContextMenu({
-      visible: false,
-      x: 0,
-      y: 0,
-      type: '',
-      data: null
-    });
-  };
-
-  const handleContextMenuAction = (item) => {
-    if (contextMenu.type === 'folder') {
-      switch (item.actionType) {
-        case 'toggleVisibility':
-          handleToggleCategoryVisibility(contextMenu.data.id, contextMenu.data.is_hidden === 0 ? 1 : 0);
-          break;
-        case 'togglePublic':
-          handleToggleCategoryPublic(contextMenu.data.id, contextMenu.data.is_public === 1 ? 0 : 1);
-          break;
-        case 'rename':
-          openRenameCategoryModal(contextMenu.data);
-          break;
-        case 'addArticle':
-          openCreateArticleModalFromCategory(contextMenu.data);
-          break;
-        case 'delete':
-          handleDeleteCategory(contextMenu.data.id);
-          break;
-        default:
-          break;
-      }
-    } else if (contextMenu.type === 'file') {
-      switch (item.actionType) {
-        case 'preview': {
-          const article = contextMenu.data;
-          const attachments = parseAttachments(article.attachments);
-          if (attachments.length === 1) {
-            const file = attachments[0];
-            const fileType = inferFileType(file);
-            const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
-            if (isPreviewable) {
-              setAttachmentToPreview(file);
-            } else {
-              setNonPreviewableFile(file);
-            }
-          } else {
-            setPreviewFile(article);
-          }
-          break;
-        }
-        case 'move': {
-          const article = contextMenu.data;
-          setArticleToMove(article);
-          setMoveTargetCategory(article?.category_id || '');
-          setShowMoveArticleModal(true);
-          break;
-        }
-        case 'delete': {
-          const article = contextMenu.data;
-          if (!article) break;
-          setArticleToDelete(article);
-          setShowDeleteArticleModal(true);
-          break;
-        }
-        case 'togglePublic': {
-          const article = contextMenu.data;
-          if (!article) break;
-          handleToggleArticlePublic(article, article.is_public === 1 ? 0 : 1);
-          break;
-        }
-        default:
-          break;
-      }
-    } else if (contextMenu.type === 'background') {
-      switch (item.actionType) {
-        case 'newCategory':
-          setShowCreateCategoryModal(true);
-          break;
-        default:
-          break;
-      }
+      // 笔记模式：没有附件，直接显示正文内容
+      setPreviewData({ ...article, url: null, ext: 'md', mode: 'note' });
     }
   };
 
-  // 确认删除文档（软删除到回收站）
-  const confirmDeleteArticle = async () => {
-    if (!articleToDelete) return;
+  const handleContextMenu = (e, type, data) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type, data }); };
+
+  const deleteSingleArticle = async (id) => {
     try {
-      await axios.post(getApiUrl(`/api/knowledge/articles/${articleToDelete.id}/soft-delete`));
-      toast.success('文档已移至回收站');
-      setShowDeleteArticleModal(false);
-      setArticleToDelete(null);
-      fetchArticles();
-    } catch (error) {
-      console.error('删除文档失败:', error);
-      toast.error('删除文档失败: ' + (error.response?.data?.message || error.message));
-    }
+        setLoading(true);
+        await axios.delete(getApiUrl(`/api/knowledge/articles/${id}`));
+        toast.success(viewMode === 'personal' ? '已取消收藏' : '已彻底删除');
+        await fetchArticles();
+        await fetchPersonalResources();
+    } catch(e) { toast.error('操作失败'); }
+    finally { setLoading(false); setConfirmModal(prev => ({ ...prev, visible: false })); }
   };
-
-  // 回收站数据加载
-  const fetchRecycleBinData = async () => {
-    setRecycleLoading(true);
-    try {
-      const [catRes, artRes] = await Promise.all([
-        axios.get(getApiUrl('/api/knowledge/recycle-bin/categories')),
-        axios.get(getApiUrl('/api/knowledge/recycle-bin/articles'))
-      ]);
-      setRecycleCategories(Array.isArray(catRes.data) ? catRes.data : (catRes.data?.data || []));
-      setRecycleArticles(Array.isArray(artRes.data) ? artRes.data : (artRes.data?.data || []));
-    } catch (error) {
-      console.error('加载回收站数据失败:', error);
-      toast.error('加载回收站数据失败');
-    } finally {
-      setRecycleLoading(false);
-    }
-  };
-
-  const openRecycleBin = () => {
-    setShowRecycleBin(true);
-    fetchRecycleBinData();
-  };
-
-  const closeRecycleBin = () => {
-    setShowRecycleBin(false);
-    setRecycleContextMenu({ visible: false, x: 0, y: 0, type: '', data: null });
-  };
-
-  const handleRecycleContextMenu = (e, type, data) => {
-    e.preventDefault();
-    setRecycleContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      type,
-      data
-    });
-  };
-
-  const handleRecycleContextMenuClose = () => {
-    setRecycleContextMenu({ visible: false, x: 0, y: 0, type: '', data: null });
-  };
-
-  const handleRecycleContextMenuAction = async (item) => {
-    const target = recycleContextMenu.data;
-    if (!target) return;
-    try {
-      if (recycleContextMenu.type === 'category') {
-        if (item.actionType === 'restore') {
-          await axios.post(getApiUrl(`/api/knowledge/recycle-bin/categories/${target.id}/restore`), {
-            restoreArticles: true
-          });
-          toast.success('分类及其文档已还原');
-        }
-      } else if (recycleContextMenu.type === 'article') {
-        if (item.actionType === 'restore') {
-          await axios.post(getApiUrl(`/api/knowledge/recycle-bin/articles/${target.id}/restore`));
-          toast.success('文档已还原');
-        }
-      }
-
-      handleRecycleContextMenuClose();
-      fetchRecycleBinData();
-      // 同步主列表
-      fetchCategories();
-      fetchArticles();
-    } catch (error) {
-      console.error('回收站操作失败:', error);
-      toast.error('回收站操作失败: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  // 处理背景右键菜单（当前不打开自定义菜单，保留浏览器默认菜单）
-  const handleBackgroundContextMenu = (e) => {
-    // 只在真正点击背景时才处理；当前需求下不拦截，让浏览器默认菜单生效
-    if (e.target !== e.currentTarget) return;
-  };
-
-  // 关闭文件夹视图
-  const closeFolderView = () => {
-    setCurrentFolderCategory(null);
-    setCurrentPage(1);
-  };
-
-  // 分类排序与过滤（外层）
-  const sortedCategories = [...categories].sort((a, b) => {
-    if (sortBy === 'name') {
-      const aName = String(a.name || '').toLowerCase();
-      const bName = String(b.name || '').toLowerCase();
-      return sortOrder === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName);
-    }
-    return 0;
-  });
-
-  const filteredCategories = sortedCategories.filter(category => {
-    const q = String(searchTerm || '').toLowerCase();
-    if (!q) return true;
-    const inName = String(category.name || '').toLowerCase().includes(q);
-    const catArticles = articlesByCategory[category.id] || [];
-    const inArticles = catArticles.some(article => {
-      const t = String(article.title || '').toLowerCase();
-      const s = String(article.summary || '').toLowerCase();
-      return t.includes(q) || s.includes(q);
-    });
-    return inName || inArticles;
-  });
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-100">
-      {/* 顶部操作栏 */}
-      <div className="mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          {/* Left Side: Title and Search */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto flex-1">
-            <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2 flex-shrink-0">
-              <span className="text-xl">📂</span>
-              知识文档
-            </h1>
-
-            {/* Search Box */}
-            <div className="relative flex-1 w-full sm:w-64 max-w-md">
-              <input
-                type="text"
-                placeholder={currentFolderCategory
-                  ? `在 ${currentFolderCategory.name} 中搜索...`
-                  : '搜索所有文档...'}
-                value={currentFolderCategory ? folderSearchTerm : searchTerm}
-                onChange={(e) => {
-                  if (currentFolderCategory) {
-                    setFolderSearchTerm(e.target.value);
-                  } else {
-                    setSearchTerm(e.target.value);
-                  }
-                  // Reset pagination if needed
-                  if (currentFolderCategory) {
-                    setCurrentPage(1);
-                  } else {
-                    setCategoryCurrentPage(1);
-                  }
-                }}
-                className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
-              />
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
-                🔍
-              </div>
+    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 8 } }}>
+    <div className="p-4 bg-[#f8fafc] min-h-screen select-none" onContextMenu={e => handleContextMenu(e, 'background', null)}>
+      <div className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-sm p-3 mb-4 sticky top-0 z-50">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 pl-2">
+            {currentFolderCategory && <button onClick={(e) => { e.stopPropagation(); setCurrentFolderCategory(null); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 font-bold transition-all">←</button>}
+            <div className="flex flex-col">
+              <h1 className="text-sm font-black text-gray-800 flex items-center gap-2"><span>{config.icon}</span>{currentFolderCategory ? currentFolderCategory.name : config.title}</h1>
+              {!currentFolderCategory && <span className={`text-[8px] font-black uppercase tracking-tighter text-${config.theme}-500`}>{config.label}</span>}
             </div>
           </div>
-
-          {/* Right Side: Page Size, View Mode, Actions */}
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
-            {/* Page Size Selector */}
-            <select
-              value={currentFolderCategory ? pageSize : categoryPageSize}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                if (currentFolderCategory) {
-                  setPageSize(val);
-                  setCurrentPage(1);
-                } else {
-                  setCategoryPageSize(val);
-                  setCategoryCurrentPage(1);
-                }
-              }}
-              className="border-gray-300 rounded-md text-sm px-2 py-1.5 bg-white hover:bg-gray-50 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value={10}>10 / 页</option>
-              <option value={20}>20 / 页</option>
-              <option value={30}>30 / 页</option>
-              <option value={50}>50 / 页</option>
-            </select>
-
-            {/* View Mode Buttons */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border border-gray-200">
-              <button
-                onClick={() => currentFolderCategory ? setViewMode('card') : setCategoryViewMode('card')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  (currentFolderCategory ? viewMode : categoryViewMode) === 'card'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-                title="卡片视图"
-              >
-                卡片
-              </button>
-              <button
-                onClick={() => currentFolderCategory ? setViewMode('list') : setCategoryViewMode('list')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  (currentFolderCategory ? viewMode : categoryViewMode) === 'list'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-                title="列表视图"
-              >
-                列表
-              </button>
-            </div>
-
-            {/* Actions: Add & Recycle Bin */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (currentFolderCategory) {
-                    setShowCreateArticleModal(true);
-                    setCreatingCategory(currentFolderCategory);
-                  } else {
-                    setShowCreateCategoryModal(true);
-                  }
-                }}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium whitespace-nowrap"
-              >
-                {currentFolderCategory ? '添加文档' : '添加分类'}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowRecycleBin(!showRecycleBin);
-                  if (!showRecycleBin) fetchRecycleBinData();
-                }}
-                className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1 transition-colors border ${
-                  showRecycleBin
-                    ? 'bg-blue-50 text-blue-600 border-blue-200'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-                title="回收站"
-              >
-                <span>🗑️</span>
-                <span className="hidden sm:inline">回收站</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 主内容区域 */}
-      <div className="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden" onContextMenu={handleBackgroundContextMenu}>
-        {showRecycleBin ? (
-          // 回收站视图
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <span className="text-2xl">🗑️</span>
-                回收站
-              </h2>
-              <button
-                onClick={async () => {
-                  if (!window.confirm('清空回收站后数据将无法恢复，确定要继续吗？')) return;
-                  try {
-                    await axios.post(getApiUrl('/api/knowledge/recycle-bin/empty'), { type: 'all' });
-                    toast.success('已清空回收站');
-                    await fetchRecycleBinData();
-                    await fetchCategories();
-                    await fetchArticles();
-                  } catch (error) {
-                    console.error('清空回收站失败:', error);
-                    toast.error('清空回收站失败');
-                  }
-                }}
-                className="px-3 py-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 text-sm flex items-center gap-1 border border-red-200 transition-colors"
-              >
-                🗑️ 清空回收站
-              </button>
-            </div>
-
-            {recycleLoading ? (
-              <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              </div>
-            ) : (
+          <div className="flex gap-2 items-center">
+            <div className="relative group"><input type="text" placeholder="快速检索..." value={debouncedSearchTerm} onChange={e => setDebouncedSearchTerm(e.target.value)} className="w-40 px-8 py-1.5 bg-slate-100 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500 font-bold transition-all" /><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" /></div>
+            {canManage && (
               <>
-                {/* 已删除的分类 */}
-                {recycleCategories.length > 0 && (
-                  <div className="mb-8">
-                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的分类</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {recycleCategories.map(category => (
-                        <div key={category.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm opacity-75 hover:opacity-100 transition-opacity">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-2xl">{category.icon || '📁'}</span>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-gray-900 truncate">{category.name}</h4>
-                              <p className="text-xs text-gray-500">
-                                删除时间: {formatDate(category.deleted_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await axios.post(getApiUrl(`/api/knowledge/recycle-bin/categories/${category.id}/restore`), { restoreArticles: true });
-                                  toast.success('分类及其文档已还原');
-                                  fetchRecycleBinData();
-                                  fetchCategories();
-                                  fetchArticles();
-                                } catch (error) {
-                                  console.error('还原失败:', error);
-                                  toast.error('还原失败');
-                                }
-                              }}
-                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
-                            >
-                              恢复
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (!window.confirm('确定要永久删除吗？此操作不可撤销！')) return;
-                                try {
-                                  await axios.delete(getApiUrl(`/api/knowledge/recycle-bin/categories/${category.id}/permanent`));
-                                  toast.success('永久删除成功');
-                                  fetchRecycleBinData();
-                                } catch (error) {
-                                  console.error('永久删除失败:', error);
-                                  toast.error('永久删除失败');
-                                }
-                              }}
-                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
-                            >
-                              彻底删除
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 已删除的文档 */}
-                {recycleArticles.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">已删除的文档</h3>
-                    <div className="space-y-2">
-                      {recycleArticles.map(article => (
-                        <div key={article.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity">
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <span className="text-xl">{article.icon || '📄'}</span>
-                            <div className="min-w-0">
-                              <h4 className="font-medium text-gray-900 truncate">{article.title}</h4>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>原分类: {article.category_name || '未分类'}</span>
-                                <span>•</span>
-                                <span>删除时间: {formatDate(article.deleted_at)}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await axios.post(getApiUrl(`/api/knowledge/recycle-bin/articles/${article.id}/restore`));
-                                  toast.success('文档已还原');
-                                  fetchRecycleBinData();
-                                  fetchCategories();
-                                  fetchArticles();
-                                } catch (error) {
-                                  console.error('还原失败:', error);
-                                  toast.error('还原失败');
-                                }
-                              }}
-                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
-                            >
-                              恢复
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (!window.confirm('确定要永久删除吗？此操作不可撤销！')) return;
-                                try {
-                                  await axios.delete(getApiUrl(`/api/knowledge/recycle-bin/articles/${article.id}/permanent`));
-                                  toast.success('永久删除成功');
-                                  fetchRecycleBinData();
-                                } catch (error) {
-                                  console.error('永久删除失败:', error);
-                                  toast.error('永久删除失败');
-                                }
-                              }}
-                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
-                            >
-                              彻底删除
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {recycleCategories.length === 0 && recycleArticles.length === 0 && (
-                  <div className="text-center py-20 text-gray-400">
-                    <span className="text-6xl block mb-4 opacity-50">🗑️</span>
-                    <p className="text-lg">回收站是空的</p>
-                  </div>
-                )}
+                {!currentFolderCategory ? <button onClick={() => { setEditingCategory(null); setNewCategoryName(''); setShowCreateCategoryModal(true); }} className="bg-white border border-slate-200 text-slate-600 text-[10px] font-black px-4 py-1.5 rounded-xl hover:bg-slate-50 transition-all active:scale-95">+ 创建分类</button>
+                : <button onClick={() => { setEditingArticle(null); setArticleFormData({title:'', content:'', attachments:[], mode:'file'}); setShowArticleModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black px-4 py-1.5 rounded-xl shadow-md active:scale-95 transition-all">+ 新建文档</button>}
               </>
             )}
           </div>
-        ) : currentFolderCategory ? (
-          // 文件夹内容视图
-          <div className="flex-1 flex flex-col h-full" onContextMenu={handleBackgroundContextMenu}>
-            {/* 文件夹头部 */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={closeFolderView}
-                  className="p-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-                  title="返回上一级"
-                >
-                  <span className="hidden sm:inline">返回</span>
-                </button>
-                <div className="w-14 h-14 flex items-center justify-center rounded-md bg-gray-100 text-gray-700 text-4xl flex-shrink-0">📂</div>
-                <h2 className="text-xl font-semibold">{currentFolderCategory.name}</h2>
-              </div>
-            </div>
+        </div>
 
-            {/* 文件列表 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <p className="mt-2 text-gray-600">加载中...</p>
-                  </div>
-                </div>
-              ) : getPaginatedArticles().length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                  <div className="text-6xl mb-4">📭</div>
-                  <p className="text-gray-500">
-                    {folderSearchTerm ? '没有找到匹配的文档' : '此文件夹为空'}
-                  </p>
-                </div>
-              ) : (
-                viewMode === 'card' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {getPaginatedArticles().map(article => {
-                      const firstAttachment = parseAttachments(article.attachments)[0];
-                      const resolvedType = inferFileType(firstAttachment);
-                      return (
-                        <div
-                          key={article.id}
-                          className={`p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center border rounded-lg shadow-sm ${
-                            article.is_public === 1
-                              ? 'bg-green-50 border-green-200'
-                              : 'bg-white border-gray-200'
-                          }`}
-                          onContextMenu={(e) => handleContextMenu(e, 'file', article)}
-                          onClick={() => {
-                            const attachments = parseAttachments(article.attachments);
-                            if (attachments.length === 1) {
-                                const file = attachments[0];
-                                const fileType = inferFileType(file);
-                                const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
-                                if (isPreviewable) {
-                                    setAttachmentToPreview(file);
-                                } else {
-                                    setNonPreviewableFile(file);
-                                }
-                            } else {
-                                setPreviewFile(article);
-                            }
-                          }}
-                        >
-                          <div className="text-5xl mb-3 transform hover:scale-110 transition-transform duration-200">
-                            {getFileIcon(resolvedType)}
-                          </div>
-                          <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">
-                            {article.title}
-                          </h3>
-                          {firstAttachment && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {getFileTypeName(resolvedType)}
-                            </div>
-                          )}
-                          {article.notes && (
-                            <div className="mt-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                              💡 有笔记
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {getPaginatedArticles().map(article => {
-                      const firstAttachment = parseAttachments(article.attachments)[0];
-                      const resolvedType = inferFileType(firstAttachment);
-                      return (
-                        <div
-                          key={article.id}
-                          className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-200 rounded-lg shadow-sm"
-                          onContextMenu={(e) => handleContextMenu(e, 'file', article)}
-                          onClick={() => {
-                            const attachments = parseAttachments(article.attachments);
-                            if (attachments.length === 1) {
-                                const file = attachments[0];
-                                const fileType = inferFileType(file);
-                                const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
-                                if (isPreviewable) {
-                                    setAttachmentToPreview(file);
-                                } else {
-                                    setNonPreviewableFile(file);
-                                }
-                            } else {
-                                setPreviewFile(article);
-                            }
-                          }}
-                        >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="text-xl flex-shrink-0">{article.icon || getFileIcon(article.type)}</span>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-medium text-gray-900 truncate text-sm flex items-center gap-2">
-                              {article.title}
-                              {article.is_public === 1 ? (
-                                <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex-shrink-0" title="已公开">🌐 公开</span>
-                              ) : (
-                                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 flex-shrink-0" title="未公开">🔒 私有</span>
-                              )}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                              <span>{formatFileSize(article.size || 0)}</span>
-                              <span>•</span>
-                              <span>{formatDate(article.created_at)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )
+        {selectedArticleIds.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between px-2 animate-in slide-in-from-top-1">
+            <div className="flex items-center gap-3"><span className="text-[11px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 flex items-center gap-2"><CheckCircle2 size={12} /> 已选 {selectedArticleIds.length} 篇文档</span><button onClick={() => setSelectedArticleIds([])} className="text-[10px] font-black text-slate-400 hover:text-slate-600 px-2 transition-colors">取消选择</button></div>
+            <div className="flex gap-2 relative">
+              {viewMode === 'public' && <button onClick={() => handleOpenSaveToModal(articles.filter(a => selectedArticleIds.includes(a.id)))} className="text-[10px] font-black px-4 py-1.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 border border-amber-100 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"><Star size={12} fill="currentColor" /> 批量存入我的库</button>}
+              {canManage && (
+                <>
+                    {viewMode === 'management' && <><button onClick={() => handleBatchVisibility(1)} className="text-[10px] font-black px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 border border-emerald-100 transition-all active:scale-95 flex items-center gap-1.5"><Globe size={12} /> 一键公开</button><button onClick={() => handleBatchVisibility(0)} className="text-[10px] font-black px-4 py-1.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 border border-slate-200 transition-all active:scale-95 flex items-center gap-1.5"><Lock size={12} /> 设为私密</button></>}
+                    <div className="relative"><button onClick={() => setIsMoveMenuOpen(!isMoveMenuOpen)} className="text-[10px] font-black px-4 py-1.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-100 transition-all active:scale-95 flex items-center gap-1.5"><Move size={12} /> 批量移动 ▾</button>
+                    {isMoveMenuOpen && <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-2xl py-2 z-[100] max-h-60 overflow-y-auto animate-in fade-in zoom-in-95"><button onClick={() => handleMoveArticles(null)} className="w-full text-left px-4 py-2 text-[11px] hover:bg-blue-50 font-bold text-blue-600 border-b border-slate-50 flex items-center gap-2">📁 移至根目录</button>{categories.map(c => <button key={c.id} onClick={() => handleMoveArticles(c.id)} className="w-full text-left px-4 py-2 text-[11px] hover:bg-slate-50 text-slate-600 flex items-center gap-2 truncate">{c.is_public?'🌐':'🔒'} {c.name}</button>)}</div>}</div>
+                    <button onClick={handleBatchDelete} className="text-[10px] font-black px-4 py-1.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 border border-rose-100 transition-all active:scale-95 flex items-center gap-1.5"><Trash2 size={12} /> {viewMode === 'personal' ? '一键取消' : '一键删除'}</button>
+                </>
               )}
             </div>
-
-            {/* 分页 */}
-            {getTotalPages() > 1 && (
-              <div className="p-4 border-t border-gray-200 bg-gray-50">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-600">
-                      共 {getCurrentFolderArticles().length} 个文档，第 {currentPage} / {getTotalPages()} 页
-                    </div>
-                    <select
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
-                    >
-                      <option value={10}>10 / 页</option>
-                      <option value={20}>20 / 页</option>
-                      <option value={30}>30 / 页</option>
-                      <option value={50}>50 / 页</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      首页
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      上一页
-                    </button>
-
-                    {[...Array(Math.min(5, getTotalPages()))].map((_, i) => {
-                      let pageNum;
-                      const totalPages = getTotalPages();
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 border rounded text-sm ${ currentPage === pageNum
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-gray-300 hover:bg-gray-100'}`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(getTotalPages(), p + 1))}
-                      disabled={currentPage === getTotalPages()}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      下一页
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(getTotalPages())}
-                      disabled={currentPage === getTotalPages()}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      末页
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          // 主文件夹视图
-          <div className="flex-1 flex flex-col" onContextMenu={handleBackgroundContextMenu}>
-            {/* 文件夹网格 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <p className="mt-2 text-gray-600">加载中...</p>
-                  </div>
-                </div>
-              ) : categories.length === 0 && uncategorizedArticles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                  <div className="text-6xl mb-4">📁</div>
-                  <p className="text-gray-500">暂无文件夹</p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    在浏览知识库中点击"收藏"按钮即可添加到我的知识库
-                  </p>
-                </div>
-              ) : (
-                categoryViewMode === 'card' ? ( // Use categoryViewMode here
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {/* 分类文件夹 */}
-                    {filteredCategories
-                      .filter(cat => cat.status !== 'draft')
-                      .map(category => {
-                        const categoryArticles = articlesByCategory[category.id] || [];
-                        if (searchTerm && categoryArticles.length === 0 && !String(category.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())) return null;
-                        return (
-                          <div
-                            key={category.id}
-                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
-                            onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
-                            onClick={() => handleOpenFolder(category)}
-                          >
-                            {category.is_public !== 1 && (
-                              <div className="absolute inset-0 bg-white/60 rounded-lg pointer-events-none" />
-                            )}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleCategoryVisibility(category.id, category.is_hidden === 1 ? 0 : 1);
-                              }}
-                              className="text-xs p-1 rounded hover:bg-gray-200"
-                              title={category.is_hidden === 1 ? '公开分类' : '不公开分类'}
-                            >
-                              {category.is_hidden === 1 ? '🌐' : '🔒'}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteCategory(category.id);
-                              }}
-                              className="text-xs p-1 rounded hover:bg-gray-200 text-red-500"
-                              title="删除分类"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                          <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded-full border bg-white/70">
-                            {category.is_public === 1 ? '🌐 公开' : '🔒 私有'}
-                          </div>
-                          <div className="w-24 h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 text-6xl mb-3">📂</div>
-                          <h3 className="font-medium text-gray-900 text-center line-clamp-2 text-base">{category.name}</h3>
-                        </div>
-                        );
-                      })}
-
-                    {/* 未分类文档 */}
-                    {uncategorizedArticles.length > 0 && (
-                      <div
-                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex flex-col items-center relative border border-gray-100 rounded-lg"
-                        onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂' })}
-                        onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂' })}
-                      >
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toast.info('未分类文件夹不能隐藏');
-                            }}
-                            className="text-xs p-1 rounded hover:bg-gray-200 cursor-not-allowed"
-                            title="未分类文件夹不能隐藏"
-                          >
-                            🔒
-                          </button>
-                        </div>
-                        <div className="text-7xl mb-3">📂</div>
-                        <h3 className="font-medium text-gray-900 text-center text-base">未分类</h3>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* 分类文件夹 */}
-                    {filteredCategories
-                      .filter(cat => cat.status !== 'draft')
-                      .map(category => {
-                        const categoryArticles = articlesByCategory[category.id] || [];
-                        if (searchTerm && categoryArticles.length === 0 && !String(category.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())) return null;
-                        return (
-                          <div
-                            key={category.id}
-                            className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg relative"
-                            onContextMenu={(e) => handleContextMenu(e, 'folder', category)}
-                            onClick={() => handleOpenFolder(category)}
-                          >
-                            {category.is_public !== 1 && (
-                              <div className="absolute inset-0 bg-white/60 rounded-lg pointer-events-none" />
-                            )}
-                            <div className="text-5xl flex-shrink-0">📂</div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 truncate">{category.name}</h3>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                    {/* 未分类文档 */}
-                    {uncategorizedArticles.length > 0 && (
-                      <div
-                        className="bg-white p-4 hover:bg-gray-50 transition-all cursor-pointer group flex items-center gap-4 border border-gray-100 rounded-lg"
-                        onClick={() => handleOpenFolder({ id: 'uncategorized', name: '未分类', icon: '📂' })}
-                        onContextMenu={(e) => handleContextMenu(e, 'folder', { id: 'uncategorized', name: '未分类', icon: '📂' })}
-                      >
-                        <div className="text-4xl flex-shrink-0">📂</div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate">未分类</h3>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* Category Pagination */}
-            {categoryTotalPages > 1 && (
-              <div className="p-4 border-t border-gray-200 bg-gray-50">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-600">
-                      共 {totalCategoryItems} 个分类，第 {categoryCurrentPage} / {categoryTotalPages} 页
-                    </div>
-                    <select
-                      value={categoryPageSize}
-                      onChange={(e) => setCategoryPageSize(Number(e.target.value))}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm bg-white"
-                    >
-                      <option value={5}>5 / 页</option>
-                      <option value={10}>10 / 页</option>
-                      <option value={20}>20 / 页</option>
-                      <option value={30}>30 / 页</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => setCategoryCurrentPage(1)}
-                      disabled={categoryCurrentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      首页
-                    </button>
-                    <button
-                      onClick={() => setCategoryCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={categoryCurrentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      上一页
-                    </button>
-
-                    {[...Array(Math.min(5, categoryTotalPages))].map((_, i) => {
-                      let pageNum;
-                      const totalPages = categoryTotalPages;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (categoryCurrentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (categoryCurrentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = categoryCurrentPage - 2 + i;
-                      }
-
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setCategoryCurrentPage(pageNum)}
-                          className={`px-3 py-1 border rounded text-sm ${ categoryCurrentPage === pageNum
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-gray-300 hover:bg-gray-100'}`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      onClick={() => setCategoryCurrentPage(p => Math.min(categoryTotalPages, p + 1))}
-                      disabled={categoryCurrentPage === categoryTotalPages}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      下一页
-                    </button>
-                    <button
-                      onClick={() => setCategoryCurrentPage(categoryTotalPages)}
-                      disabled={categoryCurrentPage === categoryTotalPages}
-                      className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      末页
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      {/* 文档预览模态框 */}
-      {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-4">
-          <div className={`bg-white rounded-xl shadow-2xl w-full ${previewModalWidth} ${previewModalHeight} flex flex-col`}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-900 truncate">{previewFile.title}</h2>
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-700">
-                  <span className="flex items-center gap-1">📁 {previewFile.category_name || '未分类'}</span>
-                  <span className="flex items-center gap-1">📅 {formatDate(previewFile.created_at)}</span>
-                  <span className="flex items-center gap-1">👁️ {previewFile.view_count || 0}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedArticleToSave(previewFile);
-                    setShowSaveToMyKnowledgeModal(true);
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-all shadow-md"
-                  title="添加到我的知识库"
-                >
-                  <span>📥</span>
-                  <span className="hidden sm:inline">添加到我的知识库</span>
-                </button>
-                {/* 调整宽高按钮 */}
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => {
-                      const widths = ['max-w-2xl', 'max-w-4xl', 'max-w-5xl', 'max-w-6xl', 'max-w-7xl', 'w-full'];
-                      const currentIndex = widths.indexOf(previewModalWidth);
-                      const nextIndex = (currentIndex + 1) % widths.length;
-                      setPreviewModalWidth(widths[nextIndex]);
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-sm"
-                    title="调整宽度"
-                  >
-                    ↔️
-                  </button>
-                  <button
-                    onClick={() => {
-                      const heights = ['max-h-[70vh]', 'max-h-[80vh]', 'max-h-[90vh]', 'max-h-[95vh]', 'h-full'];
-                      const currentIndex = heights.indexOf(previewModalHeight);
-                      const nextIndex = (currentIndex + 1) % heights.length;
-                      setPreviewModalHeight(heights[nextIndex]);
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-sm"
-                    title="调整高度"
-                  >
-                    ↕️
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPreviewModalWidth('w-full');
-                      setPreviewModalHeight('h-full');
-                    }}
-                    className="px-3 py-1 text-sm rounded-lg bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md"
-                    title="全屏"
-                  >
-                    全屏
-                  </button>
-                </div>
-                <button
-                  onClick={() => setPreviewFile(null)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-2 text-xl"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 px-2">
+        {!currentFolderCategory ? (
+          <>
+            {categories.map(cat => (<div key={cat.id} onClick={(e) => { e.stopPropagation(); setCurrentFolderCategory(cat); }} onContextMenu={e => handleContextMenu(e, 'folder', cat)} className="bg-white p-6 rounded-2xl border border-transparent shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer flex flex-col items-center group relative z-10"><FolderIcon isUncat={false} isPublic={cat.is_public} mode={viewMode} /><h3 className="text-xs font-black text-slate-700 truncate w-full text-center mt-3">{cat.name}</h3><div className={`mt-2 text-[8px] font-black px-2 py-0.5 rounded-full ${viewMode === 'personal' ? 'text-indigo-600 bg-indigo-50/50' : (cat.is_public?'text-emerald-500 bg-emerald-50':'text-indigo-500 bg-indigo-50')}`}>{viewMode === 'personal' ? '个人专属' : (cat.is_public ? '全员公开':'内部草稿')}</div></div>))}
+            <div onClick={(e) => { e.stopPropagation(); setCurrentFolderCategory({id:'uncategorized', name:'未分类'}); }} className="bg-white p-6 rounded-2xl border border-transparent shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col items-center group opacity-80 z-10"><FolderIcon isUncat={true} /><h3 className="text-xs font-black text-slate-500 truncate w-full text-center mt-3">未分类区域</h3></div>
+          </>
+        ) : (
+          currentArticles.map((a, i) => (<ArticleCard key={a.id} article={a} index={i} mode={viewMode} isSelected={selectedArticleIds.includes(a.id)} isSavedToPersonal={personalArticles.some(p => p.title === a.title)} onToggle={(e, id, idx)=>{e.stopPropagation(); if(e.shiftKey && lastSelectedIndex!==null){const start=Math.min(lastSelectedIndex, idx); const end=Math.max(lastSelectedIndex, idx); setSelectedArticleIds([...new Set([...selectedArticleIds, ...currentArticles.slice(start, end+1).map(x=>x.id)])]);} else { setSelectedArticleIds(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev, id]); setLastSelectedIndex(idx); }}} onContextMenu={handleContextMenu} onPreview={handlePreview} />))
+        )}
+      </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              {previewFile.summary && (
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h3 className="font-semibold text-gray-900 mb-2">摘要</h3>
-                  <p className="text-gray-800">{previewFile.summary}</p>
-                </div>
-              )}
-
-              {previewFile.notes && (
-                <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                    <span>💡</span> 我的笔记
-                  </h3>
-                  <p className="text-gray-800 whitespace-pre-wrap">{previewFile.notes}</p>
-                </div>
-              )}
-
-              <div className="prose max-w-none mb-8">
-                {previewFile.content ? (
-                  <div
-                    className="text-gray-900 whitespace-pre-wrap leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: previewFile.content.replace(/\n/g, '<br/>') }}
-                  />
-                ) : (
-                  <div className="text-gray-600 text-center py-8">
-                    <p>暂无内容</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 附件预览区域 */}
-              {parseAttachments(previewFile.attachments).length > 0 && (
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">📎 附件 ({parseAttachments(previewFile.attachments).length})</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {parseAttachments(previewFile.attachments).map((file, index) => {
-                      const fileType = inferFileType(file);
-                      const isPreviewable = fileType.startsWith('image/') || fileType.startsWith('video/') || fileType.includes('pdf');
-
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
-                          onClick={() => {
-                            if (isPreviewable) {
-                              setAttachmentToPreview(file);
-                            } else {
-                              const link = document.createElement('a');
-                              link.href = getAttachmentUrl(file.url);
-                              link.target = '_blank';
-                              link.download = file.name;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }
-                          }}
-                        >
-                          <div className="text-2xl">
-                            {getFileIcon(fileType)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 truncate">{file.name}</div>
-                            <div className="text-sm text-gray-600">
-                              {formatFileSize(file.size)}
-                            </div>
-                          </div>
-                          <div className="text-blue-600">
-                            {isPreviewable ? '👁️' : '📥'}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t border-gray-200 flex justify-end bg-gray-50">
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
+      {totalPages > 1 && (
+        <div className="mt-8 flex justify-center items-center gap-4 py-4"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage===1} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-20 transition-all hover:bg-slate-50">←</button><span className="text-[10px] font-black text-slate-400">{currentPage} / {totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage===totalPages} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-20 transition-all hover:bg-slate-50">→</button></div>
       )}
 
-            {/* Attachment Preview Modal */}
-
-            {attachmentToPreview && (
-
-              <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[1002] p-4" onClick={() => setAttachmentToPreview(null)}>
-
-                <div className="bg-white rounded-lg shadow-2xl flex flex-col w-full h-full" onClick={(e) => e.stopPropagation()}>
-
-                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-
-                    <h2 className="text-lg font-bold text-gray-900 truncate">{attachmentToPreview.name}</h2>
-
-                    <button
-
-                      onClick={() => setAttachmentToPreview(null)}
-
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-
-                    >
-
-                      ✕
-
-                    </button>
-
-                  </div>
-
-                  <div className="flex-1 overflow-auto bg-gray-200 flex items-center justify-center">
-
-                    {inferFileType(attachmentToPreview).startsWith('image/') && (
-
-                      <img src={getAttachmentUrl(attachmentToPreview.url)} alt={attachmentToPreview.name} className="w-full h-full object-contain" />
-
-                    )}
-
-                    {inferFileType(attachmentToPreview).startsWith('video/') && (
-
-                      <video src={getAttachmentUrl(attachmentToPreview.url)} controls autoPlay className="w-full h-full object-contain" />
-
-                    )}
-
-                    {inferFileType(attachmentToPreview).includes('pdf') && (
-
-                      <iframe src={getAttachmentUrl(attachmentToPreview.url)} className="w-full h-full" title={attachmentToPreview.name} />
-
-                    )}
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            )}
-
-      {/* Win11风格右键菜单 */}
-      <Win11ContextMenu
-        x={contextMenu.x}
-        y={contextMenu.y}
-        visible={contextMenu.visible}
-        onClose={handleContextMenuClose}
-        onAction={handleContextMenuAction}
-        items={
-          contextMenu.type === 'folder'
-            ? [
-                // 公开/不公开（依据 is_public）
-                contextMenu.data && contextMenu.data.is_public === 1
-                  ? { icon: '🔒', label: '不公开', actionType: 'togglePublic' }
-                  : { icon: '🌐', label: '公开', actionType: 'togglePublic' },
-                // 显示/隐藏（依据 is_hidden）
-                contextMenu.data && contextMenu.data.is_hidden === 1
-                  ? { icon: '👁️', label: '显示', actionType: 'toggleVisibility' }
-                  : { icon: '🙈', label: '隐藏', actionType: 'toggleVisibility' },
-                { icon: '✏️', label: '修改名称', actionType: 'rename' },
-                { icon: '➕', label: '添加文档', actionType: 'addArticle' },
-                { icon: '🗑️', label: '删除', actionType: 'delete' }
-              ]
-            : contextMenu.type === 'file'
-            ? [
-              { icon: '👁️', label: '预览', actionType: 'preview' },
-              contextMenu.data && contextMenu.data.is_public === 1
-                ? { icon: '🔒', label: '设为不公开', actionType: 'togglePublic' }
-                : { icon: '🌐', label: '设为公开', actionType: 'togglePublic' },
-              { icon: '📂', label: '移动到', actionType: 'move' },
-              { icon: '🗑️', label: '删除', actionType: 'delete' }
-            ]
-            : []
-        }
+      <Win11ContextMenu x={contextMenu.x} y={contextMenu.y} visible={contextMenu.visible} onClose={()=>setContextMenu({...contextMenu, visible:false})}
+        items={contextMenu.type==='folder' ? (canManage ? [{ icon: '📂', label: '打开目录', action: () => setCurrentFolderCategory(contextMenu.data) },{ icon: '✏️', label: '重命名', action: () => { setEditingCategory(contextMenu.data); setNewCategoryName(contextMenu.data.name); setShowCreateCategoryModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'设为私有':'设为公开', action: async () => { await axios.put(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`), { is_public: contextMenu.data.is_public?0:1 }); fetchCategories(); } }] : []),{ icon: '🗑️', label: '彻底删除', action: () => setConfirmModal({ visible: true, title: '删除分类确认', message: '确认彻底删除该分类及其所有文档吗？', isDanger: true, onConfirm: async () => { await axios.delete(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`)); fetchCategories(); setConfirmModal(prev => ({ ...prev, visible: false })); } }) }] : [{ icon: '📂', label: '打开内容', action: () => setCurrentFolderCategory(contextMenu.data) }]) : contextMenu.type==='file' ? (viewMode === 'public' ? [{ icon: '👁️', label: '极速预览', action: () => handlePreview(contextMenu.data) },{ icon: '⭐', label: '存入个人库', action: () => handleOpenSaveToModal([contextMenu.data]) }] : [{ icon: '👁️', label: '详情预览', action: () => handlePreview(contextMenu.data) },{ icon: '✏️', label: '修改内容', action: () => { setEditingArticle(contextMenu.data); const atts = parseAttachments(contextMenu.data.attachments); setArticleFormData({title:contextMenu.data.title, content:contextMenu.data.content, attachments:atts, mode: atts.length > 0 ? 'file' : 'text'}); setShowArticleModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'撤回私密':'设为公开', action: async () => { await axios.put(getApiUrl(`/api/knowledge/articles/${contextMenu.data.id}`), { ...contextMenu.data, is_public: contextMenu.data.is_public?0:1, status:'published' }); fetchArticles(); } }] : []),{ icon: '🗑️', label: viewMode === 'personal' ? '取消收藏' : '彻底删除', action: () => setConfirmModal({ visible: true, title: viewMode === 'personal' ? '取消收藏确认' : '彻底删除确认', message: viewMode === 'personal' ? '确认从您的个人收藏库中移除此文档吗？' : '确认彻底删除该文档吗？此操作无法撤销。', isDanger: true, onConfirm: () => deleteSingleArticle(contextMenu.data.id) }) }]) : (canManage ? [{ icon: '📁', label: '新建分类', action: () => setShowCreateCategoryModal(true) },{ icon: '📄', label: '新建文档', action: () => setShowArticleModal(true) }] : [])}
       />
 
-      {/* 删除分类确认模态框 */}
-      {showDeleteCategoryModal && categoryToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">删除分类</h2>
-              <button
-                onClick={() => {
-                  setShowDeleteCategoryModal(false);
-                  setCategoryToDelete(null);
-                  setDeleteCategoryArticleCount(0);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-gray-800">
-                确定要删除分类
-                <span className="font-semibold mx-1">{categoryToDelete.name}</span>
-                吗？
-              </p>
-              {deleteCategoryArticleCount > 0 && (
-                <p className="text-sm text-gray-600">
-                  该分类下有 <span className="font-semibold">{deleteCategoryArticleCount}</span> 篇文档，这些文档将随分类一起移至回收站。
-                </p>
-              )}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setShowDeleteCategoryModal(false);
-                    setCategoryToDelete(null);
-                    setDeleteCategoryArticleCount(0);
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDeleteCategory}
-                  disabled={loading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '删除中...' : '确定删除'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 删除文档确认模态框 */}
-      {showDeleteArticleModal && articleToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">删除文档</h2>
-              <button
-                onClick={() => {
-                  setShowDeleteArticleModal(false);
-                  setArticleToDelete(null);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-gray-800">
-                确定要删除文档
-                <span className="font-semibold mx-1">{articleToDelete.title}</span>
-                吗？删除后可以在回收站中恢复。
-              </p>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setShowDeleteArticleModal(false);
-                    setArticleToDelete(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDeleteArticle}
-                  disabled={loading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '删除中...' : '确定删除'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Non-Previewable File Modal */}
-      {nonPreviewableFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">文件操作</h2>
-              <button
-                onClick={() => setNonPreviewableFile(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="text-center space-y-3">
-              <div className="text-5xl">
-                {getFileIcon(inferFileType(nonPreviewableFile))}
-              </div>
-              <p className="font-medium text-gray-900 truncate">{nonPreviewableFile.name}</p>
-              <p className="text-sm text-gray-500">此文件不支持在线预览。</p>
-              <button
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = getAttachmentUrl(nonPreviewableFile.url);
-                  link.target = '_blank';
-                  link.download = nonPreviewableFile.name;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  setNonPreviewableFile(null);
-                }}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-              >
-                <span>📥</span>
-                <span>下载文件</span>
-              </button>
-              <button
-                onClick={() => setNonPreviewableFile(null)}
-                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSaveToMyKnowledgeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">保存到我的知识库</h2>
-              <button
-                onClick={() => {
-                  setShowSaveToMyKnowledgeModal(false);
-                  setSelectedArticleToSave(null);
-                  setTargetCategory('');
-                  setNewCategoryName('');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6">
-              {selectedArticleToSave && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <h3 className="font-medium text-gray-900 truncate">{selectedArticleToSave.title}</h3>
+      {confirmModal.visible && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={()=>setConfirmModal({...confirmModal, visible:false})}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e=>e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-50 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${confirmModal.isDanger?'bg-rose-50 text-rose-600':'bg-blue-50 text-blue-600'}`}><AlertCircle size={20} /></div>
+                    <h3 className="text-sm font-black text-slate-800">{confirmModal.title}</h3>
                 </div>
-              )}
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">选择分类</label>
-                <select
-                  value={targetCategory}
-                  onChange={(e) => setTargetCategory(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">选择现有分类</option>
-                  {myKnowledgeCategories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                  <option value="new">新建分类</option>
-                </select>
-              </div>
-
-              {targetCategory === 'new' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">新分类名称 *</label>
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="请输入分类名称"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                <div className="p-6"><p className="text-xs font-bold text-slate-500 leading-relaxed">{confirmModal.message}</p></div>
+                <div className="p-4 bg-slate-50/50 flex justify-end gap-2">
+                    <button onClick={()=>setConfirmModal({...confirmModal, visible:false})} className="px-4 py-2 text-xs font-black text-slate-400 hover:text-slate-600">放弃</button>
+                    <button onClick={confirmModal.onConfirm} className={`px-6 py-2 rounded-xl text-xs font-black text-white shadow-lg transition-all active:scale-95 ${confirmModal.isDanger?'bg-rose-600 shadow-rose-100':'bg-blue-600 shadow-blue-100'}`}>确认执行</button>
                 </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowSaveToMyKnowledgeModal(false);
-                    setSelectedArticleToSave(null);
-                    setTargetCategory('');
-                    setNewCategoryName('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSaveToMyKnowledge}
-                  disabled={loading || !targetCategory || (targetCategory === 'new' && !newCategoryName.trim())}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '保存中...' : '保存'}
-                </button>
-              </div>
             </div>
-          </div>
         </div>
       )}
 
-      {showMoveArticleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">移动文档到分类</h2>
-              <button
-                onClick={() => {
-                  setShowMoveArticleModal(false);
-                  setArticleToMove(null);
-                  setMoveTargetCategory('');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6">
-              {articleToMove && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <h3 className="font-medium text-gray-900 truncate">{articleToMove.title}</h3>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">目标分类</label>
-                <select
-                  value={moveTargetCategory}
-                  onChange={(e) => setMoveTargetCategory(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">未分类</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowMoveArticleModal(false);
-                    setArticleToMove(null);
-                    setMoveTargetCategory('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleMoveArticle}
-                  disabled={loading || !articleToMove}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '移动中...' : '确定移动'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 重命名分类模态框 */}
-      {showRenameCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">重命名分类</h2>
-              <button
-                onClick={() => {
-                  setShowRenameCategoryModal(false);
-                  setRenamingCategory(null);
-                  setRenameCategoryName('');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  新的分类名称 *
-                </label>
-                <input
-                  type="text"
-                  value={renameCategoryName}
-                  onChange={(e) => setRenameCategoryName(e.target.value)}
-                  placeholder="请输入新的分类名称"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowRenameCategoryModal(false);
-                    setRenamingCategory(null);
-                    setRenameCategoryName('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleRenameCategory}
-                  disabled={loading || !renameCategoryName.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '保存中...' : '保存'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 新建文档模态框 */}
-      {showCreateArticleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <span>{editingArticle ? '编辑文档' : '新建文档'}</span>
-                  {creatingCategory && !editingArticle && (
-                    <span className="text-sm font-normal text-gray-600">（所属分类：{creatingCategory.name}）</span>
-                  )}
-                </h2>
-                <p className="text-xs text-gray-500 mt-1">标题、摘要、内容、类型、状态、图标和附件均可在此配置。</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowCreateArticleModal(false);
-                  setCreatingCategory(null);
-                  setEditingArticle(null);
-                  setArticleFormData({
-                    title: '',
-                    category_id: '',
-                    summary: '',
-                    content: '',
-                    type: 'common',
-                    status: 'published',
-                    icon: '📄',
-                    attachments: []
-                  });
-                }}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
-              {/* 顶部：标题 + 发布状态 */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">标题 *</label>
-                  <input
-                    type="text"
-                    value={articleFormData.title}
-                    onChange={(e) => setArticleFormData(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="请输入文档标题"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">发布状态</label>
-                  <select
-                    value={articleFormData.status}
-                    onChange={(e) => setArticleFormData(prev => ({ ...prev, status: e.target.value }))}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
-                  >
-                    <option value="published">已发布</option>
-                    <option value="draft">草稿</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">附件</label>
-                <div
-                  className="border border-dashed border-gray-300 rounded-lg p-4 bg-white flex flex-col gap-3 text-sm text-gray-600"
-                  onDrop={handleFileDrop}
-                  onDragOver={handleDragOver}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📂</span>
-                      <div>
-                        <div>拖拽文件到此区域即可上传</div>
-                        <div className="text-xs text-gray-400">支持图片、PDF、Office 等常见格式</div>
-                      </div>
-                    </div>
-                    <label className="self-start md:self-auto px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 cursor-pointer inline-flex items-center gap-1">
-                      <span>📎</span>
-                      <span>{uploadingFiles ? '上传中...' : '选择文件'}</span>
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileUpload}
-                        disabled={uploadingFiles}
-                      />
-                    </label>
-                  </div>
-
-                  {articleFormData.attachments && articleFormData.attachments.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {articleFormData.attachments.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between text-xs text-gray-700 bg-gray-50 rounded px-3 py-1.5"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-base">{getFileIcon(inferFileType(file))}</span>
-                            <span className="truncate max-w-xs" title={file.name}>{file.name}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAttachment(index)}
-                            className="text-gray-400 hover:text-red-500 ml-3"
-                          >
-                            ✕
-                          </button>
+      {/* 收藏分类选择弹窗 - 重构为搜索下拉框模式 */}
+      {saveToModal.visible && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in" onClick={()=>setSaveToModal({visible:false, targets:[], selectedCatId: undefined})}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e=>e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-lg shadow-amber-100"><Archive size={20} /></div>
+                        <div className="flex flex-col">
+                            <h3 className="text-sm font-black text-slate-800">收藏到个人档案库</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">选中 {saveToModal.targets.length} 篇文档</p>
                         </div>
-                      ))}
                     </div>
-                  )}
+                    <button onClick={()=>setSaveToModal({visible:false, targets:[], selectedCatId: undefined})} className="text-slate-300 hover:text-slate-500 transition-colors"><X size={20} /></button>
                 </div>
-              </div>
-            </div>
+                
+                <div className="p-10 space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                            <FolderTree size={10} /> 目标分类位置
+                        </label>
+                        <Select 
+                            showSearch
+                            allowClear
+                            placeholder="搜索或选择存放分类（留空存入未分类）"
+                            className="w-full h-11 font-bold text-slate-700 custom-win11-select"
+                            value={saveToModal.selectedCatId}
+                            onChange={val => setSaveToModal(prev => ({...prev, selectedCatId: val}))}
+                            options={[
+                                { label: '📁 [ 存入根目录 / 未分类 ]', value: null },
+                                ...personalCategories.map(c => ({ label: `📁 ${c.name}`, value: c.id }))
+                            ]}
+                            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                        />
+                    </div>
 
-            <div className="p-6 border-t border-gray-200 bg-white flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowCreateArticleModal(false);
-                  setCreatingCategory(null);
-                  setEditingArticle(null);
-                  setArticleFormData({
-                    title: '',
-                    category_id: '',
-                    summary: '',
-                    content: '',
-                    type: 'common',
-                    status: 'published',
-                    icon: '📄',
-                    attachments: []
-                  });
-                }}
-                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleCreateArticle}
-                disabled={loading || !articleFormData.title.trim()}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
-              >
-                {loading ? '保存中...' : '保存'}
-              </button>
+                    <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3 animate-in slide-in-from-bottom-1">
+                        <FolderCheck size={16} className="text-blue-500 mt-0.5" />
+                        <div>
+                            <p className="text-[11px] font-black text-blue-700 leading-none mb-1">自动同步就绪</p>
+                            <p className="text-[9px] font-bold text-blue-600/70 leading-relaxed">系统将自动保持文档内容同步，您可以随时在个人库中取消收藏。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex justify-end gap-3">
+                    <button onClick={()=>setSaveToModal({visible:false, targets:[], selectedCatId: undefined})} className="px-6 py-2.5 text-xs font-black text-slate-400">取消</button>
+                    <button 
+                        onClick={handleExecuteSaveToPersonal}
+                        className="px-10 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-100 transition-all active:scale-95 flex items-center gap-2"
+                    >
+                        {loading ? <Spin size="small" /> : <CheckCircle2 size={14} />} 确认转存
+                    </button>
+                </div>
             </div>
+        </div>
+      )}
+
+      {showArticleModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-4" onClick={()=>setShowArticleModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-50 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><FilePlus size={18} /></div><div><h3 className="font-black text-slate-800">{editingArticle?'修改内容':'新建文档'}</h3><p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest">雷犀生产力内容创作中心</p></div></div><button onClick={()=>setShowArticleModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><X size={20} /></button></div>
+            <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh]"><div className="flex bg-slate-100 p-1 rounded-xl w-fit mx-auto mb-4"><button onClick={() => setArticleFormData(p => ({...p, mode: 'text'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📝 笔记</button><button onClick={() => setArticleFormData(p => ({...p, mode: 'file'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'file' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📎 附件</button></div><input type="text" value={articleFormData.title} onChange={e=>setArticleFormData({...articleFormData, title:e.target.value})} placeholder="在此输入标题..." className="w-full px-5 py-3 bg-slate-50 border-none rounded-xl font-bold focus:ring-2 focus:ring-blue-500 text-lg" />{articleFormData.mode === 'text' ? (<textarea rows={8} value={articleFormData.content} onChange={e=>setArticleFormData({...articleFormData, content:e.target.value})} placeholder="在此编写正文内容..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-xl text-sm resize-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-medium" />) : (<div className="space-y-4"><div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); handleUpload(e.dataTransfer.files);}} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-blue-400 cursor-pointer relative bg-slate-50/50 transition-colors"><input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={e=>handleUpload(e.target.files)} /><div className="text-4xl mb-3">☁️</div><p className="text-xs font-black text-slate-500">{uploading?'正在上传...':'拖拽文件到此处'}</p></div>{articleFormData.attachments.length > 0 && (<div className="flex flex-wrap gap-2">{articleFormData.attachments.map((f, i) => (<div key={i} className="bg-blue-50 px-4 py-2 rounded-lg text-[10px] font-black text-blue-600 flex items-center gap-3 border border-blue-100 shadow-sm"><span>{f.name}</span><button onClick={()=>setArticleFormData({...articleFormData, attachments: articleFormData.attachments.filter((_,idx)=>idx!==i)})} className="hover:text-red-500 transition-colors">✕</button></div>))}</div>)}</div>)}</div>
+            <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex justify-end gap-3"><button onClick={handleSaveArticle} className="px-12 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-100 transition-all active:scale-95">确认保存</button></div>
           </div>
         </div>
       )}
 
-      {/* 新建分类模态框 */}
       {showCreateCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">新建分类</h2>
-              <button
-                onClick={() => {
-                  setShowCreateCategoryModal(false);
-                  setNewCategoryName('');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all"
-              >
-                ✕
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-4" onClick={()=>setShowCreateCategoryModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6" onClick={e=>e.stopPropagation()}>
+            <h3 className="font-black text-gray-800 mb-4">{editingCategory?'重命名分类':'新建分类'}</h3>
+            <input autoFocus type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} placeholder="名称..." className="w-full px-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 font-bold" />
+            <div className="flex gap-2 mt-6"><button onClick={()=>setShowCreateCategoryModal(false)} className="flex-1 py-2.5 text-xs font-black text-slate-400">取消</button><button onClick={async () => { try { if (editingCategory) await axios.put(getApiUrl(`/api/knowledge/categories/${editingCategory.id}`), { name: newCategoryName }); else await axios.post(getApiUrl('/api/knowledge/categories'), { name: newCategoryName, icon: '📁', type: viewMode === 'personal' ? 'personal' : 'common', is_public: 0, owner_id: currentUser?.id }); toast.success('操作成功'); setShowCreateCategoryModal(false); fetchCategories(); } catch(e){ toast.error('失败'); } }} className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg active:scale-95">确认</button></div>
+          </div>
+        </div>
+      )}
 
-            <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  分类名称 *
-                </label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="请输入分类名称"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  autoFocus
-                />
+      {previewData && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex flex-col animate-in fade-in duration-300" onClick={() => setPreviewData(null)}>
+          <header className="p-6 flex justify-between items-center text-white"><div className="flex items-center gap-4"><div><h2 className="text-xl font-black">{previewData.title}</h2><p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-0.5">雷犀预览引擎 v3.0</p></div></div><button onClick={()=>setPreviewData(null)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-xl hover:bg-white/10 transition-all">✕</button></header>
+          <div className="flex-1 bg-white/5 mx-6 mb-6 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center" onClick={e=>e.stopPropagation()}>
+            {previewData.mode === 'office' ? (
+              <div className="w-full h-full flex flex-col">
+                <div className="bg-emerald-500/10 px-4 py-2 text-[10px] text-emerald-200 font-bold flex justify-between items-center">
+                  <span>🚀 正在通过高性能云引擎预览 Office 文档...</span>
+                  <a href={getAttachmentUrl(parseAttachments(previewData.attachments)[0]?.url)} download className="underline">下载原文件</a>
+                </div>
+                <iframe src={previewData.url} className="w-full h-full border-none bg-white" />
               </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowCreateCategoryModal(false);
-                    setNewCategoryName('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleCreateCategory}
-                  disabled={loading || !newCategoryName.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '创建中...' : '创建'}
-                </button>
+            ) : previewData.url ? (
+              previewData.ext === 'pdf' ? (
+                <iframe src={previewData.url} className="w-full h-full border-none bg-white" title="PDF预览" />
+              ) : ['jpg','jpeg','png','gif'].includes(previewData.ext) ? (
+                <img src={previewData.url} className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-500" alt={previewData.title} />
+              ) : ['mp4', 'webm', 'ogg'].includes(previewData.ext) ? (
+                <video src={previewData.url} controls className="max-w-full max-h-full" />
+              ) : ['mp3', 'wav'].includes(previewData.ext) ? (
+                <audio src={previewData.url} controls className="w-96" />
+              ) : (
+                <div className="text-white text-center">
+                  <div className="text-6xl mb-6">📦</div>
+                  <p className="font-black mb-6 text-xl">该文件类型不支持在线预览</p>
+                  <a href={previewData.url} download className="px-10 py-3 bg-blue-600 rounded-xl font-black shadow-lg shadow-blue-100 inline-block active:scale-95 transition-all hover:bg-blue-700">下载原始文件</a>
+                </div>
+              )
+            ) : (
+              <div className="w-full h-full p-16 overflow-y-auto prose prose-invert max-w-4xl mx-auto text-white whitespace-pre-wrap leading-relaxed text-lg font-medium">
+                {previewData.content || '暂无正文内容'}
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
     </div>
+    </ConfigProvider>
   );
 };
 

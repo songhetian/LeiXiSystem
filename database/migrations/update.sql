@@ -44,3 +44,79 @@ ALTER TABLE session_messages ADD COLUMN sender_name VARCHAR(100) NULL AFTER send
 -- [2026-02-20] 放宽质检消息表字段约束
 -- 优化原因：支持外部导入场景下 sender_id 为空的情况
 ALTER TABLE session_messages MODIFY COLUMN sender_id VARCHAR(50) NULL;
+
+-- [2026-02-22] 注册质检导出权限
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('导出质检记录', 'quality:session:export', 'quality_session', 'export', '允许导出质检会话及详情记录', 'quality')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- 授予超级管理员导出权限
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE r.name = '超级管理员' AND p.code = 'quality:session:export'
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- [2026-02-22] 注册知识库批量管理权限
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('批量管理文档', 'knowledge:article:bulk_edit', 'knowledge_article', 'bulk_edit', '允许批量修改文档公开状态、移动分类及批量删除', 'knowledge')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- [2026-02-23] 管理知识分类权限
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('管理知识分类', 'knowledge:category:manage', 'knowledge_category', 'manage', '允许重命名、删除及切换分类公开状态', 'knowledge')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- [2026-02-25] 补全全站通知审计锚点
+-- 描述：配合推送审计控制台，物理补全缺失的考勤、财务、资产及异常告警通知配置项。
+INSERT IGNORE INTO notification_settings (event_type, target_roles) VALUES 
+('makeup_rejection', '["申请人"]'),
+('overtime_rejection', '["申请人"]'),
+('reimbursement_pass', '["申请人"]'),
+('reimbursement_reject', '["申请人"]'),
+('reimbursement_return', '["申请人"]'),
+('reimbursement_progress', '["申请人"]'),
+('asset_apply', '["部门主管"]'),
+('asset_return', '["部门主管"]'),
+('exam_publish', '["全体员工"]'),
+('exam_result', '["考生"]'),
+('late_notify', '["申请人"]'),
+('early_leave_notify', '["申请人"]'),
+('absent_notify', '["申请人"]');
+
+-- [2026-02-25] 注册推送审计控制台权限
+-- 功能：允许管理员访问并配置各业务模块的通知分发规则
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('推送审计配置', 'system:notification:settings', 'notification_settings', 'manage', '管理全局业务通知的分发规则与角色映射', 'system')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- 授予超级管理员推送审计配置权限
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE r.name = '超级管理员' AND p.code = 'system:notification:settings'
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- [2026-02-25] 注册备忘录管理权限
+-- 功能：允许员工管理个人备忘录，允许主管/人事发送部门备忘录并进行审计。
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('管理个人备忘录', 'user:memo:manage', 'memo', 'manage', '允许创建、修改、删除个人备忘录及标记已读', 'user')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('管理部门备忘录', 'personnel:memo:manage', 'department_memo', 'manage', '允许发送部门/个人定向备忘录并查看阅读审计详情', 'personnel')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- 授予超级管理员权限
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE r.name = '超级管理员' AND p.code IN ('user:memo:manage', 'personnel:memo:manage')
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- 授予所有角色基础个人备忘录权限
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE p.code = 'user:memo:manage'
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);

@@ -1,1059 +1,376 @@
-import { useState, useEffect } from 'react'
-import { formatDate, formatBeijingDate, getBeijingDate } from '../../utils/date'
-import axios from 'axios'
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Tag, Space, Card, Typography, Select, DatePicker, Button, ConfigProvider, Tooltip, InputNumber, Modal } from 'antd';
+import { 
+    CalendarOutlined, 
+    DownloadOutlined, 
+    ClockCircleOutlined,
+    CheckCircleOutlined,
+    ExclamationCircleOutlined,
+    SyncOutlined,
+    UnorderedListOutlined,
+    HistoryOutlined,
+    CloseCircleOutlined
+} from '@ant-design/icons';
+import { ChevronLeft, ChevronRight, ArrowRight, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
+import axios from 'axios';
 import { toast } from 'sonner';
-import { getApiUrl } from '../../utils/apiConfig'
+import { getApiUrl } from '../../utils/apiConfig';
+import { formatDate, formatBeijingDate } from '../../utils/date';
 
-import {
-  CalendarIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationCircleIcon,
-  ChartBarIcon,
-  DocumentArrowDownIcon
-} from '@heroicons/react/24/outline'
+const { RangePicker } = DatePicker;
+const { Text } = Typography;
 
+const AttendanceRecords = () => {
+    const [records, setRecords] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [stats, setStats] = useState({});
+    const [viewMode, setViewMode] = useState('list'); // list, calendar, timeline
+    
+    // 物理分页状态
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [total, setTotal] = useState(0);
+    const [jumpPage, setJumpPage] = useState(null);
 
-export default function AttendanceRecordsOptimized() {
-  const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState('list') // list, calendar, timeline
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
-  const [filters, setFilters] = useState({
-    start_date: '',
-    end_date: '',
-    status: 'all'
-  })
-  const [stats, setStats] = useState({
-    total_days: 0,
-    late_count: 0,
-    early_count: 0,
-    normal_count: 0,
-    absent_count: 0,
-    leave_count: 0,
-    avg_work_hours: 0,
-    attendance_rate: 0
-  })
-  const [selectedMonth, setSelectedMonth] = useState(new Date())
-  const [employee, setEmployee] = useState(null)
-  const [user, setUser] = useState(null)
-  const [selectedRecord, setSelectedRecord] = useState(null)
-  const [showDetailModal, setShowDetailModal] = useState(false)
+    // 详情模态框
+    const [selectedRecord, setSelectedRecord] = useState(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
 
-  useEffect(() => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      const userData = JSON.parse(userStr)
-      setUser(userData)
-      fetchEmployeeInfo(userData.id)
-    }
-  }, [])
+    // 筛选状态
+    const [dateRange, setDateRange] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [selectedMonth, setSelectedMonth] = useState(new Date());
 
-  const fetchEmployeeInfo = async (userId) => {
-    try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
-      if (response.data.success && response.data.data) {
-        setEmployee(response.data.data)
-      }
-    } catch (error) {
-      console.error('获取员工信息失败:', error)
-      toast.error('获取员工信息失败')
-    }
-  }
+    useEffect(() => {
+        fetchRecords();
+    }, [dateRange, statusFilter, pageSize, currentPage, selectedMonth, viewMode]);
 
-  useEffect(() => {
-    if (employee) {
-      fetchRecords()
-    }
-  }, [pagination.page, pagination.limit, filters, selectedMonth, viewMode, employee])
+    const fetchRecords = async () => {
+        setLoading(true);
+        try {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const params = {
+                page: currentPage,
+                limit: viewMode === 'list' ? pageSize : 100, 
+                employee_id: user.employee_id
+            };
 
-  const fetchRecords = async () => {
-    setLoading(true)
-    try {
-      // 获取用户信息
-      const user = JSON.parse(localStorage.getItem('user'))
-
-      // 构建查询参数
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-        employee_id: employee?.id || user.employee_id
-      }
-
-      // 添加过滤条件
-      if (filters.start_date) {
-        params.start_date = filters.start_date
-      }
-      if (filters.end_date) {
-        params.end_date = filters.end_date
-      }
-      if (filters.status && filters.status !== 'all') {
-        params.status = filters.status
-      }
-
-      const response = await axios.get(getApiUrl('/api/attendance/records'), { params })
-
-      if (response.data.success) {
-        // 确保日期格式正确，避免时区问题
-        const formattedRecords = response.data.data.map(record => ({
-          ...record,
-          record_date: formatBeijingDate(record.record_date) // 确保使用北京时间日期
-        }))
-
-        setRecords(formattedRecords)
-        setPagination({
-          ...pagination,
-          total: response.data.total
-        })
-
-        // 使用后端返回的统计数据
-        if (response.data.stats) {
-          setStats(response.data.stats)
-        } else {
-          // 如果后端没有返回统计数据，则使用前端计算
-          calculateStats(formattedRecords)
-        }
-      }
-    } catch (error) {
-      console.error('获取考勤记录失败:', error)
-      toast.error('获取考勤记录失败')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const calculateStats = (data) => {
-    const stats = data.reduce((acc, record) => {
-      acc.total_days++
-      if (record.status === 'late') acc.late_count++
-      if (record.status === 'early') acc.early_count++
-      if (record.status === 'early_leave') acc.early_count++
-      if (record.status === 'normal') acc.normal_count++
-      if (record.status === 'absent') acc.absent_count++
-      if (record.status === 'leave') acc.leave_count++
-      if (record.work_hours) acc.total_work_hours += parseFloat(record.work_hours)
-      return acc
-    }, {
-      total_days: 0,
-      late_count: 0,
-      early_count: 0,
-      normal_count: 0,
-      absent_count: 0,
-      leave_count: 0,
-      total_work_hours: 0
-    })
-
-    stats.avg_work_hours = stats.total_days > 0
-      ? (stats.total_work_hours / stats.total_days).toFixed(1)
-      : 0
-    stats.attendance_rate = stats.total_days > 0
-      ? ((stats.normal_count / stats.total_days) * 100).toFixed(1)
-      : 0
-
-    setStats(stats)
-  }
-
-  const handleQuickFilter = (type) => {
-    const today = new Date()
-    let start_date, end_date
-
-    switch (type) {
-      case 'today':
-        start_date = end_date = formatBeijingDate(today)
-        break
-      case 'week':
-        const weekStart = new Date(today)
-        weekStart.setDate(today.getDate() - today.getDay() + 1)
-        start_date = formatBeijingDate(weekStart)
-        end_date = formatBeijingDate(today)
-        break
-      case 'month':
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
-        start_date = formatBeijingDate(firstDay)
-        end_date = formatBeijingDate(today)
-        break
-      default:
-        start_date = end_date = ''
-    }
-
-    setFilters({ ...filters, start_date, end_date })
-    setPagination(prev => ({ ...prev, page: 1 }))
-  }
-
-  const handleStatusFilter = (status) => {
-    setFilters(prev => ({ ...prev, status }))
-    setPagination(prev => ({ ...prev, page: 1 }))
-  }
-
-  const exportRecords = () => {
-    // 导出为CSV
-    const headers = ['日期', '上班打卡', '下班打卡', '工作时长', '状态', '备注']
-    const csvData = records.map(record => [
-      record.record_date,
-      formatDateTime(record.clock_in_time),
-      formatDateTime(record.clock_out_time),
-      record.work_hours || '--',
-      getStatusText(record.status),
-      record.remark || '--'
-    ])
-
-    const csv = [headers, ...csvData].map(row => row.join(',')).join('\n')
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `考勤记录_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    toast.success('导出成功')
-  }
-
-  const formatDateTime = (dateTimeStr) => {
-    if (!dateTimeStr) return '--:--'
-    // 使用统一的时间处理函数
-    const date = new Date(dateTimeStr)
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    return `${hours}:${minutes}`
-  }
-
-  const getStatusText = (status) => {
-    const statusMap = {
-      normal: '正常',
-      late: '迟到',
-      early: '早退',
-      early_leave: '早退',
-      absent: '缺勤',
-      leave: '请假',
-      overtime: '加班'
-    }
-    return statusMap[status] || '未知'
-  }
-
-  const getStatusBadge = (status) => {
-    const badges = {
-      normal: { text: '正常', color: 'bg-green-100 text-green-800', icon: CheckCircleIcon },
-      late: { text: '迟到', color: 'bg-red-100 text-red-800', icon: ExclamationCircleIcon },
-      early: { text: '早退', color: 'bg-orange-100 text-orange-800', icon: ExclamationCircleIcon },
-      early_leave: { text: '早退', color: 'bg-orange-100 text-orange-800', icon: ExclamationCircleIcon },
-      absent: { text: '缺勤', color: 'bg-gray-100 text-gray-800', icon: XCircleIcon },
-      leave: { text: '请假', color: 'bg-blue-100 text-blue-800', icon: ClockIcon },
-      overtime: { text: '加班', color: 'bg-purple-100 text-purple-800', icon: ClockIcon }
-    }
-    const badge = badges[status] || badges.normal
-    const Icon = badge.icon
-
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-        <Icon className="w-3 h-3" />
-        {badge.text}
-      </span>
-    )
-  }
-
-  const getStatusColor = (record) => {
-    // 统一处理早退状态
-    if (record.status === 'early' || record.status === 'early_leave') return 'bg-orange-500'
-    if (record.status === 'late') return 'bg-red-500'
-    if (record.status === 'absent') return 'bg-gray-500'
-    if (record.status === 'normal') return 'bg-green-500'
-    if (record.status === 'leave') return 'bg-blue-500'
-    if (record.status === 'overtime') return 'bg-purple-500'
-    return 'bg-gray-300'
-  }
-
-  const getHighlightClass = (record) => {
-    // 统一处理早退状态
-    return `${record.status === 'late' || record.status === 'early' || record.status === 'early_leave' ? 'bg-red-50' : ''}`
-  }
-
-  // 渲染统计卡片
-  const renderStatsCards = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">总天数</div>
-            <div className="text-2xl font-bold mt-1">{stats.total_days}</div>
-          </div>
-          <CalendarIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">正常</div>
-            <div className="text-2xl font-bold mt-1">{stats.normal_count}</div>
-          </div>
-          <CheckCircleIcon className="w-8 h-8 opacity-50" />
-        </div>
-        <div className="text-xs mt-1 opacity-90">出勤率 {stats.attendance_rate}%</div>
-      </div>
-
-      <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">迟到</div>
-            <div className="text-2xl font-bold mt-1">{stats.late_count}</div>
-          </div>
-          <ExclamationCircleIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">早退</div>
-            <div className="text-2xl font-bold mt-1">{stats.early_count}</div>
-          </div>
-          <ExclamationCircleIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">缺勤</div>
-            <div className="text-2xl font-bold mt-1">{stats.absent_count}</div>
-          </div>
-          <XCircleIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">请假</div>
-            <div className="text-2xl font-bold mt-1">{stats.leave_count}</div>
-          </div>
-          <ClockIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">加班</div>
-            <div className="text-2xl font-bold mt-1">{stats.overtime_count || 0}</div>
-          </div>
-          <ClockIcon className="w-8 h-8 opacity-50" />
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg shadow-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-90">工作时长</div>
-            <div className="text-2xl font-bold mt-1">{stats.avg_work_hours}</div>
-          </div>
-          <ClockIcon className="w-8 h-8 opacity-50" />
-        </div>
-        <div className="text-xs mt-1 opacity-90">小时/天</div>
-      </div>
-    </div>
-  )
-
-  // 渲染日历视图
-  const renderCalendarView = () => {
-    const year = selectedMonth.getFullYear()
-    const month = selectedMonth.getMonth()
-    const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
-    const daysInMonth = lastDay.getDate()
-    const startDayOfWeek = firstDay.getDay()
-
-    const days = []
-    // 填充空白天数
-    for (let i = 0; i < startDayOfWeek; i++) {
-      days.push(null)
-    }
-    // 填充实际天数
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i)
-    }
-
-    const getRecordForDay = (day) => {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      return records.find(r => {
-        if (!r.record_date) return false
-
-        let recordDate
-        if (typeof r.record_date === 'string') {
-          // 如果是字符串，直接提取日期部分（YYYY-MM-DD 或 ISO �格）
-          // 不要转换为 Date 对象，避免时区问题
-          recordDate = r.record_date.split('T')[0].split(' ')[0]
-        } else {
-          // 如果不是字符串（可能是 Date 对象），先转换为字符串再处理
-          // 注意：这种情况不应该发生，因为后端返回的应该是字符串
-          console.warn('record_date is not a string:', r.record_date, typeof r.record_date)
-          recordDate = String(r.record_date).split('T')[0].split(' ')[0]
-        }
-
-        return recordDate === dateStr
-      })
-    }
-
-    return (
-      <div className="bg-white rounded-lg shadow p-6">
-        {/* 月份选择器 */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => setSelectedMonth(new Date(year, month - 1))}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
-          >
-            ← 上月
-          </button>
-          <h3 className="text-xl font-bold">
-            {year}年{month + 1}月
-          </h3>
-          <button
-            onClick={() => setSelectedMonth(new Date(year, month + 1))}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
-          >
-            下月 →
-          </button>
-        </div>
-
-        {/* 星期标题 */}
-        <div className="grid grid-cols-7 gap-2 mb-2">
-          {['日', '一', '二', '三', '四', '五', '六'].map(day => (
-            <div key={day} className="text-center font-semibold text-gray-600 py-2">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* 日历格子 */}
-        <div className="grid grid-cols-7 gap-2">
-          {days.map((day, index) => {
-            if (!day) {
-              return <div key={`empty-${index}`} className="aspect-square" />
+            if (dateRange) {
+                params.start_date = dateRange[0].format('YYYY-MM-DD');
+                params.end_date = dateRange[1].format('YYYY-MM-DD');
             }
+            if (statusFilter !== 'all') params.status = statusFilter;
 
-            const record = getRecordForDay(day)
-            const isToday = new Date().toDateString() === new Date(year, month, day).toDateString()
+            const response = await axios.get(getApiUrl('/api/attendance/records'), { params });
+            if (response.data.success) {
+                setRecords(response.data.data);
+                setTotal(response.data.total || 0);
+                setStats(response.data.stats || {});
+            }
+        } catch (error) {
+            toast.error('物理读取考勤流水失败');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            return (
-              <div
-                key={day}
-                onClick={() => {
-                  if (record) {
-                    setSelectedRecord(record)
-                    setShowDetailModal(true)
-                  }
-                }}
-                className={`
-                  aspect-square border rounded-lg p-2 hover:shadow-md transition-shadow cursor-pointer
-                  ${isToday ? 'border-blue-500 border-2' : 'border-gray-200'}
-                  ${record ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}
-                `}
-              >
-                <div className="text-sm font-semibold mb-1">{day}</div>
-                {record && (
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-600">
-                      ↑ {formatDateTime(record.clock_in_time)}
+    const handlePageChange = (p) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); setJumpPage(null); };
+    const handlePageSizeChange = (s) => { setPageSize(s); setCurrentPage(1); };
+    const handleJumpPage = () => { if (jumpPage >= 1 && jumpPage <= totalPages) setCurrentPage(jumpPage); setJumpPage(null); };
+
+    const totalPages = Math.ceil(total / pageSize);
+    const renderPageNumbers = () => {
+        const pages = [];
+        const start = Math.max(1, currentPage - 2);
+        const end = Math.min(totalPages, currentPage + 2);
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button key={i} onClick={() => handlePageChange(i)} 
+                    className={`w-10 h-10 rounded-lg text-sm font-black transition-all ${currentPage === i ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}
+                >
+                    {i}
+                </button>
+            );
+        }
+        return pages;
+    };
+
+    const getStatusBadge = (status) => {
+        const map = {
+            normal: { color: 'green', text: '正常' },
+            late: { color: 'red', text: '迟到' },
+            early: { color: 'orange', text: '早退' },
+            early_leave: { color: 'orange', text: '早退' },
+            absent: { color: 'error', text: '缺勤' },
+            leave: { color: 'blue', text: '请假' },
+            overtime: { color: 'purple', text: '加班' }
+        };
+        const config = map[status] || { color: 'default', text: status };
+        return <Tag color={config.color} className="font-black border-slate-500">{config.text}</Tag>;
+    };
+
+    const renderCalendarView = () => {
+        const year = selectedMonth.getFullYear();
+        const month = selectedMonth.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startDayOfWeek = firstDay.getDay();
+        const days = [];
+        for (let i = 0; i < startDayOfWeek; i++) days.push(null);
+        for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+        return (
+            <div className="bg-white rounded-3xl border border-slate-500 p-8 shadow-sm animate-in zoom-in-95 duration-300">
+                <div className="flex items-center justify-between mb-8">
+                    <button onClick={() => setSelectedMonth(new Date(year, month - 1))} className="p-2.5 rounded-lg border border-slate-500 hover:bg-slate-900 hover:text-white transition-all"><ChevronLeft size={20}/></button>
+                    <h3 className="text-xl font-black text-slate-900">{year}年 {month + 1}月 打卡历</h3>
+                    <button onClick={() => setSelectedMonth(new Date(year, month + 1))} className="p-2.5 rounded-lg border border-slate-500 hover:bg-slate-900 hover:text-white transition-all"><ChevronRight size={20}/></button>
+                </div>
+                <div className="grid grid-cols-7 gap-3">
+                    {['日','一','二','三','四','五','六'].map(d => <div key={d} className="text-center font-black text-slate-400 text-xs py-4 uppercase tracking-widest">{d}</div>)}
+                    {days.map((day, idx) => {
+                        if (!day) return <div key={`e-${idx}`} className="aspect-square bg-slate-50/30 rounded-xl"></div>;
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const record = records.find(r => r.record_date?.split('T')[0] === dateStr);
+                        return (
+                            <div key={day} onClick={() => { if(record){ setSelectedRecord(record); setShowDetailModal(true); }}} 
+                                className={`aspect-square border-[1px] rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer hover:shadow-lg ${record ? 'border-slate-500 bg-white' : 'border-slate-100 bg-slate-50/50 opacity-40'}`}>
+                                <span className="font-black text-slate-900 text-sm">{day}</span>
+                                {record && (
+                                    <div className="flex flex-col gap-1 items-center">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${record.status === 'normal' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
+                                        <span className="text-[9px] font-black text-slate-400">{record.clock_in_time?.substring(11,16)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderTimelineView = () => (
+        <div className="space-y-6 animate-in slide-in-from-left-4 duration-500">
+            {records.map((record, i) => (
+                <div key={record.id} className="relative pl-12 group">
+                    <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-200 group-last:bottom-auto group-last:h-8"></div>
+                    <div className="absolute left-0 top-2 w-8 h-8 rounded-full border-2 border-slate-500 bg-white flex items-center justify-center font-black text-xs text-slate-900 z-10 shadow-sm">
+                        {new Date(record.record_date).getDate()}
                     </div>
-                    <div className="text-xs text-gray-600">
-                      ↓ {formatDateTime(record.clock_out_time)}
-                    </div>
-                    <div className="flex justify-center mt-1">
-                      {getStatusBadge(record.status)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                    <Card className="rounded-2xl border-slate-500 shadow-sm hover:border-indigo-500 transition-all cursor-pointer" onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-6">
+                                <div className="text-left">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatDate(record.record_date)}</p>
+                                    <h4 className="text-[15px] font-black text-slate-900">{record.type === 'leave' ? `🌴 请假: ${record.leave_type}` : '⏰ 出勤打卡'}</h4>
+                                </div>
+                                <div className="h-10 w-px bg-slate-100"></div>
+                                <div className="flex gap-4">
+                                    <div className="flex flex-col"><span className="text-[9px] font-black text-slate-400">上班</span><span className="text-sm font-black">{record.clock_in_time?.substring(11,16) || '--:--'}</span></div>
+                                    <div className="flex flex-col"><span className="text-[9px] font-black text-slate-400">下班</span><span className="text-sm font-black">{record.clock_out_time?.substring(11,16) || '--:--'}</span></div>
+                                </div>
+                            </div>
+                            {getStatusBadge(record.status)}
+                        </div>
+                    </Card>
+                </div>
+            ))}
         </div>
-      </div>
-    )
-  }
+    );
 
-  // 渲染时间轴视图
-  const renderTimelineView = () => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="space-y-4">
-        {records.map((record, index) => (
-          <div key={record.id} className="relative">
-            {/* 时间轴线 */}
-            {index < records.length - 1 && (
-              <div className="absolute left-6 top-12 bottom-0 w-0.5 bg-gray-200" />
-            )}
-
-            <div className="flex gap-4">
-              {/* 日期圆点 */}
-              <div className="flex-shrink-0">
-                <div className={`
-                  w-12 h-12 rounded-full flex items-center justify-center font-bold text-white
-                  ${record.status === 'normal' ? 'bg-green-500' :
-                    record.status === 'late' ? 'bg-red-500' :
-                    record.status === 'early' || record.status === 'early_leave' ? 'bg-orange-500' :
-                    record.status === 'leave' ? 'bg-blue-500' :
-                    record.status === 'overtime' ? 'bg-purple-500' : 'bg-gray-500'}
-                `}>
-                  {new Date(record.record_date).getDate()}
-                </div>
-              </div>
-
-              {/* 记录卡片 */}
-              <div className="flex-1 bg-gray-50 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                      <div className="font-semibold text-lg text-gray-800">{formatDate(record.record_date)}</div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {record.type === 'leave' ? (
-                        <span>请假天数: {record.days}天</span>
-                      ) : (
-                        <span>工作时长: {record.work_hours ? `${record.work_hours}小时` : '未完成'}</span>
-                      )}
+    const columns = [
+        {
+            title: '日期',
+            dataIndex: 'record_date',
+            key: 'record_date',
+            render: (text) => <span className="font-black text-slate-900">{formatDate(text)}</span>
+        },
+        {
+            title: '打卡时间',
+            key: 'clock',
+            render: (_, record) => (
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 rounded font-black border border-emerald-100">上</span>
+                        <span className="text-[13px] font-black">{record.clock_in_time ? record.clock_in_time.substring(11, 16) : '--:--'}</span>
                     </div>
-                  </div>
-                  {getStatusBadge(record.status)}
-                </div>
-
-                {record.type === 'leave' ? (
-                  <div className="bg-white rounded p-3 border border-blue-100">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">类型:</span>
-                        <span className="ml-2 font-medium text-gray-800">{record.leave_type}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">时间:</span>
-                        <span className="ml-2 font-medium text-gray-800">{record.start_date} 至 {record.end_date}</span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded font-black border border-blue-100">下</span>
+                        <span className="text-[13px] font-black">{record.clock_out_time ? record.clock_out_time.substring(11, 16) : '--:--'}</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* 上班打卡 */}
-                    <div className="flex items-center gap-3 bg-white rounded p-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-600 text-xl">↑</span>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">上班打卡</div>
-                        <div className="font-semibold text-gray-800">
-                          {formatDateTime(record.clock_in_time)}
-                        </div>
-                        {record.clock_in_location && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            📍 {record.clock_in_location}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 下班打卡 */}
-                    <div className="flex items-center gap-3 bg-white rounded p-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 text-xl">↓</span>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">下班打卡</div>
-                        <div className="font-semibold text-gray-800">
-                          {formatDateTime(record.clock_out_time)}
-                        </div>
-                        {record.clock_out_location && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            📍 {record.clock_out_location}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {record.remark && (
-                  <div className="mt-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
-                    💬 {record.remark}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-
-  // 渲染列表视图
-  const renderListView = () => (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      {loading ? (
-        <div className="p-8 text-center text-gray-500">加载中...</div>
-      ) : records.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">暂无打卡记录</div>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    日期
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    类型
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    时间/详情
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    工作时长
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    状态
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    备注
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {records.map((record) => (
-                  <tr
-                    key={record.id}
-                    className={`
-                      hover:bg-gray-50 transition-colors
-                      ${record.status === 'late' || record.status === 'early' || record.status === 'early_leave' ? 'bg-red-50' : ''}
-                      ${record.status === 'absent' ? 'bg-gray-100' : ''}
-                      ${record.type === 'leave' ? 'bg-blue-50' : ''}
-                      ${record.type === 'overtime' ? 'bg-purple-50' : ''}
-                    `}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatDate(record.record_date)}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        record.type === 'attendance' ? 'bg-gray-100 text-gray-800' :
-                        record.type === 'leave' ? 'bg-blue-100 text-blue-800' :
-                        record.type === 'overtime' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {record.type === 'attendance' ? '考勤' :
-                         record.type === 'leave' ? '请假' :
-                         record.type === 'overtime' ? '加班' : '未知'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {record.type === 'leave' ? (
-                        <div className="text-sm text-gray-900">
-                          {record.leave_type} ({record.days}天)
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-green-600 bg-green-50 px-1 rounded">上</span>
-                            <span className="text-sm text-gray-900">{formatDateTime(record.clock_in_time)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-blue-600 bg-blue-50 px-1 rounded">下</span>
-                            <span className="text-sm text-gray-900">{formatDateTime(record.clock_out_time)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <ClockIcon className="w-5 h-5 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-900">
-                          {record.type === 'leave' ? `${record.days}天` :
-                           record.work_hours ? `${record.work_hours}h` : '--'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(record.status)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {record.remark || '--'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 分页 */}
-          {pagination.total > 0 && (
-            <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="text-sm text-gray-700">
-                  共 <span className="font-semibold">{pagination.total}</span> 条记录
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">每页显示</label>
-                  <select
-                    value={pagination.limit}
-                    onChange={(e) => setPagination({ ...pagination, limit: parseInt(e.target.value), page: 1 })}
-                    className="border rounded px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="10">10条</option>
-                    <option value="20">20条</option>
-                    <option value="50">50条</option>
-                    <option value="100">100条</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  第 {pagination.page} / {Math.ceil(pagination.total / pagination.limit)} 页
-                </span>
-                <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                  disabled={pagination.page === 1}
-                  className="px-4 py-2 border rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  上一页
-                </button>
-                <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                  disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-                  className="px-4 py-2 border rounded hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
+            )
+        },
+        {
+            title: '时长',
+            dataIndex: 'work_hours',
+            key: 'work_hours',
+            align: 'center',
+            render: (h) => <span className="font-black text-indigo-600">{h ? `${h}h` : '--'}</span>
+        },
+        {
+            title: '状态',
+            dataIndex: 'status',
+            key: 'status',
+            align: 'center',
+            render: (s) => getStatusBadge(s)
+        },
+        {
+            title: '备注',
+            dataIndex: 'remark',
+            key: 'remark',
+            render: (t) => <span className="text-slate-400 text-xs font-bold truncate max-w-[150px] inline-block">{t || '-'}</span>
+        },
+        {
+            title: '操作',
+            key: 'action',
+            align: 'center',
+            render: (_, record) => (
+                <Button type="text" size="small" onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }} className="font-black text-indigo-600 hover:bg-indigo-50">详情</Button>
+            )
+        }
+    ];
 
-  // 渲染详情模态框
-  const renderDetailModal = () => {
-    if (!showDetailModal || !selectedRecord) return null
+    const statsConfig = [
+        { label: '总天数', value: stats.total_days || 0, color: 'slate', icon: <CalendarOutlined /> },
+        { label: '正常', value: stats.normal_count || 0, color: 'emerald', icon: <CheckCircleOutlined /> },
+        { label: '迟到', value: stats.late_count || 0, color: 'rose', icon: <ExclamationCircleOutlined /> },
+        { label: '早退', value: stats.early_count || 0, color: 'orange', icon: <ExclamationCircleOutlined /> },
+        { label: '缺勤', value: stats.absent_count || 0, color: 'red', icon: <CloseCircleOutlined /> },
+        { label: '请假', value: stats.leave_count || 0, color: 'blue', icon: <ClockCircleOutlined /> },
+        { label: '加班', value: stats.overtime_count || 0, color: 'purple', icon: <SyncOutlined /> },
+        { label: '工时', value: stats.avg_work_hours || 0, color: 'indigo', icon: <ClockCircleOutlined />, unit: 'h' },
+    ];
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          {/* 模态框头部 */}
-          <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold">打卡详情</h3>
-              <p className="text-sm opacity-90 mt-1">{formatDate(selectedRecord.record_date)}</p>
+        <ConfigProvider theme={{
+            token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
+            components: { 
+                Table: { headerBg: '#f8fafc', headerColor: '#64748b', headerFontWeight: 900 },
+                Select: { colorBorder: '#64748b' }
+            }
+        }}>
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* 增强型统计卡片 - 多彩透明 + 醒目字体 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                {statsConfig.map((s, i) => (
+                    <div key={i} className={`bg-${s.color}-500/10 border border-${s.color}-500/30 p-4 rounded-2xl shadow-sm text-center transition-all hover:scale-105 hover:bg-${s.color}-500/20`}>
+                        <div className={`flex items-center justify-center gap-1.5 text-[11px] font-black text-${s.color}-700 uppercase mb-1`}>
+                            {s.icon} {s.label}
+                        </div>
+                        <div className={`text-2xl font-black text-${s.color}-900`}>
+                            {s.value}<span className="text-xs ml-0.5 opacity-60">{s.unit || ''}</span>
+                        </div>
+                    </div>
+                ))}
             </div>
-            <button
-              onClick={() => setShowDetailModal(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:bg-opacity-20 transition-colors"
+
+            {/* 搜索控制台 */}
+            <div className="flex flex-wrap items-center gap-4 w-full">
+                <div className="flex items-center bg-white rounded-lg shadow-sm border border-slate-500 overflow-hidden h-[44px]">
+                    <div className="flex shrink-0 h-full border-r border-slate-200">
+                        <button onClick={() => setDateRange(null)} className={`px-6 h-full text-[12px] font-black transition-all ${!dateRange ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>全部</button>
+                    </div>
+                    <RangePicker 
+                        value={dateRange} 
+                        onChange={setDateRange}
+                        className="w-72 !border-none h-full font-black px-6 shadow-none" 
+                        placeholder={['开始日期', '结束日期']}
+                    />
+                </div>
+
+                <Select 
+                    value={statusFilter} 
+                    onChange={setStatusFilter}
+                    className="w-44 font-black flagship-select h-[44px]"
+                    options={[
+                        { label: '💠 全部状态', value: 'all' },
+                        { label: '🟢 正常', value: 'normal' },
+                        { label: '🔴 迟到', value: 'late' },
+                        { label: '🟠 早退', value: 'early' },
+                        { label: '⚠️ 缺勤', value: 'absent' },
+                        { label: '🌴 请假', value: 'leave' },
+                    ]}
+                />
+
+                <div className="flex bg-white border border-slate-500 rounded-xl p-1 shadow-sm ml-auto">
+                    {[
+                        { id: 'list', icon: <UnorderedListOutlined />, label: '列表' },
+                        { id: 'calendar', icon: <CalendarOutlined />, label: '日历' },
+                        { id: 'timeline', icon: <HistoryOutlined />, label: '轴带' }
+                    ].map(btn => (
+                        <button key={btn.id} onClick={() => setViewMode(btn.id)}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black transition-all ${viewMode === btn.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            {btn.icon} <span>{btn.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 内容渲染区 */}
+            {viewMode === 'list' && (
+                <Card className="rounded-3xl border-slate-500 shadow-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
+                    <Table columns={columns} dataSource={records} rowKey="id" loading={loading} pagination={false} />
+                    {total > pageSize && (
+                        <div className="px-10 py-8 bg-slate-50/50 flex items-center justify-between border-t border-slate-500">
+                            <div className="flex items-center gap-4 text-left font-black">
+                                <span className="text-[12px] text-slate-900 uppercase tracking-widest">共找到 <span className="text-indigo-600">{total}</span> 条记录</span>
+                                <Select size="small" value={pageSize} onChange={handlePageSizeChange} className="w-28 font-black" options={[10, 20, 50].map(v => ({ label: `${v} 条/页`, value: v }))} />
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 font-black text-xs disabled:opacity-30 transition-all">← 上一页</button>
+                                <div className="flex gap-1.5 mx-2">{renderPageNumbers()}</div>
+                                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="h-10 px-5 rounded-lg bg-white border-[1px] border-slate-500 text-slate-900 font-black text-xs disabled:opacity-30 transition-all">下一页 →</button>
+                                <div className="flex items-center gap-2 ml-4">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase">跳转</span>
+                                    <InputNumber min={1} max={totalPages} value={jumpPage} onChange={setJumpPage} onPressEnter={handleJumpPage} className="w-16 h-10 rounded-lg font-black border-slate-500 flagship-input-number" controls={false} />
+                                    <button handleJumpPage={handleJumpPage} className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-900 text-white shadow-lg hover:bg-black transition-all"><ArrowRight size={16} /></button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            {viewMode === 'calendar' && renderCalendarView()}
+            {viewMode === 'timeline' && renderTimelineView()}
+
+            {/* 详情模态框 */}
+            <Modal
+                title={<span className="font-black text-lg">打卡轨迹详情</span>}
+                open={showDetailModal}
+                onCancel={() => setShowDetailModal(false)}
+                footer={[<Button key="close" onClick={() => setShowDetailModal(false)} className="font-black h-11 px-10 bg-slate-900 text-white border-none rounded-lg">我知道了</Button>]}
+                width={600}
+                centered
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* 模态框内容 */}
-          <div className="p-6 space-y-6">
-            {/* 状态卡片 */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <div className="text-sm text-gray-600">考勤状态</div>
-                <div className="mt-2">{getStatusBadge(selectedRecord.status)}</div>
-              </div>
-              {selectedRecord.work_hours && (
-                <div className="text-right">
-                  <div className="text-sm text-gray-600">工作时长</div>
-                  <div className="text-2xl font-bold text-gray-800 mt-1">
-                    {selectedRecord.work_hours} <span className="text-sm font-normal">小时</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 打卡信息 */}
-            {selectedRecord.type === 'leave' ? (
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                <h4 className="font-semibold text-blue-800 mb-2">请假详情</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-blue-600">开始时间</div>
-                    <div className="font-medium">{selectedRecord.start_date}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-blue-600">结束时间</div>
-                    <div className="font-medium">{selectedRecord.end_date}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-blue-600">请假类型</div>
-                    <div className="font-medium">{selectedRecord.leave_type}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-blue-600">天数</div>
-                    <div className="font-medium">{selectedRecord.days}天</div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 上班打卡 */}
-                <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-green-600 text-2xl">↑</span>
+                {selectedRecord && (
+                    <div className="space-y-6 py-4">
+                        <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">考勤状态</p>{getStatusBadge(selectedRecord.status)}</div>
+                            <div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">打卡工时</p><span className="text-2xl font-black text-slate-900">{selectedRecord.work_hours || '0.0'} h</span></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 border border-slate-200 rounded-xl">
+                                <div className="flex items-center gap-2 text-emerald-600 mb-2"><Clock size={16}/><span className="text-xs font-black">上班打卡</span></div>
+                                <div className="text-lg font-black">{selectedRecord.clock_in_time?.substring(11,16) || '--:--'}</div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2"><MapPin size={10}/>{selectedRecord.clock_in_location || '位置未同步'}</div>
+                            </div>
+                            <div className="p-4 border border-slate-200 rounded-xl">
+                                <div className="flex items-center gap-2 text-blue-600 mb-2"><Clock size={16}/><span className="text-xs font-black">下班打卡</span></div>
+                                <div className="text-lg font-black">{selectedRecord.clock_out_time?.substring(11,16) || '--:--'}</div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2"><MapPin size={10}/>{selectedRecord.clock_out_location || '位置未同步'}</div>
+                            </div>
+                        </div>
+                        {selectedRecord.remark && <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-sm font-bold text-amber-900">{selectedRecord.remark}</div>}
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-600">上班打卡</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {formatDateTime(selectedRecord.clock_in_time)}
-                      </div>
-                    </div>
-                  </div>
-                  {selectedRecord.clock_in_location && (
-                    <div className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span>{selectedRecord.clock_in_location}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 下班打卡 */}
-                <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 text-2xl">↓</span>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">下班打卡</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {formatDateTime(selectedRecord.clock_out_time)}
-                      </div>
-                    </div>
-                  </div>
-                  {selectedRecord.clock_out_location && (
-                    <div className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span>{selectedRecord.clock_out_location}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 备注信息 */}
-            {selectedRecord.remark && (
-              <div className="border-l-4 border-yellow-400 bg-yellow-50 p-4 rounded">
-                <div className="flex items-start gap-2">
-                  <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                  </svg>
-                  <div>
-                    <div className="font-semibold text-gray-800 mb-1">备注</div>
-                    <div className="text-gray-700">{selectedRecord.remark}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 详细信息 */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-800 mb-3">详细信息</h4>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-gray-600">记录ID：</span>
-                  <span className="text-gray-800 font-medium">{selectedRecord.id}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">日期：</span>
-                  <span className="text-gray-800 font-medium">{selectedRecord.record_date}</span>
-                </div>
-                {selectedRecord.overtime_hours > 0 && (
-                  <div>
-                    <span className="text-gray-600">加班时长：</span>
-                    <span className="text-gray-800 font-medium">{selectedRecord.overtime_hours}小时</span>
-                  </div>
                 )}
-              </div>
-            </div>
-          </div>
-
-          {/* 模态框底部 */}
-          <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t">
-            <button
-              onClick={() => setShowDetailModal(false)}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              关闭
-            </button>
-          </div>
+            </Modal>
         </div>
-      </div>
-    )
-  }
+        </ConfigProvider>
+    );
+};
 
-  return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      {/* 头部 */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">打卡记录</h1>
-            <p className="text-gray-600 mt-1">查看您的考勤打卡历史记录</p>
-          </div>
-          <button
-            onClick={exportRecords}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-          >
-            <DocumentArrowDownIcon className="w-5 h-5" />
-            导出记录
-          </button>
-        </div>
-      </div>
-
-      {/* 统计卡片 */}
-      {renderStatsCards()}
-
-      {/* 状态筛选按钮 */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {[
-          { id: 'all', name: '全部' },
-          { id: 'normal', name: '正常' },
-          { id: 'late', name: '迟到' },
-          { id: 'early', name: '早退' },
-          { id: 'absent', name: '缺勤' },
-          { id: 'leave', name: '请假' },
-          { id: 'overtime', name: '加班' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => handleStatusFilter(tab.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filters.status === tab.id
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
-          >
-            {tab.name}
-          </button>
-        ))}
-      </div>
-
-      {/* 筛选器和视图切换 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-end justify-between">
-          {/* 左侧筛选 */}
-          <div className="flex flex-wrap gap-4 items-end">
-            {/* 快捷筛选 */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleQuickFilter('today')}
-                className={`px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors ${
-                  filters.start_date === new Date().toISOString().split('T')[0] ? 'bg-blue-50 border-blue-500' : ''
-                }`}
-              >
-                今天
-              </button>
-              <button
-                onClick={() => handleQuickFilter('week')}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                本周
-              </button>
-              <button
-                onClick={() => handleQuickFilter('month')}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                本月
-              </button>
-              <button
-                onClick={() => handleQuickFilter('all')}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                全部
-              </button>
-            </div>
-
-            {/* 日期范围 */}
-            <div className="flex gap-2 items-center">
-              <input
-                type="date"
-                value={filters.start_date}
-                onChange={(e) => setFilters(prev => ({ ...prev, start_date: e.target.value }))}
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-gray-500">至</span>
-              <input
-                type="date"
-                value={filters.end_date}
-                onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value }))}
-                className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* 状态筛选 */}
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">全部状态</option>
-              <option value="normal">正常</option>
-              <option value="late">迟到</option>
-              <option value="early">早退</option>
-              <option value="absent">缺勤</option>
-              <option value="leave">请假</option>
-            </select>
-          </div>
-
-          {/* 右侧视图切换 */}
-          <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                viewMode === 'list' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              列表视图
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('calendar')
-                // 切换到日历视图时，如果没有选择月份，默认为当前月份
-                if (!selectedMonth) {
-                  setSelectedMonth(new Date())
-                }
-              }}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                viewMode === 'calendar' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              日历视图
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                viewMode === 'timeline' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              时间轴
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 内容区域 */}
-      {viewMode === 'list' && renderListView()}
-      {viewMode === 'calendar' && renderCalendarView()}
-      {viewMode === 'timeline' && renderTimelineView()}
-
-      {/* 详情模态框 */}
-      {renderDetailModal()}
-    </div>
-  )
-}
+export default AttendanceRecords;
