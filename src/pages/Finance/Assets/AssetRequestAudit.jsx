@@ -1,42 +1,50 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Tag, Card, Modal, Form, Input, Space, Typography, Badge, Tabs, Steps, Divider, Row, Col } from 'antd';
+/**
+ * 资产申请审批中心 (雷犀高级感 2.0 商务版)
+ * 
+ * 核心标准：
+ * 1. 物理缝合搜索栏：44px 统一高度、全铺满、边框 #64748b。
+ * 2. 极致紧凑表格：黑白商务配色、全量居中、信息密度最大化。
+ * 3. 视觉降噪：移除冗余面包屑，统一按钮视觉对比度。
+ * 4. 极致本地化：全量移除英文状态词，改为地道中文。
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  CheckCircleOutlined, 
-  CloseCircleOutlined, 
-  EyeOutlined, 
-  HistoryOutlined,
+  Table, Tag, Modal, Form, Input, Space, Typography, 
+  Badge, Tabs, Divider, Row, Col, Avatar 
+} from 'antd';
+import { 
+  CheckCircleFilled, 
+  CloseCircleFilled, 
+  SearchOutlined,
+  ReloadOutlined,
   AuditOutlined,
-  ReloadOutlined
+  FileTextOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import { toast } from 'sonner';
 import api from '../../../api';
-import Breadcrumb from '../../../components/Breadcrumb';
 
-const { Title, Text } = Typography;
+const { Text, Title } = Typography;
 
-// --- Shadcn 风格按钮 ---
-const ShadcnButton = ({ children, onClick, variant = 'default', icon, className = '', size = 'md' }) => {
-  const baseStyles = "inline-flex items-center justify-center rounded-md font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 gap-2 active:scale-95 shadow-sm";
-  const sizes = { sm: "h-8 px-3 text-xs", md: "h-9 px-4 py-2 text-sm", lg: "h-10 px-8 text-base" };
-  const variants = {
-    default: "bg-slate-900 text-white hover:bg-slate-800",
-    indigo: "bg-indigo-600 text-white hover:bg-indigo-700",
-    warning: "bg-orange-500 text-white hover:bg-orange-600",
-    danger: "bg-red-500 text-white hover:bg-red-600",
-    outline: "border border-slate-200 bg-white hover:bg-slate-50 text-slate-600",
-    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200 border border-slate-200"
-  };
-  return (<button onClick={onClick} className={`${baseStyles} ${sizes[size]} ${variants[variant]} ${className}`}>{icon}{children}</button>);
-};
+// --- 样式组件：黑底白字商务按钮 ---
+const BlackButton = ({ children, icon, ...props }) => (
+  <button 
+    className="bg-black hover:bg-slate-800 text-white rounded-lg h-9 px-5 flex items-center justify-center gap-2 transition-all font-bold text-xs shadow-sm active:scale-95 disabled:opacity-50"
+    {...props}
+  >
+    {icon}
+    <span className="text-white">{children}</span>
+  </button>
+);
 
 const AssetRequestAudit = () => {
   const [loading, setLoading] = useState(false);
   const [requests, setRequests] = useState([]);
   const [activeTab, setActiveTab] = useState('pending');
   const [auditModal, setAuditModal] = useState(false);
-  const [detailModal, setDetailModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [requestDetail, setDetailData] = useState(null);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   const fetchRequests = async () => {
@@ -47,7 +55,7 @@ const AssetRequestAudit = () => {
         setRequests(res.data.data);
       }
     } catch (error) {
-      toast.error('获取申请列表失败');
+      toast.error('列表同步失败');
     } finally {
       setLoading(false);
     }
@@ -56,24 +64,6 @@ const AssetRequestAudit = () => {
   useEffect(() => {
     fetchRequests();
   }, [activeTab]);
-
-  const viewDetail = async (record) => {
-    setSelectedRequest(record);
-    setLoading(true);
-    try {
-      // 修正接口：后端逻辑已在 processApproval 等处处理，此处拉取流程进度
-      const res = await api.get(`/assets/requests/${record.id}/progress`); 
-      // 如果后端没提供 progress 接口，我们降级显示基础信息
-      if (res.data.success) {
-        setDetailData(res.data);
-        setDetailModal(true);
-      }
-    } catch (error) {
-      toast.error('获取进度失败');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAuditAction = (record, action) => {
     setSelectedRequest({ ...record, targetAction: action });
@@ -89,53 +79,64 @@ const AssetRequestAudit = () => {
         admin_notes: values.admin_notes
       });
       if (res.data.success) {
-        toast.success('处理成功');
+        toast.success('审批操作已执行');
         setAuditModal(false);
         fetchRequests();
       }
     } catch (error) {
-      toast.error('审核提交失败');
+      toast.error('操作提交失败');
     }
   };
+
+  const filteredData = useMemo(() => {
+    if (!searchText) return requests;
+    return requests.filter(r => 
+      r.applicant_name?.includes(searchText) || 
+      r.asset_no?.includes(searchText) ||
+      r.device_name?.includes(searchText)
+    );
+  }, [requests, searchText]);
 
   const columns = [
     {
       title: '申请时间',
       dataIndex: 'created_at',
       align: 'center',
-      render: (date) => <span className="text-slate-500 font-medium">{new Date(date).toLocaleString()}</span>,
-      width: 180
+      render: (date) => <span className="text-slate-400 font-mono text-[11px]">{new Date(date).toLocaleString()}</span>,
+      width: 160
     },
     {
-      title: '申请人/部门',
+      title: '申请人信息',
       key: 'applicant',
       align: 'center',
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <span className="font-bold text-slate-800">{record.applicant_name}</span>
-          <span className="text-[10px] text-slate-400 uppercase font-bold">{record.department_name}</span>
-        </Space>
+        <div className="flex flex-col items-center">
+          <span className="font-black text-slate-800 text-xs">{record.applicant_name}</span>
+          <Tag className="m-0 border-none bg-slate-100 text-slate-500 text-[9px] font-bold uppercase mt-0.5">
+            {record.department_name}
+          </Tag>
+        </div>
       ),
-      width: 150
+      width: 140
     },
     {
-      title: '涉及设备',
+      title: '目标资产',
       key: 'device',
       align: 'center',
       render: (_, record) => (
         <div className="flex flex-col items-center">
-          <code className="text-indigo-600 font-bold mb-1">{record.asset_no}</code>
-          <span className="text-xs text-slate-500">{record.device_name}</span>
+          <code className="text-indigo-600 font-black text-[10px] bg-indigo-50 px-1.5 py-0.5 rounded">{record.asset_no}</code>
+          <span className="text-[11px] text-slate-500 font-medium mt-1">{record.device_name}</span>
         </div>
       )
     },
     {
-      title: '申请类型',
+      title: '业务类型',
       dataIndex: 'type',
       align: 'center',
       render: (type) => (
-        <Tag color={type === 'upgrade' ? 'purple' : 'orange'} className="rounded-full border-none px-3 font-bold text-[10px]">
-          {type === 'upgrade' ? '硬件升级' : '故障维修'}
+        <Tag color={type === 'upgrade' ? 'black' : 'default'} className="rounded-md border-none px-2 font-black text-[10px]">
+          {type === 'upgrade' ? '性能升级' : '故障报修'}
         </Tag>
       ),
       width: 100
@@ -146,12 +147,17 @@ const AssetRequestAudit = () => {
       align: 'center',
       render: (status) => {
         const config = {
-          pending: { c: 'processing', t: '审批中' },
-          approved: { c: 'success', t: '已通过' },
-          rejected: { c: 'error', t: '已驳回' }
+          pending: { c: 'bg-amber-50 text-amber-600', t: '审核中' },
+          approved: { c: 'bg-emerald-50 text-emerald-600', t: '审批通过' },
+          rejected: { c: 'bg-rose-50 text-rose-600', t: '已驳回' }
         };
-        const item = config[status] || { c: 'default', t: status };
-        return <Badge status={item.c} text={<span className="font-medium">{item.t}</span>} />;
+        const item = config[status] || { c: 'bg-slate-100 text-slate-400', t: '已撤销' };
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${status === 'pending' ? 'bg-amber-500' : status === 'approved' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+            <span className={`text-[10px] font-black ${item.c.split(' ')[1]}`}>{item.t}</span>
+          </div>
+        );
       },
       width: 120
     },
@@ -159,69 +165,138 @@ const AssetRequestAudit = () => {
       title: '操作',
       key: 'action',
       align: 'center',
-      width: 250,
+      width: 180,
       render: (_, record) => (
-        <div className="flex justify-center gap-2">
-          {/* <ShadcnButton variant="outline" size="sm" icon={<EyeOutlined />} onClick={() => viewDetail(record)}>进度</ShadcnButton> */}
-          {record.status === 'pending' && (
-            <>
-              <ShadcnButton variant="indigo" size="sm" icon={<CheckCircleOutlined />} onClick={() => handleAuditAction(record, 'approve')}>通过</ShadcnButton>
-              <ShadcnButton variant="danger" size="sm" icon={<CloseCircleOutlined />} onClick={() => handleAuditAction(record, 'reject')}>驳回</ShadcnButton>
-            </>
-          )}
-        </div>
+        record.status === 'pending' ? (
+          <Space split={<Divider type="vertical" />}>
+            <Button type="link" size="small" className="font-black text-emerald-600 text-xs" onClick={() => handleAuditAction(record, 'approve')}>同意</Button>
+            <Button type="link" size="small" danger className="font-black text-xs" onClick={() => handleAuditAction(record, 'reject')}>拒绝</Button>
+          </Space>
+        ) : (
+          <Text type="disabled" className="text-[10px] font-bold uppercase">流程已结项</Text>
+        )
       ),
     },
   ];
 
   return (
-    <div className="p-8 bg-white min-h-screen text-slate-900">
-      <div className="mb-4">
-        <Breadcrumb items={['首页', '后勤管理', '申请审批']} />
-      </div>
-      
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4 border-b border-slate-100 pb-8">
+    <div className="p-6 md:p-8 min-h-screen bg-slate-50/30">
+      {/* 顶部标题栏 */}
+      <div className="max-w-[1400px] mx-auto mb-8 flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">设备申请审批</h1>
-          <p className="text-slate-500 mt-2 text-sm font-medium">统一处理员工发起的硬件升级、故障报修及设备更换申请流</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg">
+              <AuditOutlined className="text-white text-xl" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 !m-0">后勤审批中心</h1>
+          </div>
+          <p className="text-slate-400 text-sm font-bold">处理全系统硬件资产的变更与报修申请</p>
         </div>
-        <ShadcnButton variant="outline" icon={<ReloadOutlined />} onClick={fetchRequests}>刷新列表</ShadcnButton>
+        <BlackButton icon={<ReloadOutlined className={loading ? 'animate-spin' : ''} />} onClick={fetchRequests}>同步记录</BlackButton>
       </div>
 
-      <Card variant="borderless" className="shadow-sm border border-slate-200 rounded-xl overflow-hidden">
-        <Tabs activeKey={activeTab} onChange={setActiveTab} className="asset-tabs" items={[
-          { key: 'pending', label: <span className="px-4 font-bold">待我处理</span> },
-          { key: 'approved', label: <span className="px-4 font-bold">已通过</span> },
-          { key: 'rejected', label: <span className="px-4 font-bold">已驳回</span> },
-          { key: 'all', label: <span className="px-4 font-bold">历史记录</span> },
-        ]} />
-        <Table columns={columns} dataSource={requests} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} className="border-t border-slate-100" />
-      </Card>
+      {/* 雷犀标准：44px 物理缝合搜索栏 */}
+      <div className="max-w-[1400px] mx-auto mb-8">
+        <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b]">
+          <div className="flex-1 flex items-center h-[44px] px-4">
+            <SearchOutlined className="text-slate-400 mr-3" />
+            <Input 
+              placeholder="通过申请人、资产编号或具体描述检索..." 
+              variant="borderless"
+              className="h-full text-sm font-medium"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
+            />
+          </div>
+          <Divider type="vertical" className="h-6 border-slate-200 m-0" />
+          <div className="w-64 flex items-center h-[44px] px-4 bg-slate-50/50">
+            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">当前视图</span>
+            <Select 
+              value={activeTab} 
+              onChange={setActiveTab}
+              variant="borderless"
+              className="w-full text-xs font-black text-slate-700"
+              options={[
+                { value: 'pending', label: '待办审批' },
+                { value: 'approved', label: '通过历史' },
+                { value: 'rejected', label: '驳回历史' },
+                { value: 'all', label: '全部记录' }
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 极致紧凑表格 */}
+      <div className="max-w-[1400px] mx-auto">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <Table 
+            columns={columns} 
+            dataSource={filteredData} 
+            rowKey="id" 
+            loading={loading} 
+            size="middle"
+            className="compact-table"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `共计 ${total} 条申请记录`,
+              className: "custom-pagination",
+              position: ['bottomCenter']
+            }}
+          />
+        </div>
+      </div>
 
       {/* 审批处理弹窗 */}
-      <Modal title={<Space><AuditOutlined className="text-indigo-600" /><span>审批处理意见</span></Space>} open={auditModal} onCancel={() => setAuditModal(false)} footer={null} centered width={450}>
-        <Form form={form} layout="vertical" className="mt-6">
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 mb-6">
-            <div className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">申请内容摘要</div>
-            <div className="text-sm font-medium text-slate-700 leading-relaxed">
-              {selectedRequest?.description || '无具体描述'}
+      <Modal 
+        title={<div className="font-black text-slate-800 text-sm flex items-center gap-2"><FileTextOutlined className="text-indigo-600" /> 签署审批意见</div>} 
+        open={auditModal} 
+        onCancel={() => setAuditModal(false)} 
+        onOk={submitAudit}
+        centered 
+        width={420}
+        okText={selectedRequest?.targetAction === 'approve' ? '确认通过' : '确认驳回'}
+        cancelText="暂不处理"
+        className="custom-modal"
+        confirmLoading={loading}
+      >
+        <Form form={form} layout="vertical" className="mt-4">
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+            <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase mb-3">
+              <ClockCircleOutlined /> 申请事由描述
+            </div>
+            <div className="text-xs font-bold text-slate-600 leading-relaxed italic">
+              " {selectedRequest?.description || '未填写具体事由'} "
             </div>
           </div>
-          <Form.Item name="admin_notes" label={<span className="text-xs font-bold text-slate-500 uppercase">审批备注</span>} rules={[{ required: selectedRequest?.targetAction === 'reject', message: '驳回必须填写原因' }]}>
-            <Input.TextArea rows={4} placeholder="请输入您的处理意见..." className="rounded-md" />
+          <Form.Item 
+            name="admin_notes" 
+            label={<span className="text-[10px] font-black text-slate-400 uppercase">处理备注 (驳回必填)</span>} 
+            rules={[{ required: selectedRequest?.targetAction === 'reject', message: '请务必说明驳回原因' }]}
+          >
+            <Input.TextArea rows={3} placeholder="在此输入您的批复意见..." className="rounded-lg border-slate-200" />
           </Form.Item>
-          
-          <div className="flex justify-end gap-3 mt-8">
-            <ShadcnButton variant="outline" onClick={() => setAuditModal(false)}>取消</ShadcnButton>
-            <ShadcnButton 
-              variant={selectedRequest?.targetAction === 'approve' ? 'indigo' : 'danger'} 
-              onClick={() => submitAudit()}
-            >
-              确认{selectedRequest?.targetAction === 'approve' ? '通过申请' : '驳回申请'}
-            </ShadcnButton>
-          </div>
         </Form>
       </Modal>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ant-table-thead > tr > th { 
+          background: #f8fafc !important; 
+          color: #64748b !important; 
+          font-weight: 900 !important; 
+          text-transform: uppercase !important; 
+          font-size: 10px !important;
+          padding: 12px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          text-align: center !important;
+        }
+        .ant-table-tbody > tr > td { text-align: center !important; font-size: 13px !important; border-bottom: 1px solid #f1f5f9 !important; }
+        .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
+        .ant-btn-primary { background: #000000 !important; border: none !important; border-radius: 8px !important; font-weight: 700 !important; }
+        .ant-btn-primary span { color: #ffffff !important; }
+      `}} />
     </div>
   );
 };

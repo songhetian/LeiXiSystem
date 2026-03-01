@@ -262,6 +262,14 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
       ];
     }
 
+    // 特殊页面处理：资产申请审批
+    if (activeTab === 'asset-request-audit') {
+      return [
+        { label: '后勤管理', id: 'logistics' },
+        { label: '审批中心', id: 'asset-request-audit' }
+      ];
+    }
+
     return [];
   }, [activeTab]);
 
