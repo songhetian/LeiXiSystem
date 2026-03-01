@@ -1,18 +1,18 @@
 /**
- * 设备配置中心 (雷犀高级感 2.0 商务版)
+ * 设备配置中心 (雷犀高级感 2.0 商务版 - 极致本地化)
  * 
  * 核心升级：
- * 1. 物理缝合搜索栏：44px 统一高度、全铺满、边框 #64748b。
- * 2. 极致紧凑表格：黑白商务配色、全量居中、信息密度最大化。
- * 3. 视觉降噪：移除冗余面包屑，统一按钮视觉对比度。
- * 4. 逻辑守护：完整保留员工配属、SKU发布、规格定义、配置中心四大核心模块。
+ * 1. 全面去英文：移除 UNITS, GENERIC, SKU 等所有非中文字符，改为“台”、“标准”、“型号库”等。
+ * 2. 物理缝合搜索栏：44px 统一高度、全铺满、边框 #64748b。
+ * 3. 极致紧凑表格：黑白商务配色、全量居中、信息密度最大化。
+ * 4. 规范分页：采用商务黑白风格的分页组件，居中展示。
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { 
   Badge, Tag, Modal, Form, Input, Select, 
-  Table, Avatar, Space, Tabs, Card, Row, Col, Divider, Tooltip
+  Table, Avatar, Space, Tabs, Card, Row, Col, Divider, Tooltip, Button
 } from 'antd';
 import { 
   UserOutlined, 
@@ -26,7 +26,8 @@ import {
   CheckCircleFilled,
   ExclamationCircleOutlined,
   FilterOutlined,
-  ArrowRightOutlined
+  ArrowRightOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import api from '../../../api';
 import { getImageUrl } from '../../../utils/fileUtils';
@@ -47,7 +48,7 @@ const AssetManagement = () => {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('employees');
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ keyword: '', department_id: null, position_id: null });
+  const [filters, setFilters] = useState({ keyword: '', department_id: null });
 
   // 数据状态
   const [departments, setDepartments] = useState([]);
@@ -110,7 +111,7 @@ const AssetManagement = () => {
         const res = await api.get('/assets/components');
         if (res.data.success) setComponents(res.data.data);
       }
-    } catch (e) { toast.error('加载失败'); } finally { setLoading(false); }
+    } catch (e) { toast.error('加载数据失败'); } finally { setLoading(false); }
   };
 
   const fetchAssignedUsers = async () => {
@@ -141,7 +142,7 @@ const AssetManagement = () => {
       const values = await form.validateFields();
       const res = await api.post('/assets/assign', { ...values, user_id: selectedUser.user_id });
       if (res.data.success) {
-        toast.success('分配成功');
+        toast.success('设备配属成功');
         setIsAssignModalOpen(false);
         fetchMainData();
       }
@@ -153,7 +154,7 @@ const AssetManagement = () => {
       const values = await form.validateFields();
       const res = await api.post('/assets/components', values);
       if (res.data.success) {
-        toast.success('规格已保存');
+        toast.success('规格保存成功');
         setIsCompEntryOpen(false);
         fetchMainData();
       }
@@ -167,7 +168,7 @@ const AssetManagement = () => {
                        baseModalConfig.type === 'form' ? '/assets/forms' : '/assets/component-types';
       const res = await api.post(endpoint, values);
       if (res.data.success) {
-        toast.success('配置已更新');
+        toast.success('配置已生效');
         setIsBaseModalOpen(false);
         fetchBaseConfig();
       }
@@ -183,8 +184,8 @@ const AssetManagement = () => {
     };
     
     Modal.confirm({
-      title: '确认移除？',
-      content: '该操作将永久移除此项配置，若已有设备关联将无法操作。',
+      title: '确认移除此配置？',
+      content: '该操作将永久移除此项，若已被关联使用则无法删除。',
       centered: true,
       okText: '确认移除',
       cancelText: '取消',
@@ -194,29 +195,38 @@ const AssetManagement = () => {
         try {
           const res = await api.delete(endpointMap[type]);
           if (res.data.success) {
-            toast.success('已移除');
+            toast.success('已成功移除');
             type === 'component' ? fetchMainData() : fetchBaseConfig();
           }
         } catch (e) {
-          toast.error(e.response?.data?.message || '操作失败');
+          toast.error(e.response?.data?.message || '移除失败，请检查关联关系');
         }
       }
     });
   };
 
+  // 表格通用分页配置
+  const commonPagination = {
+    pageSize: 10,
+    showSizeChanger: false,
+    position: ['bottomCenter'], // 强制居中
+    showTotal: (total) => `共计 ${total} 条数据`,
+    className: "custom-pagination"
+  };
+
   const employeeColumns = [
     {
-      title: '姓名', dataIndex: 'real_name', align: 'center', width: 120,
+      title: '员工姓名', dataIndex: 'real_name', align: 'center', width: 120,
       render: (text, r) => <Space size="small"><Avatar size={24} src={getImageUrl(r.avatar)} icon={<UserOutlined />} className="border border-slate-100" /><span className="font-bold text-slate-800 text-xs">{text}</span></Space>
     },
     { title: '所属部门', dataIndex: 'department_name', align: 'center', width: 150, render: t => <span className="text-slate-500 font-medium text-xs">{t || '-'}</span> },
     { title: '现任职位', dataIndex: 'position_name', align: 'center', width: 150, render: t => <span className="text-slate-400 font-bold text-[11px] uppercase">{t || '-'}</span> },
     { 
       title: '持有实机', dataIndex: 'device_count', align: 'center', width: 100,
-      render: count => <Tag color={count > 0 ? 'black' : 'default'} className="m-0 border-none font-black text-[10px] rounded-md">{count} UNITS</Tag>
+      render: count => <Tag color={count > 0 ? 'black' : 'default'} className="m-0 border-none font-black text-[10px] rounded-md">{count} 台</Tag>
     },
     {
-      title: '操作', align: 'center', width: 160,
+      title: '管理操作', align: 'center', width: 160,
       render: (_, r) => (
         <Space split={<Divider type="vertical" />}>
           <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => handleUserDetail(r)}>档案</Button>
@@ -227,24 +237,24 @@ const AssetManagement = () => {
   ];
 
   const deviceColumns = [
-    { title: '硬件型号名称', dataIndex: 'name', align: 'center', render: t => <span className="font-black text-slate-800 text-sm">{t}</span> },
+    { title: '硬件型号', dataIndex: 'name', align: 'center', render: t => <span className="font-black text-slate-800 text-sm">{t}</span> },
     { title: '业务分类', dataIndex: 'category_name', align: 'center', render: t => <Tag className="rounded-md border-slate-200 text-slate-500 font-bold text-[10px]">{t}</Tag> },
-    { title: '形态', dataIndex: 'form_name', align: 'center', render: t => <span className="text-slate-400 font-black uppercase text-[10px]">{t}</span> },
+    { title: '设备形态', dataIndex: 'form_name', align: 'center', render: t => <span className="text-slate-400 font-black text-[10px]">{t}</span> },
     { 
-      title: '当前在用', dataIndex: 'assigned_count', align: 'center', width: 120,
+      title: '在用数量', dataIndex: 'assigned_count', align: 'center', width: 120,
       render: (count, r) => (
         <button onClick={() => { setSelectedDevice(r); setIsAssignedModalOpen(true); }} className="font-black text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors text-xs underline underline-offset-4">
-          {count} UNITS
+          {count} 台
         </button>
       )
     },
     {
-      title: '操作', align: 'center', width: 150,
+      title: '管理操作', align: 'center', width: 150,
       render: (_, r) => (
         <Space split={<Divider type="vertical" />}>
           <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => { setSelectedDevice(r); setIsEditorOpen(true); }}>编辑</Button>
           <Button type="link" size="small" danger className="font-bold text-xs" onClick={() => {
-             Modal.confirm({ title: '确认下架型号', content: '仅支持无领用记录的型号移除', centered: true, onOk: async () => { await api.delete(`/assets/devices/${r.id}`); fetchMainData(); } });
+             Modal.confirm({ title: '确认下架此型号？', content: '仅支持无领用记录的型号移除。', centered: true, onOk: async () => { await api.delete(`/assets/devices/${r.id}`); fetchMainData(); } });
           }}>删除</Button>
         </Space>
       )
@@ -253,9 +263,9 @@ const AssetManagement = () => {
 
   const componentColumns = [
     { title: '规格组件名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-slate-700 text-xs">{t}</span> },
-    { title: '分类', dataIndex: 'type_name', align: 'center', render: t => <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-bold text-[10px]">{t}</Tag> },
-    { title: '核心参数', dataIndex: 'model', align: 'center', render: t => <code className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{t || 'GENERIC'}</code> },
-    { title: '操作', align: 'center', width: 100, render: (_, r) => <Button type="link" danger size="small" className="font-bold text-xs" onClick={() => handleDeleteItem('component', r)}>移除</Button> }
+    { title: '组件分类', dataIndex: 'type_name', align: 'center', render: t => <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-bold text-[10px]">{t}</Tag> },
+    { title: '核心参数', dataIndex: 'model', align: 'center', render: t => <code className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{t || '标准规格'}</code> },
+    { title: '管理操作', align: 'center', width: 100, render: (_, r) => <Button type="link" danger size="small" className="font-bold text-xs" onClick={() => handleDeleteItem('component', r)}>移除</Button> }
   ];
 
   return (
@@ -269,7 +279,7 @@ const AssetManagement = () => {
             </div>
             <h1 className="text-2xl font-black text-slate-900 !m-0">设备配置中心</h1>
           </div>
-          <p className="text-slate-400 text-sm uppercase tracking-widest font-bold">Logistics & Asset Management Hub</p>
+          <p className="text-slate-400 text-sm font-bold">后勤管理与资产档案枢纽</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -284,7 +294,7 @@ const AssetManagement = () => {
           <div className="flex-1 flex items-center h-[44px] px-4">
             <SearchOutlined className="text-slate-400 mr-3" />
             <Input 
-              placeholder="通过姓名、编号或描述检索资产记录..." 
+              placeholder="搜索姓名、编号或资产描述..." 
               variant="borderless"
               className="h-full text-sm font-medium"
               value={filters.keyword}
@@ -327,25 +337,25 @@ const AssetManagement = () => {
                 label: <span className="px-6 font-bold flex items-center gap-2"><UserOutlined />员工配属档案</span>,
                 children: (
                   <div className="p-0">
-                    <Table columns={employeeColumns} dataSource={employees} loading={loading} rowKey="user_id" size="middle" pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 名员工` }} className="compact-table" />
+                    <Table columns={employeeColumns} dataSource={employees} loading={loading} rowKey="user_id" size="middle" pagination={commonPagination} className="compact-table" />
                   </div>
                 )
               },
               {
                 key: 'devices',
-                label: <span className="px-6 font-bold flex items-center gap-2"><BuildOutlined />设备库 (SKU)</span>,
+                label: <span className="px-6 font-bold flex items-center gap-2"><BuildOutlined />设备型号库</span>,
                 children: (
                   <div className="p-0">
-                    <Table columns={deviceColumns} dataSource={devices} loading={loading} rowKey="id" size="middle" pagination={{ pageSize: 10 }} className="compact-table" />
+                    <Table columns={deviceColumns} dataSource={devices} loading={loading} rowKey="id" size="middle" pagination={commonPagination} className="compact-table" />
                   </div>
                 )
               },
               {
                 key: 'components',
-                label: <span className="px-6 font-bold flex items-center gap-2"><LayoutOutlined />规格库 (Specs)</span>,
+                label: <span className="px-6 font-bold flex items-center gap-2"><LayoutOutlined />配件规格库</span>,
                 children: (
                   <div className="p-0">
-                    <Table columns={componentColumns} dataSource={components} loading={loading} rowKey="id" size="middle" pagination={{ pageSize: 10 }} className="compact-table" />
+                    <Table columns={componentColumns} dataSource={components} loading={loading} rowKey="id" size="middle" pagination={commonPagination} className="compact-table" />
                   </div>
                 )
               },
@@ -384,44 +394,44 @@ const AssetManagement = () => {
       {/* 领用名单详情 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">领用人员清单 - {selectedDevice?.name}</div>} open={isAssignedModalOpen} onCancel={() => setIsAssignedModalOpen(false)} footer={null} width={800} centered className="custom-modal">
         <div className="mb-6 bg-slate-50 p-3 rounded-xl flex gap-3 border border-slate-100">
-          <Input placeholder="搜索姓名或编号..." prefix={<SearchOutlined />} className="rounded-lg h-9" allowClear onChange={e => setAssignedFilters({...assignedFilters, keyword: e.target.value})} />
+          <Input placeholder="搜索姓名或资产编号..." prefix={<SearchOutlined />} className="rounded-lg h-9" allowClear onChange={e => setAssignedFilters({...assignedFilters, keyword: e.target.value})} />
           <Select placeholder="筛选部门" className="w-48 rounded-lg" allowClear options={departments.map(d => ({ label: d.name, value: d.id }))} onChange={val => setAssignedFilters({...assignedFilters, department_id: val})} />
         </div>
-        <Table dataSource={assignedUsers} rowKey="user_id" pagination={{ pageSize: 5 }} size="small" className="compact-table" columns={[
+        <Table dataSource={assignedUsers} rowKey="user_id" pagination={{ ...commonPagination, pageSize: 5 }} size="small" className="compact-table" columns={[
           { title: '领用人', dataIndex: 'real_name', align: 'center', render: (text, r) => <Space size="small"><Avatar size={20} src={getImageUrl(r.avatar)} /><b>{text}</b></Space> },
           { title: '所属部门', dataIndex: 'department_name', align: 'center' },
-          { title: '实物资产编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="text-indigo-600 font-black text-[10px]">{t}</code> },
-          { title: '生效时间', dataIndex: 'assigned_at', align: 'center', render: d => <span className="text-[10px] font-mono text-slate-400">{new Date(d).toLocaleDateString()}</span> }
+          { title: '资产编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="text-indigo-600 font-black text-[10px]">{t}</code> },
+          { title: '配属时间', dataIndex: 'assigned_at', align: 'center', render: d => <span className="text-[10px] font-mono text-slate-400">{new Date(d).toLocaleDateString()}</span> }
         ]} />
       </Modal>
 
       {/* 员工设备档案 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">设备资产档案 - {selectedUser?.real_name}</div>} open={isUserDetailOpen} onCancel={() => setIsUserDetailOpen(false)} footer={null} width={800} centered className="custom-modal">
         <Table dataSource={userAssets} rowKey="id" pagination={false} size="small" className="compact-table" columns={[
-          { title: '实物编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="font-black text-[10px] bg-slate-100 px-2 py-0.5 rounded">{t}</code> },
-          { title: '硬件型号', dataIndex: 'model_name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> },
-          { title: '配置明细', align: 'center', render: r => <div className="flex flex-wrap justify-center gap-1">{(r.components||[]).map((c, i) => <Tag key={i} className="text-[9px] m-0 border-none bg-indigo-50 text-indigo-600 font-bold px-1.5">{c.component_model || c.component_name}</Tag>)}</div> },
-          { title: '状态', dataIndex: 'device_status', align: 'center', width: 100, render: s => (
+          { title: '物理编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="font-black text-[10px] bg-slate-100 px-2 py-0.5 rounded">{t}</code> },
+          { title: '设备型号', dataIndex: 'model_name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> },
+          { title: '详细配置', align: 'center', render: r => <div className="flex flex-wrap justify-center gap-1">{(r.components||[]).map((c, i) => <Tag key={i} className="text-[9px] m-0 border-none bg-indigo-50 text-indigo-600 font-bold px-1.5">{c.component_model || c.component_name}</Tag>)}</div> },
+          { title: '运行状态', dataIndex: 'device_status', align: 'center', width: 100, render: s => (
             <div className="flex items-center justify-center gap-2">
               <div className={`w-1.5 h-1.5 rounded-full ${s==='in_use'?'bg-emerald-500':s==='damaged'?'bg-rose-500':'bg-slate-300'}`}></div>
               <span className="text-[11px] font-bold text-slate-600">{s==='in_use'?'服役中':s==='damaged'?'待修':'闲置'}</span>
             </div>
           )},
-          { title: '操作', align: 'center', width: 120, render: (_, r) => <Button type="link" danger size="small" className="font-black text-xs" onClick={() => { Modal.confirm({ title: '确认回收设备？', content: '回收后该资产将归入闲置库存', centered: true, onOk: async() => { await api.post('/assets/return',{asset_id:r.id}); handleUserDetail(selectedUser); fetchMainData(); } }); }}>回收</Button> }
+          { title: '管理操作', align: 'center', width: 120, render: (_, r) => <Button type="link" danger size="small" className="font-black text-xs" onClick={() => { Modal.confirm({ title: '确认回收此设备？', content: '回收后该资产将重置为闲置状态。', centered: true, onOk: async() => { await api.post('/assets/return',{asset_id:r.id}); handleUserDetail(selectedUser); fetchMainData(); } }); }}>执行回收</Button> }
         ]} />
       </Modal>
 
       {/* 业务弹窗 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">执行资产配属</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="确认配属" cancelText="返回" className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
-          <Tabs activeKey={assignMode} onChange={setAssignMode} size="small" className="mb-4" items={[{ key: 'new', label: '新机配发' }, { key: 'existing', label: '库存复用' }]} />
+          <Tabs activeKey={assignMode} onChange={setAssignMode} size="small" className="mb-4" items={[{ key: 'new', label: '新机发放' }, { key: 'existing', label: '库存重用' }]} />
           {assignMode === 'new' ? (
-            <Form.Item name="model_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择标准型号</span>} rules={[{ required: true }]}>
-              <Select placeholder="搜索型号库..." options={devices.map(d => ({ label: d.name, value: d.id }))} className="rounded-lg h-10" />
+            <Form.Item name="model_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择标准硬件型号</span>} rules={[{ required: true }]}>
+              <Select placeholder="检索型号库..." options={devices.map(d => ({ label: d.name, value: d.id }))} className="rounded-lg h-10" />
             </Form.Item>
           ) : (
-            <Form.Item name="asset_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择闲置实机</span>} rules={[{ required: true }]}>
-              <Select placeholder="搜索闲置库..." options={idleAssets.map(a => ({ label: `${a.asset_no} - ${a.model_name}`, value: a.id }))} className="rounded-lg h-10" />
+            <Form.Item name="asset_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择闲置设备实例</span>} rules={[{ required: true }]}>
+              <Select placeholder="检索闲置库..." options={idleAssets.map(a => ({ label: `${a.asset_no} - ${a.model_name}`, value: a.id }))} className="rounded-lg h-10" />
             </Form.Item>
           )}
         </Form>
@@ -444,6 +454,17 @@ const AssetManagement = () => {
         .mini-table .ant-table-thead > tr > th { padding: 8px !important; font-size: 9px !important; }
         .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
         .ant-btn-primary span { color: #ffffff !important; }
+        
+        /* 分页居中标准样式 */
+        .custom-pagination { 
+          margin: 24px 0 !important;
+          display: flex !important;
+          justify-content: center !important;
+          width: 100% !important;
+        }
+        .ant-pagination-item { border-radius: 8px !important; border-color: #f1f5f9 !important; }
+        .ant-pagination-item-active { background: #000000 !important; border-color: #000000 !important; }
+        .ant-pagination-item-active a { color: #ffffff !important; }
       `}} />
     </div>
   );

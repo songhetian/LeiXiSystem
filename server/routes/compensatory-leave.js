@@ -289,8 +289,19 @@ module.exports = async function (fastify, opts) {
       }
 
       // 获取总数
-      const countQuery = query.replace('SELECT clr.*, \n               e.employee_no, \n               u.real_name as employee_name,\n               d.name as department_name,\n               ws.name as shift_name,\n               ws.start_time,\n               ws.end_time', 'SELECT COUNT(*) as total')
-      const [countResult] = await pool.query(countQuery, params)
+      const [countResult] = await pool.query(`
+        SELECT COUNT(*) as total
+        FROM compensatory_leave_requests clr
+        LEFT JOIN users u ON clr.user_id = u.id
+        WHERE 1=1
+        ${status && status !== 'all' ? ' AND clr.status = ?' : ''}
+        ${department_id ? ' AND u.department_id = ?' : ''}
+        ${search ? ' AND (u.real_name LIKE ? OR e.employee_no LIKE ?)' : ''}
+        ${created_start ? ' AND DATE(clr.created_at) >= ?' : ''}
+        ${created_end ? ' AND DATE(clr.created_at) <= ?' : ''}
+        ${schedule_start ? ' AND (DATE(clr.original_schedule_date) >= ? OR DATE(clr.new_schedule_date) >= ?)' : ''}
+        ${schedule_end ? ' AND (DATE(clr.original_schedule_date) <= ? OR DATE(clr.new_schedule_date) <= ?)' : ''}
+      `, params)
       const total = countResult[0].total
 
       // 分页

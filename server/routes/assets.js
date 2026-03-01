@@ -198,6 +198,18 @@ module.exports = async function (fastify, opts) {
   })
 
   // ==================== 4. 实机明细 ====================
+  fastify.get('/api/assets/idle', async () => {
+    console.log('[Assets] Fetching idle assets...');
+    const [rows] = await pool.query(`
+      SELECT dev.*, am.name as model_name, adf.name as form_name
+      FROM devices dev
+      JOIN asset_models am ON dev.model_id = am.id
+      LEFT JOIN asset_device_forms adf ON am.form_id = adf.id
+      WHERE dev.device_status = 'idle' AND (dev.status != 'deleted' OR dev.status IS NULL)
+    `);
+    return sendSuccess(rows);
+  })
+
   fastify.get('/api/assets/instances', async (request) => {
     const { device_status, department_id, model_id, keyword } = request.query;
     let q = `
