@@ -100,11 +100,11 @@ AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp
 -- [2026-02-25] 注册备忘录管理权限
 -- 功能：允许员工管理个人备忘录，允许主管/人事发送部门备忘录并进行审计。
 INSERT INTO permissions (name, code, resource, action, description, module) 
-VALUES ('管理个人备忘录', 'user:memo:manage', 'memo', 'manage', '允许创建、修改、删除个人备忘录及标记已读', 'user')
+VALUES ('管理个人备忘录', 'user:memo:manage', 'memo', 'manage', '允许创建、修改、删除个 人备忘录及标记已读', 'user')
 ON DUPLICATE KEY UPDATE description = VALUES(description);
 
 INSERT INTO permissions (name, code, resource, action, description, module) 
-VALUES ('管理部门备忘录', 'personnel:memo:manage', 'department_memo', 'manage', '允许发送部门/个人定向备忘录并查看阅读审计详情', 'personnel')
+VALUES ('管理部门备忘录', 'personnel:memo:manage', 'department_memo', 'manage', '允许发 送部门/个人定向备忘录并查看阅读审计详情', 'personnel')
 ON DUPLICATE KEY UPDATE description = VALUES(description);
 
 -- 授予超级管理员权限
@@ -119,4 +119,23 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id 
 FROM roles r, permissions p 
 WHERE p.code = 'user:memo:manage'
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- [2026-02-26] 扩展报销明细表，支持每条明细对应一个发票附件
+ALTER TABLE reimbursement_items ADD COLUMN attachment_url VARCHAR(255) NULL AFTER description;
+
+-- [2026-02-28] 扩展审批人配置表，支持金额区间过滤
+-- 优化原因：允许为不同级别的审批人配置特定的金额职责区间（如 0-5000, 5000-10000）
+ALTER TABLE approvers ADD COLUMN amount_min DECIMAL(12,2) DEFAULT 0 AFTER amount_limit;
+
+-- [2026-02-28] 注册报销审批人配置管理权限
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ('报销审批人配置', 'reimbursement:config:settings', 'reimbursement_config', 'manage', '管理报销流程中的特殊审批组及其职责区间', 'finance')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- 授予超级管理员权限
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE r.name = '超级管理员' AND p.code = 'reimbursement:config:settings'
 AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);

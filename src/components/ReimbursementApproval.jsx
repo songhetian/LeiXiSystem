@@ -81,7 +81,7 @@ const ReimbursementApproval = ({ user, onViewDetail }) => {
     try {
       const { department_id, keyword, status, dateRange } = filters;
       const params = {
-        user_id: user.id,
+        user_id: user?.id,
         department_id,
         keyword,
         status,
@@ -327,7 +327,7 @@ const ReimbursementApproval = ({ user, onViewDetail }) => {
               style={{ width: 180 }}
               value={filters.department_id}
               onChange={val => setFilters(prev => ({ ...prev, department_id: val }))}
-              options={departments.map(d => ({ value: d.id, label: d.name }))}
+              options={(departments || []).map(d => ({ value: d?.id, label: d?.name }))}
             />
           </div>
 

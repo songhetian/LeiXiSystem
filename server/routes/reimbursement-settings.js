@@ -12,10 +12,18 @@ module.exports = async function (fastify, opts) {
 
   // 获取报销类型列表
   fastify.get('/api/reimbursement/types', async (request, reply) => {
+    const { activeOnly } = request.query
     try {
-      const [rows] = await pool.query(
-        'SELECT * FROM reimbursement_types ORDER BY sort_order ASC, id ASC'
-      )
+      let query = 'SELECT * FROM reimbursement_types'
+      const params = []
+      
+      if (activeOnly === 'true' || activeOnly === '1') {
+        query += ' WHERE is_active = 1'
+      }
+      
+      query += ' ORDER BY sort_order ASC, id ASC'
+      
+      const [rows] = await pool.query(query, params)
       return { success: true, data: rows }
     } catch (error) {
       console.error('获取报销类型失败:', error)
@@ -72,10 +80,15 @@ module.exports = async function (fastify, opts) {
 
   // 获取费用类型列表
   fastify.get('/api/reimbursement/expense-types', async (request, reply) => {
+    const { activeOnly } = request.query
     try {
-      const [rows] = await pool.query(
-        'SELECT * FROM expense_types ORDER BY sort_order ASC, id ASC'
-      )
+      let query = 'SELECT * FROM expense_types'
+      if (activeOnly === 'true' || activeOnly === '1') {
+        query += ' WHERE is_active = 1'
+      }
+      query += ' ORDER BY sort_order ASC, id ASC'
+      
+      const [rows] = await pool.query(query, params = [])
       return { success: true, data: rows }
     } catch (error) {
       console.error('获取费用类型失败:', error)

@@ -1,11 +1,5 @@
 /**
- * 报销详情组件
- *
- * 功能：
- * - 展示报销单详情
- * - 费用明细列表
- * - 附件预览
- * - 审批进度时间线
+ * 报销详情组件 (精简商务版)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,11 +11,36 @@ import {
   CloseCircleOutlined,
   ClockCircleOutlined,
   UserOutlined,
-  EyeOutlined
+  EyeOutlined,
+  PaperClipOutlined,
+  CreditCardOutlined,
+  CalendarOutlined,
+  InfoCircleOutlined,
+  HistoryOutlined,
+  PaperClipOutlined as AttachmentIcon,
+  LeftOutlined
 } from '@ant-design/icons';
 import { toast } from 'sonner';
+import { 
+  Button, 
+  Tag, 
+  Card, 
+  Descriptions, 
+  Table, 
+  Timeline, 
+  Empty, 
+  Typography, 
+  Divider,
+  Space,
+  Avatar,
+  Tooltip,
+  Tabs
+} from 'antd';
 import api from '../api';
 import { getAttachmentUrl } from '../utils/fileUtils';
+import dayjs from 'dayjs';
+
+const { Title, Text, Paragraph } = Typography;
 
 const TYPE_LABELS = {
   travel: '差旅费用',
@@ -29,18 +48,6 @@ const TYPE_LABELS = {
   entertainment: '招待费用',
   training: '培训费用',
   other: '其他费用'
-};
-
-const EXPENSE_TYPE_LABELS = {
-  transportation: '交通费',
-  accommodation: '住宿费',
-  meals: '餐饮费',
-  communication: '通讯费',
-  office_supplies: '办公用品',
-  printing: '打印复印',
-  gift: '礼品费',
-  venue: '场地费',
-  other: '其他'
 };
 
 const STATUS_LABELS = {
@@ -52,18 +59,19 @@ const STATUS_LABELS = {
   cancelled: '已撤销'
 };
 
-const STATUS_COLORS = {
-  draft: '#999',
-  pending: '#fa8c16',
-  approving: '#1890ff',
-  approved: '#52c41a',
-  rejected: '#f5222d',
-  cancelled: '#999'
+const STATUS_TAG_COLORS = {
+  draft: 'default',
+  pending: 'orange',
+  approving: 'processing',
+  approved: 'success',
+  rejected: 'error',
+  cancelled: 'default'
 };
 
 const ReimbursementDetail = ({ reimbursementId, onBack }) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('summary');
 
   useEffect(() => {
     if (reimbursementId) {
@@ -88,8 +96,8 @@ const ReimbursementDetail = ({ reimbursementId, onBack }) => {
     }
   };
 
-  const previewAttachment = (attachment) => {
-    const url = getAttachmentUrl(attachment.file_url);
+  const previewAttachment = (file_url) => {
+    const url = getAttachmentUrl(file_url);
     if (url) {
       window.open(url, '_blank');
     } else {
@@ -99,504 +107,346 @@ const ReimbursementDetail = ({ reimbursementId, onBack }) => {
 
   if (loading) {
     return (
-      <div className="reimbursement-detail loading">
-        <style>{detailStyles}</style>
-        <div className="loading-text">加载中...</div>
+      <div className="flex flex-col items-center justify-center p-20 min-h-screen">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-slate-200 rounded-full"></div>
+          <div className="h-4 w-32 bg-slate-200 rounded"></div>
+        </div>
       </div>
     );
   }
 
   if (!detail) {
     return (
-      <div className="reimbursement-detail">
-        <style>{detailStyles}</style>
-        <div className="error-text">报销单不存在</div>
+      <div className="flex flex-col items-center justify-center p-20 min-h-screen">
+        <Empty description="报销单不存在" />
+        <Button icon={<ArrowLeftOutlined />} onClick={onBack} className="mt-4">返回列表</Button>
       </div>
     );
   }
 
-  return (
-    <div className="reimbursement-detail">
-      <style>{detailStyles}</style>
+  const itemColumns = [
+    {
+      title: '费用类型',
+      dataIndex: 'item_type',
+      key: 'item_type',
+      render: (text) => <Tag className="rounded-md px-3 bg-slate-50 border-slate-200">{text}</Tag>
+    },
+    {
+      title: '金额',
+      dataIndex: 'amount',
+      key: 'amount',
+      render: (amount) => (
+        <span className="font-mono font-bold text-lg text-indigo-600">
+          ¥{parseFloat(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </span>
+      )
+    },
+    {
+      title: '发生日期',
+      dataIndex: 'expense_date',
+      key: 'expense_date',
+      render: (date) => (
+        <span className="text-slate-500">
+          <CalendarOutlined className="mr-2" />
+          {date ? dayjs(date).format('YYYY-MM-DD') : '-'}
+        </span>
+      )
+    },
+    {
+      title: '用途说明',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      render: (text) => <Text type="secondary">{text || '-'}</Text>
+    },
+    {
+      title: '单项凭证',
+      dataIndex: 'attachment_url',
+      key: 'attachment_url',
+      align: 'center',
+      render: (url) => url ? (
+        <Tooltip title="查看对应发票">
+          <Button 
+            type="text" 
+            icon={<PaperClipOutlined className="text-indigo-500" />} 
+            onClick={() => previewAttachment(url)}
+          />
+        </Tooltip>
+      ) : <Text type="disabled">-</Text>
+    }
+  ];
 
-      {/* Header */}
-      <div className="detail-header">
-        <button className="back-btn" onClick={onBack}>
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <div className="header-info">
-          <h1 className="detail-title">{detail.title}</h1>
-          <span className="detail-no">{detail.reimbursement_no}</span>
-        </div>
-        <div
-          className="status-badge"
-          style={{ background: STATUS_COLORS[detail.status] }}
-        >
-          {STATUS_LABELS[detail.status]}
-        </div>
-      </div>
-
-      <div className="detail-content">
-        {/* 基本信息 */}
-        <div className="detail-section">
-          <h3 className="section-title">基本信息</h3>
-          <div className="info-grid">
-            <div className="info-item">
-              <span className="info-label">申请人</span>
-              <span className="info-value">{detail.applicant_name}</span>
+  const tabItems = [
+    {
+      key: 'summary',
+      label: (
+        <span className="flex items-center gap-2 px-2">
+          <InfoCircleOutlined />
+          详情总览
+        </span>
+      ),
+      children: (
+        <div className="space-y-6">
+          <Card className="rounded-2xl shadow-sm border-slate-200 overflow-hidden">
+            <div className="flex items-center gap-3 mb-6">
+              <Avatar icon={<InfoCircleOutlined />} className="bg-indigo-100 text-indigo-600" size="small" />
+              <span className="text-base font-bold">基本信息</span>
             </div>
-            <div className="info-item">
-              <span className="info-label">部门</span>
-              <span className="info-value">{detail.department_name || '-'}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">报销类型</span>
-              <span className="info-value">{TYPE_LABELS[detail.type] || detail.type}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">匹配审批流程</span>
-              <span className="info-value text-blue-600 font-semibold">{detail.workflow_name || '自动匹配中'}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">报销金额</span>
-              <span className="info-value amount">¥{parseFloat(detail.total_amount).toFixed(2)}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">创建时间</span>
-              <span className="info-value">{new Date(detail.created_at).toLocaleString()}</span>
-            </div>
-            {detail.submitted_at && (
-              <div className="info-item">
-                <span className="info-label">提交时间</span>
-                <span className="info-value">{new Date(detail.submitted_at).toLocaleString()}</span>
+            <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered size="small" className="custom-descriptions">
+              <Descriptions.Item label="报销类型">{TYPE_LABELS[detail.type] || detail.type}</Descriptions.Item>
+              <Descriptions.Item label="单据单号"><span className="font-mono text-xs">{detail.reimbursement_no}</span></Descriptions.Item>
+              <Descriptions.Item label="审批流程">{detail.workflow_name || '自动匹配中'}</Descriptions.Item>
+              <Descriptions.Item label="所属部门">{detail.department_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="创建时间">{dayjs(detail.created_at).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+              {detail.submitted_at && (
+                <Descriptions.Item label="提交时间">{dayjs(detail.submitted_at).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+              )}
+            </Descriptions>
+            {detail.remark && (
+              <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <Text type="secondary" className="text-[10px] font-bold block mb-2 uppercase tracking-wider">事由/备注说明</Text>
+                <Paragraph className="!mb-0 text-slate-700 text-sm leading-relaxed">{detail.remark}</Paragraph>
               </div>
             )}
-          </div>
-          {detail.remark && (
-            <div className="remark-box">
-              <span className="remark-label">备注说明</span>
-              <p className="remark-text">{detail.remark}</p>
-            </div>
-          )}
-        </div>
+          </Card>
 
-        {/* 费用明细 */}
-        <div className="detail-section">
-          <h3 className="section-title">费用明细</h3>
-          {detail.items && detail.items.length > 0 ? (
-            <table className="items-table">
-              <thead>
-                <tr>
-                  <th>费用类型</th>
-                  <th>金额</th>
-                  <th>发生日期</th>
-                  <th>说明</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.items.map((item, index) => (
-                  <tr key={item.id || index}>
-                    <td>{EXPENSE_TYPE_LABELS[item.item_type] || item.item_type}</td>
-                    <td className="amount-cell">¥{parseFloat(item.amount).toFixed(2)}</td>
-                    <td>{item.expense_date || '-'}</td>
-                    <td>{item.description || '-'}</td>
-                  </tr>
+          <Card className="rounded-2xl shadow-sm border-slate-200">
+            <div className="flex items-center gap-3 mb-6">
+              <Avatar icon={<AttachmentIcon />} className="bg-indigo-100 text-indigo-600" size="small" />
+              <span className="text-base font-bold">证明材料</span>
+            </div>
+            {detail.attachments && detail.attachments.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(detail?.attachments || []).map((att, index) => (
+                  <div 
+                    key={att?.id || index} 
+                    className="group p-3 bg-white border border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
+                    onClick={() => previewAttachment(att.file_url)}
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${att.file_url?.toLowerCase().endsWith('pdf') ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
+                      {att.file_url?.toLowerCase().endsWith('pdf') ? <FilePdfOutlined /> : <FileImageOutlined />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Text className="block text-sm font-semibold truncate text-slate-700">{att.file_name}</Text>
+                      <Text type="secondary" className="text-[10px] uppercase tracking-wider">点击预览</Text>
+                    </div>
+                    <EyeOutlined className="text-slate-300 group-hover:text-indigo-600 text-xs" />
+                  </div>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td>合计</td>
-                  <td className="amount-cell total">¥{parseFloat(detail.total_amount).toFixed(2)}</td>
-                  <td colSpan="2"></td>
-                </tr>
-              </tfoot>
-            </table>
-          ) : (
-            <div className="empty-text">暂无费用明细</div>
-          )}
+              </div>
+            ) : (
+              <div className="py-10 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                暂无补充证明材料
+              </div>
+            )}
+          </Card>
         </div>
-
-        {/* 附件 */}
-        <div className="detail-section">
-          <h3 className="section-title">发票/附件</h3>
-          {detail.attachments && detail.attachments.length > 0 ? (
-            <div className="attachment-grid">
-              {detail.attachments.map((att, index) => {
-                const isImage = att.file_type?.includes('image');
-                const thumbnailUrl = isImage ? getAttachmentUrl(att.file_url) : null;
-                
-                return (
-                  <div key={att.id || index} className="attachment-card" onClick={() => previewAttachment(att)}>
-                    <div className="attachment-preview">
-                      {isImage ? (
-                        <img src={thumbnailUrl} alt={att.file_name} className="thumbnail" />
-                      ) : (
-                        <div className="attachment-icon">
-                          {att.file_type?.includes('pdf') ? <FilePdfOutlined /> : <FileImageOutlined />}
+      )
+    },
+    {
+      key: 'items',
+      label: (
+        <span className="flex items-center gap-2 px-2">
+          <CreditCardOutlined />
+          费用清单
+        </span>
+      ),
+      children: (
+        <Card className="rounded-2xl shadow-sm border-slate-200 overflow-hidden" bodyStyle={{ padding: 0 }}>
+          <Table 
+            columns={itemColumns} 
+            dataSource={detail?.items || []} 
+            rowKey={(record, index) => record?.id || index}
+            pagination={false}
+            className="custom-table"
+            size="middle"
+          />
+        </Card>
+      )
+    },
+    {
+      key: 'workflow',
+      label: (
+        <span className="flex items-center gap-2 px-2">
+          <HistoryOutlined />
+          流转记录
+        </span>
+      ),
+      children: (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <Card className="rounded-2xl shadow-sm border-slate-200 min-h-[400px]">
+              <div className="flex items-center gap-3 mb-8">
+                <Avatar icon={<ClockCircleOutlined />} className="bg-indigo-100 text-indigo-600" size="small" />
+                <span className="text-base font-bold">审批进度</span>
+              </div>
+              
+              {detail.workflow?.history && detail.workflow.history.length > 0 ? (
+                <Timeline 
+                  className="custom-timeline mt-4"
+                  items={detail.workflow.history.map((record, index) => ({
+                    color: record.action === 'approve' ? 'green' : record.action === 'reject' ? 'red' : record.action === 'return' ? 'orange' : 'blue',
+                    dot: record.action === 'approve' ? <CheckCircleOutlined className="text-base" /> : record.action === 'reject' ? <CloseCircleOutlined className="text-base" /> : record.action === 'return' ? <ClockCircleOutlined className="text-base" /> : <UserOutlined className="text-base" />,
+                    children: (
+                      <div className="pb-6">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-bold text-slate-800 text-sm">{record.approver_name}</span>
+                          <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            {dayjs(record.approved_at).format('MM-DD HH:mm')}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                    <div className="attachment-name">{att.file_name}</div>
-                    <div className="attachment-action"><EyeOutlined /> 预览</div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="empty-text">暂无附件</div>
-          )}
-        </div>
-
-        {/* 审批进度 */}
-        <div className="detail-section">
-          <h3 className="section-title">审批进度</h3>
-          {detail.approval?.records && detail.approval.records.length > 0 ? (
-            <div className="timeline">
-              {detail.approval.records.map((record, index) => (
-                <div key={record.id || index} className={`timeline-item ${record.action}`}>
-                  <div className="timeline-icon">
-                    {record.action === 'approve' && <CheckCircleOutlined />}
-                    {record.action === 'reject' && <CloseCircleOutlined />}
-                    {record.action === 'return' && <ClockCircleOutlined />}
-                    {!['approve', 'reject', 'return'].includes(record.action) && <UserOutlined />}
-                  </div>
-                  <div className="timeline-content">
-                    <div className="timeline-header">
-                      <span className="timeline-user">{record.approver_name}</span>
-                      <span className="timeline-action">
-                        {record.action === 'approve' && '审批通过'}
-                        {record.action === 'reject' && '驳回'}
-                        {record.action === 'return' && '退回修改'}
-                        {record.action === 'delegate' && '转交'}
-                      </span>
-                    </div>
-                    {record.opinion && (
-                      <div className="timeline-opinion">{record.opinion}</div>
-                    )}
-                    <div className="timeline-time">
-                      {new Date(record.approved_at).toLocaleString()}
-                    </div>
+                        <div className="mb-2">
+                          <Tag 
+                            color={record.action === 'approve' ? 'success' : record.action === 'reject' ? 'error' : record.action === 'return' ? 'warning' : 'processing'}
+                            className="rounded-md border-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            {record.action === 'approve' ? '审批通过' : record.action === 'reject' ? '驳回申请' : record.action === 'return' ? '退回修改' : '提交申请'}
+                          </Tag>
+                        </div>
+                        {record.opinion && (
+                          <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-600 border border-slate-100 leading-relaxed italic">
+                            " {record.opinion} "
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }))}
+                />
+              ) : (
+                <div className="py-20 text-center flex flex-col items-center gap-4">
+                  <Empty description="暂无审批流转记录" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600 text-xs">
+                    该单据正在自动匹配审批链路...
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-text">暂无审批记录</div>
-          )}
+              )}
+            </Card>
+          </div>
+          
+          <div>
+            <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden relative border-l-4 border-l-indigo-500">
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                    <HistoryOutlined className="text-indigo-600 text-sm" />
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">当前单据状态</span>
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <Tag color={STATUS_TAG_COLORS[detail.status]} className="px-4 py-1 rounded-lg border-0 text-sm font-black uppercase">
+                      {STATUS_LABELS[detail.status]}
+                    </Tag>
+                  </div>
+                  <Divider className="my-4" />
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-1">等待时长</div>
+                      <div className="text-2xl font-black font-mono text-slate-800">
+                        {dayjs().diff(dayjs(detail.submitted_at || detail.created_at), 'day')} 
+                        <span className="text-xs font-normal text-slate-400 ml-1">Days</span>
+                      </div>
+                    </div>
+                    <ClockCircleOutlined className="text-slate-100 text-4xl mb-1" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )
+    }
+  ];
 
-          {/* 当前节点 */}
-          {detail.status === 'approving' && detail.approval?.currentNodeId && (
-            <div className="current-node">
-              当前正在等待审批...
-            </div>
-          )}
+  return (
+    <div className="w-full p-4 md:p-6 lg:p-8 bg-slate-50/30 min-h-screen">
+      {/* 顶部操作固定栏 */}
+      <div className="max-w-[1400px] mx-auto mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button 
+            type="link" 
+            icon={<LeftOutlined />} 
+            onClick={onBack} 
+            className="flex items-center text-slate-500 hover:text-indigo-600 font-bold p-0"
+          >
+            返回上一层
+          </Button>
+          <Divider type="vertical" className="h-4 border-slate-300" />
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-black text-slate-800">报销单详情</span>
+            <Tag color={STATUS_TAG_COLORS[detail.status]} className="m-0 px-2 py-0 border-0 rounded text-[10px] font-bold">
+              {STATUS_LABELS[detail.status]}
+            </Tag>
+          </div>
+        </div>
+        
+        <div className="text-right">
+          <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5">报销总额</div>
+          <div className="text-2xl font-black text-indigo-600 font-mono">
+            ¥{parseFloat(detail.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </div>
         </div>
       </div>
+
+      <div className="max-w-[1400px] mx-auto">
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          className="custom-tabs"
+          items={tabItems}
+          size="large"
+        />
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-descriptions .ant-descriptions-item-label {
+          background-color: #f8fafc !important;
+          font-weight: 600 !important;
+          color: #64748b !important;
+          width: 120px;
+          font-size: 13px;
+        }
+        .custom-descriptions .ant-descriptions-item-content {
+          color: #1e293b !important;
+          font-weight: 500 !important;
+          font-size: 13px;
+        }
+        .custom-table .ant-table-thead > tr > th {
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          font-weight: 700 !important;
+          text-transform: uppercase;
+          font-size: 11px;
+          letter-spacing: 0.05em;
+        }
+        .custom-timeline .ant-timeline-item-tail {
+          border-left: 2px dashed #e2e8f0 !important;
+        }
+        .custom-tabs .ant-tabs-nav {
+          margin-bottom: 20px !important;
+          background: white;
+          padding: 4px 16px 0;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .custom-tabs .ant-tabs-tab {
+          padding: 10px 16px !important;
+          font-weight: 600 !important;
+          font-size: 14px;
+          transition: all 0.3s !important;
+        }
+        .custom-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+          color: #4f46e5 !important;
+        }
+        .custom-tabs .ant-tabs-ink-bar {
+          background: #4f46e5 !important;
+          height: 3px !important;
+          border-radius: 3px 3px 0 0;
+        }
+      `}} />
     </div>
   );
 };
-
-const detailStyles = `
-  .reimbursement-detail {
-    padding: 24px;
-    max-width: 900px;
-    margin: 0 auto;
-  }
-  .reimbursement-detail.loading {
-    text-align: center;
-    padding: 100px;
-  }
-  .loading-text, .error-text {
-    color: #999;
-    font-size: 16px;
-  }
-  .detail-header {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    margin-bottom: 24px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #eee;
-  }
-  .back-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: white;
-    cursor: pointer;
-    font-size: 14px;
-    color: #666;
-  }
-  .back-btn:hover {
-    background: #f5f5f5;
-  }
-  .header-info {
-    flex: 1;
-  }
-  .detail-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1a1a2e;
-    margin: 0 0 4px 0;
-  }
-  .detail-no {
-    font-family: monospace;
-    color: #667eea;
-    font-size: 14px;
-  }
-  .status-badge {
-    padding: 6px 16px;
-    border-radius: 16px;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
-  }
-  .detail-content {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-  .detail-section {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  }
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a2e;
-    margin: 0 0 16px 0;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #eee;
-  }
-  .info-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-  .info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .info-label {
-    font-size: 12px;
-    color: #888;
-  }
-  .info-value {
-    font-size: 14px;
-    color: #333;
-    font-weight: 500;
-  }
-  .info-value.amount {
-    font-size: 18px;
-    color: #667eea;
-    font-weight: 700;
-  }
-  .remark-box {
-    margin-top: 16px;
-    padding: 12px;
-    background: #f8f9fa;
-    border-radius: 8px;
-  }
-  .remark-label {
-    font-size: 12px;
-    color: #888;
-    display: block;
-    margin-bottom: 6px;
-  }
-  .remark-text {
-    margin: 0;
-    font-size: 14px;
-    color: #555;
-    line-height: 1.6;
-  }
-  .items-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .items-table th, .items-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-  }
-  .items-table th {
-    background: #f8f9fa;
-    font-weight: 600;
-    font-size: 13px;
-    color: #555;
-  }
-  .items-table .amount-cell {
-    font-weight: 600;
-    color: #1a1a2e;
-  }
-  .items-table tfoot td {
-    font-weight: 600;
-    background: #f8f9fa;
-  }
-  .items-table .total {
-    color: #667eea;
-    font-size: 16px;
-  }
-  .empty-text {
-    color: #999;
-    text-align: center;
-    padding: 20px;
-  }
-  .attachment-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
-  }
-  .attachment-card {
-    border: 1px solid #eee;
-    border-radius: 8px;
-    padding: 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .attachment-card:hover {
-    border-color: #667eea;
-    background: rgba(102,126,234,0.02);
-  }
-  .attachment-icon {
-    font-size: 32px;
-    color: #667eea;
-    margin-bottom: 8px;
-  }
-  .attachment-preview {
-    width: 100%;
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 8px;
-    overflow: hidden;
-    background: #fdfdfd;
-    border-radius: 4px;
-  }
-  .thumbnail {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s;
-  }
-  .attachment-card:hover .thumbnail {
-    transform: scale(1.1);
-  }
-  .attachment-name {
-    font-size: 13px;
-    color: #333;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-bottom: 8px;
-  }
-  .attachment-action {
-    font-size: 12px;
-    color: #1890ff;
-  }
-  .timeline {
-    position: relative;
-    padding-left: 30px;
-  }
-  .timeline::before {
-    content: '';
-    position: absolute;
-    left: 10px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #eee;
-  }
-  .timeline-item {
-    position: relative;
-    padding-bottom: 24px;
-  }
-  .timeline-item:last-child {
-    padding-bottom: 0;
-  }
-  .timeline-icon {
-    position: absolute;
-    left: -30px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    background: white;
-    border: 2px solid #ddd;
-    color: #999;
-  }
-  .timeline-item.approve .timeline-icon {
-    border-color: #52c41a;
-    color: #52c41a;
-  }
-  .timeline-item.reject .timeline-icon {
-    border-color: #f5222d;
-    color: #f5222d;
-  }
-  .timeline-item.return .timeline-icon {
-    border-color: #fa8c16;
-    color: #fa8c16;
-  }
-  .timeline-content {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 12px 16px;
-  }
-  .timeline-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-  }
-  .timeline-user {
-    font-weight: 600;
-    color: #333;
-  }
-  .timeline-action {
-    font-size: 13px;
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-  .timeline-item.approve .timeline-action {
-    background: #f6ffed;
-    color: #52c41a;
-  }
-  .timeline-item.reject .timeline-action {
-    background: #fff1f0;
-    color: #f5222d;
-  }
-  .timeline-item.return .timeline-action {
-    background: #fff7e6;
-    color: #fa8c16;
-  }
-  .timeline-opinion {
-    font-size: 14px;
-    color: #555;
-    margin-bottom: 8px;
-    line-height: 1.5;
-  }
-  .timeline-time {
-    font-size: 12px;
-    color: #999;
-  }
-  .current-node {
-    text-align: center;
-    padding: 16px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px;
-    margin-top: 16px;
-  }
-`;
 
 export default ReimbursementDetail;

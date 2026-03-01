@@ -39,6 +39,7 @@ import {
   DesktopOutlined,
   LogoutOutlined,
   ThunderboltFilled,
+  WalletOutlined,
 } from '@ant-design/icons';
 
 import { Modal } from 'antd';
@@ -61,10 +62,35 @@ const Sidebar = ({
   const { totalUnreadCount, notificationEnabled } = useChatStore();
   
   // State to manage which menus are expanded
-  const [expandedMenus, setExpandedMenus] = useState(['hr', 'hr-employee', 'collaboration', 'information']);
+  const [expandedMenus, setExpandedMenus] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { hasPermission } = usePermission();
+
+  // --- 自动展开当前 Tab 所属父级菜单 ---
+  useEffect(() => {
+    if (!activeTab) return;
+
+    const findParentIds = (items, targetId, parents = []) => {
+      for (const item of items) {
+        if (item.id === targetId) return parents;
+        if (item.children) {
+          const result = findParentIds(item.children, targetId, [...parents, item.id]);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+
+    const parentIds = findParentIds(allMenuItems, activeTab);
+    if (parentIds && parentIds.length > 0) {
+      setExpandedMenus(prev => {
+        // 合并当前已展开的和需要自动展开的，去重
+        const next = new Set([...prev, ...parentIds]);
+        return Array.from(next);
+      });
+    }
+  }, [activeTab]);
 
   // ... (allMenuItems definition remains the same internally but will be accessed via props or context if needed)
   
@@ -193,7 +219,7 @@ const Sidebar = ({
   // Clear search
   const clearSearch = () => {
     setSearchQuery('');
-    setExpandedMenus(['hr', 'hr-employee', 'collaboration', 'information']);
+    // 不再硬编码，由 useEffect 根据 activeTab 自动处理展开状态
   };
 
   // 修改退出按钮的点击处理函数
@@ -581,139 +607,6 @@ const allMenuItems = [
     ],
   },
   {
-    id: 'payroll',
-    label: '工资管理',
-    icon: <TeamOutlined />,
-    permission: 'payroll:payslip:view',
-    children: [
-      {
-        id: 'payslip-employee',
-        label: '我的工资条',
-        icon: <FileTextOutlined />,
-        children: [
-          { id: 'my-payslips', label: '工资条列表', icon: <FileTextOutlined />, permission: 'payroll:payslip:view' },
-        ]
-      },
-      {
-        id: 'payslip-admin',
-        label: '工资条管理',
-        icon: <SettingOutlined />,
-        children: [
-          { id: 'payslip-management', label: '工资条管理', icon: <FileTextOutlined />, permission: 'payroll:payslip:manage' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'reimbursement',
-    label: '报销管理',
-    icon: <FormOutlined />,
-    permission: 'reimbursement:record:view',
-    children: [
-      {
-        id: 'reimbursement-apply-section',
-        label: '报销申请',
-        icon: <FormOutlined />,
-        children: [
-          { id: 'reimbursement-apply', label: '新建报销', icon: <FormOutlined />, permission: 'reimbursement:apply:submit' },
-          { id: 'reimbursement-list', label: '我的报销', icon: <FileTextOutlined />, permission: 'reimbursement:record:view' },
-        ]
-      },
-      {
-        id: 'reimbursement-approval-section',
-        label: '审批管理',
-        icon: <CheckCircleOutlined />,
-        children: [
-          { id: 'reimbursement-approval', label: '报销审批', icon: <CheckCircleOutlined />, permission: 'reimbursement:apply:approve' },
-        ]
-      },
-      {
-        id: 'reimbursement-config-section',
-        label: '系统配置',
-        icon: <SettingOutlined />,
-        children: [
-          { id: 'approval-workflow-config', label: '流程配置', icon: <SettingOutlined />, permission: 'reimbursement:config:manage' },
-          { id: 'approver-management', label: '审批人管理', icon: <UserOutlined />, permission: 'reimbursement:config:manage' },
-          { id: 'reimbursement-settings', label: '报销设置', icon: <SettingOutlined />, permission: 'reimbursement:config:settings' },
-          { id: 'role-workflow-config', label: '角色流程配置', icon: <TeamOutlined />, permission: 'reimbursement:config:role_workflow' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'quality',
-    label: '质检管理',
-    icon: <SearchOutlined />,
-    permission: 'quality:session:view',
-    children: [
-      {
-        id: 'quality-config',
-        label: '质检配置',
-        icon: <SettingOutlined />,
-        children: [
-          { id: 'quality-platform-shop', label: '平台店铺', icon: <ShopOutlined />, permission: 'quality:config:manage' },
-          { id: 'quality-tags', label: '标签管理', icon: <TagsOutlined />, permission: 'quality:config:manage' },
-        ]
-      },
-      { id: 'quality-score', label: '会话质检', icon: <StarOutlined />, permission: 'quality:session:view' },
-      {
-        id: 'quality-cases',
-        label: '案例管理',
-        icon: <FolderOpenOutlined />,
-        children: [
-          { id: 'quality-case-library', label: '案例库', icon: <FolderOpenOutlined />, permission: 'quality:case:manage' },
-          { id: 'quality-case-categories', label: '案例分类管理', icon: <FolderOpenOutlined />, permission: 'quality:case:manage' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'knowledge',
-    label: '知识管理',
-    icon: <BookOutlined />,
-    permission: 'knowledge:article:view',
-    children: [
-      { id: 'knowledge-articles', label: '公共知识库', icon: <FileTextOutlined />, permission: 'knowledge:article:view' },
-      { id: 'knowledge-base', label: '知识库', icon: <DatabaseOutlined />, permission: 'knowledge:article:manage' },
-      { id: 'my-knowledge', label: '我的知识库', icon: <StarOutlined />, permission: 'knowledge:article:view' },
-    ],
-  },
-  {
-    id: 'assessment',
-    label: '考核系统',
-    icon: <FormOutlined />,
-    permission: 'assessment:plan:view',
-    children: [
-      {
-        id: 'assessment-questions',
-        label: '试题管理',
-        icon: <FileTextOutlined />,
-        children: [
-          { id: 'assessment-exams', label: '试卷管理', icon: <FileTextOutlined />, permission: 'assessment:plan:manage' },
-          { id: 'assessment-categories', label: '分类管理', icon: <FolderOpenOutlined />, permission: 'assessment:plan:manage' },
-        ]
-      },
-      {
-        id: 'assessment-management',
-        label: '考核管理',
-        icon: <CalendarOutlined />,
-        children: [
-          { id: 'exam-plans', label: '考核计划', icon: <CalendarOutlined />, permission: 'assessment:plan:manage' },
-        ]
-      },
-      {
-        id: 'assessment-results',
-        label: '成绩管理',
-        icon: <EyeOutlined />,
-        children: [
-          { id: 'exam-results', label: '考试结果', icon: <EyeOutlined />, permission: 'assessment:result:view' },
-          { id: 'my-exams', label: '我的考试', icon: <IdcardOutlined /> }, // 基础功能
-          { id: 'my-exam-results', label: '我的考试结果', icon: <FileTextOutlined /> },
-        ]
-      },
-    ],
-  },
-  {
     id: 'finance',
     label: '财务管理',
     icon: <DatabaseOutlined />,
@@ -721,15 +614,36 @@ const allMenuItems = [
     children: [
       {
         id: 'finance-reimbursement',
-        label: '财务报销',
-        icon: <FileTextOutlined />,
-        permission: 'reimbursement:apply:approve',
+        label: '报销管理',
+        icon: <WalletOutlined />,
         children: [
+            { id: 'reimbursement-apply', label: '新建报销', icon: <FormOutlined />, permission: 'reimbursement:apply:submit' },
+            { id: 'reimbursement-list', label: '我的报销', icon: <FileTextOutlined />, permission: 'reimbursement:record:view' },
             { id: 'reimbursement-approval', label: '报销审批', icon: <CheckCircleOutlined />, permission: 'reimbursement:apply:approve' },
-            { id: 'reimbursement-settings', label: '报销设置', icon: <SettingOutlined />, permission: 'reimbursement:config:settings' },
+            { id: 'approver-management', label: '审批人管理', icon: <TeamOutlined />, permission: 'reimbursement:config:settings' },
+            { id: 'reimbursement-settings', label: '报销配置', icon: <SettingOutlined />, permission: 'reimbursement:config:settings' },
         ]
       },
-      { id: 'system-workflow', label: '流程设置', icon: <SyncOutlined />, permission: 'system:workflow:manage' }
+      {
+        id: 'finance-payroll',
+        label: '薪资管理',
+        icon: <TeamOutlined />,
+        permission: 'payroll:payslip:manage',
+        children: [
+            { id: 'payslip-management', label: '工资条管理', icon: <FileTextOutlined />, permission: 'payroll:payslip:manage' },
+        ]
+      },
+      {
+        id: 'finance-config',
+        label: '审批架构',
+        icon: <SyncOutlined />,
+        permission: 'system:workflow:manage',
+        children: [
+            { id: 'system-workflow', label: '资产流程定义', icon: <SyncOutlined /> },
+            { id: 'approval-workflow-config', label: '报销流程定义', icon: <SettingOutlined /> },
+            { id: 'role-workflow-config', label: '审批职责授权', icon: <TeamOutlined /> },
+        ]
+      }
     ]
   },
   {
@@ -772,6 +686,7 @@ const allMenuItems = [
           { id: 'my-todo', label: '待办中心', icon: <CheckCircleOutlined /> },
           { id: 'my-schedule', label: '我的排班', icon: <CalendarOutlined /> },
           { id: 'my-notifications', label: '我的通知', icon: <BellOutlined /> },
+          { id: 'my-payslips', label: '我的薪资', icon: <WalletOutlined />, permission: 'payroll:payslip:view' },
           { id: 'my-assets', label: '个人资产', icon: <DesktopOutlined />, permission: 'personal:asset:view' },
           { id: 'my-memos', label: '我的备忘录', icon: <FileTextOutlined /> },
         ]

@@ -1,495 +1,384 @@
-import React, { useState, useEffect, useMemo } from 'react';
+/**
+ * 资产流程定义页面 (黑白视觉最终打磨版)
+ * 
+ * 优化重点：
+ * 1. 弹窗底部按钮对齐：极致黑白对比，统一圆角与高度。
+ * 2. 交互反馈强化：优化悬浮态与点击态的视觉变化。
+ * 3. 架构设计优化：增强拖拽节点的视觉层次。
+ */
+
+import React, { useState, useEffect } from 'react';
 import { 
-  Table, Card, Tag, Space, Modal, Tabs,
-  Form, Input, Select, Switch, message, Divider, List, Avatar, Typography, Tooltip as AntTooltip,
-  Badge, Popconfirm
+  Table, 
+  Tag, 
+  Button, 
+  Modal, 
+  Form, 
+  Input, 
+  Switch, 
+  Select, 
+  Space, 
+  Typography,
+  Divider,
+  Empty
 } from 'antd';
 import { 
-  PlusOutlined, SettingOutlined, BranchesOutlined, 
-  ArrowDownOutlined, UserOutlined, EditOutlined, DeleteOutlined,
-  MenuOutlined, InfoCircleOutlined, CheckCircleOutlined, PlayCircleOutlined, NotificationOutlined
+  SyncOutlined, 
+  PlusOutlined, 
+  SettingOutlined, 
+  SearchOutlined,
+  ReloadOutlined,
+  MenuOutlined,
+  ArrowDownOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { apiGet, apiPost, apiPut, apiDelete } from '../../utils/apiClient';
+import api from '../../api';
+import { toast } from 'sonner';
 
-const { Option } = Select;
 const { Text } = Typography;
+const { Option } = Select;
 
-// 自定义纯色按钮组件
-const StyledButton = ({ children, onClick, variant = 'primary', icon, className = '', ...props }) => {
-  const baseStyle = "flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-all active:scale-95 shadow-sm border-none cursor-pointer";
-  const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700",
-    secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200",
-    success: "bg-emerald-500 text-white hover:bg-emerald-600",
-    danger: "bg-red-500 text-white hover:bg-red-600",
-    ghost: "bg-blue-50 text-blue-700 hover:bg-blue-100"
-  };
-  
-  return (
-    <button 
-      onClick={onClick} 
-      className={`${baseStyle} ${variants[variant]} ${className}`}
-      {...props}
-    >
-      {icon && <span className="mr-2">{icon}</span>}
-      {children}
-    </button>
-  );
-};
+// --- 样式组件：标准黑底白字按钮 ---
+const BlackButton = ({ children, icon, className = '', ...props }) => (
+  <Button 
+    className={`bg-black hover:bg-slate-800 border-none rounded-lg h-10 px-8 flex items-center justify-center transition-all shadow-lg shadow-slate-200 ${className}`}
+    style={{ color: '#ffffff' }}
+    icon={icon}
+    {...props}
+  >
+    <span className="font-bold text-white tracking-wide">{children}</span>
+  </Button>
+);
+
+// --- 样式组件：标准次要按钮 ---
+const SecondaryButton = ({ children, ...props }) => (
+  <Button 
+    className="bg-white hover:bg-slate-50 border-slate-300 rounded-lg h-10 px-8 font-bold text-slate-600 transition-all"
+    {...props}
+  >
+    {children}
+  </Button>
+);
 
 const WorkflowSettings = () => {
-  const [activeTab, setActiveTab] = useState('definition'); // definition | groups
-  const [loading, setLoading] = useState(false);
-  
-  // Data
   const [workflows, setWorkflows] = useState([]);
-  const [approvalGroups, setApprovalGroups] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [users, setUsers] = useState([]);
-
-  // Modals
-  const [isEditModalOpen, setIsAddModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  
   const [currentWorkflow, setCurrentWorkflow] = useState(null);
-  const [currentGroup, setCurrentGroup] = useState(null);
+  const [nodes, setNodes] = useState([]);
+  const [searchText, setSearchText] = useState('');
   
   const [form] = Form.useForm();
-  const [groupForm] = Form.useForm();
-  const [nodes, setNodes] = useState([]);
-
-  const currentUser = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {
-    fetchBaseData();
-    if (activeTab === 'definition') fetchWorkflows();
-    else fetchGroups();
-  }, [activeTab]);
-
-  const fetchBaseData = async () => {
-      try {
-          // 修正接口路径：/api/roles 和 /api/employees
-          const [rolesRes, usersRes] = await Promise.all([
-              apiGet('/api/roles'),
-              apiGet('/api/employees')
-          ]);
-          
-          setRoles(rolesRes.data || []);
-          
-          // 彻底修复用户数据解析
-          let userData = [];
-          if (Array.isArray(usersRes)) {
-              userData = usersRes;
-          } else if (usersRes && Array.isArray(usersRes.data)) {
-              userData = usersRes.data;
-          }
-          // 映射字段确保显示名正确
-          const normalizedUsers = userData.map(u => ({
-              id: u.user_id || u.id,
-              name: u.real_name || u.name || u.username,
-              dept: u.department_name || ''
-          }));
-          setUsers(normalizedUsers);
-          
-          console.log('Loaded Roles:', rolesRes.data?.length);
-          console.log('Loaded Users:', normalizedUsers.length);
-      } catch (err) {
-          console.error('Failed to fetch base data:', err);
-      }
-  }
+    fetchWorkflows();
+  }, []);
 
   const fetchWorkflows = async () => {
     setLoading(true);
     try {
-      const res = await apiGet(`/api/approval-workflow?type=asset_request`);
-      if (res.success) setWorkflows(res.data);
-    } catch (err) {
-      message.error('获取流程失败');
+      const response = await api.get('/approval-workflow', { params: { type: 'asset_request' } });
+      if (response.data.success) {
+        setWorkflows(response.data.data);
+      }
+    } catch (error) {
+      console.error('获取流程失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchGroups = async () => {
-      setLoading(true);
-      try {
-          const res = await apiGet('/api/approval-groups');
-          if (res.success) setApprovalGroups(res.data);
-      } catch (err) {
-          message.error('获取审批组失败');
-      } finally {
-          setLoading(false);
-      }
-  }
-
-  // --- Actions ---
-  const handleSaveWorkflow = async (values) => {
-      try {
-          // 如果当前保存的流程设为启用，逻辑上它应该互斥其他流程（后端已有 handle，此处确保 payload 完整）
-          const payload = { 
-              ...values, 
-              type: 'asset_request', 
-              is_default: values.is_default ? 1 : 0,
-              status: values.is_default ? 'active' : values.status, // 默认流程必须启用
-              created_by: currentUser?.id 
-          };
-          
-          let res;
-          if (currentWorkflow) res = await apiPut(`/api/approval-workflow/${currentWorkflow.id}`, payload);
-          else res = await apiPost('/api/approval-workflow', payload);
-          
-          if (res.success) {
-              message.success('保存成功');
-              setIsAddModalOpen(false);
-              fetchWorkflows();
-          }
-      } catch (err) { message.error('操作失败'); }
+  const handleAddWorkflow = () => {
+    setCurrentWorkflow(null);
+    form.resetFields();
+    form.setFieldsValue({ status: 'active', is_default: false });
+    setIsEditModalOpen(true);
   };
 
-  const handleConfigNodes = async (record) => {
-      setCurrentWorkflow(record);
-      try {
-          const res = await apiGet(`/api/approval-workflow/${record.id}`);
-          if (res.success) {
-              const fetchedNodes = (res.data.nodes || []).map((n, i) => ({ 
-                  ...n, 
-                  dnd_id: `node-${Date.now()}-${i}` 
-              }));
-              setNodes(fetchedNodes);
-              setIsNodeModalOpen(true);
+  const handleEditWorkflow = (record) => {
+    setCurrentWorkflow(record);
+    form.setFieldsValue(record);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteWorkflow = (record) => {
+    Modal.confirm({
+      title: '确认删除该流程模型？',
+      icon: <ExclamationCircleOutlined className="text-rose-500" />,
+      content: '该操作不可撤销。默认生效流程不可删除。',
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      centered: true,
+      onOk: async () => {
+        try {
+          const res = await api.delete(`/approval-workflow/${record.id}`);
+          if (res.data.success) {
+            toast.success('删除成功');
+            fetchWorkflows();
           }
-      } catch (err) {}
+        } catch (e) {
+          toast.error(e.response?.data?.message || '删除失败');
+        }
+      }
+    });
+  };
+
+  const handleSaveWorkflow = async (values) => {
+    try {
+      const payload = { ...values, type: 'asset_request' };
+      let res;
+      if (currentWorkflow) {
+        res = await api.put(`/approval-workflow/${currentWorkflow.id}`, payload);
+      } else {
+        res = await api.post('/approval-workflow', payload);
+      }
+      if (res.data.success) {
+        toast.success('配置已保存');
+        setIsEditModalOpen(false);
+        fetchWorkflows();
+      }
+    } catch (e) { toast.error('保存失败'); }
+  };
+
+  const openNodeConfig = async (record) => {
+    setCurrentWorkflow(record);
+    setLoading(true);
+    try {
+      const res = await api.get(`/approval-workflow/${record.id}/nodes`);
+      if (res.data.success) {
+        setNodes(res.data.data.map(n => ({ ...n, dnd_id: `node-${n.id || Math.random()}` })));
+        setIsNodeModalOpen(true);
+      }
+    } catch (e) { toast.error('加载失败'); } finally { setLoading(false); }
+  };
+
+  const onDragEnd = (result) => {
+    if (!result.destination) return;
+    const items = Array.from(nodes);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    setNodes(items);
   };
 
   const saveNodes = async () => {
-      try {
-          const res = await apiPost(`/api/approval-workflow/${currentWorkflow.id}/nodes`, { nodes });
-          if (res.success) {
-              message.success('节点配置已更新');
-              setIsNodeModalOpen(false);
-              fetchWorkflows();
-          }
-      } catch (err) { message.error('保存失败'); }
-  }
-
-  const openGroupModal = async (group = null) => {
-      if (group) {
-          const res = await apiGet(`/api/approval-groups/${group.id}`);
-          if (res.success) {
-              setCurrentGroup(res.data);
-              groupForm.setFieldsValue({
-                  ...res.data,
-                  members: res.data.members.map(m => `${m.member_type}:${m.member_id}`)
-              });
-          }
-      } else {
-          setCurrentGroup(null);
-          groupForm.resetFields();
+    try {
+      const payload = nodes.map((n, idx) => ({ 
+        node_name: n.node_name,
+        approver_type: n.approver_type,
+        node_order: idx + 1 
+      }));
+      const res = await api.post(`/approval-workflow/${currentWorkflow.id}/nodes`, { nodes: payload });
+      if (res.data.success) {
+        toast.success('架构已更新');
+        setIsNodeModalOpen(false);
       }
-      setIsGroupModalOpen(true);
-  }
-
-  const handleSaveGroup = async (values) => {
-      try {
-          const members = (values.members || []).map(m => {
-              const [type, id] = m.split(':');
-              return { member_type: type, member_id: parseInt(id) };
-          });
-          const payload = { ...values, id: currentGroup?.id, members };
-          const res = await apiPost('/api/approval-groups', payload);
-          if (res.success) {
-              message.success('审批组已更新');
-              setIsGroupModalOpen(false);
-              fetchGroups();
-          }
-      } catch (err) { message.error('操作失败'); }
-  }
-
-  const deleteGroup = async (id) => {
-      try {
-          const res = await apiDelete(`/api/approval-groups/${id}`);
-          if (res.success) {
-              message.success('已删除');
-              fetchGroups();
-          }
-      } catch (err) {}
-  }
-
-  const onDragEnd = (result) => {
-      if (!result.destination) return;
-      const reordered = Array.from(nodes);
-      const [removed] = reordered.splice(result.source.index, 1);
-      reordered.splice(result.destination.index, 0, removed);
-      setNodes(reordered);
+    } catch (e) { toast.error('保存失败'); }
   };
 
   const workflowColumns = [
-    { title: '流程名称', dataIndex: 'name', key: 'name', render: (t, r) => <Space>{t} {r.is_default ? <Tag color="blue">生效中</Tag> : null}</Space> },
-    { title: '说明', dataIndex: 'description', key: 'description' },
-    { title: '环节数', dataIndex: 'node_count', key: 'node_count', render: n => <Badge count={n} showZero color="#108ee9" /> },
-    { title: '状态', dataIndex: 'status', key: 'status', render: (s, r) => <Tag color={r.is_default ? 'green' : (s === 'active' ? 'blue' : 'default')}>{r.is_default ? '启用 (默认)' : (s === 'active' ? '启用' : '已停用')}</Tag> },
     {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => (
-        <div className="flex gap-2">
-          <StyledButton variant="secondary" className="px-3 py-1 h-8" icon={<EditOutlined className="text-xs" />} onClick={() => { setCurrentWorkflow(record); form.setFieldsValue(record); setIsAddModalOpen(true); }}>编辑</StyledButton>
-          <StyledButton variant="ghost" className="px-3 py-1 h-8" icon={<SettingOutlined className="text-xs" />} onClick={() => handleConfigNodes(record)}>配置环节</StyledButton>
+      title: '流程模型名称',
+      dataIndex: 'name',
+      key: 'name',
+      align: 'center',
+      render: (text, record) => (
+        <div>
+          <div className="font-black text-slate-800 text-sm">{text}</div>
+          <Text type="secondary" className="text-[10px]">{record.description || '暂无描述'}</Text>
         </div>
+      )
+    },
+    {
+      title: '系统状态',
+      dataIndex: 'is_default',
+      key: 'is_default',
+      width: 140,
+      align: 'center',
+      render: (isDefault) => isDefault ? (
+        <div className="bg-[#07C160] text-white text-[11px] font-black px-4 py-1.5 rounded-lg inline-block">生效中</div>
+      ) : (
+        <div className="bg-slate-300 text-white text-[11px] font-black px-4 py-1.5 rounded-lg inline-block">已就绪</div>
+      )
+    },
+    {
+      title: '管理操作',
+      key: 'action',
+      width: 240,
+      align: 'center',
+      render: (_, record) => (
+        <Space split={<Divider type="vertical" />}>
+          <Button type="link" size="small" className="font-bold text-black" onClick={() => openNodeConfig(record)}>配置架构</Button>
+          <Button type="link" size="small" className="font-bold text-slate-400" onClick={() => handleEditWorkflow(record)}>属性</Button>
+          <Button type="link" size="small" danger className="font-bold" onClick={() => handleDeleteWorkflow(record)} disabled={record.is_default === 1}>删除</Button>
+        </Space>
       )
     }
   ];
 
-  const groupColumns = [
-      { title: '审批组名称', dataIndex: 'name', key: 'name', render: t => <Text strong>{t}</Text> },
-      { title: '描述', dataIndex: 'description', key: 'description' },
-      { title: '成员总数', dataIndex: 'member_count', key: 'member_count' },
-      { 
-          title: '操作', 
-          key: 'action', 
-          render: (_, record) => (
-              <Space>
-                  <StyledButton variant="ghost" className="h-8" icon={<EditOutlined />} onClick={() => openGroupModal(record)}>管理</StyledButton>
-                  <Popconfirm title="确定删除吗？" onConfirm={() => deleteGroup(record.id)}>
-                      <StyledButton variant="secondary" className="h-8 text-red-500 hover:bg-red-50" icon={<DeleteOutlined />}>删除</StyledButton>
-                  </Popconfirm>
-              </Space>
-          )
-      }
-  ];
-
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-                <BranchesOutlined className="mr-3 text-blue-600" />
-                资产申请审批中心
-            </h1>
-            <p className="text-gray-500 mt-1">全局唯一生效流程机制，支持跨部门特殊审批组配置</p>
-          </div>
-          {activeTab === 'definition' ? (
-            <StyledButton variant="primary" icon={<PlusOutlined />} onClick={() => { setCurrentWorkflow(null); form.resetFields(); setIsAddModalOpen(true); }}>新建资产流程</StyledButton>
-          ) : (
-            <StyledButton variant="success" icon={<PlusOutlined />} onClick={() => openGroupModal()}>新建审批组</StyledButton>
-          )}
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50/50">
+      <div className="max-w-[1400px] mx-auto mb-8 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-black text-black !m-0">资产流程定义</h1>
+          <p className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-bold">Workflow Model Configuration</p>
+        </div>
+        <BlackButton onClick={handleAddWorkflow} icon={<PlusOutlined />}>新建流程模型</BlackButton>
       </div>
 
-      <Tabs 
-        activeKey={activeTab} 
-        onChange={setActiveTab}
-        type="card"
-        className="workflow-tabs"
-        items={[
-            {
-                key: 'definition',
-                label: <span className="px-6 font-bold">流程定义</span>,
-                children: (
-                    <Card className="shadow-sm border-0">
-                        <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded text-amber-700 text-xs flex items-center gap-2">
-                            <InfoCircleOutlined />
-                            提示：标记为“生效中”的流程将作为全系统资产申请的唯一执行逻辑。启用一个流程将自动停用其他流程。
-                        </div>
-                        <Table columns={workflowColumns} dataSource={workflows} rowKey="id" loading={loading} pagination={false} />
-                    </Card>
-                )
-            },
-            {
-                key: 'groups',
-                label: <span className="px-6 font-bold">审批组管理</span>,
-                children: (
-                    <Card className="shadow-sm border-0">
-                        <Table columns={groupColumns} dataSource={approvalGroups} rowKey="id" loading={loading} pagination={false} />
-                    </Card>
-                )
-            }
-        ]}
-      />
+      <div className="max-w-[1400px] mx-auto mb-8">
+        <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b]">
+          <div className="flex-1 flex items-center h-[44px] px-4">
+            <SearchOutlined className="text-slate-400 mr-3" />
+            <Input 
+              placeholder="搜索模型名称或关键字..." 
+              variant="borderless"
+              className="h-full text-sm font-medium"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
+            />
+          </div>
+          <button onClick={fetchWorkflows} className="h-[44px] px-6 bg-black text-white hover:bg-slate-800 transition-colors border-none flex items-center justify-center">
+            <ReloadOutlined className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </div>
 
-      {/* Workflow Edit Modal */}
+      <div className="max-w-[1400px] mx-auto">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <Table columns={workflowColumns} dataSource={workflows.filter(w => w.name.includes(searchText))} rowKey="id" loading={loading} size="middle" pagination={{ pageSize: 10, size: 'small' }} />
+        </div>
+      </div>
+
+      {/* 属性 Modal */}
       <Modal
-        title={currentWorkflow ? "流程属性配置" : "创建新资产申请流程"}
+        title={<div className="font-black text-black text-base">流程属性配置</div>}
         open={isEditModalOpen}
-        onCancel={() => setIsAddModalOpen(false)}
-        footer={
-            <div className="flex justify-end gap-2 px-4 pb-4">
-                <StyledButton variant="secondary" onClick={() => setIsAddModalOpen(false)}>取消</StyledButton>
-                <StyledButton variant="primary" onClick={() => form.submit()}>确定并生效</StyledButton>
-            </div>
-        }
+        onCancel={() => setIsEditModalOpen(false)}
+        footer={[
+          <div className="flex justify-end gap-3 px-2 pb-2" key="footer">
+            <SecondaryButton onClick={() => setIsEditModalOpen(false)}>返回列表</SecondaryButton>
+            <BlackButton onClick={() => form.submit()}>确定并保存</BlackButton>
+          </div>
+        ]}
+        width={420}
+        centered
       >
-        <Form form={form} layout="vertical" onFinish={handleSaveWorkflow} className="py-4 px-2">
-            <Form.Item name="name" label="流程名称" rules={[{ required: true, message: '请输入名称' }]}>
-                <Input placeholder="例如：标准资产审批流程" />
-            </Form.Item>
-            <Form.Item name="description" label="详细描述">
-                <Input.TextArea rows={3} />
-            </Form.Item>
-            <div className="bg-blue-50 p-4 rounded-lg flex items-center justify-between mb-4 border border-blue-100">
-                <div>
-                    <div className="font-bold text-blue-800 text-sm italic">设为系统生效流程</div>
-                    <div className="text-[11px] text-blue-600">开启此开关，系统将立即切换至此流程并停用其他流程</div>
-                </div>
-                <Form.Item name="is_default" valuePropName="checked" noStyle><Switch /></Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleSaveWorkflow} className="mt-6">
+          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">模型显示名称</span>} rules={[{ required: true, message: '请输入名称' }]}>
+            <Input placeholder="输入名称..." className="rounded-lg h-11 border-slate-300" />
+          </Form.Item>
+          <Form.Item name="description" label={<span className="text-[10px] font-black text-slate-400 uppercase">备注描述 (选填)</span>}>
+            <Input.TextArea rows={3} placeholder="简述用途..." className="rounded-lg border-slate-300" />
+          </Form.Item>
+          <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-between border border-slate-100">
+            <div>
+              <span className="font-bold text-slate-700 text-xs">设为全系统生效流程</span>
+              <div className="text-[9px] text-slate-400 mt-0.5">启用后将自动覆盖现有资产流程</div>
             </div>
-            <Form.Item name="status" label="流程可用状态" initialValue="active">
-                <Select>
-                    <Option value="active">启用 (正常运行)</Option>
-                    <Option value="inactive">停用 (不可见)</Option>
-                </Select>
-            </Form.Item>
+            <Form.Item name="is_default" valuePropName="checked" noStyle><Switch className="bg-slate-300" /></Form.Item>
+          </div>
         </Form>
       </Modal>
 
-      {/* Nodes Modal */}
+      {/* 架构 Modal */}
       <Modal
-        title={<div className="flex items-center gap-2"><SettingOutlined className="text-blue-600" /><span>配置环节逻辑 - {currentWorkflow?.name}</span></div>}
+        title={<div className="font-black text-black text-base">审批环节架构设计 - {currentWorkflow?.name}</div>}
         open={isNodeModalOpen}
         onCancel={() => setIsNodeModalOpen(false)}
-        width={800}
-        footer={<div className="flex justify-end gap-2 px-4 pb-4"><StyledButton variant="secondary" onClick={() => setIsNodeModalOpen(false)}>取消</StyledButton><StyledButton variant="success" onClick={saveNodes}>应用配置</StyledButton></div>}
+        width={600}
+        footer={[
+          <div className="flex justify-end gap-3 px-4 pb-4" key="footer">
+            <SecondaryButton onClick={() => setIsNodeModalOpen(false)}>放弃修改</SecondaryButton>
+            <BlackButton onClick={saveNodes} className="px-10">应用架构</BlackButton>
+          </div>
+        ]}
+        centered
       >
-        <div className="py-4 px-2">
-            <div className="flex items-center gap-4 mb-4 opacity-60">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500"><PlayCircleOutlined /></div>
-                <div className="flex-1 bg-gray-100 p-3 rounded-lg border border-gray-200">
-                    <span className="font-bold text-gray-600 text-sm italic">起点：员工发起资产/升级申请</span>
-                </div>
-            </div>
-            <div className="text-center py-1"><ArrowDownOutlined className="text-gray-300 text-xs" /></div>
-            <div className="mb-6">
-                <StyledButton variant="ghost" className="w-full border-dashed border-2 border-blue-200 py-3 bg-blue-50/20" icon={<PlusOutlined />} onClick={() => {
-                    setNodes([...nodes, { dnd_id: `new-${Date.now()}`, node_name: `审批环节 ${nodes.length + 1}`, approver_type: 'dept_manager' }]);
-                }}>插入新的审批环节</StyledButton>
-            </div>
+        <div className="py-4">
+          <Button 
+            type="dashed" 
+            block 
+            icon={<PlusOutlined />} 
+            onClick={() => setNodes([...nodes, { dnd_id: `new-${Date.now()}`, node_name: `新节点`, approver_type: 'dept_manager' }])}
+            className="h-14 rounded-xl border-slate-200 text-slate-400 font-bold hover:text-black hover:border-black mb-8 border-2"
+          >
+            插入审批流节点
+          </Button>
 
-            <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId="nodes-list">
-                    {(provided) => (
-                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-                            {nodes.map((node, index) => (
-                                <Draggable key={node.dnd_id || `node-${index}`} draggableId={node.dnd_id || `node-${index}`} index={index}>
-                                    {(provided) => (
-                                        <div ref={provided.innerRef} {...provided.draggableProps} className="group">
-                                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:border-blue-400 transition-all">
-                                                <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-100 flex items-center justify-between">
-                                                    <div className="flex items-center">
-                                                        <div {...provided.dragHandleProps} className="mr-3 cursor-move text-gray-400 group-hover:text-blue-500"><MenuOutlined /></div>
-                                                        <span className="font-bold text-gray-700">审批环节 {index + 1}</span>
-                                                    </div>
-                                                    <button onClick={() => setNodes(nodes.filter((_, i) => i !== index))} className="text-gray-400 hover:text-red-500 border-none bg-transparent cursor-pointer"><DeleteOutlined /></button>
-                                                </div>
-                                                <div className="p-4 flex gap-4">
-                                                    <div className="flex-1">
-                                                        <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">环节名称</label>
-                                                        <Input value={node.node_name} variant="borderless" className="bg-gray-50 px-3 py-2 rounded" onChange={e => {
-                                                            const newNodes = [...nodes];
-                                                            newNodes[index].node_name = e.target.value;
-                                                            setNodes(newNodes);
-                                                        }} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">审批人类型</label>
-                                                        <Select className="w-full" variant="borderless" value={node.approver_type} onChange={val => {
-                                                            const newNodes = [...nodes];
-                                                            newNodes[index].approver_type = val;
-                                                            newNodes[index].approver_id = null;
-                                                            newNodes[index].role_id = null;
-                                                            newNodes[index].special_group_id = null;
-                                                            setNodes(newNodes);
-                                                        }}>
-                                                            <Option value="dept_manager">发起人所属主管</Option>
-                                                            <Option value="special_group">特殊审批组</Option>
-                                                            <Option value="role">指定系统角色</Option>
-                                                            <Option value="user">指定具体员工</Option>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">审批对象</label>
-                                                        {node.approver_type === 'dept_manager' && <Input disabled value="系统实时自动匹配" className="bg-gray-50" />}
-                                                        {node.approver_type === 'special_group' && (
-                                                            <Select className="w-full" variant="borderless" value={node.special_group_id} placeholder="选择审批组" onChange={val => {
-                                                                const newNodes = [...nodes];
-                                                                newNodes[index].special_group_id = val;
-                                                                setNodes(newNodes);
-                                                            }}>
-                                                                {approvalGroups.map(g => <Option key={g.id} value={g.id}>{g.name}</Option>)}
-                                                            </Select>
-                                                        )}
-                                                        {node.approver_type === 'role' && (
-                                                            <Select className="w-full" variant="borderless" value={node.role_id} placeholder="请选择角色" onChange={val => {
-                                                                const newNodes = [...nodes];
-                                                                newNodes[index].role_id = val;
-                                                                setNodes(newNodes);
-                                                            }}>
-                                                                {roles.map(r => <Option key={r.id} value={r.id}>{r.name}</Option>)}
-                                                            </Select>
-                                                        )}
-                                                        {node.approver_type === 'user' && (
-                                                            <Select className="w-full" variant="borderless" value={node.approver_id} showSearch optionFilterProp="children" placeholder="搜索姓名" onChange={val => {
-                                                                const newNodes = [...nodes];
-                                                                newNodes[index].approver_id = val;
-                                                                setNodes(newNodes);
-                                                            }}>
-                                                                {users.map(u => <Option key={u.id} value={u.id}>{u.name} ({u.dept})</Option>)}
-                                                            </Select>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {index < nodes.length - 1 && <div className="text-center py-2"><ArrowDownOutlined className="text-gray-300 text-xs" /></div>}
-                                        </div>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="nodes-list">
+              {(provided) => (
+                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                  {nodes.map((node, index) => (
+                    <Draggable key={node.dnd_id} draggableId={node.dnd_id} index={index}>
+                      {(provided) => (
+                        <div ref={provided.innerRef} {...provided.draggableProps}>
+                          <div className="bg-white border border-slate-200 rounded-2xl flex items-center p-5 gap-5 shadow-sm hover:border-black hover:shadow-md transition-all">
+                            <div {...provided.dragHandleProps} className="text-slate-300 cursor-move hover:text-black">
+                              <MenuOutlined style={{ fontSize: 18 }} />
+                            </div>
+                            <div className="flex-1 grid grid-cols-2 gap-5">
+                              <div className="flex flex-col gap-1">
+                                <Text className="text-[10px] font-black text-slate-400 uppercase">环节名称</Text>
+                                <Input 
+                                  value={node.node_name} 
+                                  onChange={e => {
+                                    const n = [...nodes]; n[index].node_name = e.target.value; setNodes(n);
+                                  }}
+                                  variant="borderless"
+                                  className="font-bold text-slate-800 p-0 h-8 text-base border-b border-transparent focus:border-black rounded-none" 
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Text className="text-[10px] font-black text-slate-400 uppercase">审批人类型</Text>
+                                <Select 
+                                  value={node.approver_type}
+                                  onChange={val => {
+                                    const n = [...nodes]; n[index].approver_type = val; setNodes(n);
+                                  }}
+                                  className="w-full text-sm font-bold"
+                                  variant="borderless"
+                                >
+                                  <Option value="dept_manager">部门主管</Option>
+                                  <Option value="role">指定角色</Option>
+                                  <Option value="user">指定人员</Option>
+                                  <Option value="custom_group">特殊组</Option>
+                                </Select>
+                              </div>
+                            </div>
+                            <Button type="text" danger icon={<DeleteOutlined />} onClick={() => setNodes(nodes.filter((_, i) => i !== index))} className="hover:bg-rose-50" />
+                          </div>
+                          {index < nodes.length - 1 && (
+                            <div className="flex justify-center py-2 text-slate-200">
+                              <ArrowDownOutlined style={{ fontSize: 20 }} />
+                            </div>
+                          )}
                         </div>
-                    )}
-                </Droppable>
-            </DragDropContext>
-            <div className="flex items-center gap-4 mt-4 opacity-80">
-                <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 border border-emerald-100"><CheckCircleOutlined /></div>
-                <div className="flex-1 bg-emerald-50/30 p-3 rounded-lg border border-emerald-100 flex justify-between items-center">
-                    <div><span className="font-bold text-emerald-700 text-sm italic">终点：完成申请并同步资产状态</span></div>
-                    <AntTooltip title="所有环节通过后实时生效"><NotificationOutlined className="text-emerald-400" /></AntTooltip>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-            </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         </div>
       </Modal>
 
-      {/* Group Modal */}
-      <Modal
-        title={currentGroup ? "编辑审批组" : "创建新审批组"}
-        open={isGroupModalOpen}
-        onCancel={() => setIsGroupModalOpen(false)}
-        footer={<div className="flex justify-end gap-2 px-4 pb-4"><StyledButton variant="secondary" onClick={() => setIsGroupModalOpen(false)}>取消</StyledButton><StyledButton variant="success" onClick={() => groupForm.submit()}>保存组配置</StyledButton></div>}
-      >
-        <Form groupForm={groupForm} form={groupForm} layout="vertical" onFinish={handleSaveGroup} className="py-4 px-2">
-            <Form.Item name="name" label="组名称" rules={[{ required: true, message: '请输入名称' }]}>
-                <Input placeholder="如：资产联审核心组" />
-            </Form.Item>
-            <Form.Item name="description" label="组描述">
-                <Input.TextArea />
-            </Form.Item>
-            <Form.Item name="members" label="组成员集合" rules={[{ required: true, message: '请至少添加一个成员' }]}>
-                <Select mode="multiple" placeholder="请选择角色或人员" optionFilterProp="children" className="w-full">
-                    <Select.OptGroup label="按系统角色添加">
-                        {roles.map(r => <Option key={`role:${r.id}`} value={`role:${r.id}`}>[角色] {r.name}</Option>)}
-                    </Select.OptGroup>
-                    <Select.OptGroup label="按具体人员添加">
-                        {users.map(u => <Option key={`user:${u.id}`} value={`user:${u.id}`}>[员工] {u.name} ({u.dept})</Option>)}
-                    </Select.OptGroup>
-                </Select>
-            </Form.Item>
-        </Form>
-      </Modal>
-
-      <style jsx="true">{`
-        .workflow-tabs .ant-tabs-nav-list { background: #f9fafb; padding: 4px; border-radius: 8px; }
-        .ant-modal-content { border-radius: 12px; overflow: hidden; }
-        .ant-modal-header { padding: 16px 24px; margin-bottom: 0; border-bottom: 1px solid #f0f0f0; }
+      <style>{`
+        .ant-table-thead > tr > th { text-align: center !important; background: #f8fafc !important; color: #64748b !important; font-weight: 900 !important; }
+        .ant-table-tbody > tr > td { text-align: center !important; }
+        .ant-modal-content { border-radius: 24px !important; padding: 24px !important; box-shadow: 0 20px 50px rgba(0,0,0,0.1) !important; }
+        .ant-modal-header { margin-bottom: 20px !important; border-bottom: none !important; }
+        .ant-modal-footer { border-top: none !important; margin-top: 20px !important; }
+        .ant-btn-primary span, .ant-btn-primary:hover span { color: #ffffff !important; }
+        .ant-input:focus, .ant-input-focused { border-color: #000000 !important; box-shadow: none !important; }
+        .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector { border-color: #000000 !important; box-shadow: none !important; }
       `}</style>
     </div>
   );

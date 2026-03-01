@@ -19,34 +19,32 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState(null);
+  
   // Modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
 
   const dropdownRef = useRef(null);
-  const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
 
-  // ... (existing useEffects and load functions remain same)
-
-  // Need to ensure existing load functions are preserved or I should just replace the component logic carefully.
-  // To avoid huge replacement, I will stick to adding the modal and existing logic.
-  // Actually, I should use replace_file_content on specific parts or verify I have the whole file.
-  // I have viewed the whole file in Step 95.
-
-  // Rerendering the whole component with updates is safer for structure changes.
-
+  // Initialize userId from localStorage safely
   useEffect(() => {
-    loadNotifications();
-    loadUnreadCount();
+    try {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (user && user.id) {
+          setUserId(user.id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse user from localStorage', e);
+    }
+  }, []);
 
-    // Click outside handler
+  // Click outside handler
+  useEffect(() => {
     const handleClickOutside = (event) => {
-      // If modal is open, don't close dropdown logic might interfere, but modal is usually a portal or top layer.
-      // However, if dropdown closes, this component unmounts?
-      // ERROR RISK: NotificationDropdown is likely conditionally rendered by parent.
-      // If I close it, I can't show the modal if the modal is INSIDE it.
-      // CHECK PARENT: TopNavbar.jsx
-
       if (dropdownRef.current && !dropdownRef.current.contains(event.target) && !showConfirmModal) {
         onClose();
       }
@@ -56,16 +54,25 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showConfirmModal]); // Added dependency
+  }, [onClose, showConfirmModal]);
+
+  // Load data when userId is ready
+  useEffect(() => {
+    if (userId) {
+      loadNotifications();
+      loadUnreadCount();
+    }
+  }, [userId, showConfirmModal]);
 
   const loadNotifications = async () => {
+    if (!userId) return;
     try {
       const response = await axios.get(getApiUrl('/api/notifications'), {
         params: {
           userId,
           page: 1,
-          pageSize: 10, // 增加显示条数
-          isRead: 'false', // 仅获取未读消息
+          pageSize: 10,
+          isRead: 'false',
         }
       });
 
@@ -80,11 +87,14 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   };
 
   const loadUnreadCount = async () => {
+    if (!userId) return;
     try {
       const response = await axios.get(getApiUrl(`/api/notifications/unread-count?userId=${userId}`));
-      setUnreadCount(response.data.count);
-      if (onUpdateUnread) {
-        onUpdateUnread(response.data.count);
+      if (response.data && response.data.success) {
+        setUnreadCount(response.data.count);
+        if (onUpdateUnread) {
+          onUpdateUnread(response.data.count);
+        }
       }
     } catch (error) {
       console.error('Failed to load unread count:', error);
@@ -92,9 +102,9 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   };
 
   const markAllAsRead = async () => {
+    if (!userId) return;
     try {
       await axios.put(getApiUrl('/api/notifications/read-all'), { userId });
-      // 清空本地列表，因为我们只显示未读
       setNotifications([]);
       setUnreadCount(0);
       if (onUpdateUnread) {
@@ -113,7 +123,6 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         ? getApiUrl(`/api/broadcasts/${id}/read`)
         : getApiUrl(`/api/notifications/${id}/read`);
       await axios.put(url);
-      // 从本地列表中移除该项
       setNotifications(prev => prev.filter(n => !(n.id === id && n.category === category)));
       loadUnreadCount();
     } catch (error) {
@@ -122,17 +131,14 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   };
 
   const handleNotificationClick = (notification) => {
-    // 立即标记为已读并从列表中移除
     markAsRead(notification.id, notification.category);
 
-    // Handle broadcast type
     if (notification.category === 'broadcast' || notification.related_type === 'broadcast') {
       onNavigate('messaging-broadcast');
       onClose();
       return;
     }
 
-    // Check if it is an exam notification
     if (
       notification.type === 'exam_notification' ||
       notification.type === 'assessment_plan' ||
@@ -144,7 +150,6 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
        return;
     }
 
-    // Check if it is a payslip notification
     if (notification.type === 'payslip' || notification.title?.includes('工资条')) {
       onNavigate('my-payslips');
       onClose();
@@ -157,7 +162,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
 
   const handleConfirmJump = () => {
     setShowConfirmModal(false);
-    onNavigate('my-exams'); // Jump to My Exams
+    onNavigate('my-exams');
     onClose();
   };
 
@@ -241,7 +246,6 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
                 onClick={() => handleNotificationClick(notification)}
                 className="p-4 hover:bg-white transition-all cursor-pointer flex gap-3 group relative overflow-hidden"
               >
-                {/* 悬浮装饰 */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 transform -translate-x-full group-hover:translate-x-0 transition-transform" />
                 
                 <div className={`p-2 rounded-xl h-fit shrink-0 shadow-sm transition-transform group-hover:scale-110 ${getColorClass(notification.type, notification.category)}`}>
@@ -287,7 +291,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
           onClose={() => setShowConfirmModal(false)}
           title="新考核通知"
           size="small"
-          zIndex={2000} // Ensure it is above everything
+          zIndex={2000}
         >
           <div className="space-y-4">
              <div className="flex items-start gap-3">

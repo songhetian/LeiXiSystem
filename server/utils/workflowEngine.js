@@ -144,28 +144,58 @@ async function findNodeApprovers(pool, node, data) {
 
     case 'custom_group':
       if (node.custom_type_name) {
+        // 1. 尝试从 'approvers' 表获取 (主要用于报销)
         const [customApprovers] = await pool.query(
           `SELECT a.user_id, a.delegate_user_id, a.delegate_start_date, a.delegate_end_date,
-                  a.department_scope, a.amount_limit
+                  a.department_scope, a.amount_min, a.amount_limit
            FROM approvers a
            WHERE a.approver_type = ? AND a.is_active = 1`,
           [node.custom_type_name]
         )
         
-        for (const approver of customApprovers) {
-          if (approver.department_scope) {
-            const scope = typeof approver.department_scope === 'string' ? JSON.parse(approver.department_scope) : approver.department_scope;
-            if (scope?.length > 0 && !scope.includes(data.department_id)) continue;
-          }
-          if (approver.amount_limit && data.total_amount &&
-              parseFloat(data.total_amount) > parseFloat(approver.amount_limit)) continue;
+        if (customApprovers.length > 0) {
+          for (const approver of customApprovers) {
+            // 部门校验
+            if (approver.department_scope) {
+              const scope = typeof approver.department_scope === 'string' ? JSON.parse(approver.department_scope) : approver.department_scope;
+              if (scope?.length > 0 && !scope.includes(data.department_id)) continue;
+            }
 
-          // 检查代理
-          const today = new Date().toISOString().split('T')[0]
-          if (approver.delegate_user_id && approver.delegate_start_date <= today && approver.delegate_end_date >= today) {
-            approverIds.push(approver.delegate_user_id)
-          } else {
-            approverIds.push(approver.user_id)
+            // 金额区间校验
+            const appAmount = parseFloat(data.total_amount || 0);
+            const minAmount = parseFloat(approver.amount_min || 0);
+            const maxAmount = approver.amount_limit ? parseFloat(approver.amount_limit) : Infinity;
+
+            if (appAmount < minAmount || appAmount > maxAmount) {
+              // console.log(`[Workflow] 金额 ${appAmount} 不在区间 [${minAmount}, ${maxAmount}] 内，跳过 ${approver.user_id}`);
+              continue;
+            }
+
+            // 检查代理
+            const today = new Date().toISOString().split('T')[0]
+            if (approver.delegate_user_id && approver.delegate_start_date <= today && approver.delegate_end_date >= today) {
+              approverIds.push(approver.delegate_user_id)
+            } else {
+              approverIds.push(approver.user_id)
+            }
+          }
+        } else {
+          // 2. 尝试从 'special_approval_groups' 表获取 (用于资产申请)
+          const [groups] = await pool.query('SELECT id FROM special_approval_groups WHERE name = ?', [node.custom_type_name]);
+          if (groups.length > 0) {
+            const groupId = groups[0].id;
+            const [members] = await pool.query(`
+              SELECT member_type, member_id FROM special_approval_group_members WHERE group_id = ?
+            `, [groupId]);
+
+            for (const member of members) {
+              if (member.member_type === 'user') {
+                approverIds.push(member.member_id);
+              } else if (member.member_type === 'role') {
+                const [roleUsers] = await pool.query('SELECT user_id FROM user_roles WHERE role_id = ?', [member.member_id]);
+                approverIds.push(...roleUsers.map(u => u.user_id));
+              }
+            }
           }
         }
       }
@@ -189,7 +219,19 @@ async function findNodeApprovers(pool, node, data) {
       console.warn(`未知的审批人类型: ${node.approver_type}`)
   }
 
-  return [...new Set(approverIds)]
+  const result = [...new Set(approverIds)]
+
+  // --- 关键优化：审批人为空时的兜底逻辑 ---
+  if (result.length === 0) {
+    console.warn(`[Workflow] 节点 ${node.node_name} 未匹配到审批人，已自动指派至系统管理员组`);
+    // 获取所有超级管理员或名为 admin 的用户
+    const [adminUsers] = await pool.query('SELECT id FROM users WHERE username = "admin" OR role = "admin" OR role = "超级管理员"');
+    if (adminUsers.length > 0) {
+      adminUsers.forEach(admin => result.push(admin.id));
+    }
+  }
+
+  return result;
 }
 
 /**

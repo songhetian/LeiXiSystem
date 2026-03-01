@@ -206,6 +206,7 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
   ];
 
   const breadcrumbs = useMemo(() => {
+    // 基础匹配逻辑
     for (const menu of menuItems) {
       if (menu.id === activeTab) {
         return [{ label: menu.label, id: menu.id }];
@@ -220,6 +221,39 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
         }
       }
     }
+
+    // 特殊页面处理：报销详情
+    if (activeTab === 'reimbursement-detail') {
+      return [
+        { label: '报销管理', id: 'reimbursement' },
+        { label: '报销详情', id: 'reimbursement-detail' }
+      ];
+    }
+
+    // 特殊页面处理：资产流程定义 (系统原名为全域流程设置，现已更名)
+    if (activeTab === 'system-workflow') {
+      return [
+        { label: '审批架构', id: 'finance-config' },
+        { label: '资产流程定义', id: 'system-workflow' }
+      ];
+    }
+
+    // 特殊页面处理：审批职责授权 (原审批角色映射)
+    if (activeTab === 'role-workflow-config') {
+      return [
+        { label: '审批架构', id: 'finance-config' },
+        { label: '审批职责授权', id: 'role-workflow-config' }
+      ];
+    }
+
+    // 特殊页面处理：设备管理
+    if (activeTab === 'logistics-device-mgmt') {
+      return [
+        { label: '后勤管理', id: 'logistics' },
+        { label: '设备管理', id: 'logistics-device-mgmt' }
+      ];
+    }
+
     return [];
   }, [activeTab]);
 

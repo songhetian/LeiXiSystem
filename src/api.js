@@ -6,21 +6,28 @@ import { getApiBaseUrl } from './utils/apiConfig';
 const api = axios.create({
   baseURL: getApiBaseUrl(),
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// 请求拦截器 - 添加 token
+// 请求拦截器 - 添加 token 和 智能 Content-Type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token') || localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // 确保自定义 headers 不被覆盖
-    console.log('[API Request] URL:', config.url);
-    console.log('[API Request] Headers:', config.headers);
+
+    // 智能处理 Content-Type
+    if (config.data instanceof FormData) {
+      // 如果是上传文件，移除 Content-Type，让 Axios 自动生成带 boundary 的 Header
+      delete config.headers['Content-Type'];
+    } else if (config.method === 'post' || config.method === 'put' || config.method === 'patch') {
+      // 普通 POST/PUT/PATCH 请求，如果没设过 Content-Type，默认设为 JSON
+      if (!config.headers['Content-Type']) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+    }
+
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.headers);
     return config;
   },
   (error) => Promise.reject(error)

@@ -168,13 +168,18 @@ module.exports = async function (fastify, opts) {
     const { id } = request.params
     const { name, description, is_default, conditions, status } = request.body
 
+    const connection = await pool.getConnection()
+    await connection.beginTransaction()
+
     try {
-      const [existing] = await pool.query(
-        'SELECT * FROM approval_workflows WHERE id = ?',
+      const [existing] = await connection.query(
+        'SELECT * FROM approval_workflows WHERE id = ? FOR UPDATE',
         [id]
       )
 
       if (existing.length === 0) {
+        await connection.rollback()
+        connection.release()
         return reply.code(404).send({ success: false, message: '流程不存在' })
       }
 
@@ -182,24 +187,33 @@ module.exports = async function (fastify, opts) {
 
       // 如果设为默认，取消其他默认流程
       if (is_default && !workflow.is_default) {
-        await pool.query(
+        await connection.query(
           'UPDATE approval_workflows SET is_default = 0 WHERE type = ? AND id != ?',
           [workflow.type, id]
         )
       }
 
-      await pool.query(
+      await connection.query(
         `UPDATE approval_workflows
          SET name = ?, description = ?, is_default = ?, conditions = ?, status = ?
          WHERE id = ?`,
         [name, description, is_default ? 1 : 0,
-         conditions ? JSON.stringify(conditions) : null, status, id]
+         conditions ? (typeof conditions === 'string' ? conditions : JSON.stringify(conditions)) : null, 
+         status || 'active', id]
       )
 
+      await connection.commit()
+      connection.release()
       return { success: true, message: '更新成功' }
     } catch (error) {
+      await connection.rollback()
+      connection.release()
       console.error('更新审批流程失败:', error)
-      return reply.code(500).send({ success: false, message: '更新失败' })
+      return reply.code(500).send({ 
+        success: false, 
+        message: '更新失败: ' + error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      })
     }
   })
 

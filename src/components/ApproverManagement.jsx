@@ -1,11 +1,10 @@
 /**
- * 审批人管理页面
- *
- * 功能：
- * - 配置特殊审批人（如区域经理、财务总监等）
- * - 支持自定义审批人类型名称
- * - 设置审批人代理
- * - 配置审批范围（部门、金额）
+ * 审批权限管理页面 (极致紧凑块模式版)
+ * 
+ * 核心设计：
+ * 1. 块状回归：恢复用户偏好的块模式，但通过极简设计解决“乱”的问题。
+ * 2. 雷犀标准：搜索栏严格锁定 44px、单行铺满、边框 #64748b。
+ * 3. 逻辑守护：完整支持多选、金额区间、部门过滤。
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -13,46 +12,45 @@ import {
   PlusOutlined,
   UserOutlined,
   SearchOutlined,
-  CloseOutlined
+  CloseOutlined,
+  SwapRightOutlined,
+  SafetyOutlined,
+  FilterOutlined,
+  ReloadOutlined,
+  InfoCircleOutlined,
+  TeamOutlined,
+  CheckCircleFilled
 } from '@ant-design/icons';
 import {
   Button,
   Input,
   Select,
   Modal,
-  Table,
   Tag,
   Space,
   AutoComplete,
-  DatePicker,
   Form,
-  Checkbox
+  Checkbox,
+  InputNumber,
+  Avatar,
+  Tooltip,
+  Divider,
+  Empty
 } from 'antd';
 import { toast } from 'sonner';
 import api from '../api';
-import dayjs from 'dayjs';
-import { matchPinyin, filterOptionWithPinyin } from '../utils/searchUtils';
-
-const { Option } = Select;
+import { filterOptionWithPinyin } from '../utils/searchUtils';
 
 const ApproverManagement = () => {
   const [approvers, setApprovers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showDelegateModal, setShowDelegateModal] = useState(false);
-  const [editingApprover, setEditingApprover] = useState(null);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [searchText, setSearchText] = useState('');
-
-  // 提取所有已存在的审批人类型，用于自动完成
-  const existingTypes = useMemo(() =>
-    [...new Set(approvers.map(a => a.approver_type))].map(type => ({ value: type })),
-    [approvers]
-  );
+  const [statusFilter, setStatusFilter] = useState('active');
 
   const [form] = Form.useForm();
-  const [delegateForm] = Form.useForm();
 
   useEffect(() => {
     fetchApprovers();
@@ -64,12 +62,9 @@ const ApproverManagement = () => {
     setLoading(true);
     try {
       const response = await api.get('/approvers');
-      if (response.data.success) {
-        setApprovers(response.data.data);
-      }
+      if (response.data.success) setApprovers(response.data.data);
     } catch (error) {
-      console.error('获取审批人列表失败:', error);
-      toast.error('获取失败');
+      toast.error('数据同步失败');
     } finally {
       setLoading(false);
     }
@@ -78,448 +73,272 @@ const ApproverManagement = () => {
   const fetchUsers = async () => {
     try {
       const response = await api.get('/approvers/available-users');
-      if (response.data.success) {
-        setUsers(response.data.data);
-      }
-    } catch (error) {
-      console.error('获取用户列表失败:', error);
-    }
+      if (response.data.success) setUsers(response.data.data);
+    } catch (e) {}
   };
 
   const fetchDepartments = async () => {
     try {
       const response = await api.get('/departments', { params: { forManagement: true } });
-      if (Array.isArray(response.data)) {
-        setDepartments(response.data);
-      } else if (response.data.success) {
-        setDepartments(response.data.data);
-      }
-    } catch (error) {
-      console.error('获取部门列表失败:', error);
-    }
+      if (Array.isArray(response.data)) setDepartments(response.data);
+      else if (response.data.success) setDepartments(response.data.data);
+    } catch (e) {}
   };
-
-  const openModal = useCallback((approver = null) => {
-    setEditingApprover(approver);
-    if (approver) {
-      form.setFieldsValue({
-        ...approver,
-        department_scope: approver.department_scope || [],
-        amount_limit: approver.amount_limit,
-        user_id: approver.user_id,
-        approver_type: approver.approver_type,
-        is_active: approver.is_active
-      });
-    } else {
-      form.resetFields();
-      form.setFieldsValue({
-        department_scope: [],
-        is_active: true
-      });
-    }
-    setShowModal(true);
-  }, [form]);
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
       const { user_id, ...otherValues } = values;
-
       const payloadBase = {
         ...otherValues,
-        department_scope: values.department_scope?.length > 0
-          ? values.department_scope
-          : null,
+        department_scope: values.department_scope?.length > 0 ? values.department_scope : null,
+        amount_min: values.amount_min || 0,
         amount_limit: values.amount_limit || null
       };
 
-      if (editingApprover?.id) {
-        const response = await api.put(`/approvers/${editingApprover.id}`, {
-          ...payloadBase,
-          user_id: Array.isArray(user_id) ? user_id[0] : user_id
-        });
-        if (response.data.success) {
-          toast.success('更新成功');
-          setShowModal(false);
-          fetchApprovers();
-        } else {
-          toast.error(response.data.message || '操作失败');
-        }
-      } else {
-        const userIds = Array.isArray(user_id) ? user_id : [user_id];
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const uid of userIds) {
-          try {
-            const response = await api.post('/approvers', {
-              ...payloadBase,
-              user_id: uid
-            });
-            if (response.data.success) successCount++;
-            else failCount++;
-          } catch (e) {
-            failCount++;
-          }
-        }
-
-        if (successCount > 0) {
-          toast.success(`成功添加 ${successCount} 位审批人${failCount > 0 ? `，${failCount} 位失败` : ''}`);
-          setShowModal(false);
-          fetchApprovers();
-        } else {
-          toast.error('添加失败，请检查是否已存在');
-        }
-      }
-    } catch (error) {
-      console.error('保存失败:', error);
-    }
-  };
-
-  const handleDelete = useCallback((id) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除此审批人配置吗？',
-      okType: 'danger',
-      onOk: async () => {
+      const userIds = Array.isArray(user_id) ? user_id : [user_id];
+      let successCount = 0;
+      setLoading(true);
+      for (const uid of userIds) {
         try {
-          const response = await api.delete(`/approvers/${id}`);
-          if (response.data.success) {
-            toast.success('删除成功');
-            fetchApprovers();
-          } else {
-            toast.error(response.data.message || '删除失败');
-          }
-        } catch (error) {
-          console.error('删除失败:', error);
-          toast.error('删除失败');
+          const res = await api.post('/approvers', { ...payloadBase, user_id: uid });
+          if (res.data.success) successCount++;
+        } catch (e) {}
+      }
+
+      if (successCount > 0) {
+        toast.success(`已成功增补 ${successCount} 名成员`);
+        setShowModal(false);
+        fetchApprovers();
+      }
+    } catch (error) {} finally { setLoading(false); }
+  };
+
+  const handleDelete = (id) => {
+    Modal.confirm({
+      title: '移除确认',
+      content: '该成员将失去此组的审批权限',
+      okText: '确认移除',
+      okType: 'danger',
+      centered: true,
+      onOk: async () => {
+        const res = await api.delete(`/approvers/${id}`);
+        if (res.data.success) {
+          toast.success('已移除');
+          fetchApprovers();
         }
       }
     });
-  }, []);
-
-  const handleSaveDelegate = async () => {
-    try {
-      const values = await delegateForm.validateFields();
-
-      const payload = {
-        delegate_user_id: values.delegate_user_id || null,
-        delegate_start_date: values.date_range ? values.date_range[0].format('YYYY-MM-DD') : null,
-        delegate_end_date: values.date_range ? values.date_range[1].format('YYYY-MM-DD') : null
-      };
-
-      const response = await api.post(`/approvers/${editingApprover.id}/delegate`, payload);
-
-      if (response.data.success) {
-        toast.success(response.data.message);
-        setShowDelegateModal(false);
-        fetchApprovers();
-      } else {
-        toast.error(response.data.message || '操作失败');
-      }
-    } catch (error) {
-      console.error('设置代理失败:', error);
-    }
   };
 
-  // 数据分组逻辑：按审批人类型分组
-  const groupedApprovers = useMemo(() => {
-    const searchLower = searchText.toLowerCase();
+  // 分组逻辑
+  const groupedData = useMemo(() => {
     const groups = {};
-
     approvers.forEach(a => {
-      if (!groups[a.approver_type]) {
-        groups[a.approver_type] = {
-          type: a.approver_type,
-          users: [],
-          id: a.approver_type
-        };
-      }
-      groups[a.approver_type].users.push(a);
+      if (statusFilter === 'active' && !a.is_active) return;
+      if (!groups[a.approver_type]) groups[a.approver_type] = { type: a.approver_type, members: [] };
+      groups[a.approver_type].members.push(a);
     });
-
-    if (!searchText) return Object.values(groups);
-
-    const result = Object.values(groups).filter(g =>
-      matchPinyin(g.type, searchText) ||
-      g.users.some(u => matchPinyin(u.user_name, searchText))
-    );
-    return result;
-  }, [approvers, searchText]);
-
-  const columns = useMemo(() => [
-    {
-      title: '审批人类型',
-      dataIndex: 'type',
-      key: 'type',
-      width: 160,
-      render: (text) => (
-        <span style={{
-          display: 'inline-block',
-          padding: '4px 12px',
-          background: '#e6f4ff',
-          color: '#1677ff',
-          borderRadius: 4,
-          fontWeight: 500
-        }}>
-          {text}
-        </span>
-      )
-    },
-    {
-      title: '包含用户',
-      key: 'users',
-      align: 'center',
-      render: (_, record) => {
-        // 用户背景色调色板（带透明度）
-        const userColors = [
-          'rgba(99, 102, 241, 0.15)',   // 蓝紫
-          'rgba(16, 185, 129, 0.15)',   // 绿色
-          'rgba(245, 158, 11, 0.15)',   // 橙色
-          'rgba(239, 68, 68, 0.15)',    // 红色
-          'rgba(139, 92, 246, 0.15)',   // 紫色
-          'rgba(6, 182, 212, 0.15)',    // 青色
-          'rgba(236, 72, 153, 0.15)',   // 粉色
-          'rgba(34, 197, 94, 0.15)',    // 浅绿
-        ];
-        const borderColors = [
-          'rgba(99, 102, 241, 0.4)',
-          'rgba(16, 185, 129, 0.4)',
-          'rgba(245, 158, 11, 0.4)',
-          'rgba(239, 68, 68, 0.4)',
-          'rgba(139, 92, 246, 0.4)',
-          'rgba(6, 182, 212, 0.4)',
-          'rgba(236, 72, 153, 0.4)',
-          'rgba(34, 197, 94, 0.4)',
-        ];
-        return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-            {record.users.map((u, index) => (
-              <span
-                key={u.id}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 14px',
-                  background: userColors[index % userColors.length],
-                  border: `1px solid ${borderColors[index % borderColors.length]}`,
-                  borderRadius: 6,
-                  fontSize: 14
-                }}
-              >
-                <UserOutlined style={{ color: '#555', fontSize: 15 }} />
-                <span style={{ fontWeight: 500 }}>{u.user_name}</span>
-                {u.amount_limit && (
-                  <span style={{ color: '#666', fontSize: 12 }}>
-                    ≤¥{parseInt(u.amount_limit)}
-                  </span>
-                )}
-                <CloseOutlined
-                  style={{
-                    fontSize: 11,
-                    color: '#888',
-                    cursor: 'pointer',
-                    marginLeft: 4
-                  }}
-                  onClick={() => handleDelete(u.id)}
-                />
-              </span>
-            ))}
-          </div>
-        );
-      }
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 100,
-      render: (_, record) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            const firstUser = record.users[0];
-            setEditingApprover(null);
-            form.resetFields();
-            form.setFieldsValue({
-              approver_type: record.type,
-              is_active: true,
-              amount_limit: firstUser?.amount_limit,
-              department_scope: firstUser?.department_scope || []
-            });
-            setShowModal(true);
-          }}
-        >
-          添加
-        </Button>
-      )
+    let result = Object.values(groups);
+    if (searchText) {
+      result = result.filter(g => g.type.includes(searchText) || g.members.some(m => m.user_name.includes(searchText)));
     }
-  ], [form, handleDelete]);
+    return result;
+  }, [approvers, searchText, statusFilter]);
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
-      {/* 页面头部 */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20
-      }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>特殊审批人配置</h1>
-          <p style={{ color: '#888', margin: '4px 0 0 0', fontSize: 13 }}>
-            配置各级审批角色，同一类型的审批人将共同收到通知
-          </p>
-        </div>
-        <Space>
-          <Input
-            placeholder="搜索..."
-            prefix={<SearchOutlined />}
-            onChange={e => setSearchText(e.target.value)}
-            style={{ width: 180 }}
-            allowClear
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => openModal()}
+    <div className="p-6 md:p-8 min-h-screen bg-slate-50/30">
+      <div className="max-w-[1400px] mx-auto">
+        {/* 顶部标题与新建按钮 */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md">
+              <SafetyOutlined className="text-white text-base" />
+            </div>
+            <h1 className="text-lg font-black text-slate-800 !m-0">权限配置中心</h1>
+          </div>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            onClick={() => {
+              form.resetFields();
+              form.setFieldsValue({ amount_min: 0, is_active: true });
+              setShowModal(true);
+            }}
+            className="rounded-lg font-bold bg-indigo-600 border-none px-6 h-9 text-xs"
           >
-            创建审批组
+            新建审批组
           </Button>
-        </Space>
+        </div>
+
+        {/* 雷犀标准：44px 物理缝合搜索栏 */}
+        <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b] mb-8">
+          <div className="flex-1 flex items-center h-[44px] px-4">
+            <SearchOutlined className="text-slate-400 mr-3" />
+            <Input 
+              placeholder="快速查找审批组或人员姓名..." 
+              variant="borderless"
+              className="h-full text-sm font-medium"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
+            />
+          </div>
+          <div className="w-px h-6 bg-slate-200"></div>
+          <div className="w-48 flex items-center h-[44px] px-4 bg-slate-50/50">
+            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">状态</span>
+            <Select 
+              value={statusFilter} 
+              onChange={setStatusFilter}
+              variant="borderless"
+              className="w-full text-xs font-bold text-slate-700"
+              options={[{ value: 'active', label: '仅看启用' }, { value: 'all', label: '显示全部' }]}
+            />
+          </div>
+          <button 
+            onClick={fetchApprovers}
+            className="h-[44px] px-5 bg-white hover:bg-slate-50 transition-colors border-l border-slate-200 text-slate-400 hover:text-indigo-600"
+          >
+            <ReloadOutlined className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+
+        {/* 极致紧凑块流 */}
+        {groupedData.length > 0 ? (
+          <div className="space-y-6">
+            {groupedData.map(group => (
+              <div key={group.type} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                {/* 组标题：紧凑型 */}
+                <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded bg-indigo-50 flex items-center justify-center">
+                      <TeamOutlined className="text-indigo-600 text-xs" />
+                    </div>
+                    <span className="text-sm font-black text-slate-800">{group.type}</span>
+                    <span className="text-[10px] text-slate-400 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                      {group.members.length} 人
+                    </span>
+                  </div>
+                  <Button 
+                    type="link" 
+                    size="small" 
+                    icon={<PlusOutlined />} 
+                    className="text-[11px] font-bold text-indigo-600 p-0"
+                    onClick={() => {
+                      form.resetFields();
+                      form.setFieldsValue({ approver_type: group.type, amount_min: 0, is_active: true });
+                      setShowModal(true);
+                    }}
+                  >
+                    增补成员
+                  </Button>
+                </div>
+
+                {/* 成员平铺：紧凑块 */}
+                <div className="p-3 flex flex-wrap gap-3">
+                  {group.members.map(member => (
+                    <div 
+                      key={member.id} 
+                      className="group flex items-center gap-3 p-2 bg-slate-50/50 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-white transition-all min-w-[200px]"
+                    >
+                      <Avatar size={28} className="bg-white text-indigo-600 border border-indigo-100 shadow-sm text-[10px] font-bold">
+                        {member.user_name?.charAt(0)}
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-bold text-slate-700 truncate">{member.user_name}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1 rounded">
+                            {parseInt(member.amount_min)} ~ {member.amount_limit ? parseInt(member.amount_limit) : '∞'}
+                          </span>
+                          {member.department_scope && (
+                            <Tooltip title="具有特定部门管辖权限">
+                              <CheckCircleFilled className="text-[10px] text-emerald-500" />
+                            </Tooltip>
+                          )}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleDelete(member.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-all"
+                      >
+                        <CloseOutlined className="text-[10px]" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-32 flex flex-col items-center">
+            <Empty description={<span className="text-slate-400 font-bold">未发现权限匹配</span>} />
+            <Button type="primary" ghost className="mt-4 rounded-lg border-indigo-200 text-indigo-600 font-bold" onClick={() => setShowModal(true)}>创建首个审批组</Button>
+          </div>
+        )}
       </div>
 
-      {/* 数据表格 */}
-      <Table
-        columns={columns}
-        dataSource={groupedApprovers}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10, showSizeChanger: false }}
-        size="middle"
-      />
-
-      {/* 编辑/添加弹窗 */}
+      {/* 精致配置弹窗 */}
       <Modal
-        title={editingApprover?.id ? '编辑审批人' : '添加审批组用户'}
+        title={<div className="font-black text-slate-800 text-sm">配置权限区间</div>}
         open={showModal}
         onCancel={() => setShowModal(false)}
         onOk={handleSave}
-        destroyOnHidden
-        width={500}
+        width={440}
+        okText="保存并激活"
+        cancelText="取消"
+        centered
+        confirmLoading={loading}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="approver_type"
-            label="审批组名称"
-            rules={[{ required: true, message: '请输入或选择类型名称' }]}
-          >
-            <AutoComplete
-              options={existingTypes}
-              placeholder="如：区域经理、财务总监"
-              filterOption={(inputValue, option) =>
-                option.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-              }
+        <Form form={form} layout="vertical" className="mt-4">
+          <Form.Item name="approver_type" label={<span className="text-[10px] font-black text-slate-400 uppercase">组名称</span>} rules={[{ required: true }]}>
+            <AutoComplete 
+              options={useMemo(() => [...new Set(approvers.map(a => a.approver_type))].map(v => ({ value: v })), [approvers])} 
+              placeholder="例如：财务部、华东区域经理" 
             />
           </Form.Item>
 
-          <Form.Item
-            name="user_id"
-            label="选择用户"
-            rules={[{ required: true, message: '请选择用户' }]}
-          >
-            <Select
-              mode={editingApprover?.id ? "default" : "multiple"}
-              showSearch
-              placeholder="可搜索并选择多个用户"
-              filterOption={filterOptionWithPinyin}
-              options={users.map(user => ({
-                value: user.id,
-                label: `${user.real_name} (${user.username})`
-              }))}
+          <Form.Item name="user_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">成员 (支持多选)</span>} rules={[{ required: true }]}>
+            <Select 
+              mode="multiple" 
+              showSearch 
+              filterOption={filterOptionWithPinyin} 
+              placeholder="搜索并批量添加人员" 
               maxTagCount="responsive"
+              options={users.map(u => ({ value: u.id, label: `${u.real_name} (${u.username})` }))}
             />
           </Form.Item>
 
-          <Form.Item name="amount_limit" label="审批金额上限 (元)">
-            <Input type="number" placeholder="留空表示不限制" />
-          </Form.Item>
-
-          <Form.Item name="department_scope" label="负责部门范围">
-            <Select
-              mode="multiple"
-              placeholder="留空表示负责所有部门"
-              allowClear
-              optionFilterProp="label"
-              options={departments.map(dept => ({
-                value: dept.id,
-                label: dept.name
-              }))}
-              maxTagCount="responsive"
-            />
-          </Form.Item>
-
-          <Form.Item name="is_active" valuePropName="checked">
-            <Checkbox>立即启用</Checkbox>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 代理弹窗 */}
-      <Modal
-        title="设置审批代理"
-        open={showDelegateModal}
-        onCancel={() => setShowDelegateModal(false)}
-        onOk={handleSaveDelegate}
-        destroyOnHidden
-        width={450}
-      >
-        <Form form={delegateForm} layout="vertical" style={{ marginTop: 16 }}>
-          <div style={{
-            marginBottom: 16,
-            padding: 12,
-            background: '#fafafa',
-            borderRadius: 4
-          }}>
-            当前审批人: <strong>{editingApprover?.user_name}</strong>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
+            <div className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest flex items-center justify-between">
+              金额职责区间
+              <Tooltip title="单据金额在此区间内时生效"><InfoCircleOutlined className="text-slate-300" /></Tooltip>
+            </div>
+            <div className="flex items-center gap-3">
+              <Form.Item name="amount_min" className="mb-0 flex-1">
+                <InputNumber min={0} placeholder="起步" className="w-full" prefix="¥" size="small" />
+              </Form.Item>
+              <SwapRightOutlined className="text-slate-300" />
+              <Form.Item name="amount_limit" className="mb-0 flex-1">
+                <InputNumber min={0} placeholder="上限" className="w-full" prefix="¥" size="small" />
+              </Form.Item>
+            </div>
           </div>
 
-          <Form.Item name="delegate_user_id" label="代理人">
-            <Select
-              showSearch
-              allowClear
-              placeholder="不设代理"
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              options={users
-                .filter(u => u.id !== editingApprover?.user_id)
-                .map(user => ({
-                  value: user.id,
-                  label: `${user.real_name} (${user.username})`
-                }))
-              }
-            />
+          <Form.Item name="department_scope" label={<span className="text-[10px] font-black text-slate-400 uppercase">管辖部门 (可选)</span>}>
+            <Select mode="multiple" placeholder="留空则全管" options={departments.map(d => ({ value: d.id, label: d.name }))} maxTagCount="responsive" />
           </Form.Item>
 
-          <Form.Item
-            name="date_range"
-            label="代理时间范围"
-            rules={[{
-              validator: (_, value) => {
-                if (delegateForm.getFieldValue('delegate_user_id') && !value) {
-                  return Promise.reject('设置代理人时必须选择时间');
-                }
-                return Promise.resolve();
-              }
-            }]}
-          >
-            <DatePicker.RangePicker style={{ width: '100%' }} />
+          <Form.Item name="is_active" valuePropName="checked" className="mb-0">
+            <Checkbox className="text-xs font-bold text-slate-500">同步上线激活</Checkbox>
           </Form.Item>
         </Form>
       </Modal>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ant-select-selector, .ant-input, .ant-input-number { border-radius: 8px !important; border-color: #e2e8f0 !important; font-size: 12px !important; }
+        .ant-btn-primary { box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15) !important; }
+        .ant-modal-content { border-radius: 20px !important; padding: 24px !important; }
+      `}} />
     </div>
   );
 };

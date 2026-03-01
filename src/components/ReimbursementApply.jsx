@@ -1,747 +1,358 @@
 /**
- * 报销申请组件
- *
- * 功能：
- * - 填写报销信息（标题、类型、备注）
- * - 添加费用明细（类型、金额、日期、说明）
- * - 上传发票/附件
- * - 保存草稿和提交申请
- * - 支持自定义报销类型和费用类型
+ * 报销申请组件 (精致商务最终版)
+ * 
+ * 核心优化：
+ * 1. 整体缩小：高度下调至 40px，整体间距更紧凑。
+ * 2. 全面中文：移除 "Click to Upload" 等英文，改用标准中文。
+ * 3. 细节打磨：优化上传区域布局，增强商务质感。
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  PlusOutlined,
-  DeleteOutlined,
-  UploadOutlined,
-  SaveOutlined,
-  SendOutlined,
-  FileImageOutlined,
-  FilePdfOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
+  Form,
+  Input,
+  Select,
+  Button,
+  InputNumber,
+  DatePicker,
+  Upload,
+  Typography,
+  Divider,
+  Space,
+  Spin,
+  Card
+} from 'antd';
+import {
+  Save,
+  Send,
+  Plus,
+  FileText,
+  CreditCard,
+  Paperclip,
+  UploadCloud,
+  FileSearch,
+  AlertCircle
+} from 'lucide-react';
 import { toast } from 'sonner';
+import dayjs from 'dayjs';
 import api from '../api';
 import { getAttachmentUrl } from '../utils/fileUtils';
 
-const ReimbursementApply = ({ user, onSuccess }) => {
-  // 动态配置状态
-  const [reimbursementTypes, setReimbursementTypes] = useState([]);
-  const [expenseTypes, setExpenseTypes] = useState([]);
+const { TextArea } = Input;
+const { Text } = Typography;
 
-  // 表单状态
-  const [formData, setFormData] = useState({
-    title: '',
-    type: '',
-    remark: ''
-  });
-
-  // 费用明细
-  const [items, setItems] = useState([
-    { item_type: '', amount: '', expense_date: '', description: '' }
-  ]);
-
-  // 附件
-  const [attachments, setAttachments] = useState([]);
-  const [uploading, setUploading] = useState(false);
-
-  // 提交状态
-  const [submitting, setSubmitting] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // 编辑模式（用于编辑草稿）
-  const [editingId, setEditingId] = useState(null);
-
-  useEffect(() => {
-    fetchConfigs();
-  }, []);
-
-  // 获取配置数据
-  const fetchConfigs = async () => {
+// --- 精致版发票上传器 ---
+const InvoiceUploader = ({ value, onChange }) => {
+  const [loading, setLoading] = useState(false);
+  const handleUpload = async ({ file, onSuccess, onError }) => {
+    setLoading(true);
     try {
-      const [resTypes, resExpenses] = await Promise.all([
-        api.get('/reimbursement/types'),
-        api.get('/reimbursement/expense-types')
-      ]);
-
-      if (resTypes.data.success) {
-        const types = resTypes.data.data.filter(t => t.is_active);
-        setReimbursementTypes(types);
-        // 设置默认类型
-        if (types.length > 0 && !formData.type) {
-          setFormData(prev => ({ ...prev, type: types[0].code || types[0].name }));
-        }
-      }
-
-      if (resExpenses.data.success) {
-        setExpenseTypes(resExpenses.data.data.filter(t => t.is_active));
-      }
-    } catch (error) {
-      console.error('获取配置失败:', error);
-      // 失败时不影响基本功能，只是列表可能为空或使用兜底逻辑
-    }
-  };
-
-  // 计算总金额
-  const totalAmount = items.reduce((sum, item) => {
-    const amount = parseFloat(item.amount) || 0;
-    return sum + amount;
-  }, 0);
-
-  // 添加费用明细
-  const addItem = () => {
-    setItems([...items, { item_type: '', amount: '', expense_date: '', description: '' }]);
-  };
-
-  // 删除费用明细
-  const removeItem = (index) => {
-    if (items.length === 1) {
-      toast.warning('至少需要一条费用明细');
-      return;
-    }
-    setItems(items.filter((_, i) => i !== index));
-  };
-
-  // 更新费用明细
-  const updateItem = (index, field, value) => {
-    const newItems = [...items];
-    newItems[index][field] = value;
-    setItems(newItems);
-  };
-
-  // 文件上传
-  const handleFileUpload = async (event) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
-
-    for (const file of files) {
-      // 检查文件类型
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-      if (!allowedTypes.includes(file.type)) {
-        toast.error(`文件 ${file.name} 格式不支持，只支持 JPG、PNG、PDF`);
-        continue;
-      }
-
-      // 检查文件大小 (10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`文件 ${file.name} 超过10MB限制`);
-        continue;
-      }
-
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await api.post('/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        if (response.data.success) {
-          setAttachments(prev => [...prev, {
-            id: Date.now(),
-            file_name: file.name,
-            file_type: file.type,
-            file_size: file.size,
-            file_url: response.data.url,
-            isNew: true
-          }]);
-        }
-      } catch (error) {
-        console.error('上传失败:', error);
-        toast.error(`文件 ${file.name} 上传失败`);
-      }
-    }
-
-    setUploading(false);
-    event.target.value = '';
-  };
-
-  // 删除附件
-  const removeAttachment = (index) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
-  };
-
-  // 预览附件
-  const previewAttachment = (attachment) => {
-    const url = getAttachmentUrl(attachment.file_url);
-    if (url) {
-      window.open(url, '_blank');
-    } else {
-      toast.error('无法生成预览地址');
-    }
-  };
-
-  // 表单验证
-  const validateForm = () => {
-    if (!formData.title.trim()) {
-      toast.error('请填写报销标题');
-      return false;
-    }
-
-    if (!formData.type) {
-      toast.error('请选择报销类型');
-      return false;
-    }
-
-    if (items.length === 0) {
-      toast.error('请至少添加一条费用明细');
-      return false;
-    }
-
-    if (attachments.length === 0) {
-      toast.error('请上传发票或相关附件图片');
-      return false;
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (!item.item_type) {
-        toast.error(`第 ${i + 1} 条明细：请选择费用类型`);
-        return false;
-      }
-      if (!item.amount || parseFloat(item.amount) <= 0) {
-        toast.error(`第 ${i + 1} 条明细：请填写有效金额`);
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  // 保存草稿
-  const saveDraft = async () => {
-    if (!formData.title.trim()) {
-      toast.error('请至少填写报销标题');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const payload = {
-        ...formData,
-        user_id: user?.id,
-        employee_id: user?.employee_id,
-        department_id: user?.department_id,
-        items: items.filter(item => item.item_type && item.amount),
-        attachments: attachments
-      };
-
-      let response;
-      if (editingId) {
-        response = await api.put(`/reimbursement/${editingId}`, payload);
-      } else {
-        response = await api.post('/reimbursement/apply', payload);
-        if (response.data.success) {
-          setEditingId(response.data.data.id);
-        }
-      }
-
-      if (response.data.success) {
-        toast.success('草稿保存成功');
-      } else {
-        toast.error(response.data.message || '保存失败');
-      }
-    } catch (error) {
-      console.error('保存草稿失败:', error);
-      toast.error('保存失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 提交申请
-  const submitApplication = async () => {
-    if (!validateForm()) return;
-
-    setSubmitting(true);
-    try {
-      // 先保存/更新
-      const payload = {
-        ...formData,
-        user_id: user?.id,
-        employee_id: user?.employee_id,
-        department_id: user?.department_id,
-        items,
-        attachments: attachments
-      };
-
-      let reimbursementId = editingId;
-
-      if (editingId) {
-        await api.put(`/reimbursement/${editingId}`, payload);
-      } else {
-        const createResponse = await api.post('/reimbursement/apply', payload);
-        if (createResponse.data.success) {
-          reimbursementId = createResponse.data.data.id;
-        } else {
-          throw new Error(createResponse.data.message);
-        }
-      }
-
-      // 提交审批
-      const submitResponse = await api.post(`/reimbursement/${reimbursementId}/submit`);
-
-      if (submitResponse.data.success) {
-        toast.success('报销申请提交成功');
-        // 重置表单
-        setFormData({ title: '', type: '', remark: '' });
-        setItems([{ item_type: '', amount: '', expense_date: '', description: '' }]);
-        setAttachments([]);
-        setEditingId(null);
-        // 重新获取一下默认值
-        if (reimbursementTypes.length > 0) {
-          setFormData(prev => ({ ...prev, type: reimbursementTypes[0].code || reimbursementTypes[0].name }));
-        }
-        onSuccess?.();
-      } else {
-        toast.error(submitResponse.data.message || '提交失败');
-      }
-    } catch (error) {
-      console.error('提交申请失败:', error);
-      toast.error(error.message || '提交失败');
-    } finally {
-      setSubmitting(false);
-    }
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await api.post('/upload', formData);
+      if (response.data?.success) {
+        onChange(response.data.url);
+        onSuccess(response.data);
+        toast.success('发票已关联');
+      } else { throw new Error(); }
+    } catch (err) { toast.error('上传失败'); onError(); } finally { setLoading(false); }
   };
 
   return (
-    <div className="reimbursement-apply">
-      <style>{`
-        .reimbursement-apply {
-          padding: 32px;
-          max-width: 1000px;
-          margin: 0 auto;
-        }
-        .section {
-          background: white;
-          border-radius: 16px;
-          padding: 32px;
-          margin-bottom: 24px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-          border: 1px solid #f3f4f6;
-        }
-        .section-title {
-          font-size: 18px;
-          font-weight: 700;
-          color: #111827;
-          margin-bottom: 24px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .section-title::before {
-          content: '';
-          display: inline-block;
-          width: 4px;
-          height: 18px;
-          background: #667eea;
-          border-radius: 2px;
-        }
-        .form-grid {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: 24px;
-          margin-bottom: 24px;
-        }
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .form-label {
-          font-size: 14px;
-          font-weight: 600;
-          color: #374151;
-        }
-        .form-label.required::after {
-          content: '*';
-          color: #ef4444;
-          margin-left: 4px;
-        }
-        .form-input, .form-select, .form-textarea {
-          padding: 12px 16px;
-          border: 1px solid #d1d5db;
-          border-radius: 10px;
-          font-size: 15px;
-          color: #111827;
-          transition: all 0.2s;
-          background: #fff;
-        }
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-          outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        .form-textarea {
-          min-height: 100px;
-          resize: vertical;
-          line-height: 1.5;
-        }
-        .items-header {
-          display: grid;
-          grid-template-columns: 180px 140px 160px 1fr 50px;
-          gap: 16px;
-          padding: 0 16px 12px 16px;
-          font-size: 13px;
-          font-weight: 600;
-          color: #6b7280;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-        .item-row {
-          display: grid;
-          grid-template-columns: 180px 140px 160px 1fr 50px;
-          gap: 16px;
-          align-items: flex-start;
-          padding: 20px;
-          background: #fff;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          margin-bottom: 16px;
-          transition: all 0.2s;
-        }
-        .item-row:hover {
-          border-color: #cbd5e1;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-        .btn-remove-item {
-          width: 36px;
-          height: 36px;
-          border: 1px solid #fecaca;
-          background: #fef2f2;
-          color: #ef4444;
-          border-radius: 10px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-          margin-top: 4px;
-        }
-        .btn-remove-item:hover {
-          background: #fee2e2;
-          color: #dc2626;
-        }
-        .btn-add-item {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          padding: 16px;
-          border: 2px dashed #e5e7eb;
-          background: transparent;
-          color: #667eea;
-          border-radius: 12px;
-          cursor: pointer;
-          font-size: 15px;
-          font-weight: 600;
-          transition: all 0.2s;
-          margin-bottom: 24px;
-        }
-        .btn-add-item:hover {
-          border-color: #667eea;
-          background: #f5f7ff;
-        }
-        .total-row {
-          display: flex;
-          justify-content: flex-end;
-          align-items: baseline;
-          gap: 12px;
-          padding: 20px 0;
-          margin-top: 12px;
-          border-top: 2px solid #f3f4f6;
-        }
-        .total-label {
-          font-size: 14px;
-          font-weight: 500;
-          color: #6b7280;
-        }
-        .total-amount {
-          font-size: 22px;
-          font-weight: 700;
-          color: #111827;
-          font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-        }
-        .upload-area {
-          border: 2px dashed #d1d5db;
-          border-radius: 16px;
-          padding: 40px 24px;
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: block;
-          background: #fdfdfd;
-        }
-        .upload-area:hover {
-          border-color: #667eea;
-          background: #f5f7ff;
-        }
-        .upload-icon {
-          font-size: 40px;
-          color: #9ca3af;
-          margin-bottom: 12px;
-        }
-        .upload-text {
-          color: #374151;
-          font-size: 16px;
-          font-weight: 600;
-        }
-        .upload-hint {
-          color: #6b7280;
-          font-size: 13px;
-          margin-top: 8px;
-        }
-        .attachment-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 16px;
-          margin-top: 24px;
-        }
-        .attachment-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
-          font-size: 14px;
-        }
-        .attachment-icon {
-          font-size: 20px;
-          color: #667eea;
-        }
-        .attachment-name {
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #374151;
-          font-weight: 500;
-        }
-        .attachment-actions {
-          display: flex;
-          gap: 4px;
-        }
-        .attachment-btn {
-          width: 30px;
-          height: 30px;
-          border: none;
-          background: transparent;
-          color: #6b7280;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 6px;
-          transition: all 0.2s;
-        }
-        .attachment-btn:hover {
-          background: #f3f4f6;
-          color: #111827;
-        }
-        .attachment-btn.delete:hover {
-          background: #fef2f2;
-          color: #ef4444;
-        }
-        .action-bar {
-          display: flex;
-          justify-content: flex-end;
-          gap: 16px;
-          padding: 24px 0;
-          margin-top: 8px;
-        }
-        .btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          padding: 14px 32px;
-          border: none;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .btn-secondary {
-          background: #fff;
-          color: #374151;
-          border: 1px solid #d1d5db;
-        }
-        .btn-secondary:hover:not(:disabled) {
-          background: #f9fafb;
-          border-color: #9ca3af;
-        }
-        .btn-primary {
-          background: #667eea;
-          color: white;
-        }
-        .btn-primary:hover:not(:disabled) {
-          background: #5a6fd1;
-          box-shadow: 0 4px 12px rgba(102,126,234,0.3);
-          transform: translateY(-1px);
-        }
-      `}</style>
+    <div className="flex items-center gap-2">
+      {value ? (
+        <Space size="small">
+          <Button 
+            size="small" 
+            onClick={() => window.open(getAttachmentUrl(value), '_blank')}
+            className="text-white border-none bg-[#06AD56] hover:bg-[#059346] h-10 px-5 font-bold shadow-sm transition-all rounded-lg"
+          >
+            预览凭证
+          </Button>
+          <Button 
+            size="small" 
+            danger 
+            type="text" 
+            onClick={() => onChange(null)}
+            className="text-xs font-medium text-slate-400 hover:text-red-500"
+          >
+            清除
+          </Button>
+        </Space>
+      ) : (
+        <Upload customRequest={handleUpload} showUploadList={false}>
+          <Button 
+            icon={<UploadCloud size={16} />} 
+            loading={loading}
+            className="h-10 px-6 border-none text-white bg-[#07C160] hover:bg-[#06AD56] font-black shadow-sm flex items-center justify-center gap-2 transition-all rounded-lg"
+          >
+            关联报销发票
+          </Button>
+        </Upload>
+      )}
+    </div>
+  );
+};
 
-      {/* 基本信息 */}
-      <div className="section">
-        <h3 className="section-title">基本信息</h3>
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label required">报销标题</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="如：12月份差旅费报销"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label required">报销类型</label>
-            <select
-              className="form-select"
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-            >
-              <option value="" disabled>请选择</option>
-              {reimbursementTypes.map(t => (
-                <option key={t.id} value={t.code || t.name}>{t.name}</option>
-              ))}
-            </select>
+const ReimbursementApply = ({ user, onSuccess }) => {
+  const [form] = Form.useForm();
+  const [reimbursementTypes, setReimbursementTypes] = useState([]);
+  const [expenseTypes, setExpenseTypes] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const [resTypes, resExpenses] = await Promise.all([
+          api.get('/reimbursement/types', { params: { activeOnly: 1 } }),
+          api.get('/reimbursement/expense-types', { params: { activeOnly: 1 } })
+        ]);
+        if (resTypes.data?.success) {
+          const types = resTypes.data.data || [];
+          setReimbursementTypes(types);
+          // 动态设置第一个可用分类为默认值
+          if (types.length > 0) {
+            form.setFieldValue('type', types[0].code);
+          }
+        }
+        if (resExpenses.data?.success) setExpenseTypes(resExpenses.data.data || []);
+        
+        form.setFieldsValue({
+          title: `${dayjs().format('YYYY年MM月')}报销申请`,
+          items: [{ item_type: undefined, amount: undefined, expense_date: dayjs() }]
+        });
+      } catch (e) { console.error(e); }
+    };
+    initData();
+  }, []);
+
+  const itemsWatch = Form.useWatch('items', form) || [];
+  const totalAmount = useMemo(() => itemsWatch.reduce((sum, cur) => sum + (parseFloat(cur?.amount) || 0), 0), [itemsWatch]);
+
+  const handleGlobalUpload = async ({ file, onSuccess: upSuccess, onError }) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/upload', formData);
+      if (res.data?.success) {
+        setAttachments(prev => [...prev, { file_name: file.name, file_url: res.data.url }]);
+        upSuccess();
+      }
+    } catch (err) { toast.error('上传失败'); onError(); }
+  };
+
+  const handleFinalSubmit = async (isDraft = false) => {
+    try {
+      const values = isDraft ? form.getFieldsValue() : await form.validateFields();
+      const payload = {
+        title: values.title || '未命名报销',
+        type: values.type || 'other',
+        remark: values.remark || '',
+        amount: totalAmount,
+        user_id: user?.id,
+        status: isDraft ? 'draft' : 'pending',
+        items: (values.items || []).filter(i => i).map(i => ({
+          item_type: i.item_type,
+          amount: parseFloat(i.amount) || 0,
+          date: i.expense_date ? dayjs(i.expense_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+          description: i.description || '',
+          attachment_url: i.attachment_url || null
+        })),
+        attachments: (attachments || []).map(a => a.file_url)
+      };
+      isDraft ? setSaving(true) : setSubmitting(true);
+      const res = await api.post('/reimbursement', payload);
+      if (res.data?.success) {
+        toast.success(isDraft ? '草稿已保存' : '申请已提交');
+        if (!isDraft) { form.resetFields(); setAttachments([]); onSuccess?.(); }
+      } else { toast.error(res.data?.message || '失败'); }
+    } catch (err) {
+      if (err.errorFields) toast.error('请补全带星号的必填信息');
+      else toast.error('系统繁忙');
+    } finally { setSaving(false); setSubmitting(false); }
+  };
+
+  return (
+    <div className="w-full h-[calc(100vh-64px)] bg-[#f8fafc] flex overflow-hidden">
+      <Form form={form} layout="vertical" requiredMark={false} className="flex flex-1 w-full h-full overflow-hidden">
+        
+        {/* 左侧区域 (340px) */}
+        <div className="w-[340px] h-full bg-white border-r border-slate-200 p-5 overflow-y-auto shrink-0 flex flex-col shadow-sm z-10">
+          <div className="space-y-5 flex-1">
+            <header className="mb-2">
+              <h2 className="text-lg font-black text-slate-800 m-0 flex items-center gap-2">
+                <FileText size={18} className="text-indigo-600" /> 基础申报信息
+              </h2>
+            </header>
+
+            <Form.Item name="title" label={<span className="text-xs font-bold text-slate-500">报销单标题</span>} rules={[{ required: true, message: '!' }]}>
+              <Input className="h-10 rounded-lg border-slate-300 font-medium" placeholder="例如：12月办公费报销" />
+            </Form.Item>
+            
+            <Form.Item name="type" label={<span className="text-xs font-bold text-slate-500">报销分类</span>} rules={[{ required: true, message: '!' }]}>
+              <Select className="h-10 w-full">
+                {reimbursementTypes.map(t => <Select.Option key={t.code} value={t.code}>{t.name}</Select.Option>)}
+              </Select>
+            </Form.Item>
+            
+            <Form.Item name="remark" label={<span className="text-xs font-bold text-slate-500">事由备注</span>}>
+              <TextArea rows={3} className="rounded-lg border-slate-300 text-sm" placeholder="简单说明情况..." />
+            </Form.Item>
+
+            <Divider className="my-2" />
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <h3 className="text-xs font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <Paperclip size={14} /> 补充证明附件
+              </h3>
+              <Upload.Dragger customRequest={handleGlobalUpload} showUploadList={false} multiple className="!bg-white p-3 border-slate-200">
+                <UploadCloud size={20} className="mx-auto text-slate-300 mb-1" />
+                <div className="text-[10px] font-black text-slate-400">点击上传汇总凭证材料</div>
+              </Upload.Dragger>
+              <div className="mt-3 space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="p-2 bg-white border border-slate-100 rounded-lg flex items-center gap-2 shadow-sm animate-in slide-in-from-bottom-1 duration-200">
+                    <span className="flex-1 truncate text-[11px] font-bold text-slate-600">{att.file_name}</span>
+                    <Button type="link" danger size="small" className="h-auto p-0 text-[10px]" onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}>移除</Button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">备注说明</label>
-          <textarea
-            className="form-textarea"
-            placeholder="请在此输入补充说明..."
-            value={formData.remark}
-            onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
-          />
-        </div>
-      </div>
 
-      {/* 费用明细 */}
-      <div className="section">
-        <h3 className="section-title">费用明细</h3>
-
-        <div className="items-header">
-          <div>费用类型</div>
-          <div>金额 (元)</div>
-          <div>发生日期</div>
-          <div>费用说明</div>
-          <div></div>
-        </div>
-
-        {items.map((item, index) => (
-          <div key={index} className="item-row">
-            <select
-              className="form-select"
-              value={item.item_type}
-              onChange={(e) => updateItem(index, 'item_type', e.target.value)}
-            >
-              <option value="">选择类型</option>
-              {expenseTypes.map(t => (
-                <option key={t.id} value={t.name}>{t.name}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              value={item.amount}
-              onChange={(e) => updateItem(index, 'amount', e.target.value)}
-            />
-            <input
-              type="date"
-              className="form-input"
-              value={item.expense_date}
-              onChange={(e) => updateItem(index, 'expense_date', e.target.value)}
-            />
-            <input
-              type="text"
-              className="form-input"
-              placeholder="请输入用途说明"
-              value={item.description}
-              onChange={(e) => updateItem(index, 'description', e.target.value)}
-            />
-            <button className="btn-remove-item" onClick={() => removeItem(index)} title="移除此项">
-              <DeleteOutlined />
-            </button>
-          </div>
-        ))}
-
-        <button className="btn-add-item" onClick={addItem}>
-          <PlusOutlined /> 添加一条费用明细
-        </button>
-
-        <div className="total-row">
-          <span className="total-label">报销总金额合计</span>
-          <span className="total-amount">¥ {totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-      </div>
-
-      {/* 发票附件 */}
-      <div className="section">
-        <h3 className="section-title">发票/附件</h3>
-
-        <label className="upload-area">
-          <input
-            type="file"
-            multiple
-            accept=".jpg,.jpeg,.png,.pdf"
-            style={{ display: 'none' }}
-            onChange={handleFileUpload}
-            disabled={uploading}
-          />
-          <div className="upload-icon"><UploadOutlined /></div>
-          <div className="upload-text">
-            {uploading ? '上传中...' : '点击或拖拽文件到此处上传'}
-          </div>
-          <div className="upload-hint">支持 JPG、PNG、PDF 格式，单个文件不超过 10MB</div>
-        </label>
-
-        {attachments.length > 0 && (
-          <div className="attachment-list">
-            {attachments.map((att, index) => (
-              <div key={att.id || index} className="attachment-item">
-                <span className="attachment-icon">
-                  {att.file_type?.includes('pdf') ? <FilePdfOutlined /> : <FileImageOutlined />}
-                </span>
-                <span className="attachment-name" title={att.file_name}>{att.file_name}</span>
-                <div className="attachment-actions">
-                  <button className="attachment-btn" onClick={() => previewAttachment(att)}>
-                    <EyeOutlined />
-                  </button>
-                  <button className="attachment-btn delete" onClick={() => removeAttachment(index)}>
-                    <DeleteOutlined />
-                  </button>
+        {/* 右侧区域 */}
+        <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden relative">
+          
+          {/* 明细列表 */}
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="max-w-5xl mx-auto w-full space-y-5">
+              
+              <div className="flex items-center justify-between bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-slate-800 m-0">2. 报销费用明细</h2>
+                    <Text type="secondary" className="text-[10px] font-bold uppercase tracking-tight">请确保每一项均关联了对应的有效发票</Text>
+                  </div>
+                </div>
+                <div className="bg-indigo-50 px-5 py-1.5 rounded-lg border border-indigo-100">
+                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mb-0.5">合计金额</span>
+                  <span className="text-xl font-black text-indigo-600 font-mono">¥ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* 操作按钮 */}
-      <div className="action-bar">
-        <button className="btn btn-secondary" onClick={saveDraft} disabled={saving}>
-          <SaveOutlined /> {saving ? '保存中...' : '保存草稿'}
-        </button>
-        <button className="btn btn-primary" onClick={submitApplication} disabled={submitting}>
-          <SendOutlined /> {submitting ? '提交中...' : '提交申请'}
-        </button>
-      </div>
+              <Form.List name="items">
+                {(fields, { add, remove }) => (
+                  <div className="space-y-3">
+                    {fields.map(({ key, name, ...restField }, index) => (
+                      <Card key={key} size="small" className="rounded-xl border-slate-200 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 bg-slate-800 text-white rounded flex items-center justify-center text-[10px] font-black">#{index + 1}</span>
+                            <span className="text-xs font-black text-slate-600 uppercase tracking-wider">明细条目</span>
+                          </div>
+                          <Button type="link" danger size="small" onClick={() => fields.length > 1 ? remove(name) : toast.warning('请保留至少一项')} className="text-xs font-bold p-0">
+                            移除该项
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-col lg:flex-row gap-6 items-end">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 w-full">
+                            <Form.Item {...restField} name={[name, 'item_type']} label={<span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">费用类型</span>} rules={[{ required: true, message: '!' }]} className="mb-0">
+                              <Select placeholder="请选择" className="h-10">
+                                {expenseTypes.map(t => <Select.Option key={t.id} value={t.name}>{t.name}</Select.Option>)}
+                              </Select>
+                            </Form.Item>
+                            
+                            <Form.Item {...restField} name={[name, 'amount']} label={<span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">报销金额</span>} rules={[{ required: true, message: '!' }]} className="mb-0">
+                              <InputNumber prefix="¥" controls={false} className="h-10 w-full font-black text-indigo-600" min={0.01} precision={2} placeholder="0.00" />
+                            </Form.Item>
+                            
+                            <Form.Item {...restField} name={[name, 'expense_date']} label={<span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">产生日期</span>} className="mb-0">
+                              <DatePicker className="h-10 w-full" />
+                            </Form.Item>
+                            
+                            <Form.Item {...restField} name={[name, 'description']} label={<span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">用途备注</span>} className="mb-0">
+                              <Input className="h-10" placeholder="说明用途..." />
+                            </Form.Item>
+                          </div>
+
+                          <div className="shrink-0 flex items-center pb-[1px]">
+                            <Form.Item {...restField} name={[name, 'attachment_url']} className="mb-0">
+                              <InvoiceUploader />
+                            </Form.Item>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                    <Button 
+                      type="dashed" 
+                      block 
+                      onClick={() => add()} 
+                      icon={<Plus size={16} />} 
+                      className="h-14 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 font-black text-sm hover:border-indigo-500 hover:text-indigo-600 bg-white/50"
+                    >
+                      新增一笔费用明细项
+                    </Button>
+                  </div>
+                )}
+              </Form.List>
+              
+              <div className="pb-24"></div>
+            </div>
+          </div>
+
+          {/* 底部固定栏 */}
+          <div className="shrink-0 bg-white border-t border-slate-200 px-8 py-4 flex items-center justify-between shadow-[0_-8px_30px_rgba(0,0,0,0.04)] z-20">
+            <div className="flex items-center gap-4">
+              <AlertCircle className="text-amber-500" size={18} />
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">请仔细核对填报金额与发票附件后再行提交</span>
+            </div>
+            
+            <Space size="middle">
+              <Button size="large" icon={<Save size={16} />} onClick={(e) => { e.preventDefault(); handleFinalSubmit(true); }} loading={saving} className="h-11 px-6 rounded-lg font-bold border-slate-300 text-slate-600 text-sm">存为草稿</Button>
+              <Button type="primary" size="large" icon={<Send size={16} />} loading={submitting} onClick={(e) => { e.preventDefault(); handleFinalSubmit(false); }} className="h-11 px-12 rounded-lg bg-indigo-600 border-none font-black text-sm shadow-xl shadow-indigo-100">正式提交报销申请</Button>
+            </Space>
+          </div>
+
+        </div>
+      </Form>
+
+      <style>{`
+        .ant-form-item-label label { color: #64748b !important; font-weight: 900 !important; font-size: 11px !important; margin-bottom: 2px !important; }
+        
+        .ant-select-selector, 
+        .ant-input, 
+        .ant-input-number, 
+        .ant-input-number-affix-wrapper,
+        .ant-picker { 
+          border-radius: 6px !important; 
+          border: 1.5px solid #cbd5e1 !important; 
+          background: #fff !important; 
+          height: 40px !important; 
+          display: flex !important; 
+          align-items: center !important; 
+          box-shadow: none !important;
+          font-size: 13px !important;
+        }
+
+        .ant-input-number-affix-wrapper .ant-input-number { border: none !important; background: transparent !important; box-shadow: none !important; height: 100% !important; width: 100% !important; }
+        .ant-input-number-input { font-weight: 900 !important; font-size: 15px !important; height: 38px !important; padding-left: 4px !important; }
+        
+        .ant-select-selection-item { font-weight: 700 !important; }
+        
+        .ant-select-focused .ant-select-selector, .ant-input:focus, .ant-input-number-affix-wrapper-focused, .ant-picker-focused { 
+          border-color: #4f46e5 !important; border-width: 2px !important; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08) !important; 
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };

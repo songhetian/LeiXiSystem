@@ -256,31 +256,33 @@ function App() {
     const savedUser = localStorage.getItem('user')
 
     if (token && savedUser) {
-      setIsLoggedIn(true)
-      setUser(JSON.parse(savedUser))
-      // 登录后检查未读备忘录
-      checkUnreadMemos()
-      // 获取未读通知数
-      checkUnreadNotifications()
-      // 连接WebSocket
-      connectWebSocket()
+      try {
+        const userData = JSON.parse(savedUser);
+        setIsLoggedIn(true)
+        setUser(userData)
+        
+        // 确保状态更新后再执行依赖 user 的操作
+        setTimeout(() => {
+          checkUnreadMemos()
+          checkUnreadNotifications()
+          connectWebSocket(userData) // 物理透传 userData
+        }, 0);
+      } catch (e) {
+        console.error('解析用户信息失败:', e);
+        handleLogout('invalid_storage');
+      }
     }
-
-    // 清理函数 - 不再断开WebSocket连接
-    // return () => {
-    //   wsManager.disconnect()
-    // }
   }, [])
 
   // 连接WebSocket
-  const connectWebSocket = () => {
+  const connectWebSocket = (initialUser) => {
+    const currentUser = initialUser || user;
+    if (!currentUser) return;
+
     console.log('🔌 正在连接WebSocket...')
-    // 使用setTimeout确保WebSocket连接不会阻塞主流程
-    setTimeout(() => {
-      wsManager.connect({
-        avatar: user?.avatar
-      })
-    }, 0)
+    wsManager.connect({
+      avatar: currentUser?.avatar
+    })
 
     // 初始化声音管理器（需要用户交互后才能初始化AudioContext）
     soundManager.init()
@@ -545,6 +547,17 @@ function App() {
   };
 
   const renderContent = () => {
+    if (!activeTab || !activeTab.name) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-slate-50/30">
+          <div className="flex flex-col items-center gap-4">
+            <Spin size="large" />
+            <span className="text-slate-400 font-medium">正在初始化视图...</span>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeTab.name) {
       case 'dashboard':
         return <Dashboard onNavigate={handleSetActiveTab} />
@@ -593,8 +606,6 @@ function App() {
       case 'attendance-overtime-records':
       case 'attendance-stats':
         return <MyAttendanceHub />
-      case 'attendance-department':
-        return <DepartmentStats />
 
 
       case 'attendance-shift':
@@ -630,12 +641,12 @@ function App() {
       case 'reimbursement-list':
         return <ReimbursementList
           user={user}
-          onViewDetail={(record) => handleSetActiveTab('reimbursement-detail', { id: record.id, from: 'reimbursement-list' })}
+          onViewDetail={(record) => record?.id && handleSetActiveTab('reimbursement-detail', { id: record.id, from: 'reimbursement-list' })}
         />
       case 'reimbursement-approval':
         return <ReimbursementApproval
           user={user}
-          onViewDetail={(record) => handleSetActiveTab('reimbursement-detail', { id: record.id, from: 'reimbursement-approval' })}
+          onViewDetail={(record) => record?.id && handleSetActiveTab('reimbursement-detail', { id: record.id, from: 'reimbursement-approval' })}
         />
       case 'reimbursement-detail':
         return <ReimbursementDetail

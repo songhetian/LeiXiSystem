@@ -35,25 +35,11 @@ const VacationSelfServiceHub = () => {
             )
         },
         {
-            key: 'apply',
-            label: (
-                <div className="flex items-center gap-2 px-4">
-                    <FormOutlined />
-                    <span className="font-black">调休申请办理</span>
-                </div>
-            ),
-            children: (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 max-w-4xl mx-auto py-8">
-                    <CompensatoryApply onSuccess={() => setActiveTab('history')} />
-                </div>
-            )
-        },
-        {
             key: 'history',
             label: (
                 <div className="flex items-center gap-2 px-4">
                     <HistoryOutlined />
-                    <span className="font-black">变动汇总审计</span>
+                    <span className="font-black">假期变动审计</span>
                 </div>
             ),
             children: (

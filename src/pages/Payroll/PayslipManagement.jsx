@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import axios from 'axios';
+import api from '../../api';
 import { getApiUrl } from '../../utils/apiConfig';
 import {
   BanknotesIcon,
@@ -11,10 +13,9 @@ import {
   PaperAirplaneIcon,
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
-import { Table, Button, Modal, Form, Input, DatePicker, Select, Upload, Tag, InputNumber } from 'antd';
+import { Table, Button, Modal, Form, Input, DatePicker, Select, Upload, Tag, InputNumber, Space } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import Breadcrumb from '../../components/Breadcrumb';
 
 export default function PayslipManagement() {
   const [payslips, setPayslips] = useState([]);
@@ -31,6 +32,40 @@ export default function PayslipManagement() {
   const [sending, setSending] = useState(false);
   const [form] = Form.useForm();
 
+  // --- 考勤数据自动同步逻辑 ---
+  const selectedEmployeeId = Form.useWatch('employee_id', form);
+  const selectedMonth = Form.useWatch('salary_month', form);
+
+  useEffect(() => {
+    const syncAttendance = async () => {
+      if (selectedEmployeeId && selectedMonth && !editingPayslip) {
+        try {
+          const monthStr = selectedMonth.format('YYYY-MM');
+          const response = await api.get('/admin/payslips/attendance-sync', {
+            params: { employee_id: selectedEmployeeId, month: monthStr }
+          });
+          
+          if (response.data.success) {
+            const stats = response.data.data;
+            form.setFieldsValue({
+              attendance_days: stats.attendance_days,
+              late_count: stats.late_count,
+              early_leave_count: stats.early_leave_count,
+              absent_days: stats.absent_days,
+              leave_days: stats.leave_days,
+              overtime_hours: stats.overtime_hours,
+              remark: `${monthStr} 考勤数据已自动同步`
+            });
+            toast.success(`${monthStr} 考勤数据已同步`);
+          }
+        } catch (error) {
+          console.error('同步考勤失败:', error);
+        }
+      }
+    };
+    syncAttendance();
+  }, [selectedEmployeeId, selectedMonth, editingPayslip, form]);
+
   useEffect(() => {
     fetchPayslips();
     fetchDepartments();
@@ -40,33 +75,19 @@ export default function PayslipManagement() {
   const fetchPayslips = async () => {
     setLoading(true);
     try {
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-        ...filters
-      };
-
-      const queryString = new URLSearchParams(params).toString();
-      const url = queryString ? `/api/admin/payslips?${queryString}` : '/api/admin/payslips';
-
-      const token = localStorage.getItem('token');
-      const response = await fetch(getApiUrl(url), {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const response = await api.get('/admin/payslips', {
+        params: {
+          page: pagination.page,
+          limit: pagination.limit,
+          ...filters
         }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setPayslips(data.data);
+      if (response.data.success) {
+        setPayslips(response.data.data);
         setPagination(prev => ({
           ...prev,
-          total: data.total
+          total: response.data.total
         }));
       }
     } catch (error) {
@@ -79,15 +100,9 @@ export default function PayslipManagement() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(getApiUrl('/api/departments/list'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const result = await response.json();
-      if (result.success) {
-        setDepartments(result.data);
+      const result = await api.get('/departments/list');
+      if (result.data.success) {
+        setDepartments(result.data.data);
       }
     } catch (error) {
       console.error('获取部门列表失败:', error);
@@ -96,17 +111,11 @@ export default function PayslipManagement() {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(getApiUrl('/api/employees'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const result = await response.json();
-      if (Array.isArray(result)) {
-        setEmployees(result);
-      } else if (result.success && result.data) {
+      const result = await api.get('/employees');
+      if (Array.isArray(result.data)) {
         setEmployees(result.data);
+      } else if (result.data.success && result.data.data) {
+        setEmployees(result.data.data);
       }
     } catch (error) {
       console.error('获取员工列表失败:', error);
@@ -135,7 +144,7 @@ export default function PayslipManagement() {
       content: '确定要删除这条工资条吗？',
       onOk: async () => {
         try {
-          const response = await axios.delete(getApiUrl(`/api/admin/payslips/${id}`));
+          const response = await api.delete(`/admin/payslips/${id}`);
           if (response.data.success) {
             toast.success('删除成功');
             fetchPayslips();
@@ -158,9 +167,9 @@ export default function PayslipManagement() {
 
       let response;
       if (editingPayslip) {
-        response = await axios.put(getApiUrl(`/api/admin/payslips/${editingPayslip.id}`), data);
+        response = await api.put(`/admin/payslips/${editingPayslip.id}`, data);
       } else {
-        response = await axios.post(getApiUrl('/api/admin/payslips'), data);
+        response = await api.post('/admin/payslips', data);
       }
 
       if (response.data.success) {
@@ -176,8 +185,6 @@ export default function PayslipManagement() {
   };
 
   const handleSingleSend = async (record) => {
-    const token = localStorage.getItem('token');
-
     Modal.confirm({
       title: '确认发放',
       content: `确定要发放 ${record.employee_name} 的工资条吗？`,
@@ -187,25 +194,15 @@ export default function PayslipManagement() {
         setSending(true);
         try {
           toast.loading('正在发送工资条...', { id: 'sending' });
-
-          const response = await fetch(getApiUrl('/api/admin/payslips/batch-send'), {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              payslip_ids: [record.id]
-            })
+          const response = await api.post('/admin/payslips/batch-send', {
+            payslip_ids: [record.id]
           });
 
-          const result = await response.json();
-
-          if (result.success) {
-            toast.success(result.message, { id: 'sending' });
+          if (response.data.success) {
+            toast.success(response.data.message, { id: 'sending' });
             fetchPayslips();
           } else {
-            toast.error(result.message || '发送失败', { id: 'sending' });
+            toast.error(response.data.message || '发送失败', { id: 'sending' });
           }
         } catch (error) {
           console.error('发送失败:', error);
@@ -218,8 +215,6 @@ export default function PayslipManagement() {
   };
 
   const handleBatchSend = async () => {
-    const token = localStorage.getItem('token');
-
     if (selectedRowKeys.length === 0 && !selectAllPages) {
       toast.error('请选择要发放的工资条');
       return;
@@ -230,32 +225,23 @@ export default function PayslipManagement() {
     let payslipIds = selectedRowKeys;
     let message = `确定要发放选中的 ${selectedRowKeys.length} 条工资条吗？`;
 
-    // 如果是跨页全选，需要先获取所有符合条件的待发送工资条ID
     if (selectAllPages) {
       try {
-        const params = {
-          page: 1,
-          limit: 10000, // 获取所有数据
-          status: 'draft',
-          ...filters
-        };
-
-        const queryString = new URLSearchParams(params).toString();
-        const url = queryString ? `/api/admin/payslips?${queryString}` : '/api/admin/payslips';
-
-        const response = await fetch(getApiUrl(url), {
-          headers: {
-            'Authorization': `Bearer ${token}`
+        const response = await api.get('/admin/payslips', {
+          params: {
+            page: 1,
+            limit: 10000,
+            status: 'draft',
+            ...filters
           }
         });
 
-        const data = await response.json();
-        if (data.success) {
-          payslipIds = data.data.map(p => p.id);
+        if (response.data.success) {
+          payslipIds = response.data.data.map(p => p.id);
           message = `确定要发放当前筛选条件下的所有 ${payslipIds.length} 条待发送工资条吗？`;
         }
       } catch (error) {
-        console.error('获取所有待发送工资条失败:', error);
+        console.error('获取待发送工资条失败:', error);
         toast.error('获取工资条列表失败');
         setSending(false);
         return;
@@ -270,29 +256,18 @@ export default function PayslipManagement() {
       onOk: async () => {
         try {
           toast.loading('正在发送工资条...', { id: 'sending' });
-
-          const response = await fetch(getApiUrl('/api/admin/payslips/batch-send'), {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              payslip_ids: payslipIds
-            })
+          const response = await api.post('/admin/payslips/batch-send', {
+            payslip_ids: payslipIds
           });
 
-          const result = await response.json();
-
-          if (result.success) {
+          if (response.data.success) {
+            const result = response.data;
             toast.success(result.message, { id: 'sending' });
             setSelectedRowKeys([]);
             setSelectAllPages(false);
             fetchPayslips();
 
-            // 判断是否有失败的工资条
             if (result.failed_count && result.failed_count > 0) {
-              // 显示部分成功的模态框
               Modal.warning({
                 title: '批量发放完成（部分成功）',
                 content: (
@@ -318,7 +293,6 @@ export default function PayslipManagement() {
                 width: 500
               });
             } else {
-              // 显示全部成功的模态框
               Modal.success({
                 title: '批量发放成功',
                 content: (
@@ -333,50 +307,11 @@ export default function PayslipManagement() {
               });
             }
           } else {
-            toast.error(result.message || '批量发放失败', { id: 'sending' });
-
-            // 显示发送失败模态框
-            Modal.error({
-              title: '批量发放失败',
-              content: (
-                <div>
-                  <p className="text-lg mb-2">❌ 发送失败</p>
-                  <p>{result.message || '批量发放失败，请稍后重试'}</p>
-                  {result.failed_payslips && result.failed_payslips.length > 0 && (
-                    <div className="mt-4">
-                      <p className="font-semibold mb-2">失败的工资条：</p>
-                      <ul className="max-h-60 overflow-y-auto list-disc pl-5">
-                        {result.failed_payslips.map((item, index) => (
-                          <li key={index} className="text-red-600">
-                            {item.employee_name} - {item.reason || '未知错误'}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ),
-              okText: '确定',
-              width: 500
-            });
+            toast.error(response.data.message || '批量发放失败', { id: 'sending' });
           }
         } catch (error) {
           console.error('批量发放失败:', error);
           toast.error('批量发放失败', { id: 'sending' });
-
-          // 显示发送失败模态框
-          Modal.error({
-            title: '批量发放失败',
-            content: (
-              <div>
-                <p className="text-lg mb-2">❌ 发送失败</p>
-                <p>网络错误或服务器异常，请稍后重试</p>
-                <p className="text-gray-500 text-sm mt-2">错误信息：{error.message}</p>
-              </div>
-            ),
-            okText: '确定',
-            width: 400
-          });
         } finally {
           setSending(false);
         }
@@ -389,49 +324,18 @@ export default function PayslipManagement() {
 
   const handleExport = async () => {
     try {
-      // 只传递非空的参数
-      const params = {};
-      if (filters.month) params.month = filters.month;
-      if (filters.department) params.department = filters.department;
-      if (filters.status) params.status = filters.status;
-      if (filters.keyword) params.keyword = filters.keyword;
-
-      const queryString = new URLSearchParams(params).toString();
-      const apiUrl = queryString ? `/api/admin/payslips/export?${queryString}` : '/api/admin/payslips/export';
-
-      console.log('=== 导出工资条 ===');
-      console.log('当前筛选条件:', filters);
-      console.log('导出参数:', params);
-      console.log('导出URL:', apiUrl);
-
-      const token = localStorage.getItem('token');
-      const response = await fetch(getApiUrl(apiUrl), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await api.get('/admin/payslips/export', {
+        params: filters,
+        responseType: 'blob'
       });
 
-      console.log('响应状态:', response.status);
-      console.log('响应头:', response.headers);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('导出失败响应:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      console.log('Blob大小:', blob.size);
-      console.log('Blob类型:', blob.type);
-
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `工资条导出_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
       toast.success('导出成功');
     } catch (error) {
       console.error('导出失败:', error);
@@ -442,13 +346,16 @@ export default function PayslipManagement() {
   const handleDownloadTemplate = async () => {
     try {
       const response = await axios.get(getApiUrl('/api/admin/payslips/import-template'), {
-        responseType: 'blob'
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'payslip_import_template.xlsx');
+      link.setAttribute('download', '工资条导入模板.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -466,7 +373,8 @@ export default function PayslipManagement() {
     try {
       const response = await axios.post(getApiUrl('/api/admin/payslips/import'), formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
 
@@ -609,7 +517,6 @@ export default function PayslipManagement() {
     selectedRowKeys,
     onChange: (keys) => {
       setSelectedRowKeys(keys);
-      // 如果手动取消选择，清除全选标志
       if (keys.length === 0) {
         setSelectAllPages(false);
       }
@@ -617,15 +524,13 @@ export default function PayslipManagement() {
     getCheckboxProps: (record) => ({
       disabled: record.status !== 'draft'
     }),
-    onSelectAll: (selected, selectedRows, changeRows) => {
-      // 全选当前页时不自动设置跨页全选标志
+    onSelectAll: (selected) => {
       if (!selected) {
         setSelectAllPages(false);
       }
     }
   };
 
-  // 处理全选当前页
   const handleSelectCurrentPage = () => {
     const currentPageDraftIds = payslips
       .filter(p => p.status === 'draft')
@@ -635,14 +540,12 @@ export default function PayslipManagement() {
     setShowSelectMenu(false);
   };
 
-  // 处理全选所有页
   const handleSelectAllPages = () => {
     setSelectedRowKeys([]);
     setSelectAllPages(true);
     setShowSelectMenu(false);
   };
 
-  // 清除所有选择
   const handleClearSelection = () => {
     setSelectedRowKeys([]);
     setSelectAllPages(false);
@@ -651,9 +554,6 @@ export default function PayslipManagement() {
 
   return (
     <div className="p-6">
-      {/* 面包屑导航 */}
-      <Breadcrumb items={['首页', '工资条管理']} />
-      
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -733,7 +633,7 @@ export default function PayslipManagement() {
             查询
           </Button>
           <Select
-            placeholder="选择选项"
+            placeholder="全选/清除"
             style={{ width: 150 }}
             value={showSelectMenu ? 'select' : undefined}
             open={showSelectMenu}
@@ -775,7 +675,6 @@ export default function PayslipManagement() {
             total: pagination.total,
             onChange: (page, pageSize) => {
               setPagination(prev => ({ ...prev, page, limit: pageSize }));
-              fetchPayslips(); // 重新获取数据
             },
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 条记录`

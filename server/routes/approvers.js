@@ -71,6 +71,7 @@ module.exports = async function (fastify, opts) {
       user_id,
       approver_type,
       department_scope,
+      amount_min,
       amount_limit,
       business_types
     } = request.body
@@ -92,12 +93,13 @@ module.exports = async function (fastify, opts) {
 
       const [result] = await pool.query(
         `INSERT INTO approvers
-         (user_id, approver_type, department_scope, amount_limit, business_types, is_active)
-         VALUES (?, ?, ?, ?, ?, 1)`,
+         (user_id, approver_type, department_scope, amount_min, amount_limit, business_types, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
         [
           user_id,
           approver_type,
           department_scope ? JSON.stringify(department_scope) : null,
+          amount_min || 0,
           amount_limit || null,
           business_types ? JSON.stringify(business_types) : null
         ]
@@ -119,7 +121,7 @@ module.exports = async function (fastify, opts) {
   // ============================================================
   fastify.put('/api/approvers/:id', async (request, reply) => {
     const { id } = request.params
-    const { department_scope, amount_limit, business_types, is_active } = request.body
+    const { department_scope, amount_min, amount_limit, business_types, is_active } = request.body
 
     try {
       const [existing] = await pool.query(
@@ -133,10 +135,11 @@ module.exports = async function (fastify, opts) {
 
       await pool.query(
         `UPDATE approvers
-         SET department_scope = ?, amount_limit = ?, business_types = ?, is_active = ?
+         SET department_scope = ?, amount_min = ?, amount_limit = ?, business_types = ?, is_active = ?
          WHERE id = ?`,
         [
           department_scope ? JSON.stringify(department_scope) : null,
+          amount_min !== undefined ? amount_min : existing[0].amount_min,
           amount_limit || null,
           business_types ? JSON.stringify(business_types) : null,
           is_active !== undefined ? (is_active ? 1 : 0) : existing[0].is_active,
