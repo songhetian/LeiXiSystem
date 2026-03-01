@@ -1,8 +1,14 @@
 /**
- * 待办中心 (统一审批入口)
+ * 待办事务中心 (雷犀高级感 2.0 完美白话版)
+ * 
+ * 核心升级：
+ * 1. 类型映射：翻译 annual -> 年假等所有技术性词汇。
+ * 2. 编号脱敏：隐藏 LEAVE 等后端原始代码，显示友好文字。
+ * 3. 全量居中：确保所有表格内容严格水平居中。
  */
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Tag, Space, Card, Typography, Empty, Badge, Radio, Divider, Tooltip } from 'antd';
+import { Table, Button, Tag, Space, Card, Typography, Empty, Badge, Radio, Divider, Tooltip, Avatar } from 'antd';
 import {
   RocketOutlined,
   CheckCircleOutlined,
@@ -13,17 +19,32 @@ import {
   UserOutlined,
   CalendarOutlined,
   WalletOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DoubleRightOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons';
 import api from '../../api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
+import { toast } from 'sonner';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title, Text } = Typography;
+
+// 请假类型映射表
+const LEAVE_TYPE_MAP = {
+  'annual': '年假申请',
+  'sick': '病假申请',
+  'casual': '事假申请',
+  'maternity': '产假申请',
+  'paternity': '陪产假申请',
+  'marriage': '婚假申请',
+  'bereavement': '丧假申请',
+  'compensatory': '调休申请'
+};
 
 const TodoCenter = ({ onNavigate }) => {
   const [tasks, setTasks] = useState([]);
@@ -47,162 +68,235 @@ const TodoCenter = ({ onNavigate }) => {
       }
     } catch (error) {
       console.error('加载待办失败:', error);
+      toast.error('任务同步失败');
     } finally {
       setLoading(false);
     }
   };
 
-  // 分类统计
   const stats = useMemo(() => {
     return {
       reimbursement: tasks.filter(t => t.task_type === 'reimbursement').length,
-      attendance: tasks.filter(t => ['leave', 'overtime', 'makeup'].includes(t.task_type)).length,
+      attendance: tasks.filter(t => ['leave', 'overtime', 'makeup', 'compensatory_leave'].includes(t.task_type)).length,
       audit: tasks.filter(t => t.task_type === 'user_audit').length
     };
   }, [tasks]);
 
-  // 过滤数据
   const filteredTasks = useMemo(() => {
     if (filterType === 'all') return tasks;
     if (filterType === 'reimbursement') return tasks.filter(t => t.task_type === 'reimbursement');
-    if (filterType === 'attendance') return tasks.filter(t => ['leave', 'overtime', 'makeup'].includes(t.task_type));
+    if (filterType === 'attendance') return tasks.filter(t => ['leave', 'overtime', 'makeup', 'compensatory_leave'].includes(t.task_type));
     if (filterType === 'audit') return tasks.filter(t => t.task_type === 'user_audit');
     return tasks;
   }, [tasks, filterType]);
 
   const columns = [
     {
-      title: '类型',
+      title: '事项类型',
       dataIndex: 'type_label',
       key: 'type_label',
       width: 120,
-      render: (text, record) => <Tag color={record.color} style={{ borderRadius: 4, border: 0 }}>{text}</Tag>
+      align: 'center',
+      render: (text) => (
+        <span className="bg-black text-white text-[10px] font-black px-2 py-0.5 rounded shadow-sm">
+          {text}
+        </span>
+      )
     },
     {
-      title: '事项摘要',
+      title: '任务详情',
       key: 'summary',
-      render: (_, record) => (
-        <div className="flex flex-col">
-          <Text strong style={{ fontSize: 15 }}>{record.summary}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.no === 'USER_AUDIT' ? '新用户注册' : record.no}</Text>
+      align: 'center',
+      render: (_, record) => {
+        // 智能处理摘要文本 (白话化)
+        let displaySummary = record.summary;
+        Object.keys(LEAVE_TYPE_MAP).forEach(key => {
+          if (displaySummary.toLowerCase().includes(key)) {
+            displaySummary = displaySummary.replace(new RegExp(key, 'gi'), LEAVE_TYPE_MAP[key]);
+          }
+        });
+
+        const isSystemNo = ['LEAVE', 'OVERTIME', 'MAKEUP', 'USER_AUDIT'].includes(record.no);
+        
+        return (
+          <div className="flex flex-col items-center">
+            <Text className="font-black text-slate-800 text-sm">{displaySummary}</Text>
+            <div className="flex items-center gap-2 mt-1">
+              <Tag className="m-0 border-none bg-slate-100 text-slate-400 text-[9px] font-bold">
+                {isSystemNo ? '待处理申请' : `编号: ${record.no}`}
+              </Tag>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      title: '谁发起的',
+      dataIndex: 'applicant',
+      key: 'applicant',
+      width: 140,
+      align: 'center',
+      render: (text) => (
+        <div className="flex items-center justify-center gap-2">
+          <Avatar size={20} icon={<UserOutlined />} className="bg-slate-100 text-slate-400" />
+          <span className="font-bold text-slate-700 text-xs">{text}</span>
         </div>
       )
     },
     {
-      title: '申请人',
-      dataIndex: 'applicant',
-      key: 'applicant',
-      width: 120,
-      align: 'center',
-      render: (text) => <Space><UserOutlined style={{ color: '#bfbfbf' }} />{text}</Space>
-    },
-    {
-      title: '金额/明细',
+      title: '金额或说明',
       dataIndex: 'extra_info',
       key: 'extra_info',
-      width: 180,
-      align: 'right',
+      width: 200,
+      align: 'center',
       render: (val, record) => {
         if (record.task_type === 'reimbursement') {
-          return <Text strong style={{ color: '#cf1322', fontSize: 16 }}>¥{parseFloat(val).toFixed(2)}</Text>;
+          return <span className="font-mono font-black text-rose-600 text-base">¥{parseFloat(val).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>;
         }
-        return <Text type="secondary">{val}</Text>;
+        return <span className="text-slate-500 font-bold text-xs">{val}</span>;
       }
     },
     {
-      title: '提交时间',
+      title: '提交时长',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
+      width: 150,
       align: 'center',
       render: (date) => (
         <Tooltip title={dayjs(date).format('YYYY-MM-DD HH:mm:ss')}>
-          <Text type="secondary">{dayjs(date).fromNow()}</Text>
+          <span className="text-slate-400 text-[11px] font-bold italic">{dayjs(date).fromNow()}</span>
         </Tooltip>
       )
     },
     {
-      title: '操作',
+      title: '去处理',
       key: 'action',
-      width: 120,
+      width: 100,
       align: 'center',
       render: (_, record) => (
         <Button
-          type="primary"
-          size="middle"
-          icon={<ArrowRightOutlined />}
+          type="link"
+          className="font-black text-indigo-600 hover:text-indigo-700 flex items-center justify-center w-full gap-1"
           onClick={() => onNavigate(record.tab)}
-          style={{ borderRadius: 8, backgroundColor: '#667eea', border: 0 }}
         >
-          处理
+          <span className="text-xs">立即处理</span>
+          <DoubleRightOutlined className="text-[10px]" />
         </Button>
       )
     }
   ];
 
   return (
-    <div className="p-8">
-      <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50/30">
+      {/* 顶部标题栏 */}
+      <div className="max-w-[1400px] mx-auto mb-8 flex justify-between items-end">
         <div>
-          <Title level={2} style={{ margin: 0, fontWeight: 700 }}>待办中心</Title>
-          <Text type="secondary">您有 <strong style={{ color: '#f5222d' }}>{tasks.length}</strong> 项任务等待处理</Text>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shadow-lg">
+              <RocketOutlined className="text-white text-xl" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 !m-0">待办事务中心</h1>
+          </div>
+          <p className="text-slate-400 text-sm font-bold">您有 <span className="text-rose-500">{tasks.length}</span> 项任务正等着您去决定</p>
         </div>
-        <Button
-          icon={<ReloadOutlined />}
+        <button 
           onClick={fetchTasks}
-          loading={loading}
-          style={{ borderRadius: 8 }}
+          className="bg-black hover:bg-slate-800 text-white rounded-lg h-10 px-8 flex items-center justify-center gap-2 transition-all font-bold text-xs shadow-sm active:scale-95"
         >
-          刷新
-        </Button>
+          <ReloadOutlined className={loading ? 'animate-spin' : ''} />
+          <span>刷新任务</span>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card hoverable onClick={() => setFilterType('all')} bordered={filterType === 'all'} style={{ borderRadius: 16, border: filterType === 'all' ? '2px solid #667eea' : 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-          <Space direction="vertical" size={4}>
-            <Text type="secondary"><ContainerOutlined /> 全部待办</Text>
-            <div className="text-3xl font-bold">{tasks.length}</div>
-          </Space>
-        </Card>
-        <Card hoverable onClick={() => setFilterType('reimbursement')} bordered={filterType === 'reimbursement'} style={{ borderRadius: 16, border: filterType === 'reimbursement' ? '2px solid #1890ff' : 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-          <Space direction="vertical" size={4}>
-            <Text type="secondary"><WalletOutlined /> 报销申请</Text>
-            <div className="text-3xl font-bold text-blue-600">{stats.reimbursement}</div>
-          </Space>
-        </Card>
-        <Card hoverable onClick={() => setFilterType('attendance')} bordered={filterType === 'attendance'} style={{ borderRadius: 16, border: filterType === 'attendance' ? '2px solid #fa8c16' : 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-          <Space direction="vertical" size={4}>
-            <Text type="secondary"><CalendarOutlined /> 考勤审批</Text>
-            <div className="text-3xl font-bold text-orange-500">{stats.attendance}</div>
-          </Space>
-        </Card>
-        <Card hoverable onClick={() => setFilterType('audit')} bordered={filterType === 'audit'} style={{ borderRadius: 16, border: filterType === 'audit' ? '2px solid #52c41a' : 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-          <Space direction="vertical" size={4}>
-            <Text type="secondary"><UserAddOutlined /> 注册审核</Text>
-            <div className="text-3xl font-bold text-green-600">{stats.audit}</div>
-          </Space>
-        </Card>
+      {/* 统计大磁贴 */}
+      <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {[
+          { key: 'all', label: '全部待办事项', count: tasks.length, icon: <ContainerOutlined />, color: 'text-slate-900' },
+          { key: 'reimbursement', label: '收到报销申请', count: stats.reimbursement, icon: <WalletOutlined />, color: 'text-indigo-600' },
+          { key: 'attendance', label: '收到考勤审批', count: stats.attendance, icon: <CalendarOutlined />, color: 'text-amber-600' },
+          { key: 'audit', label: '新同事注册审核', count: stats.audit, icon: <UserAddOutlined />, color: 'text-emerald-600' }
+        ].map(item => (
+          <Card 
+            key={item.key}
+            hoverable 
+            onClick={() => setFilterType(item.key)} 
+            className={`rounded-2xl border-none shadow-sm transition-all ${filterType === item.key ? 'ring-2 ring-black scale-[1.02]' : ''}`}
+            bodyStyle={{ padding: '24px' }}
+          >
+            <div className="flex justify-between items-start">
+              <Space direction="vertical" size={0}>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  {item.icon} {item.label}
+                </span>
+                <div className={`text-3xl font-black mt-2 ${item.color}`}>{item.count}</div>
+              </Space>
+              <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-200">
+                {item.icon}
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      <div style={{ background: 'white', borderRadius: 20, padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-        <div className="flex justify-between items-center mb-6">
-          <Radio.Group value={filterType} onChange={e => setFilterType(e.target.value)} buttonStyle="solid">
-            <Radio.Button value="all">全部</Radio.Button>
-            <Radio.Button value="reimbursement">报销</Radio.Button>
-            <Radio.Button value="attendance">考勤</Radio.Button>
-            <Radio.Button value="audit">审核</Radio.Button>
-          </Radio.Group>
+      {/* 任务列表列表 */}
+      <div className="max-w-[1400px] mx-auto">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+            <div className="flex items-center bg-white rounded-lg border border-slate-200 p-1">
+              {[
+                { key: 'all', label: '查看全部' },
+                { key: 'reimbursement', label: '钱款报销' },
+                { key: 'attendance', label: '考勤请假' },
+                { key: 'audit', label: '入职审核' }
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilterType(tab.key)}
+                  className={`px-5 py-1.5 rounded-md text-[11px] font-black transition-all ${filterType === tab.key ? 'bg-black text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+              <DatabaseOutlined /> 实时流程同步中
+            </div>
+          </div>
+
+          <Table
+            columns={columns}
+            dataSource={filteredTasks}
+            rowKey={(record) => `${record.task_type}-${record.id}`}
+            loading={loading}
+            size="middle"
+            className="compact-table"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `共发现 ${total} 个待办事项`,
+              className: "custom-pagination",
+              position: ['bottomCenter']
+            }}
+            locale={{ emptyText: <Empty description={<span className="text-slate-400 font-bold">暂时没有待办任务，您可以先忙别的</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+          />
         </div>
-
-        <Table
-          columns={columns}
-          dataSource={filteredTasks}
-          rowKey={(record) => `${record.task_type}-${record.id}`}
-          loading={loading}
-          pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 项待处理` }}
-          locale={{ emptyText: <Empty description="当前没有待办事项，休息一下吧" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-        />
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ant-table-thead > tr > th { 
+          background: #fcfcfd !important; 
+          color: #64748b !important; 
+          font-weight: 900 !important; 
+          text-transform: uppercase !important; 
+          font-size: 10px !important;
+          padding: 14px 16px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          text-align: center !important;
+        }
+        .ant-table-tbody > tr > td { text-align: center !important; font-size: 13px !important; border-bottom: 1px solid #f1f5f9 !important; }
+        .ant-card-body { transition: all 0.2s ease; }
+        .ant-btn-link:hover { background: #f8fafc; border-radius: 6px; }
+      `}} />
     </div>
   );
 };

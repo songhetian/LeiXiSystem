@@ -288,10 +288,10 @@ const AssetRequestAudit = () => {
             className="compact-table"
             pagination={{
               pageSize: 10,
-              showSizeChanger: false,
+              showSizeChanger: true,
+              showQuickJumper: true,
               showTotal: (total) => `共计 ${total} 条数据记录`,
-              className: "custom-pagination",
-              position: ['bottomCenter']
+              className: "custom-pagination"
             }}
           />
         </div>

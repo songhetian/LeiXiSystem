@@ -270,7 +270,8 @@ const DeviceList = () => {
             className="compact-table"
             pagination={{
               pageSize: 10,
-              showSizeChanger: false,
+              showSizeChanger: true,
+              showQuickJumper: true,
               showTotal: (total) => `共计 ${total} 台实机设备`,
               className: "custom-pagination"
             }}

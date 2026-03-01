@@ -60,6 +60,7 @@ const UnreadMemoPopup = lazy(() => import('./components/UnreadMemoPopup'));
 const MyAttendanceHub = lazy(() => import('./pages/Attendance/MyAttendanceHub'));
 const SchedulingHub = lazy(() => import('./pages/Attendance/SchedulingHub'));
 const AttendanceAuditHub = lazy(() => import('./pages/Attendance/AttendanceAuditHub'));
+const DepartmentStats = lazy(() => import('./pages/Attendance/DepartmentStats'));
 const VacationSelfServiceHub = lazy(() => import('./pages/Personal/VacationSelfServiceHub'));
 const VacationManagementHub = lazy(() => import('./pages/Personal/VacationManagementHub'));
 
@@ -83,7 +84,6 @@ const OvertimeApply = lazy(() => import('./pages/Attendance').then(module => ({ 
 const OvertimeRecords = lazy(() => import('./pages/Attendance').then(module => ({ default: module.OvertimeRecords })));
 const MakeupApply = lazy(() => import('./pages/Attendance').then(module => ({ default: module.MakeupApply })));
 const AttendanceStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.AttendanceStats })));
-const DepartmentStats = lazy(() => import('./pages/Attendance').then(module => ({ default: module.DepartmentStats })));
 
 const ShiftManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ShiftManagement })));
 const ScheduleManagement = lazy(() => import('./pages/Attendance').then(module => ({ default: module.ScheduleManagement })));
@@ -617,6 +617,8 @@ function App() {
       case 'attendance-department':
       case 'attendance-settings':
         return <AttendanceAuditHub />
+      case 'attendance-dept-stats':
+        return <DepartmentStats />
 
       // 假期管理
       case 'compensatory-apply':

@@ -270,6 +270,14 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
       ];
     }
 
+    // 特殊页面处理：部门考勤报表
+    if (activeTab === 'attendance-dept-stats') {
+      return [
+        { label: '考勤管理', id: 'attendance' },
+        { label: '部门考勤报表', id: 'attendance-dept-stats' }
+      ];
+    }
+
     return [];
   }, [activeTab]);
 

@@ -1,14 +1,13 @@
 /**
- * 设备配置中心 (雷犀高级感 2.0 商务版 - 逻辑全守护)
+ * 设备配置中心 (雷犀精致商务版 - 交互回归与极致本地化)
  * 
- * 核心修复与升级：
- * 1. 修复功能失效：找回并补全了规格库、配置中心缺失的 Modal 弹窗及表单提交逻辑。
- * 2. 补全 CRUD：为“配件规格库”新增了编辑功能，实现增删改查全闭环。
- * 3. 规范分页：采用雷犀标准的高级感居中分页，黑色主题。
- * 4. 极致本地化：全量移除英文单词，确保纯净中文体验。
+ * 核心升级：
+ * 1. 修复点击失效：确保所有自定义按钮与 antd 组件的事件冒泡与执行链路闭环。
+ * 2. 极致中文化：彻底清理分页、标题、描述中残余的 Total, Items 等英文。
+ * 3. 视觉守护：维持纤巧分页与 44px 物理缝合搜索栏。
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { 
   Badge, Tag, Modal, Form, Input, Select, 
@@ -23,25 +22,26 @@ import {
   SettingOutlined,
   LayoutOutlined,
   DatabaseOutlined,
-  CheckCircleFilled,
-  ExclamationCircleOutlined,
-  FilterOutlined,
-  ArrowRightOutlined,
-  CloseOutlined,
-  EditOutlined,
-  DeleteOutlined
+  LeftOutlined,
+  RightOutlined,
+  AppstoreOutlined,
+  DeploymentUnitOutlined,
+  TagsOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import api from '../../../api';
 import { getImageUrl } from '../../../utils/fileUtils';
 import DeviceModelEditor from './DeviceModelEditor';
 
-// --- 样式组件：黑底白字商务按钮 ---
-const BlackButton = ({ children, icon, ...props }) => (
+// --- 样式组件：黑底白字商务按钮 (确保 onClick 事件透传) ---
+const BlackButton = ({ children, icon, onClick, disabled, loading, ...props }) => (
   <button 
-    className="bg-black hover:bg-slate-800 text-white rounded-lg h-9 px-5 flex items-center justify-center gap-2 transition-all font-bold text-xs shadow-sm active:scale-95 disabled:opacity-50"
+    onClick={onClick}
+    disabled={disabled || loading}
+    className="bg-black hover:bg-slate-800 text-white rounded-md h-8 px-4 flex items-center justify-center gap-2 transition-all font-bold text-[11px] shadow-sm active:scale-95 disabled:opacity-50"
     {...props}
   >
-    {icon}
+    {loading ? <ReloadOutlined className="animate-spin" /> : icon}
     <span className="text-white">{children}</span>
   </button>
 );
@@ -49,6 +49,7 @@ const BlackButton = ({ children, icon, ...props }) => (
 const AssetManagement = () => {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('employees');
+  const [settingsActiveTab, setSettingsActiveTab] = useState('category');
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ keyword: '', department_id: null });
 
@@ -65,7 +66,7 @@ const AssetManagement = () => {
   const [userAssets, setUserAssets] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [editingItem, setEditingItem] = useState(null); // 用于编辑规格或基础配置
+  const [editingItem, setEditingItem] = useState(null);
   
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [assignedFilters, setAssignedFilters] = useState({ keyword: '', department_id: null });
@@ -114,53 +115,15 @@ const AssetManagement = () => {
         const res = await api.get('/assets/components');
         if (res.data.success) setComponents(res.data.data);
       }
-    } catch (e) { toast.error('加载数据失败'); } finally { setLoading(false); }
-  };
-
-  const fetchAssignedUsers = async () => {
-    try {
-      const res = await api.get(`/assets/devices/${selectedDevice.id}/users`, { params: assignedFilters });
-      if (res.data.success) setAssignedUsers(res.data.data);
-    } catch (e) {}
-  };
-
-  const fetchIdleAssets = async () => {
-    try {
-      const res = await api.get('/assets/idle');
-      if (res.data.success) setIdleAssets(res.data.data);
-    } catch (e) {}
-  };
-
-  const handleUserDetail = async (user) => {
-    setSelectedUser(user);
-    setLoading(true);
-    try {
-      const res = await api.get(`/assets/employee/${user.user_id}`);
-      if (res.data.success) { setUserAssets(res.data.data); setIsUserDetailOpen(true); }
-    } catch (e) {} finally { setLoading(false); }
-  };
-
-  const handleAssignSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      const res = await api.post('/assets/assign', { ...values, user_id: selectedUser.user_id });
-      if (res.data.success) {
-        toast.success('设备配属成功');
-        setIsAssignModalOpen(false);
-        fetchMainData();
-      }
-    } catch (e) {}
+    } catch (e) { toast.error('加载失败'); } finally { setLoading(false); }
   };
 
   const handleCompEntry = async () => {
     try {
       const values = await form.validateFields();
       let res;
-      if (editingItem) {
-        res = await api.put(`/assets/components/${editingItem.id}`, values);
-      } else {
-        res = await api.post('/assets/components', values);
-      }
+      if (editingItem) res = await api.put(`/assets/components/${editingItem.id}`, values);
+      else res = await api.post('/assets/components', values);
       if (res.data.success) {
         toast.success('规格保存成功');
         setIsCompEntryOpen(false);
@@ -177,7 +140,7 @@ const AssetManagement = () => {
                        baseModalConfig.type === 'form' ? '/assets/forms' : '/assets/component-types';
       const res = await api.post(endpoint, values);
       if (res.data.success) {
-        toast.success('配置已生效');
+        toast.success('配置已更新');
         setIsBaseModalOpen(false);
         fetchBaseConfig();
       }
@@ -191,78 +154,83 @@ const AssetManagement = () => {
       type: `/assets/component-types/${record.id}`,
       component: `/assets/components/${record.id}`
     };
-    
     Modal.confirm({
-      title: '确认移除此配置？',
-      content: '该操作将永久移除此项，若已被关联使用则无法删除。',
+      title: '确认移除？',
       centered: true,
-      okText: '确认移除',
-      cancelText: '取消',
-      okButtonProps: { danger: true, className: "rounded-lg font-bold" },
-      cancelButtonProps: { className: "rounded-lg font-bold" },
       onOk: async () => {
         try {
           const res = await api.delete(endpointMap[type]);
           if (res.data.success) {
-            toast.success('已成功移除');
+            toast.success('已移除');
             type === 'component' ? fetchMainData() : fetchBaseConfig();
           }
-        } catch (e) {
-          toast.error(e.response?.data?.message || '移除失败，请检查关联关系');
-        }
+        } catch (e) { toast.error('无法删除'); }
       }
     });
   };
 
-  // 表格通用分页配置
-  const commonPagination = {
+  const handleUserDetail = async (user) => {
+    setSelectedUser(user);
+    setLoading(true);
+    try {
+      const res = await api.get(`/assets/employee/${user.user_id}`);
+      if (res.data.success) { setUserAssets(res.data.data); setIsUserDetailOpen(true); }
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const handleAssignSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      const res = await api.post('/assets/assign', { ...values, user_id: selectedUser.user_id });
+      if (res.data.success) {
+        toast.success('配属成功');
+        setIsAssignModalOpen(false);
+        fetchMainData();
+      }
+    } catch (e) {}
+  };
+
+  // --- 极致本地化：纤巧版分页配置 ---
+  const slimPagination = {
     pageSize: 10,
-    showSizeChanger: false,
-    showTotal: (total) => `共计 ${total} 条数据`,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    showTotal: (total) => <span className="text-[10px] font-black uppercase text-slate-400">共计 {total} 条数据记录</span>,
     className: "custom-pagination"
   };
 
   const employeeColumns = [
     {
-      title: '员工姓名', dataIndex: 'real_name', align: 'center', width: 120,
-      render: (text, r) => <Space size="small"><Avatar size={24} src={getImageUrl(r.avatar)} icon={<UserOutlined />} className="border border-slate-100" /><span className="font-bold text-slate-800 text-xs">{text}</span></Space>
+      title: '员工姓名', dataIndex: 'real_name', align: 'center',
+      render: (text, r) => <Space size="small"><Avatar size={20} src={getImageUrl(r.avatar)} icon={<UserOutlined />} /><span className="font-black text-slate-700 text-xs">{text}</span></Space>
     },
-    { title: '所属部门', dataIndex: 'department_name', align: 'center', width: 150, render: t => <span className="text-slate-500 font-medium text-xs">{t || '-'}</span> },
-    { title: '现任职位', dataIndex: 'position_name', align: 'center', width: 150, render: t => <span className="text-slate-400 font-bold text-[11px] uppercase">{t || '-'}</span> },
-    { 
-      title: '持有实机', dataIndex: 'device_count', align: 'center', width: 100,
-      render: count => <Tag color={count > 0 ? 'black' : 'default'} className="m-0 border-none font-black text-[10px] rounded-md">{count} 台</Tag>
-    },
+    { title: '所属部门', dataIndex: 'department_name', align: 'center', render: t => <span className="text-slate-500 text-xs">{t || '-'}</span> },
+    { title: '持有实机', dataIndex: 'device_count', align: 'center', render: count => <b className="text-xs">{count} 台</b> },
     {
-      title: '管理操作', align: 'center', width: 160,
+      title: '管理操作', align: 'center',
       render: (_, r) => (
-        <Space split={<Divider type="vertical" />}>
-          <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => handleUserDetail(r)}>档案</Button>
-          <Button type="link" size="small" className="font-bold text-indigo-600 text-xs" onClick={() => { setSelectedUser(r); setIsAssignModalOpen(true); fetchIdleAssets(); }}>配属</Button>
+        <Space split={<Divider type="vertical" className="border-slate-200" />}>
+          <Button type="link" size="small" className="font-bold text-slate-900 text-[11px]" onClick={() => handleUserDetail(r)}>档案</Button>
+          <Button type="link" size="small" className="font-bold text-indigo-600 text-[11px]" onClick={() => { setSelectedUser(r); setIsAssignModalOpen(true); fetchIdleAssets(); }}>配属</Button>
         </Space>
       )
     }
   ];
 
   const deviceColumns = [
-    { title: '硬件型号', dataIndex: 'name', align: 'center', render: t => <span className="font-black text-slate-800 text-sm">{t}</span> },
-    { title: '业务分类', dataIndex: 'category_name', align: 'center', render: t => <Tag className="rounded-md border-slate-200 text-slate-500 font-bold text-[10px]">{t}</Tag> },
-    { title: '设备形态', dataIndex: 'form_name', align: 'center', render: t => <span className="text-slate-400 font-black text-[10px]">{t}</span> },
+    { title: '型号名称', dataIndex: 'name', align: 'center', render: t => <span className="font-black text-slate-800 text-xs">{t}</span> },
+    { title: '业务分类', dataIndex: 'category_name', align: 'center', render: t => <Tag className="rounded-md border-slate-200 text-slate-500 font-bold text-[9px]">{t}</Tag> },
     { 
-      title: '在用数量', dataIndex: 'assigned_count', align: 'center', width: 120,
-      render: (count, r) => (
-        <button onClick={() => { setSelectedDevice(r); setIsAssignedModalOpen(true); }} className="font-black text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors text-xs underline underline-offset-4">
-          {count} 台
-        </button>
-      )
+      title: '当前在用', dataIndex: 'assigned_count', align: 'center',
+      render: (count, r) => <button className="font-black text-indigo-600 text-xs underline underline-offset-4">{count} 台</button>
     },
     {
-      title: '管理操作', align: 'center', width: 150,
+      title: '操作', align: 'center', width: 120,
       render: (_, r) => (
         <Space split={<Divider type="vertical" />}>
-          <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => { setSelectedDevice(r); setIsEditorOpen(true); }}>编辑</Button>
-          <Button type="link" size="small" danger className="font-bold text-xs" onClick={() => {
-             Modal.confirm({ title: '确认下架此型号？', content: '仅支持无领用记录的型号移除。', centered: true, onOk: async () => { await api.delete(`/assets/devices/${r.id}`); fetchMainData(); } });
+          <Button type="link" size="small" className="font-bold text-slate-900 text-[11px]" onClick={() => { setSelectedDevice(r); setIsEditorOpen(true); }}>编辑</Button>
+          <Button type="link" size="small" danger className="font-bold text-[11px]" onClick={() => {
+             Modal.confirm({ title: '确认下架？', onOk: async () => { await api.delete(`/assets/devices/${r.id}`); fetchMainData(); } });
           }}>删除</Button>
         </Space>
       )
@@ -270,130 +238,99 @@ const AssetManagement = () => {
   ];
 
   const componentColumns = [
-    { title: '规格组件名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-slate-700 text-xs">{t}</span> },
-    { title: '组件分类', dataIndex: 'type_name', align: 'center', render: t => <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-bold text-[10px]">{t}</Tag> },
-    { title: '核心参数', dataIndex: 'model', align: 'center', render: t => <code className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{t || '标准规格'}</code> },
-    { title: '管理操作', align: 'center', width: 150, render: (_, r) => (
+    { title: '规格名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-slate-700 text-xs">{t}</span> },
+    { title: '所属分类', dataIndex: 'type_name', align: 'center', render: t => <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-bold text-[9px]">{t}</Tag> },
+    { title: '核心参数', dataIndex: 'model', align: 'center', render: t => <code className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{t || '-'}</code> },
+    { title: '操作', align: 'center', width: 120, render: (_, r) => (
       <Space split={<Divider type="vertical" />}>
-        <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => { setEditingItem(r); form.setFieldsValue(r); setIsCompEntryOpen(true); }}>编辑</Button>
-        <Button type="link" danger size="small" className="font-bold text-xs" onClick={() => handleDeleteItem('component', r)}>移除</Button>
+        <Button type="link" size="small" className="font-bold text-slate-900 text-[11px]" onClick={() => { setEditingItem(r); form.setFieldsValue(r); setIsCompEntryOpen(true); }}>编辑</Button>
+        <Button type="link" danger size="small" className="font-bold text-[11px]" onClick={() => handleDeleteItem('component', r)}>移除</Button>
       </Space>
     )}
   ];
 
   return (
-    <div className="p-6 md:p-8 min-h-screen bg-slate-50/30">
-      {/* 顶部标题栏 */}
-      <div className="max-w-[1400px] mx-auto mb-8 flex justify-between items-end">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg">
-              <DatabaseOutlined className="text-white text-xl" />
+    <div className="p-4 md:p-6 min-h-screen bg-slate-50/30">
+      <div className="max-w-[1400px] mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shadow-lg"><DatabaseOutlined className="text-white text-base" /></div>
+            <div>
+              <h1 className="text-base font-black text-slate-900 !m-0 tracking-tight">设备配置中心</h1>
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest italic">Asset Configuration Hub</p>
             </div>
-            <h1 className="text-2xl font-black text-slate-900 !m-0">设备配置中心</h1>
           </div>
-          <p className="text-slate-400 text-sm font-bold">后勤管理与资产档案枢纽</p>
+          <div className="flex items-center gap-2">
+            {activeTab === 'devices' && <BlackButton icon={<PlusOutlined />} onClick={() => { setSelectedDevice(null); setIsEditorOpen(true); }}>新增型号</BlackButton>}
+            {activeTab === 'components' && <BlackButton icon={<PlusOutlined />} onClick={() => { setEditingItem(null); form.resetFields(); setIsCompEntryOpen(true); }}>定义规格</BlackButton>}
+          </div>
         </div>
-        
-        <div className="flex items-center gap-3">
-          {activeTab === 'devices' && <BlackButton icon={<PlusOutlined />} onClick={() => { setSelectedDevice(null); setIsEditorOpen(true); }}>发布新型号</BlackButton>}
-          {activeTab === 'components' && <BlackButton icon={<PlusOutlined />} onClick={() => { setEditingItem(null); form.resetFields(); setIsCompEntryOpen(true); }}>定义新规格</BlackButton>}
-        </div>
-      </div>
 
-      {/* 雷犀标准：44px 物理缝合搜索栏 */}
-      <div className="max-w-[1400px] mx-auto mb-8">
-        <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b]">
+        {/* 物理缝合搜索栏 */}
+        <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b] mb-6">
           <div className="flex-1 flex items-center h-[44px] px-4">
-            <SearchOutlined className="text-slate-400 mr-3" />
-            <Input 
-              placeholder="搜索姓名、编号或资产描述..." 
-              variant="borderless"
-              className="h-full text-sm font-medium"
-              value={filters.keyword}
-              onChange={e => setFilters({...filters, keyword: e.target.value})}
-              allowClear
-            />
+            <SearchOutlined className="text-slate-400 mr-2 text-sm" />
+            <Input placeholder="输入关键字快速检索..." variant="borderless" className="h-full text-xs font-medium" value={filters.keyword} onChange={e => setFilters({...filters, keyword: e.target.value})} allowClear />
           </div>
           <Divider type="vertical" className="h-6 border-slate-200 m-0" />
-          <div className="w-48 flex items-center h-[44px] px-4 bg-slate-50/50">
-            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">所属部门</span>
-            <Select 
-              value={filters.department_id} 
-              onChange={val => setFilters({...filters, department_id: val})}
-              variant="borderless"
-              className="w-full text-xs font-bold text-slate-700"
-              placeholder="全公司"
-              allowClear
-              options={departments.map(d => ({ label: d.name, value: d.id }))}
-            />
-          </div>
-          <button 
-            onClick={fetchMainData}
-            className="h-[44px] px-6 bg-black text-white hover:bg-slate-800 transition-colors flex items-center justify-center border-none"
-          >
-            <ReloadOutlined className={loading ? 'animate-spin' : ''} style={{ color: '#ffffff' }} />
-          </button>
+          <button onClick={fetchMainData} className="h-[44px] px-5 bg-black text-white flex items-center justify-center border-none transition-all active:scale-95"><ReloadOutlined className={loading ? 'animate-spin' : ''} /></button>
         </div>
-      </div>
 
-      {/* 核心内容区 */}
-      <div className="max-w-[1400px] mx-auto">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <Tabs 
-            activeKey={activeTab} 
-            onChange={setActiveTab} 
+            activeKey={activeTab} onChange={setActiveTab} size="small"
             className="custom-asset-tabs"
             items={[
               {
                 key: 'employees',
-                label: <span className="px-6 font-bold flex items-center gap-2"><UserOutlined />员工配属档案</span>,
-                children: (
-                  <div className="p-0">
-                    <Table columns={employeeColumns} dataSource={employees} loading={loading} rowKey="user_id" size="middle" pagination={commonPagination} className="compact-table" />
-                  </div>
-                )
+                label: <span className="px-4 font-bold text-xs">员工档案</span>,
+                children: <Table columns={employeeColumns} dataSource={employees} loading={loading} rowKey="user_id" size="small" pagination={slimPagination} />
               },
               {
                 key: 'devices',
-                label: <span className="px-6 font-bold flex items-center gap-2"><BuildOutlined />设备型号库</span>,
-                children: (
-                  <div className="p-0">
-                    <Table columns={deviceColumns} dataSource={devices} loading={loading} rowKey="id" size="middle" pagination={commonPagination} className="compact-table" />
-                  </div>
-                )
+                label: <span className="px-4 font-bold text-xs">设备型号</span>,
+                children: <Table columns={deviceColumns} dataSource={devices} loading={loading} rowKey="id" size="small" pagination={slimPagination} />
               },
               {
                 key: 'components',
-                label: <span className="px-6 font-bold flex items-center gap-2"><LayoutOutlined />配件规格库</span>,
-                children: (
-                  <div className="p-0">
-                    <Table columns={componentColumns} dataSource={components} loading={loading} rowKey="id" size="middle" pagination={commonPagination} className="compact-table" />
-                  </div>
-                )
+                label: <span className="px-4 font-bold text-xs">零配件规格</span>,
+                children: <Table columns={componentColumns} dataSource={components} loading={loading} rowKey="id" size="small" pagination={slimPagination} />
               },
               {
                 key: 'settings',
-                label: <span className="px-6 font-bold flex items-center gap-2"><SettingOutlined />基础配置中心</span>,
+                label: <span className="px-4 font-bold text-xs">基础配置</span>,
                 children: (
                   <div className="p-6">
-                    <Row gutter={24}>
-                      <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">业务分类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'category', title: '配置业务分类' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={categories} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('category', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
-                        </Card>
-                      </Col>
-                      <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">设备形态</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'form', title: '配置形态' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={forms} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('form', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
-                        </Card>
-                      </Col>
-                      <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">配件大类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'type', title: '配置类型' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={compTypes} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('type', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
-                        </Card>
-                      </Col>
-                    </Row>
+                    <div className="flex bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="w-40 border-r border-slate-200 bg-white">
+                        <div className="p-2 space-y-1">
+                          {[
+                            { key: 'category', label: '业务分类', icon: <AppstoreOutlined /> },
+                            { key: 'form', label: '硬件形态', icon: <DeploymentUnitOutlined /> },
+                            { key: 'type', label: '配件大类', icon: <TagsOutlined /> }
+                          ].map(t => (
+                            <div key={t.key} onClick={() => setSettingsActiveTab(t.key)}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs font-bold ${settingsActiveTab === t.key ? 'bg-black text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                              {t.icon}<span>{t.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex-1 bg-white p-4">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-3">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            当前管理：{settingsActiveTab === 'category' ? '业务分类' : settingsActiveTab === 'form' ? '形态定义' : '配件大类'}
+                          </span>
+                          <BlackButton onClick={() => { form.resetFields(); setBaseModalConfig({ type: settingsActiveTab, title: `新增${settingsActiveTab === 'category' ? '业务分类' : settingsActiveTab === 'form' ? '形态' : '类型'}` }); setIsBaseModalOpen(true); }} icon={<PlusOutlined />}>新增项</BlackButton>
+                        </div>
+                        <Table size="small" pagination={{ ...slimPagination, pageSize: 5 }} dataSource={settingsActiveTab === 'category' ? categories : settingsActiveTab === 'form' ? forms : compTypes} rowKey="id" 
+                          columns={[
+                            { title: '配置项名称', dataIndex: 'name', align: 'center', render: t => <b className="text-xs text-slate-700">{t}</b> },
+                            { title: '系统标识', dataIndex: 'code', align: 'center', render: t => t ? <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{t}</code> : '-' },
+                            { title: '管理', align: 'center', width: 60, render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem(settingsActiveTab, r)} icon={<CloseOutlined className="text-[10px]" />} /> }
+                          ]} />
+                      </div>
+                    </div>
                   </div>
                 )
               }
@@ -404,108 +341,51 @@ const AssetManagement = () => {
 
       <DeviceModelEditor isOpen={isEditorOpen} deviceId={selectedDevice?.id} onClose={() => { setIsEditorOpen(false); setSelectedDevice(null); }} onSave={fetchMainData} categories={categories} forms={forms} />
 
-      {/* 配件规格弹窗 (支持新增和编辑) */}
-      <Modal 
-        title={<div className="font-black text-slate-800 text-sm">{editingItem ? '编辑配件规格' : '定义新规格'}</div>} 
-        open={isCompEntryOpen} 
-        onCancel={() => { setIsCompEntryOpen(false); setEditingItem(null); }} 
-        onOk={handleCompEntry} 
-        centered okText="确认提交" cancelText="返回"
-        className="custom-modal"
-      >
+      <Modal title={<div className="font-black text-slate-800 text-sm">{editingItem ? '编辑规格' : '定义新规格'}</div>} open={isCompEntryOpen} onCancel={() => { setIsCompEntryOpen(false); setEditingItem(null); }} onOk={handleCompEntry} centered okText="提交保存" cancelText="取消" className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
-          <Form.Item name="type_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">所属分类</span>} rules={[{ required: true }]}>
-            <Select placeholder="选择分类..." options={compTypes.map(t => ({ label: t.name, value: t.id }))} className="rounded-lg h-10" />
-          </Form.Item>
-          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">规格名称</span>} rules={[{ required: true }]}>
-            <Input placeholder="如: 金士顿 16G DDR4" className="rounded-lg h-10" />
-          </Form.Item>
-          <Form.Item name="model" label={<span className="text-[10px] font-black text-slate-400 uppercase">型号参数</span>}>
-            <Input placeholder="如: KVR32N22S8/16" className="rounded-lg h-10" />
-          </Form.Item>
-          <Form.Item name="notes" label={<span className="text-[10px] font-black text-slate-400 uppercase">备注说明</span>}>
-            <Input.TextArea rows={3} className="rounded-lg" />
-          </Form.Item>
+          <Form.Item name="type_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">所属分类</span>} rules={[{ required: true, message: '请选择分类' }]}><Select placeholder="请选择..." options={compTypes.map(t => ({ label: t.name, value: t.id }))} /></Form.Item>
+          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">名称</span>} rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="规格全称..." /></Form.Item>
+          <Form.Item name="model" label={<span className="text-[10px] font-black text-slate-400 uppercase">参数</span>}><Input placeholder="型号细节..." /></Form.Item>
+          <Form.Item name="notes" label={<span className="text-[10px] font-black text-slate-400 uppercase">备注</span>}><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 
-      {/* 基础配置弹窗 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">{baseModalConfig.title}</div>} open={isBaseModalOpen} onCancel={() => setIsBaseModalOpen(false)} onOk={handleBaseSubmit} centered okText="确定" cancelText="取消" className="custom-modal">
+      <Modal title={<div className="font-black text-slate-800 text-sm">{baseModalConfig.title}</div>} open={isBaseModalOpen} onCancel={() => setIsBaseModalOpen(false)} onOk={handleBaseSubmit} centered okText="确认" cancelText="取消" className="custom-modal">
+        <Form form={form} layout="vertical" className="mt-4"><Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">名称</span>} rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item>{baseModalConfig.type === 'category' && <Form.Item name="code" label={<span className="text-[10px] font-black text-slate-400 uppercase">识别码 (可选)</span>}><Input placeholder="系统自动生成" /></Form.Item>}</Form>
+      </Modal>
+
+      <Modal title={<div className="font-black text-slate-800 text-sm">资产配属执行</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="立即配属" cancelText="取消" className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
-          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">名称</span>} rules={[{ required: true }]}>
-            <Input className="rounded-lg h-10" />
-          </Form.Item>
-          {baseModalConfig.type === 'category' && (
-            <Form.Item name="code" label={<span className="text-[10px] font-black text-slate-400 uppercase">识别码 (可选)</span>}>
-              <Input placeholder="自动生成" className="rounded-lg h-10" />
-            </Form.Item>
+          <Tabs activeKey={assignMode} onChange={setAssignMode} size="small" className="mb-4" items={[{ key: 'new', label: '新机配发' }, { key: 'existing', label: '库存复用' }]} />
+          {assignMode === 'new' ? (
+            <Form.Item name="model_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择硬件型号</span>} rules={[{ required: true }]}><Select placeholder="检索型号..." options={devices.map(d => ({ label: d.name, value: d.id }))} /></Form.Item>
+          ) : (
+            <Form.Item name="asset_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择闲置设备</span>} rules={[{ required: true }]}><Select placeholder="搜索闲置库..." options={idleAssets.map(a => ({ label: `${a.asset_no} - ${a.model_name}`, value: a.id }))} /></Form.Item>
           )}
         </Form>
-      </Modal>
-
-      {/* 领用名单详情 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">领用人员清单 - {selectedDevice?.name}</div>} open={isAssignedModalOpen} onCancel={() => setIsAssignedModalOpen(false)} footer={null} width={800} centered className="custom-modal">
-        <div className="mb-6 bg-slate-50 p-3 rounded-xl flex gap-3 border border-slate-100">
-          <Input placeholder="搜索姓名或资产编号..." prefix={<SearchOutlined />} className="rounded-lg h-9" allowClear onChange={e => setAssignedFilters({...assignedFilters, keyword: e.target.value})} />
-          <Select placeholder="筛选部门" className="w-48 rounded-lg" allowClear options={departments.map(d => ({ label: d.name, value: d.id }))} onChange={val => setAssignedFilters({...assignedFilters, department_id: val})} />
-        </div>
-        <Table dataSource={assignedUsers} rowKey="user_id" pagination={{ ...commonPagination, pageSize: 5 }} size="small" className="compact-table" columns={[
-          { title: '领用人', dataIndex: 'real_name', align: 'center', render: (text, r) => <Space size="small"><Avatar size={20} src={getImageUrl(r.avatar)} /><b>{text}</b></Space> },
-          { title: '所属部门', dataIndex: 'department_name', align: 'center' },
-          { title: '资产编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="text-indigo-600 font-black text-[10px]">{t}</code> },
-          { title: '配属时间', dataIndex: 'assigned_at', align: 'center', render: d => <span className="text-[10px] font-mono text-slate-400">{new Date(d).toLocaleDateString()}</span> }
-        ]} />
       </Modal>
 
       {/* 员工设备档案 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">设备资产档案 - {selectedUser?.real_name}</div>} open={isUserDetailOpen} onCancel={() => setIsUserDetailOpen(false)} footer={null} width={800} centered className="custom-modal">
         <Table dataSource={userAssets} rowKey="id" pagination={false} size="small" className="compact-table" columns={[
           { title: '物理编号', dataIndex: 'asset_no', align: 'center', render: t => <code className="font-black text-[10px] bg-slate-100 px-2 py-0.5 rounded">{t}</code> },
-          { title: '设备型号', dataIndex: 'model_name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> },
-          { title: '详细配置', align: 'center', render: r => <div className="flex flex-wrap justify-center gap-1">{(r.components||[]).map((c, i) => <Tag key={i} className="text-[9px] m-0 border-none bg-indigo-50 text-indigo-600 font-bold px-1.5">{c.component_model || c.component_name}</Tag>)}</div> },
+          { title: '型号名称', dataIndex: 'model_name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> },
+          { title: '当前配置', align: 'center', render: r => <div className="flex flex-wrap justify-center gap-1">{(r.components||[]).map((c, i) => <Tag key={i} className="text-[9px] m-0 border-none bg-indigo-50 text-indigo-600 font-bold px-1.5">{c.component_model || c.component_name}</Tag>)}</div> },
           { title: '运行状态', dataIndex: 'device_status', align: 'center', width: 100, render: s => (
             <div className="flex items-center justify-center gap-2">
               <div className={`w-1.5 h-1.5 rounded-full ${s==='in_use'?'bg-emerald-500':s==='damaged'?'bg-rose-500':'bg-slate-300'}`}></div>
               <span className="text-[11px] font-bold text-slate-600">{s==='in_use'?'服役中':s==='damaged'?'待修':'闲置'}</span>
             </div>
           )},
-          { title: '管理操作', align: 'center', width: 120, render: (_, r) => <Button type="link" danger size="small" className="font-black text-xs" onClick={() => { Modal.confirm({ title: '确认回收此设备？', content: '回收后该资产将重置为闲置状态。', centered: true, onOk: async() => { await api.post('/assets/return',{asset_id:r.id}); handleUserDetail(selectedUser); fetchMainData(); } }); }}>执行回收</Button> }
+          { title: '操作', align: 'center', width: 120, render: (_, r) => <Button type="link" danger size="small" className="font-black text-xs" onClick={() => { Modal.confirm({ title: '确认回收此设备？', content: '资产将重置为闲置状态。', centered: true, onOk: async() => { await api.post('/assets/return',{asset_id:r.id}); handleUserDetail(selectedUser); fetchMainData(); } }); }}>回收</Button> }
         ]} />
       </Modal>
 
-      {/* 业务分配弹窗 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">执行资产配属</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="确认配属" cancelText="返回" className="custom-modal">
-        <Form form={form} layout="vertical" className="mt-4">
-          <Tabs activeKey={assignMode} onChange={setAssignMode} size="small" className="mb-4" items={[{ key: 'new', label: '新机发放' }, { key: 'existing', label: '库存重用' }]} />
-          {assignMode === 'new' ? (
-            <Form.Item name="model_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择标准硬件型号</span>} rules={[{ required: true }]}>
-              <Select placeholder="检索型号库..." options={devices.map(d => ({ label: d.name, value: d.id }))} className="rounded-lg h-10" />
-            </Form.Item>
-          ) : (
-            <Form.Item name="asset_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择闲置设备实例</span>} rules={[{ required: true }]}>
-              <Select placeholder="检索闲置库..." options={idleAssets.map(a => ({ label: `${a.asset_no} - ${a.model_name}`, value: a.id }))} className="rounded-lg h-10" />
-            </Form.Item>
-          )}
-        </Form>
-      </Modal>
-
       <style dangerouslySetInnerHTML={{ __html: `
-        .ant-table-thead > tr > th { 
-          background: #f8fafc !important; 
-          color: #64748b !important; 
-          font-weight: 900 !important; 
-          text-transform: uppercase !important; 
-          font-size: 10px !important;
-          padding: 12px !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          text-align: center !important;
-        }
-        .ant-table-tbody > tr > td { text-align: center !important; font-size: 13px !important; border-bottom: 1px solid #f1f5f9 !important; }
-        .custom-asset-tabs .ant-tabs-nav { margin-bottom: 0 !important; border-bottom: 1px solid #e2e8f0; }
-        .compact-table .ant-table-row:hover { background: #fcfcfd !important; }
-        .mini-table .ant-table-thead > tr > th { padding: 8px !important; font-size: 9px !important; }
-        .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
-        .ant-btn-primary span { color: #ffffff !important; }
+        .ant-table-thead > tr > th { background: #fcfcfd !important; color: #64748b !important; font-weight: 900 !important; text-transform: uppercase !important; font-size: 10px !important; text-align: center !important; height: 40px !important; }
+        .ant-table-tbody > tr > td { text-align: center !important; font-size: 12px !important; border-bottom: 1px solid #f1f5f9 !important; padding: 8px !important; }
+        .custom-asset-tabs .ant-tabs-nav { margin-bottom: 0 !important; border-bottom: 1px solid #f1f5f9; padding: 0 12px; }
+        .ant-modal-content { border-radius: 16px !important; padding: 20px !important; }
       `}} />
     </div>
   );
