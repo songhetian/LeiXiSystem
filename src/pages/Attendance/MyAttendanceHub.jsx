@@ -21,7 +21,6 @@ import MakeupApply from './MakeupApply';
 import LeaveRecords from './LeaveRecords';
 import OvertimeRecords from './OvertimeRecords';
 import AttendanceStats from './AttendanceStats';
-import CompensatoryApply from '../../components/CompensatoryApply'; // 修正物理路径
 
 const MyAttendanceHub = () => {
     // 默认展示考勤大盘
@@ -90,7 +89,6 @@ const MyAttendanceHub = () => {
                         className="flagship-sub-tabs"
                         items={[
                             { key: 'leave', label: <span className="font-black px-6">🌴 请假申请</span>, children: <div className="bg-white p-8 border border-slate-500 rounded-b-xl rounded-tr-xl"><LeaveApply /></div> },
-                            { key: 'compensatory', label: <span className="font-black px-6">🔄 调休申请</span>, children: <div className="bg-white p-8 border border-slate-500 rounded-b-xl rounded-tr-xl"><CompensatoryApply /></div> },
                             { key: 'overtime', label: <span className="font-black px-6">🌙 加班申请</span>, children: <div className="bg-white p-8 border border-slate-500 rounded-b-xl rounded-tr-xl"><OvertimeApply /></div> },
                             { key: 'makeup', label: <span className="font-black px-6">🔧 异常补卡</span>, children: <div className="bg-white p-8 border border-slate-500 rounded-b-xl rounded-tr-xl"><MakeupApply /></div> }
                         ]}
