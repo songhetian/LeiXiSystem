@@ -218,7 +218,6 @@ const AssetManagement = () => {
   const commonPagination = {
     pageSize: 10,
     showSizeChanger: false,
-    position: ['bottomCenter'], 
     showTotal: (total) => `共计 ${total} 条数据`,
     className: "custom-pagination"
   };
@@ -381,17 +380,17 @@ const AssetManagement = () => {
                     <Row gutter={24}>
                       <Col span={8}>
                         <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">业务分类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'category', title: '配置业务分类' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={false} dataSource={categories} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('category', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
+                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={categories} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('category', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
                       <Col span={8}>
                         <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">设备形态</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'form', title: '配置形态' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={false} dataSource={forms} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('form', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
+                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={forms} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('form', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
                       <Col span={8}>
                         <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">配件大类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'type', title: '配置类型' }); setIsBaseModalOpen(true); }}>增加</Button>}>
-                          <Table size="small" pagination={false} dataSource={compTypes} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('type', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
+                          <Table size="small" pagination={{ pageSize: 5, size: 'small', className: 'custom-pagination', showTotal: false }} dataSource={compTypes} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('type', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
                     </Row>
@@ -507,17 +506,6 @@ const AssetManagement = () => {
         .mini-table .ant-table-thead > tr > th { padding: 8px !important; font-size: 9px !important; }
         .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
         .ant-btn-primary span { color: #ffffff !important; }
-        
-        /* 分页居中标准样式 */
-        .custom-pagination { 
-          margin: 24px 0 !important;
-          display: flex !important;
-          justify-content: center !important;
-          width: 100% !important;
-        }
-        .ant-pagination-item { border-radius: 8px !important; border-color: #f1f5f9 !important; }
-        .ant-pagination-item-active { background: #000000 !important; border-color: #000000 !important; }
-        .ant-pagination-item-active a { color: #ffffff !important; }
       `}} />
     </div>
   );

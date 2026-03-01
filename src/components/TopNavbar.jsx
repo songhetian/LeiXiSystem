@@ -254,6 +254,14 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
       ];
     }
 
+    // 特殊页面处理：实机明细
+    if (activeTab === 'logistics-device-list') {
+      return [
+        { label: '后勤管理', id: 'logistics' },
+        { label: '实机明细', id: 'logistics-device-list' }
+      ];
+    }
+
     return [];
   }, [activeTab]);
 
