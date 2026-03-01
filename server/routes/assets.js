@@ -125,6 +125,14 @@ module.exports = async function (fastify, opts) {
     await recordLog(pool, { user_id: user.id, username: user.username, real_name: user.real_name, module: 'logistics', action: `定义新规格: ${name} (${model})`, method: 'POST', url: request.url, ip: request.ip, status: 1 });
     return sendSuccess(null);
   })
+  fastify.put('/api/assets/components/:id', async (request) => {
+    const user = getUserFromToken(request);
+    const { id } = request.params;
+    const { type_id, name, model, notes } = request.body;
+    await pool.query('UPDATE asset_components SET type_id=?, name=?, model=?, notes=? WHERE id=?', [type_id, name, model, notes, id]);
+    await recordLog(pool, { user_id: user.id, username: user.username, real_name: user.real_name, module: 'logistics', action: `更新规格配置: ${name} (${model})`, method: 'PUT', url: request.url, ip: request.ip, status: 1 });
+    return sendSuccess(null);
+  })
   fastify.delete('/api/assets/components/:id', async (request, reply) => {
     const user = getUserFromToken(request);
     const { id } = request.params;

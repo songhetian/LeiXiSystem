@@ -1,18 +1,18 @@
 /**
- * 设备配置中心 (雷犀高级感 2.0 商务版 - 极致本地化)
+ * 设备配置中心 (雷犀高级感 2.0 商务版 - 逻辑全守护)
  * 
- * 核心升级：
- * 1. 全面去英文：移除 UNITS, GENERIC, SKU 等所有非中文字符，改为“台”、“标准”、“型号库”等。
- * 2. 物理缝合搜索栏：44px 统一高度、全铺满、边框 #64748b。
- * 3. 极致紧凑表格：黑白商务配色、全量居中、信息密度最大化。
- * 4. 规范分页：采用商务黑白风格的分页组件，居中展示。
+ * 核心修复与升级：
+ * 1. 修复功能失效：找回并补全了规格库、配置中心缺失的 Modal 弹窗及表单提交逻辑。
+ * 2. 补全 CRUD：为“配件规格库”新增了编辑功能，实现增删改查全闭环。
+ * 3. 规范分页：采用雷犀标准的高级感居中分页，黑色主题。
+ * 4. 极致本地化：全量移除英文单词，确保纯净中文体验。
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { 
   Badge, Tag, Modal, Form, Input, Select, 
-  Table, Avatar, Space, Tabs, Card, Row, Col, Divider, Tooltip, Button
+  Table, Avatar, Space, Tabs, Card, Row, Col, Divider, Tooltip, Button, InputNumber
 } from 'antd';
 import { 
   UserOutlined, 
@@ -27,7 +27,9 @@ import {
   ExclamationCircleOutlined,
   FilterOutlined,
   ArrowRightOutlined,
-  CloseOutlined
+  CloseOutlined,
+  EditOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import api from '../../../api';
 import { getImageUrl } from '../../../utils/fileUtils';
@@ -63,6 +65,7 @@ const AssetManagement = () => {
   const [userAssets, setUserAssets] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [editingItem, setEditingItem] = useState(null); // 用于编辑规格或基础配置
   
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [assignedFilters, setAssignedFilters] = useState({ keyword: '', department_id: null });
@@ -152,10 +155,16 @@ const AssetManagement = () => {
   const handleCompEntry = async () => {
     try {
       const values = await form.validateFields();
-      const res = await api.post('/assets/components', values);
+      let res;
+      if (editingItem) {
+        res = await api.put(`/assets/components/${editingItem.id}`, values);
+      } else {
+        res = await api.post('/assets/components', values);
+      }
       if (res.data.success) {
         toast.success('规格保存成功');
         setIsCompEntryOpen(false);
+        setEditingItem(null);
         fetchMainData();
       }
     } catch (e) {}
@@ -209,7 +218,7 @@ const AssetManagement = () => {
   const commonPagination = {
     pageSize: 10,
     showSizeChanger: false,
-    position: ['bottomCenter'], // 强制居中
+    position: ['bottomCenter'], 
     showTotal: (total) => `共计 ${total} 条数据`,
     className: "custom-pagination"
   };
@@ -265,12 +274,17 @@ const AssetManagement = () => {
     { title: '规格组件名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-slate-700 text-xs">{t}</span> },
     { title: '组件分类', dataIndex: 'type_name', align: 'center', render: t => <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-bold text-[10px]">{t}</Tag> },
     { title: '核心参数', dataIndex: 'model', align: 'center', render: t => <code className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{t || '标准规格'}</code> },
-    { title: '管理操作', align: 'center', width: 100, render: (_, r) => <Button type="link" danger size="small" className="font-bold text-xs" onClick={() => handleDeleteItem('component', r)}>移除</Button> }
+    { title: '管理操作', align: 'center', width: 150, render: (_, r) => (
+      <Space split={<Divider type="vertical" />}>
+        <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => { setEditingItem(r); form.setFieldsValue(r); setIsCompEntryOpen(true); }}>编辑</Button>
+        <Button type="link" danger size="small" className="font-bold text-xs" onClick={() => handleDeleteItem('component', r)}>移除</Button>
+      </Space>
+    )}
   ];
 
   return (
     <div className="p-6 md:p-8 min-h-screen bg-slate-50/30">
-      {/* 顶部：黑白商务标题栏 */}
+      {/* 顶部标题栏 */}
       <div className="max-w-[1400px] mx-auto mb-8 flex justify-between items-end">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -284,7 +298,7 @@ const AssetManagement = () => {
         
         <div className="flex items-center gap-3">
           {activeTab === 'devices' && <BlackButton icon={<PlusOutlined />} onClick={() => { setSelectedDevice(null); setIsEditorOpen(true); }}>发布新型号</BlackButton>}
-          {activeTab === 'components' && <BlackButton icon={<PlusOutlined />} onClick={() => setIsCompEntryOpen(true)}>定义新规格</BlackButton>}
+          {activeTab === 'components' && <BlackButton icon={<PlusOutlined />} onClick={() => { setEditingItem(null); form.resetFields(); setIsCompEntryOpen(true); }}>定义新规格</BlackButton>}
         </div>
       </div>
 
@@ -366,17 +380,17 @@ const AssetManagement = () => {
                   <div className="p-6">
                     <Row gutter={24}>
                       <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">业务分类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { setBaseModalConfig({ type: 'category', title: '配置业务分类' }); setIsBaseModalOpen(true); }}>增加</Button>}>
+                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">业务分类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'category', title: '配置业务分类' }); setIsBaseModalOpen(true); }}>增加</Button>}>
                           <Table size="small" pagination={false} dataSource={categories} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('category', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
                       <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">设备形态</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { setBaseModalConfig({ type: 'form', title: '配置形态' }); setIsBaseModalOpen(true); }}>增加</Button>}>
+                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">设备形态</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'form', title: '配置形态' }); setIsBaseModalOpen(true); }}>增加</Button>}>
                           <Table size="small" pagination={false} dataSource={forms} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('form', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
                       <Col span={8}>
-                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">配件大类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { setBaseModalConfig({ type: 'type', title: '配置类型' }); setIsBaseModalOpen(true); }}>增加</Button>}>
+                        <Card title={<span className="text-xs font-black uppercase tracking-wider text-slate-400">配件大类</span>} size="small" className="rounded-xl border-slate-200 shadow-none" extra={<Button type="link" size="small" className="font-bold text-black" onClick={() => { form.resetFields(); setBaseModalConfig({ type: 'type', title: '配置类型' }); setIsBaseModalOpen(true); }}>增加</Button>}>
                           <Table size="small" pagination={false} dataSource={compTypes} rowKey="id" columns={[{ title: '名称', dataIndex: 'name', align: 'center', render: t => <span className="font-bold text-xs">{t}</span> }, { title: '操作', align: 'center', render: (_, r) => <Button type="link" danger size="small" onClick={() => handleDeleteItem('type', r)} icon={<CloseOutlined className="text-[10px]" />} /> }]} className="mini-table" />
                         </Card>
                       </Col>
@@ -390,6 +404,45 @@ const AssetManagement = () => {
       </div>
 
       <DeviceModelEditor isOpen={isEditorOpen} deviceId={selectedDevice?.id} onClose={() => { setIsEditorOpen(false); setSelectedDevice(null); }} onSave={fetchMainData} categories={categories} forms={forms} />
+
+      {/* 配件规格弹窗 (支持新增和编辑) */}
+      <Modal 
+        title={<div className="font-black text-slate-800 text-sm">{editingItem ? '编辑配件规格' : '定义新规格'}</div>} 
+        open={isCompEntryOpen} 
+        onCancel={() => { setIsCompEntryOpen(false); setEditingItem(null); }} 
+        onOk={handleCompEntry} 
+        centered okText="确认提交" cancelText="返回"
+        className="custom-modal"
+      >
+        <Form form={form} layout="vertical" className="mt-4">
+          <Form.Item name="type_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">所属分类</span>} rules={[{ required: true }]}>
+            <Select placeholder="选择分类..." options={compTypes.map(t => ({ label: t.name, value: t.id }))} className="rounded-lg h-10" />
+          </Form.Item>
+          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">规格名称</span>} rules={[{ required: true }]}>
+            <Input placeholder="如: 金士顿 16G DDR4" className="rounded-lg h-10" />
+          </Form.Item>
+          <Form.Item name="model" label={<span className="text-[10px] font-black text-slate-400 uppercase">型号参数</span>}>
+            <Input placeholder="如: KVR32N22S8/16" className="rounded-lg h-10" />
+          </Form.Item>
+          <Form.Item name="notes" label={<span className="text-[10px] font-black text-slate-400 uppercase">备注说明</span>}>
+            <Input.TextArea rows={3} className="rounded-lg" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 基础配置弹窗 */}
+      <Modal title={<div className="font-black text-slate-800 text-sm">{baseModalConfig.title}</div>} open={isBaseModalOpen} onCancel={() => setIsBaseModalOpen(false)} onOk={handleBaseSubmit} centered okText="确定" cancelText="取消" className="custom-modal">
+        <Form form={form} layout="vertical" className="mt-4">
+          <Form.Item name="name" label={<span className="text-[10px] font-black text-slate-400 uppercase">名称</span>} rules={[{ required: true }]}>
+            <Input className="rounded-lg h-10" />
+          </Form.Item>
+          {baseModalConfig.type === 'category' && (
+            <Form.Item name="code" label={<span className="text-[10px] font-black text-slate-400 uppercase">识别码 (可选)</span>}>
+              <Input placeholder="自动生成" className="rounded-lg h-10" />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
 
       {/* 领用名单详情 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">领用人员清单 - {selectedDevice?.name}</div>} open={isAssignedModalOpen} onCancel={() => setIsAssignedModalOpen(false)} footer={null} width={800} centered className="custom-modal">
@@ -421,7 +474,7 @@ const AssetManagement = () => {
         ]} />
       </Modal>
 
-      {/* 业务弹窗 */}
+      {/* 业务分配弹窗 */}
       <Modal title={<div className="font-black text-slate-800 text-sm">执行资产配属</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="确认配属" cancelText="返回" className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
           <Tabs activeKey={assignMode} onChange={setAssignMode} size="small" className="mb-4" items={[{ key: 'new', label: '新机发放' }, { key: 'existing', label: '库存重用' }]} />
