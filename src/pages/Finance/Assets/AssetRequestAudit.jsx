@@ -1,31 +1,31 @@
 /**
- * 资产申请审批中心 (雷犀高级感 2.0 商务版)
+ * 资产申请审批 (雷犀高级感 2.0 视觉对齐版)
  * 
- * 核心标准：
- * 1. 物理缝合搜索栏：44px 统一高度、全铺满、边框 #64748b。
- * 2. 极致紧凑表格：黑白商务配色、全量居中、信息密度最大化。
- * 3. 视觉降噪：移除冗余面包屑，统一按钮视觉对比度。
- * 4. 极致本地化：全量移除英文状态词，改为地道中文。
+ * 核心升级：
+ * 1. 标签修正：更正“处理状态”语意。
+ * 2. 视觉统合：取消状态区的黑色背景，实现搜索栏全局色调一致性。
+ * 3. 雷犀标准：严格遵循 44px 物理缝合搜索栏、边框 #64748b。
+ * 4. 逻辑守护：确保多维过滤与分页机制稳健运行。
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Table, Tag, Modal, Form, Input, Space, Typography, 
-  Badge, Tabs, Divider, Row, Col, Avatar 
+  Divider, Row, Col, Avatar, Select 
 } from 'antd';
 import { 
-  CheckCircleFilled, 
-  CloseCircleFilled, 
   SearchOutlined,
   ReloadOutlined,
   AuditOutlined,
   FileTextOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  FilterOutlined
 } from '@ant-design/icons';
 import { toast } from 'sonner';
 import api from '../../../api';
 
 const { Text, Title } = Typography;
+const { Option } = Select;
 
 // --- 样式组件：黑底白字商务按钮 ---
 const BlackButton = ({ children, icon, ...props }) => (
@@ -44,8 +44,19 @@ const AssetRequestAudit = () => {
   const [activeTab, setActiveTab] = useState('pending');
   const [auditModal, setAuditModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  
+  // 搜索与过滤状态
   const [searchText, setSearchText] = useState('');
+  const [deptFilter, setDeptFilter] = useState(null);
+  const [typeFilter, setTypeFilter] = useState(null);
+  
+  const [departments, setDepartments] = useState([]);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    fetchRequests();
+    fetchDepartments();
+  }, [activeTab]);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -55,15 +66,18 @@ const AssetRequestAudit = () => {
         setRequests(res.data.data);
       }
     } catch (error) {
-      toast.error('列表同步失败');
+      toast.error('数据同步失败');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchRequests();
-  }, [activeTab]);
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/departments');
+      setDepartments(Array.isArray(res.data) ? res.data : (res.data.data || []));
+    } catch (e) {}
+  };
 
   const handleAuditAction = (record, action) => {
     setSelectedRequest({ ...record, targetAction: action });
@@ -79,23 +93,29 @@ const AssetRequestAudit = () => {
         admin_notes: values.admin_notes
       });
       if (res.data.success) {
-        toast.success('审批操作已执行');
+        toast.success('审批处理已更新');
         setAuditModal(false);
         fetchRequests();
       }
     } catch (error) {
-      toast.error('操作提交失败');
+      toast.error('提交失败');
     }
   };
 
+  // 客户端联合过滤逻辑
   const filteredData = useMemo(() => {
-    if (!searchText) return requests;
-    return requests.filter(r => 
-      r.applicant_name?.includes(searchText) || 
-      r.asset_no?.includes(searchText) ||
-      r.device_name?.includes(searchText)
-    );
-  }, [requests, searchText]);
+    return requests.filter(r => {
+      const matchText = !searchText || 
+        r.applicant_name?.includes(searchText) || 
+        r.asset_no?.includes(searchText) ||
+        r.device_name?.includes(searchText);
+      
+      const matchDept = !deptFilter || r.department_id === deptFilter;
+      const matchType = !typeFilter || r.type === typeFilter;
+      
+      return matchText && matchDept && matchType;
+    });
+  }, [requests, searchText, deptFilter, typeFilter]);
 
   const columns = [
     {
@@ -106,7 +126,7 @@ const AssetRequestAudit = () => {
       width: 160
     },
     {
-      title: '申请人信息',
+      title: '申请人员',
       key: 'applicant',
       align: 'center',
       render: (_, record) => (
@@ -142,27 +162,27 @@ const AssetRequestAudit = () => {
       width: 100
     },
     {
-      title: '审批状态',
+      title: '审批进度',
       dataIndex: 'status',
       align: 'center',
       render: (status) => {
         const config = {
-          pending: { c: 'bg-amber-50 text-amber-600', t: '审核中' },
-          approved: { c: 'bg-emerald-50 text-emerald-600', t: '审批通过' },
-          rejected: { c: 'bg-rose-50 text-rose-600', t: '已驳回' }
+          pending: { c: 'text-amber-600', t: '处理中', dot: 'bg-amber-500' },
+          approved: { c: 'text-emerald-600', t: '审批通过', dot: 'bg-emerald-500' },
+          rejected: { c: 'text-rose-600', t: '已驳回', dot: 'bg-rose-500' }
         };
-        const item = config[status] || { c: 'bg-slate-100 text-slate-400', t: '已撤销' };
+        const item = config[status] || { c: 'text-slate-400', t: '已撤销', dot: 'bg-slate-300' };
         return (
           <div className="flex items-center justify-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${status === 'pending' ? 'bg-amber-500' : status === 'approved' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-            <span className={`text-[10px] font-black ${item.c.split(' ')[1]}`}>{item.t}</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${item.dot}`}></div>
+            <span className={`text-[10px] font-black ${item.c}`}>{item.t}</span>
           </div>
         );
       },
       width: 120
     },
     {
-      title: '操作',
+      title: '管理操作',
       key: 'action',
       align: 'center',
       width: 180,
@@ -188,20 +208,21 @@ const AssetRequestAudit = () => {
             <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg">
               <AuditOutlined className="text-white text-xl" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900 !m-0">后勤审批中心</h1>
+            <h1 className="text-2xl font-black text-slate-900 !m-0">资产申请审批</h1>
           </div>
-          <p className="text-slate-400 text-sm font-bold">处理全系统硬件资产的变更与报修申请</p>
+          <p className="text-slate-400 text-sm font-bold">硬件资产变更、维修及配属申请的处理枢纽</p>
         </div>
         <BlackButton icon={<ReloadOutlined className={loading ? 'animate-spin' : ''} />} onClick={fetchRequests}>同步记录</BlackButton>
       </div>
 
-      {/* 雷犀标准：44px 物理缝合搜索栏 */}
+      {/* 雷犀标准：44px 物理缝合搜索栏 (视觉对齐版) */}
       <div className="max-w-[1400px] mx-auto mb-8">
         <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b]">
-          <div className="flex-1 flex items-center h-[44px] px-4">
+          {/* 关键字检索 */}
+          <div className="flex-[2] flex items-center h-[44px] px-4 border-r border-slate-100">
             <SearchOutlined className="text-slate-400 mr-3" />
             <Input 
-              placeholder="通过申请人、资产编号或具体描述检索..." 
+              placeholder="搜索人员、资产编号或详情描述..." 
               variant="borderless"
               className="h-full text-sm font-medium"
               value={searchText}
@@ -209,19 +230,46 @@ const AssetRequestAudit = () => {
               allowClear
             />
           </div>
-          <Divider type="vertical" className="h-6 border-slate-200 m-0" />
-          <div className="w-64 flex items-center h-[44px] px-4 bg-slate-50/50">
-            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">当前视图</span>
+          
+          {/* 部门筛选 */}
+          <div className="flex-1 flex items-center h-[44px] px-4 bg-slate-50/30 border-r border-slate-100">
+            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">所属部门</span>
+            <Select 
+              placeholder="全部部门"
+              variant="borderless"
+              className="w-full text-xs font-bold text-slate-700"
+              allowClear
+              onChange={setDeptFilter}
+              options={departments.map(d => ({ label: d.name, value: d.id }))}
+            />
+          </div>
+
+          {/* 类型筛选 */}
+          <div className="flex-1 flex items-center h-[44px] px-4 border-r border-slate-100">
+            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">申请类型</span>
+            <Select 
+              placeholder="全部类型"
+              variant="borderless"
+              className="w-full text-xs font-bold text-slate-700"
+              allowClear
+              onChange={setTypeFilter}
+              options={[{label:'硬件升级', value:'upgrade'}, {label:'故障报修', value:'repair'}]}
+            />
+          </div>
+
+          {/* 状态筛选 (修正标签与视觉) */}
+          <div className="flex-1 flex items-center h-[44px] px-4 bg-slate-50/50">
+            <span className="text-[10px] font-black text-slate-400 uppercase mr-3 shrink-0">处理状态</span>
             <Select 
               value={activeTab} 
               onChange={setActiveTab}
               variant="borderless"
-              className="w-full text-xs font-black text-slate-700"
+              className="w-full text-xs font-black text-slate-800"
               options={[
                 { value: 'pending', label: '待办审批' },
                 { value: 'approved', label: '通过历史' },
-                { value: 'rejected', label: '驳回历史' },
-                { value: 'all', label: '全部记录' }
+                { value: 'rejected', label: '驳回记录' },
+                { value: 'all', label: '全量记录' }
               ]}
             />
           </div>
@@ -241,7 +289,7 @@ const AssetRequestAudit = () => {
             pagination={{
               pageSize: 10,
               showSizeChanger: false,
-              showTotal: (total) => `共计 ${total} 条申请记录`,
+              showTotal: (total) => `共计 ${total} 条数据记录`,
               className: "custom-pagination",
               position: ['bottomCenter']
             }}
@@ -249,7 +297,7 @@ const AssetRequestAudit = () => {
         </div>
       </div>
 
-      {/* 审批处理弹窗 */}
+      {/* 审批弹窗 */}
       <Modal 
         title={<div className="font-black text-slate-800 text-sm flex items-center gap-2"><FileTextOutlined className="text-indigo-600" /> 签署审批意见</div>} 
         open={auditModal} 
@@ -258,25 +306,23 @@ const AssetRequestAudit = () => {
         centered 
         width={420}
         okText={selectedRequest?.targetAction === 'approve' ? '确认通过' : '确认驳回'}
-        cancelText="暂不处理"
+        cancelText="取消"
         className="custom-modal"
         confirmLoading={loading}
       >
         <Form form={form} layout="vertical" className="mt-4">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 mb-6">
-            <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase mb-3">
-              <ClockCircleOutlined /> 申请事由描述
-            </div>
+            <div className="text-[10px] font-black text-slate-400 uppercase mb-2">申请事由摘要</div>
             <div className="text-xs font-bold text-slate-600 leading-relaxed italic">
-              " {selectedRequest?.description || '未填写具体事由'} "
+              " {selectedRequest?.description || '未填写描述'} "
             </div>
           </div>
           <Form.Item 
             name="admin_notes" 
-            label={<span className="text-[10px] font-black text-slate-400 uppercase">处理备注 (驳回必填)</span>} 
-            rules={[{ required: selectedRequest?.targetAction === 'reject', message: '请务必说明驳回原因' }]}
+            label={<span className="text-[10px] font-black text-slate-400 uppercase">审批备注 (驳回必填)</span>} 
+            rules={[{ required: selectedRequest?.targetAction === 'reject', message: '请说明拒绝原因' }]}
           >
-            <Input.TextArea rows={3} placeholder="在此输入您的批复意见..." className="rounded-lg border-slate-200" />
+            <Input.TextArea rows={3} placeholder="在此录入您的处理意见..." className="rounded-lg border-slate-200" />
           </Form.Item>
         </Form>
       </Modal>
@@ -296,6 +342,7 @@ const AssetRequestAudit = () => {
         .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
         .ant-btn-primary { background: #000000 !important; border: none !important; border-radius: 8px !important; font-weight: 700 !important; }
         .ant-btn-primary span { color: #ffffff !important; }
+        .ant-select-selection-item { font-weight: 700 !important; }
       `}} />
     </div>
   );
