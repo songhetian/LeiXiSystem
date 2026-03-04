@@ -111,7 +111,7 @@ module.exports = async function (fastify, opts) {
   })
 
   // 导出排班表
-  fastify.get('/api/schedules/export', async (request, reply) => {
+  fastify.get('/api/attendance/export/schedules', async (request, reply) => {
     const { department_id, year, month } = request.query
 
     try {

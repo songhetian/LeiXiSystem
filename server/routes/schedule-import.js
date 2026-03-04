@@ -4,7 +4,7 @@ module.exports = async function (fastify, opts) {
   const pool = fastify.mysql
 
   // Excel导入排班
-  fastify.post('/api/schedules/import', async (request, reply) => {
+  fastify.post('/api/schedules/import-raw', async (request, reply) => {
     try {
       const data = await request.file()
 

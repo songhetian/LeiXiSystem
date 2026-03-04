@@ -95,8 +95,8 @@ const ALL_TILES = {
   'approval-workflow-config': { label: '报销定义', icon: <SettingOutlined />, color: 'bg-slate-800', permission: 'system:workflow:manage' },
   'role-workflow-config': { label: '职责授权', icon: <TeamOutlined />, color: 'bg-slate-700', permission: 'system:workflow:manage' },
   'logistics-device-mgmt': { label: '设备管理', icon: <DesktopOutlined />, color: 'bg-zinc-700', permission: 'finance:asset:manage' },
-  'logistics-device-list': { label: '实机明细', icon: <FileSearchOutlined />, permission: 'finance:asset:manage' },
-  'asset-request-audit': { label: '资产审批', icon: <AuditOutlined />, permission: 'finance:asset:audit' },
+  'logistics-device-list': { label: '实机明细', icon: <FileSearchOutlined />, color: 'bg-slate-500', permission: 'finance:asset:manage' },
+  'asset-request-audit': { label: '资产审批', icon: <AuditOutlined />, color: 'bg-indigo-500', permission: 'finance:asset:audit' },
   'my-payslips': { label: '我的工资', icon: <DollarOutlined />, color: 'bg-green-600', permission: 'payroll:payslip:view' },
   'payslip-management': { label: '工资条管', icon: <FileTextOutlined />, color: 'bg-green-700', permission: 'payroll:payslip:manage' },
   'personal-info': { label: '资料设置', icon: <UserOutlined />, color: 'bg-slate-800' },
@@ -241,7 +241,7 @@ const Dashboard = ({ onNavigate }) => {
                       onClick={() => onNavigate(id)}
                       className="group bg-white p-4 rounded-[28px] border border-transparent hover:border-[#07C160] shadow-sm hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center aspect-square"
                     >
-                      <div className={`w-12 h-12 rounded-[18px] ${tile.color} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                      <div className={`w-12 h-12 rounded-[18px] ${tile.color || 'bg-slate-400'} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
                         {React.cloneElement(tile.icon, { style: { fontSize: 22, color: '#fff' } })}
                       </div>
                       <Text strong className="text-slate-700 text-[11px] font-bold">{tile.label}</Text>

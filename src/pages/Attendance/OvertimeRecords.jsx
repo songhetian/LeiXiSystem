@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatDateOnly } from '../../utils/dateUtils'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 
@@ -32,7 +32,7 @@ export default function OvertimeRecords({ onNavigate }) {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const response = await api.get(`/api/employees/by-user/${userId}`)
       if (response.data.success && response.data.data) {
         setEmployee(response.data.data)
       } else {
@@ -49,7 +49,7 @@ export default function OvertimeRecords({ onNavigate }) {
 
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/overtime/records'), {
+      const response = await api.get('/api/overtime/records', {
         params: {
           employee_id: employee.id,
           status: statusFilter,
@@ -73,7 +73,7 @@ export default function OvertimeRecords({ onNavigate }) {
     if (!employee) return
 
     try {
-      const response = await axios.get(getApiUrl('/api/overtime/stats'), {
+      const response = await api.get('/api/overtime/stats', {
         params: { employee_id: employee.id }
       })
       if (response.data.success) {

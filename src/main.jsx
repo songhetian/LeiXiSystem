@@ -10,15 +10,21 @@ import './styles/business-theme.css'
 import './styles/antd-custom.css'
 import { loadRuntimeConfig } from './utils/apiConfig'
 
-// 立即开始加载运行时配置
-loadRuntimeConfig();
+// 立即开始加载运行时配置并渲染应用
+(async () => {
+    try {
+        await loadRuntimeConfig();
+    } catch (e) {
+        console.error('Failed to pre-load runtime config:', e);
+    }
 
-dayjs.locale('zh-cn')
+    dayjs.locale('zh-cn')
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-    <ConfigProvider locale={zhCN}>
-      <AntdApp>
-        <App />
-      </AntdApp>
-    </ConfigProvider>,
-)
+    ReactDOM.createRoot(document.getElementById('root')).render(
+        <ConfigProvider locale={zhCN}>
+            <AntdApp>
+                <App />
+            </AntdApp>
+        </ConfigProvider>,
+    )
+})();

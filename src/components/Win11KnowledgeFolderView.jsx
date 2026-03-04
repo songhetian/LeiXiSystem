@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import { getAttachmentUrl } from '../utils/fileUtils';
+import { formatDate } from '../utils/date';
 import Win11ContextMenu from './Win11ContextMenu';
 import { 
     ChevronLeft, 
@@ -21,7 +22,11 @@ import {
     AlertCircle,
     Archive,
     FolderTree,
-    FolderCheck
+    FolderCheck,
+    Clock,
+    Users,
+    ShieldCheck,
+    TrendingUp
 } from 'lucide-react';
 import { Select, ConfigProvider, Empty, Button, Spin } from 'antd';
 
@@ -142,7 +147,18 @@ const ArticleCard = memo(({ article, isSelected, onToggle, onContextMenu, onPrev
       )}
 
       <div className="mt-4 mb-3 transform transition-transform group-hover:scale-105">
-        <FileIcon ext={ext} isNote={isNote} />
+        {['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) && attachments[0]?.url ? (
+          <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-slate-50">
+            <img 
+              src={getAttachmentUrl(attachments[0].url)} 
+              className="w-full h-full object-cover" 
+              alt=""
+              onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '🖼️'; }}
+            />
+          </div>
+        ) : (
+          <FileIcon ext={ext} isNote={isNote} />
+        )}
       </div>
       <h3 className="text-[11px] font-bold text-slate-800 line-clamp-2 h-8 leading-tight mb-1 text-center">{article.title}</h3>
     </div>
@@ -225,26 +241,51 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   }, [debouncedSearchTerm]);
 
   useEffect(() => { 
-    setCurrentFolderCategory(null);
-    setSelectedArticleIds([]);
-    fetchCategories(); 
-    fetchArticles(); 
-    fetchPersonalResources(); 
+    const loadAllData = async () => {
+        setCurrentFolderCategory(null);
+        setSelectedArticleIds([]);
+        try {
+            await Promise.all([
+                fetchCategories(), 
+                fetchArticles(), 
+                fetchPersonalResources()
+            ]);
+        } catch (e) {
+            console.error('Initial data load failed:', e);
+        }
+    };
+    loadAllData();
   }, [viewMode]);
 
   const fetchPersonalResources = async () => {
+    if (!currentUser?.id) {
+        console.warn('No currentUser.id found, skipping personal resources fetch');
+        return;
+    }
     try {
-        const resA = await axios.get(getApiUrl('/api/knowledge/articles'));
-        const allA = resA.data.data || resA.data || [];
-        setPersonalArticles(allA.filter(a => a.type === 'personal' && parseInt(a.owner_id) === parseInt(currentUser?.id)));
+        const [resA, resC] = await Promise.all([
+            axios.get(getApiUrl(`/api/my-knowledge/articles?userId=${currentUser.id}`)),
+            axios.get(getApiUrl(`/api/my-knowledge/categories?userId=${currentUser.id}`))
+        ]);
         
-        const resC = await axios.get(getApiUrl('/api/knowledge/categories'));
+        const allA = resA.data.data || resA.data || [];
         const allC = resC.data.data || resC.data || [];
-        setPersonalCategories(allC.filter(c => c.type === 'personal' && parseInt(c.owner_id) === parseInt(currentUser?.id)));
-    } catch(e) {}
+        
+        setPersonalArticles(allA);
+        setPersonalCategories(allC);
+        
+        // 如果当前是个人模式，同步到主列表
+        if (viewMode === 'personal') {
+            setArticles(allA);
+            setCategories(allC);
+        }
+    } catch(e) {
+        console.error('Failed to fetch personal resources:', e);
+    }
   };
 
   const fetchCategories = async () => {
+    if (viewMode === 'personal') return; // 由 fetchPersonalResources 处理
     try {
       const res = await axios.get(getApiUrl(`/api/knowledge/categories`));
       const allCats = res.data.data || res.data || [];
@@ -253,12 +294,13 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
         const ownerMatch = parseInt(c.owner_id) === parseInt(currentUser?.id);
         if (viewMode === 'public') return c.type === 'common' && parseInt(c.is_public) === 1;
         if (viewMode === 'management') return c.type === 'common' && ownerMatch;
-        return c.type === 'personal' && ownerMatch;
+        return false;
       }));
     } catch(e) { toast.error('分类加载失败'); }
   };
 
   const fetchArticles = async () => {
+    if (viewMode === 'personal') return; // 由 fetchPersonalResources 处理
     setLoading(true);
     try {
       const res = await axios.get(getApiUrl('/api/knowledge/articles'));
@@ -268,14 +310,16 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
         const ownerMatch = parseInt(a.owner_id) === parseInt(currentUser?.id);
         if (viewMode === 'public') return a.type === 'common' && parseInt(a.is_public) === 1;
         if (viewMode === 'management') return a.type === 'common' && ownerMatch;
-        return a.type === 'personal' && ownerMatch;
+        return false;
       }));
     } catch(e) { toast.error('文档加载失败'); }
     finally { setLoading(false); }
   };
 
   // --- 收藏到个人库逻辑 (加固排重) ---
-  const handleOpenSaveToModal = (targets) => {
+  const handleOpenSaveToModal = async (targets) => {
+    await fetchPersonalResources(); // 实时同步个人分类列表
+    
     // 排重检查
     const alreadySaved = targets.filter(t => personalArticles.some(p => p.title === t.title));
     if (alreadySaved.length === targets.length) {
@@ -360,7 +404,11 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await axios.post(getApiUrl('/upload'), formData);
+        const res = await axios.post(getApiUrl('/upload?bizType=knowledge'), formData, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
         if (res.data.url) uploaded.push({ name: file.name, url: res.data.url, type: file.type, size: file.size });
       }
       setArticleFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...uploaded] }));
@@ -400,7 +448,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       const finalUrl = getAttachmentUrl(f.url);
       
       // 仅保留浏览器能直接显示的格式
-      const directlyPreviewable = ['pdf','jpg','jpeg','png','gif','mp4','webm','ogg','mp3','wav','txt','md'];
+      const directlyPreviewable = ['pdf','jpg','jpeg','png','gif','webp','mp4','webm','ogg','mp3','wav','txt','md'];
       
       if (directlyPreviewable.includes(ext)) {
         setPreviewData({ ...article, url: finalUrl, ext, mode: 'direct' });
@@ -570,7 +618,22 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-4" onClick={()=>setShowArticleModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
             <div className="p-6 border-b border-slate-50 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><FilePlus size={18} /></div><div><h3 className="font-black text-slate-800">{editingArticle?'修改内容':'新建文档'}</h3><p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest">雷犀生产力内容创作中心</p></div></div><button onClick={()=>setShowArticleModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><X size={20} /></button></div>
-            <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh]"><div className="flex bg-slate-100 p-1 rounded-xl w-fit mx-auto mb-4"><button onClick={() => setArticleFormData(p => ({...p, mode: 'text'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📝 笔记</button><button onClick={() => setArticleFormData(p => ({...p, mode: 'file'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'file' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📎 附件</button></div><input type="text" value={articleFormData.title} onChange={e=>setArticleFormData({...articleFormData, title:e.target.value})} placeholder="在此输入标题..." className="w-full px-5 py-3 bg-slate-50 border-none rounded-xl font-bold focus:ring-2 focus:ring-blue-500 text-lg" />{articleFormData.mode === 'text' ? (<textarea rows={8} value={articleFormData.content} onChange={e=>setArticleFormData({...articleFormData, content:e.target.value})} placeholder="在此编写正文内容..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-xl text-sm resize-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-medium" />) : (<div className="space-y-4"><div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); handleUpload(e.dataTransfer.files);}} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-blue-400 cursor-pointer relative bg-slate-50/50 transition-colors"><input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={e=>handleUpload(e.target.files)} /><div className="text-4xl mb-3">☁️</div><p className="text-xs font-black text-slate-500">{uploading?'正在上传...':'拖拽文件到此处'}</p></div>{articleFormData.attachments.length > 0 && (<div className="flex flex-wrap gap-2">{articleFormData.attachments.map((f, i) => (<div key={i} className="bg-blue-50 px-4 py-2 rounded-lg text-[10px] font-black text-blue-600 flex items-center gap-3 border border-blue-100 shadow-sm"><span>{f.name}</span><button onClick={()=>setArticleFormData({...articleFormData, attachments: articleFormData.attachments.filter((_,idx)=>idx!==i)})} className="hover:text-red-500 transition-colors">✕</button></div>))}</div>)}</div>)}</div>
+            <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh]"><div className="flex bg-slate-100 p-1 rounded-xl w-fit mx-auto mb-4"><button onClick={() => setArticleFormData(p => ({...p, mode: 'text'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📝 笔记</button><button onClick={() => setArticleFormData(p => ({...p, mode: 'file'}))} className={`px-6 py-2 rounded-lg text-[11px] font-black transition-all ${articleFormData.mode === 'file' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>📎 附件</button></div><input type="text" value={articleFormData.title} onChange={e=>setArticleFormData({...articleFormData, title:e.target.value})} placeholder="在此输入标题..." className="w-full px-5 py-3 bg-slate-50 border-none rounded-xl font-bold focus:ring-2 focus:ring-blue-500 text-lg" />{articleFormData.mode === 'text' ? (<textarea rows={8} value={articleFormData.content} onChange={e=>setArticleFormData({...articleFormData, content:e.target.value})} placeholder="在此编写正文内容..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-xl text-sm resize-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-medium" />) : (<div className="space-y-4"><div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); handleUpload(e.dataTransfer.files);}} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-blue-400 cursor-pointer relative bg-slate-50/50 transition-colors"><input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={e=>handleUpload(e.target.files)} /><div className="text-4xl mb-3">☁️</div><p className="text-xs font-black text-slate-500">{uploading?'正在上传...':'拖拽文件到此处'}</p></div>{articleFormData.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {articleFormData.attachments.map((f, i) => {
+                          const isImg = f.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name);
+                          return (
+                            <div key={i} className="bg-blue-50 p-2 rounded-lg text-[10px] font-black text-blue-600 flex items-center gap-3 border border-blue-100 shadow-sm group">
+                              {isImg && f.url && (
+                                <img src={getAttachmentUrl(f.url)} className="w-8 h-8 object-cover rounded-md shadow-sm border border-white" alt="" />
+                              )}
+                              <span className="max-w-[120px] truncate">{f.name}</span>
+                              <button onClick={()=>setArticleFormData({...articleFormData, attachments: articleFormData.attachments.filter((_,idx)=>idx!==i)})} className="hover:text-red-500 transition-colors w-5 h-5 flex items-center justify-center bg-white/50 rounded-full">✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}</div>)}</div>
             <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex justify-end gap-3"><button onClick={handleSaveArticle} className="px-12 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-100 transition-all active:scale-95">确认保存</button></div>
           </div>
         </div>
@@ -587,39 +650,108 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       )}
 
       {previewData && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex flex-col animate-in fade-in duration-300" onClick={() => setPreviewData(null)}>
-          <header className="p-6 flex justify-between items-center text-white"><div className="flex items-center gap-4"><div><h2 className="text-xl font-black">{previewData.title}</h2><p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-0.5">雷犀预览引擎 v3.0</p></div></div><button onClick={()=>setPreviewData(null)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-xl hover:bg-white/10 transition-all">✕</button></header>
-          <div className="flex-1 bg-white/5 mx-6 mb-6 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center" onClick={e=>e.stopPropagation()}>
-            {previewData.mode === 'office' ? (
-              <div className="w-full h-full flex flex-col">
-                <div className="bg-emerald-500/10 px-4 py-2 text-[10px] text-emerald-200 font-bold flex justify-between items-center">
-                  <span>🚀 正在通过高性能云引擎预览 Office 文档...</span>
-                  <a href={getAttachmentUrl(parseAttachments(previewData.attachments)[0]?.url)} download className="underline">下载原文件</a>
-                </div>
-                <iframe src={previewData.url} className="w-full h-full border-none bg-white" />
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[5000] flex flex-col animate-in fade-in duration-500" onClick={() => setPreviewData(null)}>
+          {/* --- 旗舰级玻璃拟态顶栏 --- */}
+          <header className="px-8 py-6 flex justify-between items-center bg-white/5 border-b border-white/10 backdrop-blur-md sticky top-0 z-[5001]">
+            <div className="flex items-center gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                {previewData.ext === 'pdf' ? <FilePlus className="text-white" size={28} /> : <Archive className="text-white" size={28} />}
               </div>
-            ) : previewData.url ? (
-              previewData.ext === 'pdf' ? (
-                <iframe src={previewData.url} className="w-full h-full border-none bg-white" title="PDF预览" />
-              ) : ['jpg','jpeg','png','gif'].includes(previewData.ext) ? (
-                <img src={previewData.url} className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-500" alt={previewData.title} />
-              ) : ['mp4', 'webm', 'ogg'].includes(previewData.ext) ? (
-                <video src={previewData.url} controls className="max-w-full max-h-full" />
-              ) : ['mp3', 'wav'].includes(previewData.ext) ? (
-                <audio src={previewData.url} controls className="w-96" />
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-md">
+                  {previewData.title}
+                </h2>
+                <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.1em]">
+                  <span className="px-2 py-0.5 bg-blue-500 text-white rounded-md">{previewData.ext || 'NOTE'}</span>
+                  <span className="text-white/40 flex items-center gap-1.5"><Clock size={12} /> {formatDate(previewData.created_at)}</span>
+                  <span className="text-white/40 flex items-center gap-1.5"><Users size={12} /> {previewData.owner_name || '雷犀系统'}</span>
+                  <span className="text-emerald-400 flex items-center gap-1.5"><ShieldCheck size={12} /> 安全预览中</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {previewData.url && (
+                <a 
+                  href={previewData.url} 
+                  download 
+                  onClick={e => e.stopPropagation()}
+                  className="h-12 px-6 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center gap-2 font-black text-xs transition-all border border-white/10 active:scale-95 shadow-xl"
+                >
+                  <Download size={16} /> 极速下载原件
+                </a>
+              )}
+              <button 
+                onClick={()=>setPreviewData(null)} 
+                className="w-12 h-12 flex items-center justify-center rounded-xl bg-rose-500 hover:bg-rose-600 text-white transition-all shadow-lg shadow-rose-500/20 active:scale-90"
+              >
+                <X size={24} />
+              </button>
+            </div>
+          </header>
+
+          {/* --- 内容渲染核心区 --- */}
+          <main className="flex-1 overflow-hidden flex items-center justify-center p-8" onClick={e => e.stopPropagation()}>
+            <div className="w-full h-full max-w-7xl bg-white/5 rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex items-center justify-center relative group">
+              {previewData.mode === 'office' ? (
+                <div className="w-full h-full flex flex-col">
+                  <div className="bg-emerald-500/20 px-4 py-2 text-[10px] text-emerald-200 font-bold flex justify-between items-center backdrop-blur-md">
+                    <span className="flex items-center gap-2"><TrendingUp size={12} /> 正在通过雷犀高性能云引擎加载 Office 文档...</span>
+                  </div>
+                  <iframe src={previewData.url} className="w-full h-full border-none bg-white shadow-inner" />
+                </div>
+              ) : previewData.url ? (
+                previewData.ext === 'pdf' ? (
+                  <iframe src={previewData.url} className="w-full h-full border-none bg-white rounded-2xl shadow-2xl" title="PDF预览" />
+                ) : ['jpg','jpeg','png','gif','webp'].includes(previewData.ext) ? (
+                  <div className="relative w-full h-full flex items-center justify-center p-4">
+                    <img src={previewData.url} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-700" alt={previewData.title} />
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <div className="bg-black/60 backdrop-blur-xl px-6 py-3 rounded-full text-white text-[10px] font-black border border-white/10">
+                          滚动滚轮可缩放查看细节 · 点击背景退出
+                       </div>
+                    </div>
+                  </div>
+                ) : ['mp4', 'webm', 'ogg'].includes(previewData.ext) ? (
+                  <video src={previewData.url} controls className="max-w-full max-h-full rounded-2xl shadow-2xl shadow-blue-500/10" />
+                ) : ['mp3', 'wav'].includes(previewData.ext) ? (
+                  <div className="bg-white/10 p-12 rounded-3xl backdrop-blur-2xl border border-white/20 flex flex-col items-center gap-6">
+                    <div className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center animate-pulse"><Users className="text-white" size={40} /></div>
+                    <audio src={previewData.url} controls className="w-80" />
+                  </div>
+                ) : (
+                  <div className="text-white text-center p-20">
+                    <div className="text-8xl mb-8 opacity-50 drop-shadow-2xl">📦</div>
+                    <p className="font-black mb-8 text-3xl tracking-tight">该文件类型不支持在线预览</p>
+                    <a href={previewData.url} download className="px-12 py-4 bg-blue-600 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/30 inline-flex items-center gap-3 active:scale-95 transition-all hover:bg-blue-700">
+                      <Download size={24} /> 下载原始文件
+                    </a>
+                  </div>
+                )
               ) : (
-                <div className="text-white text-center">
-                  <div className="text-6xl mb-6">📦</div>
-                  <p className="font-black mb-6 text-xl">该文件类型不支持在线预览</p>
-                  <a href={previewData.url} download className="px-10 py-3 bg-blue-600 rounded-xl font-black shadow-lg shadow-blue-100 inline-block active:scale-95 transition-all hover:bg-blue-700">下载原始文件</a>
+                <div className="w-full h-full p-16 overflow-y-auto bg-slate-900/50 custom-scrollbar">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="mb-12 pb-8 border-b border-white/10">
+                       <h1 className="text-4xl font-black text-white mb-4 leading-tight">{previewData.title}</h1>
+                       <div className="flex items-center gap-4 text-white/40 text-xs font-bold">
+                          <span>知识库笔记</span>
+                          <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                          <span>{previewData.owner_name}</span>
+                       </div>
+                    </div>
+                    <div className="text-white/90 whitespace-pre-wrap leading-loose text-lg font-medium selection:bg-blue-500 selection:text-white">
+                      {previewData.content || '暂无正文内容'}
+                    </div>
+                  </div>
                 </div>
-              )
-            ) : (
-              <div className="w-full h-full p-16 overflow-y-auto prose prose-invert max-w-4xl mx-auto text-white whitespace-pre-wrap leading-relaxed text-lg font-medium">
-                {previewData.content || '暂无正文内容'}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </main>
+
+          {/* --- 底部控制条 --- */}
+          <footer className="px-8 py-4 flex justify-center bg-transparent border-t border-white/5">
+             <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em]">LeiXi Flagship Preview Engine v3.2 Premium Edition</p>
+          </footer>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 /**
  * 资产流程定义页面 (黑白视觉最终打磨版)
- * 
+ *
  * 优化重点：
  * 1. 弹窗底部按钮对齐：极致黑白对比，统一圆角与高度。
  * 2. 交互反馈强化：优化悬浮态与点击态的视觉变化。
@@ -8,24 +8,24 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Tag, 
-  Button, 
-  Modal, 
-  Form, 
-  Input, 
-  Switch, 
-  Select, 
-  Space, 
+import {
+  Table,
+  Tag,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Switch,
+  Select,
+  Space,
   Typography,
   Divider,
   Empty
 } from 'antd';
-import { 
-  SyncOutlined, 
-  PlusOutlined, 
-  SettingOutlined, 
+import {
+  SyncOutlined,
+  PlusOutlined,
+  SettingOutlined,
   SearchOutlined,
   ReloadOutlined,
   MenuOutlined,
@@ -40,26 +40,27 @@ import { toast } from 'sonner';
 const { Text } = Typography;
 const { Option } = Select;
 
-// --- 样式组件：标准黑底白字按钮 ---
-const BlackButton = ({ children, icon, className = '', ...props }) => (
-  <Button 
-    className={`bg-black hover:bg-slate-800 border-none rounded-lg h-10 px-8 flex items-center justify-center transition-all shadow-lg shadow-slate-200 ${className}`}
-    style={{ color: '#ffffff' }}
-    icon={icon}
-    {...props}
+// --- 样式组件：标准黑底白字按钮（原生 button，避免 AntD hover 样式干扰）---
+const BlackButton = ({ children, icon, className = '', onClick, disabled }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`bg-black hover:bg-slate-800 active:bg-slate-900 border-none rounded-lg h-10 px-8 flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-200 text-white font-bold tracking-wide text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
   >
+    {icon && <span className="flex items-center text-white">{icon}</span>}
     <span className="font-bold text-white tracking-wide">{children}</span>
-  </Button>
+  </button>
 );
 
-// --- 样式组件：标准次要按钮 ---
-const SecondaryButton = ({ children, ...props }) => (
-  <Button 
-    className="bg-white hover:bg-slate-50 border-slate-300 rounded-lg h-10 px-8 font-bold text-slate-600 transition-all"
-    {...props}
+// --- 样式组件：标准次要按钮（原生 button）---
+const SecondaryButton = ({ children, onClick, disabled }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className="bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg h-10 px-8 font-bold text-slate-600 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
   >
     {children}
-  </Button>
+  </button>
 );
 
 const WorkflowSettings = () => {
@@ -70,7 +71,7 @@ const WorkflowSettings = () => {
   const [currentWorkflow, setCurrentWorkflow] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [searchText, setSearchText] = useState('');
-  
+
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -166,10 +167,10 @@ const WorkflowSettings = () => {
 
   const saveNodes = async () => {
     try {
-      const payload = nodes.map((n, idx) => ({ 
+      const payload = nodes.map((n, idx) => ({
         node_name: n.node_name,
         approver_type: n.approver_type,
-        node_order: idx + 1 
+        node_order: idx + 1
       }));
       const res = await api.post(`/approval-workflow/${currentWorkflow.id}/nodes`, { nodes: payload });
       if (res.data.success) {
@@ -233,8 +234,8 @@ const WorkflowSettings = () => {
         <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-sm border border-[#64748b]">
           <div className="flex-1 flex items-center h-[44px] px-4">
             <SearchOutlined className="text-slate-400 mr-3" />
-            <Input 
-              placeholder="搜索模型名称或关键字..." 
+            <Input
+              placeholder="搜索模型名称或关键字..."
               variant="borderless"
               className="h-full text-sm font-medium"
               value={searchText}
@@ -300,10 +301,10 @@ const WorkflowSettings = () => {
         centered
       >
         <div className="py-4">
-          <Button 
-            type="dashed" 
-            block 
-            icon={<PlusOutlined />} 
+          <Button
+            type="dashed"
+            block
+            icon={<PlusOutlined />}
             onClick={() => setNodes([...nodes, { dnd_id: `new-${Date.now()}`, node_name: `新节点`, approver_type: 'dept_manager' }])}
             className="h-14 rounded-xl border-slate-200 text-slate-400 font-bold hover:text-black hover:border-black mb-8 border-2"
           >
@@ -325,18 +326,18 @@ const WorkflowSettings = () => {
                             <div className="flex-1 grid grid-cols-2 gap-5">
                               <div className="flex flex-col gap-1">
                                 <Text className="text-[10px] font-black text-slate-400 uppercase">环节名称</Text>
-                                <Input 
-                                  value={node.node_name} 
+                                <Input
+                                  value={node.node_name}
                                   onChange={e => {
                                     const n = [...nodes]; n[index].node_name = e.target.value; setNodes(n);
                                   }}
                                   variant="borderless"
-                                  className="font-bold text-slate-800 p-0 h-8 text-base border-b border-transparent focus:border-black rounded-none" 
+                                  className="font-bold text-slate-800 p-0 h-8 text-base border-b border-transparent focus:border-black rounded-none"
                                 />
                               </div>
                               <div className="flex flex-col gap-1">
                                 <Text className="text-[10px] font-black text-slate-400 uppercase">审批人类型</Text>
-                                <Select 
+                                <Select
                                   value={node.approver_type}
                                   onChange={val => {
                                     const n = [...nodes]; n[index].approver_type = val; setNodes(n);
@@ -376,9 +377,10 @@ const WorkflowSettings = () => {
         .ant-modal-content { border-radius: 24px !important; padding: 24px !important; box-shadow: 0 20px 50px rgba(0,0,0,0.1) !important; }
         .ant-modal-header { margin-bottom: 20px !important; border-bottom: none !important; }
         .ant-modal-footer { border-top: none !important; margin-top: 20px !important; }
-        .ant-btn-primary span, .ant-btn-primary:hover span { color: #ffffff !important; }
         .ant-input:focus, .ant-input-focused { border-color: #000000 !important; box-shadow: none !important; }
         .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector { border-color: #000000 !important; box-shadow: none !important; }
+        /* 兜底：确保 dashed 按钮 hover 时文字不变白 */
+        .ant-btn-dashed:hover { color: #000000 !important; border-color: #000000 !important; background: #ffffff !important; }
       `}</style>
     </div>
   );

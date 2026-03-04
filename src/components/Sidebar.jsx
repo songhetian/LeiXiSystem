@@ -353,30 +353,30 @@ const MenuItem = ({ item, level, activeTab, setActiveTab, expandedMenus, toggleM
       case 1:
         return {
           container: 'mb-1',
-          button: `px-4 py-2 text-gray-800 hover:bg-gray-100 font-semibold rounded-lg ${
-            isActive ? 'bg-blue-50 text-blue-600' : ''
+          button: `px-4 py-2 text-gray-800 hover:bg-blue-50/50 font-semibold rounded-lg transition-all ${
+            isActive ? 'bg-blue-600/15 text-blue-700 shadow-sm ring-1 ring-blue-600/10' : ''
           }`,
           icon: 'text-base',
           text: 'text-sm',
         };
       case 2:
         return {
-          container: 'ml-4 border-l-2 border-gray-200',
-          button: `pl-4 pr-4 py-2 rounded-lg ${
+          container: 'ml-4 border-l border-slate-100',
+          button: `pl-4 pr-4 py-2 rounded-lg transition-all ${
             isActive
-              ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-500 font-medium'
-              : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+              ? 'bg-blue-600/10 text-blue-700 border-l-2 border-blue-600 font-bold shadow-sm'
+              : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
           }`,
           icon: 'text-sm',
           text: 'text-sm',
         };
       case 3:
         return {
-          container: 'ml-8 border-l-2 border-gray-200',
-          button: `pl-4 pr-4 py-1.5 rounded-lg ${
+          container: 'ml-8 border-l border-slate-100',
+          button: `pl-4 pr-4 py-1.5 rounded-lg transition-all ${
             isActive
-              ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-400 font-medium'
-              : 'text-gray-600 hover:bg-gray-50 hover:text-blue-500'
+              ? 'bg-blue-600/10 text-blue-700 border-l-2 border-blue-500 font-bold shadow-sm'
+              : 'text-slate-500 hover:bg-blue-50/50 hover:text-blue-500'
           }`,
           icon: 'text-xs',
           text: 'text-xs',
@@ -596,6 +596,16 @@ const allMenuItems = [
       { id: 'attendance-schedule', label: '智能调度中心', icon: <CalendarOutlined />, permission: 'attendance:schedule:manage' },
       { id: 'attendance-approval', label: '考勤审计配置', icon: <SafetyOutlined />, permission: 'attendance:approval:manage' },
     ],
+  },
+  {
+    id: 'knowledge',
+    label: '知识中枢',
+    icon: <BookOutlined />,
+    children: [
+      { id: 'knowledge-articles', label: '公共知识库', icon: <EyeOutlined />, permission: 'knowledge:article:view' },
+      { id: 'knowledge-base', label: '知识库管理', icon: <SettingOutlined />, permission: 'knowledge:article:manage' },
+      { id: 'my-knowledge', label: '我的知识库', icon: <StarOutlined /> },
+    ]
   },
   {
     id: 'vacation',

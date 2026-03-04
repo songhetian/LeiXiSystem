@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 
@@ -51,7 +51,7 @@ export default function ShiftManagement() {
   // 获取全局考勤设置
   const fetchGlobalSettings = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/attendance/settings'))
+      const response = await api.get('/api/attendance/settings')
       if (response.data.success) {
         setGlobalSettings(response.data.data)
       }
@@ -62,10 +62,7 @@ export default function ShiftManagement() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
-
-      const response = await axios.get(getApiUrl('/api/departments'), { headers })
+      const response = await api.get('/api/departments')
       // 部门 API 直接返回数组，不是 { success, data } 格式
       if (Array.isArray(response.data)) {
         setDepartments(response.data)
@@ -99,7 +96,7 @@ export default function ShiftManagement() {
         params.keyword = filters.keyword
       }
 
-      const response = await axios.get(getApiUrl('/api/shifts'), { params, headers })
+      const response = await api.get('/api/shifts', { params })
       if (response.data.success) {
         setShifts(response.data.data)
         setPagination(prev => ({
@@ -175,7 +172,7 @@ export default function ShiftManagement() {
 
       if (editingShift) {
         // 更新
-        const response = await axios.put(getApiUrl(`/api/shifts/${editingShift.id}`), submitData)
+        const response = await api.put(`/api/shifts/${editingShift.id}`, submitData)
         if (response.data.success) {
           toast.success('班次更新成功')
           setShowModal(false)
@@ -183,7 +180,7 @@ export default function ShiftManagement() {
         }
       } else {
         // 创建
-        const response = await axios.post(getApiUrl('/api/shifts'), submitData)
+        const response = await api.post('/api/shifts', submitData)
         if (response.data.success) {
           toast.success('班次创建成功')
           setShowModal(false)
@@ -199,7 +196,7 @@ export default function ShiftManagement() {
     if (!confirm('确定要删除这个班次吗？')) return
 
     try {
-      const response = await axios.delete(getApiUrl(`/api/shifts/${id}`))
+      const response = await api.delete(`/api/shifts/${id}`)
       if (response.data.success) {
         toast.success('班次删除成功')
         fetchShifts()
@@ -211,7 +208,7 @@ export default function ShiftManagement() {
 
   const handleToggle = async (id) => {
     try {
-      const response = await axios.post(getApiUrl(`/api/shifts/${id}/toggle`))
+      const response = await api.post(`/api/shifts/${id}/toggle`)
       if (response.data.success) {
         toast.success(response.data.message)
         fetchShifts()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatDateOnly } from '../../utils/dateUtils'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 
@@ -32,7 +32,7 @@ export default function LeaveRecords({ onNavigate }) {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const response = await api.get(`/api/employees/by-user/${userId}`)
       if (response.data.success && response.data.data) {
         setEmployee(response.data.data)
       } else {
@@ -49,7 +49,7 @@ export default function LeaveRecords({ onNavigate }) {
 
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/leave/records'), {
+      const response = await api.get('/api/leave/records', {
         params: {
           employee_id: employee.id,
           status: statusFilter,
@@ -78,7 +78,7 @@ export default function LeaveRecords({ onNavigate }) {
     if (!cancelRecordId) return
 
     try {
-      const response = await axios.post(getApiUrl(`/api/leave/records/${cancelRecordId}/cancel`))
+      const response = await api.post(`/api/leave/records/${cancelRecordId}/cancel`)
       if (response.data.success) {
         toast.success('请假申请已撤销')
         setShowCancelModal(false)

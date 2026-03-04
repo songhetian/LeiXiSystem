@@ -6,10 +6,31 @@ const { JWT_SECRET } = require('../config');
 const { extractUserPermissions, applyDepartmentFilter } = require('../middleware/checkPermission');
 const { recordLog } = require('../utils/logger');
 const { syncUserChatGroups } = require('../utils/personnelClosure');
+const { sanitizeUser, extractRelativePath, saveBase64Image } = require('../utils/pathHelper');
+const { findApprover } = require('../utils/approvalHelper');
 
 async function personnelRoutes(fastify, options) {
   const pool = fastify.mysql;
   const redis = fastify.redis;
+
+  // 获取用户审批人 (通常为部门主管)
+  fastify.get('/api/users/:userId/approver', async (request, reply) => {
+    const { userId } = request.params;
+    try {
+      // 获取用户所在的部门ID
+      const [userRows] = await pool.query('SELECT department_id FROM users WHERE id = ?', [userId]);
+      if (userRows.length === 0) return reply.code(404).send({ success: false, message: '用户不存在' });
+      
+      const departmentId = userRows[0].department_id;
+      if (!departmentId) return { success: true, data: null };
+
+      const approver = await findApprover(pool, userId, departmentId);
+      return { success: true, data: approver };
+    } catch (error) {
+      console.error('获取审批人失败:', error);
+      return reply.code(500).send({ success: false, message: '获取审批人失败' });
+    }
+  });
 
   // ==================== 客服管理 API ====================
 
@@ -375,7 +396,7 @@ async function personnelRoutes(fastify, options) {
         }, {});
 
         employeesWithDepts = rows.map(emp => ({
-          ...emp,
+          ...sanitizeUser(emp, request),
           departments: userDeptsMap[emp.user_id] || []
         }));
       }
@@ -393,9 +414,22 @@ async function personnelRoutes(fastify, options) {
 
   // 创建员工
   fastify.post('/api/employees', async (request, reply) => {
-    const { employee_no, real_name, email, phone, department_id, position, hire_date, rating, status, username: providedUsername } = request.body;
+    const { 
+      employee_no, real_name, email, phone, department_id, position, 
+      hire_date, rating, status, username: providedUsername, avatar 
+    } = request.body;
     try {
       const passwordHash = '$2b$12$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq'; 
+
+      // --- 路径自愈与兼容逻辑 ---
+      let finalAvatar = avatar;
+      if (avatar) {
+        if (avatar.startsWith('data:image')) {
+          finalAvatar = await saveBase64Image(avatar, 'avatar');
+        } else if (avatar.startsWith('http')) {
+          finalAvatar = extractRelativePath(avatar);
+        }
+      }
 
       let finalEmployeeNo = employee_no;
 
@@ -431,8 +465,8 @@ async function personnelRoutes(fastify, options) {
       }
 
       const [userResult] = await pool.query(
-        'INSERT INTO users (username, password_hash, real_name, email, phone, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [username, passwordHash, real_name, email || null, phone || null, department_id || null, 'active']
+        'INSERT INTO users (username, password_hash, real_name, email, phone, department_id, avatar, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [username, passwordHash, real_name, email || null, phone || null, department_id || null, finalAvatar || null, 'active']
       );
 
       let positionId = null;
@@ -536,9 +570,21 @@ async function personnelRoutes(fastify, options) {
       const finalDeptId = department_id ? parseInt(department_id) : null;
       const finalStatus = status || old_status || 'active';
 
+      // --- 路径自愈与兼容逻辑 ---
+      let finalAvatar = avatar;
+      if (avatar) {
+        if (avatar.startsWith('data:image')) {
+          // 处理 Base64 上传
+          finalAvatar = await saveBase64Image(avatar, 'avatar');
+        } else if (avatar.startsWith('http')) {
+          // 处理全路径还原为相对路径
+          finalAvatar = extractRelativePath(avatar);
+        }
+      }
+
       await pool.query(
         'UPDATE users SET real_name = ?, email = ?, phone = ?, department_id = ?, avatar = ?, status = ?, updated_at = NOW() WHERE id = ?',
-        [real_name, email || null, phone || null, finalDeptId, avatar || null, finalStatus, userId]
+        [real_name, email || null, phone || null, finalDeptId, finalAvatar || null, finalStatus, userId]
       );
 
       let positionId = null;
@@ -751,147 +797,6 @@ async function personnelRoutes(fastify, options) {
       console.error(error);
       reply.code(500).send({ error: '恢复员工失败' });
     }
-  });
-
-  // 批量导入员工
-  fastify.post('/api/employees/batch-import', async (request, reply) => {
-    const { employees } = request.body;
-
-    if (!employees || !Array.isArray(employees) || employees.length === 0) {
-      return reply.code(400).send({
-        success: false,
-        message: '请提供员工数据'
-      });
-    }
-
-    let successCount = 0;
-    let failCount = 0;
-    const errors = [];
-
-    for (const emp of employees) {
-      try {
-        if (!emp.real_name || !emp.department_name || !emp.hire_date) {
-          errors.push(`${emp.real_name || '未知'}: 缺少必填字段`);
-          failCount++;
-          continue;
-        }
-
-        const [depts] = await pool.query('SELECT id FROM departments WHERE name = ? AND status != "deleted"', [emp.department_name]);
-        if (depts.length === 0) {
-          errors.push(`${emp.real_name}: 部门 "${emp.department_name}" 不存在`);
-          failCount++;
-          continue;
-        }
-        const departmentId = depts[0].id;
-
-        let finalEmployeeNo = null;
-        const [maxEmpRows] = await pool.query('SELECT employee_no FROM employees WHERE employee_no REGEXP "^EMP[0-9]+$" ORDER BY LENGTH(employee_no) DESC, employee_no DESC LIMIT 1');
-        if (maxEmpRows.length > 0) {
-          const currentMax = maxEmpRows[0].employee_no;
-          const numPart = parseInt(currentMax.replace(/\D/g, ''));
-          finalEmployeeNo = `EMP${String(numPart + 1).padStart(4, '0')}`;
-        } else {
-          finalEmployeeNo = 'EMP0001';
-        }
-
-        let username = emp.real_name;
-        const [existingUser] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
-        if (existingUser.length > 0) {
-          username = `${emp.real_name}_${finalEmployeeNo}`;
-        }
-
-        const [finalCheck] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
-        if (finalCheck.length > 0) {
-          username = `${username}_${Date.now().toString().slice(-4)}`;
-        }
-
-        const passwordToHash = emp.password || '123456';
-        const hashedPassword = await bcrypt.hash(passwordToHash, 10);
-
-        const formattedHireDate = emp.hire_date.split('T')[0];
-
-        const [userResult] = await pool.query(
-          `INSERT INTO users (username, password_hash, real_name, phone, department_id, status)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            username,
-            hashedPassword,
-            emp.real_name,
-            emp.phone || null,
-            departmentId,
-            'active'
-          ]
-        );
-
-        const userId = userResult.insertId;
-
-        let positionId = null;
-        if (emp.position) {
-          const [existingPositions] = await pool.query('SELECT id FROM positions WHERE name = ?', [emp.position]);
-          if (existingPositions.length > 0) {
-            positionId = existingPositions[0].id;
-          } else {
-            const [positionResult] = await pool.query(
-              'INSERT INTO positions (name, status, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-              [emp.position, 'active']
-            );
-            positionId = positionResult.insertId;
-          }
-        }
-
-        const [employeeResult] = await pool.query(
-          `INSERT INTO employees
-           (user_id, employee_no, position, position_id, hire_date, rating, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
-            userId,
-            finalEmployeeNo,
-            emp.position || null,
-            positionId,
-            formattedHireDate,
-            3, 
-            'active'
-          ]
-        );
-
-        try {
-          await pool.query(
-            `INSERT INTO employee_changes
-            (employee_id, user_id, change_type, change_date, new_department_id, new_position, reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              employeeResult.insertId,
-              userId,
-              'hire',
-              formattedHireDate,
-              departmentId,
-              emp.position || null,
-              '批量导入入职'
-            ]
-          );
-        } catch (changeError) {
-          console.error(`⚠️ 创建员工变动记录失败 (${finalEmployeeNo}):`, changeError);
-        }
-
-        successCount++;
-          } catch (error) {
-            console.error(`导入员工失败 (${emp.real_name}):`, error);
-            errors.push(`${emp.real_name}: ${error.message}`);
-            failCount++;
-          }
-        }
-
-        if (redis) {
-          const keys = await redis.keys('list:employees:default:*');
-          if (keys.length > 0) await redis.del(...keys);
-        }
-
-        return {    success: true,
-      message: `导入完成：成功 ${successCount} 名，失败 ${failCount} 名`,
-      successCount,
-      failCount,
-      errors: errors.slice(0, 10) 
-    };
   });
 
   // ==================== 员工审批 API ====================

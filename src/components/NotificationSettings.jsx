@@ -152,22 +152,22 @@ const NotificationSettings = () => {
         </div>
     ),
     children: (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-500 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/20 flex items-center justify-between">
                 <div>
-                    <span className="text-lg font-black text-slate-900">{group.title}规则审计</span>
-                    <div className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-1">{group.description}</div>
+                    <span className="text-base font-black text-slate-800">{group.title}规则审计</span>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{group.description}</div>
                 </div>
                 <button 
                     onClick={() => saveGroup(group.id)}
                     disabled={savingGroup === group.id}
-                    className="h-11 px-10 bg-indigo-600 text-white font-black rounded-lg text-xs hover:bg-indigo-700 transition-all border-[1px] border-indigo-500 shadow-lg active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                    className="h-9 px-6 bg-indigo-600 text-white font-black rounded-lg text-[11px] hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-50 whitespace-nowrap"
                 >
                     {savingGroup === group.id ? '正在保存...' : '保存配置'}
                 </button>
             </div>
             
-            <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 {Object.entries(group.items).map(([type, label]) => {
                     const setting = settings.find(s => s.event_type === type)
                     let currentRoles = setting ? (typeof setting.target_roles === 'string' ? JSON.parse(setting.target_roles) : setting.target_roles) : []
@@ -181,21 +181,21 @@ const NotificationSettings = () => {
                     });
 
                     return (
-                        <div key={type} className="flex flex-col gap-2 group">
-                            <div className="flex items-center justify-between px-1">
-                                <span className="text-[13px] font-black text-slate-700">{label}</span>
-                                <span className="text-[9px] text-slate-300 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity">{type}</span>
+                        <div key={type} className="flex flex-col gap-1.5 group">
+                            <div className="flex items-center justify-between px-0.5">
+                                <span className="text-[12px] font-bold text-slate-600">{label}</span>
+                                <span className="text-[8px] text-slate-300 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity">{type}</span>
                             </div>
                             <Select
                                 mode="multiple"
                                 placeholder="选择推送目标..."
-                                className="w-full font-black flagship-select"
+                                className="w-full font-bold flagship-select"
                                 popupClassName="custom-flagship-select-dropdown"
                                 value={currentRoles}
                                 onChange={(val) => handleRoleChange(type, val)}
                                 maxTagCount="responsive"
                                 options={roleOptions}
-                                style={{ height: '44px' }}
+                                style={{ height: '36px' }}
                             />
                         </div>
                     )
@@ -207,41 +207,44 @@ const NotificationSettings = () => {
 
   return (
     <ConfigProvider theme={{
-        token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
+        token: { colorPrimary: '#4f46e5', borderRadius: 10, controlHeight: 36, colorBorder: '#cbd5e1' },
         components: { 
             Select: { 
-                controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#64748b', colorBorderHover: '#4f46e5',
-                optionSelectedBg: '#f5f3ff', optionSelectedColor: '#4f46e5'
+                controlOutline: 'transparent', selectorBg: '#ffffff', colorBorder: '#cbd5e1', colorBorderHover: '#4f46e5',
+                optionSelectedBg: '#f5f3ff', optionSelectedColor: '#4f46e5', fontSize: 13
             },
             Tabs: {
-                titleFontSize: 15,
+                titleFontSize: 14,
                 itemSelectedColor: '#4f46e5',
                 itemHoverColor: '#4f46e5',
                 itemActiveColor: '#4f46e5',
                 inkBarColor: '#4f46e5',
-                horizontalMargin: '0 0 32px 0'
+                horizontalMargin: '0 0 20px 0'
+            },
+            Switch: {
+                controlHeight: 20
             }
         }
     }}>
-    <div className="p-8 bg-[#f8fafc] min-h-screen font-black text-left">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex flex-col mb-10">
-            <h1 className="text-xl font-black text-slate-900 tracking-tight">推送规则设置</h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">全局业务分发规则与推送偏好配置中心</p>
+    <div className="p-6 bg-[#f8fafc] min-h-screen text-left">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col mb-6">
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">推送规则设置</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">全局业务分发规则与推送偏好配置中心</p>
         </div>
 
         {/* 顶部全局开关 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
                 { label: '实时消息弹窗', desc: '新消息触发时在右上角弹出提醒', state: notificationEnabled, action: toggleNotification },
                 { label: '物理桌面推送', desc: '窗口非焦点时发送系统级通知', state: systemNotificationEnabled, action: toggleSystemNotification }
             ].map((box, i) => (
-                <div key={i} className="bg-white rounded-2xl shadow-sm border border-slate-500 p-8 flex items-center justify-between hover:border-indigo-500 transition-all group">
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center justify-between hover:border-indigo-400 transition-all group">
                     <div>
-                        <div className="text-[15px] font-black text-slate-900 uppercase tracking-tight">{box.label}</div>
-                        <div className="text-[11px] text-slate-500 font-bold mt-1">{box.desc}</div>
+                        <div className="text-sm font-black text-slate-800 tracking-tight">{box.label}</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">{box.desc}</div>
                     </div>
-                    <Switch checked={box.state} onChange={box.action} className="scale-125 ml-8" />
+                    <Switch checked={box.state} onChange={box.action} className="ml-6" />
                 </div>
             ))}
         </div>
@@ -252,13 +255,13 @@ const NotificationSettings = () => {
                 defaultActiveKey="attendance" 
                 items={tabItems} 
                 className="flagship-tabs"
-                size="large"
+                size="middle"
             />
         </div>
 
-        <div className="pt-10 text-center">
-            <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.5em] opacity-50">
-                雷犀通知分发引擎 v2.2 - 已实现在线逻辑穿透
+        <div className="pt-6 text-center">
+            <span className="text-[9px] text-slate-300 font-black uppercase tracking-[0.4em] opacity-60">
+                雷犀通知分发引擎 v2.2 - 核心通信模块
             </span>
         </div>
       </div>

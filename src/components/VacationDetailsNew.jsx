@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
-import { getApiBaseUrl } from '../utils/apiConfig'
-import { Calendar, Clock, TrendingUp, Award } from 'lucide-react'
+import api from '../api';
+import { Calendar, Clock, TrendingUp, Award, ArrowLeft, ArrowRight, RefreshCcw, Plane, Zap, Target } from 'lucide-react'
+import { ConfigProvider, Card, Select, Button, Tag, Space, Pagination, Spin, Empty } from 'antd'
 import OvertimeConversionModal from './OvertimeConversionModal'
 
 const VacationDetailsNew = () => {
@@ -24,427 +25,226 @@ const VacationDetailsNew = () => {
   const [pageSize, setPageSize] = useState(10)
   const [totalRecords, setTotalRecords] = useState(0)
 
-  // 计算总假期天数
+  // 计算假期数据
   const [totalVacationDays, setTotalVacationDays] = useState(0)
-  const [monthlyVacationDays, setMonthlyVacationDays] = useState(0) // 月视图的假期余额
+  const [monthlyVacationDays, setMonthlyVacationDays] = useState(0)
 
   useEffect(() => {
-    loadData()
-    loadConversionRules()
-  }, [selectedYear, selectedMonth, viewMode, currentPage, pageSize])
+    loadData();
+    loadConversionRules();
+  }, [selectedYear, selectedMonth, viewMode, currentPage, pageSize]);
 
   const loadConversionRules = async () => {
     try {
-      const API_BASE_URL = getApiBaseUrl()
-      const token = localStorage.getItem('token')
-
-      const response = await fetch(`${API_BASE_URL}/conversion-rules?source_type=overtime&enabled=true`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const result = await response.json()
-      if (result.success) {
-        setConversionRules(result.data)
-      }
-    } catch (error) {
-      console.error('加载转换规则失败:', error)
-    }
+      const response = await api.get('/api/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
+      if (response.data.success) setConversionRules(response.data.data);
+    } catch (e) { console.error(e); }
   }
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const API_BASE_URL = getApiBaseUrl()
-      const token = localStorage.getItem('token')
-      const user = JSON.parse(localStorage.getItem('user'))
+      const userStr = localStorage.getItem('user')
+      if (!userStr) return;
+      const user = JSON.parse(userStr)
 
-      // 获取员工信息
-      const empResponse = await fetch(`${API_BASE_URL}/employees/by-user/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const empData = await empResponse.json()
-      if (!empData.success) {
-        toast.error(empData.message)
-        return
-      }
-      setEmployee(empData.data)
+      // 1. 获取员工信息
+      const empRes = await api.get(`/api/employees/by-user/${user.id}`)
+      if (!empRes.data.success) return;
+      const emp = empRes.data.data
+      setEmployee(emp)
 
-      // 获取所有假期类型
-      const typesResponse = await fetch(`${API_BASE_URL}/vacation-types`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const typesData = await typesResponse.json()
-      if (typesData.success) {
-        // 过滤掉调休类型
-        const filteredTypes = typesData.data.filter(type => type.code !== 'compensatory')
-        setVacationTypes(filteredTypes)
+      // 2. 并行获取假务资产数据
+      const [typesRes, balanceRes, overtimeRes, conversionRes] = await Promise.all([
+        api.get('/api/vacation-types'),
+        api.get(`/api/vacation/type-balances/${emp.id}`, { params: { year: selectedYear } }),
+        api.get('/api/overtime/stats', { params: { employee_id: emp.id } }),
+        api.get(`/api/vacation/conversion-balance/${emp.id}`)
+      ]);
+
+      if (typesRes.data.success) setVacationTypes(typesRes.data.data.filter(t => t.code !== 'compensatory'));
+      
+      let baseBalance = 0;
+      if (balanceRes.data.success) {
+        const filtered = (balanceRes.data.data.balances || []).filter(b => b.type_code !== 'compensatory');
+        setVacationBalances(filtered);
+        baseBalance = filtered.reduce((sum, b) => sum + parseFloat(b.remaining || 0), 0);
       }
 
-      // 获取员工所有假期类型余额
-      const balanceResponse = await fetch(
-        `${API_BASE_URL}/vacation/type-balances/${empData.data.id}?year=${selectedYear}`,
-        {
-          headers: {
-          'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-      const balanceData = await balanceResponse.json()
-      if (balanceData.success) {
-        // 过滤掉调休类型
-        const filteredBalances = balanceData.data.balances.filter(balance =>
-          balance.type_code !== 'compensatory'
-        )
-        setVacationBalances(filteredBalances)
-
-        // 计算总假期天数
-        const totalBalance = filteredBalances.reduce((sum, balance) => sum + parseFloat(balance.remaining || 0), 0)
-        setTotalVacationDays(totalBalance)
+      if (overtimeRes.data.success) setOvertimeStats(overtimeRes.data.data);
+      
+      let convBalance = 0;
+      if (conversionRes.data.success) {
+        setConversionBalance(conversionRes.data.data);
+        convBalance = parseFloat(conversionRes.data.data.remaining_days || 0);
       }
+      setTotalVacationDays(baseBalance + convBalance);
 
-      // 获取月度假期余额（从节假日配置表中获取）
+      // 3. 获取月度额度 (仅月度模式)
       if (viewMode === 'month') {
-        // 获取指定年月的节假日配置
-        const holidaysResponse = await fetch(
-          `${API_BASE_URL}/holidays?year=${selectedYear}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          }
-        )
-        const holidaysData = await holidaysResponse.json()
-        if (holidaysData.success) {
-          // 过滤出指定月份的数据并计算总天数
-          const monthlyHolidays = holidaysData.data.filter(holiday =>
-            parseInt(holiday.month) === selectedMonth
-          )
-          const monthlyTotal = monthlyHolidays.reduce((sum, holiday) => sum + parseFloat(holiday.days || 0), 0)
-          setMonthlyVacationDays(monthlyTotal)
+        const holidayRes = await api.get('/api/holidays', { params: { year: selectedYear } });
+        if (holidayRes.data.success) {
+          const mTotal = (holidayRes.data.data || [])
+            .filter(h => parseInt(h.month) === selectedMonth)
+            .reduce((sum, h) => sum + parseFloat(h.days || 0), 0);
+          setMonthlyVacationDays(mTotal);
         }
       }
 
-      // 获取请假记录（带分页），只获取已批准的记录
-      // 根据视图模式决定是否过滤月份
-      let leaveApiUrl = `${API_BASE_URL}/leave/records?employee_id=${empData.data.id}&status=approved&page=${currentPage}&limit=${pageSize}`
-
-      const leaveResponse = await fetch(leaveApiUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const leaveData = await leaveResponse.json()
-      if (leaveData.success) {
-        let filteredRecords = leaveData.data
-
-        // 如果是月视图，只显示当前选中月份的记录
-        if (viewMode === 'month') {
-          filteredRecords = leaveData.data.filter(record => {
-            const recordDate = new Date(record.start_date)
-            return recordDate.getFullYear() === selectedYear &&
-                   recordDate.getMonth() + 1 === selectedMonth
-          })
-        }
-
-        setLeaveRecords(filteredRecords)
-        setTotalRecords(leaveData.pagination?.total || 0)
+      // 4. 获取历史核销明细
+      const leaveRes = await api.get('/api/leave/records', {
+        params: { employee_id: emp.id, status: 'approved', page: currentPage, limit: pageSize }
+      });
+      if (leaveRes.data.success) {
+        setLeaveRecords(leaveRes.data.data || []);
+        setTotalRecords(leaveRes.data.pagination?.total || 0);
       }
 
-      // 获取加班统计
-      const overtimeResponse = await fetch(
-        `${API_BASE_URL}/overtime/stats?employee_id=${empData.data.id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-      const overtimeData = await overtimeResponse.json()
-      if (overtimeData.success) {
-        setOvertimeStats(overtimeData.data)
-      }
-
-      // 获取转换假期余额
-      const conversionResponse = await fetch(
-        `${API_BASE_URL}/vacation/conversion-balance/${empData.data.id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-      const conversionData = await conversionResponse.json()
-      if (conversionData.success) {
-        setConversionBalance(conversionData.data)
-        // 更新总假期天数，加上转换假期
-        setTotalVacationDays(prev => prev + parseFloat(conversionData.data.remaining_days || 0))
-      }
-
-    } catch (error) {
-      console.error('加载数据失败:', error)
-      toast.error('加载数据失败')
-    } finally {
-      setLoading(false)
-    }
+    } catch (error) { 
+      console.error('Vacation Load Failed:', error);
+      toast.error('假期资产数据同步失败');
+    } finally { setLoading(false) }
   }
 
-  const StatCard = ({ title, value, subtitle, icon: Icon, color }) => (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 text-gray-600 text-sm mb-2">
-            {Icon && <Icon size={16} />}
-            <span>{title}</span>
-          </div>
-          <div className={`text-3xl font-bold mb-1 ${color}`}>
-            {value}
-          </div>
-          <div className="text-sm text-gray-500">{subtitle}</div>
-        </div>
-      </div>
-    </div>
-  )
+  const handlePageChange = (p) => setCurrentPage(p);
 
   const handleConvertOvertime = () => {
-    setConversionModalVisible(true)
+    if (!overtimeStats || overtimeStats.remaining_hours < 1) return toast.info('当前暂无足够的加班时长可供转换');
+    setConversionModalVisible(true);
   }
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
-
-  // 获取默认选中的加班假类型
   const getDefaultOvertimeLeaveType = () => {
-    return vacationTypes.find(type => type.code === 'overtime_leave') || null
+    const type = vacationTypes.find(t => t.code === 'compensatory');
+    return type ? type.id : (vacationTypes[0]?.id || null);
   }
 
-  if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center">
-        <div className="text-gray-500">加载中...</div>
-      </div>
-    )
-  }
+  if (loading && !employee) return <div className="p-20 text-center text-slate-400 font-black uppercase tracking-widest animate-pulse">正在从物理库拉取假期资产...</div>
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      {/* 页面标题 */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-primary-100 rounded-xl">
-              <Calendar className="text-primary-600" size={32} />
+    <ConfigProvider theme={{
+        token: { colorPrimary: '#4f46e5', borderRadius: 10, controlHeight: 36, colorBorder: '#cbd5e1' }
+    }}>
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+      
+      {/* 1. 物理缝合控制台 */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3 pl-4">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                <Calendar size={20} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">假期明细</h1>
-              <p className="text-sm text-gray-600 mt-1">查看您的假期余额和使用情况</p>
+                <h1 className="text-base font-black text-slate-900 tracking-tight">个人假期审计报告</h1>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">权益额度与使用明细核销</p>
             </div>
-          </div>
+        </div>
 
-          {/* 视图切换 */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setViewMode('year')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                viewMode === 'year'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              年度视图
-            </button>
-            <button
-              onClick={() => setViewMode('month')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                viewMode === 'month'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              月度视图
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+            <div className="flex bg-slate-50 rounded-lg border border-slate-100 p-0.5 h-[36px]">
+                <button onClick={() => { setViewMode('year'); setCurrentPage(1); }} className={`px-4 text-[11px] font-black rounded-md transition-all ${viewMode === 'year' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>年度视图</button>
+                <button onClick={() => { setViewMode('month'); setCurrentPage(1); }} className={`px-4 text-[11px] font-black rounded-md transition-all ${viewMode === 'month' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>月度视图</button>
+            </div>
+
+            <div className="flex items-center bg-slate-50 rounded-lg border border-slate-100 overflow-hidden h-[36px]">
+                <Select variant="borderless" className="w-24 font-black text-xs" value={selectedYear} onChange={setSelectedYear}
+                    options={[0, 1, 2].map(i => { const y = new Date().getFullYear() - 1 + i; return { value: y, label: `${y}年` }; })} />
+                {viewMode === 'month' && (
+                    <Select variant="borderless" className="w-20 font-black text-xs border-l border-slate-100" value={selectedMonth} onChange={setSelectedMonth}
+                        options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `${i + 1}月` }))} />
+                )}
+            </div>
+            <button onClick={loadData} className="h-9 w-9 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg hover:bg-white transition-all ml-1 text-slate-400 hover:text-indigo-600 mr-2"><RefreshCcw size={16}/></button>
         </div>
       </div>
 
-      {/* 时间选择器 */}
-      <div className="mb-6 flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm">
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-            <option key={year} value={year}>{year}年</option>
-          ))}
-        </select>
-
-        {viewMode === 'month' && (
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-              <option key={month} value={month}>{month}月</option>
-            ))}
-          </select>
-        )}
+      {/* 2. 核心权益看板 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+            { 
+                label: viewMode === 'month' ? '月度可用额度' : '当前总余额', 
+                value: viewMode === 'month' ? monthlyVacationDays.toFixed(1) : totalVacationDays.toFixed(1),
+                unit: '天', color: 'blue', icon: <Award size={18}/>,
+                desc: viewMode === 'month' ? '当月法定假期额度' : '基础假期 + 加班转换'
+            },
+            { 
+                label: '已转换假期', 
+                value: Number(conversionBalance?.remaining_days ?? 0).toFixed(1), 
+                unit: '天', color: 'purple', icon: <Zap size={18}/>,
+                desc: `累计核销转换 ${Number(conversionBalance?.total_converted_days ?? 0).toFixed(1)} 天`
+            },
+            { 
+                label: '加班时长待转', 
+                value: Number(overtimeStats?.remaining_hours ?? 0).toFixed(1), 
+                unit: 'h', color: 'orange', icon: <Clock size={18}/>,
+                action: <button onClick={handleConvertOvertime} className="text-[9px] bg-indigo-600 text-white px-2 py-0.5 rounded shadow-sm hover:bg-indigo-700 transition-all ml-2 font-black uppercase">一键转换</button>,
+                desc: '未进行假务核销的加班时长'
+            },
+            { 
+                label: '本周期已休假', 
+                value: totalRecords, 
+                unit: '次', color: 'emerald', icon: <TrendingUp size={18}/>,
+                desc: '本年度审核通过的记录数'
+            }
+        ].map((s, i) => (
+            <div key={i} className={`bg-white border border-slate-200 p-5 rounded-2xl shadow-sm group transition-all hover:border-${s.color}-400`}>
+                <div className="flex items-center justify-between mb-3">
+                    <div className={`w-9 h-9 rounded-xl bg-${s.color}-50 text-${s.color}-600 flex items-center justify-center`}>{s.icon}</div>
+                    <div className="flex items-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</span>
+                        {s.action}
+                    </div>
+                </div>
+                <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-slate-900 leading-none">{s.value}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">{s.unit}</span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-50 text-[9px] font-bold text-slate-400 truncate">{s.desc}</div>
+            </div>
+        ))}
       </div>
 
-      {/* 总假期天数统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title={viewMode === 'month' ? `${selectedYear}年${selectedMonth}月假期余额` : "总假期余额"}
-          value={
-            viewMode === 'month'
-              ? monthlyVacationDays.toFixed(1)
-              : (() => {
-                  const converted = Number(conversionBalance?.remaining_days ?? 0);
-                  const total = totalVacationDays;
-                  const base = Math.max(0, total - converted);
-                  return `${base.toFixed(1)} + ${converted.toFixed(1)}`;
-                })()
-          }
-          subtitle={viewMode === 'month' ? `${selectedYear}年${selectedMonth}月可用假期` : "基础假期 + 转换假期"}
-          icon={Award}
-          color="text-blue-600"
-        />
-
-        <StatCard
-          title="转换假期余额"
-          value={Number(conversionBalance?.remaining_days ?? 0).toFixed(1)}
-          subtitle={`已转换 ${Number(conversionBalance?.total_converted_days ?? 0).toFixed(1)} 天`}
-          icon={Award}
-          color="text-purple-600"
-        />
-
-        <StatCard
-          title="加班时长"
-          value={Number(overtimeStats?.remaining_hours ?? 0).toFixed(1)}
-          subtitle={
-            <div className="flex items-center gap-2">
-              <span>可转换假期</span>
-              <button
-                onClick={handleConvertOvertime}
-                className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
-              >
-                转换
-              </button>
-            </div>
-          }
-          icon={Clock}
-          color="text-orange-600"
-        />
-
-        <StatCard
-          title="已使用假期"
-          value={leaveRecords.length}
-          subtitle={`${viewMode === 'month' ? `${selectedYear}年${selectedMonth}月` : selectedYear + '年'}请假记录数`}
-          icon={TrendingUp}
-          color="text-green-600"
-        />
-      </div>
-
-      {/* 使用明细列表（年视图和月视图共用） */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">
-          {viewMode === 'month' ? `${selectedYear}年${selectedMonth}月使用明细` : `${selectedYear}年使用明细`}
-        </h2>
-        <div className="space-y-3">
-          {leaveRecords.map(record => {
-            // 查找对应的假期类型名称
-            const type = vacationTypes.find(t => t.code === `${record.leave_type}_leave`) ||
-                        vacationTypes.find(t => t.code === record.leave_type) ||
-                        { name: record.leave_type === 'annual' ? '年假' : record.leave_type === 'sick' ? '病假' : record.leave_type }
-
-            return (
-              <div key={record.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className={`
-                    w-2 h-12 rounded-full
-                    ${record.leave_type === 'annual' ? 'bg-blue-500' : ''}
-                    ${record.leave_type === 'sick' ? 'bg-orange-500' : ''}
-                    ${record.leave_type === 'overtime_leave' ? 'bg-purple-500' : ''}
-                  `}></div>
-                  <div>
-                    <div className="font-semibold text-gray-800">
-                      {type.name} - {record.days} 天
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {formatDate(record.start_date)} 至 {formatDate(record.end_date)}
-                      {record.used_conversion_days > 0 && (
-                        <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                          含转换假期 {record.used_conversion_days} 天
-                        </span>
-                      )}
-                    </div>
-                    {record.reason && (
-                      <div className="text-sm text-gray-500 mt-1">理由: {record.reason}</div>
-                    )}
-                  </div>
+      {/* 3. 使用明细审计列表 */}
+      <Card 
+        className="rounded-2xl border-slate-200 shadow-sm overflow-hidden" 
+        styles={{ header: { padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '0' } }}
+        title={<div className="flex items-center gap-2 text-xs font-black text-slate-700"><Plane size={14} className="text-blue-600"/><span>历史假期核销审计明细</span></div>}
+      >
+        <div className="overflow-hidden min-h-[200px]">
+            {loading ? <div className="py-20 text-center"><Spin size="small"/></div> : leaveRecords.length === 0 ? (
+                <div className="py-16 text-center text-slate-300 font-bold text-xs uppercase tracking-widest">暂无匹配的假务核销记录</div>
+            ) : (
+                <div className="divide-y divide-slate-50">
+                    {leaveRecords.map(record => {
+                        const type = vacationTypes.find(t => t.code === record.leave_type) || { name: record.leave_type === 'annual' ? '年假' : (record.leave_type === 'sick' ? '病假' : '其它') }
+                        return (
+                            <div key={record.id} className="p-4 px-6 hover:bg-slate-50 transition-all flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-1 h-8 rounded-full ${record.leave_type === 'annual' ? 'bg-blue-500' : (record.leave_type === 'sick' ? 'bg-rose-500' : 'bg-purple-500')}`}></div>
+                                    <div>
+                                        <div className="text-sm font-black text-slate-800">{type.name} <span className="text-[10px] text-slate-400 font-bold ml-2">#{record.days}天</span></div>
+                                        <div className="text-[11px] font-bold text-slate-400 mt-0.5">{formatDate(record.start_date)} → {formatDate(record.end_date)}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                    {record.used_conversion_days > 0 && <Tag className="m-0 border-none bg-purple-50 text-purple-600 font-black text-[9px] px-2 rounded-full">含转换假 {record.used_conversion_days}天</Tag>}
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black text-slate-900 uppercase">AUDIT PASSED</div>
+                                        <div className="text-[9px] font-bold text-slate-300">{formatDate(record.created_at)} 存档</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
-                <div className="text-sm text-gray-500">
-                  {formatDate(record.created_at)}
-                </div>
-              </div>
-            )
-          })}
-
-          {leaveRecords.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              {viewMode === 'month' ? `${selectedYear}年${selectedMonth}月` : selectedYear + '年'}暂无请假记录
-            </div>
-          )}
+            )}
         </div>
-
-        {/* 分页控件 */}
-        {totalRecords > 0 && (
-          <div className="flex items-center justify-between mt-6">
-            <div className="text-sm text-gray-600">
-              显示第 {(currentPage - 1) * pageSize + 1} 到 {Math.min(currentPage * pageSize, totalRecords)} 条记录，共 {totalRecords} 条记录
+        {totalRecords > pageSize && (
+            <div className="p-4 px-6 border-t border-slate-50 bg-slate-50/30 flex justify-end">
+                <Pagination size="small" current={currentPage} pageSize={pageSize} total={totalRecords} onChange={handlePageChange} showSizeChanger={false} />
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
-              >
-                上一页
-              </button>
-
-              {/* 页码按钮 */}
-              {Array.from({ length: Math.min(5, Math.ceil(totalRecords / pageSize)) }, (_, i) => {
-                const pageNum = i + 1
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`px-3 py-1 rounded ${currentPage === pageNum ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
-
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage * pageSize >= totalRecords}
-                className={`px-3 py-1 rounded ${currentPage * pageSize >= totalRecords ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
-              >
-                下一页
-              </button>
-            </div>
-          </div>
         )}
-      </div>
+      </Card>
 
-      {/* 加班转换模态框 */}
+      {/* 4. 加班转换审计模态框 */}
       {employee && conversionModalVisible && (
         <OvertimeConversionModal
           visible={conversionModalVisible}
@@ -457,6 +257,7 @@ const VacationDetailsNew = () => {
         />
       )}
     </div>
+    </ConfigProvider>
   )
 }
 

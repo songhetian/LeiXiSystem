@@ -21,9 +21,12 @@ export async function loadRuntimeConfig() {
       const response = await fetch('/config.json');
       if (response.ok) {
         cachedConfig = await response.json();
-        // 将加载到的配置存入 localStorage 供同步函数 getApiBaseUrl 使用
-        if (cachedConfig && cachedConfig.apiBaseUrl) {
-          localStorage.setItem('runtime_api_base_url', cachedConfig.apiBaseUrl);
+        // 将整个配置对象存入 localStorage，以便同步函数使用
+        if (cachedConfig) {
+          localStorage.setItem('runtime_config', JSON.stringify(cachedConfig));
+          if (cachedConfig.apiBaseUrl) {
+            localStorage.setItem('runtime_api_base_url', cachedConfig.apiBaseUrl);
+          }
         }
         return cachedConfig;
       }
@@ -114,17 +117,17 @@ export async function getApiBaseUrlAsync() {
 export const getApiUrl = (path) => {
   const baseUrl = getApiBaseUrl();
   let cleanPath = path;
-  
+
   // 如果path已经包含/api，则移除baseUrl中的/api
   if (path.startsWith('/api/')) {
     return baseUrl.replace(/\/api$/, '') + path;
   }
-  
+
   // 确保 path 以 / 开头
   if (!path.startsWith('/')) {
     cleanPath = '/' + path;
   }
-  
+
   return baseUrl + cleanPath;
 }
 
@@ -134,15 +137,15 @@ export const getApiUrl = (path) => {
 export async function getApiUrlAsync(path) {
   const baseUrl = await getApiBaseUrlAsync();
   let cleanPath = path;
-  
+
   if (path.startsWith('/api/')) {
     return baseUrl.replace(/\/api$/, '') + path;
   }
-  
+
   if (!path.startsWith('/')) {
     cleanPath = '/' + path;
   }
-  
+
   return baseUrl + cleanPath;
 }
 
@@ -179,22 +182,75 @@ export const getWsBaseUrl = () => {
  */
 export const getFileUrl = (path) => {
   if (!path) return '';
-  
-  // 如果是绝对地址、Base64 或已经包含协议，直接返回
-  if (
-    path.startsWith('http://') || 
-    path.startsWith('https://') || 
-    path.startsWith('data:') ||
-    path.startsWith('blob:')
-  ) {
+
+  let finalPath = path;
+
+  // 1. 如果是完整 URL，检查是否指向旧的本地服务器
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // 如果包含 localhost 或 127.0.0.1，说明是老数据，剥离它并尝试转换为 OSS
+    if (path.includes('localhost:') || path.includes('127.0.0.1:')) {
+      try {
+        const url = new URL(path);
+        finalPath = url.pathname; // 获取路径部分，如 /uploads/avatar/xxx.png
+      } catch (e) {
+        // 解析失败则尝试粗暴截断
+        finalPath = path.substring(path.indexOf('/', 8));
+      }
+    } else {
+      // 指向外部（如已经是 OSS 或其他地址），直接返回
+      return path;
+    }
+  } else if (path.startsWith('data:') || path.startsWith('blob:')) {
     return path;
   }
-  
+
   // 确保路径以 / 开头
-  const cleanPath = path.startsWith('/') ? path : '/' + path;
-  
-  // 获取基础 URL (不带 /api)
+  let cleanPath = finalPath.startsWith('/') ? finalPath : '/' + finalPath;
+
+  // 2. 获取 OSS 配置
+  let ossBucket = null;
+  let ossRegion = null;
+  let ossDomain = null;
+
+  try {
+    const savedConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('runtime_config') : null;
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      ossBucket = config.ossBucket;
+      ossRegion = config.ossRegion;
+      ossDomain = config.ossDomain;
+    }
+  } catch (e) {}
+
+  // 兜底使用环境变量
+  ossBucket = ossBucket || import.meta.env.VITE_OSS_BUCKET;
+  ossRegion = ossRegion || import.meta.env.VITE_OSS_REGION;
+  ossDomain = ossDomain || import.meta.env.VITE_OSS_CUSTOM_DOMAIN;
+
+  // 验证有效性（防止 "undefined" 字符串干扰）
+  const isValid = (val) => val && val !== 'undefined' && val !== 'null';
+
+  if (isValid(ossBucket) && isValid(ossRegion)) {
+    // 强制清理 /uploads/ 前缀（针对 OSS）
+    if (cleanPath.startsWith('/uploads/')) {
+        cleanPath = cleanPath.substring(8);
+    }
+
+    if (isValid(ossDomain)) {
+      const domain = ossDomain.replace(/\/$/, '');
+      const finalDomain = domain.startsWith('http') ? domain : `https://${domain}`;
+      return `${finalDomain}${cleanPath}`;
+    }
+    return `https://${ossBucket}.${ossRegion}.aliyuncs.com${cleanPath}`;
+  }
+
+  // 3. Fallback: 本地服务器逻辑
   const wsBase = getWsBaseUrl();
+
+  if (!cleanPath.startsWith('/uploads/') && !cleanPath.startsWith('/api/')) {
+    cleanPath = '/uploads' + cleanPath;
+  }
+
   return `${wsBase}${cleanPath}`;
 }
 

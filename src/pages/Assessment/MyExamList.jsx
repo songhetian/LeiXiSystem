@@ -22,7 +22,7 @@ const MyExamList = () => {
   const fetchMyExams = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/my-exams', {
+      const response = await api.get('/my-exams', {
         params: {
           status: filters.status,
         }
@@ -79,7 +79,7 @@ const MyExamList = () => {
   const handleStartExam = async (planId) => {
     setLoading(true);
     try {
-      const response = await api.post('/api/assessment-results/start', { plan_id: planId });
+      const response = await api.post('/assessment-results/start', { plan_id: planId });
       message.success('考试已开始');
       navigate(`/assessment/take-exam/${response.data.data.result_id}`);
     } catch (error) {

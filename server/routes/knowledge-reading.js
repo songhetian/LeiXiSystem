@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 module.exports = async function (fastify, opts) {
   const pool = fastify.mysql;
   const redis = fastify.redis;
-  const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+  const { JWT_SECRET } = require('../config');
 
   const getUserFromRequest = async (request, reply) => {
     try {

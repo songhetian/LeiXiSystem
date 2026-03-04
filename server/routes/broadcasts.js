@@ -265,7 +265,6 @@ module.exports = async function (fastify, opts) {
     try {
       const user = getUserFromToken(request)
       const { page = 1, limit = 20, isRead, type, startDate, endDate } = request.query
-      console.log('DEBUG: Filter params received:', { page, limit, isRead, type, startDate, endDate });
 
       const offset = (page - 1) * limit
 

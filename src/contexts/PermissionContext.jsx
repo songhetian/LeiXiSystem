@@ -16,24 +16,28 @@ export const PermissionProvider = ({ children }) => {
     }
 
     try {
-      const response = await fetch(getApiUrl('/api/users/permissions'), {
+      // 统一使用最新的 auth 路由
+      const response = await fetch(getApiUrl('/api/auth/permissions'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       const data = await response.json();
+      
       if (data.success) {
-        setPermissions(data.permissions || []);
-        // 同时更新localStorage中的权限数据
-        localStorage.setItem('permissions', JSON.stringify(data.permissions || []));
+        // --- 容错处理：支持 data.permissions 或直接 permissions 格式 ---
+        const codes = data.permissions || data.data?.permissions || [];
+        setPermissions(codes);
+        localStorage.setItem('permissions', JSON.stringify(codes));
       } else {
-        setPermissions([]);
-        localStorage.removeItem('permissions');
+        throw new Error(data.message || '获取失败');
       }
     } catch (error) {
-      console.error('Failed to fetch permissions:', error);
-      setPermissions([]);
-      localStorage.removeItem('permissions');
+      console.error('权限同步异常:', error);
+      // 降级：尝试从本地缓存读取
+      const saved = localStorage.getItem('permissions');
+      if (saved) setPermissions(JSON.parse(saved));
+      else setPermissions([]);
     } finally {
       setLoading(false);
     }

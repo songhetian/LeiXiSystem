@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 import { motion } from 'framer-motion'
@@ -70,7 +70,7 @@ export default function OvertimeApply() {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const response = await api.get(`/api/employees/by-user/${userId}`)
       if (response.data.success && response.data.data) {
         setEmployee(response.data.data)
       } else {
@@ -84,7 +84,7 @@ export default function OvertimeApply() {
 
   const fetchApprover = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/users/${userId}/approver`))
+      const response = await api.get(`/api/users/${userId}/approver`)
       if (response.data.success) {
         setApprover(response.data.data)
       }
@@ -126,7 +126,7 @@ export default function OvertimeApply() {
       const start_time = `${formData.overtime_date} ${formData.start_time}:00`
       const end_time = `${formData.overtime_date} ${formData.end_time}:00`
 
-      const response = await axios.post(getApiUrl('/api/overtime/apply'), {
+      const response = await api.post('/api/overtime/apply', {
         employee_id: employee.id,
         user_id: employee.user_id,
         overtime_date: formData.overtime_date,

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Select, Button, Tag, Space, Tooltip, Modal } from 'antd';
+import { Card, Table, Input, Select, Button, Tag, Space, Tooltip, Modal, ConfigProvider } from 'antd';
 import { SearchOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { Users, Filter, Calendar, RefreshCcw, FileSearch } from 'lucide-react';
 import { toast } from 'sonner';
-import { getApiBaseUrl } from '../utils/apiConfig';
+import api from '../api';
 import VacationDetailModal from './VacationDetailModal';
 
 const { Option } = Select;
@@ -11,13 +12,10 @@ const VacationSummary = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [vacationTypes, setVacationTypes] = useState([]);
-  const [filters, setFilters] = useState(() => {
-    return {
-      department_id: undefined,
-      search: '',
-      year: new Date().getFullYear()
-    };
+  const [filters, setFilters] = useState({
+    department_id: undefined,
+    search: '',
+    year: new Date().getFullYear()
   });
   const [pagination, setPagination] = useState({
     current: 1,
@@ -31,84 +29,48 @@ const VacationSummary = () => {
 
   useEffect(() => {
     loadDepartments();
-    loadVacationTypes();
   }, []);
 
   useEffect(() => {
     loadData();
-  }, [filters, pagination.current, pagination.pageSize]);
+  }, [filters.department_id, filters.year, pagination.current, pagination.pageSize]);
+
+  // 防抖搜索
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   const loadDepartments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${getApiBaseUrl()}/departments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await response.json();
-      // 确保 ID 是数字类型
-      const depts = result.filter(d => d.status === 'active').map(d => ({
-        ...d,
-        id: parseInt(d.id)
-      }));
-      setDepartments(depts);
-    } catch (error) {
-      console.error('加载部门失败:', error);
-    }
-  };
-
-  // 调试功能：显示当前状态
-  const showDebugInfo = () => {
-    const userStr = localStorage.getItem('user');
-    alert(`Filters: ${JSON.stringify(filters)}\nUser: ${userStr}\nDepts Count: ${departments.length}`);
-  };
-
-  const loadVacationTypes = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${getApiBaseUrl()}/vacation-types`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await response.json();
-      if (result.success) {
-        setVacationTypes(result.data);
+      const response = await api.get('/api/departments/list');
+      if (response.data.success) {
+        setDepartments(response.data.data.filter(d => d.status === 'active'));
       }
-    } catch (error) {
-      console.error('加载假期类型失败:', error);
-    }
+    } catch (error) { console.error('加载部门失败:', error); }
   };
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams({
-        year: filters.year,
-        page: pagination.current,
-        limit: pagination.pageSize,
-        ...(filters.department_id && { department_id: filters.department_id }),
-        ...(filters.search && { search: filters.search })
+      const response = await api.get('/api/vacation/type-balances/all', {
+        params: {
+          year: filters.year,
+          page: pagination.current,
+          limit: pagination.pageSize,
+          department_id: filters.department_id,
+          search: filters.search
+        }
       });
 
-      const response = await fetch(`${getApiBaseUrl()}/vacation/type-balances/all?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        setData(result.data);
-        setPagination(prev => ({
-          ...prev,
-          total: result.pagination.total
-        }));
-      } else {
-        toast.error(result.message || '加载失败');
+      if (response.data.success) {
+        setData(response.data.data);
+        setPagination(prev => ({ ...prev, total: response.data.pagination?.total || 0 }));
       }
-    } catch (error) {
-      console.error('加载数据失败:', error);
-      toast.error('加载数据失败');
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { toast.error('假务数据同步失败'); }
+    finally { setLoading(false); }
   };
 
   const handleTableChange = (newPagination) => {
@@ -120,164 +82,159 @@ const VacationSummary = () => {
     setDetailModalVisible(true);
   };
 
-  // 计算汇总数据
   const getAggregatedData = (balances) => {
-    return balances.reduce((acc, curr) => ({
+    return (balances || []).reduce((acc, curr) => ({
       total: acc.total + parseFloat(curr.total || 0),
       used: acc.used + parseFloat(curr.used || 0),
       remaining: acc.remaining + parseFloat(curr.remaining || 0)
     }), { total: 0, used: 0, remaining: 0 });
   };
 
-  // 静态列定义
   const columns = [
     {
-      title: '工号',
-      dataIndex: 'employee_no',
-      key: 'employee_no',
-      width: 100,
+      title: '基本身份',
+      key: 'identity',
+      width: 180,
       fixed: 'left',
+      render: (_, r) => (
+        <div className="flex flex-col">
+            <span className="text-xs font-black text-slate-800">{r.employee_name}</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">#{r.employee_no}</span>
+        </div>
+      )
     },
     {
-      title: '姓名',
-      dataIndex: 'employee_name',
-      key: 'employee_name',
-      width: 100,
-      fixed: 'left',
-    },
-    {
-      title: '部门',
+      title: '所属部门',
       dataIndex: 'department_name',
-      key: 'department_name',
+      key: 'dept',
       width: 120,
-      fixed: 'left',
+      render: (t) => <span className="text-[11px] font-bold text-slate-500">{t}</span>
     },
     {
-      title: '总额度 (天)',
-      key: 'total_quota',
-      width: 120,
+      title: '年度总额度',
+      key: 'total',
+      width: 100,
+      align: 'center',
       render: (_, record) => {
         const stats = getAggregatedData(record.vacation_balances);
-        return <span className="font-medium">{stats.total.toFixed(1)}</span>;
+        return <span className="text-xs font-black text-slate-700">{stats.total.toFixed(1)} <span className="text-[9px] opacity-40">天</span></span>;
       }
     },
     {
-      title: '已使用 (天)',
-      key: 'total_used',
-      width: 120,
+      title: '已核销使用',
+      key: 'used',
+      width: 100,
+      align: 'center',
       render: (_, record) => {
         const stats = getAggregatedData(record.vacation_balances);
-        return <span className="text-gray-600">{stats.used.toFixed(1)}</span>;
+        return <span className="text-xs font-bold text-slate-400">{stats.used.toFixed(1)} <span className="text-[9px] opacity-40">天</span></span>;
       }
     },
     {
-      title: '剩余 (天)',
-      key: 'total_remaining',
+      title: '当前剩余余额',
+      key: 'remaining',
       width: 120,
+      align: 'center',
       render: (_, record) => {
         const stats = getAggregatedData(record.vacation_balances);
         const isLow = stats.remaining < 0;
         return (
-          <span style={{
-            color: isLow ? '#ff4d4f' : '#52c41a',
-            fontWeight: 'bold'
-          }}>
-            {stats.remaining.toFixed(1)}
+          <span className={`text-sm font-black ${isLow ? 'text-rose-500' : 'text-emerald-500'}`}>
+            {stats.remaining.toFixed(1)} <span className="text-[9px] opacity-40">天</span>
           </span>
         );
       }
     },
     {
-      title: '操作',
+      title: '管理',
       key: 'action',
       fixed: 'right',
-      width: 100,
+      width: 80,
+      align: 'center',
       render: (_, record) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewDetails(record)}
+        <button 
+            onClick={() => handleViewDetails(record)}
+            className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 flex items-center justify-center transition-all shadow-sm"
         >
-          详情
-        </Button>
+            <EyeOutlined />
+        </button>
       )
     }
   ];
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">假期汇总</h1>
-          <p className="text-gray-500">查看全员假期余额统计</p>
-        </div>
-        <Space>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={loadData}
-            loading={loading}
-          >
-            刷新
-          </Button>
-          <Button onClick={showDebugInfo} size="small" type="dashed">Debug</Button>
-        </Space>
+    <ConfigProvider theme={{
+        token: { colorPrimary: '#4f46e5', borderRadius: 10, controlHeight: 36, colorBorder: '#cbd5e1' },
+        components: { 
+            Table: { headerBg: '#f8fafc', headerColor: '#64748b', headerFontWeight: 900, fontSize: 12 }
+        }
+    }}>
+    <div className="space-y-6 animate-in fade-in duration-500 text-left font-black">
+      
+      {/* 1. 物理缝合控制台 */}
+      <div className="flex flex-wrap items-center gap-3 w-full bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center bg-slate-50 rounded-lg border border-slate-100 overflow-hidden h-[36px]">
+            <div className="px-3 h-full border-r border-slate-100 flex items-center gap-2 bg-slate-100/50">
+                <Calendar size={14} className="text-slate-400" />
+            </div>
+            <Select 
+                value={filters.year} 
+                onChange={val => setFilters({ ...filters, year: val })}
+                className="w-24 !border-none flagship-select h-full"
+                bordered={false}
+                options={[0, 1, 2].map(i => {
+                    const y = new Date().getFullYear() - 1 + i;
+                    return { value: y, label: `${y}年` };
+                })}
+            />
+          </div>
+
+          <div className="flex items-center bg-slate-50 rounded-lg border border-slate-100 overflow-hidden h-[36px]">
+            <div className="px-3 h-full border-r border-slate-100 flex items-center gap-2 bg-slate-100/50">
+                <Users size={14} className="text-slate-400" />
+            </div>
+            <Select 
+                placeholder="全部部门"
+                allowClear
+                value={filters.department_id} 
+                onChange={val => setFilters({ ...filters, department_id: val })}
+                className="w-40 !border-none flagship-select h-full"
+                bordered={false}
+                options={departments.map(d => ({ label: d.name, value: d.id }))}
+            />
+          </div>
+
+          <div className="flex-1 flex items-center bg-slate-50 rounded-lg border border-slate-100 px-3 h-[36px] min-w-[150px]">
+            <SearchOutlined className="text-slate-300 mr-2" />
+            <input 
+                placeholder="搜索姓名或工号..." 
+                className="w-full bg-transparent outline-none text-[11px] font-black placeholder:text-slate-300"
+                value={filters.search}
+                onChange={e => setFilters({ ...filters, search: e.target.value })}
+            />
+          </div>
+
+          <button onClick={loadData} className="h-9 w-9 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg hover:bg-white transition-all ml-1 text-slate-400 hover:text-indigo-600"><RefreshCcw size={16}/></button>
       </div>
 
-      <Card className="mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Select
-            placeholder="选择年份"
-            value={filters.year}
-            onChange={val => setFilters({ ...filters, year: val })}
-            className="w-full"
-          >
-            {[0, 1, 2].map(i => {
-              const y = new Date().getFullYear() - 1 + i;
-              return <Option key={y} value={y}>{y}年</Option>;
-            })}
-          </Select>
-
-          <Select
-            placeholder="选择部门"
-            allowClear
-            value={filters.department_id}
-            onChange={val => setFilters({ ...filters, department_id: val })}
-            className="w-full"
-          >
-            <Option value={undefined}>全部部门</Option>
-            {departments.map(d => (
-              <Option key={d.id} value={d.id}>{d.name}</Option>
-            ))}
-          </Select>
-
-          <Input
-            placeholder="搜索姓名/工号"
-            prefix={<SearchOutlined />}
-            value={filters.search}
-            onChange={e => setFilters({ ...filters, search: e.target.value })}
-            onPressEnter={loadData}
-            className="w-full"
-          />
-
-          <Button type="primary" onClick={loadData}>查询</Button>
-        </div>
-      </Card>
-
-      <Card styles={{ body: { padding: 0 } }}>
+      {/* 2. 数据表格区 */}
+      <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
         <Table
           columns={columns}
           dataSource={data}
           rowKey="employee_id"
           pagination={{
-            ...pagination,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
             showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条`
+            size: 'small',
+            showTotal: (total) => <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Audit Records: {total}</span>,
+            onChange: (page, pageSize) => setPagination({ current: page, pageSize })
           }}
           loading={loading}
-          onChange={handleTableChange}
           scroll={{ x: 'max-content' }}
-          size="middle"
+          className="flagship-table"
         />
       </Card>
 
@@ -293,6 +250,7 @@ const VacationSummary = () => {
         />
       )}
     </div>
+    </ConfigProvider>
   );
 };
 

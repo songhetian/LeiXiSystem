@@ -16,7 +16,7 @@ import {
     Activity,
     Target
 } from 'lucide-react';
-import { ConfigProvider, Select, Tooltip, Card, Spin } from 'antd';
+import { ConfigProvider, Select, Tooltip, Card, Spin, message } from 'antd';
 import { 
     ResponsiveContainer, 
     PieChart, 
@@ -107,51 +107,51 @@ function AttendanceStats() {
 
   return (
     <ConfigProvider theme={{
-        token: { colorPrimary: '#4f46e5', borderRadius: 12, controlHeight: 44, colorBorder: '#64748b' }
+        token: { colorPrimary: '#4f46e5', borderRadius: 12, controlHeight: 36, colorBorder: '#cbd5e1' }
     }}>
-    <div className="space-y-8 animate-in fade-in duration-500 text-left font-black">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       
       {/* 1. 效能月份控制台 */}
-      <div className="bg-white border border-slate-500 rounded-3xl shadow-sm overflow-hidden">
-        <div className="px-10 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-200">
-                    <Activity size={24} />
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                    <Activity size={20} />
                 </div>
                 <div>
-                    <h1 className="text-xl font-black text-slate-900 tracking-tight">我的职场效能报告</h1>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">个人月度出勤表现汇总</p>
+                    <h1 className="text-base font-black text-slate-900 tracking-tight">职场效能报告</h1>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">月度出勤表现汇总</p>
                 </div>
             </div>
-            <div className="flex items-center gap-3">
-                <button onClick={() => handleMonthChange(-1)} className="p-2.5 rounded-xl border border-slate-300 hover:border-slate-900 transition-all"><ArrowLeft size={18}/></button>
-                <div className="px-6 py-2 bg-slate-900 text-white rounded-xl text-lg font-black min-w-[160px] text-center">
+            <div className="flex items-center gap-2">
+                <button onClick={() => handleMonthChange(-1)} className="p-2 rounded-lg border border-slate-200 hover:border-indigo-500 transition-all text-slate-400 hover:text-indigo-600"><ArrowLeft size={16}/></button>
+                <div className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-black min-w-[120px] text-center shadow-md">
                     {selectedMonth.year}年 {selectedMonth.month}月
                 </div>
                 <button 
                     onClick={() => handleMonthChange(1)} 
-                    className={`p-2.5 rounded-xl border border-slate-300 transition-all ${
+                    className={`p-2 rounded-lg border border-slate-200 transition-all ${
                         (selectedMonth.year === new Date().getFullYear() && selectedMonth.month === new Date().getMonth() + 1)
                         ? 'opacity-20 cursor-not-allowed'
-                        : 'hover:border-slate-900'
+                        : 'hover:border-indigo-500 text-slate-400 hover:text-indigo-600'
                     }`}
                 >
-                    <ArrowRight size={18}/>
+                    <ArrowRight size={16}/>
                 </button>
-                <button onClick={fetchMonthlyReport} className="h-11 w-11 flex items-center justify-center bg-slate-50 border border-slate-300 rounded-xl hover:bg-white transition-all ml-2"><RefreshCcw size={18}/></button>
+                <button onClick={fetchMonthlyReport} className="h-9 w-9 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg hover:bg-white transition-all ml-1 text-slate-400 hover:text-indigo-600"><RefreshCcw size={16}/></button>
             </div>
         </div>
       </div>
 
       {!report ? (
-        <Card className="rounded-3xl border-slate-500 p-20 text-center text-slate-400 font-black">该月效能数据尚未同步完成</Card>
+        <Card className="rounded-2xl border-slate-200 p-12 text-center text-slate-400 font-bold text-sm">该月效能数据尚未同步完成</Card>
       ) : (
         <>
           {/* 2. 效能看板：可视化与核心指标 */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* 可视化环形图 */}
-            <Card className="rounded-3xl border-slate-500 shadow-sm" title={<span className="text-[11px] uppercase tracking-widest text-slate-400">出勤比例分布</span>}>
-                <div className="h-[280px] w-full">
+            <Card className="rounded-2xl border-slate-200 shadow-sm" styles={{ header: { padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '24px' } }} title={<span className="text-xs font-black uppercase tracking-widest text-slate-400">月度出勤比例分布</span>}>
+                <div className="h-[260px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
@@ -167,12 +167,12 @@ function AttendanceStats() {
                                 ))}
                             </Pie>
                             <RechartsTooltip 
-                                contentStyle={{ borderRadius: '12px', border: '1px solid #64748b', fontWeight: 900 }}
+                                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 900, fontSize: '13px' }}
                             />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="grid grid-cols-2 gap-3 mt-2">
                     {pieData.map((d, i) => (
                         <div key={i} className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-lg border border-slate-100">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }}></div>
@@ -182,26 +182,25 @@ function AttendanceStats() {
                 </div>
             </Card>
 
-            {/* 核心效能指标 - 多彩透明风格 */}
-            <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 核心效能指标 - 三列布局 (移除积分参考) */}
+            <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                    { label: '本月出勤天数', value: report.attendance.clock_in_days, unit: '天', color: 'emerald', icon: <CheckCircle2 size={24}/>, desc: '较上月增长 2.1%' },
-                    { label: '累计工作时长', value: report.attendance.total_work_hours.toFixed(1), unit: '小时', color: 'indigo', icon: <Clock size={24}/>, desc: '平均每日 8.2h' },
-                    { label: '异常告警次数', value: report.attendance.late_days + report.attendance.early_days, unit: '次', color: 'rose', icon: <Timer size={24}/>, desc: '包含迟到与早退' },
-                    { label: '职场积分参考', value: '98.5', unit: '分', color: 'amber', icon: <Target size={24}/>, desc: '当前绩效评级：优' }
+                    { label: '本月出勤天数', value: report.attendance.clock_in_days, unit: '天', color: 'emerald', icon: <CheckCircle2 size={24}/>, desc: '数据已实时同步' },
+                    { label: '累计工作时长', value: report.attendance.total_work_hours.toFixed(1), unit: '小时', color: 'indigo', icon: <Clock size={24}/>, desc: '平均每日计薪工时' },
+                    { label: '异常告警次数', value: report.attendance.late_days + report.attendance.early_days, unit: '次', color: 'rose', icon: <Timer size={24}/>, desc: '包含迟到与早退记录' }
                 ].map((s, i) => (
-                    <div key={i} className={`bg-${s.color}-500/10 border border-${s.color}-500/30 p-8 rounded-3xl flex flex-col justify-between group transition-all hover:scale-[1.02]`}>
-                        <div className="flex items-start justify-between">
-                            <div className={`w-14 h-14 rounded-2xl bg-${s.color}-500/20 text-${s.color}-600 flex items-center justify-center border border-${s.color}-500/20`}>
+                    <div key={i} className={`bg-${s.color}-500/[0.06] border border-${s.color}-500/20 p-8 rounded-2xl flex flex-col justify-between group transition-all hover:bg-${s.color}-500/[0.08] shadow-sm`}>
+                        <div className="flex flex-col gap-6">
+                            <div className={`w-12 h-12 rounded-xl bg-white shadow-md text-${s.color}-600 flex items-center justify-center border border-${s.color}-50`}>
                                 {s.icon}
                             </div>
-                            <div className="text-right">
-                                <p className={`text-[11px] font-black text-${s.color}-700 uppercase tracking-widest`}>{s.label}</p>
-                                <h2 className={`text-4xl font-black text-${s.color}-900 mt-1`}>{s.value}<span className="text-sm ml-1 opacity-60">{s.unit}</span></h2>
+                            <div>
+                                <p className={`text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1`}>{s.label}</p>
+                                <h2 className={`text-4xl font-black text-slate-900 leading-none`}>{s.value}<span className="text-sm ml-1 opacity-40 font-bold">{s.unit}</span></h2>
                             </div>
                         </div>
-                        <div className={`mt-6 pt-4 border-t border-${s.color}-500/10 flex items-center gap-2 text-[10px] font-black text-${s.color}-600`}>
-                            <TrendingUp size={12}/> {s.desc}
+                        <div className={`mt-8 pt-4 border-t border-${s.color}-500/10 flex items-center gap-2 text-[10px] font-black text-slate-400`}>
+                            <TrendingUp size={12} className={`text-${s.color}-500`}/> {s.desc}
                         </div>
                     </div>
                 ))}
@@ -209,46 +208,46 @@ function AttendanceStats() {
           </div>
 
           {/* 3. 业务分类详情区 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <Card className="rounded-3xl border-slate-500 shadow-sm" title={<div className="flex items-center gap-2"><Plane size={16} className="text-blue-600"/><span>请假统计汇总</span></div>}>
-                <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="rounded-2xl border-slate-200 shadow-sm" styles={{ header: { padding: '12px 20px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '20px' } }} title={<div className="flex items-center gap-2 text-xs font-black text-slate-700"><Plane size={14} className="text-blue-600"/><span>请假统计汇总</span></div>}>
+                <div className="space-y-3">
                     {[
                         { label: '年假累计', value: report.leave.annual || 0, color: 'blue' },
                         { label: '病假累计', value: report.leave.sick || 0, color: 'rose' },
                         { label: '事假累计', value: report.leave.personal || 0, color: 'amber' }
                     ].map((l, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <span className="text-[13px] font-black text-slate-600">{l.label}</span>
-                            <span className={`text-lg font-black text-${l.color}-600`}>{l.value} <span className="text-[10px]">天</span></span>
+                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100">
+                            <span className="text-[11px] font-bold text-slate-500">{l.label}</span>
+                            <span className={`text-base font-black text-slate-800`}>{l.value} <span className="text-[9px] text-slate-400 font-bold">天</span></span>
                         </div>
                     ))}
                 </div>
             </Card>
 
-            <Card className="rounded-3xl border-slate-500 shadow-sm" title={<div className="flex items-center gap-2"><TrendingUp size={16} className="text-purple-600"/><span>加班明细汇总</span></div>}>
-                <div className="flex flex-col items-center justify-center py-6">
-                    <div className="text-5xl font-black text-purple-600 mb-2">{report.overtime.total_hours.toFixed(1)}<span className="text-sm font-bold text-slate-400 ml-1">h</span></div>
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">本月累计加班时长</p>
+            <Card className="rounded-2xl border-slate-200 shadow-sm" styles={{ header: { padding: '12px 20px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '20px' } }} title={<div className="flex items-center gap-2 text-xs font-black text-slate-700"><TrendingUp size={14} className="text-purple-600"/><span>加班明细汇总</span></div>}>
+                <div className="flex flex-col items-center justify-center py-4">
+                    <div className="text-4xl font-black text-purple-600 mb-1">{report.overtime.total_hours.toFixed(1)}<span className="text-xs font-bold text-slate-400 ml-0.5">h</span></div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">月度累计加班</p>
                 </div>
-                <div className="h-px bg-slate-100 my-4"></div>
-                <div className="flex justify-between px-4">
+                <div className="h-px bg-slate-50 my-3"></div>
+                <div className="flex justify-between px-2">
                     <div className="text-center">
-                        <div className="text-xl font-black text-slate-900">{report.overtime.count}</div>
-                        <div className="text-[9px] font-black text-slate-400 uppercase">累计次数</div>
+                        <div className="text-base font-black text-slate-800">{report.overtime.count}</div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase">累计次数</div>
                     </div>
                     <div className="text-center">
-                        <div className="text-xl font-black text-slate-900">{(report.overtime.total_hours / (report.overtime.count || 1)).toFixed(1)}</div>
-                        <div className="text-[9px] font-black text-slate-400 uppercase">平均时长/次</div>
+                        <div className="text-base font-black text-slate-800">{(report.overtime.total_hours / (report.overtime.count || 1)).toFixed(1)}</div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase">平均时长</div>
                     </div>
                 </div>
             </Card>
 
-            <Card className="rounded-3xl border-slate-500 shadow-sm" title={<div className="flex items-center gap-2"><RefreshCcw size={16} className="text-emerald-600"/><span>异常补卡明细</span></div>}>
-                <div className="flex flex-col items-center justify-center py-6">
-                    <div className="text-5xl font-black text-emerald-600 mb-2">{report.attendance.makeup_count || 0}<span className="text-sm font-bold text-slate-400 ml-1">次</span></div>
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">本月异常修正记录</p>
+            <Card className="rounded-2xl border-slate-200 shadow-sm" styles={{ header: { padding: '12px 20px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '20px' } }} title={<div className="flex items-center gap-2 text-xs font-black text-slate-700"><RefreshCcw size={14} className="text-emerald-600"/><span>异常补卡明细</span></div>}>
+                <div className="flex flex-col items-center justify-center py-4">
+                    <div className="text-4xl font-black text-emerald-600 mb-1">{report.attendance.makeup_count || 0}<span className="text-xs font-bold text-slate-400 ml-0.5">次</span></div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">异常修正记录</p>
                 </div>
-                <button className="w-full mt-6 h-11 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-black transition-all">查看补卡历史记录</button>
+                <button className="w-full mt-4 h-9 bg-slate-900 text-white rounded-lg font-black text-[10px] hover:bg-black transition-all shadow-md active:scale-95">历史记录检索</button>
             </Card>
           </div>
         </>

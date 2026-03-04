@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 import { motion } from 'framer-motion'
@@ -46,7 +46,7 @@ export default function MakeupApply() {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const res = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const res = await api.get(`/api/employees/by-user/${userId}`)
       if (res.data.success && res.data.data) {
         setEmployee(res.data.data)
       } else {
@@ -59,7 +59,7 @@ export default function MakeupApply() {
 
   const fetchApprover = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/users/${userId}/approver`))
+      const response = await api.get(`/api/users/${userId}/approver`)
       if (response.data.success) {
         setApprover(response.data.data)
       }
@@ -70,7 +70,7 @@ export default function MakeupApply() {
 
   const loadRestShift = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/shifts/rest'))
+      const response = await api.get('/api/shifts/rest')
       if (response.data.success) {
         setRestShiftId(response.data.data.id)
       }
@@ -85,7 +85,7 @@ export default function MakeupApply() {
       if (!employee || !formData.record_date) return
       setCheckingSchedule(true)
       try {
-        const res = await axios.get(getApiUrl('/api/schedules'), {
+        const res = await api.get('/api/schedules', {
           params: {
             employee_id: employee.id,
             start_date: formData.record_date,
@@ -121,7 +121,7 @@ export default function MakeupApply() {
     try {
       const clock_time = `${formData.record_date} ${formData.clock_time}:00`
 
-      const response = await axios.post(getApiUrl('/api/makeup/apply'), {
+      const response = await api.post('/api/makeup/apply', {
         employee_id: employee.id,
         user_id: user?.id || employee.user_id,
         record_date: formData.record_date,

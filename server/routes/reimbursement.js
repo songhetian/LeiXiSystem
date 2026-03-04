@@ -3,6 +3,7 @@ const { sendNotificationToUser } = require('../websocket')
 const jwt = require('jsonwebtoken')
 const { JWT_SECRET } = require('../config')
 const dayjs = require('dayjs')
+const { formatFileUrl } = require('../utils/pathHelper')
 
 module.exports = async function (fastify, opts) {
   // 核心：统一数据库连接池引用，增加全局兜底
@@ -104,7 +105,19 @@ module.exports = async function (fastify, opts) {
 
       // 启动工作流
       const workflowEngine = require('../utils/workflowEngine')
-      const workflowResult = await workflowEngine.startWorkflow(dbPool, 'reimbursement', reimbursementId, user_id)
+      let workflowResult;
+      try {
+        workflowResult = await workflowEngine.startWorkflow(dbPool, 'reimbursement', reimbursementId, user_id)
+      } catch (wfError) {
+        // 如果是审批人配置问题，返回友好提示
+        if (wfError.message.includes('未正确配置审批人')) {
+          return reply.code(400).send({ 
+            success: false, 
+            message: '流程启动失败：当前审批环节未配置有效的审批人，请联系管理员核查流程设置' 
+          });
+        }
+        throw wfError; // 其他错误继续抛出由外层 catch 处理
+      }
 
       // --- 通知逻辑：接入配置中心 ---
       try {
@@ -180,6 +193,14 @@ module.exports = async function (fastify, opts) {
     try {
       const [rows] = await dbPool.query(query, params)
       
+      // 路径自愈：处理申请人头像
+      const sanitizedRows = rows.map(row => {
+        if (row.applicant_avatar) {
+          row.applicant_avatar = formatFileUrl(row.applicant_avatar, request);
+        }
+        return row;
+      });
+
       // 获取总数用于分页
       let countQuery = 'SELECT COUNT(*) as total FROM reimbursements WHERE 1=1'
       const countParams = []
@@ -195,7 +216,7 @@ module.exports = async function (fastify, opts) {
 
       return {
         success: true,
-        data: rows,
+        data: sanitizedRows,
         total: countResult[0].total,
         page: parseInt(page),
         limit: parseInt(limit)
@@ -229,8 +250,8 @@ module.exports = async function (fastify, opts) {
         success: true,
         data: {
           ...reimbursement[0],
-          items,
-          attachments,
+          items: items.map(item => ({ ...item, attachment_url: formatFileUrl(item.attachment_url, request) })),
+          attachments: attachments.map(att => ({ ...att, file_url: formatFileUrl(att.file_url, request) })),
           workflow: workflowInfo
         }
       }

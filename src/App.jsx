@@ -562,7 +562,7 @@ function App() {
       case 'dashboard':
         return <Dashboard onNavigate={handleSetActiveTab} />
       case 'admin-dashboard':
-        return <AdminDashboard />
+        return <AdminDashboard onNavigate={handleSetActiveTab} />
       // 员工管理
       case 'user-employee':
         return <EmployeeManagement />

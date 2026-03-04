@@ -10,14 +10,20 @@ module.exports = async function (fastify, opts) {
     const cacheKey = `stats:attendance:monthly:${employee_id}:${year}:${month}`
 
     try {
+      if (!employee_id || !year || !month) {
+        return reply.code(400).send({ success: false, message: '缺少必要参数' });
+      }
+
       // 1. 尝试从 Redis 获取
       if (redis) {
         const cached = await redis.get(cacheKey)
         if (cached) return { success: true, data: JSON.parse(cached) }
       }
 
-      const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0]
+      // 物理对齐日期边界：使用 dayjs 确保时区一致性
+      const dayjs = require('dayjs');
+      const startDate = dayjs(`${year}-${month}-01`).format('YYYY-MM-DD');
+      const endDate = dayjs(startDate).endOf('month').format('YYYY-MM-DD');
 
       // 出勤统计
       const [attendanceStats] = await pool.query(
@@ -34,51 +40,16 @@ module.exports = async function (fastify, opts) {
         [employee_id, startDate, endDate]
       )
 
-      // 请假统计
-      const [leaveStats] = await pool.query(
-        `SELECT
-          leave_type,
-          COALESCE(SUM(days), 0) as total_days
-        FROM leave_records
-        WHERE employee_id = ? AND status = 'approved'
-        AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))
-        GROUP BY leave_type`,
-        [employee_id, startDate, endDate, startDate, endDate]
-      )
-
-      // 加班统计
-      const [overtimeStats] = await pool.query(
-        `SELECT
-          COUNT(*) as overtime_count,
-          COALESCE(SUM(hours), 0) as total_hours
-        FROM overtime_records
-        WHERE employee_id = ? AND status = 'approved'
-        AND overtime_date BETWEEN ? AND ?`,
-        [employee_id, startDate, endDate]
-      )
-
-      // 组织请假数据
-      const leaveData = {}
-      leaveStats.forEach(item => {
-        leaveData[item.leave_type] = parseFloat(item.total_days)
-      })
-
-      const finalData = {
-        period: { year, month, start_date: startDate, end_date: endDate },
-        attendance: {
-          total_days: attendanceStats[0].total_days,
-          normal_days: attendanceStats[0].normal_days,
-          late_days: attendanceStats[0].late_days,
-          early_days: attendanceStats[0].early_days,
-          absent_days: attendanceStats[0].absent_days,
-          clock_in_days: attendanceStats[0].clock_in_days,
-          total_work_hours: parseFloat(attendanceStats[0].total_work_hours)
-        },
-        leave: leaveData,
-        overtime: {
-          count: overtimeStats[0].overtime_count,
-          total_hours: parseFloat(overtimeStats[0].total_hours)
-        }
+      // 如果没有任何打卡记录，SUM 会返回 null，需进行物理兜底
+      const att = attendanceStats[0] || {};
+      const attendance = {
+        total_days: Number(att.total_days || 0),
+        normal_days: Number(att.normal_days || 0),
+        late_days: Number(att.late_days || 0),
+        early_days: Number(att.early_days || 0),
+        absent_days: Number(att.absent_days || 0),
+        clock_in_days: Number(att.clock_in_days || 0),
+        total_work_hours: parseFloat(att.total_work_hours || 0)
       };
 
       // 2. 写入 Redis (有效期 1 小时)

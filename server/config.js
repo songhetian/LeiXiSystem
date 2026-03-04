@@ -8,5 +8,15 @@ module.exports = {
   
   // 数据库与环境
   isProd: process.env.NODE_ENV === 'production',
-  PORT: process.env.PORT || 3001
+  PORT: process.env.PORT || 3001,
+
+  // 阿里云 OSS 配置
+  oss: {
+    region: process.env.OSS_REGION || 'oss-cn-hangzhou',
+    accessKeyId: process.env.OSS_ACCESS_KEY_ID,
+    accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
+    bucket: process.env.OSS_BUCKET,
+    secure: true,
+    internal: process.env.OSS_INTERNAL === 'true' // 新增：是否使用阿里云内网访问
+  }
 };

@@ -139,3 +139,44 @@ SELECT r.id, p.id
 FROM roles r, permissions p 
 WHERE r.name = '超级管理员' AND p.code = 'reimbursement:config:settings'
 AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- [2026-02-28] 数据库字段大扩容：支持阿里云 OSS 绝对路径存储
+ALTER TABLE users MODIFY COLUMN avatar VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_items MODIFY COLUMN attachment_url VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_attachments MODIFY COLUMN file_url VARCHAR(1024) NULL;
+ALTER TABLE leave_records MODIFY COLUMN attachments TEXT NULL;
+ALTER TABLE overtime_records MODIFY COLUMN attachments TEXT NULL;
+ALTER TABLE makeup_records MODIFY COLUMN attachments TEXT NULL;
+ALTER TABLE chat_messages MODIFY COLUMN file_url VARCHAR(1024) NULL;
+ALTER TABLE session_messages MODIFY COLUMN file_url VARCHAR(1024) NULL;
+
+-- [2026-02-28] 完善考勤附件体系并支持长 URL 存储
+ALTER TABLE users MODIFY COLUMN avatar VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_items MODIFY COLUMN attachment_url VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_attachments MODIFY COLUMN file_url VARCHAR(1024) NULL;
+ALTER TABLE leave_records MODIFY COLUMN attachments TEXT NULL;
+ALTER TABLE overtime_records ADD COLUMN attachments TEXT NULL;
+ALTER TABLE makeup_records ADD COLUMN attachments TEXT NULL;
+ALTER TABLE chat_messages MODIFY COLUMN file_url VARCHAR(1024) NULL;
+ALTER TABLE session_messages MODIFY COLUMN file_url VARCHAR(1024) NULL;
+
+-- [2026-02-28] 最终字段扩容：完美支持云端存储长 URL
+ALTER TABLE users MODIFY COLUMN avatar VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_items MODIFY COLUMN attachment_url VARCHAR(1024) NULL;
+ALTER TABLE reimbursement_attachments MODIFY COLUMN file_url VARCHAR(1024) NULL;
+ALTER TABLE leave_records MODIFY COLUMN attachments TEXT NULL;
+-- 修正：补全加班与补卡附件字段并扩容
+ALTER TABLE overtime_records ADD COLUMN IF NOT EXISTS attachments TEXT NULL;
+ALTER TABLE makeup_records ADD COLUMN IF NOT EXISTS attachments TEXT NULL;
+ALTER TABLE chat_messages MODIFY COLUMN file_url VARCHAR(1024) NULL;
+
+-- [2026-02-28] 注册用户个人资料查看权限并同步至超级管理员
+INSERT INTO permissions (name, code, resource, action, description, module) 
+VALUES ("查看个人资料", "user:profile:view", "user_profile", "view", "允许查看个人及员工的详细档案资料", "user")
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id 
+FROM roles r, permissions p 
+WHERE r.name = "超级管理员" AND p.code = "user:profile:view"
+AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);

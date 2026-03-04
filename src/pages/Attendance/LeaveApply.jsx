@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 import { motion } from 'framer-motion'
@@ -141,7 +141,7 @@ export default function LeaveApply() {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const response = await api.get(`/api/employees/by-user/${userId}`)
       if (response.data.success && response.data.data) {
         setEmployee(response.data.data)
         fetchBalance(response.data.data.id)
@@ -156,7 +156,7 @@ export default function LeaveApply() {
 
   const fetchApprover = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/users/${userId}/approver`))
+      const response = await api.get(`/api/users/${userId}/approver`)
       if (response.data.success) {
         setApprover(response.data.data)
       }
@@ -168,7 +168,7 @@ export default function LeaveApply() {
   const fetchBalance = async (employeeId) => {
     try {
       // 获取基础假期余额
-      const response = await axios.get(getApiUrl('/api/vacation/balance'), {
+      const response = await api.get('/api/vacation/balance', {
         params: { employee_id: employeeId }
       })
       if (response.data.success) {
@@ -176,7 +176,7 @@ export default function LeaveApply() {
       }
 
       // 获取转换假期余额
-      const conversionResponse = await axios.get(getApiUrl(`/api/vacation/conversion-balance/${employeeId}`))
+      const conversionResponse = await api.get(`/api/vacation/conversion-balance/${employeeId}`)
       if (conversionResponse.data.success) {
         setConversionBalance(conversionResponse.data.data)
       }
@@ -209,7 +209,7 @@ export default function LeaveApply() {
       const employeeId = employee.id;
       const userId = user.id;
 
-      const response = await axios.post(getApiUrl('/api/leave/apply'), {
+      const response = await api.post('/api/leave/apply', {
         employee_id: employeeId,
         user_id: userId,
         leave_type: formData.leave_type,

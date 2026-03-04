@@ -223,12 +223,28 @@ async function findNodeApprovers(pool, node, data) {
 
   // --- 关键优化：审批人为空时的兜底逻辑 ---
   if (result.length === 0) {
-    console.warn(`[Workflow] 节点 ${node.node_name} 未匹配到审批人，已自动指派至系统管理员组`);
-    // 获取所有超级管理员或名为 admin 的用户
-    const [adminUsers] = await pool.query('SELECT id FROM users WHERE username = "admin" OR role = "admin" OR role = "超级管理员"');
+    console.warn(`[Workflow] 节点 ${node.node_name} 未匹配到审批人，正在寻找系统管理员兜底`);
+    // 获取所有名为 admin 的用户，或者拥有“超级管理员”角色的用户
+    const [adminUsers] = await pool.query(`
+      SELECT DISTINCT u.id 
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      LEFT JOIN roles r ON ur.role_id = r.id
+      WHERE u.username = 'admin' 
+      OR r.name = '超级管理员' 
+      OR r.name = 'admin'
+    `);
+    
     if (adminUsers.length > 0) {
       adminUsers.forEach(admin => result.push(admin.id));
     }
+  }
+
+  // 如果依然没有任何审批人，抛出业务异常而非让 SQL 报错
+  if (result.length === 0) {
+    const error = new Error('该审批环节未正确配置审批人');
+    error.isBusinessError = true;
+    throw error;
   }
 
   return result;

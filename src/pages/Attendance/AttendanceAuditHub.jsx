@@ -66,40 +66,40 @@ const AttendanceAuditHub = () => {
 
     return (
         <ConfigProvider theme={{
-            token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 44, colorBorder: '#64748b' },
+            token: { colorPrimary: '#4f46e5', borderRadius: 12, controlHeight: 40, colorBorder: '#cbd5e1' },
             components: { 
                 Tabs: {
-                    titleFontSize: 15,
+                    titleFontSize: 14,
                     itemSelectedColor: '#4f46e5',
                     itemHoverColor: '#4f46e5',
                     itemActiveColor: '#4f46e5',
                     inkBarColor: '#4f46e5',
-                    horizontalMargin: '0 0 24px 0'
+                    horizontalMargin: '0 0 20px 0'
                 }
             }
         }}>
-        <div className="p-8 bg-[#f8fafc] min-h-screen font-black text-left">
-            <div className="max-w-[1600px] mx-auto">
-                <div className="flex flex-col mb-10">
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">考勤审计与配置</h1>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1 opacity-70">
+        <div className="p-6 bg-[#f8fafc] min-h-screen text-left">
+            <div className="max-w-[1500px] mx-auto">
+                <div className="flex flex-col mb-6">
+                    <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">考勤审计与配置</h1>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 opacity-80">
                         AUDIT & CONFIGURATION - 审批流转、部门效能与考勤逻辑定义中心
                     </p>
                 </div>
 
-                <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-500 overflow-hidden">
+                <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <Tabs 
                         activeKey={activeTab} 
                         onChange={setActiveTab}
                         items={items} 
                         className="flagship-main-tabs"
-                        size="large"
+                        size="middle"
                         destroyInactiveTabPane={false}
                     />
                 </div>
 
-                <div className="pt-12 text-center">
-                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.5em] opacity-30">
+                <div className="pt-8 text-center">
+                    <span className="text-[9px] text-slate-300 font-black uppercase tracking-[0.4em] opacity-60">
                         雷犀合规审计引擎 v2.2 - 逻辑闭环已就绪
                     </span>
                 </div>

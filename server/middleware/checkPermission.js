@@ -125,7 +125,7 @@ async function extractUserPermissions(request, pool) {
     const token = request.headers.authorization?.replace('Bearer ', '')
     if (!token) return null
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+    const { JWT_SECRET } = require('../config')
     const decoded = jwt.verify(token, JWT_SECRET)
 
     // 从 fastify 实例中获取 redis 客户端

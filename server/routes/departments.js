@@ -38,7 +38,7 @@ module.exports = async function (fastify, opts) {
       // 获取用户权限
       const permissions = await extractUserPermissions(request, pool)
 
-      let query = 'SELECT * FROM departments WHERE 1=1'
+      let query = 'SELECT * FROM departments WHERE status != "deleted"'
       const params = []
 
       // 权限控制

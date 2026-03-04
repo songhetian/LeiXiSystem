@@ -1,47 +1,35 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../../api'
 import { toast } from 'sonner';
-import { getApiUrl } from '../../utils/apiConfig'
-
+import { ConfigProvider, Button, Switch, InputNumber, Card } from 'antd'
 
 export default function AttendanceSettings() {
   const [activeTab, setActiveTab] = useState('basic')
   const [loading, setLoading] = useState(false)
   const [settings, setSettings] = useState({
-    // 时间限制
     enable_time_check: true,
     early_clock_in_minutes: 60,
     late_clock_out_minutes: 120,
-
-    // 异常规则
     late_minutes: 30,
     early_leave_minutes: 30,
     absent_hours: 4,
-
-    // 请假规则
     max_annual_leave_days: 10,
     max_sick_leave_days: 15,
     require_proof_for_sick_leave: true,
-
-    // 加班规则
     require_approval_for_overtime: true,
     min_overtime_hours: 1,
     max_overtime_hours_per_day: 4,
-
-    // 补卡规则
     allow_makeup: true,
     makeup_deadline_days: 3,
     require_approval_for_makeup: true,
-
-    // 通知设置
     notify_on_late: true,
     notify_on_early_leave: true,
     notify_on_absent: true
   })
 
   const tabs = [
-    { id: 'basic', name: '基础设置', icon: '⚙️', desc: '打卡时间和异常规则' },
-    { id: 'leave', name: '请假加班', icon: '📝', desc: '请假和加班规则' }
+    { id: 'basic', name: '基础考勤规则', icon: '⚙️', desc: '打卡时限、异常判定与补卡逻辑' },
+    { id: 'leave', name: '请假加班制度', icon: '📝', desc: '假期额度、证明要求与加班限制' }
   ]
 
   useEffect(() => {
@@ -51,7 +39,7 @@ export default function AttendanceSettings() {
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/attendance/settings'))
+      const response = await api.get('/api/attendance/settings')
       if (response.data.success) {
         setSettings({ ...settings, ...response.data.data })
       }
@@ -65,9 +53,9 @@ export default function AttendanceSettings() {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const response = await axios.post(getApiUrl('/api/attendance/settings'), settings)
+      const response = await api.post('/api/attendance/settings', settings)
       if (response.data.success) {
-        toast.success('设置保存成功')
+        toast.success('全局考勤规则已物理固化')
       }
     } catch (error) {
       toast.error('保存失败')
@@ -76,378 +64,172 @@ export default function AttendanceSettings() {
     }
   }
 
-
-
   return (
-    <div className="min-h-screen p-6 bg-gray-50">
-      {/* 头部 */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">考勤设置</h1>
-        <p className="text-gray-600 mt-1">配置打卡规则、请假和加班制度</p>
-      </div>
-
-      {/* Tab导航 - 卡片式 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <ConfigProvider theme={{
+        token: { colorPrimary: '#4f46e5', borderRadius: 10, controlHeight: 36, colorBorder: '#cbd5e1' }
+    }}>
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+      
+      {/* Tab 导航 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`p-4 rounded-lg border-2 text-left transition-all ${
+            className={`p-5 rounded-xl border transition-all flex flex-col text-left group ${
               activeTab === tab.id
-                ? 'border-blue-500 bg-blue-50 shadow-md'
-                : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow'
+                ? 'border-indigo-500 bg-indigo-50/30 shadow-sm'
+                : 'border-slate-200 bg-white hover:border-slate-300'
             }`}
           >
-            <div className="flex items-center mb-2">
-              <span className="text-2xl mr-2">{tab.icon}</span>
-              <span className={`font-semibold ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-800'}`}>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-xl opacity-80 group-hover:scale-110 transition-transform">{tab.icon}</span>
+              <span className={`text-sm font-black ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-700'}`}>
                 {tab.name}
               </span>
             </div>
-            <p className="text-sm text-gray-600">{tab.desc}</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{tab.desc}</p>
           </button>
         ))}
       </div>
 
-      {/* Tab内容 */}
-      <div className="bg-white rounded-lg shadow">{activeTab === 'basic' && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-800">基础设置</h2>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? '保存中...' : '保存设置'}
-              </button>
+      <Card 
+        className="rounded-2xl border-slate-200 shadow-sm overflow-hidden"
+        styles={{ header: { padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }, body: { padding: '24px' } }}
+        title={
+            <div className="flex justify-between items-center w-full">
+                <span className="text-sm font-black text-slate-800">{activeTab === 'basic' ? '物理打卡与补卡规则' : '请假与加班制度定义'}</span>
+                <Button 
+                    type="primary" 
+                    loading={loading} 
+                    onClick={handleSave}
+                    className="bg-slate-900 border-none font-black text-[11px] h-9 px-6 rounded-lg shadow-md"
+                >
+                    物理固化当前配置
+                </Button>
             </div>
-
+        }
+      >
+        {activeTab === 'basic' ? (
+          <div className="space-y-8">
             {/* 时间规则 */}
-            <div className="space-y-6">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">⏰ 打卡时间限制</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="enable_time_check"
-                      checked={settings.enable_time_check}
-                      onChange={(e) => setSettings({ ...settings, enable_time_check: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="enable_time_check" className="text-sm text-gray-700">
-                      启用打卡时间限制
-                    </label>
+            <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 物理打卡时间限制
+                </h3>
+                <Switch size="small" checked={settings.enable_time_check} onChange={(v) => setSettings({ ...settings, enable_time_check: v })} />
+              </div>
+              
+              {settings.enable_time_check && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-top-2">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">提前签到阈值 (分钟)</label>
+                    <InputNumber min={0} max={180} value={settings.early_clock_in_minutes} onChange={v => setSettings({...settings, early_clock_in_minutes: v})} className="w-full font-black" />
+                    <p className="text-[9px] text-slate-400 font-bold mt-2 italic ml-1"># 允许员工在班次开始前多少分钟执行签到</p>
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">延后签退限制 (分钟)</label>
+                    <InputNumber min={0} max={300} value={settings.late_clock_out_minutes} onChange={v => setSettings({...settings, late_clock_out_minutes: v})} className="w-full font-black" />
+                    <p className="text-[9px] text-slate-400 font-bold mt-2 italic ml-1"># 班次结束后多少分钟内必须完成签退物理动作</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-                  {settings.enable_time_check && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          提前打卡时间（分钟）
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="180"
-                          value={settings.early_clock_in_minutes}
-                          onChange={(e) => setSettings({ ...settings, early_clock_in_minutes: parseInt(e.target.value) })}
-                          className="w-full border rounded px-3 py-2"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">允许提前多少分钟打上班卡</p>
-                      </div>
+            {/* 异常判定 */}
+            <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+              <h3 className="text-xs font-black text-slate-700 flex items-center gap-2 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div> 考勤异常判定物理阈值
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">迟到宽限 (分钟)</label>
+                  <InputNumber min={1} value={settings.late_minutes} onChange={v => setSettings({...settings, late_minutes: v})} className="w-full font-black" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">早退阈值 (分钟)</label>
+                  <InputNumber min={1} value={settings.early_leave_minutes} onChange={v => setSettings({...settings, early_leave_minutes: v})} className="w-full font-black" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">缺勤判定 (小时)</label>
+                  <InputNumber min={1} value={settings.absent_hours} onChange={v => setSettings({...settings, absent_hours: v})} className="w-full font-black" />
+                </div>
+              </div>
+            </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          延后打卡时间（分钟）
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="300"
-                          value={settings.late_clock_out_minutes}
-                          onChange={(e) => setSettings({ ...settings, late_clock_out_minutes: parseInt(e.target.value) })}
-                          className="w-full border rounded px-3 py-2"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">允许延后多少分钟打下班卡</p>
-                      </div>
+            {/* 补卡与通知 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+                    <h3 className="text-xs font-black text-slate-700 flex items-center gap-2 mb-6">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div> 异常补卡策略
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-600">允许员工自主发起补卡申请</span>
+                            <Switch size="small" checked={settings.allow_makeup} onChange={v => setSettings({...settings, allow_makeup: v})} />
+                        </div>
+                        {settings.allow_makeup && (
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <span className="text-[11px] font-bold text-slate-600">补卡申请时限 (天)</span>
+                                <InputNumber size="small" min={1} max={30} value={settings.makeup_deadline_days} onChange={v => setSettings({...settings, makeup_deadline_days: v})} className="w-16" />
+                            </div>
+                        )}
                     </div>
-                  )}
                 </div>
-              </div>
-
-              {/* 异常规则 */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">⚠️ 异常判定规则</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      迟到阈值（分钟）
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="120"
-                      value={settings.late_minutes}
-                      onChange={(e) => setSettings({ ...settings, late_minutes: parseInt(e.target.value) })}
-                      className="w-full border rounded px-3 py-2"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">超过此时间记为迟到</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      早退阈值（分钟）
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="120"
-                      value={settings.early_leave_minutes}
-                      onChange={(e) => setSettings({ ...settings, early_leave_minutes: parseInt(e.target.value) })}
-                      className="w-full border rounded px-3 py-2"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">提前此时间下班记为早退</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      缺勤阈值（小时）
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="24"
-                      value={settings.absent_hours}
-                      onChange={(e) => setSettings({ ...settings, absent_hours: parseInt(e.target.value) })}
-                      className="w-full border rounded px-3 py-2"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">未打卡超过此时间记为缺勤</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 补卡规则 */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">🔄 补卡规则</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="allow_makeup"
-                      checked={settings.allow_makeup}
-                      onChange={(e) => setSettings({ ...settings, allow_makeup: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="allow_makeup" className="text-sm text-gray-700">
-                      允许补卡
-                    </label>
-                  </div>
-
-                  {settings.allow_makeup && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          补卡截止时间（天）
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={settings.makeup_deadline_days}
-                          onChange={(e) => setSettings({ ...settings, makeup_deadline_days: parseInt(e.target.value) })}
-                          className="w-full border rounded px-3 py-2"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">员工可以在多少天内申请补卡</p>
-                      </div>
-
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="require_approval_for_makeup"
-                          checked={settings.require_approval_for_makeup}
-                          onChange={(e) => setSettings({ ...settings, require_approval_for_makeup: e.target.checked })}
-                          className="mr-2 w-4 h-4"
-                        />
-                        <label htmlFor="require_approval_for_makeup" className="text-sm text-gray-700">
-                          补卡需要审批
-                        </label>
-                      </div>
+                <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+                    <h3 className="text-xs font-black text-slate-700 flex items-center gap-2 mb-6">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> 自动化审计通知
+                    </h3>
+                    <div className="space-y-3">
+                        {['迟到', '早退', '缺勤'].map((label, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-slate-600">{label}行为发生时即时推送</span>
+                                <Switch size="small" checked={idx === 0 ? settings.notify_on_late : (idx === 1 ? settings.notify_on_early_leave : settings.notify_on_absent)} 
+                                    onChange={v => setSettings({...settings, [idx === 0 ? 'notify_on_late' : (idx === 1 ? 'notify_on_early_leave' : 'notify_on_absent')]: v})} />
+                            </div>
+                        ))}
                     </div>
-                  )}
+                </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+              <h3 className="text-xs font-black text-slate-700 flex items-center gap-2 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 年度假期额度控制
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">标准年假上限 (天)</label>
+                  <InputNumber min={0} value={settings.max_annual_leave_days} onChange={v => setSettings({...settings, max_annual_leave_days: v})} className="w-full font-black" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">带薪病假上限 (天)</label>
+                  <InputNumber min={0} value={settings.max_sick_leave_days} onChange={v => setSettings({...settings, max_sick_leave_days: v})} className="w-full font-black" />
                 </div>
               </div>
+            </div>
 
-              {/* 通知设置 */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">🔔 通知设置</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="notify_on_late"
-                      checked={settings.notify_on_late}
-                      onChange={(e) => setSettings({ ...settings, notify_on_late: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="notify_on_late" className="text-sm text-gray-700">
-                      迟到时发送通知
-                    </label>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="notify_on_early_leave"
-                      checked={settings.notify_on_early_leave}
-                      onChange={(e) => setSettings({ ...settings, notify_on_early_leave: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="notify_on_early_leave" className="text-sm text-gray-700">
-                      早退时发送通知
-                    </label>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="notify_on_absent"
-                      checked={settings.notify_on_absent}
-                      onChange={(e) => setSettings({ ...settings, notify_on_absent: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="notify_on_absent" className="text-sm text-gray-700">
-                      缺勤时发送通知
-                    </label>
-                  </div>
+            <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100">
+              <h3 className="text-xs font-black text-slate-700 flex items-center gap-2 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div> 加班审计与限制
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">最小起算时长 (小时)</label>
+                  <InputNumber step={0.5} min={0.5} value={settings.min_overtime_hours} onChange={v => setSettings({...settings, min_overtime_hours: v})} className="w-full font-black" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">每日加班极限 (小时)</label>
+                  <InputNumber min={1} value={settings.max_overtime_hours_per_day} onChange={v => setSettings({...settings, max_overtime_hours_per_day: v})} className="w-full font-black" />
                 </div>
               </div>
             </div>
           </div>
         )}
-
-        {/* 请假加班规则 */}
-        {activeTab === 'leave' && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-800">请假加班规则</h2>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? '保存中...' : '保存设置'}
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* 请假规则 */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">📝 请假规则</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        年假天数上限
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="30"
-                        value={settings.max_annual_leave_days}
-                        onChange={(e) => setSettings({ ...settings, max_annual_leave_days: parseInt(e.target.value) })}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">每年可申请的年假天数</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        病假天数上限
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="90"
-                        value={settings.max_sick_leave_days}
-                        onChange={(e) => setSettings({ ...settings, max_sick_leave_days: parseInt(e.target.value) })}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">每年可申请的病假天数</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="require_proof_for_sick_leave"
-                      checked={settings.require_proof_for_sick_leave}
-                      onChange={(e) => setSettings({ ...settings, require_proof_for_sick_leave: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="require_proof_for_sick_leave" className="text-sm text-gray-700">
-                      病假需要提供证明（如医院证明）
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* 加班规则 */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-4">💼 加班规则</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="require_approval_for_overtime"
-                      checked={settings.require_approval_for_overtime}
-                      onChange={(e) => setSettings({ ...settings, require_approval_for_overtime: e.target.checked })}
-                      className="mr-2 w-4 h-4"
-                    />
-                    <label htmlFor="require_approval_for_overtime" className="text-sm text-gray-700">
-                      加班需要审批
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        最少加班时长（小时）
-                      </label>
-                      <input
-                        type="number"
-                        min="0.5"
-                        max="4"
-                        step="0.5"
-                        value={settings.min_overtime_hours}
-                        onChange={(e) => setSettings({ ...settings, min_overtime_hours: parseFloat(e.target.value) })}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">低于此时长不计入加班</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        每日加班上限（小时）
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="12"
-                        value={settings.max_overtime_hours_per_day}
-                        onChange={(e) => setSettings({ ...settings, max_overtime_hours_per_day: parseInt(e.target.value) })}
-                        className="w-full border rounded px-3 py-2"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">单日最多可加班时长</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      </Card>
     </div>
+    </ConfigProvider>
   )
 }

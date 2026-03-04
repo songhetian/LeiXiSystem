@@ -20,7 +20,8 @@ import {
   Divider,
   Space,
   Spin,
-  Card
+  Card,
+  Image
 } from 'antd';
 import {
   Save,
@@ -44,6 +45,8 @@ const { Text } = Typography;
 // --- 精致版发票上传器 ---
 const InvoiceUploader = ({ value, onChange }) => {
   const [loading, setLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   const handleUpload = async ({ file, onSuccess, onError }) => {
     setLoading(true);
     try {
@@ -62,9 +65,19 @@ const InvoiceUploader = ({ value, onChange }) => {
     <div className="flex items-center gap-2">
       {value ? (
         <Space size="small">
+          {/* 使用 Image 组件的预览功能，点击按钮触发 */}
+          <div style={{ display: 'none' }}>
+            <Image
+              src={getAttachmentUrl(value)}
+              preview={{
+                visible: previewOpen,
+                onVisibleChange: (visible) => setPreviewOpen(visible),
+              }}
+            />
+          </div>
           <Button 
             size="small" 
-            onClick={() => window.open(getAttachmentUrl(value), '_blank')}
+            onClick={() => setPreviewOpen(true)}
             className="text-white border-none bg-[#06AD56] hover:bg-[#059346] h-10 px-5 font-bold shadow-sm transition-all rounded-lg"
           >
             预览凭证
