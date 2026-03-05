@@ -1,0 +1,3772 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model answer_records {
+  id                 Int                @id @default(autoincrement())
+  result_id          Int
+  question_id        String             @db.VarChar(255)
+  user_answer        String?            @db.Text
+  is_correct         Boolean?
+  score              Decimal?           @db.Decimal(5, 2)
+  time_spent         Int?
+  created_at         DateTime           @default(now()) @db.DateTime(0)
+  assessment_results assessment_results @relation(fields: [result_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_answer_records_result_id")
+
+  @@unique([result_id, question_id], map: "uk_result_question")
+  @@index([is_correct], map: "idx_is_correct")
+  @@index([question_id], map: "idx_question_id")
+  @@index([result_id], map: "idx_result_id")
+  @@index([score], map: "idx_score")
+  @@index([time_spent], map: "idx_time_spent")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model approval_records {
+  id               Int                     @id @default(autoincrement())
+  reimbursement_id Int
+  node_id          Int
+  node_order       Int
+  approver_id      Int
+  action           approval_records_action
+  opinion          String?                 @db.Text
+  delegate_to_id   Int?
+  approved_at      DateTime                @default(now()) @db.DateTime(0)
+  users            users                   @relation(fields: [approver_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_records_approver")
+  reimbursements   reimbursements          @relation(fields: [reimbursement_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_records_reimbursement")
+
+  @@index([approved_at], map: "idx_approved_at")
+  @@index([approver_id], map: "idx_approver_id")
+  @@index([node_id], map: "idx_node_id")
+  @@index([reimbursement_id], map: "idx_reimbursement_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model approval_workflow_nodes {
+  id                 Int                                   @id @default(autoincrement())
+  workflow_id        Int
+  node_order         Int                                   @default(1)
+  node_name          String                                @db.VarChar(100)
+  approver_type      String                                @db.VarChar(50)
+  approver_id        Int?
+  role_id            Int?
+  special_group_id   Int?
+  custom_type_name   String?                               @db.VarChar(50)
+  approval_mode      approval_workflow_nodes_approval_mode @default(serial)
+  can_skip           Boolean                               @default(false)
+  skip_conditions    Json?
+  created_at         DateTime                              @default(now()) @db.DateTime(0)
+  users              users?                                @relation(fields: [approver_id], references: [id], onUpdate: Restrict, map: "fk_nodes_approver")
+  roles              roles?                                @relation(fields: [role_id], references: [id], onUpdate: Restrict, map: "fk_nodes_role")
+  approval_workflows approval_workflows                    @relation(fields: [workflow_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_nodes_workflow")
+
+  @@index([approver_id], map: "fk_nodes_approver")
+  @@index([role_id], map: "fk_nodes_role")
+  @@index([workflow_id, node_order], map: "idx_workflow_order")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model approval_workflows {
+  id                      Int                       @id @default(autoincrement())
+  name                    String                    @db.VarChar(100)
+  type                    String                    @default("reimbursement") @db.VarChar(50)
+  description             String?                   @db.Text
+  is_default              Boolean                   @default(false)
+  conditions              Json?
+  status                  approval_workflows_status @default(active)
+  created_by              Int?
+  created_at              DateTime                  @default(now()) @db.DateTime(0)
+  updated_at              DateTime                  @default(now()) @db.DateTime(0)
+  approval_workflow_nodes approval_workflow_nodes[]
+  users                   users?                    @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_workflows_created_by")
+  role_workflows          role_workflows[]
+
+  @@index([created_by], map: "fk_workflows_created_by")
+  @@index([is_default], map: "idx_is_default")
+  @@index([status], map: "idx_status")
+  @@index([type], map: "idx_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model approvers {
+  id                                      Int       @id @default(autoincrement())
+  user_id                                 Int
+  approver_type                           String    @db.VarChar(50)
+  custom_type_name                        String?   @db.VarChar(50)
+  department_scope                        Json?
+  amount_limit                            Decimal?  @db.Decimal(12, 2)
+  amount_min                              Decimal?  @default(0.00) @db.Decimal(12, 2)
+  business_types                          Json?
+  delegate_user_id                        Int?
+  delegate_start_date                     DateTime? @db.Date
+  delegate_end_date                       DateTime? @db.Date
+  is_active                               Boolean   @default(true)
+  created_at                              DateTime  @default(now()) @db.DateTime(0)
+  updated_at                              DateTime  @default(now()) @db.DateTime(0)
+  users_approvers_delegate_user_idTousers users?    @relation("approvers_delegate_user_idTousers", fields: [delegate_user_id], references: [id], onUpdate: Restrict, map: "fk_approvers_delegate")
+  users_approvers_user_idTousers          users     @relation("approvers_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_approvers_user")
+
+  @@unique([user_id, approver_type], map: "uk_user_type")
+  @@index([delegate_user_id], map: "fk_approvers_delegate")
+  @@index([approver_type], map: "idx_approver_type")
+  @@index([is_active], map: "idx_is_active")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model article_comments {
+  id                     BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  article_id             BigInt                  @db.UnsignedBigInt
+  user_id                Int
+  parent_id              BigInt?                 @db.UnsignedBigInt
+  content                String                  @db.Text
+  like_count             Int                     @default(0)
+  is_pinned              Boolean                 @default(false)
+  status                 article_comments_status @default(active)
+  created_at             DateTime                @default(now()) @db.DateTime(0)
+  updated_at             DateTime                @default(now()) @db.DateTime(0)
+  knowledge_articles     knowledge_articles      @relation(fields: [article_id], references: [id], onDelete: Cascade, map: "article_comments_ibfk_1")
+  users                  users                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "article_comments_ibfk_2")
+  article_comments       article_comments?       @relation("article_commentsToarticle_comments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "article_comments_ibfk_3")
+  other_article_comments article_comments[]      @relation("article_commentsToarticle_comments")
+
+  @@index([article_id], map: "idx_article_id")
+  @@index([created_at], map: "idx_created_at")
+  @@index([parent_id], map: "idx_parent_id")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model article_likes {
+  id         Int       @id @default(autoincrement())
+  article_id Int
+  user_id    String    @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+
+  @@unique([article_id, user_id], map: "unique_like")
+  @@index([article_id], map: "idx_article")
+  @@index([user_id], map: "idx_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model assessment_plans {
+  id                 Int                     @id @default(autoincrement())
+  title              String                  @db.VarChar(200)
+  description        String?                 @db.Text
+  exam_id            Int
+  target_users       Json?
+  target_departments Json?
+  start_time         DateTime                @db.DateTime(0)
+  end_time           DateTime                @db.DateTime(0)
+  max_attempts       Int                     @default(1)
+  status             assessment_plans_status @default(draft)
+  created_by         Int?
+  created_at         DateTime                @default(now()) @db.DateTime(0)
+  updated_at         DateTime                @default(now()) @db.DateTime(0)
+  is_deleted         Boolean?                @default(false)
+  users              users?                  @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_assessment_plans_created_by")
+  exams              exams                   @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_assessment_plans_exam_id")
+  assessment_results assessment_results[]
+
+  @@index([created_by], map: "idx_created_by")
+  @@index([end_time], map: "idx_end_time")
+  @@index([exam_id], map: "idx_exam_id")
+  @@index([start_time], map: "idx_start_time")
+  @@index([status], map: "idx_status")
+  @@index([start_time, end_time], map: "idx_time_range")
+  @@index([title], map: "idx_title")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model assessment_results {
+  id               Int                       @id @default(autoincrement())
+  plan_id          Int
+  exam_id          Int
+  user_id          Int
+  attempt_number   Int                       @default(1)
+  start_time       DateTime                  @db.DateTime(0)
+  submit_time      DateTime?                 @db.DateTime(0)
+  duration         Int?
+  score            Decimal?                  @db.Decimal(5, 2)
+  is_passed        Boolean                   @default(false)
+  status           assessment_results_status @default(in_progress)
+  answers          Json?
+  created_at       DateTime                  @default(now()) @db.DateTime(0)
+  updated_at       DateTime                  @default(now()) @db.DateTime(0)
+  answer_records   answer_records[]
+  exams            exams                     @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_assessment_results_exam_id")
+  assessment_plans assessment_plans          @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_assessment_results_plan_id")
+  users            users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_assessment_results_user_id")
+
+  @@index([attempt_number], map: "idx_attempt_number")
+  @@index([duration], map: "idx_duration")
+  @@index([exam_id], map: "idx_exam_id")
+  @@index([is_passed], map: "idx_is_passed")
+  @@index([plan_id], map: "idx_plan_id")
+  @@index([score], map: "idx_score")
+  @@index([start_time], map: "idx_start_time")
+  @@index([status], map: "idx_status")
+  @@index([submit_time], map: "idx_submit_time")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model asset_assignments {
+  id                                         Int       @id @default(autoincrement())
+  asset_id                                   Int
+  user_id                                    Int
+  assigned_at                                DateTime? @default(now()) @db.Timestamp(0)
+  returned_at                                DateTime? @db.Timestamp(0)
+  expected_return_date                       DateTime? @db.Date
+  condition_on_assign                        String?   @db.Text
+  condition_on_return                        String?   @db.Text
+  assigned_by                                Int?
+  assets                                     assets    @relation(fields: [asset_id], references: [id], onUpdate: Restrict, map: "asset_assignments_ibfk_1")
+  users_asset_assignments_user_idTousers     users     @relation("asset_assignments_user_idTousers", fields: [user_id], references: [id], onUpdate: Restrict, map: "asset_assignments_ibfk_2")
+  users_asset_assignments_assigned_byTousers users?    @relation("asset_assignments_assigned_byTousers", fields: [assigned_by], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "asset_assignments_ibfk_3")
+
+  @@index([asset_id], map: "asset_id")
+  @@index([assigned_by], map: "assigned_by")
+  @@index([user_id], map: "user_id")
+}
+
+model asset_categories {
+  id           Int            @id @default(autoincrement())
+  name         String         @db.VarChar(50)
+  code         String?        @unique(map: "code") @db.VarChar(50)
+  description  String?        @db.Text
+  created_at   DateTime?      @default(now()) @db.Timestamp(0)
+  status       String         @default("active") @db.VarChar(20)
+  asset_models asset_models[]
+  assets       assets[]
+}
+
+model asset_component_types {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(50)
+  icon                  String?                 @db.VarChar(50)
+  sort_order            Int?                    @default(0)
+  created_at            DateTime?               @default(now()) @db.Timestamp(0)
+  status                String                  @default("active") @db.VarChar(20)
+  asset_components      asset_components[]
+  asset_requests        asset_requests[]
+  asset_upgrades        asset_upgrades[]
+  device_config_details device_config_details[]
+}
+
+model asset_components {
+  id                                                               Int                        @id @default(autoincrement())
+  name                                                             String                     @db.VarChar(100)
+  category                                                         asset_components_category
+  type_id                                                          Int?
+  model                                                            String?                    @db.VarChar(100)
+  sn                                                               String?                    @db.VarChar(100)
+  status                                                           String                     @default("active") @db.VarChar(20)
+  purchase_date                                                    DateTime?                  @db.Date
+  notes                                                            String?                    @db.Text
+  created_at                                                       DateTime?                  @default(now()) @db.Timestamp(0)
+  asset_component_types                                            asset_component_types?     @relation(fields: [type_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_comp_type")
+  asset_model_templates                                            asset_model_templates[]
+  asset_upgrades_asset_upgrades_old_component_idToasset_components asset_upgrades[]           @relation("asset_upgrades_old_component_idToasset_components")
+  asset_upgrades_asset_upgrades_new_component_idToasset_components asset_upgrades[]           @relation("asset_upgrades_new_component_idToasset_components")
+  device_component_mapping                                         device_component_mapping[]
+  device_config_details                                            device_config_details[]
+
+  @@index([type_id], map: "fk_comp_type")
+}
+
+model asset_device_forms {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique(map: "name") @db.VarChar(50)
+  icon         String?        @db.VarChar(50)
+  created_at   DateTime?      @default(now()) @db.Timestamp(0)
+  status       String         @default("active") @db.VarChar(20)
+  asset_models asset_models[]
+}
+
+model asset_model_templates {
+  id                     Int                                      @id @default(autoincrement())
+  model_id               Int
+  component_id           Int?
+  component_category     asset_model_templates_component_category
+  default_component_name String?                                  @db.VarChar(100)
+  quantity               Int?                                     @default(1)
+  asset_models           asset_models                             @relation(fields: [model_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "asset_model_templates_ibfk_1")
+  asset_components       asset_components?                        @relation(fields: [component_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_template_component")
+
+  @@index([component_id], map: "fk_template_component")
+  @@index([model_id], map: "model_id")
+}
+
+model asset_models {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(100)
+  category_id           Int?
+  form_id               Int?
+  description           String?                 @db.Text
+  status                String                  @default("active") @db.VarChar(20)
+  created_at            DateTime?               @default(now()) @db.Timestamp(0)
+  asset_model_templates asset_model_templates[]
+  asset_categories      asset_categories?       @relation(fields: [category_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "asset_models_ibfk_1")
+  asset_device_forms    asset_device_forms?     @relation(fields: [form_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_model_form")
+  assets                assets[]
+  devices               devices[]
+
+  @@index([category_id], map: "category_id")
+  @@index([form_id], map: "fk_model_form")
+}
+
+model asset_requests {
+  id                                     Int                    @id @default(autoincrement())
+  asset_id                               Int
+  user_id                                Int
+  type                                   asset_requests_type
+  target_component_type_id               Int?
+  workflow_id                            Int?
+  description                            String                 @db.Text
+  status                                 asset_requests_status? @default(pending)
+  current_node_id                        Int?
+  submitted_at                           DateTime?              @db.Timestamp(0)
+  completed_at                           DateTime?              @db.Timestamp(0)
+  admin_notes                            String?                @db.Text
+  handled_by                             Int?
+  handled_at                             DateTime?              @db.Timestamp(0)
+  created_at                             DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at                             DateTime?              @default(now()) @db.Timestamp(0)
+  assets                                 assets                 @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "asset_requests_ibfk_1")
+  users_asset_requests_user_idTousers    users                  @relation("asset_requests_user_idTousers", fields: [user_id], references: [id], onUpdate: Restrict, map: "asset_requests_ibfk_2")
+  users_asset_requests_handled_byTousers users?                 @relation("asset_requests_handled_byTousers", fields: [handled_by], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "asset_requests_ibfk_3")
+  asset_component_types                  asset_component_types? @relation(fields: [target_component_type_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_req_comp_type")
+
+  @@index([asset_id], map: "asset_id")
+  @@index([target_component_type_id], map: "fk_req_comp_type")
+  @@index([handled_by], map: "handled_by")
+  @@index([user_id], map: "user_id")
+}
+
+model asset_upgrades {
+  id                                                                 Int                          @id @default(autoincrement())
+  asset_id                                                           Int
+  component_type_id                                                  Int
+  old_component_id                                                   Int?
+  new_component_id                                                   Int
+  upgrade_type                                                       asset_upgrades_upgrade_type? @default(upgrade)
+  reason                                                             String?                      @db.Text
+  cost                                                               Decimal?                     @default(0.00) @db.Decimal(10, 2)
+  upgrade_date                                                       DateTime?                    @db.Date
+  handled_by                                                         Int?
+  created_at                                                         DateTime?                    @default(now()) @db.Timestamp(0)
+  assets                                                             assets                       @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "asset_upgrades_ibfk_1")
+  asset_component_types                                              asset_component_types        @relation(fields: [component_type_id], references: [id], onUpdate: Restrict, map: "asset_upgrades_ibfk_2")
+  asset_components_asset_upgrades_old_component_idToasset_components asset_components?            @relation("asset_upgrades_old_component_idToasset_components", fields: [old_component_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "asset_upgrades_ibfk_3")
+  asset_components_asset_upgrades_new_component_idToasset_components asset_components             @relation("asset_upgrades_new_component_idToasset_components", fields: [new_component_id], references: [id], onUpdate: Restrict, map: "asset_upgrades_ibfk_4")
+  users                                                              users?                       @relation(fields: [handled_by], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "asset_upgrades_ibfk_5")
+
+  @@index([asset_id], map: "asset_id")
+  @@index([component_type_id], map: "component_type_id")
+  @@index([handled_by], map: "handled_by")
+  @@index([new_component_id], map: "new_component_id")
+  @@index([old_component_id], map: "old_component_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model assets {
+  id                       Int                        @id @default(autoincrement())
+  asset_no                 String                     @unique(map: "asset_no") @db.VarChar(50)
+  name                     String                     @db.VarChar(100)
+  category_id              Int?
+  model_id                 Int?
+  config_summary           String?                    @db.Text
+  device_type              assets_device_type?        @default(workstation)
+  model                    String?                    @db.VarChar(100)
+  serial_number            String?                    @db.VarChar(100)
+  status                   assets_status?             @default(idle)
+  purchase_date            DateTime?                  @db.Date
+  purchase_price           Decimal?                   @db.Decimal(10, 2)
+  warranty_expire_date     DateTime?                  @db.Date
+  supplier                 String?                    @db.VarChar(100)
+  current_user_id          Int?
+  notes                    String?                    @db.Text
+  created_at               DateTime?                  @default(now()) @db.Timestamp(0)
+  updated_at               DateTime?                  @default(now()) @db.Timestamp(0)
+  mac_address              String?                    @db.VarChar(50)
+  asset_assignments        asset_assignments[]
+  asset_requests           asset_requests[]
+  asset_upgrades           asset_upgrades[]
+  asset_categories         asset_categories?          @relation(fields: [category_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "assets_ibfk_1")
+  users                    users?                     @relation(fields: [current_user_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "assets_ibfk_2")
+  asset_models             asset_models?              @relation(fields: [model_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_assets_model")
+  device_component_mapping device_component_mapping[]
+
+  @@index([category_id], map: "category_id")
+  @@index([current_user_id], map: "current_user_id")
+  @@index([model_id], map: "fk_assets_model")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attendance_records {
+  id                 Int                       @id @default(autoincrement())
+  user_id            Int
+  attendance_date    DateTime                  @db.Date
+  check_in_time      DateTime?                 @db.DateTime(0)
+  check_out_time     DateTime?                 @db.DateTime(0)
+  work_hours         Decimal?                  @db.Decimal(5, 2)
+  overtime_hours     Decimal                   @default(0.00) @db.Decimal(5, 2)
+  status             attendance_records_status @default(normal)
+  note               String?                   @db.Text
+  created_at         DateTime                  @default(now()) @db.DateTime(0)
+  updated_at         DateTime                  @default(now()) @db.DateTime(0)
+  clock_out_time     DateTime?                 @db.DateTime(0)
+  clock_out_location String?                   @db.VarChar(255)
+  employee_id        Int
+  record_date        DateTime                  @db.Date
+  clock_in_time      DateTime?                 @db.DateTime(0)
+  clock_in_location  String?                   @db.VarChar(255)
+  is_overtime        Boolean?                  @default(false)
+  remark             String?                   @db.VarChar(500)
+  users              users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_attendance_records_user_id")
+
+  @@unique([user_id, attendance_date], map: "uk_user_date")
+  @@index([attendance_date], map: "idx_attendance_date")
+  @@index([check_in_time], map: "idx_check_in_time")
+  @@index([check_out_time], map: "idx_check_out_time")
+  @@index([employee_id, status, record_date], map: "idx_emp_status_date")
+  @@index([employee_id, record_date], map: "idx_employee_date")
+  @@index([status], map: "idx_status")
+  @@index([user_id, attendance_date, status], map: "idx_user_date_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attendance_rules {
+  id         Int       @id @default(autoincrement())
+  rule_name  String    @db.VarChar(100)
+  rule_type  String    @db.VarChar(50)
+  rule_value Json?
+  is_active  Boolean?  @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  updated_at DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([is_active], map: "idx_is_active")
+  @@index([rule_type], map: "idx_rule_type")
+}
+
+model attendance_settings {
+  id                            Int      @id
+  enable_location_check         Boolean  @default(false)
+  allowed_distance              Int      @default(500)
+  allowed_locations             String?  @db.Text
+  enable_time_check             Boolean  @default(true)
+  early_clock_in_minutes        Int      @default(60)
+  late_clock_out_minutes        Int      @default(120)
+  late_minutes                  Int      @default(30)
+  early_leave_minutes           Int      @default(30)
+  absent_hours                  Int      @default(4)
+  max_annual_leave_days         Int      @default(10)
+  max_sick_leave_days           Int      @default(15)
+  require_proof_for_sick_leave  Boolean  @default(true)
+  require_approval_for_overtime Boolean  @default(true)
+  min_overtime_hours            Decimal  @default(1.0) @db.Decimal(4, 1)
+  max_overtime_hours_per_day    Int      @default(4)
+  allow_makeup                  Boolean  @default(true)
+  makeup_deadline_days          Int      @default(3)
+  require_approval_for_makeup   Boolean  @default(true)
+  notify_on_late                Boolean  @default(true)
+  notify_on_early_leave         Boolean  @default(true)
+  notify_on_absent              Boolean  @default(true)
+  created_at                    DateTime @default(now()) @db.DateTime(0)
+  updated_at                    DateTime @default(now()) @db.DateTime(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model broadcast_recipients {
+  id           Int        @id @default(autoincrement())
+  broadcast_id Int
+  user_id      Int
+  is_read      Boolean?   @default(false)
+  read_at      DateTime?  @db.Timestamp(0)
+  created_at   DateTime?  @default(now()) @db.Timestamp(0)
+  broadcasts   broadcasts @relation(fields: [broadcast_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "broadcast_recipients_ibfk_1")
+  users        users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "broadcast_recipients_ibfk_2")
+
+  @@unique([broadcast_id, user_id], map: "uk_broadcast_user")
+  @@index([broadcast_id], map: "idx_broadcast")
+  @@index([is_read], map: "idx_read")
+  @@index([user_id], map: "idx_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model broadcasts {
+  id                   Int                    @id @default(autoincrement())
+  title                String                 @db.VarChar(200)
+  content              String                 @db.Text
+  type                 broadcasts_type?       @default(info)
+  priority             broadcasts_priority?   @default(normal)
+  target_type          broadcasts_target_type
+  target_departments   Json?
+  target_roles         Json?
+  target_users         Json?
+  creator_id           Int
+  created_at           DateTime?              @default(now()) @db.Timestamp(0)
+  expires_at           DateTime?              @db.Timestamp(0)
+  broadcast_recipients broadcast_recipients[]
+  users                users                  @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "broadcasts_ibfk_1")
+
+  @@index([created_at], map: "idx_created")
+  @@index([creator_id], map: "idx_creator")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model case_attachments {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  file_name     String        @db.VarChar(255)
+  file_type     String?       @db.VarChar(100)
+  file_size     Int?
+  file_url      String        @db.VarChar(2048)
+  created_at    DateTime?     @default(now()) @db.Timestamp(0)
+  updated_at    DateTime?     @default(now()) @db.Timestamp(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_attachments_ibfk_1")
+
+  @@index([case_id], map: "case_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model case_categories {
+  id                    Int               @id @default(autoincrement())
+  name                  String            @unique(map: "name") @db.VarChar(100)
+  description           String?           @db.Text
+  parent_id             Int?
+  sort_order            Int?              @default(0)
+  is_active             Boolean?          @default(true)
+  created_at            DateTime?         @default(now()) @db.Timestamp(0)
+  updated_at            DateTime?         @default(now()) @db.Timestamp(0)
+  case_categories       case_categories?  @relation("case_categoriesTocase_categories", fields: [parent_id], references: [id], onUpdate: Restrict, map: "case_categories_ibfk_1")
+  other_case_categories case_categories[] @relation("case_categoriesTocase_categories")
+
+  @@index([is_active], map: "idx_active")
+  @@index([parent_id], map: "idx_parent")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model case_comments {
+  id                  Int             @id @default(autoincrement())
+  case_id             Int
+  user_id             Int
+  comment_content     String          @db.Text
+  parent_comment_id   Int?
+  like_count          Int?            @default(0)
+  created_at          DateTime?       @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?       @default(now()) @db.Timestamp(0)
+  quality_cases       quality_cases   @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_comments_ibfk_1")
+  employees           employees       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_comments_ibfk_2")
+  case_comments       case_comments?  @relation("case_commentsTocase_comments", fields: [parent_comment_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_comments_ibfk_3")
+  other_case_comments case_comments[] @relation("case_commentsTocase_comments")
+
+  @@index([case_id], map: "case_id")
+  @@index([parent_comment_id], map: "parent_comment_id")
+  @@index([user_id], map: "user_id")
+}
+
+model case_learning_records {
+  id                  Int           @id @default(autoincrement())
+  user_id             Int
+  case_id             Int
+  start_time          DateTime?     @default(now()) @db.Timestamp(0)
+  end_time            DateTime?     @db.Timestamp(0)
+  duration_seconds    Int?          @default(0)
+  progress_percentage Int?          @default(0)
+  created_at          DateTime?     @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?     @default(now()) @db.Timestamp(0)
+  users               users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_learning_records_ibfk_1")
+  quality_cases       quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "case_learning_records_ibfk_2")
+
+  @@unique([user_id, case_id], map: "user_id")
+  @@index([case_id], map: "case_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model case_tags {
+  id         Int      @id @default(autoincrement())
+  case_id    Int
+  tag_id     Int
+  created_at DateTime @default(now()) @db.DateTime(0)
+  cases      cases    @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_case_tags_case_id")
+  tags       tags     @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_case_tags_tag_id")
+
+  @@unique([case_id, tag_id], map: "uk_case_tag")
+  @@index([case_id], map: "idx_case_id")
+  @@index([tag_id], map: "idx_tag_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model cases {
+  id          Int              @id @default(autoincrement())
+  title       String           @db.VarChar(200)
+  category    String?          @db.VarChar(50)
+  description String           @db.Text
+  problem     String           @db.Text
+  solution    String           @db.Text
+  difficulty  cases_difficulty @default(medium)
+  priority    cases_priority   @default(medium)
+  status      cases_status     @default(draft)
+  view_count  Int              @default(0)
+  like_count  Int              @default(0)
+  created_by  Int?
+  created_at  DateTime         @default(now()) @db.DateTime(0)
+  updated_at  DateTime         @default(now()) @db.DateTime(0)
+  case_tags   case_tags[]
+  users       users?           @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_cases_created_by")
+
+  @@index([category], map: "idx_category")
+  @@index([created_at], map: "idx_created_at")
+  @@index([created_by], map: "idx_created_by")
+  @@index([difficulty], map: "idx_difficulty")
+  @@index([like_count], map: "idx_like_count")
+  @@index([priority], map: "idx_priority")
+  @@index([status], map: "idx_status")
+  @@index([title], map: "idx_title")
+  @@index([view_count], map: "idx_view_count")
+  @@fulltext([title, description, problem, solution], map: "ft_content_search")
+}
+
+model chat_group_members {
+  group_id             Int
+  user_id              Int
+  joined_at            DateTime?                @default(now()) @db.Timestamp(0)
+  role                 chat_group_members_role? @default(member)
+  last_read_message_id Int?                     @default(0)
+  is_muted             Boolean?                 @default(false)
+  chat_groups          chat_groups              @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "chat_group_members_ibfk_1")
+  users                users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "chat_group_members_ibfk_2")
+
+  @@id([group_id, user_id])
+  @@unique([group_id, user_id], map: "unique_group_user")
+  @@index([user_id], map: "user_id")
+}
+
+model chat_groups {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @db.VarChar(100)
+  owner_id           Int
+  type               chat_groups_type?    @default(group)
+  avatar             String?              @db.VarChar(255)
+  created_at         DateTime?            @default(now()) @db.Timestamp(0)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(0)
+  department_id      Int?                 @unique(map: "department_id")
+  chat_group_members chat_group_members[]
+  users              users                @relation(fields: [owner_id], references: [id], onUpdate: Restrict, map: "chat_groups_ibfk_1")
+  departments        departments?         @relation(fields: [department_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "chat_groups_ibfk_2")
+  chat_messages      chat_messages[]
+
+  @@index([owner_id], map: "owner_id")
+}
+
+model chat_messages {
+  id                                     Int                     @id @default(autoincrement())
+  sender_id                              Int
+  group_id                               Int?
+  receiver_id                            Int?
+  content                                String?                 @db.Text
+  msg_type                               chat_messages_msg_type? @default(text)
+  file_url                               String?                 @db.VarChar(1024)
+  is_read                                Boolean?                @default(false)
+  created_at                             DateTime?               @default(now()) @db.Timestamp(0)
+  users_chat_messages_sender_idTousers   users                   @relation("chat_messages_sender_idTousers", fields: [sender_id], references: [id], onUpdate: Restrict, map: "chat_messages_ibfk_1")
+  chat_groups                            chat_groups?            @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "chat_messages_ibfk_2")
+  users_chat_messages_receiver_idTousers users?                  @relation("chat_messages_receiver_idTousers", fields: [receiver_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "chat_messages_ibfk_3")
+
+  @@index([group_id], map: "idx_chat_group")
+  @@index([receiver_id], map: "idx_chat_receiver")
+  @@index([sender_id], map: "idx_chat_sender")
+  @@index([created_at], map: "idx_chat_time")
+  @@index([group_id, id], map: "idx_group_id_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model chat_room_members {
+  id           Int                    @id @default(autoincrement())
+  room_id      Int
+  user_id      Int
+  role         chat_room_members_role @default(member)
+  joined_at    DateTime               @default(now()) @db.DateTime(0)
+  last_read_at DateTime?              @db.DateTime(0)
+  is_muted     Boolean                @default(false)
+  users        users                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_chat_room_members_user_id")
+
+  @@unique([room_id, user_id], map: "uk_room_user")
+  @@index([is_muted], map: "idx_is_muted")
+  @@index([joined_at], map: "idx_joined_at")
+  @@index([last_read_at], map: "idx_last_read_at")
+  @@index([role], map: "idx_role")
+  @@index([room_id], map: "idx_room_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model collected_messages {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  message_id Int
+  created_at DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([message_id], map: "idx_message_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model compensatory_leave_requests {
+  id                     Int                                       @id @default(autoincrement())
+  employee_id            Int
+  user_id                Int
+  request_type           compensatory_leave_requests_request_type? @default(compensatory_leave)
+  original_schedule_date DateTime?                                 @db.Date
+  original_shift_id      Int?
+  new_schedule_date      DateTime?                                 @db.Date
+  new_shift_id           Int?
+  reason                 String?                                   @db.Text
+  status                 compensatory_leave_requests_status?       @default(pending)
+  approver_id            Int?
+  approval_note          String?                                   @db.Text
+  approved_at            DateTime?                                 @db.Timestamp(0)
+  created_at             DateTime?                                 @default(now()) @db.Timestamp(0)
+  updated_at             DateTime?                                 @default(now()) @db.Timestamp(0)
+
+  @@index([approver_id], map: "idx_approver_id")
+  @@index([created_at], map: "idx_created_at")
+  @@index([employee_id], map: "idx_employee_id")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model conversation_members {
+  id                   BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  conversation_id      BigInt                    @db.UnsignedBigInt
+  user_id              Int
+  role                 conversation_members_role @default(member)
+  is_pinned            Boolean                   @default(false)
+  is_muted             Boolean                   @default(false)
+  unread_count         Int                       @default(0) @db.UnsignedInt
+  last_read_message_id BigInt?                   @db.UnsignedBigInt
+  joined_at            DateTime                  @default(now()) @db.DateTime(0)
+  left_at              DateTime?                 @db.DateTime(0)
+  created_at           DateTime                  @default(now()) @db.DateTime(0)
+  updated_at           DateTime                  @default(now()) @db.DateTime(0)
+  conversations        conversations             @relation(fields: [conversation_id], references: [id], onDelete: Cascade, map: "fk_conv_members_conv")
+  users                users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_conv_members_user")
+
+  @@unique([conversation_id, user_id], map: "uk_conv_member")
+  @@index([conversation_id], map: "idx_conv_member_conv")
+  @@index([user_id], map: "idx_conv_member_user")
+}
+
+model conversations {
+  id                   BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  type                 conversations_type
+  name                 String?                @db.VarChar(255)
+  avatar               String?                @db.VarChar(255)
+  description          String?                @db.Text
+  creator_id           Int?
+  created_at           DateTime               @default(now()) @db.DateTime(0)
+  updated_at           DateTime               @default(now()) @db.DateTime(0)
+  conversation_members conversation_members[]
+  users                users?                 @relation(fields: [creator_id], references: [id], map: "fk_conversations_creator")
+  messages             messages[]
+
+  @@index([creator_id], map: "idx_conv_creator")
+  @@index([type], map: "idx_conv_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model conversion_rules {
+  id                   Int                    @id @default(autoincrement())
+  name                 String?                @default("转换规则") @db.VarChar(100)
+  conversion_rate      Decimal                @db.Decimal(10, 2)
+  enabled              Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.DateTime(0)
+  updated_at           DateTime?              @default(now()) @db.DateTime(0)
+  description          String?                @db.Text
+  ratio                Decimal?               @default(0.1250) @db.Decimal(10, 4)
+  overtime_conversions overtime_conversions[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model conversion_usage_records {
+  id              Int       @id @default(autoincrement())
+  conversion_id   Int
+  leave_record_id Int
+  used_days       Decimal   @db.Decimal(10, 2)
+  created_at      DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([conversion_id], map: "idx_conversion")
+  @@index([leave_record_id], map: "idx_leave_record")
+}
+
+model crm_customers {
+  id         Int                  @id @default(autoincrement())
+  name       String               @db.VarChar(100)
+  phone      String?              @unique(map: "phone") @db.VarChar(20)
+  email      String?              @db.VarChar(100)
+  company    String?              @db.VarChar(100)
+  level      crm_customers_level? @default(normal)
+  notes      String?              @db.Text
+  created_at DateTime?            @default(now()) @db.Timestamp(0)
+  created_by Int?
+  users      users?               @relation(fields: [created_by], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "crm_customers_ibfk_1")
+  tickets    tickets[]
+
+  @@index([created_by], map: "created_by")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customers {
+  id          Int        @id @default(autoincrement())
+  customer_id String     @db.VarChar(50)
+  name        String?    @db.VarChar(100)
+  phone       String?    @db.VarChar(20)
+  email       String?    @db.VarChar(100)
+  platform_id Int?
+  shop_id     Int?
+  created_at  DateTime   @default(now()) @db.DateTime(0)
+  updated_at  DateTime   @default(now()) @db.DateTime(0)
+  platforms   platforms? @relation(fields: [platform_id], references: [id], onUpdate: Restrict, map: "fk_customers_platform")
+  shops       shops?     @relation(fields: [shop_id], references: [id], onUpdate: Restrict, map: "fk_customers_shop")
+
+  @@unique([customer_id, platform_id, shop_id], map: "uk_customer_platform_shop")
+  @@index([shop_id], map: "fk_customers_shop")
+  @@index([name], map: "idx_name")
+  @@index([phone], map: "idx_phone")
+  @@index([platform_id, shop_id], map: "idx_platform_shop")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model departments {
+  id                                                                             Int                       @id @default(autoincrement())
+  name                                                                           String                    @db.VarChar(50)
+  parent_id                                                                      Int?
+  description                                                                    String?                   @db.Text
+  manager_id                                                                     Int?
+  status                                                                         departments_status        @default(active)
+  sort_order                                                                     Int                       @default(0)
+  created_at                                                                     DateTime                  @default(now()) @db.DateTime(0)
+  updated_at                                                                     DateTime                  @default(now()) @db.DateTime(0)
+  chat_groups                                                                    chat_groups?
+  users_departments_manager_idTousers                                            users?                    @relation("departments_manager_idTousers", fields: [manager_id], references: [id], onUpdate: Restrict, map: "fk_departments_manager_id")
+  departments                                                                    departments?              @relation("departmentsTodepartments", fields: [parent_id], references: [id], onUpdate: Restrict, map: "fk_departments_parent_id")
+  other_departments                                                              departments[]             @relation("departmentsTodepartments")
+  employee_status_records_employee_status_records_new_department_idTodepartments employee_status_records[] @relation("employee_status_records_new_department_idTodepartments")
+  employee_status_records_employee_status_records_old_department_idTodepartments employee_status_records[] @relation("employee_status_records_old_department_idTodepartments")
+  learning_plans                                                                 learning_plans[]
+  positions                                                                      positions[]
+  reimbursements                                                                 reimbursements[]
+  role_departments                                                               role_departments[]
+  tickets                                                                        tickets[]
+  user_departments                                                               user_departments[]
+  users_users_department_idTodepartments                                         users[]                   @relation("users_department_idTodepartments")
+
+  @@index([manager_id], map: "idx_manager_id")
+  @@index([name], map: "idx_name")
+  @@index([parent_id], map: "idx_parent_id")
+  @@index([sort_order], map: "idx_sort_order")
+  @@index([status], map: "idx_status")
+}
+
+model device_component_mapping {
+  id               Int              @id @default(autoincrement())
+  asset_id         Int
+  component_id     Int
+  bound_at         DateTime?        @default(now()) @db.Timestamp(0)
+  assets           assets           @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "device_component_mapping_ibfk_1")
+  asset_components asset_components @relation(fields: [component_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "device_component_mapping_ibfk_2")
+
+  @@index([asset_id], map: "asset_id")
+  @@index([component_id], map: "component_id")
+}
+
+model device_config_details {
+  id                    Int                                @id @default(autoincrement())
+  device_id             Int
+  component_type_id     Int
+  component_id          Int
+  quantity              Int?                               @default(1)
+  change_type           device_config_details_change_type? @default(initial)
+  status                String                             @default("active") @db.VarChar(20)
+  created_at            DateTime?                          @default(now()) @db.Timestamp(0)
+  updated_at            DateTime?                          @default(now()) @db.Timestamp(0)
+  devices               devices                            @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "device_config_details_ibfk_1")
+  asset_component_types asset_component_types              @relation(fields: [component_type_id], references: [id], onUpdate: Restrict, map: "device_config_details_ibfk_2")
+  asset_components      asset_components                   @relation(fields: [component_id], references: [id], onUpdate: Restrict, map: "device_config_details_ibfk_3")
+
+  @@index([component_id], map: "component_id")
+  @@index([component_type_id], map: "component_type_id")
+  @@index([device_id], map: "device_id")
+}
+
+model devices {
+  id                    Int                     @id @default(autoincrement())
+  asset_no              String                  @unique(map: "asset_no") @db.VarChar(50)
+  model_id              Int
+  current_user_id       Int?
+  device_status         devices_device_status?  @default(idle)
+  status                String                  @default("active") @db.VarChar(20)
+  purchase_date         DateTime?               @db.Date
+  purchase_price        Decimal?                @db.Decimal(10, 2)
+  notes                 String?                 @db.Text
+  created_at            DateTime?               @default(now()) @db.Timestamp(0)
+  updated_at            DateTime?               @default(now()) @db.Timestamp(0)
+  device_config_details device_config_details[]
+  asset_models          asset_models            @relation(fields: [model_id], references: [id], onUpdate: Restrict, map: "devices_ibfk_1")
+  users                 users?                  @relation(fields: [current_user_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "devices_ibfk_2")
+
+  @@index([current_user_id], map: "current_user_id")
+  @@index([model_id], map: "model_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model employee_changes {
+  id                BigInt                       @id @default(autoincrement())
+  employee_id       Int
+  user_id           Int
+  change_type       employee_changes_change_type
+  change_date       DateTime                     @db.Date
+  old_department_id Int?
+  new_department_id Int?
+  reason            String?                      @db.Text
+  remarks           String?                      @db.Text
+  created_by        Int?
+  created_at        DateTime                     @default(now()) @db.DateTime(0)
+  updated_at        DateTime                     @default(now()) @db.DateTime(0)
+  old_position_id   Int?
+  new_position_id   Int?
+  old_position      String?                      @db.VarChar(50)
+  new_position      String?                      @db.VarChar(50)
+
+  @@index([change_date], map: "change_date")
+  @@index([change_type], map: "change_type")
+  @@index([employee_id], map: "employee_id")
+  @@index([new_position_id], map: "idx_new_position_id")
+  @@index([old_position_id], map: "idx_old_position_id")
+  @@index([user_id], map: "user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model employee_status_records {
+  id                                                                 Int                                 @id @default(autoincrement())
+  employee_id                                                        Int
+  old_status                                                         employee_status_records_old_status?
+  new_status                                                         employee_status_records_new_status
+  old_department_id                                                  Int?
+  new_department_id                                                  Int?
+  change_reason                                                      String?                             @db.VarChar(255)
+  change_date                                                        DateTime                            @db.Date
+  work_duration_days                                                 Int?                                @default(0)
+  operated_by                                                        Int?
+  created_at                                                         DateTime                            @default(now()) @db.DateTime(0)
+  updated_at                                                         DateTime                            @default(now()) @db.DateTime(0)
+  users_employee_status_records_employee_idTousers                   users                               @relation("employee_status_records_employee_idTousers", fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_employee_status_records_employee_id")
+  departments_employee_status_records_new_department_idTodepartments departments?                        @relation("employee_status_records_new_department_idTodepartments", fields: [new_department_id], references: [id], onUpdate: Restrict, map: "fk_employee_status_records_new_dept")
+  departments_employee_status_records_old_department_idTodepartments departments?                        @relation("employee_status_records_old_department_idTodepartments", fields: [old_department_id], references: [id], onUpdate: Restrict, map: "fk_employee_status_records_old_dept")
+  users_employee_status_records_operated_byTousers                   users?                              @relation("employee_status_records_operated_byTousers", fields: [operated_by], references: [id], onUpdate: Restrict, map: "fk_employee_status_records_operated_by")
+
+  @@index([new_department_id], map: "fk_employee_status_records_new_dept")
+  @@index([old_department_id], map: "fk_employee_status_records_old_dept")
+  @@index([change_date], map: "idx_change_date")
+  @@index([employee_id], map: "idx_employee_id")
+  @@index([new_status], map: "idx_new_status")
+  @@index([operated_by], map: "idx_operated_by")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model employees {
+  id                       Int                        @id @default(autoincrement())
+  user_id                  Int                        @unique(map: "uk_user_id")
+  employee_no              String                     @unique(map: "uk_employee_no") @db.VarChar(20)
+  hire_date                DateTime                   @db.Date
+  salary                   Decimal?                   @db.Decimal(10, 2)
+  status                   employees_status?          @default(active)
+  emergency_contact        String?                    @db.VarChar(50)
+  emergency_phone          String?                    @db.VarChar(20)
+  address                  String?                    @db.VarChar(200)
+  education                String?                    @db.VarChar(20)
+  skills                   String?                    @db.Text
+  remark                   String?                    @db.Text
+  created_at               DateTime                   @default(now()) @db.DateTime(0)
+  updated_at               DateTime                   @default(now()) @db.DateTime(0)
+  rating                   Boolean                    @default(true)
+  position_id              Int?
+  case_comments            case_comments[]
+  positions                positions?                 @relation(fields: [position_id], references: [id], map: "fk_employees_position")
+  users                    users                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_employees_user_id")
+  payslips                 payslips[]
+  reimbursements           reimbursements[]
+  shift_schedules          shift_schedules[]
+  vacation_balance_changes vacation_balance_changes[]
+
+  @@index([hire_date], map: "idx_hire_date")
+  @@index([position_id], map: "idx_position_id")
+  @@index([status], map: "idx_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model exam_categories {
+  id          Int                    @id @default(autoincrement())
+  name        String                 @db.VarChar(100)
+  description String?                @db.Text
+  created_at  DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at  DateTime?              @default(now()) @db.Timestamp(0)
+  deleted_at  DateTime?              @db.DateTime(0)
+  deleted_by  Int?
+  status      exam_categories_status @default(active)
+  order_num   Int                    @default(1)
+  path        String                 @default("/") @db.VarChar(1024)
+  level       Int                    @default(1)
+  weight      Decimal                @default(0.00) @db.Decimal(8, 2)
+  created_by  Int?
+  parent_id   Int?
+  exams       exams[]
+
+  @@index([deleted_at], map: "idx_deleted_at")
+  @@index([name], map: "idx_name")
+  @@index([parent_id], map: "idx_parent_id")
+  @@index([status], map: "idx_status")
+}
+
+model exam_category_audit_logs {
+  id          Int      @id @default(autoincrement())
+  category_id Int?
+  operator_id Int?
+  operation   String   @db.VarChar(64)
+  detail      String?  @db.Text
+  created_at  DateTime @default(now()) @db.DateTime(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model exams {
+  id                 Int                  @id @default(autoincrement())
+  title              String               @db.VarChar(200)
+  description        String?              @db.Text
+  category           String?              @db.VarChar(50)
+  category_id        Int?
+  difficulty         exams_difficulty     @default(medium)
+  duration           Int
+  total_score        Decimal              @db.Decimal(5, 2)
+  pass_score         Decimal              @db.Decimal(5, 2)
+  question_count     Int                  @default(0)
+  status             exams_status         @default(draft)
+  created_by         Int?
+  created_at         DateTime             @default(now()) @db.DateTime(0)
+  updated_at         DateTime             @default(now()) @db.DateTime(0)
+  questions          String?              @db.LongText
+  assessment_plans   assessment_plans[]
+  assessment_results assessment_results[]
+  exam_categories    exam_categories?     @relation(fields: [category_id], references: [id], onUpdate: Restrict, map: "fk_exams_category_id")
+  users              users?               @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_exams_created_by")
+  question_list      questions[]
+
+  @@index([category_id], map: "fk_exams_category_id")
+  @@index([category], map: "idx_category")
+  @@index([created_by], map: "idx_created_by")
+  @@index([difficulty], map: "idx_difficulty")
+  @@index([duration], map: "idx_duration")
+  @@index([pass_score], map: "idx_pass_score")
+  @@index([status], map: "idx_status")
+  @@index([title], map: "idx_title")
+  @@index([total_score], map: "idx_total_score")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model expense_types {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  name        String   @unique(map: "uk_name") @db.VarChar(50)
+  category_id Int?     @db.UnsignedInt
+  unit        String?  @db.VarChar(20)
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  updated_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model external_agents {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(100)
+  platform_id      Int
+  shop_id          Int
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  platforms        platforms          @relation(fields: [platform_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_external_agents_platform")
+  shops            shops              @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_external_agents_shop")
+  quality_sessions quality_sessions[]
+
+  @@unique([name, platform_id, shop_id], map: "uk_name_platform_shop")
+  @@index([platform_id], map: "idx_platform_id")
+  @@index([shop_id], map: "idx_shop_id")
+}
+
+model group_members {
+  id         BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  group_id   BigInt             @db.UnsignedBigInt
+  user_id    Int
+  role       group_members_role @default(member)
+  nickname   String?            @db.VarChar(255)
+  joined_at  DateTime           @default(now()) @db.DateTime(0)
+  created_at DateTime           @default(now()) @db.DateTime(0)
+  updated_at DateTime           @default(now()) @db.DateTime(0)
+  groups     groups             @relation(fields: [group_id], references: [id], onDelete: Cascade, map: "fk_group_members_group")
+  users      users              @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_group_members_user")
+
+  @@unique([group_id, user_id], map: "uk_group_member")
+  @@index([group_id], map: "idx_group_member_group")
+  @@index([user_id], map: "idx_group_member_user")
+}
+
+model groups {
+  id                     BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  name                   String          @db.VarChar(255)
+  avatar                 String?         @db.VarChar(255)
+  description            String?         @db.Text
+  announcement           String?         @db.Text
+  owner_id               Int
+  max_members            Int             @default(200) @db.UnsignedInt
+  is_public              Boolean         @default(false)
+  join_approval_required Boolean         @default(false)
+  created_at             DateTime        @default(now()) @db.DateTime(0)
+  updated_at             DateTime        @default(now()) @db.DateTime(0)
+  group_members          group_members[]
+  users                  users           @relation(fields: [owner_id], references: [id], onDelete: Cascade, map: "fk_groups_owner")
+
+  @@index([owner_id], map: "idx_group_owner")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model holidays {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(20)
+  days             Int
+  month            Int
+  year             Int
+  created_at       DateTime? @default(now()) @db.Timestamp(0)
+  updated_at       DateTime? @default(now()) @db.Timestamp(0)
+  vacation_type_id Int?
+
+  @@index([vacation_type_id], map: "idx_vacation_type")
+  @@index([year, month], map: "idx_year_month")
+}
+
+model inventory_audits {
+  id              Int                             @id @default(autoincrement())
+  item_id         Int
+  expected_stock  Int
+  actual_stock    Int
+  discrepancy     Int?
+  result_status   inventory_audits_result_status? @default(matched)
+  auditor_id      Int?
+  audit_date      DateTime?                       @default(now()) @db.Timestamp(0)
+  notes           String?                         @db.Text
+  inventory_items inventory_items                 @relation(fields: [item_id], references: [id], onUpdate: Restrict, map: "inventory_audits_ibfk_1")
+  users           users?                          @relation(fields: [auditor_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "inventory_audits_ibfk_2")
+
+  @@index([auditor_id], map: "auditor_id")
+  @@index([item_id], map: "item_id")
+}
+
+model inventory_items {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(100)
+  category            String?               @db.VarChar(50)
+  unit                String?               @default("个") @db.VarChar(20)
+  current_stock       Int?                  @default(0)
+  min_stock_alert     Int?                  @default(10)
+  description         String?               @db.Text
+  created_at          DateTime?             @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?             @default(now()) @db.Timestamp(0)
+  inventory_audits    inventory_audits[]
+  inventory_usage     inventory_usage[]
+  procurement_records procurement_records[]
+}
+
+model inventory_usage {
+  id              Int             @id @default(autoincrement())
+  item_id         Int
+  quantity        Int
+  user_id         Int?
+  usage_date      DateTime?       @default(now()) @db.Timestamp(0)
+  purpose         String?         @db.VarChar(255)
+  inventory_items inventory_items @relation(fields: [item_id], references: [id], onUpdate: Restrict, map: "inventory_usage_ibfk_1")
+  users           users?          @relation(fields: [user_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "inventory_usage_ibfk_2")
+
+  @@index([item_id], map: "item_id")
+  @@index([user_id], map: "user_id")
+}
+
+model knowledge_article_daily_stats {
+  id                     BigInt             @id @default(autoincrement())
+  article_id             BigInt             @db.UnsignedBigInt
+  stat_date              DateTime           @db.Date
+  views_count            Int?               @default(0)
+  full_reads_count       Int?               @default(0)
+  total_duration_seconds BigInt?            @default(0)
+  total_active_seconds   BigInt?            @default(0)
+  created_at             DateTime?          @default(now()) @db.Timestamp(0)
+  updated_at             DateTime?          @default(now()) @db.Timestamp(0)
+  knowledge_articles     knowledge_articles @relation(fields: [article_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_daily_stats_article")
+
+  @@unique([article_id, stat_date], map: "uniq_article_date")
+  @@index([article_id], map: "idx_article_id")
+}
+
+model knowledge_article_read_sessions {
+  id                   BigInt                                      @id @default(autoincrement())
+  session_id           String                                      @unique(map: "uniq_session_id") @db.VarChar(64)
+  user_id              Int
+  department_id        Int?
+  article_id           BigInt                                      @db.UnsignedBigInt
+  started_at           DateTime                                    @db.DateTime(0)
+  ended_at             DateTime?                                   @db.DateTime(0)
+  duration_seconds     Int?                                        @default(0)
+  active_seconds       Int?                                        @default(0)
+  scroll_depth_percent Int?                                        @default(0)
+  full_read            Boolean?                                    @default(false)
+  close_type           knowledge_article_read_sessions_close_type? @default(user_close)
+  heartbeats_count     Int?                                        @default(0)
+  wheel_events         Int?                                        @default(0)
+  mousemove_events     Int?                                        @default(0)
+  keydown_events       Int?                                        @default(0)
+  created_at           DateTime?                                   @default(now()) @db.Timestamp(0)
+  updated_at           DateTime?                                   @default(now()) @db.Timestamp(0)
+  knowledge_articles   knowledge_articles                          @relation(fields: [article_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_read_sessions_article")
+  users                users                                       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_read_sessions_user")
+
+  @@index([article_id], map: "idx_article_id")
+  @@index([started_at], map: "idx_started_at")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model knowledge_articles {
+  id                              BigInt                            @id @default(autoincrement()) @db.UnsignedBigInt
+  title                           String                            @db.VarChar(300)
+  summary                         String?                           @db.VarChar(1000)
+  content                         String?                           @db.MediumText
+  attachments                     String?                           @db.MediumText
+  category_id                     BigInt?                           @db.UnsignedBigInt
+  owner_id                        BigInt?                           @db.UnsignedBigInt
+  original_article_id             BigInt?                           @db.UnsignedBigInt
+  type                            knowledge_articles_type           @default(common)
+  is_public                       Int                               @default(1) @db.TinyInt
+  status                          knowledge_articles_status         @default(published)
+  is_deleted                      Boolean                           @default(false)
+  view_count                      Int                               @default(0) @db.UnsignedInt
+  like_count                      Int                               @default(0) @db.UnsignedInt
+  notes                           String?                           @db.Text
+  icon                            String?                           @db.VarChar(50)
+  created_by                      BigInt?                           @db.UnsignedBigInt
+  updated_by                      BigInt?                           @db.UnsignedBigInt
+  deleted_by                      BigInt?                           @db.UnsignedBigInt
+  created_at                      DateTime                          @default(now()) @db.DateTime(0)
+  updated_at                      DateTime                          @default(now()) @db.DateTime(0)
+  deleted_at                      DateTime?                         @db.DateTime(0)
+  article_comments                article_comments[]
+  knowledge_article_daily_stats   knowledge_article_daily_stats[]
+  knowledge_article_read_sessions knowledge_article_read_sessions[]
+  knowledge_categories            knowledge_categories?             @relation(fields: [category_id], references: [id], map: "fk_art_category")
+  knowledge_attachments           knowledge_attachments[]
+  my_knowledge_saved_articles     my_knowledge_saved_articles[]
+
+  @@index([category_id], map: "idx_art_category")
+  @@index([is_deleted], map: "idx_art_deleted")
+  @@index([original_article_id], map: "idx_art_original")
+  @@index([owner_id], map: "idx_art_owner")
+  @@index([is_public], map: "idx_art_public")
+  @@index([status], map: "idx_art_status")
+  @@index([type], map: "idx_art_type")
+}
+
+model knowledge_attachments {
+  id                 BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  article_id         BigInt             @db.UnsignedBigInt
+  name               String             @db.VarChar(255)
+  url                String             @db.VarChar(1000)
+  type               String?            @db.VarChar(100)
+  size               BigInt?            @db.UnsignedBigInt
+  created_at         DateTime           @default(now()) @db.DateTime(0)
+  knowledge_articles knowledge_articles @relation(fields: [article_id], references: [id], onDelete: Cascade, map: "fk_att_article")
+
+  @@index([article_id], map: "idx_att_article")
+}
+
+model knowledge_categories {
+  id                 BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  name               String                      @db.VarChar(200)
+  description        String?                     @db.Text
+  icon               String?                     @db.VarChar(50)
+  owner_id           BigInt?                     @db.UnsignedBigInt
+  type               knowledge_categories_type   @default(common)
+  is_public          Int                         @default(1) @db.TinyInt
+  is_hidden          Boolean                     @default(false)
+  status             knowledge_categories_status @default(published)
+  is_deleted         Boolean                     @default(false)
+  created_at         DateTime                    @default(now()) @db.DateTime(0)
+  updated_at         DateTime                    @default(now()) @db.DateTime(0)
+  deleted_at         DateTime?                   @db.DateTime(0)
+  deleted_by         BigInt?                     @db.UnsignedBigInt
+  knowledge_articles knowledge_articles[]
+
+  @@index([is_deleted], map: "idx_cat_deleted")
+  @@index([owner_id], map: "idx_cat_owner")
+  @@index([is_public], map: "idx_cat_public")
+  @@index([status], map: "idx_cat_status")
+  @@index([type], map: "idx_cat_type")
+}
+
+model knowledge_learning_plan_records {
+  id             Int                                    @id @default(autoincrement())
+  user_id        Int
+  plan_id        Int
+  start_time     DateTime                               @default(now()) @db.DateTime(0)
+  end_time       DateTime?                              @db.DateTime(0)
+  duration       Int                                    @default(0)
+  progress       Int                                    @default(0)
+  status         knowledge_learning_plan_records_status @default(in_progress)
+  completed_at   DateTime?                              @db.DateTime(0)
+  created_at     DateTime                               @default(now()) @db.DateTime(0)
+  updated_at     DateTime                               @default(now()) @db.DateTime(0)
+  users          users                                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "knowledge_learning_plan_records_ibfk_1")
+  learning_plans learning_plans                         @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "knowledge_learning_plan_records_ibfk_2")
+
+  @@unique([user_id, plan_id], map: "uk_user_plan")
+  @@index([created_at], map: "idx_created_at")
+  @@index([plan_id], map: "idx_plan_id")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model knowledge_learning_plans {
+  id              Int                             @id @default(autoincrement())
+  user_id         Int
+  title           String                          @db.VarChar(200)
+  description     String?                         @db.Text
+  target_articles Json?
+  start_date      DateTime                        @db.Date
+  end_date        DateTime                        @db.Date
+  status          knowledge_learning_plans_status @default(active)
+  progress        Int                             @default(0)
+  created_at      DateTime                        @default(now()) @db.DateTime(0)
+  updated_at      DateTime                        @default(now()) @db.DateTime(0)
+  users           users                           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_knowledge_learning_plans_user_id")
+
+  @@index([end_date], map: "idx_end_date")
+  @@index([start_date], map: "idx_start_date")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model knowledge_learning_statistics {
+  id                 Int      @id @default(autoincrement())
+  user_id            Int
+  stat_date          DateTime @db.Date
+  articles_read      Int      @default(0)
+  articles_completed Int      @default(0)
+  total_duration     Int      @default(0)
+  created_at         DateTime @default(now()) @db.DateTime(0)
+  updated_at         DateTime @default(now()) @db.DateTime(0)
+  users              users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_knowledge_learning_statistics_user_id")
+
+  @@unique([user_id, stat_date], map: "uk_user_date")
+  @@index([stat_date], map: "idx_stat_date")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model learning_plans {
+  id                                      Int                               @id @default(autoincrement())
+  title                                   String                            @db.VarChar(255)
+  description                             String?                           @db.Text
+  created_by                              Int
+  assigned_to                             Int?
+  department_id                           Int?
+  status                                  learning_plans_status             @default(draft)
+  start_date                              DateTime?                         @db.DateTime(0)
+  end_date                                DateTime?                         @db.DateTime(0)
+  completed_at                            DateTime?                         @db.DateTime(0)
+  created_at                              DateTime                          @default(now()) @db.DateTime(0)
+  updated_at                              DateTime                          @default(now()) @db.DateTime(0)
+  knowledge_learning_plan_records         knowledge_learning_plan_records[]
+  users_learning_plans_created_byTousers  users                             @relation("learning_plans_created_byTousers", fields: [created_by], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "learning_plans_ibfk_1")
+  users_learning_plans_assigned_toTousers users?                            @relation("learning_plans_assigned_toTousers", fields: [assigned_to], references: [id], onUpdate: Restrict, map: "learning_plans_ibfk_2")
+  departments                             departments?                      @relation(fields: [department_id], references: [id], onUpdate: Restrict, map: "learning_plans_ibfk_3")
+
+  @@index([assigned_to], map: "idx_assigned_to")
+  @@index([created_at], map: "idx_created_at")
+  @@index([created_by], map: "idx_created_by")
+  @@index([department_id], map: "idx_department_id")
+  @@index([status], map: "idx_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model learning_statistics {
+  id              Int      @id @default(autoincrement())
+  user_id         Int
+  date            DateTime @db.Date
+  articles_read   Int      @default(0)
+  exams_taken     Int      @default(0)
+  exams_passed    Int      @default(0)
+  total_duration  Int      @default(0)
+  completed_tasks Int      @default(0)
+  completed_plans Int      @default(0)
+  created_at      DateTime @default(now()) @db.DateTime(0)
+  updated_at      DateTime @default(now()) @db.DateTime(0)
+  users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "learning_statistics_ibfk_1")
+
+  @@unique([user_id, date], map: "uk_user_date")
+  @@index([date], map: "idx_date")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model learning_tasks {
+  id                                      Int                     @id @default(autoincrement())
+  title                                   String                  @db.VarChar(255)
+  description                             String?                 @db.Text
+  assigned_to                             Int
+  assigned_by                             Int?
+  status                                  learning_tasks_status   @default(pending)
+  priority                                learning_tasks_priority @default(medium)
+  due_date                                DateTime?               @db.DateTime(0)
+  completed_at                            DateTime?               @db.DateTime(0)
+  created_at                              DateTime                @default(now()) @db.DateTime(0)
+  updated_at                              DateTime                @default(now()) @db.DateTime(0)
+  users_learning_tasks_assigned_toTousers users                   @relation("learning_tasks_assigned_toTousers", fields: [assigned_to], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "learning_tasks_ibfk_1")
+  users_learning_tasks_assigned_byTousers users?                  @relation("learning_tasks_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: Restrict, map: "learning_tasks_ibfk_2")
+
+  @@index([assigned_by], map: "assigned_by")
+  @@index([assigned_to], map: "idx_assigned_to")
+  @@index([created_at], map: "idx_created_at")
+  @@index([due_date], map: "idx_due_date")
+  @@index([status], map: "idx_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model leave_records {
+  id                                     Int                      @id @default(autoincrement())
+  user_id                                Int
+  leave_type                             leave_records_leave_type
+  start_date                             DateTime                 @db.Date
+  end_date                               DateTime                 @db.Date
+  days                                   Decimal                  @db.Decimal(5, 2)
+  reason                                 String                   @db.Text
+  status                                 leave_records_status     @default(pending)
+  approver_id                            Int?
+  approved_at                            DateTime?                @db.DateTime(0)
+  approval_note                          String?                  @db.VarChar(500)
+  created_at                             DateTime                 @default(now()) @db.DateTime(0)
+  updated_at                             DateTime                 @default(now()) @db.DateTime(0)
+  employee_id                            Int
+  attachments                            String?                  @db.Text
+  use_converted_leave                    Boolean?                 @default(false)
+  used_conversion_days                   Decimal?                 @default(0.00) @db.Decimal(10, 2)
+  users_leave_records_approver_idTousers users?                   @relation("leave_records_approver_idTousers", fields: [approver_id], references: [id], onUpdate: Restrict, map: "fk_leave_records_approved_by")
+  users_leave_records_user_idTousers     users                    @relation("leave_records_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_leave_records_user_id")
+
+  @@index([approver_id], map: "idx_approved_by")
+  @@index([start_date, end_date], map: "idx_date_range")
+  @@index([employee_id], map: "idx_employee")
+  @@index([end_date], map: "idx_end_date")
+  @@index([leave_type], map: "idx_leave_type")
+  @@index([start_date], map: "idx_start_date")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model makeup_records {
+  id            Int                       @id @default(autoincrement())
+  employee_id   Int
+  user_id       Int
+  record_date   DateTime                  @db.Date
+  clock_type    makeup_records_clock_type
+  clock_time    DateTime                  @db.DateTime(0)
+  reason        String                    @db.VarChar(500)
+  status        makeup_records_status?    @default(pending)
+  approver_id   Int?
+  approved_at   DateTime?                 @db.DateTime(0)
+  approval_note String?                   @db.VarChar(500)
+  created_at    DateTime?                 @default(now()) @db.Timestamp(0)
+  updated_at    DateTime?                 @default(now()) @db.Timestamp(0)
+  attachments   String?                   @db.Text
+
+  @@index([approver_id], map: "idx_approver")
+  @@index([employee_id], map: "idx_employee")
+  @@index([record_date], map: "idx_record_date")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model meal_order_items {
+  id           Int         @id @default(autoincrement())
+  order_id     Int
+  menu_item_id Int
+  quantity     Int
+  unit_price   Decimal     @db.Decimal(8, 2)
+  subtotal     Decimal     @db.Decimal(8, 2)
+  note         String?     @db.Text
+  created_at   DateTime    @default(now()) @db.DateTime(0)
+  menu_items   menu_items  @relation(fields: [menu_item_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_meal_order_items_menu_item_id")
+  meal_orders  meal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_meal_order_items_order_id")
+
+  @@index([menu_item_id], map: "idx_menu_item_id")
+  @@index([order_id], map: "idx_order_id")
+  @@index([quantity], map: "idx_quantity")
+  @@index([subtotal], map: "idx_subtotal")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model meal_orders {
+  id               Int                   @id @default(autoincrement())
+  order_no         String                @unique(map: "uk_order_no") @db.VarChar(50)
+  user_id          Int
+  order_date       DateTime              @db.Date
+  meal_type        meal_orders_meal_type
+  total_amount     Decimal               @db.Decimal(8, 2)
+  status           meal_orders_status    @default(pending)
+  note             String?               @db.Text
+  created_at       DateTime              @default(now()) @db.DateTime(0)
+  updated_at       DateTime              @default(now()) @db.DateTime(0)
+  meal_order_items meal_order_items[]
+  users            users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_meal_orders_user_id")
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([meal_type], map: "idx_meal_type")
+  @@index([order_date], map: "idx_order_date")
+  @@index([status], map: "idx_status")
+  @@index([total_amount], map: "idx_total_amount")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model memo_recipients {
+  id         Int       @id @default(autoincrement())
+  memo_id    Int
+  user_id    Int
+  is_read    Boolean?  @default(false)
+  read_at    DateTime? @db.DateTime(0)
+  created_at DateTime? @default(now()) @db.DateTime(0)
+  memos      memos     @relation(fields: [memo_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_memo_recipients_memo")
+
+  @@unique([memo_id, user_id], map: "uk_memo_user")
+  @@index([is_read], map: "idx_is_read")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model memos {
+  id                   Int               @id @default(autoincrement())
+  user_id              Int
+  title                String            @db.VarChar(200)
+  content              String            @db.Text
+  type                 memos_type?       @default(personal)
+  priority             memos_priority?   @default(normal)
+  is_read              Boolean?          @default(false)
+  target_department_id Int?
+  target_user_id       Int?
+  created_at           DateTime?         @default(now()) @db.DateTime(0)
+  updated_at           DateTime?         @default(now()) @db.DateTime(0)
+  deleted_at           DateTime?         @db.DateTime(0)
+  memo_recipients      memo_recipients[]
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([deleted_at], map: "idx_deleted_at")
+  @@index([is_read], map: "idx_is_read")
+  @@index([target_department_id], map: "idx_target_department")
+  @@index([target_user_id], map: "idx_target_user")
+  @@index([type], map: "idx_type")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model menu_categories {
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(50)
+  description String?      @db.Text
+  sort_order  Int          @default(0)
+  is_active   Boolean      @default(true)
+  created_at  DateTime     @default(now()) @db.DateTime(0)
+  updated_at  DateTime     @default(now()) @db.DateTime(0)
+  menu_items  menu_items[]
+
+  @@index([is_active], map: "idx_is_active")
+  @@index([name], map: "idx_name")
+  @@index([sort_order], map: "idx_sort_order")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model menu_items {
+  id               Int                @id @default(autoincrement())
+  category_id      Int
+  name             String             @db.VarChar(100)
+  description      String?            @db.Text
+  price            Decimal            @db.Decimal(8, 2)
+  image            String?            @db.VarChar(255)
+  ingredients      String?            @db.Text
+  nutrition        Json?
+  is_available     Boolean            @default(true)
+  is_recommended   Boolean            @default(false)
+  sort_order       Int                @default(0)
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  meal_order_items meal_order_items[]
+  menu_categories  menu_categories    @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_menu_items_category_id")
+
+  @@index([category_id], map: "idx_category_id")
+  @@index([is_available], map: "idx_is_available")
+  @@index([is_recommended], map: "idx_is_recommended")
+  @@index([name], map: "idx_name")
+  @@index([price], map: "idx_price")
+  @@index([sort_order], map: "idx_sort_order")
+}
+
+model message_status {
+  id         BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  message_id BigInt                @db.UnsignedBigInt
+  user_id    Int
+  status     message_status_status @default(sent)
+  read_at    DateTime?             @db.DateTime(0)
+  created_at DateTime              @default(now()) @db.DateTime(0)
+  updated_at DateTime              @default(now()) @db.DateTime(0)
+  messages   messages              @relation(fields: [message_id], references: [id], onDelete: Cascade, map: "fk_msg_status_msg")
+  users      users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_msg_status_user")
+
+  @@unique([message_id, user_id], map: "uk_msg_user")
+  @@index([message_id], map: "idx_message_id")
+  @@index([message_id], map: "idx_msg_status_msg")
+  @@index([user_id], map: "idx_msg_status_user")
+  @@index([user_id, status], map: "idx_user_status")
+}
+
+model messages {
+  id                                 BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  conversation_id                    BigInt           @db.UnsignedBigInt
+  sender_id                          Int
+  recipient_id                       Int?
+  content                            String           @db.Text
+  message_type                       String           @db.VarChar(50)
+  file_url                           String?          @db.VarChar(255)
+  file_name                          String?          @db.VarChar(255)
+  file_size                          Int?
+  reply_to_message_id                BigInt?          @db.UnsignedBigInt
+  is_recalled                        Boolean?         @default(false)
+  recalled_at                        DateTime?        @db.DateTime(0)
+  created_at                         DateTime?        @default(now()) @db.DateTime(0)
+  message_status                     message_status[]
+  conversations                      conversations    @relation(fields: [conversation_id], references: [id], onDelete: Cascade, map: "fk_messages_conversation")
+  users_messages_recipient_idTousers users?           @relation("messages_recipient_idTousers", fields: [recipient_id], references: [id], map: "fk_messages_recipient")
+  messages                           messages?        @relation("messagesTomessages", fields: [reply_to_message_id], references: [id], map: "fk_messages_reply_to")
+  other_messages                     messages[]       @relation("messagesTomessages")
+  users_messages_sender_idTousers    users            @relation("messages_sender_idTousers", fields: [sender_id], references: [id], map: "fk_messages_sender")
+
+  @@index([conversation_id], map: "idx_conversation_id")
+  @@index([recipient_id], map: "idx_recipient_id")
+  @@index([reply_to_message_id], map: "idx_reply_to_message_id")
+  @@index([sender_id], map: "idx_sender_id")
+}
+
+model migrations_history {
+  id             Int       @id @default(autoincrement())
+  migration_name String    @unique(map: "migration_name") @db.VarChar(255)
+  applied_at     DateTime? @default(now()) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model my_knowledge_articles {
+  id                Int       @id @default(autoincrement())
+  user_id           Int
+  category_id       Int?
+  source_article_id Int?
+  title             String    @db.VarChar(255)
+  content           String?   @db.Text
+  summary           String?   @db.Text
+  attachments       Json?
+  tags              String?   @db.VarChar(500)
+  notes             String?   @db.Text
+  created_at        DateTime? @default(now()) @db.Timestamp(0)
+  updated_at        DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([category_id], map: "idx_category_id")
+  @@index([source_article_id], map: "idx_source_article_id")
+  @@index([title], map: "idx_title")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model my_knowledge_categories {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  name        String    @db.VarChar(100)
+  icon        String?   @default("?") @db.VarChar(10)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  updated_at  DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([name], map: "idx_name")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model my_knowledge_saved_articles {
+  id                 BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id            BigInt             @db.UnsignedBigInt
+  article_id         BigInt             @db.UnsignedBigInt
+  notes              String?            @db.Text
+  created_at         DateTime           @default(now()) @db.DateTime(0)
+  knowledge_articles knowledge_articles @relation(fields: [article_id], references: [id], onDelete: Cascade, map: "fk_mk_article")
+
+  @@unique([user_id, article_id], map: "uk_user_article")
+  @@index([article_id], map: "idx_mk_article")
+  @@index([user_id], map: "idx_mk_user")
+}
+
+model notification_recipients {
+  id              Int           @id @default(autoincrement())
+  notification_id Int
+  user_id         Int
+  is_read         Boolean?      @default(false)
+  read_at         DateTime?     @db.Timestamp(0)
+  is_deleted      Boolean?      @default(false)
+  created_at      DateTime?     @default(now()) @db.Timestamp(0)
+  notifications   notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "notification_recipients_ibfk_1")
+  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "notification_recipients_ibfk_2")
+
+  @@unique([notification_id, user_id], map: "notification_id")
+  @@index([user_id], map: "user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model notification_settings {
+  id           Int       @id @default(autoincrement())
+  event_type   String    @unique(map: "uk_event_type") @db.VarChar(50)
+  target_roles Json?
+  created_at   DateTime? @default(now()) @db.Timestamp(0)
+  updated_at   DateTime? @default(now()) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model notifications {
+  id                      Int                       @id @default(autoincrement())
+  user_id                 Int
+  type                    String                    @db.VarChar(50)
+  title                   String                    @db.VarChar(200)
+  content                 String?                   @db.Text
+  related_id              Int?
+  is_read                 Boolean?                  @default(false)
+  created_at              DateTime?                 @default(now()) @db.DateTime(0)
+  related_type            String?                   @db.VarChar(50)
+  notification_recipients notification_recipients[]
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([is_read], map: "idx_is_read")
+  @@index([related_type, related_id], map: "idx_related")
+  @@index([type], map: "idx_type")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model operation_logs {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id    Int?
+  username   String?  @db.VarChar(50)
+  real_name  String?  @db.VarChar(50)
+  module     String   @db.VarChar(50)
+  action     String   @db.VarChar(100)
+  method     String?  @db.VarChar(10)
+  url        String?  @db.VarChar(255)
+  params     Json?
+  ip         String?  @db.VarChar(45)
+  user_agent String?  @db.VarChar(255)
+  status     Boolean  @default(true)
+  error_msg  String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([module], map: "idx_module")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model overtime_conversions {
+  id                      Int               @id @default(autoincrement())
+  employee_id             Int
+  user_id                 Int
+  overtime_hours          Decimal           @db.Decimal(5, 2)
+  target_vacation_type_id Int
+  converted_days          Decimal           @db.Decimal(5, 2)
+  conversion_rule_id      Int?
+  conversion_ratio        Decimal           @db.Decimal(5, 2)
+  created_at              DateTime?         @default(now()) @db.Timestamp(0)
+  created_by              Int?
+  vacation_types          vacation_types    @relation(fields: [target_vacation_type_id], references: [id], onUpdate: Restrict, map: "overtime_conversions_ibfk_1")
+  conversion_rules        conversion_rules? @relation(fields: [conversion_rule_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "overtime_conversions_ibfk_2")
+
+  @@index([conversion_rule_id], map: "conversion_rule_id")
+  @@index([created_at], map: "idx_created_at")
+  @@index([employee_id], map: "idx_employee")
+  @@index([target_vacation_type_id], map: "target_vacation_type_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model overtime_records {
+  id             Int                      @id @default(autoincrement())
+  employee_id    Int
+  user_id        Int
+  overtime_date  DateTime                 @db.Date
+  start_time     DateTime                 @db.DateTime(0)
+  end_time       DateTime                 @db.DateTime(0)
+  hours          Decimal                  @db.Decimal(4, 2)
+  reason         String?                  @db.VarChar(500)
+  status         overtime_records_status? @default(pending)
+  approver_id    Int?
+  approved_at    DateTime?                @db.DateTime(0)
+  approval_note  String?                  @db.VarChar(500)
+  is_compensated Boolean?                 @default(false)
+  compensated_at DateTime?                @db.DateTime(0)
+  created_at     DateTime?                @default(now()) @db.Timestamp(0)
+  updated_at     DateTime?                @default(now()) @db.Timestamp(0)
+  attachments    String?                  @db.Text
+
+  @@index([approver_id], map: "idx_approver")
+  @@index([employee_id], map: "idx_employee")
+  @@index([overtime_date], map: "idx_overtime_date")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payslip_distribution_settings {
+  id                   Int                                     @id @default(autoincrement())
+  setting_name         String                                  @db.VarChar(100)
+  frequency            payslip_distribution_settings_frequency @default(monthly)
+  distribution_day     Int?
+  distribution_weekday Int?
+  distribution_time    DateTime?                               @db.Time(0)
+  auto_send            Boolean                                 @default(false)
+  target_departments   Json?
+  target_positions     Json?
+  target_employees     Json?
+  notify_internal      Boolean                                 @default(true)
+  notify_sms           Boolean                                 @default(false)
+  notify_email         Boolean                                 @default(false)
+  is_active            Boolean                                 @default(true)
+  created_by           Int?
+  created_at           DateTime                                @default(now()) @db.DateTime(0)
+  updated_at           DateTime                                @default(now()) @db.DateTime(0)
+  users                users?                                  @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_distribution_settings_created_by")
+
+  @@index([created_by], map: "fk_distribution_settings_created_by")
+  @@index([is_active], map: "idx_is_active")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payslip_import_history {
+  id            Int                           @id @default(autoincrement())
+  file_name     String                        @db.VarChar(255)
+  salary_month  DateTime                      @db.Date
+  total_count   Int                           @default(0)
+  success_count Int                           @default(0)
+  failed_count  Int                           @default(0)
+  error_details Json?
+  import_data   Json?
+  status        payslip_import_history_status @default(processing)
+  imported_by   Int
+  created_at    DateTime                      @default(now()) @db.DateTime(0)
+  users         users                         @relation(fields: [imported_by], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_import_history_imported_by")
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([imported_by], map: "idx_imported_by")
+  @@index([salary_month], map: "idx_salary_month")
+  @@index([status], map: "idx_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payslip_passwords {
+  id              Int       @id @default(autoincrement())
+  user_id         Int       @unique(map: "uk_user_id")
+  password_hash   String    @db.VarChar(255)
+  is_default      Boolean   @default(true)
+  last_changed_at DateTime? @db.DateTime(0)
+  created_at      DateTime  @default(now()) @db.DateTime(0)
+  updated_at      DateTime  @default(now()) @db.DateTime(0)
+  users           users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_payslip_passwords_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payslip_templates {
+  id            Int      @id @default(autoincrement())
+  template_name String   @db.VarChar(100)
+  template_code String   @unique(map: "uk_template_code") @db.VarChar(50)
+  is_default    Boolean  @default(false)
+  is_active     Boolean  @default(true)
+  field_config  Json
+  description   String?  @db.Text
+  created_by    Int?
+  created_at    DateTime @default(now()) @db.DateTime(0)
+  updated_at    DateTime @default(now()) @db.DateTime(0)
+  users         users?   @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_payslip_templates_created_by")
+
+  @@index([created_by], map: "fk_payslip_templates_created_by")
+  @@index([is_active], map: "idx_is_active")
+  @@index([is_default], map: "idx_is_default")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payslips {
+  id                              Int             @id @default(autoincrement())
+  payslip_no                      String          @unique(map: "uk_payslip_no") @db.VarChar(50)
+  employee_id                     Int
+  user_id                         Int
+  salary_month                    DateTime        @db.Date
+  payment_date                    DateTime?       @db.Date
+  attendance_days                 Decimal?        @default(0.00) @db.Decimal(5, 2)
+  late_count                      Int?            @default(0)
+  early_leave_count               Int?            @default(0)
+  leave_days                      Decimal?        @default(0.00) @db.Decimal(5, 2)
+  overtime_hours                  Decimal?        @default(0.00) @db.Decimal(6, 2)
+  absent_days                     Decimal?        @default(0.00) @db.Decimal(5, 2)
+  basic_salary                    Decimal?        @default(0.00) @db.Decimal(10, 2)
+  position_salary                 Decimal?        @default(0.00) @db.Decimal(10, 2)
+  performance_bonus               Decimal?        @default(0.00) @db.Decimal(10, 2)
+  overtime_pay                    Decimal?        @default(0.00) @db.Decimal(10, 2)
+  allowances                      Decimal?        @default(0.00) @db.Decimal(10, 2)
+  deductions                      Decimal?        @default(0.00) @db.Decimal(10, 2)
+  social_security                 Decimal?        @default(0.00) @db.Decimal(10, 2)
+  housing_fund                    Decimal?        @default(0.00) @db.Decimal(10, 2)
+  tax                             Decimal?        @default(0.00) @db.Decimal(10, 2)
+  other_deductions                Decimal?        @default(0.00) @db.Decimal(10, 2)
+  net_salary                      Decimal         @db.Decimal(10, 2)
+  status                          payslips_status @default(draft)
+  remark                          String?         @db.Text
+  custom_fields                   Json?
+  issued_by                       Int?
+  issued_at                       DateTime?       @db.DateTime(0)
+  viewed_at                       DateTime?       @db.DateTime(0)
+  confirmed_at                    DateTime?       @db.DateTime(0)
+  created_at                      DateTime        @default(now()) @db.DateTime(0)
+  updated_at                      DateTime        @default(now()) @db.DateTime(0)
+  employees                       employees       @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_payslips_employee_id")
+  users_payslips_issued_byTousers users?          @relation("payslips_issued_byTousers", fields: [issued_by], references: [id], onUpdate: Restrict, map: "fk_payslips_issued_by")
+  users_payslips_user_idTousers   users           @relation("payslips_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_payslips_user_id")
+
+  @@unique([employee_id, salary_month], map: "uk_employee_month")
+  @@index([issued_at], map: "idx_issued_at")
+  @@index([issued_by], map: "idx_issued_by")
+  @@index([salary_month], map: "idx_salary_month")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model permission_templates {
+  id             Int      @id @default(autoincrement())
+  name           String   @unique(map: "uk_name") @db.VarChar(100)
+  description    String?  @db.Text
+  permission_ids Json?
+  created_at     DateTime @default(now()) @db.DateTime(0)
+  updated_at     DateTime @default(now()) @db.DateTime(0)
+
+  @@index([created_at], map: "idx_created_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model permissions {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(50)
+  code             String             @unique(map: "uk_code") @db.VarChar(50)
+  resource         String             @db.VarChar(50)
+  action           String             @db.VarChar(50)
+  description      String?            @db.Text
+  module           String             @db.VarChar(50)
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  role_permissions role_permissions[]
+
+  @@index([action], map: "idx_action")
+  @@index([module], map: "idx_module")
+  @@index([resource], map: "idx_resource")
+  @@index([resource, action], map: "idx_resource_action")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model platforms {
+  id               Int                @id @default(autoincrement())
+  name             String             @unique(map: "name") @db.VarChar(255)
+  created_at       DateTime?          @default(now()) @db.Timestamp(0)
+  customers        customers[]
+  external_agents  external_agents[]
+  quality_sessions quality_sessions[]
+  shops            shops[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model positions {
+  id                                Int               @id @default(autoincrement())
+  name                              String            @db.VarChar(100)
+  department_id                     Int
+  description                       String?           @db.Text
+  requirements                      String?           @db.Text
+  responsibilities                  String?           @db.Text
+  salary_min                        Decimal?          @db.Decimal(10, 2)
+  salary_max                        Decimal?          @db.Decimal(10, 2)
+  level                             positions_level?  @default(junior)
+  status                            positions_status? @default(active)
+  created_at                        DateTime?         @default(now()) @db.Timestamp(0)
+  updated_at                        DateTime?         @default(now()) @db.Timestamp(0)
+  created_by                        Int?
+  updated_by                        Int?
+  sort_order                        Int               @default(0)
+  employees                         employees[]
+  users_positions_created_byTousers users?            @relation("positions_created_byTousers", fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_positions_created_by")
+  departments                       departments       @relation(fields: [department_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_positions_department")
+  users_positions_updated_byTousers users?            @relation("positions_updated_byTousers", fields: [updated_by], references: [id], onUpdate: Restrict, map: "fk_positions_updated_by")
+
+  @@unique([name, department_id], map: "unique_position_dept")
+  @@index([created_by], map: "created_by")
+  @@index([department_id], map: "idx_department_id")
+  @@index([level], map: "idx_level")
+  @@index([name], map: "idx_name")
+  @@index([sort_order], map: "idx_sort_order")
+  @@index([status], map: "idx_status")
+  @@index([updated_by], map: "updated_by")
+}
+
+model procurement_records {
+  id              Int             @id @default(autoincrement())
+  item_id         Int
+  quantity        Int
+  price_per_unit  Decimal?        @db.Decimal(10, 2)
+  total_price     Decimal?        @db.Decimal(10, 2)
+  supplier        String?         @db.VarChar(100)
+  purchase_date   DateTime?       @db.Date
+  batch_no        String?         @db.VarChar(50)
+  purchaser_id    Int?
+  created_at      DateTime?       @default(now()) @db.Timestamp(0)
+  inventory_items inventory_items @relation(fields: [item_id], references: [id], onUpdate: Restrict, map: "procurement_records_ibfk_1")
+  users           users?          @relation(fields: [purchaser_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "procurement_records_ibfk_2")
+
+  @@index([item_id], map: "item_id")
+  @@index([purchaser_id], map: "purchaser_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_attachments {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  file_name     String        @db.VarChar(255)
+  file_type     String        @db.VarChar(50)
+  file_size     Int
+  file_url      String        @db.VarChar(500)
+  thumbnail_url String?       @db.VarChar(500)
+  sort_order    Int           @default(0)
+  created_by    Int?
+  created_at    DateTime      @default(now()) @db.DateTime(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_case_attachments_case_id")
+
+  @@index([case_id], map: "idx_case_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_collections {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  user_id       Int
+  created_at    DateTime      @default(now()) @db.DateTime(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_case_collections_case_id")
+
+  @@unique([case_id, user_id], map: "uk_case_user")
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_comments {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  parent_id     Int?
+  user_id       Int
+  content       String        @db.Text
+  like_count    Int           @default(0)
+  is_deleted    Boolean       @default(false)
+  created_at    DateTime      @default(now()) @db.DateTime(0)
+  updated_at    DateTime      @default(now()) @db.DateTime(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_case_comments_case_id")
+
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_favorites {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  user_id       Int
+  created_at    DateTime?     @default(now()) @db.Timestamp(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "quality_case_favorites_ibfk_1")
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "quality_case_favorites_ibfk_2")
+
+  @@unique([user_id, case_id], map: "unique_user_case")
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_learning_records {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  user_id       Int
+  duration      Int           @default(0)
+  is_completed  Boolean       @default(false)
+  last_position Int           @default(0)
+  created_at    DateTime      @default(now()) @db.DateTime(0)
+  updated_at    DateTime      @default(now()) @db.DateTime(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_case_learning_records_case_id")
+
+  @@unique([case_id, user_id], map: "uk_case_user")
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_likes {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  user_id       Int
+  created_at    DateTime?     @default(now()) @db.Timestamp(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "quality_case_likes_ibfk_1")
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "quality_case_likes_ibfk_2")
+
+  @@unique([user_id, case_id], map: "unique_user_case")
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_tags {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  tag_id        Int
+  created_at    DateTime      @default(now()) @db.DateTime(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_case_tags_case_id")
+
+  @@unique([case_id, tag_id], map: "uk_case_tag")
+  @@index([case_id], map: "idx_case_id")
+  @@index([tag_id], map: "idx_tag_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_case_views {
+  id            Int           @id @default(autoincrement())
+  case_id       Int
+  user_id       Int?
+  ip_address    String?       @db.VarChar(45)
+  user_agent    String?       @db.Text
+  viewed_at     DateTime?     @default(now()) @db.Timestamp(0)
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "quality_case_views_ibfk_1")
+  users         users?        @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "quality_case_views_ibfk_2")
+
+  @@index([case_id], map: "idx_case_id")
+  @@index([user_id], map: "idx_user_id")
+  @@index([viewed_at], map: "idx_viewed_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_cases {
+  id                            Int                             @id @default(autoincrement())
+  title                         String                          @db.VarChar(200)
+  category                      String?                         @db.VarChar(50)
+  description                   String?                         @db.Text
+  problem                       String                          @db.Text
+  solution                      String                          @db.Text
+  case_type                     quality_cases_case_type         @default(excellent)
+  difficulty                    quality_cases_difficulty        @default(medium)
+  priority                      quality_cases_priority          @default(medium)
+  status                        quality_cases_status            @default(draft)
+  session_id                    Int?
+  view_count                    Int                             @default(0)
+  like_count                    Int                             @default(0)
+  collect_count                 Int                             @default(0)
+  comment_count                 Int                             @default(0)
+  is_featured                   Boolean                         @default(false)
+  is_recommended                Boolean                         @default(false)
+  created_by                    Int?
+  updated_by                    Int?
+  published_at                  DateTime?                       @db.DateTime(0)
+  created_at                    DateTime                        @default(now()) @db.DateTime(0)
+  updated_at                    DateTime                        @default(now()) @db.DateTime(0)
+  deleted_at                    DateTime?                       @db.DateTime(0)
+  case_attachments              case_attachments[]
+  case_comments                 case_comments[]
+  case_learning_records         case_learning_records[]
+  quality_case_attachments      quality_case_attachments[]
+  quality_case_collections      quality_case_collections[]
+  quality_case_comments         quality_case_comments[]
+  quality_case_favorites        quality_case_favorites[]
+  quality_case_learning_records quality_case_learning_records[]
+  quality_case_likes            quality_case_likes[]
+  quality_case_tags             quality_case_tags[]
+  quality_case_views            quality_case_views[]
+  user_case_favorites           user_case_favorites[]
+
+  @@index([case_type], map: "idx_case_type")
+  @@index([category], map: "idx_category")
+  @@index([deleted_at], map: "idx_deleted_at")
+  @@index([status], map: "idx_status")
+  @@fulltext([title, description, problem, solution], map: "ft_case_search")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_message_tags {
+  id               Int              @id @default(autoincrement())
+  message_id       Int
+  tag_id           Int
+  created_by       Int?
+  created_at       DateTime         @default(now()) @db.DateTime(0)
+  users            users?           @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_quality_message_tags_created_by")
+  session_messages session_messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_message_tags_message_id")
+  tags             tags             @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_message_tags_tag_id")
+
+  @@unique([message_id, tag_id], map: "uk_message_tag")
+  @@index([created_by], map: "idx_created_by")
+  @@index([message_id], map: "idx_message_id")
+  @@index([tag_id], map: "idx_tag_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_rules {
+  id             Int              @id @default(autoincrement())
+  name           String           @db.VarChar(100)
+  category       String           @db.VarChar(50)
+  description    String?          @db.Text
+  criteria       Json
+  score_weight   Decimal          @db.Decimal(5, 2)
+  is_active      Boolean          @default(true)
+  created_by     Int?
+  created_at     DateTime         @default(now()) @db.DateTime(0)
+  updated_at     DateTime         @default(now()) @db.DateTime(0)
+  users          users?           @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_quality_rules_created_by")
+  quality_scores quality_scores[]
+
+  @@index([category], map: "idx_category")
+  @@index([created_by], map: "idx_created_by")
+  @@index([is_active], map: "idx_is_active")
+  @@index([name], map: "idx_name")
+  @@index([score_weight], map: "idx_score_weight")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_scores {
+  id               Int              @id @default(autoincrement())
+  session_id       Int
+  rule_id          Int
+  score            Decimal          @db.Decimal(5, 2)
+  max_score        Decimal?         @db.Decimal(5, 2)
+  comment          String?          @db.Text
+  created_by       Int?
+  created_at       DateTime         @default(now()) @db.DateTime(0)
+  users            users?           @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_quality_scores_created_by")
+  quality_rules    quality_rules    @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_scores_rule_id")
+  quality_sessions quality_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_scores_session_id")
+
+  @@unique([session_id, rule_id], map: "uk_session_rule")
+  @@index([created_by], map: "idx_created_by")
+  @@index([rule_id], map: "idx_rule_id")
+  @@index([score], map: "idx_score")
+  @@index([session_id], map: "idx_session_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_session_tags {
+  id               Int              @id @default(autoincrement())
+  session_id       Int
+  tag_id           Int
+  created_by       Int?
+  created_at       DateTime         @default(now()) @db.DateTime(0)
+  users            users?           @relation(fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_quality_session_tags_created_by")
+  quality_sessions quality_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_session_tags_session_id")
+  tags             tags             @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_quality_session_tags_tag_id")
+
+  @@unique([session_id, tag_id], map: "uk_session_tag")
+  @@index([created_by], map: "idx_created_by")
+  @@index([session_id], map: "idx_session_id")
+  @@index([tag_id], map: "idx_tag_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_sessions {
+  id                                         Int                      @id @default(autoincrement())
+  session_no                                 String                   @unique(map: "uk_session_no") @db.VarChar(50)
+  agent_id                                   Int?
+  external_agent_id                          Int?
+  agent_name                                 String?                  @db.VarChar(100)
+  customer_id                                String?                  @db.VarChar(50)
+  customer_name                              String?                  @db.VarChar(100)
+  channel                                    quality_sessions_channel @default(chat)
+  start_time                                 DateTime                 @db.DateTime(0)
+  end_time                                   DateTime                 @db.DateTime(0)
+  duration                                   Int
+  message_count                              Int                      @default(0)
+  status                                     quality_sessions_status  @default(pending)
+  inspector_id                               Int?
+  score                                      Decimal?                 @db.Decimal(5, 2)
+  grade                                      String?                  @db.VarChar(20)
+  comment                                    String?                  @db.Text
+  reviewed_at                                DateTime?                @db.DateTime(0)
+  platform_id                                Int?
+  shop_id                                    Int?
+  created_at                                 DateTime                 @default(now()) @db.DateTime(0)
+  updated_at                                 DateTime                 @default(now()) @db.DateTime(0)
+  quality_scores                             quality_scores[]
+  quality_session_tags                       quality_session_tags[]
+  users_quality_sessions_agent_idTousers     users?                   @relation("quality_sessions_agent_idTousers", fields: [agent_id], references: [id], onUpdate: Restrict, map: "fk_quality_sessions_agent_id")
+  external_agents                            external_agents?         @relation(fields: [external_agent_id], references: [id], onUpdate: Restrict, map: "fk_quality_sessions_external_agent_id")
+  users_quality_sessions_inspector_idTousers users?                   @relation("quality_sessions_inspector_idTousers", fields: [inspector_id], references: [id], onUpdate: Restrict, map: "fk_quality_sessions_inspector_id")
+  platforms                                  platforms?               @relation(fields: [platform_id], references: [id], onUpdate: Restrict, map: "fk_quality_sessions_platform_id")
+  shops                                      shops?                   @relation(fields: [shop_id], references: [id], onUpdate: Restrict, map: "fk_quality_sessions_shop_id")
+  session_messages                           session_messages[]
+
+  @@index([agent_id], map: "idx_agent_id")
+  @@index([agent_id, status, start_time], map: "idx_agent_status_time")
+  @@index([agent_id, start_time, status], map: "idx_agent_time_status")
+  @@index([channel], map: "idx_channel")
+  @@index([customer_id], map: "idx_customer_id")
+  @@index([duration], map: "idx_duration")
+  @@index([end_time], map: "idx_end_time")
+  @@index([external_agent_id], map: "idx_external_agent_id")
+  @@index([grade], map: "idx_grade")
+  @@index([inspector_id], map: "idx_inspector_id")
+  @@index([platform_id], map: "idx_platform_id")
+  @@index([reviewed_at], map: "idx_reviewed_at")
+  @@index([score], map: "idx_score")
+  @@index([shop_id], map: "idx_shop_id")
+  @@index([start_time], map: "idx_start_time")
+  @@index([status], map: "idx_status")
+  @@index([start_time, end_time], map: "idx_time_range")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_tag_categories {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique(map: "uk_name") @db.VarChar(50)
+  description  String?        @db.VarChar(255)
+  sort_order   Int            @default(0)
+  created_at   DateTime       @default(now()) @db.DateTime(0)
+  updated_at   DateTime       @default(now()) @db.DateTime(0)
+  quality_tags quality_tags[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model quality_tags {
+  id                     Int                     @id @default(autoincrement())
+  name                   String                  @db.VarChar(50)
+  category_id            Int?
+  color                  String?                 @default("#1890ff") @db.VarChar(20)
+  description            String?                 @db.VarChar(255)
+  tag_type               quality_tags_tag_type   @default(quality)
+  is_active              Boolean                 @default(true)
+  created_at             DateTime                @default(now()) @db.DateTime(0)
+  updated_at             DateTime                @default(now()) @db.DateTime(0)
+  quality_tag_categories quality_tag_categories? @relation(fields: [category_id], references: [id], onUpdate: Restrict, map: "fk_quality_tags_category_id")
+
+  @@unique([name, category_id], map: "uk_name_category")
+  @@index([category_id], map: "idx_category_id")
+  @@index([tag_type], map: "idx_tag_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model questions {
+  id             Int            @id @default(autoincrement())
+  exam_id        Int
+  type           questions_type
+  content        String         @db.Text
+  options        Json?
+  correct_answer String         @db.Text
+  score          Decimal        @db.Decimal(5, 2)
+  explanation    String?        @db.Text
+  order_num      Int            @default(0)
+  created_at     DateTime       @default(now()) @db.DateTime(0)
+  updated_at     DateTime       @default(now()) @db.DateTime(0)
+  exams          exams          @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_questions_exam_id")
+
+  @@index([exam_id], map: "idx_exam_id")
+  @@index([order_num], map: "idx_order_num")
+  @@index([score], map: "idx_score")
+  @@index([type], map: "idx_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reimbursement_attachments {
+  id                  Int                  @id @default(autoincrement())
+  reimbursement_id    Int
+  item_id             Int?
+  file_name           String               @db.VarChar(255)
+  file_type           String?              @db.VarChar(50)
+  file_size           Int?
+  file_url            String?              @db.VarChar(1024)
+  created_at          DateTime             @default(now()) @db.DateTime(0)
+  reimbursement_items reimbursement_items? @relation(fields: [item_id], references: [id], onUpdate: Restrict, map: "fk_attachments_item")
+  reimbursements      reimbursements       @relation(fields: [reimbursement_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_attachments_reimbursement")
+
+  @@index([item_id], map: "idx_item_id")
+  @@index([reimbursement_id], map: "idx_reimbursement_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reimbursement_items {
+  id                        Int                         @id @default(autoincrement())
+  reimbursement_id          Int
+  item_type                 String                      @db.VarChar(50)
+  amount                    Decimal                     @default(0.00) @db.Decimal(12, 2)
+  expense_date              DateTime?                   @db.Date
+  description               String?                     @db.Text
+  attachment_url            String?                     @db.VarChar(1024)
+  created_at                DateTime                    @default(now()) @db.DateTime(0)
+  reimbursement_attachments reimbursement_attachments[]
+  reimbursements            reimbursements              @relation(fields: [reimbursement_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_items_reimbursement")
+
+  @@index([item_type], map: "idx_item_type")
+  @@index([reimbursement_id], map: "idx_reimbursement_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reimbursement_types {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  name        String   @unique(map: "uk_name") @db.VarChar(50)
+  code        String?  @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  updated_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reimbursements {
+  id                        Int                         @id @default(autoincrement())
+  reimbursement_no          String                      @unique(map: "uk_reimbursement_no") @db.VarChar(32)
+  user_id                   Int
+  employee_id               Int
+  department_id             Int?
+  title                     String                      @db.VarChar(200)
+  type                      reimbursements_type         @default(other)
+  total_amount              Decimal                     @default(0.00) @db.Decimal(12, 2)
+  status                    reimbursements_status       @default(draft)
+  current_node_id           Int?
+  workflow_id               Int?
+  remark                    String?                     @db.Text
+  submitted_at              DateTime?                   @db.DateTime(0)
+  completed_at              DateTime?                   @db.DateTime(0)
+  created_at                DateTime                    @default(now()) @db.DateTime(0)
+  updated_at                DateTime                    @default(now()) @db.DateTime(0)
+  approval_records          approval_records[]
+  reimbursement_attachments reimbursement_attachments[]
+  reimbursement_items       reimbursement_items[]
+  departments               departments?                @relation(fields: [department_id], references: [id], onUpdate: Restrict, map: "fk_reimbursements_department")
+  employees                 employees                   @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_reimbursements_employee")
+  users                     users                       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_reimbursements_user")
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([department_id], map: "idx_department_id")
+  @@index([employee_id], map: "idx_employee_id")
+  @@index([status], map: "idx_status")
+  @@index([type], map: "idx_type")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_departments {
+  id            Int         @id @default(autoincrement())
+  role_id       Int
+  department_id Int
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  departments   departments @relation(fields: [department_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_departments_department")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_departments_role")
+
+  @@unique([role_id, department_id], map: "uk_role_department")
+  @@index([department_id], map: "idx_department_id")
+  @@index([role_id], map: "idx_role_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_permissions {
+  id            Int         @id @default(autoincrement())
+  role_id       Int
+  permission_id Int
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_permissions_permission_id")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_permissions_role_id")
+
+  @@unique([role_id, permission_id], map: "uk_role_permission")
+  @@index([permission_id], map: "idx_permission_id")
+  @@index([role_id], map: "idx_role_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_workflows {
+  id                 Int                @id @default(autoincrement()) @db.UnsignedInt
+  role_id            Int
+  workflow_id        Int
+  created_at         DateTime           @default(now()) @db.Timestamp(0)
+  updated_at         DateTime           @default(now()) @db.Timestamp(0)
+  roles              roles              @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_workflows_role")
+  approval_workflows approval_workflows @relation(fields: [workflow_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_workflows_workflow")
+
+  @@unique([role_id, workflow_id], map: "uk_role_workflow")
+  @@index([role_id], map: "idx_role_id")
+  @@index([workflow_id], map: "idx_workflow_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model roles {
+  id                       Int                       @id @default(autoincrement())
+  name                     String                    @unique(map: "uk_name") @db.VarChar(50)
+  description              String?                   @db.Text
+  level                    Int                       @default(1)
+  is_system                Boolean                   @default(false)
+  created_at               DateTime                  @default(now()) @db.DateTime(0)
+  updated_at               DateTime                  @default(now()) @db.DateTime(0)
+  can_view_all_departments Boolean?                  @default(false)
+  approval_workflow_nodes  approval_workflow_nodes[]
+  role_departments         role_departments[]
+  role_permissions         role_permissions[]
+  role_workflows           role_workflows[]
+  user_roles               user_roles[]
+
+  @@index([is_system], map: "idx_is_system")
+  @@index([level], map: "idx_level")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model schedules {
+  id                                Int              @id @default(autoincrement())
+  user_id                           Int
+  shift_id                          Int
+  schedule_date                     DateTime         @db.Date
+  status                            schedules_status @default(normal)
+  note                              String?          @db.Text
+  created_by                        Int?
+  created_at                        DateTime         @default(now()) @db.DateTime(0)
+  updated_at                        DateTime         @default(now()) @db.DateTime(0)
+  users_schedules_created_byTousers users?           @relation("schedules_created_byTousers", fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_schedules_created_by")
+  shifts                            shifts           @relation(fields: [shift_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_schedules_shift_id")
+  users_schedules_user_idTousers    users            @relation("schedules_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_schedules_user_id")
+
+  @@unique([user_id, schedule_date], map: "uk_user_date")
+  @@index([created_by], map: "idx_created_by")
+  @@index([schedule_date], map: "idx_schedule_date")
+  @@index([shift_id], map: "idx_shift_id")
+  @@index([status], map: "idx_status")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model session_messages {
+  id                   Int                           @id @default(autoincrement())
+  session_id           Int
+  sender_type          session_messages_sender_type
+  sender_name          String?                       @db.VarChar(100)
+  sender_id            String?                       @db.VarChar(50)
+  content              String                        @db.Text
+  content_type         session_messages_content_type @default(text)
+  timestamp            DateTime                      @db.DateTime(0)
+  created_at           DateTime                      @default(now()) @db.DateTime(0)
+  quality_message_tags quality_message_tags[]
+  quality_sessions     quality_sessions              @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_session_messages_session_id")
+
+  @@index([content_type], map: "idx_content_type")
+  @@index([sender_id], map: "idx_sender_id")
+  @@index([sender_type], map: "idx_sender_type")
+  @@index([session_id], map: "idx_session_id")
+  @@index([timestamp], map: "idx_timestamp")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules {
+  id            Int          @id @default(autoincrement())
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime     @db.Date
+  is_rest_day   Boolean?     @default(false)
+  created_at    DateTime?    @default(now()) @db.Timestamp(0)
+  updated_at    DateTime?    @default(now()) @db.Timestamp(0)
+  employees     employees    @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_shift_schedules_employee")
+  work_shifts   work_shifts? @relation(fields: [shift_id], references: [id], onUpdate: Restrict, map: "fk_shift_schedules_shift")
+
+  @@unique([employee_id, schedule_date], map: "uk_employee_date")
+  @@index([schedule_date], map: "idx_date")
+  @@index([shift_id], map: "idx_shift_id")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules_backup {
+  id            Int       @default(0)
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime  @db.Date
+  is_rest_day   Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules_backup_20251113 {
+  id            Int       @default(0)
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime  @db.Date
+  is_rest_day   Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules_backup_before_date_fix {
+  id            Int       @default(0)
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime  @db.Date
+  is_rest_day   Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules_backup_comprehensive {
+  id            Int       @default(0)
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime  @db.Date
+  is_rest_day   Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shift_schedules_backup_simple {
+  id            Int       @default(0)
+  employee_id   Int
+  shift_id      Int?
+  schedule_date DateTime  @db.Date
+  is_rest_day   Boolean?  @default(false)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shifts {
+  id             Int         @id @default(autoincrement())
+  name           String      @db.VarChar(50)
+  start_time     DateTime    @db.Time(0)
+  end_time       DateTime    @db.Time(0)
+  break_duration Int         @default(0)
+  color          String?     @db.VarChar(7)
+  description    String?     @db.Text
+  is_active      Boolean     @default(true)
+  created_at     DateTime    @default(now()) @db.DateTime(0)
+  updated_at     DateTime    @default(now()) @db.DateTime(0)
+  schedules      schedules[]
+
+  @@index([end_time], map: "idx_end_time")
+  @@index([is_active], map: "idx_is_active")
+  @@index([name], map: "idx_name")
+  @@index([start_time], map: "idx_start_time")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model shops {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(255)
+  platform_id      Int
+  created_at       DateTime?          @default(now()) @db.Timestamp(0)
+  customers        customers[]
+  external_agents  external_agents[]
+  quality_sessions quality_sessions[]
+  platforms        platforms          @relation(fields: [platform_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_shops_platform")
+
+  @@index([platform_id], map: "platform_id")
+}
+
+model special_approval_group_members {
+  group_id                Int
+  member_type             special_approval_group_members_member_type
+  member_id               Int
+  special_approval_groups special_approval_groups                    @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "special_approval_group_members_ibfk_1")
+
+  @@id([group_id, member_type, member_id])
+}
+
+model special_approval_groups {
+  id                             Int                              @id @default(autoincrement())
+  name                           String                           @db.VarChar(100)
+  description                    String?                          @db.Text
+  created_at                     DateTime?                        @default(now()) @db.Timestamp(0)
+  updated_at                     DateTime?                        @default(now()) @db.Timestamp(0)
+  special_approval_group_members special_approval_group_members[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tag_categories {
+  id                   Int              @id @default(autoincrement())
+  parent_id            Int?
+  level                Int              @default(0)
+  path                 String?          @db.VarChar(500)
+  name                 String           @unique(map: "uk_name") @db.VarChar(50)
+  description          String?          @db.Text
+  color                String?          @db.VarChar(7)
+  sort_order           Int              @default(0)
+  is_active            Boolean          @default(true)
+  created_at           DateTime         @default(now()) @db.DateTime(0)
+  updated_at           DateTime         @default(now()) @db.DateTime(0)
+  tag_categories       tag_categories?  @relation("tag_categoriesTotag_categories", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_tag_categories_parent_id")
+  other_tag_categories tag_categories[] @relation("tag_categoriesTotag_categories")
+  tags                 tags[]
+
+  @@index([is_active], map: "idx_is_active")
+  @@index([level], map: "idx_level")
+  @@index([parent_id], map: "idx_parent_id")
+  @@index([path(length: 255)], map: "idx_path")
+  @@index([sort_order], map: "idx_sort_order")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tags {
+  id                   Int                    @id @default(autoincrement())
+  parent_id            Int?
+  level                Int                    @default(0)
+  path                 String?                @db.VarChar(500)
+  name                 String                 @db.VarChar(50)
+  tag_type             tags_tag_type          @default(general)
+  category_id          Int?
+  color                String?                @db.VarChar(7)
+  description          String?                @db.Text
+  usage_count          Int                    @default(0)
+  is_active            Boolean                @default(true)
+  created_at           DateTime               @default(now()) @db.DateTime(0)
+  updated_at           DateTime               @default(now()) @db.DateTime(0)
+  case_tags            case_tags[]
+  quality_message_tags quality_message_tags[]
+  quality_session_tags quality_session_tags[]
+  tag_categories       tag_categories?        @relation(fields: [category_id], references: [id], onUpdate: Restrict, map: "fk_tags_category_id")
+  tags                 tags?                  @relation("tagsTotags", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_tags_parent_id")
+  other_tags           tags[]                 @relation("tagsTotags")
+
+  @@index([category_id], map: "idx_category_id")
+  @@index([is_active], map: "idx_is_active")
+  @@index([level], map: "idx_level")
+  @@index([name], map: "idx_name")
+  @@index([parent_id], map: "idx_parent_id")
+  @@index([path(length: 255)], map: "idx_path")
+  @@index([tag_type], map: "idx_tag_type")
+  @@index([usage_count], map: "idx_usage_count")
+}
+
+model ticket_logs {
+  id          Int       @id @default(autoincrement())
+  ticket_id   Int
+  operator_id Int
+  action      String?   @db.VarChar(50)
+  content     String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  tickets     tickets   @relation(fields: [ticket_id], references: [id], onUpdate: Restrict, map: "ticket_logs_ibfk_1")
+  users       users     @relation(fields: [operator_id], references: [id], onUpdate: Restrict, map: "ticket_logs_ibfk_2")
+
+  @@index([operator_id], map: "operator_id")
+  @@index([ticket_id], map: "ticket_id")
+}
+
+model tickets {
+  id                               Int               @id @default(autoincrement())
+  ticket_no                        String            @unique(map: "ticket_no") @db.VarChar(50)
+  title                            String            @db.VarChar(200)
+  description                      String?           @db.Text
+  customer_id                      Int
+  status                           tickets_status?   @default(open)
+  priority                         tickets_priority? @default(medium)
+  category                         String?           @db.VarChar(50)
+  creator_id                       Int
+  assignee_id                      Int?
+  assignee_dept_id                 Int?
+  created_at                       DateTime?         @default(now()) @db.Timestamp(0)
+  updated_at                       DateTime?         @default(now()) @db.Timestamp(0)
+  resolved_at                      DateTime?         @db.Timestamp(0)
+  ticket_logs                      ticket_logs[]
+  crm_customers                    crm_customers     @relation(fields: [customer_id], references: [id], onUpdate: Restrict, map: "tickets_ibfk_1")
+  users_tickets_creator_idTousers  users             @relation("tickets_creator_idTousers", fields: [creator_id], references: [id], onUpdate: Restrict, map: "tickets_ibfk_2")
+  users_tickets_assignee_idTousers users?            @relation("tickets_assignee_idTousers", fields: [assignee_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "tickets_ibfk_3")
+  departments                      departments?      @relation(fields: [assignee_dept_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "tickets_ibfk_4")
+
+  @@index([assignee_dept_id], map: "assignee_dept_id")
+  @@index([assignee_id], map: "assignee_id")
+  @@index([creator_id], map: "creator_id")
+  @@index([customer_id], map: "customer_id")
+}
+
+model user_case_favorites {
+  id            Int           @id @default(autoincrement())
+  user_id       Int
+  case_id       Int
+  created_at    DateTime?     @default(now()) @db.Timestamp(0)
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "user_case_favorites_ibfk_1")
+  quality_cases quality_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "user_case_favorites_ibfk_2")
+
+  @@unique([user_id, case_id], map: "user_id")
+  @@index([case_id], map: "case_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_departments {
+  id            Int         @id @default(autoincrement())
+  user_id       Int
+  department_id Int
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  departments   departments @relation(fields: [department_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_departments_department")
+  users         users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_departments_user")
+
+  @@unique([user_id, department_id], map: "uk_user_department")
+  @@index([department_id], map: "idx_department_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model user_notification_settings {
+  user_id            Int       @id
+  receive_system     Boolean?  @default(true)
+  receive_department Boolean?  @default(true)
+  sound_on           Boolean?  @default(true)
+  dnd_start          String?   @db.VarChar(5)
+  dnd_end            String?   @db.VarChar(5)
+  toast_duration     Int?      @default(5000)
+  created_at         DateTime? @default(now()) @db.Timestamp(0)
+  updated_at         DateTime? @default(now()) @db.Timestamp(0)
+  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "user_notification_settings_ibfk_1")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_roles {
+  id                                  Int      @id @default(autoincrement())
+  user_id                             Int
+  role_id                             Int
+  assigned_at                         DateTime @default(now()) @db.DateTime(0)
+  assigned_by                         Int?
+  users_user_roles_assigned_byTousers users?   @relation("user_roles_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: Restrict, map: "fk_user_roles_assigned_by")
+  roles                               roles    @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_roles_role_id")
+  users_user_roles_user_idTousers     users    @relation("user_roles_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_roles_user_id")
+
+  @@unique([user_id, role_id], map: "uk_user_role")
+  @@index([assigned_by], map: "idx_assigned_by")
+  @@index([role_id], map: "idx_role_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model user_settings {
+  id                   BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id              Int       @unique(map: "uk_user_id")
+  message_notification Boolean   @default(true)
+  sound_enabled        Boolean   @default(true)
+  do_not_disturb_start DateTime? @db.Time(0)
+  do_not_disturb_end   DateTime? @db.Time(0)
+  created_at           DateTime  @default(now()) @db.DateTime(0)
+  updated_at           DateTime  @default(now()) @db.DateTime(0)
+  users                users     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_user_settings_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model users {
+  id                                                                 Int                               @id @default(autoincrement())
+  username                                                           String                            @unique(map: "uk_username") @db.VarChar(50)
+  password_hash                                                      String                            @db.VarChar(255)
+  real_name                                                          String                            @db.VarChar(50)
+  email                                                              String?                           @unique(map: "uk_email") @db.VarChar(100)
+  phone                                                              String?                           @unique(map: "uk_phone") @db.VarChar(20)
+  avatar                                                             String?                           @db.VarChar(1024)
+  department_id                                                      Int?
+  status                                                             users_status?                     @default(pending)
+  approval_note                                                      String?                           @db.Text
+  last_login                                                         DateTime?                         @db.DateTime(0)
+  created_at                                                         DateTime                          @default(now()) @db.DateTime(0)
+  updated_at                                                         DateTime                          @default(now()) @db.DateTime(0)
+  session_token                                                      String?                           @db.VarChar(500)
+  session_created_at                                                 DateTime?                         @db.DateTime(0)
+  is_department_manager                                              Boolean?                          @default(false)
+  id_card_front_url                                                  String?                           @db.VarChar(500)
+  id_card_back_url                                                   String?                           @db.VarChar(500)
+  approval_records                                                   approval_records[]
+  approval_workflow_nodes                                            approval_workflow_nodes[]
+  approval_workflows                                                 approval_workflows[]
+  approvers_approvers_delegate_user_idTousers                        approvers[]                       @relation("approvers_delegate_user_idTousers")
+  approvers_approvers_user_idTousers                                 approvers[]                       @relation("approvers_user_idTousers")
+  article_comments                                                   article_comments[]
+  assessment_plans                                                   assessment_plans[]
+  assessment_results                                                 assessment_results[]
+  asset_assignments_asset_assignments_user_idTousers                 asset_assignments[]               @relation("asset_assignments_user_idTousers")
+  asset_assignments_asset_assignments_assigned_byTousers             asset_assignments[]               @relation("asset_assignments_assigned_byTousers")
+  asset_requests_asset_requests_user_idTousers                       asset_requests[]                  @relation("asset_requests_user_idTousers")
+  asset_requests_asset_requests_handled_byTousers                    asset_requests[]                  @relation("asset_requests_handled_byTousers")
+  asset_upgrades                                                     asset_upgrades[]
+  assets                                                             assets[]
+  attendance_records                                                 attendance_records[]
+  broadcast_recipients                                               broadcast_recipients[]
+  broadcasts                                                         broadcasts[]
+  case_learning_records                                              case_learning_records[]
+  cases                                                              cases[]
+  chat_group_members                                                 chat_group_members[]
+  chat_groups                                                        chat_groups[]
+  chat_messages_chat_messages_sender_idTousers                       chat_messages[]                   @relation("chat_messages_sender_idTousers")
+  chat_messages_chat_messages_receiver_idTousers                     chat_messages[]                   @relation("chat_messages_receiver_idTousers")
+  chat_room_members                                                  chat_room_members[]
+  conversation_members                                               conversation_members[]
+  conversations                                                      conversations[]
+  crm_customers                                                      crm_customers[]
+  departments_departments_manager_idTousers                          departments[]                     @relation("departments_manager_idTousers")
+  devices                                                            devices[]
+  employee_status_records_employee_status_records_employee_idTousers employee_status_records[]         @relation("employee_status_records_employee_idTousers")
+  employee_status_records_employee_status_records_operated_byTousers employee_status_records[]         @relation("employee_status_records_operated_byTousers")
+  employees                                                          employees?
+  exams                                                              exams[]
+  group_members                                                      group_members[]
+  groups                                                             groups[]
+  inventory_audits                                                   inventory_audits[]
+  inventory_usage                                                    inventory_usage[]
+  knowledge_article_read_sessions                                    knowledge_article_read_sessions[]
+  knowledge_learning_plan_records                                    knowledge_learning_plan_records[]
+  knowledge_learning_plans                                           knowledge_learning_plans[]
+  knowledge_learning_statistics                                      knowledge_learning_statistics[]
+  learning_plans_learning_plans_created_byTousers                    learning_plans[]                  @relation("learning_plans_created_byTousers")
+  learning_plans_learning_plans_assigned_toTousers                   learning_plans[]                  @relation("learning_plans_assigned_toTousers")
+  learning_statistics                                                learning_statistics[]
+  learning_tasks_learning_tasks_assigned_toTousers                   learning_tasks[]                  @relation("learning_tasks_assigned_toTousers")
+  learning_tasks_learning_tasks_assigned_byTousers                   learning_tasks[]                  @relation("learning_tasks_assigned_byTousers")
+  leave_records_leave_records_approver_idTousers                     leave_records[]                   @relation("leave_records_approver_idTousers")
+  leave_records_leave_records_user_idTousers                         leave_records[]                   @relation("leave_records_user_idTousers")
+  meal_orders                                                        meal_orders[]
+  message_status                                                     message_status[]
+  messages_messages_recipient_idTousers                              messages[]                        @relation("messages_recipient_idTousers")
+  messages_messages_sender_idTousers                                 messages[]                        @relation("messages_sender_idTousers")
+  notification_recipients                                            notification_recipients[]
+  payslip_distribution_settings                                      payslip_distribution_settings[]
+  payslip_import_history                                             payslip_import_history[]
+  payslip_passwords                                                  payslip_passwords?
+  payslip_templates                                                  payslip_templates[]
+  payslips_payslips_issued_byTousers                                 payslips[]                        @relation("payslips_issued_byTousers")
+  payslips_payslips_user_idTousers                                   payslips[]                        @relation("payslips_user_idTousers")
+  positions_positions_created_byTousers                              positions[]                       @relation("positions_created_byTousers")
+  positions_positions_updated_byTousers                              positions[]                       @relation("positions_updated_byTousers")
+  procurement_records                                                procurement_records[]
+  quality_case_favorites                                             quality_case_favorites[]
+  quality_case_likes                                                 quality_case_likes[]
+  quality_case_views                                                 quality_case_views[]
+  quality_message_tags                                               quality_message_tags[]
+  quality_rules                                                      quality_rules[]
+  quality_scores                                                     quality_scores[]
+  quality_session_tags                                               quality_session_tags[]
+  quality_sessions_quality_sessions_agent_idTousers                  quality_sessions[]                @relation("quality_sessions_agent_idTousers")
+  quality_sessions_quality_sessions_inspector_idTousers              quality_sessions[]                @relation("quality_sessions_inspector_idTousers")
+  reimbursements                                                     reimbursements[]
+  schedules_schedules_created_byTousers                              schedules[]                       @relation("schedules_created_byTousers")
+  schedules_schedules_user_idTousers                                 schedules[]                       @relation("schedules_user_idTousers")
+  ticket_logs                                                        ticket_logs[]
+  tickets_tickets_creator_idTousers                                  tickets[]                         @relation("tickets_creator_idTousers")
+  tickets_tickets_assignee_idTousers                                 tickets[]                         @relation("tickets_assignee_idTousers")
+  user_case_favorites                                                user_case_favorites[]
+  user_departments                                                   user_departments[]
+  user_notification_settings                                         user_notification_settings?
+  user_roles_user_roles_assigned_byTousers                           user_roles[]                      @relation("user_roles_assigned_byTousers")
+  user_roles_user_roles_user_idTousers                               user_roles[]                      @relation("user_roles_user_idTousers")
+  user_settings                                                      user_settings?
+  departments_users_department_idTodepartments                       departments?                      @relation("users_department_idTodepartments", fields: [department_id], references: [id], onUpdate: Restrict, map: "fk_users_department_id")
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([department_id], map: "idx_department_id")
+  @@index([department_id, status], map: "idx_dept_status")
+  @@index([real_name], map: "idx_real_name")
+  @@index([session_token], map: "idx_session_token")
+  @@index([status], map: "idx_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_audit_logs {
+  id               Int                                 @id @default(autoincrement())
+  employee_id      Int
+  user_id          Int
+  operation_type   vacation_audit_logs_operation_type?
+  operation_detail Json?
+  balance_before   Json?
+  balance_after    Json?
+  operator_id      Int?
+  ip_address       String?                             @db.VarChar(50)
+  created_at       DateTime?                           @default(now()) @db.Timestamp(0)
+
+  @@index([created_at], map: "idx_created_at")
+  @@index([employee_id], map: "idx_employee_id")
+  @@index([operation_type], map: "idx_operation_type")
+  @@index([operator_id], map: "idx_operator_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_balance_changes {
+  id              Int                                  @id @default(autoincrement())
+  employee_id     Int
+  year            Int
+  change_type     vacation_balance_changes_change_type
+  leave_type      String?                              @db.VarChar(50)
+  amount          Decimal                              @db.Decimal(5, 2)
+  balance_before  Decimal?                             @db.Decimal(5, 2)
+  balance_after   Decimal?                             @db.Decimal(5, 2)
+  reason          String?                              @db.Text
+  reference_id    Int?
+  reference_type  String?                              @db.VarChar(50)
+  approval_number String?                              @db.VarChar(50)
+  created_by      Int?
+  created_at      DateTime?                            @default(now()) @db.DateTime(0)
+  employees       employees                            @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "vacation_balance_changes_ibfk_1")
+
+  @@index([change_type], map: "idx_change_type")
+  @@index([created_at], map: "idx_created_at")
+  @@index([employee_id, year], map: "idx_employee_year")
+  @@index([reference_type, reference_id], map: "idx_reference")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_balances {
+  id                       Int       @id @default(autoincrement())
+  employee_id              Int
+  user_id                  Int
+  year                     Int
+  annual_leave_total       Decimal?  @default(5.00) @db.Decimal(5, 2)
+  annual_leave_used        Decimal?  @default(0.00) @db.Decimal(5, 2)
+  sick_leave_total         Decimal?  @default(10.00) @db.Decimal(5, 2)
+  sick_leave_used          Decimal?  @default(0.00) @db.Decimal(5, 2)
+  compensatory_leave_total Decimal?  @default(0.00) @db.Decimal(5, 2)
+  compensatory_leave_used  Decimal?  @default(0.00) @db.Decimal(5, 2)
+  overtime_leave_total     Decimal?  @default(0.0) @db.Decimal(5, 1)
+  overtime_leave_used      Decimal?  @default(0.0) @db.Decimal(5, 1)
+  overtime_hours_total     Decimal?  @default(0.00) @db.Decimal(6, 2)
+  overtime_hours_converted Decimal?  @default(0.00) @db.Decimal(6, 2)
+  created_at               DateTime? @default(now()) @db.Timestamp(0)
+  updated_at               DateTime? @default(now()) @db.Timestamp(0)
+  total_days               Decimal?  @default(0.00) @db.Decimal(5, 2)
+  last_updated             DateTime? @default(now()) @db.DateTime(0)
+  expiry_date              DateTime? @db.Date
+
+  @@unique([employee_id, year], map: "unique_employee_year")
+  @@index([expiry_date], map: "idx_expiry_date")
+  @@index([user_id, year], map: "idx_user_year")
+  @@index([year], map: "idx_year")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_conversions {
+  id                 Int       @id @default(autoincrement())
+  user_id            Int
+  employee_id        Int
+  source_type        String?   @default("overtime") @db.VarChar(50)
+  source_hours       Decimal?  @db.Decimal(10, 2)
+  converted_days     Decimal   @db.Decimal(10, 2)
+  remaining_days     Decimal   @db.Decimal(10, 2)
+  conversion_ratio   Decimal?  @db.Decimal(10, 4)
+  conversion_rule_id Int?
+  notes              String?   @db.Text
+  created_at         DateTime? @default(now()) @db.Timestamp(0)
+  updated_at         DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([employee_id], map: "idx_employee")
+  @@index([user_id], map: "idx_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_settings {
+  id            Int       @id @default(autoincrement())
+  setting_key   String    @unique(map: "setting_key") @db.VarChar(100)
+  setting_value String?   @db.Text
+  description   String?   @db.VarChar(255)
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([setting_key], map: "idx_setting_key")
+}
+
+model vacation_type_balances {
+  id                       Int            @id @default(autoincrement())
+  employee_id              Int
+  user_id                  Int
+  year                     Int
+  vacation_type_id         Int
+  total_days               Decimal?       @default(0.00) @db.Decimal(5, 2)
+  used_days                Decimal?       @default(0.00) @db.Decimal(5, 2)
+  created_at               DateTime?      @default(now()) @db.Timestamp(0)
+  updated_at               DateTime?      @default(now()) @db.Timestamp(0)
+  conversion_date          DateTime?      @db.Date
+  remaining_carryover_days Decimal?       @default(0.00) @db.Decimal(5, 2)
+  vacation_types           vacation_types @relation(fields: [vacation_type_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "vacation_type_balances_ibfk_1")
+
+  @@unique([employee_id, year, vacation_type_id], map: "unique_employee_year_type")
+  @@index([employee_id, year], map: "idx_employee_year")
+  @@index([vacation_type_id], map: "idx_vacation_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vacation_types {
+  id                     Int                      @id @default(autoincrement())
+  code                   String                   @unique(map: "code") @db.VarChar(50)
+  name                   String                   @db.VarChar(100)
+  base_days              Decimal?                 @default(0.00) @db.Decimal(5, 2)
+  included_in_total      Boolean?                 @default(true)
+  description            String?                  @db.Text
+  enabled                Boolean?                 @default(true)
+  created_at             DateTime?                @default(now()) @db.DateTime(0)
+  updated_at             DateTime?                @default(now()) @db.DateTime(0)
+  is_pinned              Boolean?                 @default(false)
+  sort_order             Int?                     @default(999)
+  overtime_conversions   overtime_conversions[]
+  vacation_type_balances vacation_type_balances[]
+
+  @@index([code], map: "idx_code")
+  @@index([enabled], map: "idx_enabled")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model work_shifts {
+  id                   Int               @id @default(autoincrement())
+  name                 String            @db.VarChar(50)
+  start_time           DateTime          @db.Time(0)
+  end_time             DateTime          @db.Time(0)
+  work_hours           Decimal           @db.Decimal(3, 1)
+  rest_duration        Int?              @default(60)
+  late_threshold       Int?
+  early_threshold      Int?
+  use_global_threshold Boolean?          @default(false)
+  is_active            Boolean?          @default(true)
+  created_at           DateTime?         @default(now()) @db.Timestamp(0)
+  updated_at           DateTime?         @default(now()) @db.Timestamp(0)
+  department_id        Int?
+  description          String?           @db.VarChar(500)
+  color                String?           @default("#3B82F6") @db.VarChar(20)
+  shift_schedules      shift_schedules[]
+
+  @@index([department_id], map: "idx_department")
+  @@index([is_active], map: "idx_is_active")
+}
+
+model async_task_logs {
+  id           BigInt                  @id @default(autoincrement())
+  job_id       String                  @db.VarChar(255)
+  queue_name   String                  @db.VarChar(50)
+  task_type    String                  @db.VarChar(100)
+  status       async_task_logs_status? @default(waiting)
+  progress     Int?                    @default(0)
+  operator_id  Int?
+  payload      Json?
+  result       Json?
+  error_msg    String?                 @db.Text
+  started_at   DateTime?               @db.DateTime(0)
+  completed_at DateTime?               @db.DateTime(0)
+  created_at   DateTime?               @default(now()) @db.DateTime(0)
+
+  @@index([job_id], map: "idx_job_id")
+  @@index([status], map: "idx_status")
+}
+
+enum conversations_type {
+  single
+  group
+  room
+}
+
+enum special_approval_group_members_member_type {
+  role
+  user
+}
+
+enum asset_components_category {
+  cpu
+  ram
+  disk
+  gpu
+  monitor
+  peripherals
+  other
+}
+
+enum employee_status_records_old_status {
+  active
+  inactive
+  resigned
+}
+
+enum leave_records_leave_type {
+  sick
+  annual
+  personal
+  maternity
+  other
+}
+
+enum payslip_distribution_settings_frequency {
+  monthly
+  weekly
+  daily
+}
+
+enum questions_type {
+  single_choice
+  multiple_choice
+  true_false
+  fill_blank
+  essay
+}
+
+enum session_messages_sender_type {
+  agent
+  customer
+  system
+}
+
+enum asset_model_templates_component_category {
+  cpu
+  ram
+  disk
+  gpu
+  monitor
+  peripherals
+  other
+}
+
+enum asset_requests_type {
+  upgrade
+  repair
+}
+
+enum broadcasts_type {
+  info
+  warning
+  success
+  error
+  announcement
+}
+
+enum chat_group_members_role {
+  admin
+  member
+}
+
+enum chat_groups_type {
+  group
+  p2p
+}
+
+enum chat_room_members_role {
+  owner
+  admin
+  member
+}
+
+enum compensatory_leave_requests_request_type {
+  schedule_change
+  compensatory_leave
+}
+
+enum conversation_members_role {
+  member
+  admin
+  owner
+}
+
+enum employee_changes_change_type {
+  hire
+  transfer
+  promotion
+  resign
+  terminate
+}
+
+enum employee_status_records_new_status {
+  active
+  inactive
+  resigned
+}
+
+enum group_members_role {
+  member
+  admin
+  owner
+}
+
+enum message_status_status {
+  sent
+  delivered
+  read
+}
+
+enum vacation_audit_logs_operation_type {
+  leave_apply
+  leave_approve
+  leave_reject
+  overtime_apply
+  overtime_approve
+  compensatory_request
+  compensatory_approve
+  balance_adjust
+  overtime_convert
+}
+
+enum vacation_balance_changes_change_type {
+  addition
+  deduction
+  conversion
+  adjustment
+}
+
+enum broadcasts_priority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum devices_device_status {
+  idle
+  in_use
+  damaged
+  maintenance
+  scrapped
+}
+
+enum makeup_records_clock_type {
+  in
+  out
+}
+
+enum meal_orders_meal_type {
+  breakfast
+  lunch
+  dinner
+  snack
+}
+
+enum memos_type {
+  personal
+  department
+}
+
+enum schedules_status {
+  normal
+  leave
+  holiday
+  overtime
+}
+
+enum approval_records_action {
+  approve
+  reject
+  return
+  delegate
+}
+
+enum asset_upgrades_upgrade_type {
+  initial
+  upgrade
+  repair
+  replace
+}
+
+enum broadcasts_target_type {
+  all
+  department
+  role
+  individual
+}
+
+enum chat_messages_msg_type {
+  text
+  image
+  file
+  system
+}
+
+enum crm_customers_level {
+  normal
+  vip
+  black
+}
+
+enum departments_status {
+  active
+  inactive
+  deleted
+}
+
+enum device_config_details_change_type {
+  initial
+  upgrade
+  downgrade
+}
+
+enum employees_status {
+  active
+  inactive
+  resigned
+  deleted
+}
+
+enum exams_difficulty {
+  easy
+  medium
+  hard
+}
+
+enum inventory_audits_result_status {
+  matched
+  missing
+  surplus
+}
+
+enum knowledge_categories_type {
+  common
+  personal
+}
+
+enum learning_tasks_status {
+  pending
+  in_progress
+  completed
+  cancelled
+}
+
+enum memos_priority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum quality_tags_tag_type {
+  quality
+  business
+  other
+}
+
+enum tags_tag_type {
+  quality
+  case
+  general
+}
+
+enum tickets_status {
+  open
+  pending
+  resolved
+  closed
+}
+
+enum approval_workflows_status {
+  active
+  inactive
+}
+
+enum assets_device_type {
+  workstation
+  laptop
+  server
+  tablet
+  other
+}
+
+enum cases_difficulty {
+  easy
+  medium
+  hard
+}
+
+enum learning_plans_status {
+  draft
+  active
+  completed
+  cancelled
+}
+
+enum learning_tasks_priority {
+  low
+  medium
+  high
+}
+
+enum meal_orders_status {
+  pending
+  confirmed
+  preparing
+  ready
+  completed
+  cancelled
+}
+
+enum quality_cases_case_type {
+  excellent
+  good
+  poor
+  warning
+}
+
+enum reimbursements_type {
+  travel
+  office
+  entertainment
+  training
+  other
+}
+
+enum session_messages_content_type {
+  text
+  image
+  file
+  audio
+  video
+}
+
+enum tickets_priority {
+  low
+  medium
+  high
+  critical
+}
+
+enum article_comments_status {
+  active
+  deleted
+}
+
+enum asset_requests_status {
+  pending
+  approved
+  rejected
+}
+
+enum attendance_records_status {
+  normal
+  late
+  early_leave
+  absent
+  overtime
+}
+
+enum cases_priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum exam_categories_status {
+  active
+  inactive
+  deleted
+}
+
+enum knowledge_learning_plan_records_status {
+  in_progress
+  completed
+  abandoned
+}
+
+enum knowledge_learning_plans_status {
+  active
+  completed
+  cancelled
+  expired
+}
+
+enum leave_records_status {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum makeup_records_status {
+  pending
+  approved
+  rejected
+}
+
+enum quality_cases_difficulty {
+  easy
+  medium
+  hard
+}
+
+enum quality_sessions_channel {
+  chat
+  phone
+  email
+  video
+}
+
+enum cases_status {
+  draft
+  published
+  archived
+}
+
+enum knowledge_articles_type {
+  common
+  personal
+}
+
+enum knowledge_categories_status {
+  draft
+  published
+  archived
+}
+
+enum overtime_records_status {
+  pending
+  approved
+  rejected
+}
+
+enum payslip_import_history_status {
+  processing
+  completed
+  failed
+}
+
+enum positions_level {
+  junior
+  middle
+  senior
+  expert
+}
+
+enum quality_cases_priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum reimbursements_status {
+  draft
+  pending
+  approving
+  approved
+  rejected
+  cancelled
+}
+
+enum users_status {
+  active
+  inactive
+  pending
+  resigned
+  deleted
+}
+
+enum approval_workflow_nodes_approval_mode {
+  serial
+  parallel
+}
+
+enum assessment_plans_status {
+  draft
+  published
+  ongoing
+  completed
+  cancelled
+}
+
+enum assets_status {
+  idle
+  in_use
+  maintenance
+  lost
+  scrapped
+}
+
+enum compensatory_leave_requests_status {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum positions_status {
+  active
+  inactive
+}
+
+enum quality_cases_status {
+  draft
+  published
+  archived
+}
+
+enum assessment_results_status {
+  in_progress
+  submitted
+  graded
+  expired
+}
+
+enum exams_status {
+  draft
+  published
+  archived
+}
+
+enum knowledge_articles_status {
+  draft
+  published
+  archived
+  deleted
+}
+
+enum knowledge_article_read_sessions_close_type {
+  user_close
+  auto_close
+  tab_hidden
+}
+
+enum quality_sessions_status {
+  pending
+  in_review
+  completed
+  disputed
+}
+
+enum payslips_status {
+  draft
+  sent
+  viewed
+  confirmed
+}
+
+enum async_task_logs_status {
+  waiting
+  active
+  completed
+  failed
+}

@@ -180,3 +180,23 @@ SELECT r.id, p.id
 FROM roles r, permissions p 
 WHERE r.name = "超级管理员" AND p.code = "user:profile:view"
 AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+
+-- 2026-03-04 16:00:00 Add async_task_logs for logic closure
+CREATE TABLE IF NOT EXISTS async_task_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL,
+    queue_name VARCHAR(50) NOT NULL,
+    task_type VARCHAR(100) NOT NULL,
+    status ENUM('waiting', 'active', 'completed', 'failed') DEFAULT 'waiting',
+    progress INT DEFAULT 0,
+    operator_id INT,
+    payload JSON,
+    result JSON,
+    error_msg TEXT,
+    started_at DATETIME,
+    completed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_job_id (job_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
