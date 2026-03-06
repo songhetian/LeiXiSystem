@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { toast } from 'sonner';
 import { getApiUrl } from '../utils/apiConfig'
-import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 
 export default function EmployeeBatchOperations({ onImportSuccess }) {
@@ -38,7 +37,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
   const handleDownloadTemplate = async () => {
     try {
       const { departments, positions } = await fetchTemplateData();
-
+      const ExcelJS = (await import('exceljs')).default;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('员工导入');
       const dataSheet = workbook.addWorksheet('数据源'); // 数据源工作表
@@ -134,6 +133,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
         return;
       }
 
+      const ExcelJS = (await import('exceljs')).default;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('员工列表');
 
@@ -193,6 +193,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
 
     try {
       setImporting(true)
+      const ExcelJS = (await import('exceljs')).default;
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(file);
       const worksheet = workbook.getWorksheet(1);
@@ -257,6 +258,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
       event.target.value = ''
     }
   }
+
 
   return (
     <div className="flex gap-2">

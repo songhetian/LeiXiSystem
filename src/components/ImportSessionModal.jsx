@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js';
-import ExcelJS from 'exceljs';
 import { CloudUploadOutlined } from '@ant-design/icons';
 
 const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
@@ -116,6 +115,7 @@ const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
         if (!selectedFile) return;
 
         setFile(selectedFile);
+        const ExcelJS = (await import('exceljs')).default;
         const workbook = new ExcelJS.Workbook();
         const reader = new FileReader();
         reader.readAsArrayBuffer(selectedFile);
@@ -207,6 +207,7 @@ const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     const handleDownloadTemplate = async () => {
+        const ExcelJS = (await import('exceljs')).default;
         const workbook = new ExcelJS.Workbook();
 
         // Sheet 1: 会话信息

@@ -3,7 +3,6 @@ import { Card, Button, Upload, Table, message, Space, Tag, Popconfirm } from 'an
 import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import ExcelJS from 'exceljs';
 
 const QuestionImport = () => {
   const { examId } = useParams();
@@ -13,61 +12,64 @@ const QuestionImport = () => {
   const [loading, setLoading] = useState(false);
   const [importErrors, setImportErrors] = useState([]);
 
-  const handleDownloadTemplate = () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('题目导入模板');
+  const handleDownloadTemplate = async () => {
+    setLoading(true);
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('题目导入模板');
 
-    worksheet.columns = [
-      { header: '题型 (type)', key: 'type', width: 15 },
-      { header: '题目内容 (content)', key: 'content', width: 50 },
-      { header: '分值 (score)', key: 'score', width: 10 },
-      { header: '选项 (options)', key: 'options', width: 40 },
-      { header: '正确答案 (correct_answer)', key: 'correct_answer', width: 40 },
-      { header: '解析 (explanation)', key: 'explanation', width: 50 },
-    ];
+      worksheet.columns = [
+        { header: '题型 (type)', key: 'type', width: 15 },
+        { header: '题目内容 (content)', key: 'content', width: 50 },
+        { header: '分值 (score)', key: 'score', width: 10 },
+        { header: '选项 (options)', key: 'options', width: 40 },
+        { header: '正确答案 (correct_answer)', key: 'correct_answer', width: 40 },
+        { header: '解析 (explanation)', key: 'explanation', width: 50 },
+      ];
 
-    worksheet.addRow({
-      type: 'single_choice',
-      content: '以下哪个是正确的选项？',
-      score: 5,
-      options: '["选项A", "选项B", "选项C", "选项D"]',
-      correct_answer: '"选项A"',
-      explanation: '这是正确选项的解释。',
-    });
-    worksheet.addRow({
-      type: 'multiple_choice',
-      content: '以下哪些是正确的选项？',
-      score: 10,
-      options: '["选项A", "选项B", "选项C", "选项D"]',
-      correct_answer: '["选项A", "选项C"]',
-      explanation: '这是正确选项的解释。',
-    });
-    worksheet.addRow({
-      type: 'true_false',
-      content: '地球是方的。',
-      score: 2,
-      options: '["true", "false"]',
-      correct_answer: 'false',
-      explanation: '地球是圆的。',
-    });
-    worksheet.addRow({
-      type: 'fill_blank',
-      content: '中国的首都是____。',
-      score: 5,
-      options: '[]',
-      correct_answer: '["北京"]',
-      explanation: '北京是中国的首都。',
-    });
-    worksheet.addRow({
-      type: 'essay',
-      content: '请简述你对人工智能的理解。',
-      score: 20,
-      options: '[]',
-      correct_answer: '人工智能是...',
-      explanation: '参考答案：人工智能是...',
-    });
+      worksheet.addRow({
+        type: 'single_choice',
+        content: '以下哪个是正确的选项？',
+        score: 5,
+        options: '["选项A", "选项B", "选项C", "选项D"]',
+        correct_answer: '"选项A"',
+        explanation: '这是正确选项的解释。',
+      });
+      worksheet.addRow({
+        type: 'multiple_choice',
+        content: '以下哪些是正确的选项？',
+        score: 10,
+        options: '["选项A", "选项B", "选项C", "选项D"]',
+        correct_answer: '["选项A", "选项C"]',
+        explanation: '这是正确选项的解释。',
+      });
+      worksheet.addRow({
+        type: 'true_false',
+        content: '地球是方的。',
+        score: 2,
+        options: '["true", "false"]',
+        correct_answer: 'false',
+        explanation: '地球是圆的。',
+      });
+      worksheet.addRow({
+        type: 'fill_blank',
+        content: '中国的首都会____。',
+        score: 5,
+        options: '[]',
+        correct_answer: '["北京"]',
+        explanation: '北京是中国的首都。',
+      });
+      worksheet.addRow({
+        type: 'essay',
+        content: '请简述你对人工智能的理解。',
+        score: 20,
+        options: '[]',
+        correct_answer: '人工智能是...',
+        explanation: '参考答案：人工智能是...',
+      });
 
-    workbook.xlsx.writeBuffer().then((buffer) => {
+      const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -75,10 +77,12 @@ const QuestionImport = () => {
       a.download = '题目导入模板.xlsx';
       a.click();
       URL.revokeObjectURL(url);
-    }).catch(error => {
+    } catch (error) {
       message.error('下载模板失败');
       console.error('Failed to download template:', error);
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const props = {
@@ -112,6 +116,7 @@ const QuestionImport = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        const ExcelJS = (await import('exceljs')).default;
         const buffer = e.target.result;
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
