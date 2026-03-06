@@ -2,7 +2,7 @@
  * Displays a statistical analysis page of each departments of
  */
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
 import { getCurrentUser, isSystemAdmin } from '../../utils/auth'

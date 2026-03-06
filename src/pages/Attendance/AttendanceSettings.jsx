@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
 import { ConfigProvider, Button, Switch, InputNumber, Card } from 'antd'
