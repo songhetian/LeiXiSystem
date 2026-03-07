@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { getApiUrl } from '../utils/apiConfig'
 import { toast } from 'sonner';
@@ -33,7 +34,7 @@ function RoleDepartmentModal({ isOpen, onClose, role, onSuccess }) {
         toast.error(result.message || '获取部门列表失败')
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      logger.error('获取部门列表失败:', error)
       toast.error('获取部门列表失败')
     }
   }
@@ -53,7 +54,7 @@ function RoleDepartmentModal({ isOpen, onClose, role, onSuccess }) {
         setSelectedDepartments(result.data.map(d => d.id))
       }
     } catch (error) {
-      console.error('获取角色部门权限失败:', error)
+      logger.error('获取角色部门权限失败:', error)
     } finally {
       setLoading(false)
     }
@@ -140,7 +141,7 @@ function RoleDepartmentModal({ isOpen, onClose, role, onSuccess }) {
             localStorage.setItem('permissionDetails', JSON.stringify(refreshResult.data));
           }
         } catch (refreshError) {
-          console.error('刷新权限信息失败:', refreshError);
+          logger.error('刷新权限信息失败:', refreshError);
         }
 
         // 先调用onSuccess再关闭模态框，避免页面跳转
@@ -150,7 +151,7 @@ function RoleDepartmentModal({ isOpen, onClose, role, onSuccess }) {
         toast.error(result.error || '设置失败')
       }
     } catch (error) {
-      console.error('设置部门权限失败:', error)
+      logger.error('设置部门权限失败:', error)
       toast.error('设置失败')
     } finally {
       setSaving(false)

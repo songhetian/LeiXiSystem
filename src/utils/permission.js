@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 // 权限管理工具
 
 /**
@@ -8,7 +9,7 @@ export const getUserPermissions = () => {
     const permissionsStr = localStorage.getItem('permissions')
     return permissionsStr ? JSON.parse(permissionsStr) : []
   } catch (error) {
-    console.error('获取权限列表失败:', error)
+    logger.error('获取权限列表失败:', error)
     // 出错时清除损坏的权限数据
     localStorage.removeItem('permissions')
     return []
@@ -53,7 +54,7 @@ export const getPermissionDetails = () => {
     const detailsStr = localStorage.getItem('permissionDetails')
     return detailsStr ? JSON.parse(detailsStr) : null
   } catch (error) {
-    console.error('获取权限详情失败:', error)
+    logger.error('获取权限详情失败:', error)
     // 出错时清除损坏的权限详情数据
     localStorage.removeItem('permissionDetails')
     return null
@@ -68,7 +69,7 @@ export const savePermissions = (permissionData) => {
     localStorage.setItem('permissions', JSON.stringify(permissionData.permissions || []))
     localStorage.setItem('permissionDetails', JSON.stringify(permissionData))
   } catch (error) {
-    console.error('保存权限失败:', error)
+    logger.error('保存权限失败:', error)
   }
 }
 

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Space, message, Spin, Progress, Modal, Typography, Radio, Checkbox, Input, Drawer, Skeleton, Tag } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, FlagOutlined, ClockCircleOutlined, MenuOutlined, SaveOutlined, CheckCircleOutlined, ExclamationCircleOutlined, LoadingOutlined } from '@ant-design/icons';
@@ -55,7 +56,7 @@ const ExamTaking = () => {
       sendLog('ANSWER_SAVED', { questionId, answer });
     } catch (error) {
       setSaveStatus('error');
-      console.error('Auto-save failed:', error);
+      logger.error('Auto-save failed:', error);
       sendLog('ANSWER_SAVE_FAILED', { questionId, answer, error: error.message });
     }
   }, [resultId, sendLog]);
@@ -87,7 +88,7 @@ const ExamTaking = () => {
     } catch (error) {
       setSaveStatus('error');
       message.error('手动保存失败，请重试');
-      console.error('Manual save failed:', error);
+      logger.error('Manual save failed:', error);
       sendLog('MANUAL_SAVE_FAILED', { error: error.message });
     }
   };
@@ -119,13 +120,13 @@ const ExamTaking = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const data = response.data.data;
-      console.log('[ExamTaking] 接收到的 saved_answers:', data.saved_answers);
+      logger.debug('[ExamTaking] 接收到的 saved_answers:', data.saved_answers);
       setExamData(data);
       setUserAnswers(data.saved_answers || {});
-      console.log('[ExamTaking] 设置 userAnswers 为:', data.saved_answers || {});
+      logger.debug('[ExamTaking] 设置 userAnswers 为:', data.saved_answers || {});
     } catch (error) {
       message.error(`获取考试进度失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to fetch exam progress:', error);
+      logger.error('Failed to fetch exam progress:', error);
       navigate('/assessment/my-exams'); // Go back if failed to load exam
     } finally {
       setLoading(false);
@@ -176,14 +177,14 @@ const ExamTaking = () => {
 
     try {
       // 在提交前,先保存所有答案到后端,确保验证能通过
-      console.log('提交前保存所有答案:', userAnswers);
+      logger.debug('提交前保存所有答案:', userAnswers);
       if (Object.keys(userAnswers).length > 0) {
         await axios.put(`/api/assessment-results/${resultId}/answer`, {
           answers: userAnswers
         }, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
-        console.log('所有答案已保存,开始提交');
+        logger.debug('所有答案已保存,开始提交');
       }
 
       await axios.post(`/api/assessment-results/${resultId}/submit`, {}, {
@@ -194,7 +195,7 @@ const ExamTaking = () => {
       navigate(`/assessment/results/${resultId}/result`);
     } catch (error) {
       message.error(`提交考试失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to submit exam:', error);
+      logger.error('Failed to submit exam:', error);
       sendLog('EXAM_SUBMIT_FAILED', { error: error.message });
     } finally {
       setLoading(false);
@@ -416,7 +417,7 @@ const ExamTaking = () => {
           return <Text type="danger">未知题型</Text>;
       }
     } catch (e) {
-      console.error("Error rendering answer input or parsing answer:", e);
+      logger.error("Error rendering answer input or parsing answer:", e);
       return <Text type="danger">答案解析错误</Text>;
     }
   };

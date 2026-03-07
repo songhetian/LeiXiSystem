@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { TagsOutlined, SearchOutlined, CloseOutlined } from '@ant-design/icons';
@@ -47,7 +48,7 @@ const TagSelector = ({
       setTags(tagsRes.data.data || []);
       setCategories(categoriesRes.data.data || []);
     } catch (error) {
-      console.error('Error loading tags:', error);
+      logger.error('Error loading tags:', error);
     } finally {
       setLoading(false);
     }

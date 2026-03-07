@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -46,7 +47,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
       setDeletedArticles(articlesRes.data.data || [])
       setError(null)
     } catch (error) {
-      console.error('获取回收站数据失败:', error)
+      logger.error('获取回收站数据失败:', error)
       const errorMessage = error.response?.status === 403 ? '权限不足，无法访问回收站' :
                           error.response?.status === 500 ? '服务器错误，请稍后再试' :
                           error.response?.data?.error || error.message || '获取回收站数据失败'
@@ -96,7 +97,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
       await fetchRecycleBin()
       if (onRefresh) onRefresh()
     } catch (error) {
-      console.error('还原失败:', error)
+      logger.error('还原失败:', error)
       const errorMessage = error.response?.status === 404 ? '项目不存在或已被永久删除' :
                           error.response?.status === 409 ? '名称冲突，请先重命名' :
                           error.response?.status === 403 ? '权限不足，无法还原' :
@@ -138,7 +139,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
       await fetchRecycleBin()
       if (onRefresh) onRefresh()
     } catch (error) {
-      console.error('永久删除失败:', error)
+      logger.error('永久删除失败:', error)
       const errorMessage = error.response?.status === 403 ? '权限不足，无法永久删除' :
                           error.response?.status === 404 ? '项目不存在' :
                           error.response?.data?.error || error.message || '永久删除失败'
@@ -165,7 +166,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
       await fetchRecycleBin()
       if (onRefresh) onRefresh()
     } catch (error) {
-      console.error('清空回收站失败:', error)
+      logger.error('清空回收站失败:', error)
       const errorMessage = error.response?.status === 403 ? '权限不足，无法清空回收站' :
                           error.response?.data?.error || error.message || '清空回收站失败'
       toast.error(errorMessage)

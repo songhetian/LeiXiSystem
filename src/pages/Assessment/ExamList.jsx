@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, PublishOutlined, ArchiveOutlined, SwapOutlined } from '@ant-design/icons';
@@ -47,7 +48,7 @@ const ExamList = () => {
       });
     } catch (error) {
       message.error('获取试卷列表失败');
-      console.error('Failed to fetch exams:', error);
+      logger.error('Failed to fetch exams:', error);
     } finally {
       setLoading(false);
     }
@@ -198,7 +199,7 @@ const ExamList = () => {
       fetchExams();
     } catch (error) {
       message.error('试卷发布失败');
-      console.error('Failed to publish exam:', error);
+      logger.error('Failed to publish exam:', error);
     }
   };
 
@@ -211,7 +212,7 @@ const ExamList = () => {
       fetchExams();
     } catch (error) {
       message.error('试卷归档失败');
-      console.error('Failed to archive exam:', error);
+      logger.error('Failed to archive exam:', error);
     }
   };
 
@@ -224,7 +225,7 @@ const ExamList = () => {
       fetchExams();
     } catch (error) {
       message.error('试卷删除失败');
-      console.error('Failed to delete exam:', error);
+      logger.error('Failed to delete exam:', error);
     }
   };
 

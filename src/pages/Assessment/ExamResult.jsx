@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions } from 'antd';
 import { ArrowLeftOutlined, EyeOutlined, RedoOutlined } from '@ant-design/icons';
@@ -33,7 +34,7 @@ const ExamResult = () => {
       setDetailedQuestions(payload.detailed_questions || []);
     } catch (error) {
       message.error(`获取考试结果失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to fetch exam result:', error);
+      logger.error('Failed to fetch exam result:', error);
       navigate('/assessment/my-exams'); // Go back if failed to load result
     } finally {
       setLoading(false);

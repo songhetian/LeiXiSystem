@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import axios from 'axios'
 import { tokenManager } from './apiClient'
 
@@ -40,7 +41,7 @@ axiosInstance.interceptors.response.use(
       } catch (refreshError) {
         // 刷新失败，清除 token
         tokenManager.clearTokens()
-        console.error('Token 刷新失败，已清除缓存，禁用自动跳转以供调试');
+        logger.error('Token 刷新失败，已清除缓存，禁用自动跳转以供调试');
         // window.location.href = '/login'
         return Promise.reject(refreshError)
       }

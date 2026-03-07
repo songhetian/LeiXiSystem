@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
 
@@ -13,7 +14,7 @@ const DatabaseCheck = ({ children }) => {
       try {
         // 获取API URL并打印到控制台，便于调试
         const healthUrl = getApiUrl('/api/health');
-        console.log('Checking database connection at:', healthUrl);
+        logger.debug('Checking database connection at:', healthUrl);
 
         // 检查服务器是否可访问
         const response = await fetch(healthUrl, {
@@ -21,11 +22,11 @@ const DatabaseCheck = ({ children }) => {
           timeout: 5000 // 5秒超时
         });
 
-        console.log('Health check response status:', response.status);
+        logger.debug('Health check response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Health check response data:', data);
+          logger.debug('Health check response data:', data);
 
           // 检查数据库连接状态
           if (data.database === 'connected' && data.dbTest === true) {
@@ -44,7 +45,7 @@ const DatabaseCheck = ({ children }) => {
           throw new Error(`Server health check failed with status ${response.status}`);
         }
       } catch (error) {
-        console.error('Database connection check failed:', error);
+        logger.error('Database connection check failed:', error);
         setDbStatus('error');
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
           setErrorMessage('无法连接到后端服务。请确保：\n1. 已复制整个项目文件夹\n2. 在项目根目录运行了 "npm run server"\n3. 网络连接正常');

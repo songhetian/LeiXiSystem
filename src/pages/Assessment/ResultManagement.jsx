@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm, DatePicker, Modal, Form, InputNumber, Typography } from 'antd';
 import { EyeOutlined, EditOutlined, DeleteOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons';
@@ -69,7 +70,7 @@ const ResultManagement = () => {
       });
     } catch (error) {
       message.error('获取考试记录失败');
-      console.error('Failed to fetch assessment results:', error);
+      logger.error('Failed to fetch assessment results:', error);
     } finally {
       setLoading(false);
     }
@@ -87,7 +88,7 @@ const ResultManagement = () => {
       setPlans(plansRes.data.data.plans);
     } catch (error) {
       message.error('获取筛选选项失败');
-      console.error('Failed to fetch filter options:', error);
+      logger.error('Failed to fetch filter options:', error);
     }
   };
 
@@ -208,7 +209,7 @@ const ResultManagement = () => {
       }
     } catch (error) {
       message.error('获取题目详情失败，无法进行人工评分');
-      console.error('Failed to fetch answers for grading:', error);
+      logger.error('Failed to fetch answers for grading:', error);
     }
   };
 
@@ -227,7 +228,7 @@ const ResultManagement = () => {
       fetchResults(); // Refresh list
     } catch (error) {
       message.error(`评分失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to submit grade:', error);
+      logger.error('Failed to submit grade:', error);
     } finally {
       setLoading(false);
     }
@@ -243,7 +244,7 @@ const ResultManagement = () => {
       fetchResults();
     } catch (error) {
       message.error(`删除失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to delete result:', error);
+      logger.error('Failed to delete result:', error);
     } finally {
       setLoading(false);
     }

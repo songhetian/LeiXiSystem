@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import axios from 'axios'
@@ -52,7 +53,7 @@ const ExamCategoryManagement = () => {
       }
       setCategories(flatten(tdata))
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
       toast.error('获取分类列表失败')
       setCategories([])
       setTree([])
@@ -78,7 +79,7 @@ const ExamCategoryManagement = () => {
       resetForm()
       fetchCategories()
     } catch (error) {
-      console.error('提交失败:', error)
+      logger.error('提交失败:', error)
       toast.error(editingCategory ? '更新失败' : '创建失败')
     } finally {
       setLoading(false)
@@ -93,7 +94,7 @@ const ExamCategoryManagement = () => {
       toast.success('分类删除成功')
       fetchCategories()
     } catch (error) {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
       toast.error('删除失败')
     }
   }

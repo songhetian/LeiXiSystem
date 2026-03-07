@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js';
@@ -27,7 +28,7 @@ const QualityRuleManagementPage = () => {
       setRules(response.data.data);
     } catch (error) {
       toast.error('加载质检规则失败');
-      console.error('Error loading rules:', error);
+      logger.error('Error loading rules:', error);
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ const QualityRuleManagementPage = () => {
       loadRules();
     } catch (error) {
       toast.error('操作失败: ' + (error.response?.data?.message || error.message));
-      console.error('Error submitting rule:', error);
+      logger.error('Error submitting rule:', error);
     }
   };
 
@@ -96,7 +97,7 @@ const QualityRuleManagementPage = () => {
         loadRules();
       } catch (error) {
         toast.error('删除失败: ' + (error.response?.data?.message || error.message));
-        console.error('Error deleting rule:', error);
+        logger.error('Error deleting rule:', error);
       }
     }
   };
@@ -108,7 +109,7 @@ const QualityRuleManagementPage = () => {
       loadRules();
     } catch (error) {
       toast.error('更新状态失败: ' + (error.response?.data?.message || error.message));
-      console.error('Error toggling rule status:', error);
+      logger.error('Error toggling rule status:', error);
     }
   };
 

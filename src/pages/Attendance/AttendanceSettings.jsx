@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
@@ -44,7 +45,7 @@ export default function AttendanceSettings() {
         setSettings({ ...settings, ...response.data.data })
       }
     } catch (error) {
-      console.error('获取设置失败:', error)
+      logger.error('获取设置失败:', error)
     } finally {
       setLoading(false)
     }

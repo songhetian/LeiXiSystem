@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner';
 import { getApiBaseUrl } from '../utils/apiConfig'
@@ -28,7 +29,7 @@ export const useTokenVerification = (onLogout, userId) => {
 
       // 只有明确返回 valid === false 时才踢出
       if (data && data.valid === false) {
-        console.error('Token 校验失败:', data.message);
+        logger.error('Token 校验失败:', data.message);
         // Token无效，清除本地存储
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -41,7 +42,7 @@ export const useTokenVerification = (onLogout, userId) => {
       }
     } catch (error) {
       // 忽略校验过程中的网络错误，避免误踢
-      console.error('Token 校验过程异常:', error);
+      logger.error('Token 校验过程异常:', error);
     } finally {
       isCheckingRef.current = false
     }

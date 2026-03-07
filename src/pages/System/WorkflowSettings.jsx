@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 资产流程定义页面 (黑白视觉最终打磨版)
  *
@@ -86,7 +87,7 @@ const WorkflowSettings = () => {
         setWorkflows(response.data.data);
       }
     } catch (error) {
-      console.error('获取流程失败:', error);
+      logger.error('获取流程失败:', error);
     } finally {
       setLoading(false);
     }

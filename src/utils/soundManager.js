@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 声音管理器
  * 使用Web Audio API生成通知提示音，无需外部音频文件
@@ -17,7 +18,7 @@ class SoundManager {
       try {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
       } catch (e) {
-        console.warn('Web Audio API不支持:', e)
+        logger.warn('Web Audio API不支持:', e)
       }
     }
   }
@@ -56,7 +57,7 @@ class SoundManager {
       oscillator.start(now)
       oscillator.stop(now + 0.3)
     } catch (e) {
-      console.error('播放声音失败:', e)
+      logger.error('播放声音失败:', e)
     }
   }
 
@@ -77,7 +78,7 @@ class SoundManager {
       // 第二个音（稍高）
       this.createBeep(800, now + 0.12, 0.1)
     } catch (e) {
-      console.error('播放成功音失败:', e)
+      logger.error('播放成功音失败:', e)
     }
   }
 
@@ -110,7 +111,7 @@ class SoundManager {
       oscillator.start(now)
       oscillator.stop(now + 0.4)
     } catch (e) {
-      console.error('播放警告音失败:', e)
+      logger.error('播放警告音失败:', e)
     }
   }
 

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -59,7 +60,7 @@ const AssessmentPlanManagement = () => {
         setSelectedDepartment(getCurrentUserDepartmentId() || list[0].id);
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error);
+      logger.error('获取部门列表失败:', error);
       setDepartments([]);
     }
   };
@@ -71,7 +72,7 @@ const AssessmentPlanManagement = () => {
       const exams = response.data?.data?.exams || response.data?.data || [];
       setAvailableExams(Array.isArray(exams) ? exams.filter(exam => exam.status === 'published') : []);
     } catch (error) {
-      console.error('获取可用试卷失败:', error);
+      logger.error('获取可用试卷失败:', error);
       toast.error('获取可用试卷列表失败');
       setAvailableExams([]);
     }
@@ -84,7 +85,7 @@ const AssessmentPlanManagement = () => {
       const employees = response.data?.data?.employees || response.data?.data || [];
       setAvailableEmployees(Array.isArray(employees) ? employees : []);
     } catch (error) {
-      console.error('获取可用员工失败:', error);
+      logger.error('获取可用员工失败:', error);
       toast.error('获取可用员工列表失败');
       setAvailableEmployees([]);
     }
@@ -109,7 +110,7 @@ const AssessmentPlanManagement = () => {
         setTotalPages(pagination.totalPages || 0);
       }
     } catch (error) {
-      console.error('获取考核计划失败:', error);
+      logger.error('获取考核计划失败:', error);
       toast.error('获取考核计划列表失败');
       setPlans([]);
     } finally {
@@ -161,7 +162,7 @@ const AssessmentPlanManagement = () => {
       resetForm();
       fetchPlans();
     } catch (error) {
-      console.error('提交失败:', error);
+      logger.error('提交失败:', error);
       toast.error(editingPlan ? '更新失败' : '创建失败');
     } finally {
       setLoading(false);
@@ -184,7 +185,7 @@ const AssessmentPlanManagement = () => {
       setPlanToDelete(null);
       fetchPlans();
     } catch (error) {
-      console.error('删除考核计划失败:', error);
+      logger.error('删除考核计划失败:', error);
       toast.error('删除考核计划失败');
       setShowDeleteModal(false);
       setPlanToDelete(null);

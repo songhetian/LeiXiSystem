@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm, DatePicker } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, PublishOutlined, SwapOutlined } from '@ant-design/icons';
@@ -47,7 +48,7 @@ const AssessmentPlanList = () => {
       });
     } catch (error) {
       message.error('获取考核计划列表失败');
-      console.error('Failed to fetch assessment plans:', error);
+      logger.error('Failed to fetch assessment plans:', error);
     } finally {
       setLoading(false);
     }
@@ -181,7 +182,7 @@ const AssessmentPlanList = () => {
       fetchAssessmentPlans();
     } catch (error) {
       message.error(`发布失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to publish plan:', error);
+      logger.error('Failed to publish plan:', error);
     }
   };
 
@@ -194,7 +195,7 @@ const AssessmentPlanList = () => {
       fetchAssessmentPlans();
     } catch (error) {
       message.error(`取消失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to cancel plan:', error);
+      logger.error('Failed to cancel plan:', error);
     }
   };
 
@@ -207,7 +208,7 @@ const AssessmentPlanList = () => {
       fetchAssessmentPlans();
     } catch (error) {
       message.error(`删除失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to delete plan:', error);
+      logger.error('Failed to delete plan:', error);
     }
   };
 

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -17,9 +18,9 @@ const KnowledgeFolderView = () => {
   
   // 添加搜索状态变化的日志
   useEffect(() => {
-    console.log('搜索词更新:', searchTerm);
-    console.log('当前选中的分类:', selectedCategory);
-    console.log('所有分类:', categories);
+    logger.debug('搜索词更新:', searchTerm);
+    logger.debug('当前选中的分类:', selectedCategory);
+    logger.debug('所有分类:', categories);
   }, [searchTerm, selectedCategory, categories]);
 
   const [selectedArticle, setSelectedArticle] = useState(null)
@@ -96,7 +97,7 @@ const KnowledgeFolderView = () => {
       const response = await axios.get(getApiUrl('/api/my-knowledge/categories'))
       setCategories(response.data || [])
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
     }
   }
 
@@ -106,7 +107,7 @@ const KnowledgeFolderView = () => {
       const response = await axios.get(getApiUrl('/api/my-knowledge/articles'))
       setArticles(response.data || [])
     } catch (error) {
-      console.error('获取文档失败:', error)
+      logger.error('获取文档失败:', error)
       toast.error('获取文档失败')
     } finally {
       setLoading(false)
@@ -134,7 +135,7 @@ const KnowledgeFolderView = () => {
       fetchArticles()
       setShowFolderModal(false)
     } catch (error) {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
       toast.error('删除失败')
     }
   }
@@ -174,7 +175,7 @@ const KnowledgeFolderView = () => {
       fetchArticles()
       setShowFolderModal(false)
     } catch (error) {
-      console.error('移动文档失败:', error)
+      logger.error('移动文档失败:', error)
       toast.error('移动文档失败')
     }
   }
@@ -195,7 +196,7 @@ const KnowledgeFolderView = () => {
       resetCategoryForm()
       fetchCategories()
     } catch (error) {
-      console.error('分类操作失败:', error)
+      logger.error('分类操作失败:', error)
       toast.error(editingCategory ? '更新失败' : '创建失败')
     } finally {
       setLoading(false)
@@ -221,7 +222,7 @@ const KnowledgeFolderView = () => {
       fetchCategories()
       fetchArticles()
     } catch (error) {
-      console.error('删除分类失败:', error)
+      logger.error('删除分类失败:', error)
       toast.error('删除分类失败')
     }
   }

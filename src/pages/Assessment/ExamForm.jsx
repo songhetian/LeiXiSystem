@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Input, InputNumber, Select, Button, Space, message, Card, Tag } from 'antd';
 import { SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
@@ -38,7 +39,7 @@ const ExamForm = () => {
       setExamCategories(list);
     } catch (error) {
       message.error('获取考试分类失败');
-      console.error('Failed to fetch exam categories:', error);
+      logger.error('Failed to fetch exam categories:', error);
     }
   };
 
@@ -55,7 +56,7 @@ const ExamForm = () => {
       });
     } catch (error) {
       message.error('获取试卷详情失败');
-      console.error('Failed to fetch exam details:', error);
+      logger.error('Failed to fetch exam details:', error);
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ const ExamForm = () => {
       navigate('/assessment/exams'); // Navigate back to exam list
     } catch (error) {
       message.error(`操作失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to save exam:', error);
+      logger.error('Failed to save exam:', error);
     } finally {
       setLoading(false);
     }
@@ -94,7 +95,7 @@ const ExamForm = () => {
     form.validateFields().then((values) => {
       onFinish(values, 'draft');
     }).catch(info => {
-      console.log('Validate Failed:', info);
+      logger.debug('Validate Failed:', info);
       message.error('请检查表单填写');
     });
   };
@@ -105,7 +106,7 @@ const ExamForm = () => {
       // This might need to be handled on the backend or after questions are added
       onFinish(values, 'published');
     }).catch(info => {
-      console.log('Validate Failed:', info);
+      logger.debug('Validate Failed:', info);
       message.error('请检查表单填写');
     });
   };
@@ -125,7 +126,7 @@ const ExamForm = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (error) {
-      console.error('Auto-save failed:', error);
+      logger.error('Auto-save failed:', error);
       throw error;
     }
   }, [id]);

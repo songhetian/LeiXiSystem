@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { formatDate } from '../utils/date'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
@@ -158,7 +159,7 @@ const ExamManagement = () => {
       const response = await api.get('/exam-categories/tree')
       setCategories(response.data?.data || [])
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
     }
   }
 
@@ -210,7 +211,7 @@ const ExamManagement = () => {
         : []
       setExams(list)
     } catch (error) {
-      console.error('获取试卷失败:', error)
+      logger.error('获取试卷失败:', error)
       toast.error('获取试卷列表失败')
       setExams([])
     } finally {
@@ -235,7 +236,7 @@ const ExamManagement = () => {
       setDeletedExams(Array.isArray(payload.exams) ? payload.exams : [])
       setDeletedTotal(payload.total || 0)
     } catch (error) {
-      console.error('获取回收站试卷失败:', error)
+      logger.error('获取回收站试卷失败:', error)
       setDeletedExams([])
       setDeletedTotal(0)
     }
@@ -257,7 +258,7 @@ const ExamManagement = () => {
           setSelectedExam(prev => ({ ...prev, ...examData }))
         }
       } catch (error) {
-        console.error('获取题目失败:', error)
+        logger.error('获取题目失败:', error)
         toast.error('获取题目失败')
         setQuestions([])
       }
@@ -371,7 +372,7 @@ const ExamManagement = () => {
       }
 
     } catch (error) {
-      console.error('提交失败:', error)
+      logger.error('提交失败:', error)
       let errorMsg = error.response?.data?.message || error.message
 
       // Translate common backend errors if possible
@@ -404,7 +405,7 @@ const ExamManagement = () => {
         toast.success('试卷保存成功')
       }
     } catch (error) {
-      console.error('保存试卷失败:', error)
+      logger.error('保存试卷失败:', error)
       toast.error('保存试卷失败')
     }
   }
@@ -561,7 +562,7 @@ const ExamManagement = () => {
         return;
       }
     } catch (e) {
-      console.error('检查考核计划失败', e);
+      logger.error('检查考核计划失败', e);
     }
 
     setExamToDelete(exam)
@@ -578,7 +579,7 @@ const ExamManagement = () => {
       setExamToDelete(null)
       fetchExams()
     } catch (error) {
-      console.error('删除试卷失败:', error)
+      logger.error('删除试卷失败:', error)
       toast.error('删除试卷失败')
     }
   }
@@ -591,7 +592,7 @@ const ExamManagement = () => {
       fetchExams()
       fetchDeletedExams(deletedPage, deletedSearch)
     } catch (error) {
-      console.error('还原试卷失败:', error)
+      logger.error('还原试卷失败:', error)
       toast.error('还原试卷失败')
     }
   }
@@ -617,7 +618,7 @@ const ExamManagement = () => {
         return;
       }
     } catch (e) {
-      console.error('检查考核计划失败', e);
+      logger.error('检查考核计划失败', e);
     }
 
     setEditingExam(exam)
@@ -656,7 +657,7 @@ const ExamManagement = () => {
         return;
       }
     } catch (e) {
-      console.error('检查考核计划失败', e);
+      logger.error('检查考核计划失败', e);
     }
 
     // 检查试卷是否已发布
@@ -901,7 +902,7 @@ const ExamManagement = () => {
       // Save the entire questions array with new order
       await saveExamQuestions(questions)
     } catch (error) {
-      console.error('更新顺序失败:', error)
+      logger.error('更新顺序失败:', error)
       toast.error('更新顺序失败')
     }
   }
@@ -950,7 +951,7 @@ const ExamManagement = () => {
       // Save to backend
       await api.put(`/exams/${selectedExam.id}`, { questions: updatedQuestions })
     } catch (e) {
-      console.error('自动保存失败:', e)
+      logger.error('自动保存失败:', e)
       toast.error('自动保存失败')
     }
   }, 500), [editingQuestion, selectedExam])
@@ -1065,7 +1066,7 @@ const ExamManagement = () => {
               return;
            }
          } catch (e) {
-           console.error('检查活跃考试失败', e);
+           logger.error('检查活跃考试失败', e);
            // proceed with caution or block? Blocking is safer.
            toast.error('无法检查是否有正在进行的考试，操作中止');
            return;

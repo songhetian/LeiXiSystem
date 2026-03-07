@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Steps, Button, Form, InputNumber, DatePicker, Switch, Card, message, Table, Tag, Space, Alert, Divider, Input } from 'antd';
 import { SaveOutlined, ArrowRightOutlined, ArrowLeftOutlined, CheckCircleOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
@@ -39,7 +40,7 @@ const VacationQuotaWizard = ({ visible, onClose, onSuccess }) => {
         setSettings(prev => ({ ...prev, ...result.data }));
       }
     } catch (error) {
-      console.error('Failed to fetch settings', error);
+      logger.error('Failed to fetch settings', error);
     }
   };
 
@@ -54,7 +55,7 @@ const VacationQuotaWizard = ({ visible, onClose, onSuccess }) => {
         setHolidays(result.data);
       }
     } catch (error) {
-      console.error('Failed to fetch holidays', error);
+      logger.error('Failed to fetch holidays', error);
     }
   };
 
@@ -69,7 +70,7 @@ const VacationQuotaWizard = ({ visible, onClose, onSuccess }) => {
         setEmployees(result.data);
       }
     } catch (error) {
-      console.error('Failed to fetch employees', error);
+      logger.error('Failed to fetch employees', error);
     }
   };
 

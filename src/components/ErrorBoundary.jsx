@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React from 'react'
 import { Result, Button, Collapse } from 'antd'
 import { ReloadOutlined, HomeOutlined } from '@ant-design/icons'
@@ -23,7 +24,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('🔥 [ErrorBoundary] 捕获到运行时错误:', error, errorInfo)
+    logger.error('🔥 [ErrorBoundary] 捕获到运行时错误:', error, errorInfo)
     this.setState({ error, errorInfo })
   }
 

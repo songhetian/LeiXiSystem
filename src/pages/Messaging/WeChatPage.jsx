@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   SearchOutlined,
@@ -219,7 +220,7 @@ const WeChatPage = () => {
         if (String(savedUser.id) === String(decodedUser.id)) {
           finalUser = { ...savedUser, ...decodedUser, avatar: savedUser.avatar || decodedUser.avatar };
         }
-      } catch (e) { console.error('解析本地用户信息失败', e); }
+      } catch (e) { logger.error('解析本地用户信息失败', e); }
     }
     
     setCurrentUser(finalUser);
@@ -282,7 +283,7 @@ const WeChatPage = () => {
 
       setContacts(contactsData);
     } catch (err) { 
-      console.error('Fetch contacts failed:', err);
+      logger.error('Fetch contacts failed:', err);
       // 如果报错，设置为空数组防止 map 报错，但不弹出错误提示以免造成干扰
       setContacts([]);
     }

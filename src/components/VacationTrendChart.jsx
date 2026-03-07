@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Spin, Select, ConfigProvider } from 'antd';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -20,7 +21,7 @@ const VacationTrendChart = ({ employeeId, year }) => {
       });
       if (response.data.success) setData(response.data.data);
     } catch (error) {
-      console.error('加载趋势数据失败:', error);
+      logger.error('加载趋势数据失败:', error);
     } finally {
       setLoading(false);
     }

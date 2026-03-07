@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Table, Button, Space, Modal, Input, Tag, 
@@ -62,7 +63,7 @@ const GroupManagement = () => {
     try {
       const res = await apiGet('/api/chat/users');
       if (res.success) setAllUsers(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   const filteredGroups = useMemo(() => {

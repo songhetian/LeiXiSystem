@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { getApiUrl } from '../utils/apiConfig'
 import { toast } from 'sonner';
@@ -31,7 +32,7 @@ function UserDepartmentModal({ isOpen, onClose, user, onSuccess }) {
         toast.error(result.message || '获取部门列表失败')
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      logger.error('获取部门列表失败:', error)
       toast.error('获取部门列表失败')
     }
   }
@@ -51,7 +52,7 @@ function UserDepartmentModal({ isOpen, onClose, user, onSuccess }) {
         setSelectedDepartments(result.data.map(d => d.id))
       }
     } catch (error) {
-      console.error('获取员工部门权限失败:', error)
+      logger.error('获取员工部门权限失败:', error)
     } finally {
       setLoading(false)
     }
@@ -100,7 +101,7 @@ function UserDepartmentModal({ isOpen, onClose, user, onSuccess }) {
         toast.error(result.error || '设置失败')
       }
     } catch (error) {
-      console.error('设置部门权限失败:', error)
+      logger.error('设置部门权限失败:', error)
       toast.error('设置失败')
     } finally {
       setSaving(false)
@@ -127,7 +128,7 @@ function UserDepartmentModal({ isOpen, onClose, user, onSuccess }) {
         localStorage.setItem('permissionDetails', JSON.stringify(permissionData.data))
       }
     } catch (error) {
-      console.error('刷新用户权限失败:', error)
+      logger.error('刷新用户权限失败:', error)
     }
   }
 

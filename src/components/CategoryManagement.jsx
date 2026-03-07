@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { FolderOutlined } from '@ant-design/icons'; // 添加图标导入
@@ -55,7 +56,7 @@ const CategoryManagement = () => {
       const categoriesData = response.data?.data || [];
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (error) {
-      console.error('获取分类失败:', error);
+      logger.error('获取分类失败:', error);
       toast.error('获取分类列表失败');
       setCategories([]);
     } finally {
@@ -84,7 +85,7 @@ const CategoryManagement = () => {
       resetForm();
       fetchCategories();
     } catch (error) {
-      console.error('提交失败:', error);
+      logger.error('提交失败:', error);
       const errorMsg = error.response?.data?.message || (editingCategory ? '更新失败' : '创建失败');
       toast.error(errorMsg);
     } finally {
@@ -108,7 +109,7 @@ const CategoryManagement = () => {
       setCategoryToDelete(null);
       fetchCategories();
     } catch (error) {
-      console.error('删除分类失败:', error);
+      logger.error('删除分类失败:', error);
       toast.error(error.response?.data?.message || '删除分类失败');
       setShowDeleteModal(false);
       setCategoryToDelete(null);
@@ -131,7 +132,7 @@ const CategoryManagement = () => {
       setCategoryToDelete(null);
       fetchCategories();
     } catch (error) {
-      console.error('永久删除失败:', error);
+      logger.error('永久删除失败:', error);
       toast.error(error.response?.data?.message || '永久删除失败');
       setShowPermanentDeleteModal(false);
       setCategoryToDelete(null);
@@ -144,7 +145,7 @@ const CategoryManagement = () => {
       toast.success('分类恢复成功');
       fetchCategories();
     } catch (error) {
-      console.error('恢复分类失败:', error);
+      logger.error('恢复分类失败:', error);
       toast.error(error.response?.data?.message || '恢复分类失败');
     }
   };

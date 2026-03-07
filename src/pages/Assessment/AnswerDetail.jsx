@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Collapse, List } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
@@ -171,7 +172,7 @@ const AnswerDetail = () => {
       setAnswerDetails(response.data.data);
     } catch (error) {
       message.error(`获取答题详情失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to fetch answer details:', error);
+      logger.error('Failed to fetch answer details:', error);
       navigate(`/assessment/results/${resultId}/result`); // Go back to result if failed
     } finally {
       setLoading(false);

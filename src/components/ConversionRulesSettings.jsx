@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Switch, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -62,7 +63,7 @@ const ConversionRulesSettings = ({ visible, onClose, standalone = false }) => {
         loadRules();
       }
     } catch (error) {
-      console.error('创建默认规则失败:', error);
+      logger.error('创建默认规则失败:', error);
     }
   };
 

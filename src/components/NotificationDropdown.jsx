@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import Modal from './Modal';
 import { useNavigate } from 'react-router-dom';
@@ -38,7 +39,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         }
       }
     } catch (e) {
-      console.error('Failed to parse user from localStorage', e);
+      logger.error('Failed to parse user from localStorage', e);
     }
   }, []);
 
@@ -80,7 +81,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         setNotifications(response.data.data || []);
       }
     } catch (error) {
-      console.error('Failed to load notifications:', error);
+      logger.error('Failed to load notifications:', error);
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to load unread count:', error);
+      logger.error('Failed to load unread count:', error);
     }
   };
 
@@ -112,7 +113,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       }
       toast.success('全部已读');
     } catch (error) {
-      console.error('Failed to mark all as read:', error);
+      logger.error('Failed to mark all as read:', error);
       toast.error('操作失败');
     }
   };
@@ -126,7 +127,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       setNotifications(prev => prev.filter(n => !(n.id === id && n.category === category)));
       loadUnreadCount();
     } catch (error) {
-      console.error('Failed to mark as read:', error);
+      logger.error('Failed to mark as read:', error);
     }
   };
 

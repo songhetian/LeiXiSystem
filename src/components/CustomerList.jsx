@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
 import customerAPI from '../api/customerAPI.js'
@@ -21,7 +22,7 @@ const CustomerList = () => {
       setCustomers(response.data)
     } catch (error) {
       toast.error('加载客服列表失败')
-      console.error(error)
+      logger.error(error)
     } finally {
       setLoading(false)
     }
@@ -56,7 +57,7 @@ const CustomerList = () => {
       }
     } catch (error) {
       toast.error('操作失败')
-      console.error(error)
+      logger.error(error)
     }
   }
 

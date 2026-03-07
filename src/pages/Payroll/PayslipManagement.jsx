@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -59,7 +60,7 @@ export default function PayslipManagement() {
             toast.success(`${monthStr} 考勤数据已同步`);
           }
         } catch (error) {
-          console.error('同步考勤失败:', error);
+          logger.error('同步考勤失败:', error);
         }
       }
     };
@@ -91,7 +92,7 @@ export default function PayslipManagement() {
         }));
       }
     } catch (error) {
-      console.error('获取工资条列表失败:', error);
+      logger.error('获取工资条列表失败:', error);
       toast.error('获取工资条列表失败');
     } finally {
       setLoading(false);
@@ -105,7 +106,7 @@ export default function PayslipManagement() {
         setDepartments(result.data.data);
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error);
+      logger.error('获取部门列表失败:', error);
     }
   };
 
@@ -118,7 +119,7 @@ export default function PayslipManagement() {
         setEmployees(result.data.data);
       }
     } catch (error) {
-      console.error('获取员工列表失败:', error);
+      logger.error('获取员工列表失败:', error);
     }
   };
 
@@ -150,7 +151,7 @@ export default function PayslipManagement() {
             fetchPayslips();
           }
         } catch (error) {
-          console.error('删除失败:', error);
+          logger.error('删除失败:', error);
           toast.error(error.response?.data?.message || '删除失败');
         }
       }
@@ -179,7 +180,7 @@ export default function PayslipManagement() {
         fetchPayslips();
       }
     } catch (error) {
-      console.error('保存失败:', error);
+      logger.error('保存失败:', error);
       toast.error(error.response?.data?.message || '保存失败');
     }
   };
@@ -205,7 +206,7 @@ export default function PayslipManagement() {
             toast.error(response.data.message || '发送失败', { id: 'sending' });
           }
         } catch (error) {
-          console.error('发送失败:', error);
+          logger.error('发送失败:', error);
           toast.error('发送失败', { id: 'sending' });
         } finally {
           setSending(false);
@@ -241,7 +242,7 @@ export default function PayslipManagement() {
           message = `确定要发放当前筛选条件下的所有 ${payslipIds.length} 条待发送工资条吗？`;
         }
       } catch (error) {
-        console.error('获取待发送工资条失败:', error);
+        logger.error('获取待发送工资条失败:', error);
         toast.error('获取工资条列表失败');
         setSending(false);
         return;
@@ -310,7 +311,7 @@ export default function PayslipManagement() {
             toast.error(response.data.message || '批量发放失败', { id: 'sending' });
           }
         } catch (error) {
-          console.error('批量发放失败:', error);
+          logger.error('批量发放失败:', error);
           toast.error('批量发放失败', { id: 'sending' });
         } finally {
           setSending(false);
@@ -338,7 +339,7 @@ export default function PayslipManagement() {
       link.remove();
       toast.success('导出成功');
     } catch (error) {
-      console.error('导出失败:', error);
+      logger.error('导出失败:', error);
       toast.error('导出失败');
     }
   };
@@ -361,7 +362,7 @@ export default function PayslipManagement() {
       link.remove();
       toast.success('模板下载成功');
     } catch (error) {
-      console.error('下载模板失败:', error);
+      logger.error('下载模板失败:', error);
       toast.error('下载模板失败');
     }
   };
@@ -408,7 +409,7 @@ export default function PayslipManagement() {
         }
       }
     } catch (error) {
-      console.error('导入失败:', error);
+      logger.error('导入失败:', error);
       toast.error('导入失败');
     }
 

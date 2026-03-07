@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React from 'react';
 import { Card, Form, Input, Select, Button, Upload, message } from 'antd';
 import { UploadOutlined, SendOutlined } from '@ant-design/icons';
@@ -6,13 +7,13 @@ const NotificationSender = () => {
   const [form] = Form.useForm();
 
   const onFinish = (values) => {
-    console.log('发送通知:', values);
+    logger.debug('发送通知:', values);
     message.success('通知发送成功！');
     form.resetFields();
   };
 
   const onFinishFailed = (errorInfo) => {
-    console.log('发送失败:', errorInfo);
+    logger.debug('发送失败:', errorInfo);
     message.error('通知发送失败，请检查表单内容！');
   };
 

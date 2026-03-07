@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Popconfirm, Collapse, Tag, InputNumber } from 'antd';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
@@ -51,7 +52,7 @@ const QuestionList = ({ examId, onEditQuestion, onDeleteQuestion, onQuestionsReo
       setQuestions(response.data.data.questions);
     } catch (error) {
       message.error('获取试卷题目失败');
-      console.error('Failed to fetch exam questions:', error);
+      logger.error('Failed to fetch exam questions:', error);
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ const QuestionList = ({ examId, onEditQuestion, onDeleteQuestion, onQuestionsReo
       }
     } catch (error) {
       message.error('题目排序失败');
-      console.error('Failed to reorder questions:', error);
+      logger.error('Failed to reorder questions:', error);
       // Revert to original order if API call fails
       fetchExamQuestions(examId);
     }

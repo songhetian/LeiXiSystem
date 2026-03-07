@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, Tag, message, Spin, Select } from 'antd';
 import { PlayCircleOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
@@ -29,7 +30,7 @@ const MyExamList = () => {
       });
       setMyExams(response.data.data.exams);
     } catch (error) {
-      console.error('❌ 请求失败:', error);
+      logger.error('❌ 请求失败:', error);
       message.error('获取我的考试列表失败');
     } finally {
       setLoading(false);
@@ -84,7 +85,7 @@ const MyExamList = () => {
       navigate(`/assessment/take-exam/${response.data.data.result_id}`);
     } catch (error) {
       message.error(`开始考试失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to start exam:', error);
+      logger.error('Failed to start exam:', error);
     } finally {
       setLoading(false);
     }

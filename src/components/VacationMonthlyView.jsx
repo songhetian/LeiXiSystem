@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Spin, message, DatePicker, Button, Space } from 'antd';
 import { CalendarOutlined, ReloadOutlined, SwapOutlined } from '@ant-design/icons';
@@ -34,7 +35,7 @@ const VacationMonthlyView = ({ employeeId, year: initialYear }) => {
         setHolidays(currentMonthHolidays);
       }
     } catch (error) {
-      console.error('Failed to fetch holidays', error);
+      logger.error('Failed to fetch holidays', error);
     }
   };
 
@@ -56,7 +57,7 @@ const VacationMonthlyView = ({ employeeId, year: initialYear }) => {
         message.error(result.message || '加载月度数据失败');
       }
     } catch (error) {
-      console.error('加载月度数据失败:', error);
+      logger.error('加载月度数据失败:', error);
       message.error('加载月度数据失败');
     } finally {
       setLoading(false);

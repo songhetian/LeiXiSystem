@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
 
@@ -33,7 +34,7 @@ export const PermissionProvider = ({ children }) => {
         throw new Error(data.message || '获取失败');
       }
     } catch (error) {
-      console.error('权限同步异常:', error);
+      logger.error('权限同步异常:', error);
       // 降级：尝试从本地缓存读取
       const saved = localStorage.getItem('permissions');
       if (saved) setPermissions(JSON.parse(saved));

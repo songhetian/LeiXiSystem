@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -82,7 +83,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
 
       setShifts(shiftList);
     } catch (error) {
-      console.error('Failed to fetch shifts:', error);
+      logger.error('Failed to fetch shifts:', error);
       toast.error('无法加载班次列表');
     } finally {
       setLoadingShifts(false);
@@ -113,7 +114,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
         setOriginalShift(null);
       }
     } catch (error) {
-      console.error('Error checking schedule:', error);
+      logger.error('Error checking schedule:', error);
     } finally {
       setCheckingSchedule(false);
     }
@@ -170,7 +171,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
           toast.error(response.data.message || '提交失败');
        }
     } catch (error) {
-       console.error('Submit compensatory error:', error);
+       logger.error('Submit compensatory error:', error);
        toast.error(error.response?.data?.message || '提交失败');
     } finally {
        setSubmitting(false);

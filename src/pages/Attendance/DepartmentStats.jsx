@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * Displays a statistical analysis page of each departments of
  */
@@ -83,7 +84,7 @@ export default function DepartmentStats() {
         }
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      logger.error('获取部门列表失败:', error)
       toast.error('获取部门列表失败')
     }
   }
@@ -120,7 +121,7 @@ export default function DepartmentStats() {
         }
       }
     } catch (error) {
-      console.error('获取部门统计失败:', error)
+      logger.error('获取部门统计失败:', error)
       // toast.error('获取部门统计失败') // Prevent spamming toasts on search
     } finally {
       setLoading(false)
@@ -158,7 +159,7 @@ export default function DepartmentStats() {
         setEmployeeDetails(response.data.data)
       }
     } catch (error) {
-      console.error('获取详情失败:', error)
+      logger.error('获取详情失败:', error)
       toast.error('获取详情失败')
     } finally {
       setDetailsLoading(false)

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner';
@@ -37,7 +38,7 @@ export default function DepartmentAttendanceStats() {
         setDepartments(response.data.data || [])
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      logger.error('获取部门列表失败:', error)
       toast.error('获取部门列表失败')
     }
   }
@@ -88,7 +89,7 @@ export default function DepartmentAttendanceStats() {
         setAttendanceData([])
       }
     } catch (error) {
-      console.error('获取员工列表失败:', error)
+      logger.error('获取员工列表失败:', error)
       toast.error('获取员工列表失败: ' + (error.response?.data?.message || error.message))
       setEmployees([])
       setAttendanceData([])
@@ -241,7 +242,7 @@ export default function DepartmentAttendanceStats() {
 
       toast.success('导出成功')
     } catch (error) {
-      console.error('导出失败:', error)
+      logger.error('导出失败:', error)
       toast.error('导出失败')
     }
   }

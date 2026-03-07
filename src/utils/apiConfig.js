@@ -5,28 +5,36 @@
 
 export const getApiBaseUrl = () => {
   const hostname = window.location.hostname;
-  const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
-  
+  const isDev = hostname === "localhost" || hostname === "127.0.0.1";
+
   if (isDev) {
-    return 'http://localhost:3001/api';
+    return "http://localhost:3001/api";
   }
 
   // 物理闭环：生产环境一律使用相对路径 /api
   // 这样无论您是用域名还是 IP，HTTPS 还是 HTTP，浏览器都会自动补全
-  return '/api';
+  return "/api";
 };
 
 export const getUploadBaseUrl = () => {
   const hostname = window.location.hostname;
-  const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isDev = hostname === "localhost" || hostname === "127.0.0.1";
   if (isDev) {
-    return 'http://localhost:3001';
+    return "http://localhost:3001";
   }
-  return ''; // 生产环境使用相对路径
+  return ""; // 生产环境使用相对路径
 };
 
 export const API_BASE_URL = getApiBaseUrl();
 export const UPLOAD_BASE_URL = getUploadBaseUrl();
+
+/**
+ * 调试模式开关：本地环境默认开启，或通过 localStorage.setItem('DEBUG_MODE', 'true') 手动开启
+ */
+export const DEBUG_MODE =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1" ||
+  localStorage.getItem("DEBUG_MODE") === "true";
 
 /**
  * 获取完整的 API URL
@@ -35,21 +43,23 @@ export const UPLOAD_BASE_URL = getUploadBaseUrl();
  */
 export const getApiUrl = (path) => {
   if (!path) return API_BASE_URL;
-  if (path.startsWith('http://') || path.startsWith('https://')) {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
 
   const base = API_BASE_URL;
   let cleanPath = path;
-  
+
   // 避免 /api/api 重复前缀
-  if (path.startsWith('/api') && base.endsWith('/api')) {
+  if (path.startsWith("/api") && base.endsWith("/api")) {
     cleanPath = path.substring(4);
   }
-  
-  const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  const normalizedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-  
+
+  const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  const normalizedPath = cleanPath.startsWith("/")
+    ? cleanPath
+    : `/${cleanPath}`;
+
   return `${normalizedBase}${normalizedPath}`;
 };
 
@@ -71,12 +81,12 @@ export const loadRuntimeConfig = async () => {
  * 获取文件完整访问路径
  */
 export const getFileUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
   const baseUrl = getUploadBaseUrl();
-  const normalizedPath = url.startsWith('/') ? url : `/${url}`;
+  const normalizedPath = url.startsWith("/") ? url : `/${url}`;
   return `${baseUrl}${normalizedPath}`;
 };
 
@@ -85,11 +95,11 @@ export const getFileUrl = (url) => {
  */
 export const getWsBaseUrl = () => {
   const hostname = window.location.hostname;
-  const isDev = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isDev = hostname === "localhost" || hostname === "127.0.0.1";
   if (isDev) {
-    return 'ws://localhost:3001';
+    return "ws://localhost:3001";
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}`;
 };
 
@@ -102,5 +112,5 @@ export default {
   getApiUrlAsync,
   getFileUrl,
   getWsBaseUrl,
-  loadRuntimeConfig
+  loadRuntimeConfig,
 };

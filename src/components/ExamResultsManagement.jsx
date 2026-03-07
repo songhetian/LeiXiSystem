@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Select, Modal, Tag } from 'antd';
 import { toast } from 'sonner';
@@ -46,7 +47,7 @@ const ExamResultsManagement = ({ onNavigate }) => {
       setResults(Array.isArray(resultsData) ? resultsData : []);
       setPagination(prev => ({ ...prev, total: resultsData.length }));
     } catch (error) {
-      console.error('获取考试结果失败:', error);
+      logger.error('获取考试结果失败:', error);
       toast.error('获取考试结果列表失败');
       setResults([]);
     } finally {

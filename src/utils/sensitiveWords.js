@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 敏感词检测和过滤工具
  * Sensitive word detection and filtering utility
@@ -115,7 +116,7 @@ export const loadSensitiveWordsFromServer = async (apiUrl) => {
       }
     }
   } catch (error) {
-    console.error('加载敏感词词典失败:', error);
+    logger.error('加载敏感词词典失败:', error);
   }
   return SENSITIVE_KEYWORDS;
 };

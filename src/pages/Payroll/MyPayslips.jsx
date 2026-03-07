@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect } from 'react';
 import { formatDate } from '../../utils/date';
 import api from '../../api';
@@ -58,7 +59,7 @@ export default function MyPayslips() {
         }));
       }
     } catch (error) {
-      console.error('获取工资条列表失败:', error);
+      logger.error('获取工资条列表失败:', error);
       toast.error('获取工资条列表失败');
     } finally {
       setLoading(false);
@@ -73,7 +74,7 @@ export default function MyPayslips() {
         setIsDefaultPassword(response.data.is_default);
       }
     } catch (error) {
-      console.error('检查密码状态失败:', error);
+      logger.error('检查密码状态失败:', error);
     }
   };
 
@@ -88,7 +89,7 @@ export default function MyPayslips() {
 
   const handleVerifyPassword = async () => {
     try {
-      console.log('[Frontend] Verifying password...');
+      logger.debug('[Frontend] Verifying password...');
       if (!password) {
         toast.error('请输入密码');
         return;
@@ -106,17 +107,17 @@ export default function MyPayslips() {
       });
 
       const data = await response.json();
-      console.log('[Frontend] Password verification response:', data);
+      logger.debug('[Frontend] Password verification response:', data);
 
       if (data.success) {
-        console.log('[Frontend] Password verified successfully, token:', data.token ? data.token.substring(0, 30) + '...' : 'none');
+        logger.debug('[Frontend] Password verified successfully, token:', data.token ? data.token.substring(0, 30) + '...' : 'none');
         const newToken = data.token;
         setIsDefaultPassword(data.is_default);
         setShowPasswordModal(false);
         setPassword('');
 
         if (selectedPayslip) {
-          console.log('[Frontend] Fetching payslip detail for id:', selectedPayslip.id);
+          logger.debug('[Frontend] Fetching payslip detail for id:', selectedPayslip.id);
           // 直接使用新获取的 token，而不是依赖状态更新
           await fetchPayslipDetailWithToken(selectedPayslip.id, newToken);
         }
@@ -125,19 +126,19 @@ export default function MyPayslips() {
           toast.warning('您使用的是默认密码，建议修改密码');
         }
       } else {
-        console.log('[Frontend] Password verification failed:', data.message);
+        logger.debug('[Frontend] Password verification failed:', data.message);
         toast.error(data.message || '密码验证失败');
       }
     } catch (error) {
-      console.error('[Frontend] 密码验证失败:', error);
+      logger.error('[Frontend] 密码验证失败:', error);
       toast.error(error.message || '密码验证失败');
     }
   };
 
   const fetchPayslipDetail = async (id) => {
     try {
-      console.log('[Frontend] Fetching payslip detail for id:', id);
-      console.log('[Frontend] PasswordToken:', passwordToken ? passwordToken.substring(0, 30) + '...' : 'none');
+      logger.debug('[Frontend] Fetching payslip detail for id:', id);
+      logger.debug('[Frontend] PasswordToken:', passwordToken ? passwordToken.substring(0, 30) + '...' : 'none');
       
       // 使用 fetch API 而不是 axios，避免拦截器问题
       const token = localStorage.getItem('token');
@@ -145,7 +146,7 @@ export default function MyPayslips() {
         'Authorization': `Bearer ${token}`,
         'X-Payslip-Token': passwordToken
       };
-      console.log('[Frontend] Headers to send:', headers);
+      logger.debug('[Frontend] Headers to send:', headers);
       
       const response = await fetch(getApiUrl(`/payslips/${id}`), {
         method: 'GET',
@@ -153,18 +154,18 @@ export default function MyPayslips() {
       });
 
       const data = await response.json();
-      console.log('[Frontend] Response:', data);
+      logger.debug('[Frontend] Response:', data);
 
       if (data.success) {
         setSelectedPayslip(data.data);
         setShowDetailModal(true);
       }
     } catch (error) {
-      console.error('[Frontend] 获取工资条详情失败:', error);
+      logger.error('[Frontend] 获取工资条详情失败:', error);
       toast.error(error.message || '获取工资条详情失败');
 
       if (error.message.includes('401') || error.message.includes('需要验证二级密码')) {
-        console.log('[Frontend] Clearing passwordToken and showing password modal');
+        logger.debug('[Frontend] Clearing passwordToken and showing password modal');
         setPasswordToken(null);
         setShowPasswordModal(true);
       }
@@ -173,8 +174,8 @@ export default function MyPayslips() {
 
   const fetchPayslipDetailWithToken = async (id, token) => {
     try {
-      console.log('[Frontend] Fetching payslip detail with token for id:', id);
-      console.log('[Frontend] Token:', token ? token.substring(0, 30) + '...' : 'none');
+      logger.debug('[Frontend] Fetching payslip detail with token for id:', id);
+      logger.debug('[Frontend] Token:', token ? token.substring(0, 30) + '...' : 'none');
       
       // 直接使用传入的 token
       const jwtToken = localStorage.getItem('token');
@@ -182,7 +183,7 @@ export default function MyPayslips() {
         'Authorization': `Bearer ${jwtToken}`,
         'X-Payslip-Token': token
       };
-      console.log('[Frontend] Headers to send:', headers);
+      logger.debug('[Frontend] Headers to send:', headers);
       
       const response = await fetch(getApiUrl(`/payslips/${id}`), {
         method: 'GET',
@@ -190,7 +191,7 @@ export default function MyPayslips() {
       });
 
       const data = await response.json();
-      console.log('[Frontend] Response:', data);
+      logger.debug('[Frontend] Response:', data);
 
       if (data.success) {
         setSelectedPayslip(data.data);
@@ -199,11 +200,11 @@ export default function MyPayslips() {
         setPasswordToken(token);
       }
     } catch (error) {
-      console.error('[Frontend] 获取工资条详情失败:', error);
+      logger.error('[Frontend] 获取工资条详情失败:', error);
       toast.error(error.message || '获取工资条详情失败');
 
       if (error.message.includes('401') || error.message.includes('需要验证二级密码')) {
-        console.log('[Frontend] Clearing passwordToken and showing password modal');
+        logger.debug('[Frontend] Clearing passwordToken and showing password modal');
         setPasswordToken(null);
         setShowPasswordModal(true);
       }
@@ -220,7 +221,7 @@ export default function MyPayslips() {
         fetchPayslips();
       }
     } catch (error) {
-      console.error('确认工资条失败:', error);
+      logger.error('确认工资条失败:', error);
       toast.error('确认工资条失败');
     }
   };
@@ -241,7 +242,7 @@ export default function MyPayslips() {
         setPasswordToken(null);
       }
     } catch (error) {
-      console.error('修改密码失败:', error);
+      logger.error('修改密码失败:', error);
       toast.error(error.response?.data?.message || '修改密码失败');
     }
   };
@@ -261,7 +262,7 @@ export default function MyPayslips() {
         setIsDefaultPassword(true);
       }
     } catch (error) {
-      console.error('设置密码失败:', error);
+      logger.error('设置密码失败:', error);
       toast.error(error.response?.data?.message || '设置密码失败');
     }
   };

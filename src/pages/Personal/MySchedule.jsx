@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner';
@@ -52,7 +53,7 @@ export default function MySchedule() {
         setEmployee(response.data.data)
       }
     } catch (error) {
-      console.error('获取员工信息失败:', error)
+      logger.error('获取员工信息失败:', error)
       toast.error('获取员工信息失败')
     }
   }
@@ -86,7 +87,7 @@ export default function MySchedule() {
         setSchedules(formattedSchedules)
       }
     } catch (error) {
-      console.error('获取排班数据失败:', error)
+      logger.error('获取排班数据失败:', error)
       toast.error('获取排班数据失败')
     } finally {
       setLoading(false)

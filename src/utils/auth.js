@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 // 认证和权限工具函数
 
 /**
@@ -8,7 +9,7 @@ export const getCurrentUser = () => {
     const userStr = localStorage.getItem('user')
     return userStr ? JSON.parse(userStr) : null
   } catch (error) {
-    console.error('获取用户信息失败:', error)
+    logger.error('获取用户信息失败:', error)
     return null
   }
 }

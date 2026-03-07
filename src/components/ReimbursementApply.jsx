@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 报销申请组件 (精致商务最终版)
  * 
@@ -136,7 +137,7 @@ const ReimbursementApply = ({ user, onSuccess }) => {
           title: `${dayjs().format('YYYY年MM月')}报销申请`,
           items: [{ item_type: undefined, amount: undefined, expense_date: dayjs() }]
         });
-      } catch (e) { console.error(e); }
+      } catch (e) { logger.error(e); }
     };
     initData();
   }, []);

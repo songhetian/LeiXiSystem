@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { debounce } from '../utils/performanceUtils';
 
@@ -30,7 +31,7 @@ export const useFormAutoSave = (saveFunction, debounceDelay = 3000, enabled = tr
           setSaveStatus(null);
         }, 2000);
       } catch (error) {
-        console.error('Auto-save failed:', error);
+        logger.error('Auto-save failed:', error);
         setSaveStatus('error');
 
         // Clear error status after 3 seconds

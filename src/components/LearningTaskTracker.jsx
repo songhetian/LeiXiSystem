@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -22,7 +23,7 @@ const LearningTaskTracker = () => {
       setTasks(pendingResponse.data || []);
       setCompletedTasks(completedResponse.data || []);
     } catch (error) {
-      console.error('获取任务列表失败:', error);
+      logger.error('获取任务列表失败:', error);
       toast.error('获取任务列表失败');
     } finally {
       setLoading(false);
@@ -36,7 +37,7 @@ const LearningTaskTracker = () => {
       toast.success('任务标记为完成');
       fetchTasks(); // 重新获取任务列表
     } catch (error) {
-      console.error('标记任务为完成失败:', error);
+      logger.error('标记任务为完成失败:', error);
       toast.error('标记任务为完成失败');
     }
   };
@@ -50,7 +51,7 @@ const LearningTaskTracker = () => {
       toast.success('任务已删除');
       fetchTasks(); // 重新获取任务列表
     } catch (error) {
-      console.error('删除任务失败:', error);
+      logger.error('删除任务失败:', error);
       toast.error('删除任务失败');
     }
   };

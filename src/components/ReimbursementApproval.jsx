@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 报销审批组件
  *
@@ -69,7 +70,7 @@ const ReimbursementApproval = ({ user, onViewDetail }) => {
         setDepartments(response.data);
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error);
+      logger.error('获取部门列表失败:', error);
     }
   };
 
@@ -94,7 +95,7 @@ const ReimbursementApproval = ({ user, onViewDetail }) => {
         setPendingList(response.data.data);
       }
     } catch (error) {
-      console.error('获取审批列表失败:', error);
+      logger.error('获取审批列表失败:', error);
       toast.error('数据加载失败');
     } finally {
       setLoading(false);
@@ -133,7 +134,7 @@ const ReimbursementApproval = ({ user, onViewDetail }) => {
         toast.error(response.data.message || '操作失败');
       }
     } catch (error) {
-      console.error('审批操作失败:', error);
+      logger.error('审批操作失败:', error);
       toast.error('操作失败');
     } finally {
       setApproving(null);

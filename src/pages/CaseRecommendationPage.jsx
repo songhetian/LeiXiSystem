@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js';
@@ -33,7 +34,7 @@ const CaseRecommendationPage = () => {
       }
     } catch (error) {
       toast.error('加载推荐案例失败');
-      console.error('Error loading recommended cases:', error);
+      logger.error('Error loading recommended cases:', error);
     } finally {
       setLoading(false);
     }

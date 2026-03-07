@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, InputNumber, message, Spin, Alert, Radio, Space } from 'antd';
 import { getApiBaseUrl } from '../utils/apiConfig';
@@ -101,7 +102,7 @@ const BatchVacationQuotaEditModal = ({ visible, onClose, employees = [], year, o
       }
 
     } catch (error) {
-      console.error(error);
+      logger.error(error);
     } finally {
       setLoading(false);
     }

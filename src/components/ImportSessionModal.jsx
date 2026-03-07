@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { toast } from 'sonner';
@@ -161,7 +162,7 @@ const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
             } catch (error) {
                 toast.error(`解析 Excel 文件失败：${error.message}`);
                 setImportError(`解析 Excel 文件失败：${error.message}`);
-                console.error(error);
+                logger.error(error);
                 setFile(null);
                 setFileColumns([]);
                 setColumnMap({});
@@ -171,7 +172,7 @@ const ImportSessionModal = ({ isOpen, onClose, onSuccess }) => {
         reader.onerror = (error) => {
             toast.error('读取文件失败。');
             setImportError('读取文件失败。');
-            console.error('File reader error:', error);
+            logger.error('File reader error:', error);
             setFile(null);
             setFileColumns([]);
             setColumnMap({});

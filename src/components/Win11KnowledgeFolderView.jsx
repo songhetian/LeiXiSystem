@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -251,7 +252,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
                 fetchPersonalResources()
             ]);
         } catch (e) {
-            console.error('Initial data load failed:', e);
+            logger.error('Initial data load failed:', e);
         }
     };
     loadAllData();
@@ -259,7 +260,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
 
   const fetchPersonalResources = async () => {
     if (!currentUser?.id) {
-        console.warn('No currentUser.id found, skipping personal resources fetch');
+        logger.warn('No currentUser.id found, skipping personal resources fetch');
         return;
     }
     try {
@@ -280,7 +281,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
             setCategories(allC);
         }
     } catch(e) {
-        console.error('Failed to fetch personal resources:', e);
+        logger.error('Failed to fetch personal resources:', e);
     }
   };
 

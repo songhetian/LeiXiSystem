@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Badge, Space, Typography, Modal, Button, Tooltip, Empty, List, Avatar } from 'antd';
 import { 
@@ -55,7 +56,7 @@ const RealtimeAttendanceCard = () => {
         setData(response.data.data);
       }
     } catch (error) {
-      console.error('获取实时考勤失败:', error);
+      logger.error('获取实时考勤失败:', error);
     } finally {
       setLoading(false);
     }

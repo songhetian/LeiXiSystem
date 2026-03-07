@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -308,7 +309,7 @@ function PermissionManagement() {
       const data = Array.isArray(result) ? result : (result.data || result)
       setDepartments((data || []).filter(d => d.status === 'active'))
     } catch (error) {
-      console.error('获取部门列表失败')
+      logger.error('获取部门列表失败')
       setDepartments([])
     }
   }
@@ -319,7 +320,7 @@ function PermissionManagement() {
       const data = result.success ? (result.data || []) : (Array.isArray(result) ? result : [])
       setPositions((data || []).filter(p => p.status === 'active'))
     } catch (error) {
-      console.error('获取职位列表失败 - 异常:', error)
+      logger.error('获取职位列表失败 - 异常:', error)
       setPositions([])
     }
   }
@@ -331,7 +332,7 @@ function PermissionManagement() {
       setRoles(rolesData)
       setFilteredRoles(rolesData)
     } catch (error) {
-      console.error('获取角色列表失败', error)
+      logger.error('获取角色列表失败', error)
       toast.error('获取角色列表失败')
       setRoles([])
       setFilteredRoles([])
@@ -345,7 +346,7 @@ function PermissionManagement() {
       setUsers(usersData)
       setFilteredUsers(usersData)
     } catch (error) {
-      console.error('获取用户列表失败', error)
+      logger.error('获取用户列表失败', error)
       toast.error('获取用户列表失败')
       setUsers([])
       setFilteredUsers([])
@@ -358,7 +359,7 @@ function PermissionManagement() {
       const permissionsData = Array.isArray(result) ? result : (result.success && Array.isArray(result.data) ? result.data : [])
       setPermissions(permissionsData)
     } catch (error) {
-      console.error('获取权限列表失败', error)
+      logger.error('获取权限列表失败', error)
       setPermissions([])
     }
   }
@@ -743,7 +744,7 @@ function PermissionManagement() {
         localStorage.setItem('permissionDetails', JSON.stringify(result.data))
       }
     } catch (error) {
-      console.error('刷新权限失败:', error)
+      logger.error('刷新权限失败:', error)
     }
   }
 

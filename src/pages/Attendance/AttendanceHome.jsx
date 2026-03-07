@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate, getBeijingDate, formatBeijingDate } from '../../utils/date'
 import api from '../../api'
@@ -110,7 +111,7 @@ export default function AttendanceHome({ onNavigate }) {
         toast.error('未找到员工信息，请联系管理员')
       }
     } catch (error) {
-      console.error('获取员工信息失败:', error)
+      logger.error('获取员工信息失败:', error)
       toast.error('获取员工信息失败')
     }
   }
@@ -153,7 +154,7 @@ export default function AttendanceHome({ onNavigate }) {
         })
       }
     } catch (error) {
-      console.error('获取考勤设置失败:', error)
+      logger.error('获取考勤设置失败:', error)
       // 如果获取失败，使用默认规则
       setAttendanceRules({
         late_threshold: 30,
@@ -171,7 +172,7 @@ export default function AttendanceHome({ onNavigate }) {
         setRestShiftId(response.data.data.id)
       }
     } catch (error) {
-      console.error('获取休息班次失败:', error)
+      logger.error('获取休息班次失败:', error)
     }
   }
 
@@ -186,7 +187,7 @@ export default function AttendanceHome({ onNavigate }) {
         setTodayRecord(response.data.data)
       }
     } catch (error) {
-      console.error('获取今日打卡状态失败:', error)
+      logger.error('获取今日打卡状态失败:', error)
     }
   }
 
@@ -215,7 +216,7 @@ export default function AttendanceHome({ onNavigate }) {
         setTodaySchedule(null)
       }
     } catch (error) {
-      console.error('获取今日排班信息失败:', error)
+      logger.error('获取今日排班信息失败:', error)
     }
   }
 
@@ -229,7 +230,7 @@ export default function AttendanceHome({ onNavigate }) {
         setShifts(response.data.data)
       }
     } catch (error) {
-      console.error('获取班次列表失败:', error)
+      logger.error('获取班次列表失败:', error)
     }
   }
 

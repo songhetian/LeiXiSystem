@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Input, Select, Button, message, Card, Modal, Table, Segmented, Tag, Tooltip } from 'antd';
 import { SearchOutlined, EyeOutlined, AppstoreOutlined, BarsOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
@@ -71,7 +72,7 @@ const MyExamResults = ({ onNavigate }) => {
         message.error(data.message || '获取考试结果失败');
       }
     } catch (error) {
-      console.error('Failed to fetch exam results:', error);
+      logger.error('Failed to fetch exam results:', error);
       message.error('获取考试结果失败');
     } finally {
       setLoading(false);

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -86,7 +87,7 @@ const VacationDetails = () => {
       }
 
     } catch (error) {
-      console.error('加载数据失败:', error)
+      logger.error('加载数据失败:', error)
       toast.error('加载数据失败')
     } finally {
       setLoading(false)

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -38,7 +39,7 @@ const VacationDetailsNew = () => {
     try {
       const response = await api.get('/api/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
       if (response.data.success) setConversionRules(response.data.data);
-    } catch (e) { console.error(e); }
+    } catch (e) { logger.error(e); }
   }
 
   const loadData = async () => {
@@ -101,7 +102,7 @@ const VacationDetailsNew = () => {
       }
 
     } catch (error) { 
-      console.error('Vacation Load Failed:', error);
+      logger.error('Vacation Load Failed:', error);
       toast.error('假期资产数据同步失败');
     } finally { setLoading(false) }
   }

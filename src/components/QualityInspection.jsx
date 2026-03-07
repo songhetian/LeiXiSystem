@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -59,7 +60,7 @@ const QualityInspection = () => {
         const response = await qualityAPI.getPlatforms();
         setPlatforms(response.data.data);
       } catch (error) {
-        console.error('Error fetching platforms:', error);
+        logger.error('Error fetching platforms:', error);
       }
     };
     fetchPlatforms();
@@ -75,7 +76,7 @@ const QualityInspection = () => {
         const response = await qualityAPI.getShopsByPlatform(filters.platformId);
         setShops(response.data.data);
       } catch (error) {
-        console.error('Error fetching shops:', error);
+        logger.error('Error fetching shops:', error);
       }
     };
     fetchShops();

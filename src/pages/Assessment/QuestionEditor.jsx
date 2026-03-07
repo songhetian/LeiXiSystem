@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Select, Button, Space, message, Card, Radio, InputNumber, Checkbox, Tag } from 'antd';
 import { MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
@@ -52,7 +53,7 @@ const QuestionEditor = () => {
       form.setFieldsValue(question);
     } catch (error) {
       message.error('获取题目详情失败');
-      console.error('Failed to fetch question details:', error);
+      logger.error('Failed to fetch question details:', error);
     } finally {
       setLoading(false);
     }
@@ -90,7 +91,7 @@ const QuestionEditor = () => {
       navigate(`/assessment/exams/${examId}`); // Navigate back to exam details
     } catch (error) {
       message.error(`操作失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to save question:', error);
+      logger.error('Failed to save question:', error);
     } finally {
       setLoading(false);
     }
@@ -121,7 +122,7 @@ const QuestionEditor = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (error) {
-      console.error('Auto-save failed:', error);
+      logger.error('Auto-save failed:', error);
       throw error;
     }
   }, [questionId, examId]);

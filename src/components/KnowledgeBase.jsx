@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -104,7 +105,7 @@ const KnowledgeBase = () => {
       setCategories(response.data || [])
       setTotalCategories(response.data?.length || 0)
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
     }
   }
 
@@ -123,7 +124,7 @@ const KnowledgeBase = () => {
       setArticles(publishedArticles)
       setTotalArticles(response.data.pagination?.total || response.data.length || 0)
     } catch (error) {
-      console.error('获取文档失败:', error)
+      logger.error('获取文档失败:', error)
       toast.error('获取文档失败')
     } finally {
       setLoading(false)
@@ -140,7 +141,7 @@ const KnowledgeBase = () => {
       // 刷新文章列表以更新浏览量
       fetchArticles()
     } catch (error) {
-      console.error('更新浏览量失败:', error)
+      logger.error('更新浏览量失败:', error)
     }
   }
 
@@ -266,7 +267,7 @@ const KnowledgeBase = () => {
       const response = await api.get('/my-knowledge/categories')
       setMyCategories(response.data || [])
     } catch (error) {
-      console.error('获取我的分类失败:', error)
+      logger.error('获取我的分类失败:', error)
     }
   }
 
@@ -276,7 +277,7 @@ const KnowledgeBase = () => {
       const response = await api.get('/learning-plans')
       setLearningPlans(response.data || [])
     } catch (error) {
-      console.error('获取学习计划失败:', error)
+      logger.error('获取学习计划失败:', error)
     }
   }
 
@@ -321,7 +322,7 @@ const KnowledgeBase = () => {
           throw new Error('创建学习计划失败')
         }
       } catch (error) {
-        console.error('创建学习计划失败:', error)
+        logger.error('创建学习计划失败:', error)
         toast.error('创建学习计划失败: ' + (error.response?.data?.message || error.message))
         return
       }
@@ -342,7 +343,7 @@ const KnowledgeBase = () => {
         setSelectedPlanId('')
       }
     } catch (error) {
-      console.error('添加到学习计划失败:', error)
+      logger.error('添加到学习计划失败:', error)
       toast.error('添加到学习计划失败')
     }
   }
@@ -371,7 +372,7 @@ const KnowledgeBase = () => {
         setShowArticleModal(false)
       }
     } catch (error) {
-      console.error('保存失败:', error)
+      logger.error('保存失败:', error)
       toast.error(error.response?.data?.error || '保存失败')
     }
   }
@@ -397,7 +398,7 @@ const KnowledgeBase = () => {
       // 重新获取分类列表
       fetchCategories();
     } catch (error) {
-      console.error('更新分类可见性失败:', error);
+      logger.error('更新分类可见性失败:', error);
       toast.error('操作失败');
     }
   }
@@ -925,7 +926,7 @@ const KnowledgeBase = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  console.log('切换到网格视图')
+                  logger.debug('切换到网格视图')
                   setViewMode('grid')
                 }}
                 className={`px-4 py-2 rounded-lg transition-colors ${
@@ -940,7 +941,7 @@ const KnowledgeBase = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  console.log('切换到列表视图')
+                  logger.debug('切换到列表视图')
                   setViewMode('list')
                 }}
                 className={`px-4 py-2 rounded-lg transition-colors ${

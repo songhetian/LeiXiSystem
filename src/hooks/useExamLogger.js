@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { message } from 'antd';
@@ -25,9 +26,9 @@ const useExamLogger = (resultId, onInactivitySubmit) => {
       }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      // console.log(`Logged event: ${eventType}`, details);
+      // logger.debug(`Logged event: ${eventType}`, details);
     } catch (error) {
-      console.error('Failed to send exam log:', error);
+      logger.error('Failed to send exam log:', error);
     }
   }, [resultId]);
 

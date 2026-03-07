@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useRef } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -97,7 +98,7 @@ const MyKnowledgeBase = () => {
       const response = await axios.get(getApiUrl('/api/my-knowledge/categories'))
       setCategories(response.data || [])
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
     }
   }
 
@@ -107,7 +108,7 @@ const MyKnowledgeBase = () => {
       const response = await axios.get(getApiUrl('/api/my-knowledge/articles'))
       setArticles(response.data || [])
     } catch (error) {
-      console.error('获取文档失败:', error)
+      logger.error('获取文档失败:', error)
       toast.error('获取文档失败')
     } finally {
       setLoading(false)
@@ -137,7 +138,7 @@ const MyKnowledgeBase = () => {
       fetchArticles()
       setShowFolderModal(false)
     } catch (error) {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
       toast.error('删除失败')
     }
   }
@@ -177,7 +178,7 @@ const MyKnowledgeBase = () => {
       fetchArticles()
       setShowFolderModal(false)
     } catch (error) {
-      console.error('移动文档失败:', error)
+      logger.error('移动文档失败:', error)
       toast.error('移动文档失败')
     }
   }
@@ -198,7 +199,7 @@ const MyKnowledgeBase = () => {
       resetCategoryForm()
       fetchCategories()
     } catch (error) {
-      console.error('分类操作失败:', error)
+      logger.error('分类操作失败:', error)
       toast.error(editingCategory ? '更新失败' : '创建失败')
     } finally {
       setLoading(false)
@@ -224,7 +225,7 @@ const MyKnowledgeBase = () => {
       fetchCategories()
       fetchArticles()
     } catch (error) {
-      console.error('删除分类失败:', error)
+      logger.error('删除分类失败:', error)
       toast.error('删除分类失败')
     }
   }

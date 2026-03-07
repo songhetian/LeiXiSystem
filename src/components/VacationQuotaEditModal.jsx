@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, InputNumber, message, Spin, Alert } from 'antd';
 import { getApiBaseUrl } from '../utils/apiConfig';
@@ -70,7 +71,7 @@ const VacationQuotaEditModal = ({ visible, onClose, employee, year, onSuccess })
         }
       }
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       message.error('加载数据失败');
     } finally {
       setLoading(false);
@@ -112,7 +113,7 @@ const VacationQuotaEditModal = ({ visible, onClose, employee, year, onSuccess })
         message.error(data.message || '更新失败');
       }
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       message.error('更新失败');
     } finally {
       setLoading(false);

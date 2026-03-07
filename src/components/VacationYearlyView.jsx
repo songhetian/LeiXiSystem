@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Spin, message, Select, Collapse } from 'antd';
 import { CalendarOutlined, CaretRightOutlined } from '@ant-design/icons';
@@ -38,7 +39,7 @@ const VacationYearlyView = ({ employeeId, year: initialYear }) => {
         message.error(result.message || '加载年度数据失败');
       }
     } catch (error) {
-      console.error('加载年度数据失败:', error);
+      logger.error('加载年度数据失败:', error);
       message.error('加载年度数据失败');
     } finally {
       setLoading(false);

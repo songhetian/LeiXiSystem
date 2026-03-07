@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js';
@@ -21,7 +22,7 @@ const QualityReportPage = () => {
       setReportData(response.data.data);
     } catch (error) {
       toast.error('加载质检报告失败');
-      console.error('Error loading quality report:', error);
+      logger.error('Error loading quality report:', error);
     } finally {
       setLoading(false);
     }

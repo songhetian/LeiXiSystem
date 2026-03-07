@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import axios from 'axios';
 import { getApiUrl } from './utils/apiConfig';
 
@@ -23,7 +24,7 @@ api.interceptors.request.use(
     const baseUrlHasApi = config.baseURL?.endsWith('/api') || config.baseURL?.endsWith('/api/');
     
     if (baseUrlHasApi && config.url?.startsWith('/api')) {
-      console.warn(`[API Repair] 检测到重复前缀，已自动修正: ${config.url}`);
+      logger.warn(`[API Repair] 检测到重复前缀，已自动修正: ${config.url}`);
       // 移除请求路径开头的 /api
       config.url = config.url.replace(/^\/api/, '');
     }

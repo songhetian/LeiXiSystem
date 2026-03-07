@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
 import Modal from './Modal'
@@ -145,7 +146,7 @@ function EmployeeManagement() {
         setDbError(true);
         setDbErrorMessage('获取员工列表失败');
       }
-      console.error('获取员工列表失败:', error)
+      logger.error('获取员工列表失败:', error)
       // 在无法获取数据时显示友好的提示信息
       setEmployees([])
       setFilteredEmployees([])
@@ -206,7 +207,7 @@ function EmployeeManagement() {
         }
       });
       const result = await response.json();
-      console.log('获取部门列表结果:', result);
+      logger.debug('获取部门列表结果:', result);
       if (result.success) {
         setDepartments(result.data.filter(d => d.status === 'active'));
       } else {
@@ -220,7 +221,7 @@ function EmployeeManagement() {
         setDepartments(Array.isArray(fallbackData) ? fallbackData.filter(d => d.status === 'active') : []);
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error);
+      logger.error('获取部门列表失败:', error);
       // 出错时设置为空数组或默认值
       setDepartments([]);
     }
@@ -237,7 +238,7 @@ function EmployeeManagement() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('获取职位列表失败 - HTTP错误:', response.status, errorData)
+        logger.error('获取职位列表失败 - HTTP错误:', response.status, errorData)
         setPositions([])
         return
       }
@@ -247,7 +248,7 @@ function EmployeeManagement() {
       const data = result.success ? result.data : []
       setPositions(data.filter(p => p.status === 'active'))
     } catch (error) {
-      console.error('获取职位列表失败 - 异常:', error)
+      logger.error('获取职位列表失败 - 异常:', error)
       setPositions([])
     }
   }
@@ -269,7 +270,7 @@ function EmployeeManagement() {
         setRoles([])
       }
     } catch (error) {
-      console.error('获取角色列表失败', error)
+      logger.error('获取角色列表失败', error)
       setRoles([])
     }
   }
@@ -337,7 +338,7 @@ function EmployeeManagement() {
         toast.error(result.message || '更新失败');
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       toast.error('网络通讯失败');
     }
   }
@@ -389,7 +390,7 @@ function EmployeeManagement() {
                 body: JSON.stringify(changeData)
               });
             } catch (err) {
-              console.error('记录员工变动失败:', err);
+              logger.error('记录员工变动失败:', err);
             }
           }
         } else if (result.id) {
@@ -416,7 +417,7 @@ function EmployeeManagement() {
               body: JSON.stringify(changeData)
             });
           } catch (err) {
-            console.error('记录入职记录失败:', err);
+            logger.error('记录入职记录失败:', err);
           }
         }
 
@@ -447,7 +448,7 @@ function EmployeeManagement() {
               body: JSON.stringify({ roleId: formData.role_id })
             })
           } catch (roleErr) {
-            console.error('更新角色失败:', roleErr);
+            logger.error('更新角色失败:', roleErr);
           }
         }
 
@@ -463,7 +464,7 @@ function EmployeeManagement() {
               body: JSON.stringify({ isDepartmentManager: formData.is_department_manager })
             })
           } catch (mgrErr) {
-            console.error('更新主管标识失败:', mgrErr);
+            logger.error('更新主管标识失败:', mgrErr);
           }
         }
 
@@ -477,7 +478,7 @@ function EmployeeManagement() {
               const savedUser = JSON.parse(savedUserStr);
               // 如果修改的是当前登录用户
               if (parseInt(savedUser.id) === parseInt(userId)) {
-                console.log('检测到正在修改当前登录用户的资料，同步更新 localStorage...');
+                logger.debug('检测到正在修改当前登录用户的资料，同步更新 localStorage...');
                 const updatedUser = {
                   ...savedUser,
                   real_name: formData.real_name,
@@ -495,7 +496,7 @@ function EmployeeManagement() {
                 window.dispatchEvent(new CustomEvent('userInfoUpdated', { detail: updatedUser }));
               }
             } catch (e) {
-              console.error('同步更新 localStorage 失败:', e);
+              logger.error('同步更新 localStorage 失败:', e);
             }
           }
         }
@@ -505,7 +506,7 @@ function EmployeeManagement() {
         resetForm()
       }
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       toast.error('操作失败')
     }
   }
@@ -545,7 +546,7 @@ function EmployeeManagement() {
             return;
           }
         } catch (err) {
-          console.error('资产校验失败:', err);
+          logger.error('资产校验失败:', err);
         }
       }
 
@@ -592,7 +593,7 @@ function EmployeeManagement() {
       setAvatarPreview(emp.avatar || '')
       setIsModalOpen(true)
     } catch (error) {
-      console.error('获取员工角色信息失败:', error)
+      logger.error('获取员工角色信息失败:', error)
       toast.error('获取员工信息失败')
     }
   }
@@ -658,7 +659,7 @@ function EmployeeManagement() {
             fetchEmployees()
           }
         } catch (error) {
-          console.error(error);
+          logger.error(error);
           toast.error('提交失败')
         }
       }
@@ -680,7 +681,7 @@ function EmployeeManagement() {
             return;
           }
         } catch (err) {
-          console.error('资产校验失败:', err);
+          logger.error('资产校验失败:', err);
         }
       }
 
@@ -751,7 +752,7 @@ function EmployeeManagement() {
         toast.error(errorData.message || '批量下线失败')
       }
     } catch (error) {
-      console.error('批量下线失败:', error)
+      logger.error('批量下线失败:', error)
       toast.error('操作异常: ' + error.message)
     }
   }
@@ -788,7 +789,7 @@ function EmployeeManagement() {
         toast.error('更新失败')
       }
     } catch (error) {
-      console.error('更新部门主管状态失败:', error)
+      logger.error('更新部门主管状态失败:', error)
       toast.error('更新失败')
     }
   }
@@ -897,7 +898,7 @@ function EmployeeManagement() {
 
   // 处理员工部门权限管理
   const handleManageUserDepartments = (emp) => {
-    console.log('打开员工部门权限管理:', emp);
+    logger.debug('打开员工部门权限管理:', emp);
     // 适配 UserDepartmentModal，它期望 id 是用户 ID
     const userObj = {
       ...emp,
@@ -909,7 +910,7 @@ function EmployeeManagement() {
 
   // 员工部门权限设置成功回调
   const handleUserDepartmentSuccess = () => {
-    console.log('员工部门权限设置成功');
+    logger.debug('员工部门权限设置成功');
     toast.success('员工部门权限设置成功');
     // 刷新员工列表
     fetchEmployees();

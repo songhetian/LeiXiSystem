@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Modal, InputNumber, Select, message, Empty, Spin, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CalendarOutlined } from '@ant-design/icons';
@@ -67,7 +68,7 @@ const HolidayConfig = () => {
         setVacationTypes(result.data);
       }
     } catch (error) {
-      console.error('加载假期类型失败:', error);
+      logger.error('加载假期类型失败:', error);
     }
   };
 
@@ -212,7 +213,7 @@ const HolidayConfig = () => {
             return;
           }
         } catch (err) {
-          console.error('创建假期类型出错:', err);
+          logger.error('创建假期类型出错:', err);
           message.error('自动创建假期类型失败');
           return;
         }

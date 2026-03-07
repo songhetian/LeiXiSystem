@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState } from 'react'
 import { toast } from 'sonner';
 import { getApiUrl } from '../utils/apiConfig'
@@ -28,7 +29,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
         positions: positions.map(p => p.name)
       };
     } catch (error) {
-      console.error('获取模板基础数据失败:', error);
+      logger.error('获取模板基础数据失败:', error);
       return { departments: [], positions: [] };
     }
   }
@@ -112,7 +113,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
 
       toast.success('模板下载成功');
     } catch (error) {
-      console.error('下载模板失败:', error);
+      logger.error('下载模板失败:', error);
       toast.error('下载模板失败');
     }
   }
@@ -176,7 +177,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
 
       toast.success(`成功导出 ${employees.length} 名员工`);
     } catch (error) {
-      console.error('导出失败:', error);
+      logger.error('导出失败:', error);
       toast.error('导出失败：' + error.message);
     }
   }
@@ -251,7 +252,7 @@ export default function EmployeeBatchOperations({ onImportSuccess }) {
         toast.error('导入失败：' + result.message)
       }
     } catch (error) {
-      console.error('导入失败:', error)
+      logger.error('导入失败:', error)
       toast.error('导入失败：' + error.message)
     } finally {
       setImporting(false)

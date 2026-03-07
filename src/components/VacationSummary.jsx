@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Input, Select, Button, Tag, Space, Tooltip, Modal, ConfigProvider } from 'antd';
 import { SearchOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
@@ -49,7 +50,7 @@ const VacationSummary = () => {
       if (response.data.success) {
         setDepartments(response.data.data.filter(d => d.status === 'active'));
       }
-    } catch (error) { console.error('加载部门失败:', error); }
+    } catch (error) { logger.error('加载部门失败:', error); }
   };
 
   const loadData = async () => {

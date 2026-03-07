@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState } from 'react'
 import { toast } from 'sonner';
 import { getApiBaseUrl } from '../utils/apiConfig'
@@ -70,7 +71,7 @@ const ChangePassword = () => {
         toast.error(data.message || '密码修改失败')
       }
     } catch (error) {
-      console.error('密码修改失败:', error)
+      logger.error('密码修改失败:', error)
       toast.error('密码修改失败')
     } finally {
       setLoading(false)

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 审批流程配置页面
  *
@@ -87,7 +88,7 @@ const ApprovalWorkflowConfig = () => {
   const [customTypes, setCustomTypes] = useState([]);
 
   useEffect(() => {
-    console.log('组件挂载，开始加载数据...');
+    logger.debug('组件挂载，开始加载数据...');
     fetchWorkflows();
     fetchRoles();
     fetchUsers(); // 预加载用户数据，或者在打开节点配置时加载
@@ -100,37 +101,37 @@ const ApprovalWorkflowConfig = () => {
         setLoading(true);
         try {
           const response = await api.get('/approval-workflow');
-          console.log('审批流程API完整响应:', response);
-          console.log('审批流程API响应数据:', response.data);
+          logger.debug('审批流程API完整响应:', response);
+          logger.debug('审批流程API响应数据:', response.data);
           
           // 处理不同的响应格式
           if (response.data && response.data.success) {
             const data = response.data.data || [];
-            console.log('设置流程数据:', data);
+            logger.debug('设置流程数据:', data);
             setWorkflows(data);
           } else if (Array.isArray(response.data)) {
             // 兼容直接返回数组的情况
-            console.log('设置流程数据（数组格式）:', response.data);
+            logger.debug('设置流程数据（数组格式）:', response.data);
             setWorkflows(response.data);
           } else if (response.data) {
             // 尝试从响应中提取数据
             const data = response.data.data || response.data;
             if (Array.isArray(data)) {
-              console.log('设置流程数据（提取）:', data);
+              logger.debug('设置流程数据（提取）:', data);
               setWorkflows(data);
             } else {
-              console.warn('审批流程API返回格式异常:', response.data);
+              logger.warn('审批流程API返回格式异常:', response.data);
               toast.error('获取流程列表失败: 数据格式错误');
               setWorkflows([]);
             }
           } else {
-            console.warn('审批流程API返回空响应');
+            logger.warn('审批流程API返回空响应');
             toast.error('获取流程列表失败: 无数据返回');
             setWorkflows([]);
           }
         } catch (error) {
-          console.error('获取流程列表失败:', error);
-          console.error('错误详情:', error.response?.data);
+          logger.error('获取流程列表失败:', error);
+          logger.error('错误详情:', error.response?.data);
           toast.error('获取流程列表失败: ' + (error.response?.data?.message || error.message));
           setWorkflows([]);
         } finally {
@@ -145,7 +146,7 @@ const ApprovalWorkflowConfig = () => {
           setRoles(response.data);
         }
       } catch (error) {
-        console.error('获取角色列表失败:', error);
+        logger.error('获取角色列表失败:', error);
       }
     };
 
@@ -160,7 +161,7 @@ const ApprovalWorkflowConfig = () => {
           setUsers(response.data);
         }
       } catch (error) {
-        console.error('获取用户列表失败:', error);
+        logger.error('获取用户列表失败:', error);
       }
     };
 
@@ -173,7 +174,7 @@ const ApprovalWorkflowConfig = () => {
           setCustomTypes(types.map(t => ({ value: t, label: t })));
         }
       } catch (error) {
-        console.error('获取自定义审批组失败:', error);
+        logger.error('获取自定义审批组失败:', error);
       }
     };
 
@@ -229,7 +230,7 @@ const ApprovalWorkflowConfig = () => {
         toast.error(response.data.message || '操作失败');
       }
     } catch (error) {
-      console.error('保存流程失败:', error);
+      logger.error('保存流程失败:', error);
       toast.error('保存失败');
     }
   };
@@ -251,7 +252,7 @@ const ApprovalWorkflowConfig = () => {
             toast.error(response.data.message || '删除失败');
           }
         } catch (error) {
-          console.error('删除流程失败:', error);
+          logger.error('删除流程失败:', error);
           toast.error('删除失败');
         }
       }
@@ -270,7 +271,7 @@ const ApprovalWorkflowConfig = () => {
         setNodes(response.data.data);
       }
     } catch (error) {
-      console.error('获取节点失败:', error);
+      logger.error('获取节点失败:', error);
     }
     setShowNodeModal(true);
   };
@@ -347,7 +348,7 @@ const ApprovalWorkflowConfig = () => {
         toast.error(response.data.message || '保存失败');
       }
     } catch (error) {
-      console.error('保存节点失败:', error);
+      logger.error('保存节点失败:', error);
       toast.error('保存失败');
     }
   };

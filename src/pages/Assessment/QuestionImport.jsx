@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState } from 'react';
 import { Card, Button, Upload, Table, message, Space, Tag, Popconfirm } from 'antd';
 import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
@@ -79,7 +80,7 @@ const QuestionImport = () => {
       URL.revokeObjectURL(url);
     } catch (error) {
       message.error('下载模板失败');
-      console.error('Failed to download template:', error);
+      logger.error('Failed to download template:', error);
     } finally {
       setLoading(false);
     }
@@ -224,7 +225,7 @@ const QuestionImport = () => {
         }
       } catch (error) {
         message.error('解析 Excel 文件失败');
-        console.error('Failed to parse Excel:', error);
+        logger.error('Failed to parse Excel:', error);
       } finally {
         setLoading(false);
       }
@@ -252,7 +253,7 @@ const QuestionImport = () => {
       navigate(`/assessment/exams/${examId}`);
     } catch (error) {
       message.error(`批量导入失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to batch import questions:', error);
+      logger.error('Failed to batch import questions:', error);
     } finally {
       setLoading(false);
     }

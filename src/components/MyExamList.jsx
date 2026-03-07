@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -40,21 +41,21 @@ const MyExamList = ({ onStartExam, onViewResult }) => {
     try {
 
       const response = await api.get('/my-exams');
-      console.log('✅ 收到响应:', response);
-      console.log('响应数据:', response.data);
+      logger.debug('✅ 收到响应:', response);
+      logger.debug('响应数据:', response.data);
       // Handle response structure: { success: true, data: { exams: [...] } }
       const examsData = response.data?.data?.exams || response.data?.data || [];
-      console.log('解析的考试数据:', examsData);
+      logger.debug('解析的考试数据:', examsData);
       setMyExams(Array.isArray(examsData) ? examsData : []);
-      console.log('✅ 考试列表已设置');
+      logger.debug('✅ 考试列表已设置');
     } catch (error) {
-      console.error('❌ 获取我的考试列表失败:', error);
-      console.error('错误详情:', error.response);
+      logger.error('❌ 获取我的考试列表失败:', error);
+      logger.error('错误详情:', error.response);
       toast.error('获取我的考试列表失败');
       setMyExams([]);
     } finally {
       setLoading(false);
-      console.log('✅ Loading 状态已设置为 false');
+      logger.debug('✅ Loading 状态已设置为 false');
     }
   };
 

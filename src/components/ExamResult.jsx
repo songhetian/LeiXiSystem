@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -22,9 +23,9 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
 
       const response = await api.get(endpoint);
       const data = response.data.data;
-      console.log('ExamResult接收到的数据:', data);
+      logger.debug('ExamResult接收到的数据:', data);
       if (data.detailed_questions && data.detailed_questions.length > 0) {
-        console.log('第一道题目详情(前端):', data.detailed_questions[0]);
+        logger.debug('第一道题目详情(前端):', data.detailed_questions[0]);
       }
 
       let processedQuestions = [];
@@ -56,7 +57,7 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
           try {
             userAnswers = typeof data.answers === 'string' ? JSON.parse(data.answers) : data.answers;
           } catch (e) {
-            console.error('Failed to parse answers', e);
+            logger.error('Failed to parse answers', e);
           }
         }
 
@@ -99,7 +100,7 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
         passed: passed
       });
     } catch (error) {
-      console.error('获取考试结果失败:', error);
+      logger.error('获取考试结果失败:', error);
       toast.error('获取考试结果失败');
       onBackToMyExams();
     } finally {
@@ -143,7 +144,7 @@ const ExamResult = ({ resultId, onBackToMyExams, sourceType = 'assessment_plan' 
 
     // 调试日志
     if (question.type === 'multiple_choice') {
-      console.log('多选题答案:', {
+      logger.debug('多选题答案:', {
         questionId: question.id,
         userAnswer: userAnswer,
         type: typeof userAnswer,

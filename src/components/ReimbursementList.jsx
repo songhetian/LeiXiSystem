@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 报销记录列表组件 (雷犀旗舰办公版)
  *
@@ -93,7 +94,7 @@ const ReimbursementList = ({ user, onViewDetail, onEdit }) => {
         }));
       }
     } catch (error) {
-      console.error('获取报销记录失败:', error);
+      logger.error('获取报销记录失败:', error);
       toast.error('财务数据链路同步失败');
     } finally {
       setLoading(false);

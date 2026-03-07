@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +35,7 @@ const ExamDetail = () => {
       setExam(response.data.data);
     } catch (error) {
       message.error('获取试卷详情失败');
-      console.error('Failed to fetch exam details:', error);
+      logger.error('Failed to fetch exam details:', error);
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ const ExamDetail = () => {
       setQuestions(response.data.data.questions);
     } catch (error) {
       message.error('获取试卷题目失败');
-      console.error('Failed to fetch exam questions:', error);
+      logger.error('Failed to fetch exam questions:', error);
     }
   };
 

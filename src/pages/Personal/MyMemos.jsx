@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 我的备忘录 (雷犀极效办公版)
  * 
@@ -107,7 +108,7 @@ const MyMemos = () => {
         setPagination(prev => ({ ...prev, total: response.data.pagination.total }));
       }
     } catch (error) {
-      console.error('加载失败:', error);
+      logger.error('加载失败:', error);
       toast.error('数据同步失败');
     } finally {
       setLoading(false);

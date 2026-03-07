@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -135,7 +136,7 @@ export default function BroadcastList() {
         }));
       }
     } catch (error) {
-      console.error('加载广播失败:', error);
+      logger.error('加载广播失败:', error);
       toast.error('加载广播失败');
     } finally {
       setLoading(false);
@@ -159,7 +160,7 @@ export default function BroadcastList() {
         setSelectedBroadcast(prev => ({ ...prev, is_read: true }));
       }
     } catch (error) {
-      console.error('标记已读失败:', error);
+      logger.error('标记已读失败:', error);
       toast.error('操作失败');
     }
   };

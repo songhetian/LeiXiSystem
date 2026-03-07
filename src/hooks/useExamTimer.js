@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
@@ -40,11 +41,11 @@ const useExamTimer = (initialTimeInSeconds, onTimerEnd, resultId) => {
       // Adjust timeLeft based on server time if necessary
       // This logic needs to be carefully designed based on how initialTimeInSeconds is set
       // For now, let's just log the difference
-      console.log('Server time synced. Local time difference:', timeDifference, 'seconds');
+      logger.debug('Server time synced. Local time difference:', timeDifference, 'seconds');
       // If initialTimeInSeconds is derived from server-calculated remaining time,
       // then direct adjustment might not be needed here, but rather in the initial fetch.
     } catch (error) {
-      console.error('Failed to sync server time:', error);
+      logger.error('Failed to sync server time:', error);
     }
   }, []);
 

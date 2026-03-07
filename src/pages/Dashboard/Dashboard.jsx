@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 系统首页工作台 - 权限感知 & 全功能磁贴版 (雷犀旗舰办公版 - 视觉进化)
  * 
@@ -137,7 +138,7 @@ const Dashboard = ({ onNavigate }) => {
     try {
       const data = await apiGet('/api/dashboard/stats', { params: { user_id: userId } });
       setStats(data.data);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) { logger.error(error); } finally { setLoading(false); }
   };
 
   const fetchNotifications = async () => {
@@ -146,7 +147,7 @@ const Dashboard = ({ onNavigate }) => {
     try {
       const data = await apiGet('/api/notifications', { params: { userId, pageSize: 1 } });
       setNotifications(data.data || []);
-    } catch (error) { console.error(error); }
+    } catch (error) { logger.error(error); }
   };
 
   const handleSaveConfig = () => {

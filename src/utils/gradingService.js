@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 // This file serves as a placeholder for client-side grading logic or to acknowledge
 // that grading is primarily handled by the backend API.
 // The actual grading logic for objective questions and handling of subjective questions
@@ -23,7 +24,7 @@ const gradingService = {
       // Fill-in-the-blank and essay questions are typically graded on the backend
       return null; // Cannot determine correctness client-side for these types
     } catch (e) {
-      console.error("Error comparing answers:", e);
+      logger.error("Error comparing answers:", e);
       return null;
     }
   },

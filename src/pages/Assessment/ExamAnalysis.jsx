@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions, Table } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
@@ -29,7 +30,7 @@ const ExamAnalysis = () => {
       setExamAnalysis(response.data.data);
     } catch (error) {
       message.error(`获取试卷分析失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to fetch exam analysis:', error);
+      logger.error('Failed to fetch exam analysis:', error);
       navigate('/assessment/exams'); // Go back if failed to load
     } finally {
       setLoading(false);

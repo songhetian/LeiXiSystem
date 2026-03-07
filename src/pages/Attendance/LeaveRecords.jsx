@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDateOnly } from '../../utils/dateUtils'
 import api from '../../api'
@@ -39,7 +40,7 @@ export default function LeaveRecords({ onNavigate }) {
         toast.error('未找到员工信息')
       }
     } catch (error) {
-      console.error('获取员工信息失败:', error)
+      logger.error('获取员工信息失败:', error)
       toast.error('获取员工信息失败')
     }
   }

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, DatePicker } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
@@ -49,7 +50,7 @@ const MyResults = () => {
       });
     } catch (error) {
       message.error('获取我的考试记录失败');
-      console.error('Failed to fetch my results:', error);
+      logger.error('Failed to fetch my results:', error);
     } finally {
       setLoading(false);
     }

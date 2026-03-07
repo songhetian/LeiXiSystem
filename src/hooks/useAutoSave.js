@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
@@ -28,7 +29,7 @@ const useAutoSave = (saveFunction, resultId, delay = 3000, syncInterval = 30000)
       } catch (error) {
         setSaveError(error);
         message.error('自动保存失败');
-        console.error('Auto-save failed:', error);
+        logger.error('Auto-save failed:', error);
       } finally {
         setIsSaving(false);
       }

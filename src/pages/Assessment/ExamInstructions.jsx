@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, List } from 'antd';
 import { PlayCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
@@ -30,7 +31,7 @@ const ExamInstructions = () => {
       setPlanDetails(response.data.data);
     } catch (error) {
       message.error('获取考核计划详情失败');
-      console.error('Failed to fetch plan details:', error);
+      logger.error('Failed to fetch plan details:', error);
     } finally {
       setLoading(false);
     }
@@ -46,7 +47,7 @@ const ExamInstructions = () => {
       navigate(`/assessment/take-exam/${response.data.data.result_id}`);
     } catch (error) {
       message.error(`开始考试失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to start exam:', error);
+      logger.error('Failed to start exam:', error);
     } finally {
       setLoading(false);
     }

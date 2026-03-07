@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI';
@@ -56,7 +57,7 @@ const QualityTagManagement = () => {
       setTags(tagsRes.data.data || []);
     } catch (error) {
       toast.error('加载数据失败');
-      console.error('Error loading data:', error);
+      logger.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -105,7 +106,7 @@ const QualityTagManagement = () => {
       loadData();
     } catch (error) {
       toast.error(editingItem ? '更新分类失败' : '创建分类失败');
-      console.error('Error saving category:', error);
+      logger.error('Error saving category:', error);
     }
   };
 
@@ -120,7 +121,7 @@ const QualityTagManagement = () => {
       loadData();
     } catch (error) {
       toast.error('删除分类失败：' + (error.response?.data?.message || '可能存在子分类或关联标签'));
-      console.error('Error deleting category:', error);
+      logger.error('Error deleting category:', error);
     }
   };
 
@@ -168,7 +169,7 @@ const QualityTagManagement = () => {
       loadData();
     } catch (error) {
       toast.error(editingItem ? '更新标签失败' : '创建标签失败');
-      console.error('Error saving tag:', error);
+      logger.error('Error saving tag:', error);
     }
   };
 
@@ -183,7 +184,7 @@ const QualityTagManagement = () => {
       loadData();
     } catch (error) {
       toast.error('删除标签失败：' + (error.response?.data?.message || '可能存在子标签'));
-      console.error('Error deleting tag:', error);
+      logger.error('Error deleting tag:', error);
     }
   };
 

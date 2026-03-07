@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -78,7 +79,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
       const response = await axios.get(`${API_URL}/knowledge/categories`)
       setCategories(response.data || [])
     } catch (error) {
-      console.error('获取分类失败:', error)
+      logger.error('获取分类失败:', error)
     }
   }
 
@@ -98,7 +99,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
       const authorList = Array.from(authorMap, ([id, name]) => ({ id, name }))
       setAuthors(authorList)
     } catch (error) {
-      console.error('获取作者列表失败:', error)
+      logger.error('获取作者列表失败:', error)
     }
   }
 
@@ -138,7 +139,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
         setStatistics(null)
       }
     } catch (error) {
-      console.error('搜索失败:', error)
+      logger.error('搜索失败:', error)
       const errorMessage = error.response?.status === 400 ? '搜索参数无效' :
                           error.response?.status === 429 ? '搜索请求过于频繁，请稍后再试' :
                           error.response?.status === 500 ? '服务器错误，请稍后再试' :

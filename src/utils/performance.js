@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 // 性能优化工具函数
 
 /**
@@ -53,7 +54,7 @@ export const cache = {
     try {
       localStorage.setItem(`cache_${key}`, JSON.stringify(item))
     } catch (error) {
-      console.error('缓存设置失败:', error)
+      logger.error('缓存设置失败:', error)
     }
   },
 
@@ -75,7 +76,7 @@ export const cache = {
 
       return item.value
     } catch (error) {
-      console.error('缓存读取失败:', error)
+      logger.error('缓存读取失败:', error)
       return null
     }
   },

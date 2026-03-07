@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner';
 import Modal from './Modal'
@@ -70,7 +71,7 @@ function PositionManagement() {
       const res = await fetch(getApiUrl('/api/employees'), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
       const result = await res.json()
       setEmployees(result.success ? result.data : (Array.isArray(result) ? result : []))
-    } catch (e) { console.error('员工同步失败'); }
+    } catch (e) { logger.error('员工同步失败'); }
   }
 
   const getEmployeeCount = (pos) => {

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { 
   Table, Tag, Card, Modal, Form, Input, Space, Typography, 
@@ -61,7 +62,7 @@ const MyAssets = () => {
     try {
       const res = await apiGet('/api/assets/requests');
       if (res.success) setRequests(res.data);
-    } catch (error) { console.error(error); }
+    } catch (error) { logger.error(error); }
     finally { setLoading(false); }
   };
 

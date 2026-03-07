@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
@@ -157,7 +158,7 @@ const EmployeeMemos = () => {
         setCurrentPage(1) // 刷新数据时回到第一页
       }
     } catch (error) {
-      console.error('加载备忘录失败:', error)
+      logger.error('加载备忘录失败:', error)
       message.error('加载备忘录失败')
     } finally {
       setLoading(false)
@@ -174,7 +175,7 @@ const EmployeeMemos = () => {
       } else if (response.data.success && response.data.data) {
         setDepartments(response.data.data)
       }
-    } catch (error) { console.error(error) }
+    } catch (error) { logger.error(error) }
   }
 
   const loadEmployees = async (deptId) => {
@@ -188,7 +189,7 @@ const EmployeeMemos = () => {
       } else if (response.data.success) {
         setEmployees(response.data.data || [])
       }
-    } catch (error) { console.error(error) }
+    } catch (error) { logger.error(error) }
   }
 
   const handleCreate = async (values) => {
@@ -207,7 +208,7 @@ const EmployeeMemos = () => {
       form.resetFields()
       loadMemos()
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       message.error(error.response?.data?.message || '发送失败')
     } finally {
       setSubmitting(false)

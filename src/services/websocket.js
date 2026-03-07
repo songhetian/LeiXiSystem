@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client'
 import { getWsBaseUrl } from '../utils/apiConfig'
+import logger from '../utils/logger'
 
 /**
  * WebSocket管理器
@@ -20,13 +21,13 @@ class WebSocketManager {
    */
   connect(options = {}) {
     if (this.socket?.connected || this.isConnecting) {
-      console.log('⚠️ [WebSocket] 已连接或正在连接中')
+      logger.debug('⚠️ [WebSocket] 已连接或正在连接中')
       return
     }
 
     const token = options.token || localStorage.getItem('token')
     if (!token) {
-      console.warn('⚠️ [WebSocket] 未登录，无法连接')
+      logger.warn('⚠️ [WebSocket] 未登录，无法连接')
       return
     }
 
@@ -35,7 +36,7 @@ class WebSocketManager {
     // 获取 WebSocket 服务器绝对 URL（Socket.IO 不支持相对路径）
     const WS_BASE_URL = getWsBaseUrl()
 
-    console.log(`🔌 [WebSocket] 正在连接到 ${WS_BASE_URL}...`)
+    logger.info(`🔌 [WebSocket] 正在连接到 ${WS_BASE_URL}...`)
 
     this.socket = io(WS_BASE_URL, {
       auth: { 
@@ -51,7 +52,7 @@ class WebSocketManager {
 
     // 连接成功
     this.socket.on('connected', (data) => {
-      console.log('✅ [WebSocket] 连接成功:', data.message)
+      logger.info('✅ [WebSocket] 连接成功:', data.message)
       this.isConnecting = false
       this.reconnectAttempts = 0
       this.emit('connected', data)
@@ -59,25 +60,25 @@ class WebSocketManager {
 
     // 连接事件
     this.socket.on('connect', () => {
-      console.log('✅ [WebSocket] Socket已连接')
+      logger.info('✅ [WebSocket] Socket已连接')
       this.isConnecting = false
     })
 
     // 新通知
     this.socket.on('new_notification', (notification) => {
-      console.log('📨 [WebSocket] 收到新通知:', notification)
+      logger.debug('📨 [WebSocket] 收到新通知:', notification)
       this.emit('notification', notification)
     })
 
     // 新备忘录
     this.socket.on('new_memo', (memo) => {
-      console.log('📝 [WebSocket] 收到新备忘录:', memo)
+      logger.debug('📝 [WebSocket] 收到新备忘录:', memo)
       this.emit('memo', memo)
     })
 
     // 新广播
     this.socket.on('new_broadcast', (broadcast) => {
-      console.log('📣 [WebSocket] 收到系统广播:', broadcast)
+      logger.debug('📣 [WebSocket] 收到系统广播:', broadcast)
       this.emit('broadcast', broadcast)
     })
 
@@ -88,7 +89,7 @@ class WebSocketManager {
 
     // 下线指令
     this.socket.on('kicked_out', (data) => {
-      console.log('🚨 [WebSocket] 收到下线指令:', data.message)
+      logger.warn('🚨 [WebSocket] 收到下线指令:', data.message)
       this.emit('kicked_out', data)
     })
 
@@ -101,13 +102,13 @@ class WebSocketManager {
     
     // 收到新消息
     this.socket.on('receive_message', (msg) => {
-      console.log('💬 [WebSocket] 收到新消息:', msg)
+      logger.debug('💬 [WebSocket] 收到新消息:', msg)
       this.emit('chat_message', msg)
     })
 
     // 群成员变动
     this.socket.on('member_update', (data) => {
-      console.log('👥 [WebSocket] 群成员变动:', data)
+      logger.debug('👥 [WebSocket] 群成员变动:', data)
       this.emit('member_update', data)
     })
 
@@ -118,43 +119,43 @@ class WebSocketManager {
 
     // Pong响应
     this.socket.on('pong', (data) => {
-      // console.log('🏓 [WebSocket] Pong received')
+      // logger.debug('🏓 [WebSocket] Pong received')
     })
 
     // 连接错误
     this.socket.on('connect_error', (error) => {
-      console.error('❌ [WebSocket] 连接失败:', error.message)
+      logger.error('❌ [WebSocket] 连接失败:', error.message)
       this.isConnecting = false
       this.reconnectAttempts++
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error('❌ [WebSocket] 达到最大重连次数，停止重连')
+        logger.error('❌ [WebSocket] 达到最大重连次数，停止重连')
         this.emit('connection_failed', { error: error.message })
       }
     })
 
     // 断开连接
     this.socket.on('disconnect', (reason) => {
-      console.log('❌ [WebSocket] 连接已断开:', reason)
+      logger.warn('❌ [WebSocket] 连接已断开:', reason)
       this.isConnecting = false
       this.emit('disconnected', { reason })
     })
 
     // 重连尝试
     this.socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 [WebSocket] 尝试重连 (${attemptNumber}/${this.maxReconnectAttempts})...`)
+      logger.info(`🔄 [WebSocket] 尝试重连 (${attemptNumber}/${this.maxReconnectAttempts})...`)
     })
 
     // 重连成功
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log(`✅ [WebSocket] 重连成功 (尝试次数: ${attemptNumber})`)
+      logger.info(`✅ [WebSocket] 重连成功 (尝试次数: ${attemptNumber})`)
       this.reconnectAttempts = 0
       this.emit('reconnected', { attemptNumber })
     })
 
     // 重连失败
     this.socket.on('reconnect_failed', () => {
-      console.error('❌ [WebSocket] 重连失败')
+      logger.error('❌ [WebSocket] 重连失败')
       this.emit('reconnect_failed')
     })
 
@@ -167,7 +168,7 @@ class WebSocketManager {
    */
   disconnect() {
     if (this.socket) {
-      console.log('🔌 [WebSocket] 主动断开连接')
+      logger.info('🔌 [WebSocket] 主动断开连接')
       this.stopHeartbeat()
       this.socket.disconnect()
       this.socket = null

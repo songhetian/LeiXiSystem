@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Switch, message, Space } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PushpinOutlined, PushpinFilled } from '@ant-design/icons';
@@ -250,7 +251,7 @@ const VacationTypeManagement = ({ visible, onClose, standalone = false }) => {
           const data = await response.json();
           if (data.success) successCount++;
         } catch (e) {
-          console.error(`Failed to add ${type.name}`, e);
+          logger.error(`Failed to add ${type.name}`, e);
         }
       }
 

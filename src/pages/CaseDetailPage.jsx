@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -38,7 +39,7 @@ const CaseDetailPage = () => {
         toast.error('加载案例失败');
       }
     } catch (error) {
-      console.error('Error loading case:', error);
+      logger.error('Error loading case:', error);
       toast.error('加载案例失败');
     } finally {
       setLoading(false);
@@ -57,7 +58,7 @@ const CaseDetailPage = () => {
         setComments(result.data);
       }
     } catch (error) {
-      console.error('Error loading comments:', error);
+      logger.error('Error loading comments:', error);
     }
   };
 
@@ -69,7 +70,7 @@ const CaseDetailPage = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
     } catch (error) {
-      console.error('Error recording view:', error);
+      logger.error('Error recording view:', error);
     }
   };
 
@@ -88,7 +89,7 @@ const CaseDetailPage = () => {
         loadCaseDetail();
       }
     } catch (error) {
-      console.error('Error liking case:', error);
+      logger.error('Error liking case:', error);
       toast.error('操作失败');
     }
   };
@@ -109,7 +110,7 @@ const CaseDetailPage = () => {
         loadCaseDetail();
       }
     } catch (error) {
-      console.error('Error collecting case:', error);
+      logger.error('Error collecting case:', error);
       toast.error('操作失败');
     }
   };
@@ -143,7 +144,7 @@ const CaseDetailPage = () => {
         loadCaseDetail();
       }
     } catch (error) {
-      console.error('Error submitting comment:', error);
+      logger.error('Error submitting comment:', error);
       toast.error('评论失败');
     }
   };

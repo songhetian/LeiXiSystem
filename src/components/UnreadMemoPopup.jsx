@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -23,7 +24,7 @@ const UnreadMemoPopup = ({ onClose }) => {
         onClose()
       }
     } catch (error) {
-      console.error('加载未读备忘录失败:', error)
+      logger.error('加载未读备忘录失败:', error)
       onClose()
     } finally {
       setLoading(false)
@@ -41,7 +42,7 @@ const UnreadMemoPopup = ({ onClose }) => {
       if (newMemos.length === 0) onClose()
       else if (currentIndex >= newMemos.length) setCurrentIndex(newMemos.length - 1)
     } catch (error) {
-      console.error('标记已读失败:', error)
+      logger.error('标记已读失败:', error)
     }
   }
 

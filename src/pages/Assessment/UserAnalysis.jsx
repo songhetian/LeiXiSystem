@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions, Table, Timeline } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
@@ -30,7 +31,7 @@ const UserAnalysis = () => {
       setUserAnalysis(response.data.data);
     } catch (error) {
       message.error(`获取用户分析失败: ${error.response?.data?.message || error.message}`);
-      console.error('Failed to fetch user analysis:', error);
+      logger.error('Failed to fetch user analysis:', error);
       navigate('/users'); // Navigate back to user list or dashboard
     } finally {
       setLoading(false);

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Modal, Descriptions, Tag, Table, Spin, Tabs, ConfigProvider } from 'antd';
 import { 
@@ -45,7 +46,7 @@ const VacationDetailModal = ({ visible, onClose, employeeId, employeeName, year 
         setHistoryData(historyRes.data.data);
       }
     } catch (error) {
-      console.error('加载假期详情失败:', error);
+      logger.error('加载假期详情失败:', error);
     } finally {
       setLoading(false);
     }

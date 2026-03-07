@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider, App as AntdApp } from 'antd'
@@ -15,7 +16,7 @@ import { loadRuntimeConfig } from './utils/apiConfig'
     try {
         await loadRuntimeConfig();
     } catch (e) {
-        console.error('Failed to pre-load runtime config:', e);
+        logger.error('Failed to pre-load runtime config:', e);
     }
 
     dayjs.locale('zh-cn')

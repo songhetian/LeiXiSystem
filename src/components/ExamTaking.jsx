@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -51,7 +52,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
       setSaveStatus('error');
-      console.error('Auto-save failed:', error);
+      logger.error('Auto-save failed:', error);
       throw error;
     }
   };
@@ -81,7 +82,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
     } catch (error) {
       setSaveStatus('error');
       toast.error('手动保存失败，请重试');
-      console.error('Manual save failed:', error);
+      logger.error('Manual save failed:', error);
     }
   };
 
@@ -210,7 +211,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
         // 不设置 examEnded 为 true，允许用户继续作答
       }
     } catch (error) {
-      console.error('获取考试详情失败:', error);
+      logger.error('获取考试详情失败:', error);
       toast.error('获取考试详情失败');
       onExamEnd(null);
     } finally {
@@ -243,12 +244,12 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
 
     try {
       // 在提交前,先保存所有答案到后端,确保验证能通过
-      console.log('提交前保存所有答案:', userAnswers);
+      logger.debug('提交前保存所有答案:', userAnswers);
       if (Object.keys(userAnswers).length > 0) {
         await api.put(`/assessment-results/${resultId}/answer`, {
           answers: userAnswers
         });
-        console.log('所有答案已保存,开始提交');
+        logger.debug('所有答案已保存,开始提交');
       }
 
       // 统一使用 assessment-results 路由
@@ -257,7 +258,7 @@ const ExamTaking = ({ resultId, onExamEnd, sourceType = 'assessment_plan' }) => 
       setExamEnded(true);
       onExamEnd(resultId);
     } catch (error) {
-      console.error('提交考试失败:', error);
+      logger.error('提交考试失败:', error);
       toast.error(`提交考试失败: ${error.response?.data?.message || error.message}`);
       setIsSubmitting(false);
     } finally {

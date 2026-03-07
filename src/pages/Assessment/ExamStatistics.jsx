@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Select, DatePicker, Table } from 'antd';
 import { Bar, Line } from 'react-chartjs-2';
@@ -48,7 +49,7 @@ const ExamStatistics = () => {
       });
     } catch (error) {
       message.error('获取总体统计失败');
-      console.error('Failed to fetch overall stats:', error);
+      logger.error('Failed to fetch overall stats:', error);
     } finally {
       setLoading(false);
     }
@@ -86,7 +87,7 @@ const ExamStatistics = () => {
         ],
       });
     } catch (error) {
-      console.warn('获取成绩趋势失败，可能后端API未实现或数据不足:', error);
+      logger.warn('获取成绩趋势失败，可能后端API未实现或数据不足:', error);
       setScoreTrendData({});
     }
   };
@@ -119,7 +120,7 @@ const ExamStatistics = () => {
         ],
       });
     } catch (error) {
-      console.warn('获取部门对比统计失败，可能后端API未实现或数据不足:', error);
+      logger.warn('获取部门对比统计失败，可能后端API未实现或数据不足:', error);
       setDepartmentComparisonData({});
     }
   };
@@ -135,7 +136,7 @@ const ExamStatistics = () => {
       });
       setRankingData(response.data.data.results || []);
     } catch (error) {
-      console.warn('获取热门考试排行失败，可能后端API未实现或数据不足:', error);
+      logger.warn('获取热门考试排行失败，可能后端API未实现或数据不足:', error);
       setRankingData([]);
     }
   };
@@ -148,7 +149,7 @@ const ExamStatistics = () => {
       });
       setExams(response.data.data.exams);
     } catch (error) {
-      console.error('Failed to fetch exams for filter:', error);
+      logger.error('Failed to fetch exams for filter:', error);
     }
   };
 

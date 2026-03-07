@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import api from '../api';
@@ -20,7 +21,7 @@ const PaperSelectorModal = ({ isOpen, onSelect, onClose }) => {
       const response = await api.get('/exams?status=published&pageSize=100');
       setExams(response.data?.data?.exams || []);
     } catch (error) {
-      console.error('获取试卷列表失败:', error);
+      logger.error('获取试卷列表失败:', error);
       toast.error('获取试卷列表失败');
     } finally {
       setLoading(false);

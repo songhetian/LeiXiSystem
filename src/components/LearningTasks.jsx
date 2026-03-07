@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
@@ -23,7 +24,7 @@ const LearningTasks = () => {
       const response = await api.get('/learning-tasks');
       setTasks(response.data || []);
     } catch (error) {
-      console.error('获取任务列表失败:', error);
+      logger.error('获取任务列表失败:', error);
       toast.error('获取任务列表失败');
     } finally {
       setLoading(false);
@@ -46,7 +47,7 @@ const LearningTasks = () => {
       resetForm();
       fetchTasks();
     } catch (error) {
-      console.error('提交失败:', error);
+      logger.error('提交失败:', error);
       toast.error(editingTask ? '更新失败' : '创建失败');
     } finally {
       setLoading(false);
@@ -60,7 +61,7 @@ const LearningTasks = () => {
       toast.success('任务标记为完成');
       fetchTasks();
     } catch (error) {
-      console.error('标记任务为完成失败:', error);
+      logger.error('标记任务为完成失败:', error);
       toast.error('标记任务为完成失败');
     }
   };
@@ -73,7 +74,7 @@ const LearningTasks = () => {
       toast.success('任务已删除');
       fetchTasks();
     } catch (error) {
-      console.error('删除任务失败:', error);
+      logger.error('删除任务失败:', error);
       toast.error('删除任务失败');
     }
   };

@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ArrowLeftOutlined,
@@ -71,7 +72,7 @@ const BroadcastPage = () => {
 
         // 获取用户可见的部门IDs
         const viewableDeptIds = payload?.viewableDepartmentIds || [];
-        console.log('用户可见部门IDs:', viewableDeptIds);
+        logger.debug('用户可见部门IDs:', viewableDeptIds);
 
         if (viewableDeptIds.length > 0) {
           // 获取部门列表 - 使用与BroadcastManagement.jsx相同的方式
@@ -82,14 +83,14 @@ const BroadcastPage = () => {
               viewableDeptIds.includes(dept.id)
             );
             setViewableDepartments(filteredDepartments);
-            console.log('获取到的部门信息:', filteredDepartments);
+            logger.debug('获取到的部门信息:', filteredDepartments);
           }
 
           // 获取员工信息 - 使用与BroadcastManagement.jsx相同的方式
           const employeesResponse = await apiGet('/api/employees');
           if (Array.isArray(employeesResponse)) {
             setEmployees(employeesResponse);
-            console.log('获取到的员工信息:', employeesResponse);
+            logger.debug('获取到的员工信息:', employeesResponse);
           }
         } else {
           // 如果没有可见部门，获取所有部门（这种情况应该很少见）
@@ -104,7 +105,7 @@ const BroadcastPage = () => {
           }
         }
       } catch (error) {
-        console.error('获取数据失败:', error);
+        logger.error('获取数据失败:', error);
       } finally {
         setLoading(false);
       }
@@ -246,7 +247,7 @@ const BroadcastPage = () => {
         alert('广播发送失败：' + (response.message || '未知错误'));
       }
     } catch (error) {
-      console.error('发送广播失败:', error);
+      logger.error('发送广播失败:', error);
       alert('广播发送失败：' + error.message);
     }
   };

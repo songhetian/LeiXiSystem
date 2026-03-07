@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Toaster, toast } from 'sonner'
 import { showNotificationToast } from './utils/notificationUtils';
@@ -102,14 +103,14 @@ function App() {
 
   // 1. handleLogout 必须定义在最前面 (由于其他函数和 Effect 会依赖它)
   const handleLogout = React.useCallback(async (reason = 'manual') => {
-    console.warn(`🛑 [App] handleLogout 被调用！原因: ${reason}`);
+    logger.warn(`🛑 [App] handleLogout 被调用！原因: ${reason}`);
 
     // 如果是被踢下线，不需要调用后端 logout (因为后端 Session 已经由踢人者清理或更新)
     if (reason !== 'kicked_out' && reason !== 'kicked_out_timeout' && reason !== 'kicked_out_heartbeat') {
       try {
         await apiPost('/api/auth/logout', {});
       } catch (error) {
-        console.warn('退出登录API调用失败(可能由于Token已失效):', error.message);
+        logger.warn('退出登录API调用失败(可能由于Token已失效):', error.message);
       }
     }
 
@@ -241,7 +242,7 @@ function App() {
         await apiGet('/api/auth/permissions');
       } catch (error) {
         if (error.response?.status === 401 || error.status === 401) {
-          console.error('🚨 [Auth] 心跳校验发现 Token 已失效');
+          logger.error('🚨 [Auth] 心跳校验发现 Token 已失效');
           handleLogout('kicked_out_heartbeat');
           toast.error('登录已失效', { description: '您的账号已在其他设备登录', duration: 10000 });
         }
@@ -250,7 +251,7 @@ function App() {
 
     // B. 事件处理器
     const handleNotification = (notification) => {
-      console.log('🔔 收到新通知:', notification)
+      logger.debug('🔔 收到新通知:', notification)
       soundManager.playNotification()
       showNotificationToast(notification, {
         onClick: () => {
@@ -272,7 +273,7 @@ function App() {
     };
 
     const handleKickedOut = (data) => {
-      console.warn('🚨 [Auth] 收到下线指令:', data.message);
+      logger.warn('🚨 [Auth] 收到下线指令:', data.message);
       wsManager.disconnect();
       toast.error('登录失效', {
         description: data.message || '您的账号已在另一台设备登录，当前连接已断开',
@@ -334,7 +335,7 @@ function App() {
   }, [handleLogout]);
 
   const handleLoginSuccess = (userData, token) => {
-    console.log('🎉 handleLoginSuccess 触发，准备初始化...');
+    logger.debug('🎉 handleLoginSuccess 触发，准备初始化...');
     
     // 1. 立即同步状态
     setIsLoggedIn(true);

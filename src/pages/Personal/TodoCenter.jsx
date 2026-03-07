@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 待办事务中心 (雷犀高级感 2.0 完美白话版)
  * 
@@ -67,7 +68,7 @@ const TodoCenter = ({ onNavigate }) => {
         setTasks(response.data.data);
       }
     } catch (error) {
-      console.error('加载待办失败:', error);
+      logger.error('加载待办失败:', error);
       toast.error('任务同步失败');
     } finally {
       setLoading(false);

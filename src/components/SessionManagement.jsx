@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
 import sessionAPI from '../api/sessionAPI.js'
@@ -22,7 +23,7 @@ const SessionManagement = () => {
       setSessions(response.data)
     } catch (error) {
       toast.error('加载会话列表失败')
-      console.error(error)
+      logger.error(error)
     } finally {
       setLoading(false)
     }

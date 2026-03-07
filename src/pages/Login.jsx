@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
 import axios from 'axios'
@@ -43,7 +44,7 @@ const Login = ({ onLoginSuccess }) => {
         }))
         setRememberPassword(true)
       } catch (error) {
-        console.error('解码密码失败:', error)
+        logger.error('解码密码失败:', error)
       }
     }
   }, [])
@@ -55,7 +56,7 @@ const Login = ({ onLoginSuccess }) => {
         const response = await axios.get(getApiUrl('/api/departments?forManagement=true'))
         setDepartments(response.data || [])
       } catch (error) {
-        console.error('获取部门列表失败:', error)
+        logger.error('获取部门列表失败:', error)
       }
     }
     fetchDepartments()
@@ -72,7 +73,7 @@ const Login = ({ onLoginSuccess }) => {
           // 自动检查用户名
           checkUsername(pinyinUsername, formData.real_name)
         } catch (err) {
-          console.error('加载拼音库失败:', err);
+          logger.error('加载拼音库失败:', err);
         }
       }
     };
@@ -102,7 +103,7 @@ const Login = ({ onLoginSuccess }) => {
         setUsernameSuggestions(response.data.suggestions || [])
       }
     } catch (error) {
-      console.error('检查用户名失败:', error)
+      logger.error('检查用户名失败:', error)
       setUsernameAvailable(null)
       setUsernameSuggestions([])
     } finally {
@@ -209,7 +210,7 @@ const Login = ({ onLoginSuccess }) => {
         onLoginSuccess(response.data.user, response.data.token)
       }
     } catch (error) {
-      console.error('登录API错误:', error);
+      logger.error('登录API错误:', error);
       throw error
     }
   }
@@ -242,13 +243,13 @@ const Login = ({ onLoginSuccess }) => {
         }
       }
     } catch (error) {
-      console.error('登录/注册错误:', error)
+      logger.error('登录/注册错误:', error)
       // 添加更详细的错误信息
       if (error.code === 'ECONNABORTED') {
-        console.error('请求超时');
+        logger.error('请求超时');
         toast.error('请求超时，请检查网络连接');
       } else if (error.message === 'Network Error') {
-        console.error('网络错误');
+        logger.error('网络错误');
         toast.error('网络错误，请检查服务器是否运行');
       } else if (error.response) {
         const status = error.response.status
@@ -587,7 +588,7 @@ const Login = ({ onLoginSuccess }) => {
                     // 成功后关闭模态框由 performLogin 内部或逻辑流控制，这里确保执行
                     setShowConfirmModal(false)
                   } catch (error) {
-                    console.error('强制登录失败:', error)
+                    logger.error('强制登录失败:', error)
                     setShowConfirmModal(false)
 
                     // 显示错误信息

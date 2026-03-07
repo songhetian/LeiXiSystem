@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
@@ -77,7 +78,7 @@ export default function OvertimeApply() {
         toast.error('未找到员工信息')
       }
     } catch (error) {
-      console.error('获取员工信息失败:', error)
+      logger.error('获取员工信息失败:', error)
       toast.error('获取员工信息失败')
     }
   }
@@ -89,7 +90,7 @@ export default function OvertimeApply() {
         setApprover(response.data.data)
       }
     } catch (error) {
-      console.error('获取审批人失败:', error)
+      logger.error('获取审批人失败:', error)
     }
   }
 

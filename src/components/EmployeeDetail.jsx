@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { Drawer, Tag, Timeline, Badge, Typography, Avatar, Divider, Space, Skeleton, Empty, Descriptions, Button, Tooltip, Progress, ConfigProvider } from 'antd'
 import { 
@@ -51,7 +52,7 @@ function EmployeeDetail({ employee, isOpen, onClose, onAction }) {
         }
       }
     } catch (error) {
-      console.error('获取员工详细信息失败:', error)
+      logger.error('获取员工详细信息失败:', error)
     } finally {
       setProfileLoading(false)
     }
@@ -70,7 +71,7 @@ function EmployeeDetail({ employee, isOpen, onClose, onAction }) {
         setEmployeeChanges(Array.isArray(result) ? result : [])
       }
     } catch (error) {
-      console.error('获取员工变动记录失败:', error)
+      logger.error('获取员工变动记录失败:', error)
     } finally {
       setLoading(false)
     }

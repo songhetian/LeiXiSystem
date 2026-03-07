@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Descriptions, Button, Space, Tag, message, Spin, Table } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -31,7 +32,7 @@ const AssessmentPlanDetail = () => {
       setPlan(response.data.data);
     } catch (error) {
       message.error('获取考核计划详情失败');
-      console.error('Failed to fetch assessment plan details:', error);
+      logger.error('Failed to fetch assessment plan details:', error);
     } finally {
       setLoading(false);
     }
@@ -45,7 +46,7 @@ const AssessmentPlanDetail = () => {
       setParticipants(response.data.data.participants);
     } catch (error) {
       message.error('获取参与者列表失败');
-      console.error('Failed to fetch participants:', error);
+      logger.error('Failed to fetch participants:', error);
     }
   };
 
@@ -73,7 +74,7 @@ const AssessmentPlanDetail = () => {
         ],
       });
     } catch (error) {
-      console.warn('获取分数分布失败，可能后端API未实现或数据不足:', error);
+      logger.warn('获取分数分布失败，可能后端API未实现或数据不足:', error);
       // Fallback to empty data
       setScoreDistributionData({
         labels: ['0-60', '60-70', '70-80', '80-90', '90-100'],

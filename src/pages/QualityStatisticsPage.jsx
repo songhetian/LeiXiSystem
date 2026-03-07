@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import qualityAPI from '../api/qualityAPI.js';
@@ -21,7 +22,7 @@ const QualityStatisticsPage = () => {
       setStatistics(response.data.data);
     } catch (error) {
       toast.error('加载质检统计数据失败');
-      console.error('Error loading statistics:', error);
+      logger.error('Error loading statistics:', error);
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ const QualityStatisticsPage = () => {
       toast.success(`${type === 'sessions' ? '质检会话' : '案例数据'}导出成功`);
     } catch (error) {
       toast.error(`导出失败: ${error.response?.data?.message || error.message}`);
-      console.error('Error exporting data:', error);
+      logger.error('Error exporting data:', error);
     }
   };
 

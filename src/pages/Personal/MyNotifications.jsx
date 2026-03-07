@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -107,7 +108,7 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
         }));
       }
     } catch (error) {
-      console.error('加载通知失败:', error);
+      logger.error('加载通知失败:', error);
     } finally {
       setLoading(false);
     }

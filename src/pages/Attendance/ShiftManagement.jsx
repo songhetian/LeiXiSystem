@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
@@ -56,7 +57,7 @@ export default function ShiftManagement() {
         setGlobalSettings(response.data.data)
       }
     } catch (error) {
-      console.error('获取全局考勤设置失败:', error)
+      logger.error('获取全局考勤设置失败:', error)
     }
   }
 
@@ -70,7 +71,7 @@ export default function ShiftManagement() {
         setDepartments(response.data.data)
       }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
+      logger.error('获取部门列表失败:', error)
     }
   }
 

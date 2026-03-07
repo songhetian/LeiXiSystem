@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
@@ -64,7 +65,7 @@ export default function MakeupApply() {
         setApprover(response.data.data)
       }
     } catch (error) {
-      console.error('获取审批人失败:', error)
+      logger.error('获取审批人失败:', error)
     }
   }
 
@@ -75,7 +76,7 @@ export default function MakeupApply() {
         setRestShiftId(response.data.data.id)
       }
     } catch (error) {
-      console.error('获取休息班次失败:', error)
+      logger.error('获取休息班次失败:', error)
     }
   }
 

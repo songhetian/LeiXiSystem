@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * 审批职责授权页面 (极致紧凑商务版)
  * 
@@ -57,7 +58,7 @@ const RoleWorkflowConfig = () => {
       if (rolesRes.data.success) setRoles(rolesRes.data.data);
       if (workflowsRes.data.success) setWorkflows(workflowsRes.data.data);
     } catch (error) {
-      console.error('获取数据失败:', error);
+      logger.error('获取数据失败:', error);
       toast.error('数据加载失败');
     } finally {
       setLoading(false);

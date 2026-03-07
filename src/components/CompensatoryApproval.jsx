@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
 import api from '../api';
@@ -32,7 +33,7 @@ const CompensatoryApproval = () => {
     try {
       const response = await api.get('/api/departments/list');
       if (response.data.success) setDepartments(response.data.data.filter(d => d.status === 'active'));
-    } catch (error) { console.error('加载部门失败:', error); }
+    } catch (error) { logger.error('加载部门失败:', error); }
   }
 
   const loadRequests = async () => {
