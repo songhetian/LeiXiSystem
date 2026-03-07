@@ -1020,7 +1020,7 @@ const permissionRoutes = async (fastify, options) => {
       `, [id]);
 
       // 获取用户个人部门权限
-      const [userDepartments] = await pool.query(`
+      let [userDepartments] = await pool.query(`
         SELECT DISTINCT d.*
         FROM departments d
         INNER JOIN user_departments ud ON d.id = ud.department_id
@@ -1040,6 +1040,13 @@ const permissionRoutes = async (fastify, options) => {
 
       // 检查是否是超级管理员
       const isAdmin = roles.some(r => r.name === '超级管理员');
+
+      // --- 逻辑修正：超级管理员视觉修正 ---
+      // 如果是超级管理员，在 UI 展示时强制显示拥有所有部门权限
+      if (isAdmin) {
+        const [allDepts] = await pool.query('SELECT * FROM departments WHERE is_active = 1 ORDER BY sort_order, id');
+        userDepartments = allDepts;
+      }
 
       // 构建权限详情对象
       const permissionDetails = {
@@ -1090,9 +1097,25 @@ const permissionRoutes = async (fastify, options) => {
             values.push([uid, rid]);
           });
         });
-        
+
         if (values.length > 0) {
           await connection.query('INSERT INTO user_roles (user_id, role_id) VALUES ?', [values]);
+
+          // 获取被授予的角色名称，检查是否包含管理类关键词
+          const [roles] = await connection.query('SELECT name FROM roles WHERE id IN (?)', [roleIds]);
+          const managementKeywords = ['主管', '负责人', '组长', '经理', '部长', '总监', '超级管理员'];
+          const hasSpecialRole = roles.some(r => managementKeywords.some(kw => r.name.includes(kw)));
+
+          if (hasSpecialRole) {
+            // 获取用户的 department_id，过滤掉没有部门的用户
+            const [users] = await connection.query('SELECT id, department_id FROM users WHERE id IN (?) AND department_id IS NOT NULL', [userIds]);
+            if (users.length > 0) {
+              // 增量同步：使用 INSERT IGNORE 仅补全缺失的部门权限
+              const deptValues = users.map(u => [u.id, u.department_id]);
+              await connection.query('INSERT IGNORE INTO user_departments (user_id, department_id) VALUES ?', [deptValues]);
+              console.log(`📡 [Permission] 已为管理类用户 [${userIds.join(',')}] 补全所属部门可见权限`);
+            }
+          }
         }
       }
 

@@ -12,7 +12,10 @@ function setupWebSocket(server, redis, getPool) {
   const io = socketIO(server, {
     cors: { origin: true, credentials: true, methods: ['GET', 'POST'] },
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    // 强制优先使用 websocket，减少长轮询(Polling)带来的内存损耗
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
   })
 
   io.redis = redis;
@@ -20,27 +23,54 @@ function setupWebSocket(server, redis, getPool) {
   // --- Redis Pub/Sub Integration ---
   if (redis) {
     console.log('🔌 [WebSocket] 正在初始化 Redis 订阅客户端...');
-    const subClient = redis.duplicate({ enableReadyCheck: false });
+    // 关键修复：直接复制主实例的配置选项，确保 100% 继承账号密码和保活设置
+    const subClient = redis.duplicate();
     
     subClient.on('connect', () => {
-      console.log('✅ [Redis Pub/Sub] 订阅客户端已连接');
+      console.log('✅ [Redis Pub/Sub] 订阅客户端已建立连接');
+    });
+
+    subClient.on('ready', () => {
+      console.log('🔌 [Redis Pub/Sub] 订阅客户端就绪，开始订阅频道...');
       subClient.subscribe('chat_messages', 'system_notifications', (err, count) => {
           if (err) console.error('❌ [Redis Pub/Sub] 订阅失败:', err);
-          else console.log(`🔌 [Redis Pub/Sub] 订阅成功，当前订阅频道数: ${count}`);
+          else console.log(`🚀 [Redis Pub/Sub] 订阅成功，当前监听频道: ${count}`);
       });
     });
 
     subClient.on('error', (err) => {
-      console.error('❌ [Redis Pub/Sub] 客户端错误:', err);
+      console.error('❌ [Redis Pub/Sub] 客户端异常:', err.message);
     });
 
     subClient.on('message', (channel, message) => {
         try {
             const data = JSON.parse(message);
             if (channel === 'chat_messages') {
-                if (data.group_id) io.to(`group_${data.group_id}`).emit('receive_message', data);
-                else if (data.receiver_id) io.to(`user_${data.receiver_id}`).emit('receive_message', data);
+                if (data.group_id) io.to(`group_${data.group_id}`).emit('chat_message', data);
+                else if (data.receiver_id) io.to(`user_${data.receiver_id}`).emit('chat_message', data);
             } else if (channel === 'system_notifications') {
+                if (data.category === 'kicked_out') {
+                    // 处理单设备登录踢人逻辑
+                    console.log(`🚨 [WebSocket] 捕获踢人指令，目标用户: ${data.userId}`);
+                    io.to(`user_${data.userId}`).emit('kicked_out', data);
+                    
+                    // 强制清理该用户的本地连接映射
+                    setTimeout(() => {
+                        const userIdStr = String(data.userId);
+                        const socketIds = userConnections.get(userIdStr);
+                        if (socketIds) {
+                            socketIds.forEach(sid => {
+                                const s = io.sockets.sockets.get(sid);
+                                if (s) {
+                                    s.emit('force_logout'); // 二次通知确认
+                                    s.disconnect(true);
+                                }
+                            });
+                            userConnections.delete(userIdStr);
+                        }
+                    }, 1500);
+                    return;
+                }
                 const event = data.category === 'broadcast' ? 'new_broadcast' : (data.category === 'memo' ? 'new_memo' : 'new_notification');
                 if (data.userId) {
                     io.to(`user_${data.userId}`).emit(event, data);
@@ -58,18 +88,24 @@ function setupWebSocket(server, redis, getPool) {
   }
 
 io.use((socket, next) => {
-    const token = socket.handshake.auth.token
-    if (!token) return next(new Error('Authentication error: No token provided'))
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      return next(new Error('Authentication error: No token provided'));
+    }
+
     try {
-      // 统一使用全局 JWT_SECRET
-      const secret = JWT_SECRET;
-      const decoded = jwt.verify(token, secret)
-      socket.userId = String(decoded.id); // 强制转字符串，确保后续查询一致
-      socket.username = decoded.username || decoded.real_name
-      next()
+      // 关键修复：从 config 模块安全获取 SECRET，并增加格式校验
+      const config = require('./config');
+      const secret = config.JWT_SECRET;
+      
+      const decoded = jwt.verify(token, secret);
+      socket.userId = String(decoded.id); 
+      socket.username = decoded.username || decoded.real_name;
+      next();
     } catch (err) { 
-      console.error(`❌ [WebSocket] 认证失败: ${err.message}`);
-      next(new Error('Authentication error: Invalid token')) 
+      console.error(`❌ [WebSocket Auth] 认证失败: ${err.message}`);
+      // 返回明确的认证错误，不要让服务器 500
+      return next(new Error('Authentication error: Invalid or expired token'));
     }
   })
 

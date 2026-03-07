@@ -122,8 +122,15 @@ async function getUserPermissions(pool, userId, departmentIdFromToken, redis) {
  */
 async function extractUserPermissions(request, pool) {
   try {
-    const token = request.headers.authorization?.replace('Bearer ', '')
-    if (!token) return null
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+
+    const token = authHeader.replace('Bearer ', '').trim();
+    
+    // 关键修复：防止无效字符串 (如 "null", "undefined") 进入 verify 环节
+    if (!token || token === 'null' || token === 'undefined' || token.split('.').length !== 3) {
+      return null;
+    }
 
     const { JWT_SECRET } = require('../config')
     const decoded = jwt.verify(token, JWT_SECRET)
@@ -134,8 +141,14 @@ async function extractUserPermissions(request, pool) {
     // --- Redis Session 校验 (黑名单/强制下线逻辑) ---
     if (redis) {
       const activeToken = await redis.get(`user:session:${decoded.id}`);
+      
+      // 添加单设备登录详细日志
+      console.log(`[Auth-Session-Check] User ID: ${decoded.id}`);
+      console.log(`[Auth-Session-Check] Request Token: ${token ? token.substring(0, 15) + '...' : 'NONE'}`);
+      console.log(`[Auth-Session-Check] Redis Token: ${activeToken ? activeToken.substring(0, 15) + '...' : 'NONE'}`);
+
       if (!activeToken || activeToken !== token) {
-        // console.log(`[Redis] Session invalid or kicked out for user ${decoded.id}`);
+        console.warn(`🚨 [Auth-Kickout] Token mismatch for user ${decoded.id}. Kicking out...`);
         return null; // 视为无权限，前端会收到 401 并跳转登录
       }
     }

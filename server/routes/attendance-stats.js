@@ -54,12 +54,12 @@ module.exports = async function (fastify, opts) {
 
       // 2. 写入 Redis (有效期 1 小时)
       if (redis) {
-        await redis.set(cacheKey, JSON.stringify(finalData), 'EX', 3600);
+        await redis.set(cacheKey, JSON.stringify(attendance), 'EX', 3600);
       }
 
       return {
         success: true,
-        data: finalData
+        data: attendance
       }
     } catch (error) {
       console.error('获取月度报表失败:', error)

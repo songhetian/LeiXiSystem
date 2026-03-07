@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
 import { tokenManager } from '../utils/apiClient'
-import { pinyin } from 'pinyin-pro'
 
 const Login = ({ onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
@@ -64,12 +63,20 @@ const Login = ({ onLoginSuccess }) => {
 
   // 自动生成用户名（拼音）
   useEffect(() => {
-    if (!isLogin && formData.real_name && formData.real_name.trim()) {
-      const pinyinUsername = pinyin(formData.real_name, { toneType: 'none', type: 'array' }).join('').toLowerCase()
-      setFormData(prev => ({ ...prev, username: pinyinUsername }))
-      // 自动检查用户名
-      checkUsername(pinyinUsername, formData.real_name)
-    }
+    const generatePinyin = async () => {
+      if (!isLogin && formData.real_name && formData.real_name.trim()) {
+        try {
+          const { pinyin } = await import('pinyin-pro');
+          const pinyinUsername = pinyin(formData.real_name, { toneType: 'none', type: 'array' }).join('').toLowerCase()
+          setFormData(prev => ({ ...prev, username: pinyinUsername }))
+          // 自动检查用户名
+          checkUsername(pinyinUsername, formData.real_name)
+        } catch (err) {
+          console.error('加载拼音库失败:', err);
+        }
+      }
+    };
+    generatePinyin();
   }, [formData.real_name, isLogin])
 
   // 检查用户名是否可用
@@ -147,15 +154,23 @@ const Login = ({ onLoginSuccess }) => {
 
 
   // 执行登录
-  const performLogin = async (forceLogin = false) => {
+  const performLogin = async (force = false) => {
     try {
       const response = await axios.post(getApiUrl('/api/auth/login'), {
         username: formData.username,
         password: formData.password,
-        forceLogin
+        force
       }, {
         timeout: 10000 // 10秒超时
       })
+
+      // 处理登录冲突 (已经在其他地方登录)
+      if (response.data.conflict) {
+        setSessionInfo(response.data)
+        setShowConfirmModal(true)
+        setLoading(false)
+        return
+      }
 
       if (response.data.success) {
         // 使用后端返回的 expiresIn，若无则固定 86400s（24小时），与后端 JWT 保持一致
@@ -191,7 +206,7 @@ const Login = ({ onLoginSuccess }) => {
 
         toast.success('登录成功！')
         setShowConfirmModal(false)
-        onLoginSuccess(response.data.user)
+        onLoginSuccess(response.data.user, response.data.token)
       }
     } catch (error) {
       console.error('登录API错误:', error);
@@ -212,22 +227,7 @@ const Login = ({ onLoginSuccess }) => {
 
     try {
       if (isLogin) {
-        // 先检查是否有活跃会话
-        const checkResponse = await axios.post(getApiUrl('/api/auth/check-session'), {
-          username: formData.username
-        }, {
-          timeout: 10000 // 10秒超时
-        })
-
-        if (checkResponse.data.hasActiveSession) {
-          // 有活跃会话，显示确认对话框
-          setSessionInfo(checkResponse.data)
-          setShowConfirmModal(true)
-          setLoading(false)
-          return
-        }
-
-        // 没有活跃会话，直接登录
+        // 直接调用登录逻辑，由后端判断是否存在活跃会话冲突
         await performLogin(false)
       } else {
         // 注册
@@ -582,8 +582,9 @@ const Login = ({ onLoginSuccess }) => {
                 onClick={async () => {
                   setLoading(true)
                   try {
+                    // 关键：明确传递 force: true，触发后端 Redis 物理清理逻辑
                     await performLogin(true)
-                    // 强制登录成功后关闭模态框
+                    // 成功后关闭模态框由 performLogin 内部或逻辑流控制，这里确保执行
                     setShowConfirmModal(false)
                   } catch (error) {
                     console.error('强制登录失败:', error)

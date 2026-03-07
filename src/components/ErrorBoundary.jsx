@@ -1,8 +1,12 @@
 import React from 'react'
+import { Result, Button, Collapse } from 'antd'
+import { ReloadOutlined, HomeOutlined } from '@ant-design/icons'
+
+const { Panel } = Collapse;
 
 /**
- * 错误边界组件
- * 捕获子组件中的 JavaScript 错误，记录错误并显示降级 UI
+ * 错误边界组件 - 旗舰版 Result 风格
+ * 捕获子组件中的 JavaScript 错误并展示降级 UI
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -19,66 +23,61 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // 记录错误到控制台
-    console.error('错误边界捕获到错误:', error, errorInfo)
-
-    // 可以将错误发送到错误报告服务
-    // logErrorToService(error, errorInfo)
-
-    this.setState({
-      error,
-      errorInfo
-    })
+    console.error('🔥 [ErrorBoundary] 捕获到运行时错误:', error, errorInfo)
+    this.setState({ error, errorInfo })
   }
 
   handleReset = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      errorInfo: null
-    })
+    this.setState({ hasError: false, error: null, errorInfo: null })
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center mb-6">
-              <div className="text-6xl mb-4">😕</div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">
-                哎呀，出错了
-              </h1>
-              <p className="text-gray-600">
-                页面遇到了一些问题，请尝试刷新页面
-              </p>
-            </div>
-
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded">
-                <p className="text-sm font-semibold text-red-800 mb-2">
-                  错误信息：
-                </p>
-                <p className="text-xs text-red-700 font-mono break-all">
-                  {this.state.error.toString()}
-                </p>
+        <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6">
+          <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl shadow-slate-200/50 p-8 border border-slate-100">
+            <Result
+              status="error"
+              title={<span className="text-2xl font-black text-slate-800">系统遇到了一些小故障</span>}
+              subTitle={<span className="text-slate-500">别担心，这通常是临时的。您可以尝试重新加载页面。</span>}
+              extra={[
+                <Button 
+                  type="primary" 
+                  key="retry" 
+                  size="large"
+                  icon={<ReloadOutlined />}
+                  onClick={() => window.location.reload()}
+                  className="rounded-xl bg-blue-600 h-12 px-8"
+                >
+                  刷新页面
+                </Button>,
+                <Button 
+                  key="home" 
+                  size="large"
+                  icon={<HomeOutlined />}
+                  onClick={() => {
+                    this.handleReset();
+                    window.location.href = '/';
+                  }}
+                  className="rounded-xl h-12 px-8 border-slate-300"
+                >
+                  返回首页
+                </Button>,
+              ]}
+            >
+              <div className="mt-6 text-left">
+                <Collapse ghost className="border border-slate-100 rounded-xl overflow-hidden">
+                  <Panel header={<span className="text-slate-400 text-xs font-bold uppercase tracking-wider">技术详情 (调试用)</span>} key="1">
+                    <div className="bg-slate-50 p-4 rounded-lg">
+                      <p className="text-red-600 font-mono text-xs mb-2 font-bold">{this.state.error?.toString()}</p>
+                      <pre className="text-[10px] text-slate-400 font-mono overflow-auto max-h-40 custom-scrollbar">
+                        {this.state.errorInfo?.componentStack}
+                      </pre>
+                    </div>
+                  </Panel>
+                </Collapse>
               </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={this.handleReset}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded transition-colors"
-              >
-                重试
-              </button>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded transition-colors"
-              >
-                返回首页
-              </button>
-            </div>
+            </Result>
           </div>
         </div>
       )

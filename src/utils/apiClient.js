@@ -12,10 +12,16 @@ class TokenManager {
   }
 
   /**
-   * 获取token
+   * 获取token (带健壮性校验)
    */
   getToken() {
-    return localStorage.getItem(this.tokenKey) || localStorage.getItem('access_token') || '';
+    const t = localStorage.getItem(this.tokenKey) || localStorage.getItem('access_token') || '';
+    
+    // 增加严格校验：防止 "null", "undefined" 等无效字符串被当作 Token 发送
+    if (!t || t === 'null' || t === 'undefined' || t === '[object Object]' || t.length < 10) {
+      return '';
+    }
+    return t;
   }
 
   /**

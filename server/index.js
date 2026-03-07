@@ -40,7 +40,15 @@ async function initEngines() {
       port: dbConfigJson.redis?.port || 6379,
       password: dbConfigJson.redis?.password || '',
       db: dbConfigJson.redis?.db || 0,
-      maxRetriesPerRequest: 1
+      // 增强稳定性设置
+      retryStrategy: (times) => Math.min(times * 100, 3000),
+      keepAlive: 10000, // 10秒 TCP 心跳
+      reconnectOnError: (err) => {
+        const targetError = 'READONLY';
+        if (err.message.includes(targetError)) return true;
+        return false;
+      },
+      enableReadyCheck: true
     });
     fastify.decorate('redis', redis);
 
@@ -76,11 +84,10 @@ const setupServer = async () => {
   // 健康检查
   fastify.get('/api/health', async () => ({ status: 'ok', version: '2.0.1' }));
 
-  // 认证
   fastify.post('/api/auth/login', async (request, reply) => {
-    const { username, password } = request.body;
+    const { username, password, force = false } = request.body;
     
-    // 联合查询用户信息和角色 (Chat等模块依赖JWT中的角色和实名)
+    // 联合查询用户信息和角色
     const [users] = await pool.query(`
       SELECT u.*, r.name as role_name 
       FROM users u 
@@ -95,6 +102,36 @@ const setupServer = async () => {
     }
 
     const user = users[0];
+    const isForce = force === true || force === 'true' || force === 1;
+
+    // --- 单设备登录逻辑：物理隔离保证 ---
+    if (redis) {
+      const activeToken = await redis.get(`user:session:${user.id}`);
+      
+      if (activeToken && !isForce) {
+        return { 
+          success: false, 
+          conflict: true, 
+          message: '您的账号已在另一台设备登录，是否强制登录并断开对方连接？',
+          sessionCreatedAt: new Date()
+        };
+      }
+
+      if (activeToken && isForce) {
+        console.log(`🚨 [Auth] 用户 ${user.username} (ID: ${user.id}) 执行强制登录，清理旧设备...`);
+        // 1. 物理删除 Redis 键，瞬间废除旧 Token 的 API 访问权
+        await redis.del(`user:session:${user.id}`);
+        // 2. 发送踢人广播
+        await redis.publish('system_notifications', JSON.stringify({
+            userId: String(user.id),
+            category: 'kicked_out',
+            message: '您的账号已在另一台设备登录，当前连接已断开'
+        }));
+        // 3. 阻塞 500ms 确保旧设备完成 Socket 断开和缓存清理
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
     const tokenPayload = { 
       id: user.id, 
       username: user.username,
@@ -105,9 +142,8 @@ const setupServer = async () => {
     
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '30d' });
 
-    // --- Redis Session 持久化 ---
-    // extractUserPermissions 中间件会校验此键，缺失会导致 401
     if (redis) {
+      // 4. 写入新 Token，正式开启新会话
       await redis.set(`user:session:${user.id}`, token, 'EX', 3600 * 24 * 30);
     }
 
@@ -117,24 +153,36 @@ const setupServer = async () => {
   // 检查会话 (多端登录检测)
   fastify.post('/api/auth/check-session', async (request, reply) => {
     const { username } = request.body;
-    // 简化逻辑：目前仅返回无冲突，后续可接入 Redis 检查活跃状态
-    return { success: true, conflict: false };
+    if (redis) {
+      const [rows] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+      if (rows.length > 0) {
+        const userId = rows[0].id;
+        const activeToken = await redis.get(`user:session:${userId}`);
+        return { success: true, hasActiveSession: !!activeToken };
+      }
+    }
+    return { success: true, hasActiveSession: false };
   });
 
   // 登出
   fastify.post('/api/auth/logout', async (request, reply) => {
     try {
       const token = request.headers.authorization?.replace('Bearer ', '');
-      if (token) {
+      if (token && redis) {
         const decoded = jwt.verify(token, JWT_SECRET);
-        if (redis) {
+        
+        // --- 关键加固：防止注销冲突 ---
+        const activeToken = await redis.get(`user:session:${decoded.id}`);
+        // 只有当请求注销的 Token 与 Redis 记录一致时才执行物理清理
+        if (activeToken === token) {
           await redis.del(`user:session:${decoded.id}`);
           await redis.del(`user:permissions:${decoded.id}`);
+          console.log(`📡 [Auth] 用户 ${decoded.id} 已安全注销会话`);
         }
       }
       return { success: true };
     } catch (e) {
-      return { success: true }; // 即使失败也返回成功，让前端继续清理
+      return { success: true };
     }
   });
 
@@ -176,8 +224,10 @@ async function main() {
   await setupServer();
 
   try {
+    // --- 启动优化：异步执行预热任务，不阻塞主进程启动 ---
     const { warmUp } = require('./utils/cacheWarmer');
-    await warmUp(fastify);
+    warmUp(fastify).catch(e => console.error('⚠️ [Cache] 预热任务后台执行报错:', e.message));
+    
     const MessageQueue = require('./utils/messageQueue');
     const queue = new MessageQueue(pool, redis);
     io.messageQueue = queue;

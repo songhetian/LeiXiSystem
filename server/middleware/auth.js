@@ -8,9 +8,16 @@ const { JWT_SECRET } = require('../config')
 function requirePermission(permissionCode) {
   return async (request, reply) => {
     try {
-      const token = request.headers.authorization?.replace('Bearer ', '')
-      if (!token) {
-        return reply.code(401).send({ success: false, message: '未登录' })
+      const authHeader = request.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return reply.code(401).send({ success: false, message: '未登录' });
+      }
+
+      const token = authHeader.replace('Bearer ', '').trim();
+      
+      // --- 关键修复：格式预检，阻断脏数据进入 verify ---
+      if (!token || token === 'null' || token === 'undefined' || token.split('.').length !== 3) {
+        return reply.code(401).send({ success: false, message: '无效的认证凭证' });
       }
 
       const decoded = jwt.verify(token, JWT_SECRET)
