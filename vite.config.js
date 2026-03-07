@@ -43,29 +43,14 @@ export default defineConfig({
         // 稳健的分包策略：消除循环依赖
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // 核心基础库 (必须最先加载)
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') || id.includes('zustand') || id.includes('scheduler')) {
-              return 'framework';
-            }
-            // Ant Design 体系：由于图标与组件高度耦合，合并打包以防止上下文丢失
-            if (id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) {
-              return 'ui-antd-all';
-            }
-            // 拼音库
+            // 极大且独立的库，单独拆分
             if (id.includes('pinyin-pro')) {
               return 'lib-pinyin';
-            }
-            // 独立的大型第三方库 (无循环引用风险)
-            if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs-2')) {
-              return 'lib-charts';
             }
             if (id.includes('exceljs')) {
               return 'lib-excel';
             }
-            if (id.includes('framer-motion')) {
-              return 'lib-animation';
-            }
-            // 其他琐碎库
+            // 其余所有 node_modules 合并为一个 vendor 块，避免块间循环依赖
             return 'vendor';
           }
           // 登录页保持独立

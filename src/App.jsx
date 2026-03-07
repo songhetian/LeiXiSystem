@@ -76,6 +76,17 @@ const AssetRequestAudit = lazy(() => import('./pages/Finance/Assets/AssetRequest
 const GroupManagement = lazy(() => import('./pages/Messaging/GroupManagement'))
 const DeviceList = lazy(() => import('./pages/Logistics/DeviceList'))
 
+// 新增缺失组件的懒加载
+const MyNotifications = lazy(() => import('./pages/Personal/MyNotifications'))
+const NotificationSettings = lazy(() => import('./components/NotificationSettings'))
+const EmployeeMemos = lazy(() => import('./pages/Employee/EmployeeMemos'))
+const CompensatoryApproval = lazy(() => import('./components/CompensatoryApproval'))
+const ApproverManagement = lazy(() => import('./components/ApproverManagement'))
+const ApprovalWorkflowConfig = lazy(() => import('./components/ApprovalWorkflowConfig'))
+const RoleWorkflowConfig = lazy(() => import('./components/RoleWorkflowConfig'))
+const MySchedule = lazy(() => import('./pages/Personal/MySchedule'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
