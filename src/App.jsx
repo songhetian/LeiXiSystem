@@ -323,7 +323,7 @@ function App() {
     return (
       <ErrorBoundary>
         <Suspense fallback={<div className="flex items-center justify-center h-screen">系统启动中...</div>}>
-          <Login onLogin={(userData) => {
+          <Login onLoginSuccess={(userData) => {
             setUser(userData)
             setIsLoggedIn(true)
             wsManager.connect({ token: tokenManager.getToken(), avatar: userData.avatar })
