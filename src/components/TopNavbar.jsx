@@ -1,6 +1,6 @@
+import api from '@/api';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Popover, Slider, Modal, Button } from 'antd';
-import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import {
   UserOutlined,
@@ -30,9 +30,8 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
 
     const fetchLatestBroadcast = async () => {
       try {
-        const res = await axios.get(getApiUrl('/api/broadcasts/my-broadcasts'), { 
-          params: { limit: 1, isRead: false },
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        const res = await api.get('/broadcasts/my-broadcasts', { 
+          params: { limit: 1, isRead: false }
         });
         if (res.data.success && res.data.data.length > 0) {
           setLatestBroadcast(res.data.data[0]);
@@ -206,24 +205,30 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
   ];
 
   const breadcrumbs = useMemo(() => {
-    // 基础匹配逻辑
-    for (const menu of menuItems) {
-      if (menu.id === activeTab) {
-        return [{ label: menu.label, id: menu.id }];
-      }
-      if (menu.children) {
-        const child = menu.children.find(c => c.id === activeTab);
-        if (child) {
-          return [
-            { label: menu.label, id: menu.id },
-            { label: child.label, id: child.id }
-          ];
+    const tabName = activeTab?.name || activeTab;
+    if (!tabName) return [];
+
+    // 递归查找面包屑路径
+    const findBreadcrumbsPath = (items, targetId, path = []) => {
+      for (const item of items) {
+        const currentPath = [...path, { label: item.label, id: item.id }];
+        if (item.id === targetId) return currentPath;
+        if (item.children) {
+          const result = findBreadcrumbsPath(item.children, targetId, currentPath);
+          if (result) return result;
         }
       }
-    }
+      return null;
+    };
 
+    // 先从 menuItems 中查找
+    const path = findBreadcrumbsPath(menuItems, tabName);
+    if (path) return path;
+
+    // 如果 menuItems 没找到，处理特殊页面逻辑
+    
     // 特殊页面处理：报销详情
-    if (activeTab === 'reimbursement-detail') {
+    if (tabName === 'reimbursement-detail') {
       return [
         { label: '报销管理', id: 'reimbursement' },
         { label: '报销详情', id: 'reimbursement-detail' }
@@ -231,47 +236,60 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
     }
 
     // 特殊页面处理：资产流程定义 (系统原名为全域流程设置，现已更名)
-    if (activeTab === 'system-workflow') {
+    if (tabName === 'system-workflow') {
       return [
+        { label: '财务管理', id: 'finance' },
         { label: '审批架构', id: 'finance-config' },
         { label: '资产流程定义', id: 'system-workflow' }
       ];
     }
 
+    if (tabName === 'approval-workflow-config') {
+        return [
+          { label: '财务管理', id: 'finance' },
+          { label: '审批架构', id: 'finance-config' },
+          { label: '报销流程定义', id: 'approval-workflow-config' }
+        ];
+    }
+
     // 特殊页面处理：审批职责授权 (原审批角色映射)
-    if (activeTab === 'role-workflow-config') {
+    if (tabName === 'role-workflow-config') {
       return [
+        { label: '财务管理', id: 'finance' },
         { label: '审批架构', id: 'finance-config' },
         { label: '审批职责授权', id: 'role-workflow-config' }
       ];
     }
 
     // 特殊页面处理：设备管理
-    if (activeTab === 'logistics-device-mgmt') {
+    if (tabName === 'logistics-device-mgmt') {
       return [
         { label: '后勤管理', id: 'logistics' },
+        { label: '设备管理', id: 'logistics-devices' },
         { label: '设备管理', id: 'logistics-device-mgmt' }
       ];
     }
 
     // 特殊页面处理：实机明细
-    if (activeTab === 'logistics-device-list') {
+    if (tabName === 'logistics-device-list') {
       return [
         { label: '后勤管理', id: 'logistics' },
+        { label: '设备管理', id: 'logistics-devices' },
         { label: '实机明细', id: 'logistics-device-list' }
       ];
     }
 
     // 特殊页面处理：资产申请审批
-    if (activeTab === 'asset-request-audit') {
+    if (tabName === 'asset-request-audit') {
       return [
         { label: '后勤管理', id: 'logistics' },
+        { label: '设备管理', id: 'logistics-devices' },
         { label: '审批中心', id: 'asset-request-audit' }
       ];
     }
 
     // 特殊页面处理：部门考勤报表
-    if (activeTab === 'attendance-dept-stats') {
+    if (tabName === 'attendance-dept-stats') {
       return [
         { label: '考勤管理', id: 'attendance' },
         { label: '部门考勤报表', id: 'attendance-dept-stats' }

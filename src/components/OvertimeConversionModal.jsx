@@ -23,7 +23,7 @@ const OvertimeConversionModal = ({ visible, onClose, onSuccess, employeeId, over
 
   const loadActiveRule = async () => {
     try {
-      const response = await api.get('/api/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
+      const response = await api.get('/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
       if (response.data.success && response.data.data.length > 0) {
         const rule = response.data.data[0];
         setActiveRule(rule);
@@ -82,7 +82,7 @@ const OvertimeConversionModal = ({ visible, onClose, onSuccess, employeeId, over
       onOk: async () => {
         setLoading(true);
         try {
-          const response = await api.post('/api/vacation/convert-from-overtime', {
+          const response = await api.post('/vacation/convert-from-overtime', {
             employee_id: employeeId,
             user_id: user?.id,
             overtime_hours: calculationResult.source_hours,

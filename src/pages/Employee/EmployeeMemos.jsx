@@ -1,6 +1,6 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo } from 'react'
-import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Table, Button, Modal, Form, Input, Select, Tag, message, Card, Space, Tooltip, DatePicker, Radio, ConfigProvider, InputNumber } from 'antd'
@@ -148,7 +148,7 @@ const EmployeeMemos = () => {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
-      const response = await axios.get(getApiUrl('/api/memos/department/created'), {
+      const response = await api.get(getApiUrl('/api/memos/department/created'), {
         params: { ...params, _t: Date.now() },
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -167,9 +167,7 @@ const EmployeeMemos = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/departments'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await api.get(getApiUrl('/api/departments'))
       if (Array.isArray(response.data)) {
         setDepartments(response.data)
       } else if (response.data.success && response.data.data) {
@@ -180,7 +178,7 @@ const EmployeeMemos = () => {
 
   const loadEmployees = async (deptId) => {
     try {
-      const response = await axios.get(getApiUrl('/api/employees'), {
+      const response = await api.get(getApiUrl('/api/employees'), {
         params: { department_id: deptId },
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -200,9 +198,7 @@ const EmployeeMemos = () => {
         title: values.title.trim(),
         content: values.content.trim()
       }
-      await axios.post(getApiUrl('/api/memos/department'), payload, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      await api.post(getApiUrl('/api/memos/department'), payload)
       message.success('备忘录分发成功')
       setCreateModalVisible(false)
       form.resetFields()
@@ -217,9 +213,7 @@ const EmployeeMemos = () => {
 
   const handleViewRecipients = async (memo) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/memos/department/${memo.id}/recipients`), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await api.get(getApiUrl(`/api/memos/department/${memo.id}/recipients`))
       if (response.data.success) {
         setCurrentMemo(response.data.data.memo)
         setRecipients(response.data.data.recipients)

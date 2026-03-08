@@ -1,6 +1,6 @@
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '@/api';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig';
 import { formatDate, getBeijingDate } from '../../utils/date';
@@ -94,7 +94,7 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
         endDate
       };
 
-      const response = await axios.get(getApiUrl('/api/notifications'), { params });
+      const response = await api.get(getApiUrl('/api/notifications'), { params });
 
       if (response.data && response.data.success) {
         setNotifications(response.data.data.map(item => ({
@@ -120,12 +120,12 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
       const url = notification.category === 'broadcast' 
         ? getApiUrl(`/api/broadcasts/${notification.id}/read`)
         : getApiUrl(`/api/notifications/${notification.id}/read`);
-      await axios.put(url);
+      await api.put(url);
       setNotifications(prev => prev.map(n =>
         (n.id === notification.id && n.category === notification.category) ? { ...n, is_read: true } : n
       ));
       // 刷新全局未读数
-      const countRes = await axios.get(getApiUrl(`/api/notifications/unread-count?userId=${userId}`));
+      const countRes = await api.get(getApiUrl(`/api/notifications/unread-count?userId=${userId}`));
       setUnreadCount(countRes.data.count);
     } catch (error) {}
   };
@@ -138,7 +138,7 @@ export default function MyNotifications({ unreadCount: propUnreadCount, setUnrea
     }
     if (!window.confirm('确定要删除这条通知吗？')) return;
     try {
-      await axios.delete(getApiUrl(`/api/notifications/${id}`));
+      await api.delete(getApiUrl(`/api/notifications/${id}`));
       loadNotifications();
       toast.success('删除成功');
     } catch (error) {}

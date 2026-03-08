@@ -193,15 +193,23 @@ const DeviceList = () => {
       align: 'center',
       width: 220,
       render: (_, record) => (
-        <Space split={<Divider type="vertical" />}>
-          <Button type="link" size="small" className="font-bold text-slate-900 text-xs" onClick={() => showQuickConfig(record)}>查看</Button>
-          <Button type="link" size="small" className="font-bold text-slate-500 text-xs" onClick={() => showDetail(record)}>档案</Button>
-          {record.device_status === 'in_use' ? (
-            <Button type="link" size="small" danger className="font-bold text-xs" onClick={() => updateStatus(record.id, 'idle', '归还入库')}>回收</Button>
-          ) : record.device_status === 'idle' ? (
-            <Button type="link" size="small" className="font-bold text-emerald-600 text-xs" onClick={() => { setCurrentDevice(record); form.setFieldsValue({ asset_id: record.id }); setIsAssignModalOpen(true); }}>指派</Button>
-          ) : null}
-        </Space>
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <Button type="link" size="small" className="font-bold text-slate-900 text-xs hover:text-indigo-600 hover:bg-indigo-50 px-2" onClick={() => showQuickConfig(record)}>查看</Button>
+          <Divider type="vertical" className="m-0" />
+          <Button type="link" size="small" className="font-bold text-slate-500 text-xs hover:text-slate-800 px-2" onClick={() => showDetail(record)}>档案</Button>
+          {record.device_status === 'in_use' && (
+            <>
+              <Divider type="vertical" className="m-0" />
+              <Button type="link" size="small" danger className="font-bold text-xs px-2" onClick={() => updateStatus(record.id, 'idle', '归还入库')}>回收</Button>
+            </>
+          )}
+          {record.device_status === 'idle' && (
+            <>
+              <Divider type="vertical" className="m-0" />
+              <Button type="link" size="small" className="font-bold text-emerald-600 text-xs px-2" onClick={() => { setCurrentDevice(record); form.setFieldsValue({ asset_id: record.id }); setIsAssignModalOpen(true); }}>指派</Button>
+            </>
+          )}
+        </div>
       )
     }
   ];
@@ -287,6 +295,7 @@ const DeviceList = () => {
         footer={null} 
         width={500} 
         centered 
+        destroyOnClose
         className="custom-modal"
       >
         <div className="py-4">
@@ -382,7 +391,7 @@ const DeviceList = () => {
       </Modal>
 
       {/* 配置调整弹窗 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">实机组件动态调整</div>} open={isConfigModalOpen} onCancel={() => setIsConfigModalOpen(false)} onOk={handleConfigSubmit} centered width={420} okText="应用变更" cancelText="放弃" className="custom-modal">
+      <Modal title={<div className="font-black text-slate-800 text-sm">实机组件动态调整</div>} open={isConfigModalOpen} onCancel={() => setIsConfigModalOpen(false)} onOk={handleConfigSubmit} centered width={420} okText="应用变更" cancelText="放弃" destroyOnClose className="custom-modal">
         <Form form={configForm} layout="vertical" className="mt-4">
           <Form.Item name="component_type_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">配件分类</span>} rules={[{ required: true }]}>
             <Select placeholder="选择类型..." options={compTypes.map(t => ({ label: t.name, value: t.id }))} onChange={fetchCompsByType} className="rounded-lg h-10" />
@@ -403,7 +412,7 @@ const DeviceList = () => {
       </Modal>
 
       {/* 配发弹窗 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">闲置资产定向指派</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="确认指派" cancelText="返回" className="custom-modal">
+      <Modal title={<div className="font-black text-slate-800 text-sm">闲置资产定向指派</div>} open={isAssignModalOpen} onCancel={() => setIsAssignModalOpen(false)} onOk={handleAssignSubmit} centered width={400} okText="确认指派" cancelText="返回" destroyOnClose className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
           <Form.Item name="asset_id" hidden><Input /></Form.Item>
           <div className="mb-6 p-4 bg-slate-900 text-white rounded-xl flex justify-between items-center shadow-lg">
@@ -417,7 +426,7 @@ const DeviceList = () => {
       </Modal>
 
       {/* 一键生成并配发弹窗 */}
-      <Modal title={<div className="font-black text-slate-800 text-sm">新资产自动配发</div>} open={isQuickModalOpen} onCancel={() => setIsQuickModalOpen(false)} onOk={handleAssignSubmit} centered width={420} okText="立即生成" cancelText="取消" className="custom-modal">
+      <Modal title={<div className="font-black text-slate-800 text-sm">新资产自动配发</div>} open={isQuickModalOpen} onCancel={() => setIsQuickModalOpen(false)} onOk={handleAssignSubmit} centered width={420} okText="立即生成" cancelText="取消" destroyOnClose className="custom-modal">
         <Form form={form} layout="vertical" className="mt-4">
           <Form.Item name="model_id" label={<span className="text-[10px] font-black text-slate-400 uppercase">选择标准硬件型号</span>} rules={[{ required: true }]}>
             <Select placeholder="检索型号库..." options={devices.map(d => ({ label: d.name, value: d.id }))} className="rounded-lg h-10" />
@@ -447,6 +456,11 @@ const DeviceList = () => {
         .ant-modal-content { border-radius: 24px !important; padding: 24px !important; }
         .ant-btn-primary span { color: #ffffff !important; }
         .custom-pagination { margin: 24px 0 !important; display: flex !important; justify-content: center !important; }
+        
+        /* 修复 Modal 叠加与位移问题 */
+        .ant-modal-wrap { display: flex !important; align-items: center !important; justify-content: center !important; pointer-events: none !important; }
+        .ant-modal { top: 0 !important; padding-bottom: 0 !important; pointer-events: auto !important; }
+        .ant-modal-centered .ant-modal { top: 0 !important; }
       `}} />
     </div>
   );

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions, Table, Timeline } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { Line, Radar, Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, RadialLinearScale, Filler, BarElement, Title as ChartTitle, Tooltip, Legend } from 'chart.js';
 import dayjs from 'dayjs';
@@ -25,7 +25,7 @@ const UserAnalysis = () => {
   const fetchUserAnalysis = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/statistics/user/${userId}`, {
+      const response = await api.get(`/api/statistics/user/${userId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setUserAnalysis(response.data.data);

@@ -1,5 +1,5 @@
+import api from '@/api';
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
 import { getApiUrl } from '../../utils/apiConfig'
 import {
   Table, Button, Modal, Form, Input, Select,
@@ -57,7 +57,7 @@ const BroadcastManagement = () => {
     setLoading(true)
     try {
       const { current, pageSize } = pagination
-      const response = await axios.get(getApiUrl('/api/broadcasts/created'), {
+      const response = await api.get(getApiUrl('/api/broadcasts/created'), {
         headers: { 'Authorization': `Bearer ${token}` },
         params: {
           ...queryParams,
@@ -81,18 +81,14 @@ const BroadcastManagement = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/departments'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await api.get(getApiUrl('/api/departments'))
       if (Array.isArray(response.data)) setDepartments(response.data)
     } catch (e) {}
   }
 
   const loadEmployees = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/employees'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await api.get(getApiUrl('/api/employees'))
       if (Array.isArray(response.data)) setEmployees(response.data)
     } catch (e) {}
   }
@@ -121,29 +117,18 @@ const BroadcastManagement = () => {
     setQueryParams({ startDate: startStr, endDate: endStr })
   }
 
-  const handleOpenPreview = async () => {
-    try {
-      const values = await form.validateFields();
-      setPreviewData(values);
-      setPreviewVisible(true);
-    } catch (e) {}
-  }
-
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async (values) => {
     setSubmitting(true)
     try {
       const payload = {
-        ...previewData,
-        targetDepartments: previewData.targetType === 'department' ? JSON.stringify(previewData.targetDepartments) : null,
-        targetRoles: previewData.targetType === 'role' ? JSON.stringify(previewData.targetRoles) : null,
-        targetUsers: previewData.targetType === 'individual' ? JSON.stringify(previewData.targetUsers) : null
+        ...values,
+        targetDepartments: values.targetType === 'department' ? JSON.stringify(values.targetDepartments) : null,
+        targetRoles: values.targetType === 'role' ? JSON.stringify(values.targetRoles) : null,
+        targetUsers: values.targetType === 'individual' ? JSON.stringify(values.targetUsers) : null
       }
-      const response = await axios.post(getApiUrl('/api/broadcasts'), payload, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await api.post(getApiUrl('/api/broadcasts'), payload)
       if (response.data.success) {
         message.success('广播已成功发布至全网')
-        setPreviewVisible(false)
         setModalVisible(false)
         form.resetFields()
         loadBroadcasts()
@@ -153,6 +138,20 @@ const BroadcastManagement = () => {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const onFinish = (values) => {
+    Modal.confirm({
+      title: '确认发布此广播内容？',
+      content: '发布后将立即推送给所选目标，请确保内容准确。',
+      okText: '立即发送',
+      cancelText: '取消',
+      onOk: () => handleFinalSubmit(values),
+      centered: true,
+      okButtonProps: { 
+        className: 'bg-slate-900 border-none rounded-lg h-9 font-bold',
+      }
+    });
   }
 
   const typeConfig = {
@@ -326,7 +325,7 @@ const BroadcastManagement = () => {
         centered
         className="refined-modal"
       >
-        <Form form={form} layout="vertical" className="mt-4 space-y-4" initialValues={{ type: 'info', priority: 'normal', targetType: 'all' }}>
+        <Form form={form} layout="vertical" className="mt-4 space-y-4" initialValues={{ type: 'info', priority: 'normal', targetType: 'all' }} onFinish={onFinish}>
           <Form.Item name="title" label={<span className="text-xs font-bold text-gray-500 uppercase tracking-wider">广播主题</span>} rules={[{ required: true }]}>
             <Input placeholder="输入广播的核心主题..." className="h-11 rounded-lg border-gray-200 font-bold" />
           </Form.Item>
@@ -394,52 +393,9 @@ const BroadcastManagement = () => {
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <Button size="large" className="rounded-xl border-gray-200 px-8 text-sm font-bold text-gray-500" onClick={() => setModalVisible(false)}>取消</Button>
-            <Button size="large" icon={<Eye size={16} />} className="rounded-xl border-gray-200 px-8 text-sm font-bold text-gray-700" onClick={handleOpenPreview}>预览</Button>
-            <Button type="primary" size="large" icon={<Send size={16} />} className="bg-slate-900 hover:bg-slate-800 border-none rounded-xl px-10 text-sm font-bold shadow-lg shadow-slate-200" onClick={handleOpenPreview}>确认发布</Button>
+            <Button type="primary" size="large" icon={<Send size={16} />} className="bg-slate-900 hover:bg-slate-800 border-none rounded-xl px-12 text-sm font-bold shadow-lg shadow-slate-200" onClick={() => form.submit()}>确认发布</Button>
           </div>
         </Form>
-      </Modal>
-
-      {/* 预览对话框 */}
-      <Modal
-        title={null}
-        open={previewVisible}
-        onCancel={() => setPreviewVisible(false)}
-        footer={null}
-        centered
-        width={450}
-        styles={{ body: { padding: 0 } }}
-        closable={false}
-      >
-        <div className="bg-white rounded-2xl overflow-hidden shadow-2xl">
-          <div className="p-8 text-center space-y-4">
-            <div className={`w-16 h-16 mx-auto rounded-2xl bg-${typeConfig[previewData?.type]?.color}-50 flex items-center justify-center text-${typeConfig[previewData?.type]?.color}-600 border border-${typeConfig[previewData?.type]?.color}-100`}>
-              {previewData?.type && React.cloneElement(typeConfig[previewData?.type]?.icon, { size: 32 })}
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">确认发布此广播内容？</h3>
-              <p className="text-sm text-gray-400 mt-1">发布后将立即推送给所选目标，无法撤回</p>
-            </div>
-          </div>
-
-          <div className="px-8 pb-4">
-            <div className={`p-6 rounded-xl bg-gray-50 border border-gray-100 relative`}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[previewData?.priority]?.color}`}>
-                  {priorityConfig[previewData?.priority]?.label}
-                </span>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">就绪信号</span>
-              </div>
-              <h4 className="font-bold text-gray-900 text-base mb-2">{previewData?.title}</h4>
-              <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">{previewData?.content}</p>
-            </div>
-          </div>
-
-          <div className="p-8 pt-4 grid grid-cols-2 gap-3">
-            <Button block size="large" className="h-12 rounded-xl font-bold border-gray-200 text-gray-500" onClick={() => setPreviewVisible(false)}>修改</Button>
-            <Button block type="primary" size="large" loading={submitting} className="h-12 bg-slate-900 border-none rounded-xl font-bold shadow-lg" onClick={handleFinalSubmit}>立即发送</Button>
-          </div>
-        </div>
       </Modal>
     </div>
   )

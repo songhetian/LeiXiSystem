@@ -1,7 +1,7 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner';
-import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
 import { tokenManager } from '../utils/apiClient'
 
@@ -53,7 +53,7 @@ const Login = ({ onLoginSuccess }) => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await axios.get(getApiUrl('/api/departments?forManagement=true'))
+        const response = await api.get(getApiUrl('/api/departments?forManagement=true'))
         setDepartments(response.data || [])
       } catch (error) {
         logger.error('获取部门列表失败:', error)
@@ -90,7 +90,7 @@ const Login = ({ onLoginSuccess }) => {
 
     setIsCheckingUsername(true)
     try {
-      const response = await axios.post(getApiUrl('/api/auth/check-username'), {
+      const response = await api.post(getApiUrl('/api/auth/check-username'), {
         username: username.trim(),
         realName: realName || formData.real_name
       })
@@ -157,7 +157,7 @@ const Login = ({ onLoginSuccess }) => {
   // 执行登录
   const performLogin = async (force = false) => {
     try {
-      const response = await axios.post(getApiUrl('/api/auth/login'), {
+      const response = await api.post(getApiUrl('/api/auth/login'), {
         username: formData.username,
         password: formData.password,
         force
@@ -232,7 +232,7 @@ const Login = ({ onLoginSuccess }) => {
         await performLogin(false)
       } else {
         // 注册
-        const response = await axios.post(getApiUrl('/api/auth/register'), formData, {
+        const response = await api.post(getApiUrl('/api/auth/register'), formData, {
           timeout: 10000 // 10秒超时
         })
 

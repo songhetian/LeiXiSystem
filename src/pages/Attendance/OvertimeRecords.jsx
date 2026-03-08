@@ -50,7 +50,7 @@ export default function OvertimeRecords({ onNavigate }) {
 
     setLoading(true)
     try {
-      const response = await api.get('/api/overtime/records', {
+      const response = await api.get('/overtime/records', {
         params: {
           employee_id: employee.id,
           status: statusFilter,
@@ -74,7 +74,7 @@ export default function OvertimeRecords({ onNavigate }) {
     if (!employee) return
 
     try {
-      const response = await api.get('/api/overtime/stats', {
+      const response = await api.get('/overtime/stats', {
         params: { employee_id: employee.id }
       })
       if (response.data.success) {

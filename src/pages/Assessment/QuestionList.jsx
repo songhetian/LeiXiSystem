@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Popconfirm, Collapse, Tag, InputNumber } from 'antd';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { EditOutlined, DeleteOutlined, SwapOutlined } from '@ant-design/icons';
-import axios from 'axios';
 
 const { Panel } = Collapse;
 
@@ -46,7 +46,7 @@ const QuestionList = ({ examId, onEditQuestion, onDeleteQuestion, onQuestionsReo
   const fetchExamQuestions = async (currentExamId) => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/exams/${currentExamId}/questions`, {
+      const response = await api.get(`/api/exams/${currentExamId}/questions`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setQuestions(response.data.data.questions);
@@ -74,7 +74,7 @@ const QuestionList = ({ examId, onEditQuestion, onDeleteQuestion, onQuestionsReo
     // Update order_num in backend
     try {
       const questionIds = reorderedQuestions.map(q => q.id);
-      await axios.put(`/api/exams/${examId}/questions/reorder`, { question_ids: questionIds }, {
+      await api.put(`/api/exams/${examId}/questions/reorder`, { question_ids: questionIds }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('题目排序成功');

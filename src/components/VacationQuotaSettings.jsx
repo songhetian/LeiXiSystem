@@ -26,7 +26,7 @@ const VacationQuotaSettings = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await api.get('/api/departments/list');
+      const response = await api.get('/departments/list');
       if (response.data.success) setDepartments(response.data.data.filter(d => d.status === 'active'));
     } catch (e) {}
   }
@@ -35,7 +35,7 @@ const VacationQuotaSettings = () => {
     try {
       setLoading(true)
       const params = { year: filters.year, page: pagination.page, limit: pagination.limit, department_id: filters.department_id, search: filters.search };
-      const response = await api.get('/api/vacation/balance/all', { params });
+      const response = await api.get('/vacation/balance/all', { params });
       if (response.data.success) {
         setEmployees(response.data.data)
         setPagination(prev => ({ ...prev, total: response.data.pagination?.total || 0 }))
@@ -52,7 +52,7 @@ const VacationQuotaSettings = () => {
   const handleSave = async (employee) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'))
-      const response = await api.post('/api/vacation/balance/adjust', { employee_id: employee.employee_id, year: filters.year, adjustments: editForm, operator_id: user.id, reason: '管理员手动调整额度' });
+      const response = await api.post('/vacation/balance/adjust', { employee_id: employee.employee_id, year: filters.year, adjustments: editForm, operator_id: user.id, reason: '管理员手动调整额度' });
       if (response.data.success) { toast.success('额度更新成功'); setEditingId(null); loadData(); }
     } catch (e) { toast.error('更新失败'); }
   }
@@ -64,7 +64,7 @@ const VacationQuotaSettings = () => {
 
     try {
       const user = JSON.parse(localStorage.getItem('user'))
-      const response = await api.post('/api/vacation/balance/batch-adjust', {
+      const response = await api.post('/vacation/balance/batch-adjust', {
         filters: { department_id: filters.department_id, search: filters.search, year: filters.year },
         adjustment_type: batchForm.adjustmentType, adjustments: batchForm.values, operator_id: user.id, reason: batchForm.reason
       });
@@ -143,7 +143,7 @@ const VacationQuotaSettings = () => {
             <div className="px-3 h-full border-r border-slate-100 flex items-center gap-2 bg-slate-100/50">
                 <Calendar size={14} className="text-slate-400" />
             </div>
-            <Select value={filters.year} onChange={v=>setFilters({...filters, year:v})} className="w-24 !border-none flagship-select h-full" bordered={false}
+            <Select value={filters.year} onChange={v=>setFilters({...filters, year:v})} className="w-24 !border-none flagship-select h-full" variant="borderless"
                 options={[0, 1, 2].map(i => { const y = new Date().getFullYear() - 1 + i; return { value: y, label: `${y}年` }; })} />
           </div>
 
@@ -152,7 +152,7 @@ const VacationQuotaSettings = () => {
                 <Users size={14} className="text-slate-400" />
             </div>
             <Select placeholder="全部部门" allowClear value={filters.department_id || undefined} onChange={v=>setFilters({...filters, department_id:v})}
-                className="w-40 !border-none flagship-select h-full" bordered={false} options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                className="w-40 !border-none flagship-select h-full" variant="borderless" options={departments.map(d => ({ label: d.name, value: d.id }))} />
           </div>
 
           <div className="flex-1 flex items-center bg-slate-50 rounded-lg border border-slate-100 px-3 h-[36px] min-w-[150px]">

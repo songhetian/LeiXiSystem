@@ -1,8 +1,8 @@
+import api from '@/api';
 import logger from '@/utils/logger';
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
-import axios from 'axios'
 import { categoryIcons } from '../utils/iconOptions'
 import RecycleBin from './RecycleBin'
 import AdvancedSearch from './AdvancedSearch'
@@ -35,6 +35,7 @@ const KnowledgeFolderView = () => {
   const [categoryPageSize, setCategoryPageSize] = useState(8)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
+  const [showTrashModal, setShowTrashModal] = useState(false)
 
   // 移动分类
   const [showMoveModal, setShowMoveModal] = useState(false)
@@ -94,7 +95,7 @@ const KnowledgeFolderView = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/categories'))
+      const response = await api.get(getApiUrl('/api/my-knowledge/categories'))
       setCategories(response.data || [])
     } catch (error) {
       logger.error('获取分类失败:', error)
@@ -104,7 +105,7 @@ const KnowledgeFolderView = () => {
   const fetchArticles = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(getApiUrl('/api/my-knowledge/articles'))
+      const response = await api.get(getApiUrl('/api/my-knowledge/articles'))
       setArticles(response.data || [])
     } catch (error) {
       logger.error('获取文档失败:', error)
@@ -128,7 +129,7 @@ const KnowledgeFolderView = () => {
     if (!articleToDelete) return
 
     try {
-      await axios.post(getApiUrl(`/api/knowledge/articles/${articleToDelete.id}/soft-delete`))
+      await api.post(getApiUrl(`/api/knowledge/articles/${articleToDelete.id}/soft-delete`))
       toast.success('已移至回收站')
       setShowDeleteModal(false)
       setArticleToDelete(null)
@@ -163,7 +164,7 @@ const KnowledgeFolderView = () => {
     if (!articleToMove) return
 
     try {
-      await axios.put(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`), {
+      await api.put(getApiUrl(`/api/knowledge/articles/${articleToMove.id}`), {
         ...articleToMove,
         category_id: targetCategoryId || null
       })
@@ -186,10 +187,10 @@ const KnowledgeFolderView = () => {
 
     try {
       if (editingCategory) {
-        await axios.put(getApiUrl(`/api/my-knowledge/categories/${editingCategory.id}`), categoryFormData)
+        await api.put(getApiUrl(`/api/my-knowledge/categories/${editingCategory.id}`), categoryFormData)
         toast.success('分类更新成功')
       } else {
-        await axios.post(getApiUrl('/api/my-knowledge/categories'), categoryFormData)
+        await api.post(getApiUrl('/api/my-knowledge/categories'), categoryFormData)
         toast.success('分类创建成功')
       }
       setShowCategoryModal(false)
@@ -217,7 +218,7 @@ const KnowledgeFolderView = () => {
     }
 
     try {
-      await axios.delete(getApiUrl(`/api/my-knowledge/categories/${categoryId}`))
+      await api.delete(getApiUrl(`/api/my-knowledge/categories/${categoryId}`))
       toast.success('分类删除成功')
       fetchCategories()
       fetchArticles()
@@ -1118,6 +1119,16 @@ const KnowledgeFolderView = () => {
         setModalWidth={setPreviewModalWidth}
         modalHeight={previewModalHeight}
         setModalHeight={setPreviewModalHeight}
+      />
+
+      {/* 垃圾箱 */}
+      <RecycleBin
+        isOpen={showTrashModal}
+        onClose={() => setShowTrashModal(false)}
+        onRestore={() => {
+          fetchArticles()
+          fetchCategories()
+        }}
       />
 
       {/* Win11风格右键菜单 */}

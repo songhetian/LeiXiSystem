@@ -2,10 +2,11 @@ import logger from '@/utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import Modal from './Modal';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import { getApiUrl } from '../utils/apiConfig';
 import { toast } from 'sonner';
 import { ChevronRight } from 'lucide-react';
+import { wsManager } from '../services/websocket';
 import {
   BellIcon,
   ClockIcon,
@@ -63,12 +64,31 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       loadNotifications();
       loadUnreadCount();
     }
+
+    // 🔴 实时监听新通知，自动刷新列表
+    const handleNewNotif = () => {
+        if (userId) {
+            loadNotifications();
+            loadUnreadCount();
+        }
+    };
+
+    wsManager.on('notification', handleNewNotif);
+    wsManager.on('broadcast', handleNewNotif);
+    wsManager.on('new_broadcast', handleNewNotif);
+    wsManager.on('unread_count', (data) => setUnreadCount(data.count));
+
+    return () => {
+        wsManager.off('notification', handleNewNotif);
+        wsManager.off('broadcast', handleNewNotif);
+        wsManager.off('new_broadcast', handleNewNotif);
+    };
   }, [userId, showConfirmModal]);
 
   const loadNotifications = async () => {
     if (!userId) return;
     try {
-      const response = await axios.get(getApiUrl('/api/notifications'), {
+      const response = await api.get(getApiUrl('/api/notifications'), {
         params: {
           userId,
           page: 1,
@@ -90,7 +110,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   const loadUnreadCount = async () => {
     if (!userId) return;
     try {
-      const response = await axios.get(getApiUrl(`/api/notifications/unread-count?userId=${userId}`));
+      const response = await api.get(getApiUrl(`/api/notifications/unread-count?userId=${userId}`));
       if (response.data && response.data.success) {
         setUnreadCount(response.data.count);
         if (onUpdateUnread) {
@@ -105,7 +125,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
   const markAllAsRead = async () => {
     if (!userId) return;
     try {
-      await axios.put(getApiUrl('/api/notifications/read-all'), { userId });
+      await api.put(getApiUrl('/api/notifications/read-all'), { userId });
       setNotifications([]);
       setUnreadCount(0);
       if (onUpdateUnread) {
@@ -123,7 +143,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
       const url = category === 'broadcast' 
         ? getApiUrl(`/api/broadcasts/${id}/read`)
         : getApiUrl(`/api/notifications/${id}/read`);
-      await axios.put(url);
+      await api.put(url);
       setNotifications(prev => prev.filter(n => !(n.id === id && n.category === category)));
       loadUnreadCount();
     } catch (error) {
@@ -207,7 +227,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     <>
     <div
       ref={dropdownRef}
-      className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white z-[3000] overflow-hidden animate-in slide-in-from-top-2 duration-300"
+      className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white z-[9999] overflow-hidden animate-in slide-in-from-top-2 duration-300"
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-white/50">

@@ -294,13 +294,36 @@ module.exports = async function (fastify, opts) {
         [startDate, endDate]
       )
 
+      // 获取请假数据用于统计
+      const [leaves] = await pool.query(
+        `SELECT employee_id, start_date, end_date FROM leave_records 
+         WHERE status = 'approved' AND (
+           (DATE(start_date) BETWEEN ? AND ?) OR 
+           (DATE(end_date) BETWEEN ? AND ?)
+         )`,
+        [startDate, endDate, startDate, endDate]
+      )
+
       // 创建排班映射
       const scheduleMap = new Map()
       schedules.forEach(s => {
-        // 使用格式化后的日期字符串
         const dateStr = s.schedule_date_str || s.schedule_date
         const key = `${s.employee_id}_${dateStr}`
         scheduleMap.set(key, s)
+      })
+
+      // 创建请假映射
+      const leaveMap = new Map()
+      leaves.forEach(l => {
+        let curr = dayjs(l.start_date);
+        const end = dayjs(l.end_date);
+        while(curr.isBefore(end) || curr.isSame(end, 'day')) {
+          const dateStr = curr.format('YYYY-MM-DD');
+          if (dateStr >= startDate && dateStr <= endDate) {
+            leaveMap.set(`${l.employee_id}_${dateStr}`, true);
+          }
+          curr = curr.add(1, 'day');
+        }
       })
 
       // 创建工作簿
@@ -314,7 +337,6 @@ module.exports = async function (fastify, opts) {
       ]
 
       for (let day = 1; day <= daysInMonth; day++) {
-        // 创建日期对象以获取星期几
         const date = new Date(year, monthNum - 1, day);
         const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
         const weekday = weekdays[date.getDay()];
@@ -322,21 +344,28 @@ module.exports = async function (fastify, opts) {
         columns.push({
           header: `${monthNum}/${day}\n${weekday}`,
           key: `day_${day}`,
-          width: 10
+          width: 8
         })
       }
+
+      // 增加汇总统计列
+      columns.push(
+        { header: '休息/天', key: 'stat_rest', width: 10 },
+        { header: '请假/天', key: 'stat_leave', width: 10 },
+        { header: '出勤班次分布统计', key: 'stat_shifts', width: 40 }
+      )
 
       worksheet.columns = columns
 
       // 设置表头样式
-      worksheet.getRow(1).font = { bold: true }
+      worksheet.getRow(1).height = 35;
+      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
       worksheet.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FF4472C4' }
       }
-      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
-      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
+      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
 
       // 添加员工排班数据
       employees.forEach(emp => {
@@ -345,40 +374,41 @@ module.exports = async function (fastify, opts) {
           real_name: emp.real_name
         }
 
-        // 统计变量
         let restDays = 0;
+        let leaveDays = 0;
         const shiftCounts = {};
 
         for (let day = 1; day <= daysInMonth; day++) {
-          const dateStr = `${year}-${monthNum}-${String(day).padStart(2, '0')}`
+          const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const key = `${emp.id}_${dateStr}`
           const schedule = scheduleMap.get(key)
+          const isLeave = leaveMap.has(key);
+
+          if (isLeave) {
+            leaveDays++;
+            row[`day_${day}`] = schedule ? `(假)${schedule.shift_name || '休'}` : '假';
+          }
 
           if (schedule) {
             if (schedule.is_rest_day) {
-              row[`day_${day}`] = '休'
+              if (!isLeave) row[`day_${day}`] = '休';
               restDays++;
             } else {
-              row[`day_${day}`] = schedule.shift_name
-              // 统计各班次天数
+              if (!isLeave) row[`day_${day}`] = schedule.shift_name;
               shiftCounts[schedule.shift_name] = (shiftCounts[schedule.shift_name] || 0) + 1;
             }
-          } else {
-            row[`day_${day}`] = ''
+          } else if (!isLeave) {
+            row[`day_${day}`] = '-';
           }
         }
 
-        // 添加统计数据到行末尾
-        row['rest_days'] = `休息:${restDays}天`;
+        row['stat_rest'] = restDays;
+        row['stat_leave'] = leaveDays;
+        row['stat_shifts'] = Object.entries(shiftCounts).map(([name, count]) => `${name}:${count}`).join(' | ');
 
-        // 添加各班次天数统计
-        let shiftStats = '';
-        for (const [shiftName, count] of Object.entries(shiftCounts)) {
-          shiftStats += `${shiftName}:${count}天 `;
-        }
-        row['shift_stats'] = shiftStats.trim();
-
-        worksheet.addRow(row)
+        const addedRow = worksheet.addRow(row);
+        addedRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        addedRow.font = { size: 9 };
       })
 
       // 添加统计信息

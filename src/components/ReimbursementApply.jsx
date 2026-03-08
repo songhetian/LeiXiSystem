@@ -264,7 +264,7 @@ const ReimbursementApply = ({ user, onSuccess }) => {
                 {(fields, { add, remove }) => (
                   <div className="space-y-3">
                     {fields.map(({ key, name, ...restField }, index) => (
-                      <Card key={key} size="small" className="rounded-xl border-slate-200 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+                      <Card key={key} size="small" className="rounded-xl border-slate-200 shadow-sm" styles={{ body: { padding: '16px 20px' } }}>
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-2">
                             <span className="w-5 h-5 bg-slate-800 text-white rounded flex items-center justify-center text-[10px] font-black">#{index + 1}</span>

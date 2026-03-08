@@ -20,8 +20,7 @@ const VacationCard = ({ employee, onViewDetail, onConvert, onEditQuota }) => {
   return (
     <Card
       className="vacation-card hover:shadow-lg transition-shadow duration-300 rounded-xl border-2 border-gray-200"
-      bodyStyle={{ padding: '16px' }}
-    >
+      styles={{ body: { padding: '16px' } }}    >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">

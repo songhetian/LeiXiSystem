@@ -61,8 +61,8 @@ const SmartSchedule = () => {
     const fetchBaseData = async () => {
         try {
             const [deptRes, shiftRes] = await Promise.all([
-                api.get('/api/departments/list', { params: { forManagement: true } }),
-                api.get('/api/shifts', { params: { is_active: 1, limit: 100 } })
+                api.get('/departments/list', { params: { forManagement: true } }),
+                api.get('/shifts', { params: { is_active: 1, limit: 100 } })
             ]);
             if (deptRes.data?.success) {
                 setDepartments(deptRes.data.data);
@@ -80,7 +80,7 @@ const SmartSchedule = () => {
 
     const fetchEmployees = async () => {
         try {
-            const res = await api.get('/api/employees', { params: { department_id: selectedDept } });
+            const res = await api.get('/employees', { params: { department_id: selectedDept } });
             const list = Array.isArray(res.data) ? res.data : (res.data.data || []);
             setEmployees(list.filter(e => e.status === 'active'));
         } catch (e) {}
@@ -96,7 +96,7 @@ const SmartSchedule = () => {
             const startDate = targetMonth.startOf('month').format('YYYY-MM-DD');
             const endDate = targetMonth.endOf('month').format('YYYY-MM-DD');
 
-            const leaveRes = await api.get('/api/attendance/leave/records', { 
+            const leaveRes = await api.get('/attendance/leave/records', { 
                 params: { department_id: selectedDept, start_date: startDate, end_date: endDate, status: 'approved', limit: 1000 }
             });
             const currentLeaves = leaveRes.data?.data || [];
@@ -186,7 +186,7 @@ const SmartSchedule = () => {
                 });
             });
             
-            const res = await api.post('/api/schedules/batch', { schedules: publishData });
+            const res = await api.post('/schedules/batch', { schedules: publishData });
             if (res.data.success) {
                 setCurrentStep(2);
                 toast.success('排班表已同步至物理库');

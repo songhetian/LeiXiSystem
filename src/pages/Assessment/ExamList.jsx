@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, PublishOutlined, ArchiveOutlined, SwapOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import '../../styles/assessment-business.css';
 
 const { Search } = Input;
@@ -28,7 +28,7 @@ const ExamList = () => {
   const fetchExams = async (params = {}) => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/exams', {
+      const response = await api.get('/exams', {
         params: {
           page: params.pagination?.current || pagination.current,
           pageSize: params.pagination?.pageSize || pagination.pageSize,
@@ -192,7 +192,7 @@ const ExamList = () => {
 
   const handlePublish = async (id) => {
     try {
-      await axios.put(`/api/exams/${id}/status`, { status: 'published' }, {
+      await api.put(`/api/exams/${id}/status`, { status: 'published' }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('试卷发布成功');
@@ -205,7 +205,7 @@ const ExamList = () => {
 
   const handleArchive = async (id) => {
     try {
-      await axios.put(`/api/exams/${id}/status`, { status: 'archived' }, {
+      await api.put(`/api/exams/${id}/status`, { status: 'archived' }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('试卷归档成功');
@@ -218,7 +218,7 @@ const ExamList = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`/api/exams/${id}`, {
+      await api.delete(`/api/exams/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('试卷删除成功');

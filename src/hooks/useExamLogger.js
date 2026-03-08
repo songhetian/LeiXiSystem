@@ -1,6 +1,6 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import { useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
 import { message } from 'antd';
 
 const INACTIVITY_WARNING_TIME = 5 * 60 * 1000; // 5 minutes
@@ -18,7 +18,7 @@ const useExamLogger = (resultId, onInactivitySubmit) => {
   const sendLog = useCallback(async (eventType, details = {}) => {
     if (!resultId) return;
     try {
-      await axios.post('/api/exam-logs', {
+      await api.post('/exam-logs', {
         result_id: resultId,
         event_type: eventType,
         timestamp: new Date().toISOString(),

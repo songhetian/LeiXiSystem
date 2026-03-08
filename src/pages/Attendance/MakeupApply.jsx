@@ -71,7 +71,7 @@ export default function MakeupApply() {
 
   const loadRestShift = async () => {
     try {
-      const response = await api.get('/api/shifts/rest')
+      const response = await api.get('/shifts/rest')
       if (response.data.success) {
         setRestShiftId(response.data.data.id)
       }
@@ -86,7 +86,7 @@ export default function MakeupApply() {
       if (!employee || !formData.record_date) return
       setCheckingSchedule(true)
       try {
-        const res = await api.get('/api/schedules', {
+        const res = await api.get('/schedules', {
           params: {
             employee_id: employee.id,
             start_date: formData.record_date,
@@ -122,7 +122,7 @@ export default function MakeupApply() {
     try {
       const clock_time = `${formData.record_date} ${formData.clock_time}:00`
 
-      const response = await api.post('/api/makeup/apply', {
+      const response = await api.post('/makeup/apply', {
         employee_id: employee.id,
         user_id: user?.id || employee.user_id,
         record_date: formData.record_date,

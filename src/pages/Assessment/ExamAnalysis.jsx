@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions, Table } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title as ChartTitle, Tooltip, Legend } from 'chart.js';
 
@@ -24,7 +24,7 @@ const ExamAnalysis = () => {
   const fetchExamAnalysis = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/statistics/exam/${examId}`, {
+      const response = await api.get(`/api/statistics/exam/${examId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setExamAnalysis(response.data.data);

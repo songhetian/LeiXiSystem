@@ -51,7 +51,21 @@ export const useChatStore = create(
 
         const newContacts = [...state.contacts];
         const group = { ...newContacts[index] };
-        group.last_message = msg.msg_type === 'text' ? msg.content : (msg.msg_type === 'image' ? '[图片]' : '[文件]');
+        
+        // 🛡️ 智能识别消息类型并显示对应摘要
+        const mType = msg.msg_type || msg.type; // 兼容不同来源的字段名
+        if (mType === 'image') {
+          group.last_message = '[图片]';
+        } else if (mType === 'file') {
+          group.last_message = '[文件]';
+        } else if (mType === 'voice') {
+          group.last_message = '[语音]';
+        } else if (mType === 'video') {
+          group.last_message = '[视频]';
+        } else {
+          group.last_message = msg.content || '暂无消息内容';
+        }
+
         group.last_message_time = msg.created_at || new Date().toISOString();
         
         if (isMe || isActive) {

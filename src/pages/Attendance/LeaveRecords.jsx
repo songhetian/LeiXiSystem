@@ -50,7 +50,7 @@ export default function LeaveRecords({ onNavigate }) {
 
     setLoading(true)
     try {
-      const response = await api.get('/api/leave/records', {
+      const response = await api.get('/leave/records', {
         params: {
           employee_id: employee.id,
           status: statusFilter,

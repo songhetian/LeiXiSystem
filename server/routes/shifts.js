@@ -102,7 +102,7 @@ module.exports = async function (fastify, opts) {
 
   // 获取班次列表（支持分页和筛选）
   fastify.get('/api/shifts', async (request, reply) => {
-    const { page = 1, limit = 10, department_id, is_active, keyword } = request.query
+    const { page = 1, limit = 10, department_id, is_active, keyword, include_global } = request.query
 
     try {
       const { extractUserPermissions } = require('../middleware/checkPermission')
@@ -114,29 +114,35 @@ module.exports = async function (fastify, opts) {
       let query = 'SELECT s.*, d.name as department_name FROM work_shifts s LEFT JOIN departments d ON s.department_id = d.id WHERE 1=1'
       const params = []
 
-      // 权限控制：非全部门权限用户只能查看全公司通用班次和自己部门的班次
-      if (!permissions) {
-        // 没有权限信息（未登录或无角色），只能看全公司通用班次
-        query += ' AND s.department_id IS NULL'
-      } else if (!permissions.canViewAllDepartments) {
-        // 没有查看所有部门权限的用户
-        if (permissions.departmentId) {
+      // 权限控制逻辑
+      if (include_global == '1') {
+        if (department_id) {
           query += ' AND (s.department_id IS NULL OR s.department_id = ?)'
-          params.push(permissions.departmentId)
+          params.push(parseInt(department_id))
         } else {
-          // 没有部门的用户只能看全公司通用班次
           query += ' AND s.department_id IS NULL'
         }
       } else {
-      }
-
-      // 部门筛选（仅对有全部门权限的用户生效）
-      if (department_id && permissions && permissions.canViewAllDepartments) {
-        if (department_id === 'null') {
+        // 原有权限控制：非全部门权限用户只能查看全公司通用班次和自己部门的班次
+        if (!permissions) {
           query += ' AND s.department_id IS NULL'
-        } else {
-          query += ' AND s.department_id = ?'
-          params.push(department_id)
+        } else if (!permissions.canViewAllDepartments) {
+          if (permissions.departmentId) {
+            query += ' AND (s.department_id IS NULL OR s.department_id = ?)'
+            params.push(permissions.departmentId)
+          } else {
+            query += ' AND s.department_id IS NULL'
+          }
+        }
+
+        // 部门筛选
+        if (department_id && permissions && permissions.canViewAllDepartments) {
+          if (department_id === 'null') {
+            query += ' AND s.department_id IS NULL'
+          } else {
+            query += ' AND s.department_id = ?'
+            params.push(parseInt(department_id))
+          }
         }
       }
 

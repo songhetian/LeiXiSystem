@@ -73,12 +73,22 @@ module.exports = async function (fastify, opts) {
   // 导出部门考勤统计
   fastify.get('/api/export/department/:departmentId', async (request, reply) => {
     const { departmentId } = request.params;
-    const { month } = request.query;
+    const { month, start_date, end_date } = request.query;
 
     try {
-      const [year, monthNum] = month.split('-');
-      const startDate = `${year}-${monthNum}-01`;
-      const endDate = new Date(year, monthNum, 0).toISOString().split('T')[0];
+      let startDate, endDate;
+      if (month) {
+        const [year, monthNum] = month.split('-');
+        startDate = `${year}-${monthNum}-01`;
+        endDate = new Date(year, monthNum, 0).toISOString().split('T')[0];
+      } else {
+        startDate = start_date;
+        endDate = end_date;
+      }
+
+      if (!startDate || !endDate) {
+        return reply.status(400).send({ error: '请提供月份或起止日期' });
+      }
 
       // 查询部门员工考勤统计
       const [stats] = await fastify.mysql.query(
@@ -94,7 +104,7 @@ module.exports = async function (fastify, opts) {
           COALESCE(SUM(ar.work_hours), 0) as total_hours,
           (SELECT COALESCE(SUM(days), 0) FROM leave_records lr
            WHERE lr.employee_id = e.id AND lr.status = 'approved'
-           AND lr.start_date BETWEEN ? AND ?) as leave_days,
+           AND lr.start_date <= ? AND lr.end_date >= ?) as leave_days,
           (SELECT COALESCE(SUM(hours), 0) FROM overtime_records ot
            WHERE ot.employee_id = e.id AND ot.status = 'approved'
            AND ot.overtime_date BETWEEN ? AND ?) as overtime_hours
@@ -105,7 +115,7 @@ module.exports = async function (fastify, opts) {
          WHERE u.department_id = ? AND u.status = 'active'
          GROUP BY u.id, u.real_name, u.username, e.employee_no
          ORDER BY u.real_name`,
-        [startDate, endDate, startDate, endDate, startDate, endDate, departmentId]
+        [endDate, startDate, startDate, endDate, startDate, endDate, departmentId]
       );
 
       // 创建工作簿

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Descriptions } from 'antd';
 import { ArrowLeftOutlined, EyeOutlined, RedoOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { Pie, Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title as ChartTitle } from 'chart.js';
 import './ExamResult.css';
@@ -26,7 +26,7 @@ const ExamResult = () => {
   const fetchExamResult = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/assessment-results/${resultId}/result`, {
+      const response = await api.get(`/api/assessment-results/${resultId}/result`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const payload = response.data.data;

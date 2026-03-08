@@ -222,7 +222,7 @@ const TodoCenter = ({ onNavigate }) => {
             hoverable 
             onClick={() => setFilterType(item.key)} 
             className={`rounded-2xl border-none shadow-sm transition-all ${filterType === item.key ? 'ring-2 ring-black scale-[1.02]' : ''}`}
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
           >
             <div className="flex justify-between items-start">
               <Space direction="vertical" size={0}>

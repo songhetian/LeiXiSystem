@@ -129,17 +129,7 @@ module.exports = async function (fastify, opts) {
         return reply.code(400).send({ success: false, message: '缺少用户ID参数' })
       }
 
-      const cacheKey = `user:unread_count:${userId}`;
-      
-      // 1. 尝试从 Redis 获取
-      if (redis) {
-        const cached = await redis.get(cacheKey);
-        if (cached !== null) {
-          return { success: true, count: parseInt(cached) };
-        }
-      }
-
-      // 2. Redis 没有，查 MySQL
+      // 查 MySQL
       // 同时统计通知表和广播接收表
       const [[notifResult]] = await pool.query(
         'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
@@ -157,8 +147,9 @@ module.exports = async function (fastify, opts) {
 
       const count = (notifResult.count || 0) + (broadcastResult.count || 0);
 
-      // 3. 写入 Redis
+      // 同步更新 Redis 缓存 (仅作为写入，不作为读取源，确保其他链路也能获取准确值)
       if (redis) {
+        const cacheKey = `user:unread_count:${userId}`;
         await redis.set(cacheKey, count, 'EX', 3600);
       }
 
@@ -199,14 +190,22 @@ module.exports = async function (fastify, opts) {
         await redis.del(`user:unread_count:${userId}`);
       }
 
-      // 🔴 实时推送未读数更新到前端
+      // 🔴 实时推送未读数更新到前端 (全量统计：通知 + 广播)
       if (fastify.io) {
-        const [result] = await pool.query(
+        const [[notifResult]] = await pool.query(
           'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
           [userId]
         );
-        const count = result[0].count;
-        fastify.io.to(`user_${userId}`).emit('unread_count', { count });
+        const [[broadcastResult]] = await pool.query(
+          `SELECT COUNT(*) as count 
+           FROM broadcast_recipients br
+           INNER JOIN broadcasts b ON br.broadcast_id = b.id
+           WHERE br.user_id = ? AND br.is_read = FALSE
+           AND (b.expires_at IS NULL OR b.expires_at > NOW())`,
+          [userId]
+        );
+        const totalCount = (notifResult.count || 0) + (broadcastResult.count || 0);
+        fastify.io.to(`user_${userId}`).emit('unread_count', { count: totalCount });
       }
 
       return {
@@ -287,14 +286,22 @@ module.exports = async function (fastify, opts) {
         await redis.del(`user:unread_count:${userId}`);
       }
 
-      // 🔴 实时推送未读数更新到前端
+      // 🔴 实时推送未读数更新到前端 (全量统计：通知 + 广播)
       if (fastify.io) {
-        const [result] = await pool.query(
+        const [[notifResult]] = await pool.query(
           'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
           [userId]
         );
-        const count = result[0].count;
-        fastify.io.to(`user_${userId}`).emit('unread_count', { count });
+        const [[broadcastResult]] = await pool.query(
+          `SELECT COUNT(*) as count 
+           FROM broadcast_recipients br
+           INNER JOIN broadcasts b ON br.broadcast_id = b.id
+           WHERE br.user_id = ? AND br.is_read = FALSE
+           AND (b.expires_at IS NULL OR b.expires_at > NOW())`,
+          [userId]
+        );
+        const totalCount = (notifResult.count || 0) + (broadcastResult.count || 0);
+        fastify.io.to(`user_${userId}`).emit('unread_count', { count: totalCount });
       }
 
       return {

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm, DatePicker } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, PublishOutlined, SwapOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 const { Search } = Input;
@@ -27,7 +27,7 @@ const AssessmentPlanList = () => {
   const fetchAssessmentPlans = async (params = {}) => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/assessment-plans', {
+      const response = await api.get('/assessment-plans', {
         params: {
           page: params.pagination?.current || pagination.current,
           pageSize: params.pagination?.pageSize || pagination.pageSize,
@@ -175,7 +175,7 @@ const AssessmentPlanList = () => {
 
   const handlePublish = async (id) => {
     try {
-      await axios.put(`/api/assessment-plans/${id}/status`, { status: 'published' }, {
+      await api.put(`/api/assessment-plans/${id}/status`, { status: 'published' }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('考核计划发布成功');
@@ -188,7 +188,7 @@ const AssessmentPlanList = () => {
 
   const handleCancel = async (id) => {
     try {
-      await axios.put(`/api/assessment-plans/${id}/status`, { status: 'cancelled' }, {
+      await api.put(`/api/assessment-plans/${id}/status`, { status: 'cancelled' }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('考核计划已取消');
@@ -201,7 +201,7 @@ const AssessmentPlanList = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`/api/assessment-plans/${id}`, {
+      await api.delete(`/api/assessment-plans/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('考核计划删除成功');

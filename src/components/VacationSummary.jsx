@@ -46,7 +46,7 @@ const VacationSummary = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await api.get('/api/departments/list');
+      const response = await api.get('/departments/list');
       if (response.data.success) {
         setDepartments(response.data.data.filter(d => d.status === 'active'));
       }
@@ -56,7 +56,7 @@ const VacationSummary = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/vacation/type-balances/all', {
+      const response = await api.get('/vacation/type-balances/all', {
         params: {
           year: filters.year,
           page: pagination.current,

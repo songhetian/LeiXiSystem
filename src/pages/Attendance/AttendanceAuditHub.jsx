@@ -94,7 +94,7 @@ const AttendanceAuditHub = () => {
                         items={items} 
                         className="flagship-main-tabs"
                         size="middle"
-                        destroyInactiveTabPane={false}
+                        destroyOnHidden={false}
                     />
                 </div>
 

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, Popconfirm, DatePicker, Modal, Form, InputNumber, Typography } from 'antd';
 import { EyeOutlined, EditOutlined, DeleteOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -44,7 +44,7 @@ const ResultManagement = () => {
   const fetchResults = async (params = {}) => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/assessment-results', {
+      const response = await api.get('/assessment-results', {
         params: {
           page: params.pagination?.current || pagination.current,
           pageSize: params.pagination?.pageSize || pagination.pageSize,
@@ -79,9 +79,9 @@ const ResultManagement = () => {
   const fetchFilterOptions = async () => {
     try {
       const [usersRes, examsRes, plansRes] = await Promise.all([
-        axios.get('/api/users-with-roles', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
-        axios.get('/api/exams', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
-        axios.get('/api/assessment-plans', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
+        api.get('/users-with-roles'),
+        api.get('/exams'),
+        api.get('/assessment-plans'),
       ]);
       setUsers(usersRes.data);
       setExams(examsRes.data.data.exams);
@@ -189,7 +189,7 @@ const ResultManagement = () => {
     setCurrentGradingRecord(record);
     // Fetch answer details for the record to find subjective questions
     try {
-      const response = await axios.get(`/api/assessment-results/${record.id}/answers`, {
+      const response = await api.get(`/api/assessment-results/${record.id}/answers`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const subjectiveQuestions = response.data.data.questions.filter(q => q.question_type === 'essay');
@@ -216,7 +216,7 @@ const ResultManagement = () => {
   const handleGradingSubmit = async (values) => {
     setLoading(true);
     try {
-      await axios.put(`/api/assessment-results/${currentGradingRecord.id}/grade`, {
+      await api.put(`/api/assessment-results/${currentGradingRecord.id}/grade`, {
         question_id: values.question_id,
         score: values.score,
         is_correct: values.score > 0 ? 1 : 0, // Simple logic: if score > 0, it's correct
@@ -237,7 +237,7 @@ const ResultManagement = () => {
   const handleDeleteResult = async (id) => {
     setLoading(true);
     try {
-      await axios.delete(`/api/assessment-results/${id}`, {
+      await api.delete(`/api/assessment-results/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('考试记录删除成功');

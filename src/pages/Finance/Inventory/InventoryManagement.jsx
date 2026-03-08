@@ -39,7 +39,7 @@ const InventoryManagement = () => {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await apiGet(`/api/inventory/items?keyword=${keyword}`);
+      const res = await api.get(`/api/inventory/items?keyword=${keyword}`);
       if (res.success) setItems(res.data);
     } catch (err) {
       message.error('加载库存失败');
@@ -57,7 +57,7 @@ const InventoryManagement = () => {
         purchase_date: values.purchase_date?.format('YYYY-MM-DD'),
         item_id: currentItem?.id // Optional if creating new item
       };
-      const res = await apiPost('/api/inventory/procure', payload);
+      const res = await api.post('/inventory/procure', payload);
       if (res.success) {
         message.success('入库成功');
         setIsProcureModalOpen(false);
@@ -76,7 +76,7 @@ const InventoryManagement = () => {
         quantity: values.quantity,
         purpose: values.purpose
       };
-      const res = await apiPost('/api/inventory/use', payload);
+      const res = await api.post('/inventory/use', payload);
       if (res.success) {
         message.success('领用出库成功');
         setIsUseModalOpen(false);
@@ -95,7 +95,7 @@ const InventoryManagement = () => {
         actual_stock: values.actual_stock,
         notes: values.notes
       };
-      const res = await apiPost('/api/inventory/audit', payload);
+      const res = await api.post('/inventory/audit', payload);
       if (res.success) {
         if (res.discrepancy !== 0) {
             message.warning(`盘点完成，发现差异: ${res.discrepancy}`);
@@ -116,7 +116,7 @@ const InventoryManagement = () => {
       setHistoryType(type);
       setIsHistoryModalOpen(true);
       try {
-          const res = await apiGet(`/api/inventory/history?item_id=${item.id}&type=${type}`);
+          const res = await api.get(`/api/inventory/history?item_id=${item.id}&type=${type}`);
           if (res.success) setHistoryData(res.data);
       } catch(err) {}
   };

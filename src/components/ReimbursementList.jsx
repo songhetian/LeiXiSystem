@@ -186,7 +186,7 @@ const ReimbursementList = ({ user, onViewDetail, onEdit }) => {
                     </div>
                     <Select
                         className="w-44 !border-none flagship-select h-full"
-                        bordered={false}
+                        variant="borderless"
                         value={statusFilter}
                         onChange={(val) => { setStatusFilter(val); setPagination(p=>({...p, page:1})); }}
                         options={STATUS_OPTIONS}

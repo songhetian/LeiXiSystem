@@ -1,6 +1,6 @@
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '@/api';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig';
 import { formatDate, getBeijingDate } from '../../utils/date';
@@ -110,9 +110,8 @@ export default function BroadcastList() {
 
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      const response = await axios.get(getApiUrl('/api/broadcasts/my-broadcasts'), {
-        params,
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await api.get(getApiUrl('/api/broadcasts/my-broadcasts'), {
+        params
       });
 
       if (response.data && response.data.success) {
@@ -148,9 +147,7 @@ export default function BroadcastList() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      await axios.put(getApiUrl(`/api/broadcasts/${id}/read`), {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(getApiUrl(`/api/broadcasts/${id}/read`), {});
 
       setBroadcasts(prev => prev.map(n =>
         n.id === id ? { ...n, is_read: true } : n

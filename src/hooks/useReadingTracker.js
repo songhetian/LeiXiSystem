@@ -1,5 +1,5 @@
+import api from '@/api';
 import { useEffect, useRef } from 'react'
-import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
 
 export default function useReadingTracker({ articleId, isOpen, contentRef }) {
@@ -25,7 +25,7 @@ export default function useReadingTracker({ articleId, isOpen, contentRef }) {
   const startSession = async () => {
     if (!articleId) return
     try {
-      const res = await axios.post(getApiUrl(`/api/knowledge/articles/${articleId}/reading/start`), {}, { headers: authHeader() })
+      const res = await api.post(getApiUrl(`/api/knowledge/articles/${articleId}/reading/start`), {}, { headers: authHeader() })
       sessionIdRef.current = res.data?.session_id || null
       lastHeartbeatAtRef.current = Date.now()
     } catch (e) {
@@ -40,7 +40,7 @@ export default function useReadingTracker({ articleId, isOpen, contentRef }) {
     const deltaSeconds = Math.round((now - lastHeartbeatAtRef.current) / 1000)
     lastHeartbeatAtRef.current = now
     try {
-      await axios.put(getApiUrl(`/api/knowledge/articles/${articleId}/reading/heartbeat`), {
+      await api.put(getApiUrl(`/api/knowledge/articles/${articleId}/reading/heartbeat`), {
         session_id: sessionIdRef.current,
         active_delta: activeAccumRef.current,
         wheel: eventsRef.current.wheel,
@@ -66,7 +66,7 @@ export default function useReadingTracker({ articleId, isOpen, contentRef }) {
         const blob = new Blob([body], { type: 'application/json' })
         navigator.sendBeacon(url, blob)
       } else {
-        await axios.put(url, JSON.parse(body), { headers: authHeader() })
+        await api.put(url, JSON.parse(body), { headers: authHeader() })
       }
     } catch (e) {
       // swallow

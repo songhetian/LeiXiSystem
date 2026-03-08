@@ -1,7 +1,7 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { toast } from 'sonner';
-import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 import { getAttachmentUrl } from '../utils/fileUtils';
 import { formatDate } from '../utils/date';
@@ -265,8 +265,8 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
     }
     try {
         const [resA, resC] = await Promise.all([
-            axios.get(getApiUrl(`/api/my-knowledge/articles?userId=${currentUser.id}`)),
-            axios.get(getApiUrl(`/api/my-knowledge/categories?userId=${currentUser.id}`))
+            api.get(getApiUrl(`/api/my-knowledge/articles?userId=${currentUser.id}`)),
+            api.get(getApiUrl(`/api/my-knowledge/categories?userId=${currentUser.id}`))
         ]);
         
         const allA = resA.data.data || resA.data || [];
@@ -288,7 +288,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   const fetchCategories = async () => {
     if (viewMode === 'personal') return; // 由 fetchPersonalResources 处理
     try {
-      const res = await axios.get(getApiUrl(`/api/knowledge/categories`));
+      const res = await api.get(getApiUrl(`/api/knowledge/categories`));
       const allCats = res.data.data || res.data || [];
       setCategories(allCats.filter(c => {
         if (c.is_deleted == 1 || c.deleted_at != null) return false;
@@ -304,7 +304,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
     if (viewMode === 'personal') return; // 由 fetchPersonalResources 处理
     setLoading(true);
     try {
-      const res = await axios.get(getApiUrl('/api/knowledge/articles'));
+      const res = await api.get(getApiUrl('/api/knowledge/articles'));
       const allArticles = res.data.data || res.data || [];
       setArticles(allArticles.filter(a => {
         if (a.is_deleted == 1 || a.deleted_at != null) return false;
@@ -339,7 +339,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
     try {
         setLoading(true);
         await Promise.all(targets.map(item => {
-            return axios.post(getApiUrl('/api/knowledge/articles'), {
+            return api.post(getApiUrl('/api/knowledge/articles'), {
                 title: item.title, content: item.content, attachments: item.attachments,
                 type: 'personal', owner_id: currentUser?.id, is_public: 0, status: 'published',
                 category_id: selectedCatId || null
@@ -356,7 +356,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   const handleBatchVisibility = async (isPub) => {
     try {
       setLoading(true);
-      await Promise.all(selectedArticleIds.map(id => axios.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), is_public: isPub })));
+      await Promise.all(selectedArticleIds.map(id => api.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), is_public: isPub })));
       toast.success('批量更新成功');
       setSelectedArticleIds([]);
       await fetchArticles();
@@ -374,7 +374,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
         onConfirm: async () => {
             try {
                 setLoading(true);
-                await Promise.all(selectedArticleIds.map(id => axios.delete(getApiUrl(`/api/knowledge/articles/${id}`))));
+                await Promise.all(selectedArticleIds.map(id => api.delete(getApiUrl(`/api/knowledge/articles/${id}`))));
                 toast.success(isPersonalMode ? '批量取消成功' : '批量删除成功');
                 setSelectedArticleIds([]);
                 await fetchArticles();
@@ -388,7 +388,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   const handleMoveArticles = async (tid) => {
     try {
       setLoading(true);
-      await Promise.all(selectedArticleIds.map(id => axios.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), category_id: tid })));
+      await Promise.all(selectedArticleIds.map(id => api.put(getApiUrl(`/api/knowledge/articles/${id}`), { ...articles.find(a=>a.id===id), category_id: tid })));
       toast.success('移动成功');
       setSelectedArticleIds([]);
       setIsMoveMenuOpen(false);
@@ -405,11 +405,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await axios.post(getApiUrl('/upload?bizType=knowledge'), formData, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        const res = await api.post(getApiUrl('/upload?bizType=knowledge'), formData);
         if (res.data.url) uploaded.push({ name: file.name, url: res.data.url, type: file.type, size: file.size });
       }
       setArticleFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...uploaded] }));
@@ -432,8 +428,8 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
         // 修改点：无论当前是哪个 mode，只要 attachments 数组里有东西就存进去
         attachments: JSON.stringify(articleFormData.attachments || [])
       };
-      if (editingArticle) await axios.put(getApiUrl(`/api/knowledge/articles/${editingArticle.id}`), payload);
-      else await axios.post(getApiUrl('/api/knowledge/articles'), payload);
+      if (editingArticle) await api.put(getApiUrl(`/api/knowledge/articles/${editingArticle.id}`), payload);
+      else await api.post(getApiUrl('/api/knowledge/articles'), payload);
       setShowArticleModal(false); await fetchArticles(); await fetchPersonalResources(); toast.success('保存成功');
     } finally { setLoading(false); }
   };
@@ -474,7 +470,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
   const deleteSingleArticle = async (id) => {
     try {
         setLoading(true);
-        await axios.delete(getApiUrl(`/api/knowledge/articles/${id}`));
+        await api.delete(getApiUrl(`/api/knowledge/articles/${id}`));
         toast.success(viewMode === 'personal' ? '已取消收藏' : '已彻底删除');
         await fetchArticles();
         await fetchPersonalResources();
@@ -539,7 +535,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       )}
 
       <Win11ContextMenu x={contextMenu.x} y={contextMenu.y} visible={contextMenu.visible} onClose={()=>setContextMenu({...contextMenu, visible:false})}
-        items={contextMenu.type==='folder' ? (canManage ? [{ icon: '📂', label: '打开目录', action: () => setCurrentFolderCategory(contextMenu.data) },{ icon: '✏️', label: '重命名', action: () => { setEditingCategory(contextMenu.data); setNewCategoryName(contextMenu.data.name); setShowCreateCategoryModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'设为私有':'设为公开', action: async () => { await axios.put(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`), { is_public: contextMenu.data.is_public?0:1 }); fetchCategories(); } }] : []),{ icon: '🗑️', label: '彻底删除', action: () => setConfirmModal({ visible: true, title: '删除分类确认', message: '确认彻底删除该分类及其所有文档吗？', isDanger: true, onConfirm: async () => { await axios.delete(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`)); fetchCategories(); setConfirmModal(prev => ({ ...prev, visible: false })); } }) }] : [{ icon: '📂', label: '打开内容', action: () => setCurrentFolderCategory(contextMenu.data) }]) : contextMenu.type==='file' ? (viewMode === 'public' ? [{ icon: '👁️', label: '极速预览', action: () => handlePreview(contextMenu.data) },{ icon: '⭐', label: '存入个人库', action: () => handleOpenSaveToModal([contextMenu.data]) }] : [{ icon: '👁️', label: '详情预览', action: () => handlePreview(contextMenu.data) },{ icon: '✏️', label: '修改内容', action: () => { setEditingArticle(contextMenu.data); const atts = parseAttachments(contextMenu.data.attachments); setArticleFormData({title:contextMenu.data.title, content:contextMenu.data.content, attachments:atts, mode: atts.length > 0 ? 'file' : 'text'}); setShowArticleModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'撤回私密':'设为公开', action: async () => { await axios.put(getApiUrl(`/api/knowledge/articles/${contextMenu.data.id}`), { ...contextMenu.data, is_public: contextMenu.data.is_public?0:1, status:'published' }); fetchArticles(); } }] : []),{ icon: '🗑️', label: viewMode === 'personal' ? '取消收藏' : '彻底删除', action: () => setConfirmModal({ visible: true, title: viewMode === 'personal' ? '取消收藏确认' : '彻底删除确认', message: viewMode === 'personal' ? '确认从您的个人收藏库中移除此文档吗？' : '确认彻底删除该文档吗？此操作无法撤销。', isDanger: true, onConfirm: () => deleteSingleArticle(contextMenu.data.id) }) }]) : (canManage ? [{ icon: '📁', label: '新建分类', action: () => setShowCreateCategoryModal(true) },{ icon: '📄', label: '新建文档', action: () => setShowArticleModal(true) }] : [])}
+        items={contextMenu.type==='folder' ? (canManage ? [{ icon: '📂', label: '打开目录', action: () => setCurrentFolderCategory(contextMenu.data) },{ icon: '✏️', label: '重命名', action: () => { setEditingCategory(contextMenu.data); setNewCategoryName(contextMenu.data.name); setShowCreateCategoryModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'设为私有':'设为公开', action: async () => { await api.put(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`), { is_public: contextMenu.data.is_public?0:1 }); fetchCategories(); } }] : []),{ icon: '🗑️', label: '彻底删除', action: () => setConfirmModal({ visible: true, title: '删除分类确认', message: '确认彻底删除该分类及其所有文档吗？', isDanger: true, onConfirm: async () => { await api.delete(getApiUrl(`/api/knowledge/categories/${contextMenu.data.id}`)); fetchCategories(); setConfirmModal(prev => ({ ...prev, visible: false })); } }) }] : [{ icon: '📂', label: '打开内容', action: () => setCurrentFolderCategory(contextMenu.data) }]) : contextMenu.type==='file' ? (viewMode === 'public' ? [{ icon: '👁️', label: '极速预览', action: () => handlePreview(contextMenu.data) },{ icon: '⭐', label: '存入个人库', action: () => handleOpenSaveToModal([contextMenu.data]) }] : [{ icon: '👁️', label: '详情预览', action: () => handlePreview(contextMenu.data) },{ icon: '✏️', label: '修改内容', action: () => { setEditingArticle(contextMenu.data); const atts = parseAttachments(contextMenu.data.attachments); setArticleFormData({title:contextMenu.data.title, content:contextMenu.data.content, attachments:atts, mode: atts.length > 0 ? 'file' : 'text'}); setShowArticleModal(true); } },...(viewMode === 'management' ? [{ icon: '🌐', label: contextMenu.data?.is_public?'撤回私密':'设为公开', action: async () => { await api.put(getApiUrl(`/api/knowledge/articles/${contextMenu.data.id}`), { ...contextMenu.data, is_public: contextMenu.data.is_public?0:1, status:'published' }); fetchArticles(); } }] : []),{ icon: '🗑️', label: viewMode === 'personal' ? '取消收藏' : '彻底删除', action: () => setConfirmModal({ visible: true, title: viewMode === 'personal' ? '取消收藏确认' : '彻底删除确认', message: viewMode === 'personal' ? '确认从您的个人收藏库中移除此文档吗？' : '确认彻底删除该文档吗？此操作无法撤销。', isDanger: true, onConfirm: () => deleteSingleArticle(contextMenu.data.id) }) }]) : (canManage ? [{ icon: '📁', label: '新建分类', action: () => setShowCreateCategoryModal(true) },{ icon: '📄', label: '新建文档', action: () => setShowArticleModal(true) }] : [])}
       />
 
       {confirmModal.visible && (
@@ -645,7 +641,7 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6" onClick={e=>e.stopPropagation()}>
             <h3 className="font-black text-gray-800 mb-4">{editingCategory?'重命名分类':'新建分类'}</h3>
             <input autoFocus type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} placeholder="名称..." className="w-full px-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 font-bold" />
-            <div className="flex gap-2 mt-6"><button onClick={()=>setShowCreateCategoryModal(false)} className="flex-1 py-2.5 text-xs font-black text-slate-400">取消</button><button onClick={async () => { try { if (editingCategory) await axios.put(getApiUrl(`/api/knowledge/categories/${editingCategory.id}`), { name: newCategoryName }); else await axios.post(getApiUrl('/api/knowledge/categories'), { name: newCategoryName, icon: '📁', type: viewMode === 'personal' ? 'personal' : 'common', is_public: 0, owner_id: currentUser?.id }); toast.success('操作成功'); setShowCreateCategoryModal(false); fetchCategories(); } catch(e){ toast.error('失败'); } }} className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg active:scale-95">确认</button></div>
+            <div className="flex gap-2 mt-6"><button onClick={()=>setShowCreateCategoryModal(false)} className="flex-1 py-2.5 text-xs font-black text-slate-400">取消</button><button onClick={async () => { try { if (editingCategory) await api.put(getApiUrl(`/api/knowledge/categories/${editingCategory.id}`), { name: newCategoryName }); else await api.post(getApiUrl('/api/knowledge/categories'), { name: newCategoryName, icon: '📁', type: viewMode === 'personal' ? 'personal' : 'common', is_public: 0, owner_id: currentUser?.id }); toast.success('操作成功'); setShowCreateCategoryModal(false); fetchCategories(); } catch(e){ toast.error('失败'); } }} className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg active:scale-95">确认</button></div>
           </div>
         </div>
       )}

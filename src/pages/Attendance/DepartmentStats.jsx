@@ -72,7 +72,7 @@ export default function DepartmentStats() {
       const token = localStorage.getItem('token')
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
-      const response = await api.get('/api/departments/list')
+      const response = await api.get('/departments/list')
       if (response.data.success) {
         const activeDepts = response.data.data.filter(d => d.status === 'active')
 
@@ -107,7 +107,7 @@ export default function DepartmentStats() {
         params.end_date = customDateRange.end
       }
 
-      const response = await api.get('/api/attendance/department-stats', {
+      const response = await api.get('/attendance/department-stats', {
         params
       })
 
@@ -147,7 +147,7 @@ export default function DepartmentStats() {
         endDate = customDateRange.end
       }
 
-      const response = await api.get('/api/attendance/records', {
+      const response = await api.get('/attendance/records', {
         params: {
           employee_id: employee.employee_id, // Use employee_id from stats
           start_date: startDate,
@@ -314,7 +314,7 @@ export default function DepartmentStats() {
                 value={selectedDepartment} 
                 onChange={setSelectedDepartment}
                 className="w-40 !border-none flagship-select h-full"
-                bordered={false}
+                variant="borderless"
                 options={departments.map(d => ({ label: d.name, value: d.id }))}
             />
           </div>

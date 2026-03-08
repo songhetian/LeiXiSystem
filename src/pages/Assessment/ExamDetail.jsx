@@ -1,3 +1,4 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, Descriptions, Button, Space, Tag, message, Spin, Collapse } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EditOutlined, PlusOutlined, UploadOutlined, SwapOutlined, EyeOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import axios from 'axios';
 
 const { Panel } = Collapse;
 
@@ -29,7 +29,7 @@ const ExamDetail = () => {
 
   const fetchExamDetails = async () => {
     try {
-      const response = await axios.get(`/api/exams/${id}`, {
+      const response = await api.get(`/api/exams/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setExam(response.data.data);
@@ -43,7 +43,7 @@ const ExamDetail = () => {
 
   const fetchExamQuestions = async () => {
     try {
-      const response = await axios.get(`/api/exams/${id}/questions`, {
+      const response = await api.get(`/api/exams/${id}/questions`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setQuestions(response.data.data.questions);

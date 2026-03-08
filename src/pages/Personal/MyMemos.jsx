@@ -9,7 +9,7 @@ import logger from '@/utils/logger';
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import axios from 'axios';
+import api from '@/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
@@ -97,10 +97,8 @@ const MyMemos = () => {
         (params[key] === '' || params[key] === undefined) && delete params[key]
       );
 
-      const token = localStorage.getItem('token');
-      const response = await axios.get(getApiUrl('/api/memos/my-memos'), {
-        params,
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get(getApiUrl('/api/memos/my-memos'), {
+        params
       });
 
       if (response.data.success) {
@@ -140,19 +138,12 @@ const MyMemos = () => {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      };
 
       if (editMode) {
-        await axios.put(getApiUrl(`/api/memos/personal/${currentMemo.id}`), values, config);
+        await api.put(getApiUrl(`/api/memos/personal/${currentMemo.id}`), values);
         toast.success('更新成功');
       } else {
-        await axios.post(getApiUrl('/api/memos/personal'), values, config);
+        await api.post(getApiUrl('/api/memos/personal'), values);
         toast.success('已成功存入备忘录');
       }
 
@@ -174,10 +165,7 @@ const MyMemos = () => {
       centered: true,
       onOk: async () => {
         try {
-          const token = localStorage.getItem('token');
-          await axios.delete(getApiUrl(`/api/memos/personal/${memo.id}`), {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+          await api.delete(getApiUrl(`/api/memos/personal/${memo.id}`));
           toast.success('已彻底删除');
           loadMemos();
         } catch (e) { toast.error('操作失败'); }
@@ -190,10 +178,7 @@ const MyMemos = () => {
     setShowDetail(true);
     if (!memo.is_read) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.put(getApiUrl(`/api/memos/${memo.id}/read`), {}, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        await api.put(getApiUrl(`/api/memos/${memo.id}/read`), {});
         // 局部更新状态
         setMemos(memos.map(m => m.id === memo.id ? { ...m, is_read: 1 } : m));
       } catch (e) {}

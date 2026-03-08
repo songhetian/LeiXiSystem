@@ -1,6 +1,6 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import { useState, useEffect } from 'react'
-import axios from 'axios'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 
@@ -32,7 +32,7 @@ export default function DepartmentAttendanceStats() {
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
       // 使用 /api/departments/list 获取用户有权限的部门
-      const response = await axios.get(getApiUrl('/api/departments/list'), { headers })
+      const response = await api.get(getApiUrl('/api/departments/list'), { headers })
 
       if (response.data.success) {
         setDepartments(response.data.data || [])
@@ -69,7 +69,7 @@ export default function DepartmentAttendanceStats() {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
-      const response = await axios.get(getApiUrl(`/api/departments/employees/${selectedDepartment}`), {
+      const response = await api.get(getApiUrl(`/api/departments/employees/${selectedDepartment}`), {
         headers
       })
       if (response.data.success) {
@@ -122,7 +122,7 @@ export default function DepartmentAttendanceStats() {
       }
 
       const promises = targetEmployees.map(emp =>
-        axios.get(getApiUrl('/api/attendance/records'), {
+        api.get(getApiUrl('/api/attendance/records'), {
           params: {
             employee_id: emp.id,
             start_date: dateRange.startDate,

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Input, InputNumber, Select, Button, Space, message, Card, Tag } from 'antd';
 import { SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { getApiUrl } from '../../utils/apiConfig';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useFormAutoSave } from '../../hooks/useFormAutoSave';
@@ -28,7 +28,7 @@ const ExamForm = () => {
 
   const fetchExamCategories = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/exam-categories'), {
+      const response = await api.get(getApiUrl('/api/exam-categories'), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const list = Array.isArray(response.data?.data)
@@ -46,7 +46,7 @@ const ExamForm = () => {
   const fetchExamDetails = async (examId) => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/exams/${examId}`, {
+      const response = await api.get(`/api/exams/${examId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const exam = response.data.data;
@@ -72,12 +72,12 @@ const ExamForm = () => {
       };
 
       if (id) {
-        await axios.put(`/api/exams/${id}`, payload, {
+        await api.put(`/api/exams/${id}`, payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         message.success('试卷更新成功');
       } else {
-        await axios.post('/api/exams', payload, {
+        await api.post('/exams', payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         message.success('试卷创建成功');
@@ -122,7 +122,7 @@ const ExamForm = () => {
         status: 'draft',
       };
 
-      await axios.put(`/api/exams/${id}`, payload, {
+      await api.put(`/api/exams/${id}`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (error) {

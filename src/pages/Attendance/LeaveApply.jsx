@@ -169,7 +169,7 @@ export default function LeaveApply() {
   const fetchBalance = async (employeeId) => {
     try {
       // 获取基础假期余额
-      const response = await api.get('/api/vacation/balance', {
+      const response = await api.get('/vacation/balance', {
         params: { employee_id: employeeId }
       })
       if (response.data.success) {
@@ -210,7 +210,7 @@ export default function LeaveApply() {
       const employeeId = employee.id;
       const userId = user.id;
 
-      const response = await api.post('/api/leave/apply', {
+      const response = await api.post('/leave/apply', {
         employee_id: employeeId,
         user_id: userId,
         leave_type: formData.leave_type,

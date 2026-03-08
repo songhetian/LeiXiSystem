@@ -40,7 +40,7 @@ export default function AttendanceSettings() {
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/api/attendance/settings')
+      const response = await api.get('/attendance/settings')
       if (response.data.success) {
         setSettings({ ...settings, ...response.data.data })
       }
@@ -54,7 +54,7 @@ export default function AttendanceSettings() {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const response = await api.post('/api/attendance/settings', settings)
+      const response = await api.post('/attendance/settings', settings)
       if (response.data.success) {
         toast.success('全局考勤规则已物理固化')
       }

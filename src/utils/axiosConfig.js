@@ -1,5 +1,5 @@
+import api from '@/api';
 import logger from '@/utils/logger';
-import axios from 'axios'
 import { tokenManager } from './apiClient'
 
 // 创建 axios 实例

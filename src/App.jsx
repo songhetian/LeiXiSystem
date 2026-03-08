@@ -1,83 +1,75 @@
-import logger from '@/utils/logger';
-import React, { useState, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { Toaster, toast } from 'sonner'
 import { showNotificationToast } from './utils/notificationUtils';
 import './styles/sonner-toast.css'
 import { useTokenVerification } from './hooks/useTokenVerification'
-import { tokenManager, apiGet, apiPost } from './utils/apiClient'
-import { getApiUrl } from './utils/apiConfig'
-import Sidebar from './components/Sidebar'
-import TopNavbar from './components/TopNavbar'
-import ErrorBoundary from './components/ErrorBoundary'
-import DatabaseCheck from './components/DatabaseCheck'
-import { PermissionProvider } from './contexts/PermissionContext'
+import { tokenManager } from './utils/apiClient'
+import api from './api'
 import { wsManager } from './services/websocket'
 import { soundManager } from './utils/soundManager'
 import { useChatStore } from './hooks/useChatStore'
+import Sidebar from './components/Sidebar'
+import TopNavbar from './components/TopNavbar'
+import DatabaseCheck from './components/DatabaseCheck'
+import ErrorBoundary from './components/ErrorBoundary'
+import { PermissionProvider } from './contexts/PermissionContext'
+import logger from '@/utils/logger';
 
-// 路由懒加载
-const Login = lazy(() => import('./pages/Login'))
+// 懒加载页面组件 - 修正后的真实物理路径 (Version 2.2)
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'))
 const AdminDashboard = lazy(() => import('./pages/Dashboard/AdminDashboard'))
 const PersonnelManagement = lazy(() => import('./components/EmployeeManagement'))
-const PositionManagement = lazy(() => import('./components/PositionManagement'))
+const EmployeeChanges = lazy(() => import('./components/EmployeeChanges'))
+const EmployeeApproval = lazy(() => import('./components/EmployeeApproval'))
 const DepartmentManagement = lazy(() => import('./components/DepartmentManagement'))
+const PositionManagement = lazy(() => import('./components/PositionManagement'))
+const RoleManagement = lazy(() => import('./pages/System/RoleManagement'))
+const UserRoleManagement = lazy(() => import('./pages/System/UserRoleManagement'))
+const ResetPassword = lazy(() => import('./components/ResetPassword'))
+const OperationLogs = lazy(() => import('./pages/System/OperationLogs'))
+const WeChatPage = lazy(() => import('./pages/Messaging/WeChatPage'))
 const AttendanceHome = lazy(() => import('./pages/Attendance/AttendanceHome'))
-const AttendanceSettings = lazy(() => import('./pages/Attendance/AttendanceSettings'))
 const AttendanceStats = lazy(() => import('./pages/Attendance/AttendanceStats'))
-const AttendanceAuditHub = lazy(() => import('./pages/Attendance/AttendanceAuditHub'))
+const ShiftManagement = lazy(() => import('./pages/Attendance/ShiftManagement'))
 const SchedulingHub = lazy(() => import('./pages/Attendance/SchedulingHub'))
-const MyAttendanceHub = lazy(() => import('./pages/Attendance/MyAttendanceHub'))
-const SmartSchedule = lazy(() => import('./pages/Attendance/SmartSchedule'))
+const AttendanceAuditHub = lazy(() => import('./pages/Attendance/AttendanceAuditHub'))
+const Win11KnowledgeBase = lazy(() => import('./components/Win11KnowledgeBase'))
+const KnowledgeManagement = lazy(() => import('./components/KnowledgeManagement'))
+const Win11MyKnowledgeBase = lazy(() => import('./components/Win11MyKnowledgeBase'))
 const VacationManagementHub = lazy(() => import('./pages/Personal/VacationManagementHub'))
-const VacationSelfServiceHub = lazy(() => import('./pages/Personal/VacationSelfServiceHub'))
-const AssetManagement = lazy(() => import('./pages/Finance/Assets/AssetManagement'))
-const InventoryManagement = lazy(() => import('./pages/Finance/Inventory/InventoryManagement'))
-const MyAssets = lazy(() => import('./pages/Personal/MyAssets'))
 const ReimbursementApply = lazy(() => import('./components/ReimbursementApply'))
 const ReimbursementList = lazy(() => import('./components/ReimbursementList'))
 const ReimbursementApproval = lazy(() => import('./components/ReimbursementApproval'))
 const ReimbursementSettings = lazy(() => import('./components/ReimbursementSettings'))
-const WeChatPage = lazy(() => import('./pages/Messaging/WeChatPage'))
-const KnowledgeBase = lazy(() => import('./components/KnowledgeBase'))
-const MyKnowledgeBase = lazy(() => import('./components/MyKnowledgeBase'))
-const KnowledgeManagement = lazy(() => import('./components/KnowledgeManagement'))
-const ExamManagement = lazy(() => import('./components/ExamManagement'))
-const MyExams = lazy(() => import('./components/MyExams'))
-const MyExamResults = lazy(() => import('./components/MyExamResults'))
-const ExamTaking = lazy(() => import('./components/ExamTaking'))
-const AssessmentPlanManagement = lazy(() => import('./components/AssessmentPlanManagement'))
-const ExamResultsManagement = lazy(() => import('./components/ExamResultsManagement'))
-const MyMemos = lazy(() => import('./pages/Personal/MyMemos'))
+const PayslipManagement = lazy(() => import('./pages/Payroll/PayslipManagement'))
+const WorkflowSettings = lazy(() => import('./pages/System/WorkflowSettings'))
+const AssetManagement = lazy(() => import('./pages/Finance/Assets/AssetManagement'))
+const InventoryManagement = lazy(() => import('./pages/Finance/Inventory/InventoryManagement'))
+const PersonalInfo = lazy(() => import('./components/PersonalInfo'))
 const TodoCenter = lazy(() => import('./pages/Personal/TodoCenter'))
 const MyPayslips = lazy(() => import('./pages/Payroll/MyPayslips'))
-const PayslipManagement = lazy(() => import('./pages/Payroll/PayslipManagement'))
-const UserRoleManagement = lazy(() => import('./pages/System/UserRoleManagement'))
-const RoleManagement = lazy(() => import('./pages/System/RoleManagement'))
-const WorkflowSettings = lazy(() => import('./pages/System/WorkflowSettings'))
-const OperationLogs = lazy(() => import('./pages/System/OperationLogs'))
+const MyAssets = lazy(() => import('./pages/Personal/MyAssets'))
+const MyMemos = lazy(() => import('./pages/Personal/MyMemos'))
 const QualityInspection = lazy(() => import('./components/QualityInspection'))
 const QualityReportPage = lazy(() => import('./pages/QualityReportPage'))
 const CaseLibraryPage = lazy(() => import('./pages/CaseLibraryPage'))
 const CaseRecommendationPage = lazy(() => import('./pages/CaseRecommendationPage'))
 const QualityStatisticsPage = lazy(() => import('./pages/QualityStatisticsPage'))
 const QualityRuleManagementPage = lazy(() => import('./pages/QualityRuleManagementPage'))
+const MyExams = lazy(() => import('./components/MyExams'))
+const MyExamResults = lazy(() => import('./components/MyExamResults'))
+const ExamManagement = lazy(() => import('./components/ExamManagement'))
+const AssessmentPlanManagement = lazy(() => import('./components/AssessmentPlanManagement'))
+const ExamResultsManagement = lazy(() => import('./components/ExamResultsManagement'))
+const ExamTaking = lazy(() => import('./pages/Assessment/ExamTaking'))
 const ExamResult = lazy(() => import('./pages/Assessment/ExamResult'))
-const UnreadMemoPopup = lazy(() => import('./components/UnreadMemoPopup'))
-
-// 员工与个人信息相关
-const EmployeeChanges = lazy(() => import('./components/EmployeeChanges'))
-const EmployeeApproval = lazy(() => import('./components/EmployeeApproval'))
-const PersonalInfo = lazy(() => import('./components/PersonalInfo'))
-const ResetPassword = lazy(() => import('./components/ResetPassword'))
-
-// 管理与审批相关
+const Login = lazy(() => import('./pages/Login'))
 const BroadcastManagement = lazy(() => import('./pages/Admin/BroadcastManagement'))
 const AssetRequestAudit = lazy(() => import('./pages/Finance/Assets/AssetRequestAudit'))
 const GroupManagement = lazy(() => import('./pages/Messaging/GroupManagement'))
 const DeviceList = lazy(() => import('./pages/Logistics/DeviceList'))
 
-// 新增缺失组件的懒加载
+// 新增/兜底组件的懒加载
 const MyNotifications = lazy(() => import('./pages/Personal/MyNotifications'))
 const NotificationSettings = lazy(() => import('./components/NotificationSettings'))
 const EmployeeMemos = lazy(() => import('./pages/Employee/EmployeeMemos'))
@@ -88,170 +80,158 @@ const RoleWorkflowConfig = lazy(() => import('./components/RoleWorkflowConfig'))
 const MySchedule = lazy(() => import('./pages/Personal/MySchedule'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
+// 标签页名称映射表
+const tabLabels = {
+  'dashboard': '仪表盘',
+  'admin-dashboard': '管理概览',
+  'user-employee': '员工管理',
+  'user-changes': '变动记录',
+  'user-approval': '入职审批',
+  'org-department': '部门管理',
+  'org-position': '岗位管理',
+  'user-permission': '权限管理',
+  'user-role-management': '角色分配',
+  'user-reset-password': '重置密码',
+  'system-logs': '操作日志',
+  'messaging-broadcast': '系统广播',
+  'broadcast-management': '发布广播',
+  'notification-settings': '通知设置',
+  'messaging-chat': '即时通讯',
+  'messaging-group-management': '群组管理',
+  'employee-memos': '部门备忘录',
+  'attendance-home': '考勤中心',
+  'attendance-dept-stats': '考勤报表',
+  'attendance-shift': '班次管理',
+  'attendance-schedule': '调度中心',
+  'attendance-approval': '审计配置',
+  'knowledge-articles': '公共知识库',
+  'knowledge-base': '知识库管理',
+  'my-knowledge': '我的知识库',
+  'vacation-details': '假期中心',
+  'compensatory-approval': '假期审计',
+  'reimbursement-apply': '新建报销',
+  'reimbursement-list': '我的报销',
+  'reimbursement-approval': '报销审批',
+  'approver-management': '审批人管理',
+  'reimbursement-settings': '报销配置',
+  'payslip-management': '工资条管理',
+  'system-workflow': '资产流程',
+  'approval-workflow-config': '报销流程',
+  'role-workflow-config': '职责授权',
+  'logistics-device-mgmt': '设备管理',
+  'logistics-device-list': '实机明细',
+  'asset-request-audit': '申请审批',
+  'inventory-management': '库存管理',
+  'personal-info': '个人信息',
+  'my-todo': '待办中心',
+  'my-schedule': '我的排班',
+  'my-notifications': '我的通知',
+  'my-payslips': '我的薪资',
+  'my-assets': '个人资产',
+  'my-memos': '我的备忘录',
+  'quality-inspection': '质量检查',
+  'quality-report': '质检报表',
+  'case-library': '案例库',
+  'case-recommendation': '案例推荐',
+  'quality-statistics': '质检统计',
+  'quality-rules': '质检规则',
+  'my-exams': '我的考试',
+  'my-results': '我的成绩',
+  'exam-management': '考试管理',
+  'assessment-plans': '考核计划',
+  'exam-results-management': '成绩管理',
+  'exam-taking': '正在考试',
+  'exam-result': '查看结果'
+};
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
-  const [activeTab, setActiveTab] = useState({ name: 'dashboard', label: '仪表盘' })
+  
+  // --- 标签页持久化：初始化逻辑 ---
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = localStorage.getItem('active_tab')
+    try {
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (tabLabels[parsed.name]) return parsed;
+      }
+      return { name: 'dashboard', label: '仪表盘' };
+    } catch (e) {
+      return { name: 'dashboard', label: '仪表盘' };
+    }
+  })
+
   const [notificationEnabled, setNotificationEnabled] = useState(true)
   const [systemNotificationEnabled, setSystemNotificationEnabled] = useState(true)
-  const [totalUnreadCount, setTotalUnreadCount] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
   const [showMemoPopup, setShowMemoPopup] = useState(false)
+  const { handleNewMessage } = useChatStore()
 
-  // 0. 从 ChatStore 获取消息处理方法
-  const handleNewMessage = useChatStore(state => state.handleNewMessage)
+  const handleSetActiveTab = useCallback((tabName) => {
+    const label = tabLabels[tabName] || '新标签'
+    const newTab = { name: tabName, label }
+    setActiveTab(newTab)
+    localStorage.setItem('active_tab', JSON.stringify(newTab))
+  }, [])
 
-  // 1. handleLogout 必须定义在最前面 (由于其他函数和 Effect 会依赖它)
-  const handleLogout = React.useCallback(async (reason = 'manual') => {
-    logger.warn(`🛑 [App] handleLogout 被调用！原因: ${reason}`);
-
-    // 如果是被踢下线，不需要调用后端 logout (因为后端 Session 已经由踢人者清理或更新)
-    if (reason !== 'kicked_out' && reason !== 'kicked_out_timeout' && reason !== 'kicked_out_heartbeat') {
-      try {
-        await apiPost('/api/auth/logout', {});
-      } catch (error) {
-        logger.warn('退出登录API调用失败(可能由于Token已失效):', error.message);
-      }
-    }
-
-    tokenManager.clearTokens();
-    localStorage.removeItem('user');
-    localStorage.removeItem('activeTab');
-    
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('attendance_') || key.startsWith('exam_') || key.startsWith('cache_'))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-
-    setIsLoggedIn(false);
-    setUser(null);
-    wsManager.disconnect();
-    
-    if (reason !== 'kicked_out' && reason !== 'kicked_out_timeout' && reason !== 'kicked_out_heartbeat') {
-      toast.info('已安全退出登录');
-    }
-  }, []);
-
-  const handleSetActiveTab = React.useCallback((tab) => {
-    // 统一处理逻辑：支持传对象 {name, label} 或 直接传字符串 id
-    if (typeof tab === 'string') {
-      const tabMap = {
-        'dashboard': '仪表盘',
-        'admin-dashboard': '企业看板',
-        'user-employee': '员工管理',
-        'user-changes': '变动记录',
-        'user-approval': '员工审核',
-        'org-department': '部门管理',
-        'org-position': '职位管理',
-        'user-permission': '权限管理',
-        'user-role-management': '角色分配',
-        'user-reset-password': '重置密码',
-        'system-logs': '操作日志',
-        'messaging-broadcast': '系统广播',
-        'broadcast-management': '发布广播',
-        'notification-settings': '通知设置',
-        'messaging-chat': '即时通讯',
-        'messaging-group-management': '群组管理',
-        'employee-memos': '部门备忘录',
-        'attendance-home': '考勤中心',
-        'attendance-dept-stats': '考勤报表',
-        'attendance-shift': '班次管理',
-        'attendance-schedule': '调度中心',
-        'attendance-approval': '审计配置',
-        'knowledge-articles': '公共知识库',
-        'knowledge-base': '知识库管理',
-        'my-knowledge': '我的知识库',
-        'vacation-details': '假期中心',
-        'compensatory-approval': '假期审计',
-        'reimbursement-apply': '新建报销',
-        'reimbursement-list': '我的报销',
-        'reimbursement-approval': '报销审批',
-        'approver-management': '审批人管理',
-        'reimbursement-settings': '报销配置',
-        'payslip-management': '工资条管理',
-        'system-workflow': '资产流程',
-        'approval-workflow-config': '报销流程',
-        'role-workflow-config': '职责授权',
-        'logistics-device-mgmt': '设备管理',
-        'logistics-device-list': '实机明细',
-        'asset-request-audit': '申请审批',
-        'inventory-management': '库存管理',
-        'personal-info': '个人信息',
-        'my-todo': '待办中心',
-        'my-schedule': '我的排班',
-        'my-notifications': '我的通知',
-        'my-payslips': '我的薪资',
-        'my-assets': '个人资产',
-        'my-memos': '我的备忘录',
-        'quality-inspection': '质量检查',
-        'quality-report': '质检报表',
-        'case-library': '案例库',
-        'case-recommendation': '案例推荐',
-        'quality-statistics': '质检统计',
-        'quality-rules': '质检规则',
-        'my-exams': '我的考试',
-        'my-results': '我的成绩',
-        'exam-management': '考试管理',
-        'assessment-plans': '考核计划',
-        'exam-results-management': '成绩管理',
-        'exam-taking': '答题中',
-        'exam-result': '考试结果'
-      };
-      setActiveTab({ name: tab, label: tabMap[tab] || tab });
-    } else if (tab && tab.name) {
-      setActiveTab(tab);
-    }
-  }, []);
-
-  const checkUnreadMemos = async () => {
+  const handleLogout = useCallback(async (reason = 'manual') => {
     try {
-      const response = await fetch(getApiUrl('/api/memos/unread-count'), {
-        headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` }
-      });
-      const data = await response.json();
-      if (data.success && data.count > 0) {
-        setTimeout(() => setShowMemoPopup(true), 1000);
+      if (tokenManager.getToken()) {
+        await api.post('/auth/logout').catch(() => {})
       }
     } catch (e) {}
-  };
+    
+    tokenManager.clearTokens()
+    localStorage.removeItem('user')
+    localStorage.removeItem('active_tab')
+    setUser(null)
+    setIsLoggedIn(false)
+    wsManager.disconnect()
+    
+    if (reason === 'manual') {
+      toast.success('已安全退出系统')
+    }
+  }, [])
 
-  const checkUnreadNotifications = async () => {
-    try {
-      const u = localStorage.getItem('user');
-      if (!u) return;
-      const userId = JSON.parse(u).id;
-      const response = await fetch(getApiUrl(`/api/notifications/unread-count?userId=${userId}`), {
-        headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` }
-      });
-      const data = await response.json();
-      if (data.success) setUnreadCount(data.count || 0);
-    } catch (e) {}
-  };
-
-  // WebSocket 与心跳逻辑
   useEffect(() => {
-    if (!isLoggedIn || !user) return;
+    const onLogout = (e) => handleLogout(e.detail?.reason || 'event');
+    window.addEventListener('auth:logout', onLogout);
+    return () => window.removeEventListener('auth:logout', onLogout);
+  }, [handleLogout]);
 
-    // A. 定时心跳校验
+  useTokenVerification(handleLogout, user?.id)
+
+  useEffect(() => {
+    if (!isLoggedIn || !user?.id) return
+
+    const checkUnreadNotifications = async () => {
+      try {
+        const res = await api.get(`/notifications/unread-count?userId=${user.id}`);
+        if (res.data.success) setUnreadCount(res.data.count);
+      } catch (e) {}
+    };
+
+    const checkUnreadMemos = async () => {
+      try {
+        // 后端正确路径为 /memos/unread-list
+        const res = await api.get(`/memos/unread-list?userId=${user.id}`);
+        if (res.data.success && res.data.data.length > 0) setShowMemoPopup(true);
+      } catch (e) {}
+    };
+
+
     const sessionHeartbeat = setInterval(async () => {
       try {
-        await apiGet('/api/auth/permissions');
+        await api.get('/auth/permissions');
       } catch (error) {
-        if (error.response?.status === 401 || error.status === 401) {
-          logger.error('🚨 [Auth] 心跳校验发现 Token 已失效');
+        if (error.response?.status === 401) {
           handleLogout('kicked_out_heartbeat');
-          toast.error('登录已失效', { description: '您的账号已在其他设备登录', duration: 10000 });
         }
       }
     }, 60000);
 
-    // B. 事件处理器
     const handleNotification = (notification) => {
-      logger.debug('🔔 收到新通知:', notification)
       soundManager.playNotification()
       showNotificationToast(notification, {
         onClick: () => {
@@ -269,17 +249,15 @@ function App() {
           }
         }
       })
-      setUnreadCount(prev => prev + 1)
+      // 不再手动 +1，等待服务器推送最新的全量 unread_count
     };
 
     const handleKickedOut = (data) => {
-      logger.warn('🚨 [Auth] 收到下线指令:', data.message);
       wsManager.disconnect();
       toast.error('登录失效', {
-        description: data.message || '您的账号已在另一台设备登录，当前连接已断开',
+        description: data.message || '您的账号已在另一台设备登录',
         duration: 10000,
-        action: { label: '立即重新登录', onClick: () => handleLogout('kicked_out') },
-        onAutoClose: () => handleLogout('kicked_out')
+        action: { label: '重新登录', onClick: () => handleLogout('kicked_out') }
       });
       setTimeout(() => handleLogout('kicked_out_timeout'), 5000);
     };
@@ -299,7 +277,15 @@ function App() {
 
     wsManager.on('notification', handleNotification)
     wsManager.on('memo', (m) => { soundManager.playSuccess(); toast.success('新备忘录', { description: m.title }); checkUnreadMemos(); })
-    wsManager.on('broadcast', (b) => { soundManager.playNotification(); setUnreadCount(prev => prev + 1); })
+    wsManager.on('broadcast', (b) => { 
+      soundManager.playNotification(); 
+      toast.info(`新广播: ${b.title}`, {
+        description: b.content?.substring(0, 50) + (b.content?.length > 50 ? '...' : ''),
+        action: { label: '立即查看', onClick: () => handleSetActiveTab('messaging-broadcast') },
+        duration: 10000
+      });
+      // 不再手动 +1，等待服务器推送最新的全量 unread_count
+    })
     wsManager.on('kicked_out', handleKickedOut)
     wsManager.on('chat_message', handleGlobalChatMessage)
     wsManager.on('unread_count', (data) => setUnreadCount(data.count))
@@ -316,7 +302,7 @@ function App() {
       wsManager.removeAllListeners('unread_count');
       wsManager.removeAllListeners('kicked_out');
     };
-  }, [isLoggedIn, user?.id, handleLogout, activeTab.name]);
+  }, [isLoggedIn, user?.id, handleLogout, activeTab.name, notificationEnabled, handleNewMessage, handleSetActiveTab]);
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -326,48 +312,58 @@ function App() {
         const userData = JSON.parse(savedUser);
         setIsLoggedIn(true)
         setUser(userData)
-        setTimeout(() => {
-          wsManager.connect({ avatar: userData?.avatar });
-          soundManager.init();
-        }, 0);
-      } catch (e) { handleLogout('invalid_storage'); }
+        wsManager.connect({ token, avatar: userData.avatar })
+      } catch (e) {
+        handleLogout('init_error')
+      }
     }
-  }, [handleLogout]);
-
-  const handleLoginSuccess = (userData, token) => {
-    logger.debug('🎉 handleLoginSuccess 触发，准备初始化...');
-    
-    // 1. 立即同步状态
-    setIsLoggedIn(true);
-    setUser(userData);
-    
-    // 2. 如果传了 Token (来自 Login.jsx)，确保立即写入，防止后续请求 401
-    if (token) {
-      localStorage.setItem('token', token);
-    }
-
-    // 3. 异步启动 Socket，显式传递最新 Token
-    setTimeout(() => {
-      wsManager.connect({ 
-        avatar: userData?.avatar,
-        token: token || localStorage.getItem('token')
-      });
-      soundManager.init();
-      
-      // 4. 初始化业务数据
-      checkUnreadMemos();
-      checkUnreadNotifications();
-    }, 100);
-  }
+  }, [handleLogout])
 
   if (!isLoggedIn) {
     return (
       <ErrorBoundary>
-        <DatabaseCheck>
-          <Suspense fallback={null}>
-            <Login onLoginSuccess={handleLoginSuccess} />
-          </Suspense>
-        </DatabaseCheck>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen">系统启动中...</div>}>
+          <Login onLogin={(userData) => {
+            setUser(userData)
+            setIsLoggedIn(true)
+            wsManager.connect({ token: tokenManager.getToken(), avatar: userData.avatar })
+          }} />
+        </Suspense>
+      <Toaster 
+        position="bottom-right" 
+        richColors 
+        closeButton 
+        visibleToasts={1} 
+        expand={false} 
+        duration={2000}
+        offset={20}
+        toastOptions={{
+          style: {
+            borderRadius: '16px',
+            border: '1px solid rgba(0,0,0,0.08)',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+            padding: '12px 16px',
+          }
+        }}
+      />
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* 极致物理锁定：彻底解决向上堆叠与留白问题 */
+        [data-sonner-toaster] {
+          position: fixed !important;
+          bottom: 20px !important;
+          right: 20px !important;
+          left: auto !important;
+          top: auto !important;
+          height: fit-content !important;
+          max-height: 80px !important;
+          z-index: 9999 !important;
+          transform: none !important;
+        }
+        [data-sonner-toast] {
+          --y: 0px !important;
+          margin-bottom: 0 !important;
+        }
+      `}} />
       </ErrorBoundary>
     )
   }
@@ -376,58 +372,48 @@ function App() {
     <ErrorBoundary>
       <DatabaseCheck>
         <PermissionProvider>
-          <div className="flex h-screen bg-gray-50 overflow-hidden">
-            <Sidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
+          <div className="flex h-screen bg-slate-50 overflow-hidden">
+            <Sidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} onLogout={handleLogout} user={user} />
+            
             <div className="flex-1 flex flex-col min-w-0 relative">
               <TopNavbar 
                 user={user} 
                 onLogout={() => handleLogout('manual')} 
                 activeTab={activeTab}
                 unreadCount={unreadCount}
+                onNavigate={handleSetActiveTab}
               />
               <main className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 <Suspense fallback={<div className="flex items-center justify-center h-full">资源加载中...</div>}>
                   {activeTab.name === 'dashboard' && (user?.role === '超级管理员' || user?.role === 'admin' ? <AdminDashboard onNavigate={handleSetActiveTab} /> : <Dashboard onNavigate={handleSetActiveTab} />)}
                   {activeTab.name === 'admin-dashboard' && <AdminDashboard onNavigate={handleSetActiveTab} />}
                   
-                  {/* 人事管理 */}
-                  {activeTab.name === 'user-employee' && <PersonnelManagement />}
+                  {activeTab.name === 'user-employee' && <PersonnelManagement onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'user-changes' && <EmployeeChanges />}
                   {activeTab.name === 'user-approval' && <EmployeeApproval />}
                   {activeTab.name === 'org-department' && <DepartmentManagement />}
                   {activeTab.name === 'org-position' && <PositionManagement />}
-                  
-                  {/* 权限管理 */}
                   {activeTab.name === 'user-permission' && <RoleManagement />}
                   {activeTab.name === 'user-role-management' && <UserRoleManagement />}
                   {activeTab.name === 'user-reset-password' && <ResetPassword />}
                   {activeTab.name === 'system-logs' && <OperationLogs />}
-                  
-                  {/* 协作/消息 */}
-                  {activeTab.name === 'messaging-broadcast' && <MyNotifications />}
+                  {activeTab.name === 'messaging-broadcast' && <MyNotifications onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'broadcast-management' && <BroadcastManagement />}
                   {activeTab.name === 'notification-settings' && <NotificationSettings />}
-                  {activeTab.name === 'messaging-chat' && <WeChatPage />}
+                  {activeTab.name === 'messaging-chat' && <WeChatPage onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'messaging-group-management' && <GroupManagement />}
                   {activeTab.name === 'employee-memos' && <EmployeeMemos />}
-                  
-                  {/* 考勤管理 */}
                   {activeTab.name === 'attendance-home' && <AttendanceHome onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'attendance-dept-stats' && <AttendanceStats />}
-                  {activeTab.name === 'attendance-shift' && <AttendanceSettings />}
+                  {activeTab.name === 'attendance-shift' && <ShiftManagement />}
                   {activeTab.name === 'attendance-schedule' && <SchedulingHub />}
                   {activeTab.name === 'attendance-approval' && <AttendanceAuditHub />}
-                  
-                  {/* 知识库 */}
-                  {activeTab.name === 'knowledge-articles' && <KnowledgeBase />}
+                  {activeTab.name === 'knowledge-articles' && <Win11KnowledgeBase />}
                   {activeTab.name === 'knowledge-base' && <KnowledgeManagement />}
-                  {activeTab.name === 'my-knowledge' && <MyKnowledgeBase />}
-                  
-                  {/* 假期管理 */}
+                  {activeTab.name === 'my-knowledge' && <Win11MyKnowledgeBase />}
+
                   {activeTab.name === 'vacation-details' && <VacationManagementHub />}
                   {activeTab.name === 'compensatory-approval' && <CompensatoryApproval />}
-                  
-                  {/* 财务管理 */}
                   {activeTab.name === 'reimbursement-apply' && <ReimbursementApply />}
                   {activeTab.name === 'reimbursement-list' && <ReimbursementList />}
                   {activeTab.name === 'reimbursement-approval' && <ReimbursementApproval />}
@@ -437,65 +423,73 @@ function App() {
                   {activeTab.name === 'system-workflow' && <WorkflowSettings />}
                   {activeTab.name === 'approval-workflow-config' && <ApprovalWorkflowConfig />}
                   {activeTab.name === 'role-workflow-config' && <RoleWorkflowConfig />}
-                  
-                  {/* 后勤管理 */}
                   {activeTab.name === 'logistics-device-mgmt' && <AssetManagement />}
                   {activeTab.name === 'logistics-device-list' && <DeviceList />}
                   {activeTab.name === 'asset-request-audit' && <AssetRequestAudit />}
                   {activeTab.name === 'inventory-management' && <InventoryManagement />}
-                  
-                  {/* 个人中心 */}
                   {activeTab.name === 'personal-info' && <PersonalInfo />}
-                  {activeTab.name === 'my-todo' && <TodoCenter />}
+                  {activeTab.name === 'my-todo' && <TodoCenter onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'my-schedule' && <MySchedule />}
-                  {activeTab.name === 'my-notifications' && <MyNotifications />}
+                  {activeTab.name === 'my-notifications' && <MyNotifications onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'my-payslips' && <MyPayslips />}
                   {activeTab.name === 'my-assets' && <MyAssets />}
                   {activeTab.name === 'my-memos' && <MyMemos />}
-                  
-                  {/* 质检 (兼容旧 ID) */}
                   {activeTab.name === 'quality-inspection' && <QualityInspection />}
                   {activeTab.name === 'quality-report' && <QualityReportPage />}
                   {activeTab.name === 'case-library' && <CaseLibraryPage />}
                   {activeTab.name === 'case-recommendation' && <CaseRecommendationPage />}
                   {activeTab.name === 'quality-statistics' && <QualityStatisticsPage />}
                   {activeTab.name === 'quality-rules' && <QualityRuleManagementPage />}
-                  
-                  {/* 考试 (兼容旧 ID) */}
-                  {activeTab.name === 'my-exams' && <MyExams />}
-                  {activeTab.name === 'my-results' && <MyExamResults />}
+                  {activeTab.name === 'my-exams' && <MyExams onNavigate={handleSetActiveTab} />}
+                  {activeTab.name === 'my-results' && <MyExamResults onNavigate={handleSetActiveTab} />}
                   {activeTab.name === 'exam-management' && <ExamManagement />}
                   {activeTab.name === 'assessment-plans' && <AssessmentPlanManagement />}
-                  {activeTab.name === 'exam-results-management' && <ExamResultsManagement />}
-                  {activeTab.name === 'exam-taking' && <ExamTaking onBack={() => setActiveTab({ name: 'my-exams', label: '我的考试' })} />}
+                  {activeTab.name === 'exam-results-management' && <ExamResultsManagement onNavigate={handleSetActiveTab} />}
+                  {activeTab.name === 'exam-taking' && <ExamTaking />}
                   {activeTab.name === 'exam-result' && <ExamResult />}
 
-                  {/* 404 兜底：如果以上所有 ID 均未匹配，则显示 NotFound 页面 */}
-                  {!['dashboard', 'admin-dashboard', 'user-employee', 'user-changes', 'user-approval', 'org-department', 'org-position', 
-                    'user-permission', 'user-role-management', 'user-reset-password', 'system-logs', 
-                    'messaging-broadcast', 'broadcast-management', 'notification-settings', 'messaging-chat', 'messaging-group-management', 'employee-memos',
-                    'attendance-home', 'attendance-dept-stats', 'attendance-shift', 'attendance-schedule', 'attendance-approval',
-                    'knowledge-articles', 'knowledge-base', 'my-knowledge',
-                    'vacation-details', 'compensatory-approval',
-                    'reimbursement-apply', 'reimbursement-list', 'reimbursement-approval', 'approver-management', 'reimbursement-settings', 'payslip-management', 
-                    'system-workflow', 'approval-workflow-config', 'role-workflow-config',
-                    'logistics-device-mgmt', 'logistics-device-list', 'asset-request-audit', 'inventory-management',
-                    'personal-info', 'my-todo', 'my-schedule', 'my-notifications', 'my-payslips', 'my-assets', 'my-memos',
-                    'quality-inspection', 'quality-report', 'case-library', 'case-recommendation', 'quality-statistics', 'quality-rules',
-                    'my-exams', 'my-results', 'exam-management', 'assessment-plans', 'exam-results-management', 'exam-taking', 'exam-result'
-                  ].includes(activeTab.name) && <NotFound onBack={handleSetActiveTab} />}
+                  {!tabLabels[activeTab.name] && <NotFound onBack={handleSetActiveTab} />}
                 </Suspense>
               </main>
             </div>
-            {showMemoPopup && (
-              <Suspense fallback={null}>
-                <UnreadMemoPopup onClose={() => setShowMemoPopup(false)} />
-              </Suspense>
-            )}
           </div>
         </PermissionProvider>
       </DatabaseCheck>
-      <Toaster position="top-center" richColors closeButton />
+      <Toaster 
+        position="bottom-right" 
+        richColors 
+        closeButton 
+        visibleToasts={1} 
+        expand={false} 
+        duration={2000}
+        offset={20}
+        toastOptions={{
+          style: {
+            borderRadius: '16px',
+            border: '1px solid rgba(0,0,0,0.08)',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+            padding: '12px 16px',
+          }
+        }}
+      />
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* 极致物理锁定：彻底解决向上堆叠与留白问题 */
+        [data-sonner-toaster] {
+          position: fixed !important;
+          bottom: 20px !important;
+          right: 20px !important;
+          left: auto !important;
+          top: auto !important;
+          height: fit-content !important;
+          max-height: 80px !important;
+          z-index: 9999 !important;
+          transform: none !important;
+        }
+        [data-sonner-toast] {
+          --y: 0px !important;
+          margin-bottom: 0 !important;
+        }
+      `}} />
     </ErrorBoundary>
   )
 }

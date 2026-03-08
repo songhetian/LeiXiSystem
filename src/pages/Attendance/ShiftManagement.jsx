@@ -52,7 +52,7 @@ export default function ShiftManagement() {
   // 获取全局考勤设置
   const fetchGlobalSettings = async () => {
     try {
-      const response = await api.get('/api/attendance/settings')
+      const response = await api.get('/attendance/settings')
       if (response.data.success) {
         setGlobalSettings(response.data.data)
       }
@@ -63,7 +63,7 @@ export default function ShiftManagement() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await api.get('/api/departments')
+      const response = await api.get('/departments')
       // 部门 API 直接返回数组，不是 { success, data } 格式
       if (Array.isArray(response.data)) {
         setDepartments(response.data)
@@ -97,7 +97,7 @@ export default function ShiftManagement() {
         params.keyword = filters.keyword
       }
 
-      const response = await api.get('/api/shifts', { params })
+      const response = await api.get('/shifts', { params })
       if (response.data.success) {
         setShifts(response.data.data)
         setPagination(prev => ({
@@ -181,7 +181,7 @@ export default function ShiftManagement() {
         }
       } else {
         // 创建
-        const response = await api.post('/api/shifts', submitData)
+        const response = await api.post('/shifts', submitData)
         if (response.data.success) {
           toast.success('班次创建成功')
           setShowModal(false)

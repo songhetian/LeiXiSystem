@@ -1,6 +1,6 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import { useState, useEffect } from 'react'
-import axios from 'axios'
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig'
 import {
@@ -48,7 +48,7 @@ export default function MySchedule() {
 
   const fetchEmployeeInfo = async (userId) => {
     try {
-      const response = await axios.get(getApiUrl(`/api/employees/by-user/${userId}`))
+      const response = await api.get(getApiUrl(`/api/employees/by-user/${userId}`))
       if (response.data.success && response.data.data) {
         setEmployee(response.data.data)
       }
@@ -70,7 +70,7 @@ export default function MySchedule() {
       const lastDay = new Date(year, month, 0).getDate()
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const response = await axios.get(getApiUrl('/api/schedules'), {
+      const response = await api.get(getApiUrl('/api/schedules'), {
         params: {
           employee_id: employee.id,
           start_date: startDate,

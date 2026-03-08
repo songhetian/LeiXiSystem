@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Tag, Collapse, List } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 const { Title, Paragraph, Text } = Typography;
@@ -91,7 +91,7 @@ const { Panel } = Collapse;
       {/* Header */}
       <Card
         style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100, borderRadius: 0 }}
-        bodyStyle={{ padding: '10px 24px' }}
+        styles={{ body: { padding: '10px 24px' } }}
       >
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Title level={4} style={{ margin: 0 }}>答题详情 - {exam_title}</Title>
@@ -166,7 +166,7 @@ const AnswerDetail = () => {
   const fetchAnswerDetails = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/assessment-results/${resultId}/answers`, {
+      const response = await api.get(`/api/assessment-results/${resultId}/answers`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setAnswerDetails(response.data.data);
@@ -209,7 +209,7 @@ const AnswerDetail = () => {
       {/* Header */}
       <Card
         style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100, borderRadius: 0 }}
-        bodyStyle={{ padding: '10px 24px' }}
+        styles={{ body: { padding: '10px 24px' } }}
       >
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Title level={4} style={{ margin: 0 }}>答题详情 - {exam_title}</Title>

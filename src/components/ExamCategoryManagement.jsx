@@ -1,7 +1,7 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 import './ExamCategoryManagement.css'
@@ -35,8 +35,8 @@ const ExamCategoryManagement = () => {
     setLoading(true)
     try {
       const [treeRes, statsRes] = await Promise.all([
-        axios.get(getApiUrl('/api/exam-categories/tree'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
-        axios.get(getApiUrl('/api/exam-categories/usage-stats'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+        api.get(getApiUrl('/api/exam-categories/tree')),
+        api.get(getApiUrl('/api/exam-categories/usage-stats'))
       ])
       const tdata = treeRes.data?.data || []
       setTree(Array.isArray(tdata) ? tdata : [])
@@ -69,10 +69,10 @@ const ExamCategoryManagement = () => {
     try {
       const payload = { ...formData, weight: Number(formData.weight) }
       if (editingCategory) {
-        await axios.put(getApiUrl(`/api/exam-categories/${editingCategory.id}`), payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+        await api.put(getApiUrl(`/api/exam-categories/${editingCategory.id}`), payload)
         toast.success('分类更新成功')
       } else {
-        await axios.post(getApiUrl('/api/exam-categories'), payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+        await api.post(getApiUrl('/api/exam-categories'), payload)
         toast.success('分类创建成功')
       }
       setShowModal(false)
@@ -90,7 +90,7 @@ const ExamCategoryManagement = () => {
     if (!window.confirm('确定要删除这个分类吗？')) return
 
     try {
-      await axios.delete(getApiUrl(`/api/exam-categories/${id}`), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      await api.delete(getApiUrl(`/api/exam-categories/${id}`))
       toast.success('分类删除成功')
       fetchCategories()
     } catch (error) {
@@ -128,9 +128,9 @@ const ExamCategoryManagement = () => {
     try {
       const siblings = filteredCategories.filter(c => (c.parent_id || null) === (item.parent_id || null))
       const newOrder = destination.index < source.index ? Math.max(1, (item.order_num || 1) - 1) : (item.order_num || 1) + 1
-      await axios.put(getApiUrl('/api/exam-categories/reorder'), {
+      await api.put(getApiUrl('/api/exam-categories/reorder'), {
         moves: [{ id: item.id, parent_id: item.parent_id || null, order_num: newOrder }]
-      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      })
       fetchCategories()
     } catch (e) {
       toast.error('拖拽排序失败')
@@ -159,7 +159,7 @@ const ExamCategoryManagement = () => {
           <button
             onClick={async () => {
               try {
-                const res = await axios.get(getApiUrl('/api/exam-categories/export.xlsx'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, responseType: 'blob' })
+                const res = await api.get(getApiUrl('/api/exam-categories/export.xlsx'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, responseType: 'blob' })
                 const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
@@ -186,7 +186,7 @@ const ExamCategoryManagement = () => {
               try {
                 const form = new FormData()
                 form.append('file', file)
-                const res = await axios.post(getApiUrl('/api/exam-categories/import.xlsx'), form, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                const res = await api.post(getApiUrl('/api/exam-categories/import.xlsx'), form)
                 toast.success(`导入完成：成功 ${res.data?.data?.success_count || 0}`)
                 fetchCategories()
               } catch (err) {
@@ -284,21 +284,21 @@ const ExamCategoryManagement = () => {
                             <button className="quick-btn" onClick={async () => {
                               try {
                                 const moves = [{ id: category.id, parent_id: category.parent_id, order_num: (category.order_num || 1) - 1 }]
-                                await axios.put(getApiUrl('/api/exam-categories/reorder'), { moves }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                await api.put(getApiUrl('/api/exam-categories/reorder'), { moves })
                                 fetchCategories()
                               } catch { toast.error('上移失败') }
                             }}>上移</button>
                             <button className="quick-btn" onClick={async () => {
                               try {
                                 const moves = [{ id: category.id, parent_id: category.parent_id, order_num: (category.order_num || 1) + 1 }]
-                                await axios.put(getApiUrl('/api/exam-categories/reorder'), { moves }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                await api.put(getApiUrl('/api/exam-categories/reorder'), { moves })
                                 fetchCategories()
                               } catch { toast.error('下移失败') }
                             }}>下移</button>
                             <select className="quick-btn" value={category.parent_id || ''} onChange={async (e) => {
                               const newParent = e.target.value ? parseInt(e.target.value, 10) : null
                               try {
-                                await axios.put(getApiUrl(`/api/exam-categories/${category.id}`), { parent_id: newParent }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                await api.put(getApiUrl(`/api/exam-categories/${category.id}`), { parent_id: newParent })
                                 fetchCategories()
                               } catch { toast.error('调整父级失败') }
                             }}>

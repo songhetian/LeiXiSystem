@@ -31,7 +31,7 @@ const CompensatoryApproval = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await api.get('/api/departments/list');
+      const response = await api.get('/departments/list');
       if (response.data.success) setDepartments(response.data.data.filter(d => d.status === 'active'));
     } catch (error) { logger.error('加载部门失败:', error); }
   }
@@ -51,7 +51,7 @@ const CompensatoryApproval = () => {
         status: status === 'all' ? '' : status
       };
 
-      const response = await api.get('/api/compensatory/list', { params });
+      const response = await api.get('/compensatory/list', { params });
       if (response.data.success) {
         setRequests(response.data.data || [])
         setPagination(prev => ({ ...prev, total: response.data.pagination?.total || 0 }))

@@ -129,6 +129,42 @@ io.use((socket, next) => {
     socket.join(`user_${userId}`)
     socket.emit('connected', { message: '已连接', userId: userId, timestamp: new Date() })
 
+    // --- 关键增强：上线自动推送全量未读数 ---
+    const pushTotalUnreadCount = async () => {
+        try {
+            const pool = getPool ? getPool() : null;
+            if (!pool) return;
+            
+            // 统计普通通知
+            const [[notifResult]] = await pool.query(
+                'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+                [userId]
+            );
+            
+            // 统计系统广播
+            const [[broadcastResult]] = await pool.query(
+                `SELECT COUNT(*) as count 
+                 FROM broadcast_recipients br
+                 INNER JOIN broadcasts b ON br.broadcast_id = b.id
+                 WHERE br.user_id = ? AND br.is_read = FALSE
+                 AND (b.expires_at IS NULL OR b.expires_at > NOW())`,
+                [userId]
+            );
+
+            const total = (notifResult.count || 0) + (broadcastResult.count || 0);
+            socket.emit('unread_count', { count: total });
+            
+            // 同步更新 Redis 缓存 (如果启用)
+            if (redis) {
+                await redis.set(`user:unread_count:${userId}`, total, 'EX', 3600);
+            }
+        } catch (err) {
+            console.error('Failed to push initial unread count:', err);
+        }
+    };
+
+    await pushTotalUnreadCount();
+
     // 接收心跳时补录状态 (防止Redis意外丢失)
     socket.on('ping', async () => {
       if (redis) await redis.sadd('online_users', userId);
@@ -139,17 +175,7 @@ io.use((socket, next) => {
     
     // 响应未读数请求
     socket.on('request_unread_count', async () => {
-        try {
-            const pool = getPool ? getPool() : null;
-            if (!pool) return;
-            const [result] = await pool.query(
-                'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
-                [userId]
-            );
-            socket.emit('unread_count', { count: result[0].count });
-        } catch (err) {
-            console.error('Failed to fetch unread count via Socket:', err);
-        }
+        await pushTotalUnreadCount();
     });
 
     // --- Chat Events ---

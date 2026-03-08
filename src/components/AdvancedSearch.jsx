@@ -1,8 +1,8 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
-import axios from 'axios'
 import { useDebounce } from '../hooks/useDebounce'
 import { getApiBaseUrl } from '../utils/apiConfig'
 
@@ -76,7 +76,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API_URL}/knowledge/categories`)
+      const response = await api.get(`${API_URL}/knowledge/categories`)
       setCategories(response.data || [])
     } catch (error) {
       logger.error('获取分类失败:', error)
@@ -86,7 +86,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
   const fetchAuthors = async () => {
     try {
       // 获取所有文档的作者列表（去重）
-      const response = await axios.get(`${API_URL}/knowledge/articles`)
+      const response = await api.get(`${API_URL}/knowledge/articles`)
       const articles = response.data || []
       const authorMap = new Map()
 
@@ -120,7 +120,7 @@ const AdvancedSearch = ({ isOpen, onClose, embedded = false, onSearch, onEdit, o
         pageSize
       }
 
-      const response = await axios.post(`${API_URL}/knowledge/articles/search`, searchParams)
+      const response = await api.post(`${API_URL}/knowledge/articles/search`, searchParams)
 
       if (response.data.success) {
         const results = response.data.data || response.data

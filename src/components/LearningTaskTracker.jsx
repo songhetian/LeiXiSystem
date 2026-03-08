@@ -1,8 +1,8 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
-import axios from 'axios';
 import { getApiUrl } from '../utils/apiConfig';
 
 const LearningTaskTracker = () => {
@@ -16,9 +16,9 @@ const LearningTaskTracker = () => {
     setLoading(true);
     try {
       // 获取待完成任务
-      const pendingResponse = await axios.get(getApiUrl('/api/learning-tasks?status=pending'));
+      const pendingResponse = await api.get(getApiUrl('/api/learning-tasks?status=pending'));
       // 获取已完成任务
-      const completedResponse = await axios.get(getApiUrl('/api/learning-tasks?status=completed'));
+      const completedResponse = await api.get(getApiUrl('/api/learning-tasks?status=completed'));
 
       setTasks(pendingResponse.data || []);
       setCompletedTasks(completedResponse.data || []);
@@ -33,7 +33,7 @@ const LearningTaskTracker = () => {
   // 标记任务为完成
   const markTaskAsCompleted = async (taskId) => {
     try {
-      await axios.put(getApiUrl(`/api/learning-tasks/${taskId}/complete`));
+      await api.put(getApiUrl(`/api/learning-tasks/${taskId}/complete`));
       toast.success('任务标记为完成');
       fetchTasks(); // 重新获取任务列表
     } catch (error) {
@@ -47,7 +47,7 @@ const LearningTaskTracker = () => {
     if (!window.confirm('确定要删除这个任务吗？')) return;
 
     try {
-      await axios.delete(getApiUrl(`/api/learning-tasks/${taskId}`));
+      await api.delete(getApiUrl(`/api/learning-tasks/${taskId}`));
       toast.success('任务已删除');
       fetchTasks(); // 重新获取任务列表
     } catch (error) {

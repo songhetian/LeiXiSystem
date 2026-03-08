@@ -12,7 +12,6 @@ import {
     CloseCircleOutlined
 } from '@ant-design/icons';
 import { ChevronLeft, ChevronRight, ArrowRight, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
-import axios from 'axios';
 import api from '../../api';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../utils/apiConfig';
@@ -62,7 +61,7 @@ const AttendanceRecords = () => {
             }
             if (statusFilter !== 'all') params.status = statusFilter;
 
-            const response = await api.get('/api/attendance/records', { params });
+            const response = await api.get('/attendance/records', { params });
             if (response.data.success) {
                 setRecords(response.data.data);
                 setTotal(response.data.total || 0);

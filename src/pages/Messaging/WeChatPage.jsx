@@ -386,18 +386,40 @@ const WeChatPage = () => {
   };
 
   const sendMessage = React.useCallback(async (content, type = 'text', fileUrl = null) => {
-    if (!activeChat || !wsManager.socket) return;
-    const payload = { targetId: activeChat.id, targetType: 'group', content, type, fileUrl };
+    // 🛡️ 核心修复：使用 Ref 获取最实时、最准确的活跃聊天 ID，彻底解决发错群的问题
+    const currentActiveChat = activeChatRef.current;
+    if (!currentActiveChat || !wsManager.socket) {
+      logger.warn('⚠️ [Chat] 发送失败：未选中聊天或连接已断开');
+      return;
+    }
+
+    const payload = { 
+      targetId: currentActiveChat.id, 
+      targetType: 'group', 
+      content, 
+      type, 
+      fileUrl 
+    };
+
+    logger.debug(`📤 [Chat] 正在向群组 [${currentActiveChat.id}: ${currentActiveChat.name}] 发送消息`);
     wsManager.socket.emit('send_message', payload);
     
-    // 核心：通过 Store 的逻辑来统一处理置顶和已读抹零
-    handleNewMessage({
+    const localMsg = {
         ...payload,
-        group_id: activeChat.id,
+        group_id: currentActiveChat.id,
         sender_id: currentUserRef.current?.id,
+        sender_name: currentUserRef.current?.real_name || currentUserRef.current?.name,
+        sender_avatar: currentUserRef.current?.avatar,
         created_at: new Date().toISOString()
-    }, currentUserRef.current?.id);
-  }, [activeChat, handleNewMessage]);
+    };
+
+    // 🛡️ 修复：同步更新当前窗口的消息数组，实现即时渲染
+    setMessages(prev => [...prev, localMsg]);
+    setTimeout(scrollToBottom, 50);
+
+    // 同步本地 Store 状态（处理侧边栏摘要和置顶）
+    handleNewMessage(localMsg, currentUserRef.current?.id);
+  }, [handleNewMessage]); // 移除 activeChat 依赖，改用 Ref 驱动
 
   const handleFileUpload = React.useCallback(async (file) => {
     const formData = new FormData();

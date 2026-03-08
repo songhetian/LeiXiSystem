@@ -37,7 +37,7 @@ const VacationDetailsNew = () => {
 
   const loadConversionRules = async () => {
     try {
-      const response = await api.get('/api/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
+      const response = await api.get('/conversion-rules', { params: { source_type: 'overtime', enabled: true } });
       if (response.data.success) setConversionRules(response.data.data);
     } catch (e) { logger.error(e); }
   }
@@ -57,9 +57,9 @@ const VacationDetailsNew = () => {
 
       // 2. 并行获取假务资产数据
       const [typesRes, balanceRes, overtimeRes, conversionRes] = await Promise.all([
-        api.get('/api/vacation-types'),
+        api.get('/vacation-types'),
         api.get(`/api/vacation/type-balances/${emp.id}`, { params: { year: selectedYear } }),
-        api.get('/api/overtime/stats', { params: { employee_id: emp.id } }),
+        api.get('/overtime/stats', { params: { employee_id: emp.id } }),
         api.get(`/api/vacation/conversion-balance/${emp.id}`)
       ]);
 
@@ -83,7 +83,7 @@ const VacationDetailsNew = () => {
 
       // 3. 获取月度额度 (仅月度模式)
       if (viewMode === 'month') {
-        const holidayRes = await api.get('/api/holidays', { params: { year: selectedYear } });
+        const holidayRes = await api.get('/holidays', { params: { year: selectedYear } });
         if (holidayRes.data.success) {
           const mTotal = (holidayRes.data.data || [])
             .filter(h => parseInt(h.month) === selectedMonth)
@@ -93,7 +93,7 @@ const VacationDetailsNew = () => {
       }
 
       // 4. 获取历史核销明细
-      const leaveRes = await api.get('/api/leave/records', {
+      const leaveRes = await api.get('/leave/records', {
         params: { employee_id: emp.id, status: 'approved', page: currentPage, limit: pageSize }
       });
       if (leaveRes.data.success) {

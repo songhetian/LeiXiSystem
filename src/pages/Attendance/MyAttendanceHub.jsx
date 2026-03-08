@@ -165,7 +165,7 @@ const MyAttendanceHub = () => {
                         items={items} 
                         className="flagship-main-tabs"
                         size="middle"
-                        destroyInactiveTabPane={false}
+                        destroyOnHidden={false}
                     />
                 </div>
 

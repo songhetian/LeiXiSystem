@@ -179,7 +179,7 @@ export default function ApprovalManagement() {
                 value={filters.status} 
                 onChange={v => setFilters({...filters, status: v})}
                 className="w-36 h-full flagship-select"
-                bordered={false}
+                variant="borderless"
                 options={[
                     { label: '🕒 待我审批', value: 'pending' },
                     { label: '✅ 已通过', value: 'approved' },

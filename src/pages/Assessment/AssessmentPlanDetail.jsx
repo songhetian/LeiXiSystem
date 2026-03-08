@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Descriptions, Button, Space, Tag, message, Spin, Table } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EditOutlined, ArrowLeftOutlined, ExportOutlined, EyeOutlined } from '@ant-design/icons';
-import axios from 'axios';
 import dayjs from 'dayjs';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
@@ -26,7 +26,7 @@ const AssessmentPlanDetail = () => {
 
   const fetchAssessmentPlanDetails = async () => {
     try {
-      const response = await axios.get(`/api/assessment-plans/${id}`, {
+      const response = await api.get(`/api/assessment-plans/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setPlan(response.data.data);
@@ -40,7 +40,7 @@ const AssessmentPlanDetail = () => {
 
   const fetchParticipants = async () => {
     try {
-      const response = await axios.get(`/api/assessment-plans/${id}/participants`, {
+      const response = await api.get(`/api/assessment-plans/${id}/participants`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setParticipants(response.data.data.participants);
@@ -59,7 +59,7 @@ const AssessmentPlanDetail = () => {
       // Or, if the backend provides a dedicated endpoint for plan score distribution
       // For now, let's use a placeholder or derive from participants if possible
       // This part needs a dedicated backend API for score distribution by plan
-      const response = await axios.get(`/api/statistics/exam/${plan?.exam_id}`, { // Placeholder
+      const response = await api.get(`/api/statistics/exam/${plan?.exam_id}`, { // Placeholder
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const distribution = response.data.data.score_distribution;

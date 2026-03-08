@@ -1,8 +1,8 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
-import axios from 'axios'
 import { getApiUrl } from '../utils/apiConfig'
 
 
@@ -39,8 +39,8 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
     setError(null)
     try {
       const [categoriesRes, articlesRes] = await Promise.all([
-        axios.get(getApiUrl('/api/knowledge/recycle-bin/categories')),
-        axios.get(getApiUrl('/api/knowledge/recycle-bin/articles'))
+        api.get(getApiUrl('/api/knowledge/recycle-bin/categories')),
+        api.get(getApiUrl('/api/knowledge/recycle-bin/articles'))
       ])
 
       setDeletedCategories(categoriesRes.data.data || [])
@@ -79,13 +79,13 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
     setActionLoading(true)
     try {
       if (restoreType === 'category') {
-        await axios.post(
+        await api.post(
           getApiUrl(`/api/knowledge/recycle-bin/categories/${restoreTarget.id}/restore`),
           { restoreArticles }
         )
         toast.success(`分类"${restoreTarget.name}"已还原`)
       } else {
-        await axios.post(
+        await api.post(
           getApiUrl(`/api/knowledge/recycle-bin/articles/${restoreTarget.id}/restore`)
         )
         toast.success(`文档"${restoreTarget.title}"已还原`)
@@ -122,12 +122,12 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
     setActionLoading(true)
     try {
       if (deleteType === 'category') {
-        await axios.delete(
+        await api.delete(
           getApiUrl(`/api/knowledge/recycle-bin/categories/${deleteTarget.id}/permanent`)
         )
         toast.success(`分类"${deleteTarget.name}"已永久删除`)
       } else {
-        await axios.delete(
+        await api.delete(
           getApiUrl(`/api/knowledge/recycle-bin/articles/${deleteTarget.id}/permanent`)
         )
         toast.success(`文档"${deleteTarget.title}"已永久删除`)
@@ -158,7 +158,7 @@ const RecycleBin = ({ isOpen, onClose, onRefresh }) => {
   const handleConfirmEmpty = async () => {
     setActionLoading(true)
     try {
-      await axios.post(getApiUrl('/api/knowledge/recycle-bin/empty'), {
+      await api.post(getApiUrl('/api/knowledge/recycle-bin/empty'), {
         type: 'all'
       })
       toast.success('回收站已清空')

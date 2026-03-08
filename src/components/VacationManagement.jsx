@@ -51,7 +51,7 @@ const VacationManagement = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/vacation/balance/all', { params: { year, limit: 1000 } });
+      const response = await api.get('/vacation/balance/all', { params: { year, limit: 1000 } });
       if (response.data.success) {
         setData(response.data.data);
         calculateStats(response.data.data);
@@ -69,7 +69,7 @@ const VacationManagement = () => {
 
   const fetchExpiringQuotas = async () => {
     try {
-      const res = await api.get('/api/vacation/expiring-soon', { params: { days: 30 } });
+      const res = await api.get('/vacation/expiring-soon', { params: { days: 30 } });
       if (res.data.success) setExpiringQuotas(res.data.data);
     } catch (e) {}
   };
@@ -77,7 +77,7 @@ const VacationManagement = () => {
   const onConvertSubmit = async () => {
     if (!selectedEmployee) return;
     try {
-      const res = await api.post('/api/vacation/convert-overtime', {
+      const res = await api.post('/vacation/convert-overtime', {
         employee_id: selectedEmployee.employee_id,
         hours: selectedEmployee.overtime_hours_total - (selectedEmployee.overtime_hours_converted || 0),
         year: year
@@ -163,7 +163,7 @@ const VacationManagement = () => {
             <div className="px-3 h-full border-r border-slate-100 flex items-center gap-2 bg-slate-100/50">
                 <Calendar size={14} className="text-slate-400" />
             </div>
-            <Select value={year} onChange={setYear} className="w-24 !border-none flagship-select h-full" bordered={false}
+            <Select value={year} onChange={setYear} className="w-24 !border-none flagship-select h-full" variant="borderless"
                 options={[0, 1, 2, 3].map(i => { const y = dayjs().year() - 2 + i; return { value: y, label: `${y}年` }; })} />
           </div>
 

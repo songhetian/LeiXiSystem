@@ -16,7 +16,7 @@ const VacationTrendChart = ({ employeeId, year }) => {
   const loadTrendData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/vacation/trend-data', { 
+      const response = await api.get('/vacation/trend-data', { 
         params: { employee_id: employeeId, months, year } 
       });
       if (response.data.success) setData(response.data.data);
@@ -31,7 +31,7 @@ const VacationTrendChart = ({ employeeId, year }) => {
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-6">
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">假期核销趋势分析</span>
-        <Select size="small" value={months} onChange={setMonths} className="w-28 font-black" bordered={false} popupClassName="custom-flagship-select-dropdown">
+        <Select size="small" value={months} onChange={setMonths} className="w-28 font-black" variant="borderless" popupClassName="custom-flagship-select-dropdown">
           <Select.Option value={3}>近3个月</Select.Option>
           <Select.Option value={6}>近6个月</Select.Option>
           <Select.Option value={12}>近12个月</Select.Option>

@@ -309,6 +309,22 @@ module.exports = async function (fastify, opts) {
               related_type: 'schedule',
               created_at: new Date()
             })
+
+            // 🔴 关键增强：同步推送最新的未读计数
+            const [[notifResult]] = await pool.query(
+              'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+              [oldSchedule.user_id]
+            );
+            const [[broadcastResult]] = await pool.query(
+              `SELECT COUNT(*) as count 
+               FROM broadcast_recipients br
+               INNER JOIN broadcasts b ON br.broadcast_id = b.id
+               WHERE br.user_id = ? AND br.is_read = FALSE
+               AND (b.expires_at IS NULL OR b.expires_at > NOW())`,
+              [oldSchedule.user_id]
+            );
+            const totalCount = (notifResult.count || 0) + (broadcastResult.count || 0);
+            fastify.io.to(`user_${oldSchedule.user_id}`).emit('unread_count', { count: totalCount });
           }
         } catch (notificationError) {
           console.error('❌ 创建排班变更通知失败:', notificationError)

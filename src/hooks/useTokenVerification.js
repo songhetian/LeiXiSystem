@@ -1,72 +1,55 @@
-import logger from '@/utils/logger';
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner';
-import { getApiBaseUrl } from '../utils/apiConfig'
-import { apiGet } from '../utils/apiClient'
+import api from '../api'
+import logger from '../utils/logger'
 
 /**
- * Token验证Hook - 实现单设备登录
- * 定期检查token有效性，如果在其他设备登录则自动退出
+ * Token验证Hook - 实现单设备登录与在线状态校验
  */
 export const useTokenVerification = (onLogout, userId) => {
   const intervalRef = useRef(null)
-  const isCheckingRef = useRef(false)
 
   const verifyToken = async () => {
-    // 防止重复检查
-    if (isCheckingRef.current) return
-
-    const token = localStorage.getItem('token')
-    if (!token) return
+    // 如果没有 Token 或未登录，不执行校验
+    const token = localStorage.getItem('token');
+    if (!token || !userId) return;
 
     try {
-      isCheckingRef.current = true
-
-      // 使用apiGet，并跳过自动刷新，避免死循环
-      const data = await apiGet('/api/auth/verify-token', {
-        skipRefresh: true
-      })
-
-      // 只有明确返回 valid === false 时才踢出
-      if (data && data.valid === false) {
-        logger.error('Token 校验失败:', data.message);
-        // Token无效，清除本地存储
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        localStorage.removeItem('sessionToken')
-
-        // 触发退出回调
-        if (onLogout) {
-          onLogout()
-        }
+      // 使用统一的 api 实例，路径不再包含 /api 前缀
+      const res = await api.get('/auth/permissions');
+      
+      if (res.data && res.data.success) {
+        logger.debug('🛡️ [TokenVerify] 校验通过');
+      } else {
+        throw new Error('Verification failed');
       }
     } catch (error) {
-      // 忽略校验过程中的网络错误，避免误踢
-      logger.error('Token 校验过程异常:', error);
-    } finally {
-      isCheckingRef.current = false
+      // 401 说明 Token 物理失效或被踢出
+      if (error.response?.status === 401) {
+        logger.error('🚨 [TokenVerify] Token 已失效或被其他设备踢出');
+        if (onLogout) onLogout('kicked_out_verify');
+      } else {
+        logger.error('⚠️ [TokenVerify] 校验过程网络异常:', error.message);
+      }
     }
   }
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token || !userId) return
+    if (userId) {
+      // 立即执行一次
+      verifyToken()
 
-    // 立即执行一次验证
-    verifyToken()
+      // 设置定时器 (每 2 分钟校验一次)
+      intervalRef.current = setInterval(verifyToken, 120000)
+    }
 
-    // 每30秒检查一次token有效性
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(verifyToken, 30000)
-
-    // 清理函数
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
     }
-  }, [onLogout, userId]) // 🚨 监听 userId 变化
+  }, [onLogout, userId])
 
   return { verifyToken }
 }

@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, Select, DatePicker, Table } from 'antd';
 import { Bar, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title as ChartTitle, Tooltip, Legend } from 'chart.js';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ChartTitle, Tooltip, Legend);
@@ -35,7 +35,7 @@ const ExamStatistics = () => {
   const fetchOverallStats = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/statistics/exam-overview', {
+      const response = await api.get('/statistics/exam-overview', {
         params: {
           start_time: filters.dateRange[0] ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
           end_time: filters.dateRange[1] ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
@@ -58,7 +58,7 @@ const ExamStatistics = () => {
   const fetchScoreTrend = async () => {
     try {
       // Assuming an API for score trend, e.g., /api/statistics/score-trend
-      const response = await axios.get('/api/statistics/score-trend', { // Placeholder API
+      const response = await api.get('/statistics/score-trend', { // Placeholder API
         params: {
           start_time: filters.dateRange[0] ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
           end_time: filters.dateRange[1] ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
@@ -94,7 +94,7 @@ const ExamStatistics = () => {
 
   const fetchDepartmentComparison = async () => {
     try {
-      const response = await axios.get('/api/statistics/department', {
+      const response = await api.get('/statistics/department', {
         params: {
           start_time: filters.dateRange[0] ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
           end_time: filters.dateRange[1] ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
@@ -127,7 +127,7 @@ const ExamStatistics = () => {
 
   const fetchRanking = async () => {
     try {
-      const response = await axios.get('/api/statistics/ranking', {
+      const response = await api.get('/statistics/ranking', {
         params: {
           exam_id: filters.examId,
           // Add other filters if needed
@@ -143,7 +143,7 @@ const ExamStatistics = () => {
 
   const fetchExamsForFilter = async () => {
     try {
-      const response = await axios.get('/api/exams', {
+      const response = await api.get('/exams', {
         params: { pageSize: 9999 }, // Get all exams for filter
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });

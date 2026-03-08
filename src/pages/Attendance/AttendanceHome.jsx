@@ -142,7 +142,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 获取考勤设置
   const fetchAttendanceSettings = async () => {
     try {
-      const response = await api.get('/api/attendance/settings')
+      const response = await api.get('/attendance/settings')
       if (response.data.success) {
         const settings = response.data.data
         // 转换为前端使用的格式
@@ -167,7 +167,7 @@ export default function AttendanceHome({ onNavigate }) {
 
   const loadRestShift = async () => {
     try {
-      const response = await api.get('/api/shifts/rest')
+      const response = await api.get('/shifts/rest')
       if (response.data.success) {
         setRestShiftId(response.data.data.id)
       }
@@ -180,7 +180,7 @@ export default function AttendanceHome({ onNavigate }) {
     if (!employee) return
 
     try {
-      const response = await api.get('/api/attendance/today', {
+      const response = await api.get('/attendance/today', {
         params: { employee_id: employee.id }
       })
       if (response.data.success) {
@@ -201,7 +201,7 @@ export default function AttendanceHome({ onNavigate }) {
       // 使用北京时间获取今日日期，避免时区问题
       const today = formatBeijingDate(); // 使用格式化后的日期字符串
 
-      const response = await api.get('/api/schedules', {
+      const response = await api.get('/schedules', {
         params: {
           employee_id: employee.id,
           start_date: today,
@@ -223,7 +223,7 @@ export default function AttendanceHome({ onNavigate }) {
   // 获取班次列表
   const fetchShifts = async () => {
     try {
-      const response = await api.get('/api/shifts', {
+      const response = await api.get('/shifts', {
         params: { limit: 100, is_active: 1 }
       })
       if (response.data.success) {
@@ -252,7 +252,7 @@ export default function AttendanceHome({ onNavigate }) {
       // 使用北京时间获取今日日期，避免时区问题
       const today = formatBeijingDate(); // 使用格式化后的日期
 
-      const response = await api.post('/api/schedules/self', {
+      const response = await api.post('/schedules/self', {
         employee_id: employee.id,
         user_id: user.id,
         schedule_date: today,
@@ -287,7 +287,7 @@ export default function AttendanceHome({ onNavigate }) {
     setLoading(true)
 
     try {
-      const response = await api.post('/api/attendance/clock-in', {
+      const response = await api.post('/attendance/clock-in', {
         employee_id: employee.id,
         user_id: user.id
       })
@@ -316,7 +316,7 @@ export default function AttendanceHome({ onNavigate }) {
     setLoading(true)
 
     try {
-      const response = await api.post('/api/attendance/clock-out', {
+      const response = await api.post('/attendance/clock-out', {
         employee_id: employee.id,
         user_id: user.id
       })
@@ -652,7 +652,7 @@ export default function AttendanceHome({ onNavigate }) {
                   onConfirm: async () => {
                     try {
                       const today = formatBeijingDate()
-                      await api.delete('/api/attendance/today', {
+                      await api.delete('/attendance/today', {
                         params: { employee_id: employee?.id, date: today }
                       })
                       toast.success('物理记录已清除')
@@ -678,7 +678,7 @@ export default function AttendanceHome({ onNavigate }) {
                   onConfirm: async () => {
                     try {
                       const today = formatBeijingDate();
-                      await api.delete('/api/schedules/today', {
+                      await api.delete('/schedules/today', {
                         params: { employee_id: employee?.id, schedule_date: today }
                       })
                       toast.success('排班已重置')

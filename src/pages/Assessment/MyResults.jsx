@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Button, Input, Select, Space, Tag, message, DatePicker } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -27,7 +27,7 @@ const MyResults = () => {
   const fetchMyResults = async (params = {}) => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/my-results', {
+      const response = await api.get('/my-results', {
         params: {
           page: params.pagination?.current || pagination.current,
           pageSize: params.pagination?.pageSize || pagination.pageSize,

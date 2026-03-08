@@ -113,7 +113,7 @@ const DeviceModelEditor = ({ isOpen, deviceId, onClose, onSave, categories, form
       centered
       okText="保存发布"
       cancelText="取消"
-      bodyStyle={{ padding: 0 }}
+      styles={{ body: { padding: 0 } }}
     >
       <div className="flex h-[600px] border-t border-gray-100">
         {/* 1. 左侧：分类导航 */}

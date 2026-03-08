@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Space, message, Spin, Progress, Modal, Typography, Radio, Checkbox, Input, Drawer, Skeleton, Tag } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, FlagOutlined, ClockCircleOutlined, MenuOutlined, SaveOutlined, CheckCircleOutlined, ExclamationCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 
@@ -45,7 +45,7 @@ const ExamTaking = () => {
     if (!resultId || !questionId) return;
     setSaveStatus('saving');
     try {
-      await axios.put(`/api/assessment-results/${resultId}/answer`, {
+      await api.put(`/api/assessment-results/${resultId}/answer`, {
         question_id: questionId,
         user_answer: answer,
       }, {
@@ -74,7 +74,7 @@ const ExamTaking = () => {
     try {
       // Save all answers
       for (const [questionId, answer] of Object.entries(userAnswers)) {
-        await axios.put(`/api/assessment-results/${resultId}/answer`, {
+        await api.put(`/api/assessment-results/${resultId}/answer`, {
           question_id: questionId,
           user_answer: answer,
         }, {
@@ -116,7 +116,7 @@ const ExamTaking = () => {
   const fetchExamProgress = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/assessment-results/${resultId}`, {
+      const response = await api.get(`/api/assessment-results/${resultId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const data = response.data.data;
@@ -179,7 +179,7 @@ const ExamTaking = () => {
       // 在提交前,先保存所有答案到后端,确保验证能通过
       logger.debug('提交前保存所有答案:', userAnswers);
       if (Object.keys(userAnswers).length > 0) {
-        await axios.put(`/api/assessment-results/${resultId}/answer`, {
+        await api.put(`/api/assessment-results/${resultId}/answer`, {
           answers: userAnswers
         }, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -187,7 +187,7 @@ const ExamTaking = () => {
         logger.debug('所有答案已保存,开始提交');
       }
 
-      await axios.post(`/api/assessment-results/${resultId}/submit`, {}, {
+      await api.post(`/api/assessment-results/${resultId}/submit`, {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success(isTimeout ? '考试时间到，已自动提交' : '考试提交成功');
@@ -251,7 +251,7 @@ const ExamTaking = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         {/* Top Toolbar Skeleton */}
-        <Card style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100, borderRadius: 0 }} bodyStyle={{ padding: '10px 24px' }}>
+        <Card style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100, borderRadius: 0 }} styles={{ body: { padding: '10px 24px' } }}>
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Skeleton.Input style={{ width: 200 }} active />
             <Space>
@@ -427,7 +427,7 @@ const ExamTaking = () => {
       {/* Top Toolbar */}
       <Card
         style={{ width: '100%', position: 'fixed', top: 0, zIndex: 100, borderRadius: 0 }}
-        bodyStyle={{ padding: '10px 24px' }}
+        styles={{ body: { padding: '10px 24px' } }}
       >
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
@@ -537,7 +537,7 @@ const ExamTaking = () => {
           visible={drawerVisible}
           key="question-nav-drawer"
           width="80%"
-          bodyStyle={{ padding: 0 }}
+          styles={{ body: { padding: 0 } }}
         >
           <QuestionNav
             questions={examData.questions}

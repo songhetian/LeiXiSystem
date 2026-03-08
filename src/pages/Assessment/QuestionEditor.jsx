@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Select, Button, Space, message, Card, Radio, InputNumber, Checkbox, Tag } from 'antd';
 import { MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { useFormAutoSave } from '../../hooks/useFormAutoSave';
 
 const { Option } = Select;
@@ -36,7 +36,7 @@ const QuestionEditor = () => {
   const fetchQuestionDetails = async (id) => {
     setLoading(true);
     try {
-      const response = await axios.get(`/api/questions/${id}`, {
+      const response = await api.get(`/api/questions/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const question = response.data.data;
@@ -78,12 +78,12 @@ const QuestionEditor = () => {
       delete payload.fill_blanks;
 
       if (questionId) {
-        await axios.put(`/api/questions/${questionId}`, payload, {
+        await api.put(`/api/questions/${questionId}`, payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         message.success('题目更新成功');
       } else {
-        await axios.post(`/api/exams/${examId}/questions`, payload, {
+        await api.post(`/api/exams/${examId}/questions`, payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         message.success('题目创建成功');
@@ -118,7 +118,7 @@ const QuestionEditor = () => {
       if (payload.options) payload.options = JSON.stringify(payload.options);
       if (payload.correct_answer) payload.correct_answer = JSON.stringify(payload.correct_answer);
 
-      await axios.put(`/api/questions/${questionId}`, payload, {
+      await api.put(`/api/questions/${questionId}`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (error) {

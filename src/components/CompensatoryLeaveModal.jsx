@@ -1,6 +1,6 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { getApiUrl } from '../utils/apiConfig';
 import { XMarkIcon, CalendarIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -70,7 +70,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
     setLoadingShifts(true);
     try {
       // Fetch all active shifts (limit 100 to be safe)
-      const response = await axios.get(getApiUrl('/api/shifts'), {
+      const response = await api.get(getApiUrl('/api/shifts'), {
         params: { is_active: 1, limit: 100 }
       });
 
@@ -100,7 +100,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
       // Assuming an endpoint exists or we use /api/schedules query
       // If no specific endpoint, we trust the user or try to find it.
       // Let's try to query schedules.
-      const response = await axios.get(getApiUrl('/api/schedules'), {
+      const response = await api.get(getApiUrl('/api/schedules'), {
         params: {
             employee_id: effectiveEmployeeId,
             start_date: date,
@@ -141,7 +141,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
        let effectiveEmployeeId = employeeId || user.employee_id;
        if (!effectiveEmployeeId && user.id && token) {
          try {
-           const res = await axios.get(getApiUrl(`/api/employees/by-user/${user.id}`), {
+           const res = await api.get(getApiUrl(`/api/employees/by-user/${user.id}`), {
              headers: { Authorization: `Bearer ${token}` },
            });
            if (res.data?.success && res.data?.data?.id) {
@@ -163,7 +163,7 @@ export default function CompensatoryLeaveModal({ isOpen, onClose, onSuccess }) {
           reason: formData.reason
        };
 
-       const response = await axios.post(getApiUrl('/api/compensatory/apply'), payload);
+       const response = await api.post(getApiUrl('/api/compensatory/apply'), payload);
        if (response.data.success) {
           onSuccess();
           toast.success('申请提交成功', { position: 'top-center' });

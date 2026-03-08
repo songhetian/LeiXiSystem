@@ -1,9 +1,7 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import axios from 'axios';
-import api from '../../api';
-import { getApiUrl } from '../../utils/apiConfig';
 import {
   BanknotesIcon,
   PlusIcon,
@@ -346,11 +344,8 @@ export default function PayslipManagement() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const response = await axios.get(getApiUrl('/api/admin/payslips/import-template'), {
-        responseType: 'blob',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      const response = await api.get('/admin/payslips/import-template', {
+        responseType: 'blob'
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -372,10 +367,9 @@ export default function PayslipManagement() {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(getApiUrl('/api/admin/payslips/import'), formData, {
+      const response = await api.post('/admin/payslips/import', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'multipart/form-data'
         }
       });
 

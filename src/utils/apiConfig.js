@@ -5,24 +5,37 @@
 
 export const getApiBaseUrl = () => {
   const hostname = window.location.hostname;
-  const isDev = hostname === "localhost" || hostname === "127.0.0.1";
+  const port = window.location.port;
+  // 识别开发环境：localhost、127.0.0.1、局域网 IP 或者运行在 5173 端口
+  const isDev = hostname === "localhost" || 
+                hostname === "127.0.0.1" || 
+                port === "5173" ||
+                hostname.startsWith("192.168.") ||
+                hostname.startsWith("10.") ||
+                hostname.startsWith("172.");
 
   if (isDev) {
-    return "http://localhost:3001/api";
+    // 自动适配当前 IP 访问后端的 3001 端口
+    return `http://${hostname}:3001/api`;
   }
 
-  // 物理闭环：生产环境一律使用相对路径 /api
-  // 这样无论您是用域名还是 IP，HTTPS 还是 HTTP，浏览器都会自动补全
+  // 生产环境使用相对路径
   return "/api";
 };
 
 export const getUploadBaseUrl = () => {
   const hostname = window.location.hostname;
-  const isDev = hostname === "localhost" || hostname === "127.0.0.1";
+  const port = window.location.port;
+  const isDev = hostname === "localhost" || 
+                hostname === "127.0.0.1" || 
+                port === "5173" ||
+                hostname.startsWith("192.168.") ||
+                hostname.startsWith("10.");
+                
   if (isDev) {
-    return "http://localhost:3001";
+    return `http://${hostname}:3001`;
   }
-  return ""; // 生产环境使用相对路径
+  return ""; 
 };
 
 export const API_BASE_URL = getApiBaseUrl();

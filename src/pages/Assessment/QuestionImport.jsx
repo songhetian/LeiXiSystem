@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState } from 'react';
 import { Card, Button, Upload, Table, message, Space, Tag, Popconfirm } from 'antd';
 import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 
 const QuestionImport = () => {
   const { examId } = useParams();
@@ -246,7 +246,7 @@ const QuestionImport = () => {
     setLoading(true);
     try {
       // Backend API for batch import (not yet implemented, placeholder)
-      await axios.post(`/api/exams/${examId}/questions/batch-import`, { questions: parsedData }, {
+      await api.post(`/api/exams/${examId}/questions/batch-import`, { questions: parsedData }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('题目批量导入成功！');

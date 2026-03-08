@@ -1,8 +1,8 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
-import axios from 'axios';
 import { message, notification } from 'antd';
 
 dayjs.extend(duration);
@@ -31,7 +31,7 @@ const useExamTimer = (initialTimeInSeconds, onTimerEnd, resultId) => {
   const syncServerTime = useCallback(async () => {
     try {
       // Assuming a backend endpoint to get current server time
-      const response = await axios.get('/api/time/server', {
+      const response = await api.get('/time/server', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const serverTime = dayjs(response.data.serverTime);

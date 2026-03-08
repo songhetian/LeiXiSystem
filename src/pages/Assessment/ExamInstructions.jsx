@@ -1,9 +1,9 @@
+import api from '@/api';
 import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Space, message, Spin, Typography, List } from 'antd';
 import { PlayCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
 import dayjs from 'dayjs';
 
 const { Title, Paragraph } = Typography;
@@ -25,7 +25,7 @@ const ExamInstructions = () => {
 
   const fetchPlanDetails = async (id) => {
     try {
-      const response = await axios.get(`/api/assessment-plans/${id}`, {
+      const response = await api.get(`/api/assessment-plans/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setPlanDetails(response.data.data);
@@ -40,7 +40,7 @@ const ExamInstructions = () => {
   const handleStartExam = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('/api/assessment-results/start', { plan_id: planId }, {
+      const response = await api.post('/assessment-results/start', { plan_id: planId }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       message.success('考试已开始');
