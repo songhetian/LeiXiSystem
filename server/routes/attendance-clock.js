@@ -106,9 +106,10 @@ module.exports = async function (fastify, opts) {
 
       // Redis 同步：清理个人首页缓存和月度报表缓存
       if (fastify.redis) {
-        const now = beijingTime || new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
+        const nowUtc = new Date().getTime();
+        const beijingNow = new Date(nowUtc + (3600000 * 8));
+        const year = beijingNow.getFullYear();
+        const month = beijingNow.getMonth() + 1;
         
         await fastify.redis.del(`stats:dashboard:${user_id}`);
         await fastify.redis.del(`stats:attendance:monthly:${employee_id}:${year}:${month}`);
@@ -193,15 +194,19 @@ module.exports = async function (fastify, opts) {
         // 判断是否使用全局阈值
         let earlyThreshold;
         if (schedule.use_global_threshold) {
-           // 使用全局设置 (分钟 -> 毫秒)
            earlyThreshold = (setting.early_leave_minutes || 0) * 60 * 1000;
         } else {
-           // 使用班次设置 (分钟 -> 毫秒), 默认为0
            earlyThreshold = (schedule.early_threshold || 0) * 60 * 1000;
         }
 
+        // 如果下班打卡早于 (结束时间 - 阈值)，判定为早退
         if (shiftEndTime - clockOutTime > earlyThreshold) {
-          status = 'early_leave'
+          // 🔴 核心逻辑：如果上班已经迟到，状态变为“迟到且早退”
+          if (status === 'late') {
+            status = 'late_and_early_leave';
+          } else {
+            status = 'early_leave';
+          }
         }
       }
 

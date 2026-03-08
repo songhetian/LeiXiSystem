@@ -37,6 +37,9 @@ module.exports = async function (fastify, opts) {
           s.start_time,
           s.end_time,
           s.work_hours,
+          s.late_threshold,
+          s.early_threshold,
+          s.use_global_threshold,
           s.color
         FROM shift_schedules ss
         LEFT JOIN employees e ON ss.employee_id = e.id

@@ -312,8 +312,9 @@ const allMenuItems = [
     { id: 'employee-memos', label: '部门备忘录', icon: <BellOutlined />, permission: 'user:memo:manage' },
   ]},
   { id: 'attendance', label: '考勤管理', icon: <ClockCircleOutlined />, permission: 'attendance:record:view', children: [
-    { id: 'attendance-home', label: '考勤自助中心', icon: <UserOutlined />, permission: 'attendance:record:view' },
+    { id: 'attendance-home', label: '考勤打卡', icon: <UserOutlined />, permission: 'attendance:record:view' },
     { id: 'attendance-dept-stats', label: '部门考勤报表', icon: <BarChartOutlined />, permission: 'attendance:record:view' },
+
     { id: 'attendance-shift', label: '班次管理', icon: <SyncOutlined />, permission: 'attendance:config:manage' },
     { id: 'attendance-schedule', label: '智能调度中心', icon: <CalendarOutlined />, permission: 'attendance:schedule:manage' },
     { id: 'attendance-approval', label: '考勤审计配置', icon: <SafetyOutlined />, permission: 'attendance:approval:manage' },

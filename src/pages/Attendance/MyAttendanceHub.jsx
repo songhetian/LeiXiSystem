@@ -1,5 +1,5 @@
 /**
- * 个人考勤自助中心 (Flagship Hub)
+ * 考勤打卡中心 (Flagship Hub)
  * 物理缝合：打卡、补卡、请假、加班及统计
  */
 import React, { useState } from 'react';

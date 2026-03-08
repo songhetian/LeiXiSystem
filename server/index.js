@@ -200,6 +200,32 @@ const setupServer = async () => {
     } catch (e) { return reply.code(401).send({ success: false }); }
   });
 
+  // --- 关键增强：全局异常汉化拦截器 ---
+  fastify.setErrorHandler((error, request, reply) => {
+    console.error('🚨 [Global Error]', error);
+    
+    // 映射常见错误
+    if (error.statusCode === 401) return reply.code(401).send({ success: false, message: '登录已失效，请重新登录' });
+    if (error.statusCode === 403) return reply.code(403).send({ success: false, message: '您没有执行此操作的权限' });
+    if (error.statusCode === 404) return reply.code(404).send({ success: false, message: '请求的资源不存在' });
+    if (error.statusCode === 429) return reply.code(429).send({ success: false, message: '操作过于频繁，请稍后再试' });
+    
+    // 业务逻辑冲突处理
+    if (error.statusCode === 400) {
+      return reply.code(400).send({ 
+        success: false, 
+        message: error.message?.includes('Already') ? '该操作已存在，请勿重复执行' : (error.message || '请求参数有误') 
+      });
+    }
+
+    // 兜底 500 错误
+    reply.code(500).send({
+      success: false,
+      message: '系统繁忙，请稍后再试',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  });
+
   // 动态注册路由 (彻底隔离)
   const routesPath = path.join(__dirname, 'routes');
   fs.readdirSync(routesPath).forEach(file => {

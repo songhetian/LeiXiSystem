@@ -231,7 +231,7 @@ const RoleManagement = () => {
       const modPerms = permissions.filter(p => p.module === key);
       if (modPerms.length === 0) return false;
       if (!templateSearchText) return true;
-      return name.includes(templateSearchText) || key.includes(templateSearchText) || modPerms.some(p => p.description.includes(templateSearchText) || p.code.includes(templateSearchText));
+      return name.includes(templateSearchText) || key.includes(templateSearchText) || modPerms.some(p => (p.description || '').includes(templateSearchText) || (p.code || '').includes(templateSearchText));
     });
   }, [permissions, templateSearchText]);
 
@@ -451,7 +451,7 @@ const RoleManagement = () => {
                 <div className="max-h-[280px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                     {filteredModulesForTemplate.map(([key, name]) => (
                         <div key={key} className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[11px] font-black text-slate-900 uppercase">{name}</span><div className="grid grid-cols-1 gap-1 mt-2">
-                            {permissions.filter(p => p.module === key && (p.description.includes(templateSearchText) || p.code.includes(templateSearchText))).map(p => (
+                            {permissions.filter(p => p.module === key && ((p.description || '').includes(templateSearchText) || (p.code || '').includes(templateSearchText))).map(p => (
                                 <label key={p.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-all"><input type="checkbox" checked={templateForm.permission_ids.includes(p.id)} onChange={e => setTemplateForm({...templateForm, permission_ids: e.target.checked ? [...templateForm.permission_ids, p.id] : templateForm.permission_ids.filter(id => id !== p.id)})} className="w-4 h-4 rounded border-slate-300" /><span className="text-[13px] font-bold text-slate-700">{p.description}</span></label>
                             ))}
                         </div></div>
