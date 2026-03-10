@@ -122,7 +122,14 @@ async function uploadRoutes(fastify, options) {
           const buffer = await part.toBuffer();
 
           if (ossClient) {
-            await ossClient.put(cloudPath, buffer);
+            const options = {
+              headers: { 'x-oss-object-acl': 'public-read' }
+            };
+            // 🔴 关键修复：多文件上传也要强制注入 PDF inline 元数据
+            if (part.filename.toLowerCase().endsWith('.pdf')) {
+              options.headers['content-disposition'] = 'inline';
+            }
+            await ossClient.put(cloudPath, buffer, options);
             uploadedFiles.push({ url: formatPublicUrl(cloudPath), bizPath: cloudPath, filename: part.filename });
           } else {
             const targetDir = path.join(uploadDir, bizType);
