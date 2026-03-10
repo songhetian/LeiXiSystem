@@ -151,14 +151,22 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
             </div>
           )}
           {isPdf && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full bg-slate-200 rounded-xl overflow-hidden relative">
               <iframe
-                src={file.url}
-                className="w-full h-full min-h-[70vh] rounded-xl shadow-lg"
+                src={`${file.url}#toolbar=0`}
+                className="w-full h-full min-h-[70vh] border-none"
                 title={file.name}
+                loading="lazy"
               />
-              <div className="mt-4 text-center">
-                <p className="text-lg text-gray-700">{file.name}</p>
+              <div className="absolute bottom-4 right-4 flex gap-2">
+                 <a 
+                   href={file.url} 
+                   target="_blank" 
+                   rel="noreferrer"
+                   className="px-4 py-2 bg-white/90 backdrop-blur shadow-sm rounded-lg text-xs font-black text-slate-600 hover:text-indigo-600 transition-all flex items-center gap-2"
+                 >
+                   在新窗口打开预览
+                 </a>
               </div>
             </div>
           )}

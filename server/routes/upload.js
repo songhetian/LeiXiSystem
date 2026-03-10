@@ -78,9 +78,10 @@ async function uploadRoutes(fastify, options) {
         const options = {
           headers: { 'x-oss-object-acl': 'public-read' }
         };
-        // 针对 PDF 强制注入 inline 元数据，否则 OSS 默认域名会强制下载
+        // 针对 PDF 强制注入 inline 元数据和正确的 MIME 类型
         if (data.filename.toLowerCase().endsWith('.pdf')) {
           options.headers['content-disposition'] = 'inline';
+          options.headers['Content-Type'] = 'application/pdf';
         }
         await ossClient.put(cloudPath, buffer, options);
         return {
@@ -125,9 +126,10 @@ async function uploadRoutes(fastify, options) {
             const options = {
               headers: { 'x-oss-object-acl': 'public-read' }
             };
-            // 🔴 关键修复：多文件上传也要强制注入 PDF inline 元数据
+            // 🔴 关键修复：多文件上传也要强制注入 PDF inline 元数据和 MIME
             if (part.filename.toLowerCase().endsWith('.pdf')) {
               options.headers['content-disposition'] = 'inline';
+              options.headers['Content-Type'] = 'application/pdf';
             }
             await ossClient.put(cloudPath, buffer, options);
             uploadedFiles.push({ url: formatPublicUrl(cloudPath), bizPath: cloudPath, filename: part.filename });
