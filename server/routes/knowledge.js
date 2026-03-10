@@ -341,7 +341,8 @@ async function knowledgeRoutes(fastify, options) {
   fastify.get('/api/my-knowledge/articles', async (request, reply) => {
     const { userId, category_id } = request.query;
     try {
-      let query = 'SELECT * FROM knowledge_articles WHERE owner_id = ? AND is_deleted = 0 AND deleted_at IS NULL';
+      // 🔴 关键修复：强制过滤 type = 'personal'，确保个人库只显示收藏或私有内容
+      let query = "SELECT * FROM knowledge_articles WHERE owner_id = ? AND type = 'personal' AND is_deleted = 0 AND deleted_at IS NULL";
       const params = [userId];
       if (category_id) { query += ' AND category_id = ?'; params.push(category_id); }
       const [rows] = await pool.query(query + ' ORDER BY created_at DESC', params);

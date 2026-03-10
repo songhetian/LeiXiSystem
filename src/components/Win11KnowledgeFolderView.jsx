@@ -135,13 +135,15 @@ const ArticleCard = memo(({ article, isSelected, onToggle, onContextMenu, onPrev
         {isSelected && '✓'}
       </div>
       
-      {isSavedToPersonal && (
-        <div className="absolute top-3 right-3 bg-amber-400 text-white p-1 rounded-full shadow-lg z-30 scale-90">
+      {/* 🔴 修复：只有在公共知识库模式下，才显示“已存入个人库”的小星星 */}
+      {mode === 'public' && isSavedToPersonal && (
+        <div className="absolute top-3 right-3 bg-amber-400 text-white p-1 rounded-full shadow-lg z-30 scale-90 animate-in zoom-in duration-300">
             <Star size={10} fill="currentColor" />
         </div>
       )}
 
-      {mode !== 'personal' && !isSavedToPersonal && (
+      {/* 🔴 修复：只有在管理模式下，才显示“公开/草稿”状态标签，避免在正常浏览时产生视觉干扰 */}
+      {mode === 'management' && !isSavedToPersonal && (
         <div className={`absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${article.is_public ? 'bg-emerald-500 text-white':'bg-blue-500 text-white'}`}>
           {!article.is_public && <span className="scale-75">🔒</span>}{article.is_public ? '公开':'草稿'}
         </div>
@@ -392,7 +394,11 @@ const Win11KnowledgeFolderView = ({ viewMode = 'public' }) => {
       toast.success('移动成功');
       setSelectedArticleIds([]);
       setIsMoveMenuOpen(false);
-      await fetchArticles();
+      // 🔴 关键修复：移动成功后同时刷新相关资源
+      await Promise.all([
+        fetchArticles(),
+        fetchPersonalResources()
+      ]);
     } catch(e) { toast.error('失败'); }
     finally { setLoading(false); }
   };
