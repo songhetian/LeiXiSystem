@@ -38,7 +38,6 @@ import {
   SoundOutlined,
   DesktopOutlined,
   LogoutOutlined,
-  ThunderboltFilled,
   WalletOutlined,
 } from '@ant-design/icons';
 
@@ -173,13 +172,20 @@ const Sidebar = ({
 };
 
 const SidebarHeader = () => (
-  <div className="mb-6 pb-4 border-b border-gray-200 flex items-center gap-3 px-2">
-    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-      <ThunderboltFilled className="text-xl" />
-    </div>
-    <div>
-      <h1 className="text-lg font-black text-slate-900 tracking-tight leading-none">雷犀旗舰版</h1>
-      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Management System</p>
+  <div className="mb-6 px-2">
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 p-4 shadow-sm shadow-slate-200/70">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center overflow-hidden border border-slate-200 shadow-md shadow-indigo-100/70">
+          <img src="/images/icons/logo.ico" alt="雷犀客服系统" className="w-9 h-9 object-contain" />
+        </div>
+        <div className="min-w-0">
+          <div className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+            客服工作台
+          </div>
+          <h1 className="mt-2 text-lg font-black text-slate-900 tracking-tight leading-none">雷犀客服系统</h1>
+          <p className="mt-1 text-xs text-slate-500 leading-5">统一处理客户咨询、消息跟进与日常协同</p>
+        </div>
+      </div>
     </div>
   </div>
 );

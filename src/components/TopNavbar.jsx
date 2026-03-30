@@ -313,7 +313,7 @@ const TopNavbar = ({ activeTab, user, onLogout, unreadCount = 0, onUpdateUnread,
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+    <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-[1000] shadow-sm">
       {/* Left: Breadcrumbs */}
       <div className="flex items-center text-sm text-gray-600">
         <div className="flex items-center gap-2">

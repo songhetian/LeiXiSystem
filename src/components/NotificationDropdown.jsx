@@ -227,7 +227,7 @@ const NotificationDropdown = ({ onClose, onNavigate, onUpdateUnread }) => {
     <>
     <div
       ref={dropdownRef}
-      className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white z-[9999] overflow-hidden animate-in slide-in-from-top-2 duration-300"
+      className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white z-[99999] overflow-hidden animate-in slide-in-from-top-2 duration-300"
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-white/50">

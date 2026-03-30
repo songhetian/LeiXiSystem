@@ -329,8 +329,9 @@ async function knowledgeRoutes(fastify, options) {
   fastify.get('/api/my-knowledge/categories', async (request, reply) => {
     const { userId } = request.query;
     try {
+      // 🔴 物理锁死：仅返回该用户下的个人类型(personal)且未删除的分类
       const [rows] = await pool.query(
-        'SELECT * FROM knowledge_categories WHERE owner_id = ? AND is_deleted = 0 AND deleted_at IS NULL ORDER BY created_at DESC',
+        "SELECT * FROM knowledge_categories WHERE owner_id = ? AND type = 'personal' AND is_deleted = 0 AND deleted_at IS NULL ORDER BY name ASC",
         [userId]
       );
       return rows;
