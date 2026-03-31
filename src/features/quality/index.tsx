@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Paper, 
@@ -18,12 +18,15 @@ import {
   Modal, 
   FileButton, 
   Progress,
-  Divider
+  Divider,
+  NumberInput,
+  Textarea,
+  SimpleGrid
 } from '@mantine/core';
 import { 
   Search, 
   Plus, 
-  InfoCircle, 
+  Info, 
   ShieldCheck, 
   FileText, 
   Settings, 
@@ -45,13 +48,75 @@ export const QualityInspection = () => {
   const [currentDateRange, setCurrentDateRange] = useState('近7天');
   const [importModalOpened, setImportModalOpened] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [editorOpened, setEditorOpened] = useState(false);
+  const [editingRule, setEditingRule] = useState<any | null>(null);
+  const [ruleForm, setRuleForm] = useState({
+    name: '',
+    category: '',
+    description: '',
+    criteria: '',
+    score_weight: 0,
+    is_active: true,
+  });
 
   // TanStack Query
   const { data: rules = [], isLoading, refetch } = useQualityRules({ 
-    category: subTab === 'all' ? undefined : subTab 
+    category: subTab && subTab !== 'all' ? subTab : undefined 
   });
-  const { toggleRule } = useQualityActions();
+  const { createRule, updateRule, toggleRule } = useQualityActions();
   const importMutation = useImportQualitySessions();
+
+  useEffect(() => {
+    if (!editingRule) return;
+    setRuleForm({
+      name: editingRule.name || '',
+      category: editingRule.category || '',
+      description: editingRule.description || '',
+      criteria: editingRule.criteria || '',
+      score_weight: Number(editingRule.score_weight || 0),
+      is_active: !!editingRule.is_active,
+    });
+  }, [editingRule]);
+
+  const openCreateRule = () => {
+    setEditingRule(null);
+    setRuleForm({
+      name: '',
+      category: '',
+      description: '',
+      criteria: '',
+      score_weight: 0,
+      is_active: true,
+    });
+    setEditorOpened(true);
+  };
+
+  const openEditRule = (rule: any) => {
+    setEditingRule(rule);
+    setEditorOpened(true);
+  };
+
+  const handleSaveRule = async () => {
+    if (!ruleForm.name.trim()) {
+      notifications.show({ title: '校验失败', message: '请输入规则名称', color: 'red' });
+      return;
+    }
+
+    try {
+      if (editingRule) {
+        await updateRule.mutateAsync({ id: editingRule.id, payload: ruleForm });
+        notifications.show({ title: '更新成功', message: '质检规则已更新', color: 'green' });
+      } else {
+        await createRule.mutateAsync(ruleForm);
+        notifications.show({ title: '新增成功', message: '质检规则已创建', color: 'green' });
+      }
+      setEditorOpened(false);
+      setEditingRule(null);
+      refetch();
+    } catch (error: any) {
+      notifications.show({ title: '保存失败', message: error.response?.data?.message || '质检规则保存失败', color: 'red' });
+    }
+  };
 
   // Job 进度监听
   const jobStatus = useJobStatus(activeJobId, (result) => {
@@ -94,7 +159,7 @@ export const QualityInspection = () => {
           <Badge size="xs" variant="light" color="blue">官</Badge>
           <Group gap={4}>
             <ActionIcon size="xs" variant="subtle" color="gray"><ShieldCheck size={12} /></ActionIcon>
-            <ActionIcon size="xs" variant="subtle" color="gray"><InfoCircle size={12} /></ActionIcon>
+            <ActionIcon size="xs" variant="subtle" color="gray"><Info size={12} /></ActionIcon>
             <ActionIcon size="xs" variant="subtle" color="blue"><Plus size={12} /></ActionIcon>
           </Group>
         </Group>
@@ -141,7 +206,7 @@ export const QualityInspection = () => {
       align: 'center' as const,
       render: (record: any) => (
         <Group gap="xs" justify="center">
-          <Button variant="transparent" size="compact-xs" color="blue" fw={700}>编辑</Button>
+          <Button variant="transparent" size="compact-xs" color="blue" fw={700} onClick={() => openEditRule(record)}>编辑</Button>
           <Button variant="transparent" size="compact-xs" color="blue" fw={700} rightSection={<ChevronDown size={12} />}>更多</Button>
         </Group>
       )
@@ -172,8 +237,13 @@ export const QualityInspection = () => {
               </Button>
             </Group>
           </Group>
+          <Group justify="flex-end" mb="sm">
+            <Button variant="outline" color="blue" radius="md" leftSection={<Plus size={16} />} onClick={openCreateRule}>
+                新增质检评分项
+              </Button>
+          </Group>
 
-          <Alert variant="light" color="blue" icon={<InfoCircle size={16} />} mb="lg" radius="md">
+          <Alert variant="light" color="blue" icon={<Info size={16} />} mb="lg" radius="md">
             核心规约已生效：所有批量操作已自动路由至后台 <Text span fw={900}>BullMQ</Text> 异步队列。
           </Alert>
 
@@ -265,11 +335,44 @@ export const QualityInspection = () => {
                 <Text size="sm" fw={900} c="blue">{jobStatus?.progress || 0}%</Text>
               </Group>
               <Progress value={jobStatus?.progress || 0} animated color="blue" size="xl" radius="xl" />
-              <Alert color="blue" icon={<InfoCircle size={16} />} variant="light">
+              <Alert color="blue" icon={<Info size={16} />} variant="light">
                 任务已托管至 Redis 队列，您可以关闭此窗口，处理完成后系统将自动通知。
               </Alert>
             </Stack>
           )}
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={editorOpened}
+        onClose={() => {
+          setEditorOpened(false);
+          setEditingRule(null);
+        }}
+        title={<Text fw={900}>{editingRule ? '编辑质检规则' : '新增质检规则'}</Text>}
+        centered
+        size="lg"
+      >
+        <Stack gap="md">
+          <TextInput label="规则名称" value={ruleForm.name} onChange={(e) => setRuleForm((prev) => ({ ...prev, name: e.currentTarget.value }))} required />
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            <TextInput label="业务分类" value={ruleForm.category} onChange={(e) => setRuleForm((prev) => ({ ...prev, category: e.currentTarget.value }))} />
+            <NumberInput label="扣分值" value={ruleForm.score_weight} onChange={(value) => setRuleForm((prev) => ({ ...prev, score_weight: Number(value || 0) }))} />
+          </SimpleGrid>
+          <Textarea label="规则描述" minRows={2} value={ruleForm.description} onChange={(e) => setRuleForm((prev) => ({ ...prev, description: e.currentTarget.value }))} />
+          <Textarea label="判定标准" minRows={4} value={ruleForm.criteria} onChange={(e) => setRuleForm((prev) => ({ ...prev, criteria: e.currentTarget.value }))} />
+          <Switch label="启用规则" checked={ruleForm.is_active} onChange={(e) => setRuleForm((prev) => ({ ...prev, is_active: e.currentTarget.checked }))} />
+          <Group justify="flex-end">
+            <Button variant="outline" color="gray" onClick={() => {
+              setEditorOpened(false);
+              setEditingRule(null);
+            }}>
+              取消
+            </Button>
+            <Button color="blue" onClick={handleSaveRule} loading={createRule.isPending || updateRule.isPending}>
+              {editingRule ? '保存修改' : '创建规则'}
+            </Button>
+          </Group>
         </Stack>
       </Modal>
     </Box>

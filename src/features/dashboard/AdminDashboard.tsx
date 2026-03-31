@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Box, Paper, Group, Title, Text, SimpleGrid, Tabs, rem, Stack, 
-  ThemeIcon, Badge, ActionIcon, Button, Divider, ScrollArea
+  ThemeIcon, Badge, ActionIcon, Button
 } from '@mantine/core';
 import { 
   BarChart3, LayoutDashboard, Activity, Users, Wallet, Clock, 
@@ -45,29 +45,26 @@ export const AdminDashboard = () => {
   );
 
   return (
-    <Box style={{ height: '100%', display: 'flex', gap: rem(24) }}>
-      {/* 规约执行：Tab 物理隔离进化 */}
-      <Paper withBorder radius="lg" shadow="xs" style={{ width: 200, shrink: 0, overflow: 'hidden' }}>
-        <Tabs value={activeTab} onChange={setActiveTab} orientation="vertical" variant="pills" p="xs">
-          <Tabs.List w="100%">
-            <Tabs.Tab value="overview" leftSection={<LayoutDashboard size={16} />} w="100%" fw={700} h={44}>核心看板</Tabs.Tab>
-            <Tabs.Tab value="departments" leftSection={<Users size={16} />} w="100%" fw={700} h={44}>组织分布</Tabs.Tab>
-            <Tabs.Tab value="finance" leftSection={<TrendingUp size={16} />} w="100%" fw={700} h={44}>财务趋势</Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
-      </Paper>
-
-      <Stack gap="lg" style={{ flex: 1 }}>
+    <Box>
+      <Stack gap="lg">
         <Paper withBorder p="xl" radius="lg" shadow="xs">
           <Group justify="space-between" mb="xl">
             <Box>
-              <Title order={3} fw={900}>企业运营全景中枢</Title>
-              <Text size="xs" c="dimmed" fw={700}>基于 100% 物理还原的实时决策引擎</Text>
+              <Title order={3} fw={800}>企业看板</Title>
+              <Text size="sm" c="dimmed">查看组织运行、考勤与报销概览。</Text>
             </Box>
             <ActionIcon variant="light" color="blue" size={44} radius="md" onClick={() => refetch()} loading={isLoading}>
               <RefreshCw size={20} />
             </ActionIcon>
           </Group>
+
+          <Tabs value={activeTab} onChange={setActiveTab} variant="outline" radius="xl" mb="xl">
+            <Tabs.List>
+              <Tabs.Tab value="overview" leftSection={<LayoutDashboard size={16} />}>概览</Tabs.Tab>
+              <Tabs.Tab value="departments" leftSection={<Users size={16} />}>组织分布</Tabs.Tab>
+              <Tabs.Tab value="finance" leftSection={<TrendingUp size={16} />}>财务趋势</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
 
           {activeTab === 'overview' && (
             <Stack gap="xl">

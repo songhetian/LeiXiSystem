@@ -30,7 +30,7 @@ import {
   Filter, 
   Plus,
   CheckCircle2,
-  InfoCircle,
+  Info,
   RefreshCw
 } from 'lucide-react';
 import { useMyAttendance, useAttendanceActions, useShifts, useShiftActions } from './api';
@@ -153,7 +153,7 @@ export const AttendanceSystem = () => {
 
           {activeTab === 'stats' && (
             <Stack>
-              <Alert color="indigo" icon={<InfoCircle size={16} />} radius="md">
+              <Alert color="indigo" icon={<Info size={16} />} radius="md">
                 部门报表导出已实现异步化解耦，任务将托管至 <Text span fw={900}>Redis Queue</Text> 执行。
               </Alert>
               

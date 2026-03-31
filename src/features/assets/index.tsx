@@ -18,8 +18,7 @@ import {
   Divider,
   ThemeIcon,
   Tooltip,
-  Menu,
-  Calendar
+  Menu
 } from '@mantine/core';
 import { 
   Search, 
@@ -32,6 +31,7 @@ import {
   MoreVertical, 
   History, 
   AlertCircle,
+  Calendar,
   LayoutGrid,
   Filter
 } from 'lucide-react';

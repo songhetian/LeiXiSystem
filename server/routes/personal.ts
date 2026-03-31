@@ -68,6 +68,35 @@ export default async function personalRoutes(fastify: FastifyInstance) {
     };
   });
 
+  app.put('/api/personal/profile', {
+    schema: {
+      body: z.object({
+        real_name: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        avatar: z.string().optional(),
+      }),
+      response: {
+        200: z.object({ success: z.boolean(), message: z.string() }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, message: 'Unauthorized' });
+
+    await prisma.users.update({
+      where: { id: userId },
+      data: {
+        ...(request.body.real_name !== undefined ? { real_name: request.body.real_name } : {}),
+        ...(request.body.email !== undefined ? { email: request.body.email } : {}),
+        ...(request.body.phone !== undefined ? { phone: request.body.phone } : {}),
+        ...(request.body.avatar !== undefined ? { avatar: request.body.avatar } : {}),
+      },
+    });
+
+    return { success: true, message: '个人资料已更新' };
+  });
+
   // 获取个人薪资历史 (规约执行：财务存证闭环)
   app.get('/api/personal/salary', {
     schema: {
@@ -89,7 +118,7 @@ export default async function personalRoutes(fastify: FastifyInstance) {
     return {
       success: true,
       data: slips.map(s => ({
-        id: r.id,
+        id: s.id,
         salary_month: s.salary_month,
         net_salary: Number(s.net_salary),
         status: s.status,

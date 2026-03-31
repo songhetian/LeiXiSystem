@@ -13,7 +13,8 @@ import {
   Tooltip,
   Slider,
   Popover,
-  Badge
+  Badge,
+  UnstyledButton
 } from '@mantine/core';
 import { 
   Bell, 
@@ -68,11 +69,13 @@ export const TopNavbar = ({ sidebarOpened, onToggleSidebar, zoomLevel, onZoomCha
   return (
     <Box 
       component="header"
-      p="sm"
+      px="lg"
+      py="sm"
       style={{ 
-        height: rem(64),
-        borderBottom: `${rem(1)} solid var(--mantine-color-gray-2)`,
-        backgroundColor: 'white',
+        height: rem(68),
+        borderBottom: `${rem(1)} solid #dde3ea`,
+        backgroundColor: 'rgba(255, 255, 255, 0.78)',
+        backdropFilter: 'blur(14px)',
         display: 'flex',
         alignItems: 'center',
         position: 'sticky',
@@ -83,10 +86,11 @@ export const TopNavbar = ({ sidebarOpened, onToggleSidebar, zoomLevel, onZoomCha
       <Group justify="space-between" flex={1} wrap="nowrap">
         <Group gap="lg">
           <ActionIcon 
-            variant="subtle" 
+            variant="light" 
             color="gray" 
             onClick={onToggleSidebar}
             size="lg"
+            radius="xl"
           >
             {sidebarOpened ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
           </ActionIcon>
@@ -111,7 +115,7 @@ export const TopNavbar = ({ sidebarOpened, onToggleSidebar, zoomLevel, onZoomCha
             <Popover position="bottom" withArrow shadow="md">
               <Popover.Target>
                 <Tooltip label="界面缩放">
-                  <ActionIcon variant="subtle" color="gray" size="lg">
+                  <ActionIcon variant="light" color="gray" size="lg" radius="xl">
                     <Type size={20} />
                   </ActionIcon>
                 </Tooltip>
@@ -136,7 +140,7 @@ export const TopNavbar = ({ sidebarOpened, onToggleSidebar, zoomLevel, onZoomCha
 
             {/* Notifications */}
             <Tooltip label="系统通知">
-              <ActionIcon variant="subtle" color="gray" size="lg" pos="relative">
+              <ActionIcon variant="light" color="gray" size="lg" radius="xl" pos="relative">
                 <Bell size={20} />
                 <Badge 
                   size="xs" 

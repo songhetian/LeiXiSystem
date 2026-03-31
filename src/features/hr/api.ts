@@ -95,21 +95,47 @@ export const useEmployeeChanges = (filters: { type?: string; page?: number }) =>
   });
 };
 
+export const useEmployeeChangeActions = () => {
+  const queryClient = useQueryClient();
+
+  const create = useMutation({
+    mutationFn: async (data: {
+      employee_id: number;
+      change_type: 'transfer' | 'promotion' | 'resign' | 'other';
+      change_date: string;
+      new_department_id?: number;
+      new_position_id?: number;
+      reason?: string;
+    }) => {
+      const response = await api.post<{ success: boolean; id: number }>('/hr/changes', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-changes'] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+
+  return { create };
+};
+
 export const useDepartments = () => {
   return useQuery({
     queryKey: ['departments'],
     queryFn: async () => {
-      const response = await api.get<any[]>('/departments/list');
+      const response = await api.get<{ success: boolean; data: any[] }>('/departments/list');
       return response.data.success ? response.data.data : [];
     },
   });
 };
 
-export const usePositions = () => {
+export const usePositions = (departmentId?: string) => {
   return useQuery({
-    queryKey: ['positions'],
+    queryKey: ['positions', departmentId],
     queryFn: async () => {
-      const response = await api.get<any>('/positions?limit=1000');
+      const params = new URLSearchParams({ limit: '1000' });
+      if (departmentId) params.append('departmentId', departmentId);
+      const response = await api.get<any>(`/positions?${params.toString()}`);
       return response.data.success ? response.data.data : [];
     },
   });

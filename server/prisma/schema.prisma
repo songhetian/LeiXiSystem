@@ -2547,29 +2547,6 @@ model roles {
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model schedules {
-  id                                Int              @id @default(autoincrement())
-  user_id                           Int
-  shift_id                          Int
-  schedule_date                     DateTime         @db.Date
-  status                            schedules_status @default(normal)
-  note                              String?          @db.Text
-  created_by                        Int?
-  created_at                        DateTime         @default(now()) @db.DateTime(0)
-  updated_at                        DateTime         @default(now()) @db.DateTime(0)
-  users_schedules_created_byTousers users?           @relation("schedules_created_byTousers", fields: [created_by], references: [id], onUpdate: Restrict, map: "fk_schedules_created_by")
-  shifts                            shifts           @relation(fields: [shift_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_schedules_shift_id")
-  users_schedules_user_idTousers    users            @relation("schedules_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_schedules_user_id")
-
-  @@unique([user_id, schedule_date], map: "uk_user_date")
-  @@index([created_by], map: "idx_created_by")
-  @@index([schedule_date], map: "idx_schedule_date")
-  @@index([shift_id], map: "idx_shift_id")
-  @@index([status], map: "idx_status")
-  @@index([user_id], map: "idx_user_id")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model session_messages {
   id                   Int                           @id @default(autoincrement())
   session_id           Int
@@ -2675,26 +2652,6 @@ model shift_schedules_backup_simple {
   updated_at    DateTime? @default(now()) @db.Timestamp(0)
 
   @@ignore
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model shifts {
-  id             Int         @id @default(autoincrement())
-  name           String      @db.VarChar(50)
-  start_time     DateTime    @db.Time(0)
-  end_time       DateTime    @db.Time(0)
-  break_duration Int         @default(0)
-  color          String?     @db.VarChar(7)
-  description    String?     @db.Text
-  is_active      Boolean     @default(true)
-  created_at     DateTime    @default(now()) @db.DateTime(0)
-  updated_at     DateTime    @default(now()) @db.DateTime(0)
-  schedules      schedules[]
-
-  @@index([end_time], map: "idx_end_time")
-  @@index([is_active], map: "idx_is_active")
-  @@index([name], map: "idx_name")
-  @@index([start_time], map: "idx_start_time")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -2986,8 +2943,6 @@ model users {
   quality_sessions_quality_sessions_agent_idTousers                  quality_sessions[]                @relation("quality_sessions_agent_idTousers")
   quality_sessions_quality_sessions_inspector_idTousers              quality_sessions[]                @relation("quality_sessions_inspector_idTousers")
   reimbursements                                                     reimbursements[]
-  schedules_schedules_created_byTousers                              schedules[]                       @relation("schedules_created_byTousers")
-  schedules_schedules_user_idTousers                                 schedules[]                       @relation("schedules_user_idTousers")
   ticket_logs                                                        ticket_logs[]
   tickets_tickets_creator_idTousers                                  tickets[]                         @relation("tickets_creator_idTousers")
   tickets_tickets_assignee_idTousers                                 tickets[]                         @relation("tickets_assignee_idTousers")
@@ -3371,13 +3326,6 @@ enum meal_orders_meal_type {
 enum memos_type {
   personal
   department
-}
-
-enum schedules_status {
-  normal
-  leave
-  holiday
-  overtime
 }
 
 enum approval_records_action {

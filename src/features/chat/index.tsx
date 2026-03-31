@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Paper, Group, Title, Text, TextInput, Avatar, Stack, Tabs, rem, 
-  Badge, ActionIcon, Button, Divider, UnstyledButton, Indicator, ThemeIcon
+  Badge, ActionIcon, Button, Divider, UnstyledButton, Indicator, ThemeIcon, ScrollArea
 } from '@mantine/core';
 import { MessageSquare, Users, Search, Send, Smile, Paperclip, Settings, Plus } from 'lucide-react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';

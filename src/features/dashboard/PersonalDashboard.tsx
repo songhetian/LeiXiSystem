@@ -2,12 +2,12 @@ import React from 'react';
 import { 
   Box, Paper, Group, Title, Text, SimpleGrid, Stack, rem, 
   ThemeIcon, Badge, Button, UnstyledButton, Transition,
-  Container, Center, Overlay
+  Container, Center, Overlay, Divider
 } from '@mantine/core';
 import { 
   Clock, MessageSquare, Bell, Wallet, Monitor, Library, 
   ShieldCheck, FileText, Calendar, Users, Briefcase,
-  Zap, ArrowRight, Settings
+  Zap, ArrowRight, Settings, Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/core/hooks/usePermission';

@@ -7,6 +7,7 @@ import {
   Stack, 
   Group, 
   Text, 
+  Title,
   Alert,
   Loader,
   ActionIcon,
@@ -26,7 +27,7 @@ import {
 } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
 import { registerSchema, RegisterInput } from '../types';
-import { useRegister, useDepartments, useCheckUsername } from '../api/auth';
+import { useRegister, useRegisterDepartments, useCheckUsername } from '../api/auth';
 
 interface RegisterFormProps {
   onToggleLogin: () => void;
@@ -39,7 +40,11 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
   
   const registerMutation = useRegister();
   const checkUsernameMutation = useCheckUsername();
-  const { data: departments = [], isLoading: isLoadingDepts } = useDepartments();
+  const {
+    data: departments = [],
+    isLoading: isLoadingDepts,
+    isError: isDepartmentsError,
+  } = useRegisterDepartments();
 
   const form = useForm<RegisterInput>({
     initialValues: {
@@ -105,11 +110,12 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
   return (
     <>
       <form onSubmit={form.onSubmit(handleRegister)}>
-        <Stack gap="md">
+        <Stack gap="lg">
           <TextInput
             label="真实姓名"
             placeholder="请输入真实姓名"
             required
+            size="lg"
             {...form.getInputProps('real_name')}
           />
 
@@ -117,6 +123,7 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
             label="用户名"
             placeholder="请输入用户名"
             required
+            size="lg"
             {...form.getInputProps('username')}
             rightSection={
               checkUsernameMutation.isPending ? (
@@ -157,19 +164,48 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
             placeholder="请选择所属部门"
             required
             data={departments.map(d => ({ value: String(d.id), label: d.name }))}
+            size="lg"
+            nothingFoundMessage="暂无可选部门"
+            searchable
             {...form.getInputProps('department_id')}
-            loading={isLoadingDepts}
+            rightSection={isLoadingDepts ? <Loader size="xs" /> : null}
           />
+
+          {isLoadingDepts && (
+            <Alert color="blue" icon={<Info size={16} />} py="sm">
+              正在加载部门列表，请稍候。
+            </Alert>
+          )}
+
+          {!isLoadingDepts && departments.length === 0 && (
+            <Alert color="yellow" icon={<Info size={16} />} py="sm">
+              当前没有可选部门，请联系管理员先维护部门信息。
+            </Alert>
+          )}
+
+          {isDepartmentsError && (
+            <Alert color="red" icon={<Info size={16} />} py="sm">
+              部门列表加载失败，请稍后重试。
+            </Alert>
+          )}
+
+          {!isLoadingDepts && departments.length > 0 && (
+            <Text size="sm" c="dimmed">
+              当前可选部门共 {departments.length} 个，请选择您所属的部门。
+            </Text>
+          )}
 
           <TextInput
             label="邮箱 (可选)"
-            placeholder="example@leixi.com"
+            placeholder="请输入邮箱地址"
+            size="lg"
             {...form.getInputProps('email')}
           />
 
           <TextInput
             label="手机号码 (可选)"
             placeholder="请输入联系电话"
+            size="lg"
             {...form.getInputProps('phone')}
           />
 
@@ -177,20 +213,27 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
             label="登录密码"
             placeholder="至少 6 位字符"
             required
+            size="lg"
             {...form.getInputProps('password')}
           />
 
           <Group justify="space-between" mt="xs">
-            <Text 
-              component="button" 
-              type="button" 
-              size="sm" 
-              c="dimmed" 
-              style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
+            <Button
+              type="button"
+              variant="transparent"
+              color="teal"
+              size="compact-sm"
+              px={0}
+              styles={{
+                root: {
+                  fontWeight: 700,
+                  background: 'transparent',
+                },
+              }}
               onClick={onToggleLogin}
             >
               已有账号？去登录
-            </Text>
+            </Button>
           </Group>
 
           <Button 
@@ -198,7 +241,10 @@ export const RegisterForm = ({ onToggleLogin }: RegisterFormProps) => {
             fullWidth 
             mt="xl" 
             loading={registerMutation.isPending}
-            size="md"
+            size="lg"
+            h={50}
+            radius="md"
+            color="orange"
           >
             提交注册申请
           </Button>

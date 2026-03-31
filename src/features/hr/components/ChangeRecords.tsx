@@ -15,7 +15,10 @@ import {
   Divider,
   rem,
   ThemeIcon,
-  Tooltip
+  Tooltip,
+  Modal,
+  Textarea,
+  SimpleGrid
 } from '@mantine/core';
 import { 
   History, 
@@ -26,11 +29,13 @@ import {
   Briefcase, 
   Network,
   FileText,
-  Filter
+  Filter,
+  Plus
 } from 'lucide-react';
-import { useEmployeeChanges } from '../api';
+import { useDepartments, useEmployeeChangeActions, useEmployeeChanges, useEmployees, usePositions } from '../api';
 import { LXTable } from '@/components/common/LXTable';
 import dayjs from 'dayjs';
+import { notifications } from '@mantine/notifications';
 
 const CHANGE_TYPE_MAP: Record<string, { label: string; color: string }> = {
   hire: { label: '入职存证', color: 'emerald' },
@@ -42,7 +47,51 @@ const CHANGE_TYPE_MAP: Record<string, { label: string; color: string }> = {
 
 export const ChangeRecords = () => {
   const [filters, setFilters] = useState({ type: 'all', page: 1 });
+  const [editorOpened, setEditorOpened] = useState(false);
+  const [form, setForm] = useState({
+    employee_id: '',
+    change_type: 'transfer',
+    change_date: dayjs().format('YYYY-MM-DD'),
+    new_department_id: '',
+    new_position_id: '',
+    reason: '',
+  });
   const { data, isLoading, refetch } = useEmployeeChanges(filters);
+  const { data: employees = [] } = useEmployees({});
+  const { data: departments = [] } = useDepartments();
+  const { data: positions = [] } = usePositions(form.new_department_id);
+  const { create } = useEmployeeChangeActions();
+
+  const handleCreateChange = async () => {
+    if (!form.employee_id) {
+      notifications.show({ title: '校验失败', message: '请选择员工', color: 'red' });
+      return;
+    }
+
+    try {
+      await create.mutateAsync({
+        employee_id: Number(form.employee_id),
+        change_type: form.change_type as 'transfer' | 'promotion' | 'resign' | 'other',
+        change_date: form.change_date,
+        new_department_id: form.new_department_id ? Number(form.new_department_id) : undefined,
+        new_position_id: form.new_position_id ? Number(form.new_position_id) : undefined,
+        reason: form.reason || undefined,
+      });
+      notifications.show({ title: '新增成功', message: '变动记录已存档', color: 'green' });
+      setEditorOpened(false);
+      setForm({
+        employee_id: '',
+        change_type: 'transfer',
+        change_date: dayjs().format('YYYY-MM-DD'),
+        new_department_id: '',
+        new_position_id: '',
+        reason: '',
+      });
+      refetch();
+    } catch (error: any) {
+      notifications.show({ title: '保存失败', message: error.response?.data?.message || '变动记录保存失败', color: 'red' });
+    }
+  };
 
   const columns = [
     {
@@ -135,6 +184,9 @@ export const ChangeRecords = () => {
             radius="md"
             style={{ width: 200 }}
           />
+          <Button color="blue" radius="md" leftSection={<Plus size={16} />} onClick={() => setEditorOpened(true)}>
+            新增变动记录
+          </Button>
         </Group>
       </Paper>
 
@@ -192,6 +244,75 @@ export const ChangeRecords = () => {
           }}
         />
       </Paper>
+
+      <Modal
+        opened={editorOpened}
+        onClose={() => setEditorOpened(false)}
+        title={<Text fw={900}>新增变动记录</Text>}
+        centered
+        size="lg"
+      >
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <Select
+            label="员工"
+            data={employees.map((employee: any) => ({
+              value: String(employee.id),
+              label: `${employee.real_name} (${employee.employee_no})`,
+            }))}
+            value={form.employee_id}
+            onChange={(value) => setForm((prev) => ({ ...prev, employee_id: value || '' }))}
+            searchable
+            required
+          />
+          <Select
+            label="变动类型"
+            data={[
+              { label: '部门调岗', value: 'transfer' },
+              { label: '职务晋升', value: 'promotion' },
+              { label: '离职生效', value: 'resign' },
+              { label: '其他变动', value: 'other' },
+            ]}
+            value={form.change_type}
+            onChange={(value) => setForm((prev) => ({ ...prev, change_type: value || 'transfer' }))}
+          />
+          <TextInput
+            label="生效日期"
+            type="date"
+            value={form.change_date}
+            onChange={(e) => setForm((prev) => ({ ...prev, change_date: e.currentTarget.value }))}
+          />
+          <Select
+            label="新部门"
+            data={departments.map((department: any) => ({ value: String(department.id), label: department.name }))}
+            value={form.new_department_id}
+            onChange={(value) => setForm((prev) => ({ ...prev, new_department_id: value || '', new_position_id: '' }))}
+            clearable
+          />
+          <Select
+            label="新岗位"
+            data={positions.map((position: any) => ({ value: String(position.id), label: position.name }))}
+            value={form.new_position_id}
+            onChange={(value) => setForm((prev) => ({ ...prev, new_position_id: value || '' }))}
+            clearable
+          />
+          <Box />
+        </SimpleGrid>
+        <Textarea
+          label="变动原因"
+          minRows={3}
+          mt="md"
+          value={form.reason}
+          onChange={(e) => setForm((prev) => ({ ...prev, reason: e.currentTarget.value }))}
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="outline" color="gray" onClick={() => setEditorOpened(false)}>
+            取消
+          </Button>
+          <Button color="blue" onClick={handleCreateChange} loading={create.isPending}>
+            保存记录
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 };

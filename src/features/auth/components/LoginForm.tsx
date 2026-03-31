@@ -4,10 +4,7 @@ import {
   PasswordInput, 
   Checkbox, 
   Button, 
-  Paper, 
-  Title, 
   Text, 
-  Container, 
   Group,
   Modal,
   Stack,
@@ -15,9 +12,10 @@ import {
 } from '@mantine/core';
 import { useForm, zodResolver } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { AlertTriangle, InfoCircle, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Info, ShieldAlert } from 'lucide-react';
 import { loginSchema, LoginInput } from '../types';
 import { useLogin, useCheckSession } from '../api/auth';
+import { useAuthStore } from '@/core/store/auth';
 
 interface LoginFormProps {
   onSuccess: (user: any) => void;
@@ -27,6 +25,7 @@ interface LoginFormProps {
 export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const setAuth = useAuthStore((state) => state.setAuth);
   
   const loginMutation = useLogin();
   const checkSessionMutation = useCheckSession();
@@ -84,6 +83,7 @@ export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
         delete userData.id_card_front_url;
         delete userData.id_card_back_url;
         localStorage.setItem('user', JSON.stringify(userData));
+        setAuth(userData, response.token);
 
         // 记住密码逻辑 (保持 v1 逻辑)
         if (values.rememberPassword) {
@@ -117,18 +117,20 @@ export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
   return (
     <>
       <form onSubmit={form.onSubmit((v) => handleLogin(v))}>
-        <Stack gap="md">
+        <Stack gap="lg">
           <TextInput
             label="用户名"
-            placeholder="请输入您的用户名"
+            placeholder="请输入登录账号"
             required
+            size="lg"
             {...form.getInputProps('username')}
           />
 
           <PasswordInput
             label="密码"
-            placeholder="请输入您的密码"
+            placeholder="请输入登录密码"
             required
+            size="lg"
             {...form.getInputProps('password')}
           />
 
@@ -137,16 +139,22 @@ export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
               label="记住密码" 
               {...form.getInputProps('rememberPassword', { type: 'checkbox' })} 
             />
-            <Text 
-              component="button" 
-              type="button" 
-              size="sm" 
-              c="dimmed" 
-              style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
+            <Button
+              type="button"
+              variant="transparent"
+              color="orange"
+              size="compact-sm"
+              px={0}
+              styles={{
+                root: {
+                  fontWeight: 700,
+                  background: 'transparent',
+                },
+              }}
               onClick={onToggleRegister}
             >
               还没有账号？去注册
-            </Text>
+            </Button>
           </Group>
 
           <Button 
@@ -154,7 +162,10 @@ export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
             fullWidth 
             mt="xl" 
             loading={loginMutation.isPending || checkSessionMutation.isPending}
-            size="md"
+            size="lg"
+            h={50}
+            radius="md"
+            color="teal"
           >
             登录
           </Button>
@@ -169,7 +180,7 @@ export const LoginForm = ({ onSuccess, onToggleRegister }: LoginFormProps) => {
         centered
       >
         <Stack>
-          <Alert color="blue" icon={<InfoCircle size={16} />}>
+          <Alert color="blue" icon={<Info size={16} />}>
             该账号已在其他设备登录。
             {sessionInfo?.sessionCreatedAt && (
               <Text size="xs" mt={5}>

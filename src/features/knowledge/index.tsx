@@ -6,19 +6,14 @@ import {
   Title, 
   Text, 
   TextInput, 
+  Select,
   Button, 
   Badge, 
   ActionIcon, 
   Stack, 
   Tabs, 
   rem, 
-  SimpleGrid,
-  Divider,
   ThemeIcon,
-  Tooltip,
-  Card,
-  Avatar,
-  ScrollArea
 } from '@mantine/core';
 import { 
   Library, 
@@ -92,26 +87,26 @@ export const KnowledgeBase = () => {
   ];
 
   return (
-    <Box style={{ display: 'flex', height: '100%', gap: rem(24) }}>
-      {/* 规约执行：Tab 物理隔离进化 */}
-      <Paper withBorder radius="lg" shadow="xs" style={{ width: 200, shrink: 0, overflow: 'hidden' }}>
-        <Tabs value={activeTab} onChange={setActiveTab} orientation="vertical" variant="pills" p="xs">
-          <Tabs.List w="100%">
-            <Tabs.Tab value="public" leftSection={<Library size={16} />} w="100%" fw={700} h={44}>公共知识库</Tabs.Tab>
-            <Tabs.Tab value="my" leftSection={<BookOpen size={16} />} w="100%" fw={700} h={44}>个人笔记</Tabs.Tab>
-            <Tabs.Tab value="recycle" leftSection={<Trash2 size={16} />} w="100%" fw={700} h={44}>回收站</Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
-      </Paper>
-
-      <Stack gap="lg" style={{ flex: 1 }}>
+    <Box>
+      <Stack gap="lg">
         <Paper withBorder p="xl" radius="lg" shadow="xs">
           <Group justify="space-between" mb="xl">
-            <Title order={3} fw={900}>知识中枢 · 巅峰版</Title>
+            <Box>
+              <Title order={3} fw={800}>知识中枢</Title>
+              <Text size="sm" c="dimmed">统一查看文档、分类与个人笔记。</Text>
+            </Box>
             <Button color="blue" radius="md" size="md" leftSection={<Plus size={18} />} fw={900}>
               创建新文档
             </Button>
           </Group>
+
+          <Tabs value={activeTab} onChange={setActiveTab} variant="outline" radius="xl" mb="xl">
+            <Tabs.List>
+              <Tabs.Tab value="public" leftSection={<Library size={16} />}>公共知识库</Tabs.Tab>
+              <Tabs.Tab value="my" leftSection={<BookOpen size={16} />}>个人笔记</Tabs.Tab>
+              <Tabs.Tab value="recycle" leftSection={<Trash2 size={16} />}>回收站</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
 
           {/* 规约执行：单行全铺满自适应搜索 */}
           <Group wrap="nowrap" gap="md" mb="xl">

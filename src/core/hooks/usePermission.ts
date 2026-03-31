@@ -7,8 +7,13 @@ export const usePermission = () => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     
-    // 简单的权限逻辑，实际项目中可能从 user.permissions 获取
     const userPermissions = (user as any).permissions || [];
+
+    // 兼容当前库里尚未完整初始化 RBAC 的情况:
+    // 没有任何权限码时，不在前端直接把菜单全部隐藏，避免用户被锁死在两个栏目里。
+    if (!Array.isArray(userPermissions) || userPermissions.length === 0) {
+      return true;
+    }
     
     if (Array.isArray(permission)) {
       return permission.some(p => userPermissions.includes(p));

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Box, Paper, Group, Title, Text, Button, Stack, rem, 
-  ThemeIcon, Badge, Progress, Radio, Divider, Container
+  ThemeIcon, Badge, Progress, Radio, Divider, Container, Card
 } from '@mantine/core';
 import { Clock, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -38,7 +38,7 @@ export const ExamPlayer = () => {
   const saveAnswer = async (qId: string, ans: string) => {
     setAnswers({ ...answers, [qId]: ans });
     if (resultId) {
-      await api.put('/api/exams/assessment/answer', { resultId, questionId: qId, answer: ans });
+      await api.put('/exams/assessment/answer', { resultId, questionId: qId, answer: ans });
     }
   };
 

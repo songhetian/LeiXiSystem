@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { 
   Box, Paper, Stack, Group, Title, Text, TextInput, Select, NumberInput, 
-  Button, ActionIcon, Divider, Card, ScrollArea, rem, Alert, ThemeIcon, 
+  Button, ActionIcon, Divider, Card, ScrollArea, rem, Alert, ThemeIcon, Textarea, Badge,
   SimpleGrid, FileButton, Progress
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
@@ -11,13 +11,17 @@ import {
   UploadCloud, ImageIcon, CheckCircle2
 } from 'lucide-react';
 import { createReimbursementSchema, CreateReimbursementInput } from '../types';
-import { useReimbursementTypes, useReimbursementActions } from '../api';
+import { useReimbursementDetail, useReimbursementTypes, useReimbursementActions } from '../api';
 import { notifications } from '@mantine/notifications';
 import dayjs from 'dayjs';
+import { useSearchParams } from 'react-router-dom';
 
 export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) => {
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get('id') ? Number(searchParams.get('id')) : null;
   const { data: types = [] } = useReimbursementTypes();
-  const { create } = useReimbursementActions();
+  const detailQuery = useReimbursementDetail(draftId);
+  const { create, update } = useReimbursementActions();
 
   const form = useForm<CreateReimbursementInput>({
     initialValues: {
@@ -37,6 +41,25 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
     [form.values.items]
   );
 
+  useEffect(() => {
+    if (!detailQuery.data) return;
+    form.setValues({
+      title: detailQuery.data.title || '',
+      type: detailQuery.data.type || '',
+      remark: detailQuery.data.remark || '',
+      amount: Number(detailQuery.data.total_amount || 0),
+      status: detailQuery.data.status || 'draft',
+      items: (detailQuery.data.items || []).map((item: any) => ({
+        item_type: item.item_type || '',
+        amount: Number(item.amount || 0),
+        date: item.expense_date || dayjs().toISOString(),
+        description: item.description || '',
+        attachment_url: item.attachment_url || '',
+      })),
+      attachments: [],
+    });
+  }, [detailQuery.data]);
+
   const handleFormSubmit = async (status: 'draft' | 'pending') => {
     form.setFieldValue('status', status);
     form.setFieldValue('amount', totalAmount);
@@ -48,10 +71,15 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
     }
 
     try {
-      await create.mutateAsync({ ...form.values, status, amount: totalAmount });
+      const payload = { ...form.values, status, amount: totalAmount };
+      if (draftId) {
+        await update.mutateAsync({ id: draftId, data: payload });
+      } else {
+        await create.mutateAsync(payload);
+      }
       notifications.show({ 
         title: '物理存证成功', 
-        message: status === 'draft' ? '草稿已存入 Redis' : '申请已推入审批流异步存证', 
+        message: status === 'draft' ? '草稿已成功保存' : '申请已推入审批流异步存证', 
         color: 'green',
         icon: <CheckCircle2 size={18} />
       });
@@ -71,7 +99,7 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
             <ThemeIcon variant="light" color="indigo" size="lg" radius="md">
               <FileText size={20} />
             </ThemeIcon>
-            <Title order={4} fw={900}>基本申报存证</Title>
+            <Title order={4} fw={900}>{draftId ? '编辑报销草稿' : '基本申报存证'}</Title>
           </Group>
 
           <TextInput label="单据总标题" placeholder="12月办公费..." required {...form.getInputProps('title')} size="md" radius="md" />
@@ -79,7 +107,7 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
             label="业务分类" 
             placeholder="请选择" 
             required
-            data={types.map(t => ({ value: t.code, label: t.name }))}
+            data={types.map((t: { code: string; name: string }) => ({ value: t.code, label: t.name }))}
             {...form.getInputProps('type')}
             size="md"
             radius="md"
@@ -151,10 +179,10 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
             </Group>
             
             <Group gap={0} style={{ border: '1px solid #64748b', borderRadius: rem(8), overflow: 'hidden', height: 44 }}>
-              <Button variant="subtle" color="gray" radius={0} h="100%" px="xl" fw={900} onClick={() => handleFormSubmit('draft')} loading={create.isPending}>
+              <Button variant="subtle" color="gray" radius={0} h="100%" px="xl" fw={900} onClick={() => handleFormSubmit('draft')} loading={create.isPending || update.isPending || detailQuery.isLoading}>
                 暂存至草稿
               </Button>
-              <Button color="indigo" radius={0} h="100%" px={40} leftSection={<Send size={16} />} onClick={() => handleFormSubmit('pending')} loading={create.isPending} fw={900} style={{ borderLeft: '1px solid #64748b' }}>
+              <Button color="indigo" radius={0} h="100%" px={40} leftSection={<Send size={16} />} onClick={() => handleFormSubmit('pending')} loading={create.isPending || update.isPending || detailQuery.isLoading} fw={900} style={{ borderLeft: '1px solid #64748b' }}>
                 物理提交审批流
               </Button>
             </Group>
@@ -164,6 +192,3 @@ export const ReimbursementApply = ({ onSuccess }: { onSuccess?: () => void }) =>
     </Box>
   );
 };
-
-import { Textarea as MantineTextarea } from '@mantine/core';
-const Textarea = MantineTextarea;

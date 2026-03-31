@@ -13,7 +13,7 @@ import dayjs from 'dayjs';
 
 export const SchedulingCenter = () => {
   const [activeTab, setActiveTab] = useState<string | null>('auto');
-  const [filters, setFilters] = useState({ departmentId: 1, startDate: '2026-03-01', endDate: '2026-03-31' });
+  const [filters, setFilters] = useState({ departmentId: '1', startDate: '2026-03-01', endDate: '2026-03-31' });
 
   const { data: preview = [], isLoading, refetch } = useSchedulePreview(filters);
   const { exportExcel } = useSchedulingActions();
@@ -50,7 +50,7 @@ export const SchedulingCenter = () => {
 
           {/* 规约执行：单行全铺满自适应搜索 */}
           <Group wrap="nowrap" gap="md" mb="xl">
-            <Select placeholder="选择部门" data={[{value: '1', label: '客服一部'}]} style={{ flexGrow: 1 }} size="md" radius="md" value={String(filters.departmentId)} />
+            <Select placeholder="选择部门" data={[{value: '1', label: '客服一部'}]} style={{ flexGrow: 1 }} size="md" radius="md" value={filters.departmentId} />
             <TextInput label="生效周期" type="month" style={{ flexGrow: 1 }} size="md" radius="md" defaultValue="2026-03" />
             <ActionIcon variant="light" color="blue" size={44} radius="md" onClick={() => refetch()} loading={isLoading}>
               <RefreshCw size={20} />
@@ -58,7 +58,7 @@ export const SchedulingCenter = () => {
           </Group>
 
           <ScrollArea h="calc(100vh - 400px)">
-            <Table withBorder withColumnBorders verticalSpacing="xs">
+            <Table withTableBorder withColumnBorders verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th style={{ width: 150 }}>员工信息</Table.Th>
@@ -87,7 +87,7 @@ export const SchedulingCenter = () => {
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}>
-                          <Text size={8} fw={900} c={s.is_rest ? 'gray' : 'blue'}>{s.shift_name}</Text>
+                          <Text size="xs" fw={900} c={s.is_rest ? 'gray' : 'blue'}>{s.shift_name}</Text>
                         </Box>
                       </Table.Td>
                     ))}

@@ -35,12 +35,13 @@ export const useRegister = () => {
   });
 };
 
-export const useDepartments = () => {
+export const useRegisterDepartments = () => {
   return useQuery({
-    queryKey: ['departments'],
+    queryKey: ['register-departments'],
     queryFn: async () => {
-      const response = await api.get<Department[]>('/departments?forManagement=true');
-      return response.data;
+      const response = await api.get<{ success?: boolean; data?: Department[] }>('/public/departments');
+      const payload = response.data;
+      return payload?.data ?? [];
     },
   });
 };

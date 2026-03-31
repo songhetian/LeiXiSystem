@@ -19,7 +19,8 @@ import {
   Progress,
   Modal,
   Avatar,
-  Textarea
+  Textarea,
+  ThemeIcon
 } from '@mantine/core';
 import { 
   Megaphone, 
@@ -29,11 +30,12 @@ import {
   Plus, 
   Calendar, 
   RefreshCw, 
-  InfoCircle, 
+  Info, 
   User, 
   CheckCircle2,
   Clock,
-  Filter
+  Filter,
+  Settings
 } from 'lucide-react';
 import { useMyBroadcasts, useBroadcastActions } from './api';
 import { useJobStatus } from '../quality/hooks/useJobStatus';

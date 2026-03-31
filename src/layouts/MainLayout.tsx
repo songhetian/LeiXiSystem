@@ -16,10 +16,15 @@ export const MainLayout = () => {
   }
 
   return (
-    <Box style={{ display: 'flex', height: '100vh', backgroundColor: 'var(--mantine-color-gray-0)' }}>
+    <Box
+      style={{
+        display: 'flex',
+        height: '100vh',
+        background: 'var(--leixi-shell-bg)',
+      }}
+    >
       <Sidebar 
         opened={sidebarOpened} 
-        onToggle={() => setSidebarOpened(!sidebarOpened)} 
       />
       
       <Box 
@@ -40,11 +45,12 @@ export const MainLayout = () => {
         />
         
         <Box 
-          p="md" 
+          p="lg" 
           style={{ 
             flex: 1, 
             overflowY: 'auto',
-            zoom: zoomLevel / 100
+            zoom: zoomLevel / 100,
+            background: 'transparent',
           }}
         >
           <Outlet />

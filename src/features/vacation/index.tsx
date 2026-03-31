@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Box, Paper, Group, Title, Text, TextInput, Select, Button, Badge, 
   ActionIcon, Stack, Tabs, rem, SimpleGrid, Divider, ThemeIcon, 
-  Tooltip, Progress, ScrollArea, Card
+  Tooltip, Progress, ScrollArea, Card, Avatar
 } from '@mantine/core';
 import { 
   Calendar, Palmtree, History, Search, Plus, RefreshCw, 

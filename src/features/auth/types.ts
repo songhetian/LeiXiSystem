@@ -23,6 +23,7 @@ export interface AuthUser {
   username: string;
   real_name: string;
   role: string;
+  permissions?: string[];
   department_id?: number;
   [key: string]: any;
 }

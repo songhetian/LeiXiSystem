@@ -78,6 +78,66 @@ export default async function qualityRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
+  app.post('/api/quality/rules', {
+    schema: {
+      body: z.object({
+        name: z.string().min(1),
+        category: z.string().optional(),
+        description: z.string().optional(),
+        criteria: z.string().optional(),
+        score_weight: z.number(),
+        is_active: z.boolean().optional(),
+      }),
+      response: {
+        200: z.object({ success: z.boolean(), id: z.number() }),
+      },
+    },
+  }, async (request) => {
+    const rule = await prisma.quality_rules.create({
+      data: {
+        name: request.body.name,
+        category: request.body.category || null,
+        description: request.body.description || null,
+        criteria: request.body.criteria || null,
+        score_weight: request.body.score_weight,
+        is_active: request.body.is_active ?? true,
+      },
+    });
+
+    return { success: true, id: rule.id };
+  });
+
+  app.put('/api/quality/rules/:id', {
+    schema: {
+      params: z.object({ id: z.string() }),
+      body: z.object({
+        name: z.string().min(1),
+        category: z.string().optional(),
+        description: z.string().optional(),
+        criteria: z.string().optional(),
+        score_weight: z.number(),
+        is_active: z.boolean().optional(),
+      }),
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+    },
+  }, async (request) => {
+    await prisma.quality_rules.update({
+      where: { id: Number(request.params.id) },
+      data: {
+        name: request.body.name,
+        category: request.body.category || null,
+        description: request.body.description || null,
+        criteria: request.body.criteria || null,
+        score_weight: request.body.score_weight,
+        ...(request.body.is_active !== undefined ? { is_active: request.body.is_active } : {}),
+      },
+    });
+
+    return { success: true };
+  });
+
   // --- 会话质检核心 ---
 
   // 异步导入会话 (通过 BullMQ)

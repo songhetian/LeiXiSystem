@@ -2,7 +2,17 @@ import { Server, Socket } from 'socket.io';
 import { prisma } from '../app';
 import { connection as redis } from './redis';
 
-export function setupWebSocket(io: Server) {
+export let io: Server | null = null;
+
+export function setupWebSocket(server: any) {
+  io = new Server(server, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST'],
+    },
+    transports: ['websocket', 'polling'],
+  });
+
   io.on('connection', async (socket: Socket) => {
     const userId = (socket as any).userId;
     if (!userId) return socket.disconnect();

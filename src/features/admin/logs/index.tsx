@@ -10,6 +10,7 @@ import {
   Button, 
   Badge, 
   ActionIcon, 
+  Avatar,
   Stack, 
   Tabs, 
   rem, 

@@ -7,20 +7,37 @@ import 'dotenv/config';
  */
 
 const env = process.env;
+const port = Number(env.SERVER_PORT || env.PORT) || 3002;
+const host = env.HOST || '0.0.0.0';
+const dbHost = env.DB_HOST || 'localhost';
+const dbPort = Number(env.DB_PORT) || 3306;
+const dbUser = env.DB_USER || 'root';
+const dbPass = env.DB_PASS || env.DB_PASSWORD || '';
+const dbName = env.DB_NAME || 'leixi_system';
+
+if (!env.SERVER_PORT && env.PORT) {
+  env.SERVER_PORT = env.PORT;
+}
+
+if (!env.DATABASE_URL) {
+  env.DATABASE_URL = `mysql://${encodeURIComponent(dbUser)}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}`;
+}
 
 export const config = {
   // --- 基础配置 ---
   env: env.NODE_ENV || 'development',
-  port: Number(env.SERVER_PORT) || 3002,
+  port,
+  host,
   jwtSecret: env.JWT_SECRET || 'leixi-v2-fallback-secret',
 
   // --- 数据库分项配置 (方便管理) ---
   db: {
-    host: env.DB_HOST || 'localhost',
-    port: Number(env.DB_PORT) || 3306,
-    user: env.DB_USER || 'root',
-    pass: env.DB_PASS || '',
-    name: env.DB_NAME || 'leixi_system',
+    host: dbHost,
+    port: dbPort,
+    user: dbUser,
+    pass: dbPass,
+    name: dbName,
+    url: env.DATABASE_URL,
   },
 
   // --- Redis 配置 ---
@@ -37,7 +54,7 @@ export const config = {
     // 如果是本地模式
     local: {
       path: env.UPLOAD_LOCAL_PATH || './uploads',
-      publicUrl: env.PUBLIC_URL || `http://localhost:${env.SERVER_PORT || 3002}/uploads`,
+      publicUrl: env.PUBLIC_URL || `http://localhost:${port}/uploads`,
     },
 
     // 如果是 OSS 模式

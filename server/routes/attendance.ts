@@ -8,7 +8,58 @@ import dayjs from 'dayjs';
 export default async function attendanceRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
-  // 1. 获取个人记录 (略...)
+  app.get('/api/attendance/my-records', {
+    schema: {
+      querystring: z.object({
+        month: z.string().optional(),
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          data: z.array(z.any()),
+        }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, data: [] });
+
+    const month = request.query.month;
+    const monthStart = month ? dayjs(month).startOf('month').toDate() : dayjs().startOf('month').toDate();
+    const monthEnd = month ? dayjs(month).endOf('month').toDate() : dayjs().endOf('month').toDate();
+
+    const records = await prisma.attendance_records.findMany({
+      where: {
+        user_id: userId,
+        attendance_date: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+      },
+      orderBy: { attendance_date: 'desc' },
+    });
+
+    return { success: true, data: records as any };
+  });
+
+  app.post('/api/attendance/stats/export', {
+    schema: {
+      body: z.object({
+        dateRange: z.array(z.string()),
+        departmentId: z.number().optional(),
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          jobId: z.string(),
+        }),
+      },
+    },
+  }, async (request) => {
+    const queue = getQueue(QueueNames.EXPORT_REPORT);
+    const job = await queue.add('attendance-export', request.body);
+    return { success: true, jobId: job.id as string };
+  });
 
   // 2. 高级排班管理 (规约执行：请假冲突对冲闭环)
   app.post('/api/attendance/schedules', {

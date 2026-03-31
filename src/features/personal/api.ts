@@ -7,10 +7,20 @@ export const useProfile = (userId: number | undefined) => {
     queryKey: ['profile', userId],
     queryFn: async () => {
       if (!userId) return null;
-      const response = await api.get<{ success: boolean; data: AuthUser }>(`/users/${userId}/profile`);
+      const response = await api.get<{ success: boolean; data: AuthUser }>(`/personal/profile`);
       return response.data.data;
     },
     enabled: !!userId,
+  });
+};
+
+export const useSalaryHistory = () => {
+  return useQuery({
+    queryKey: ['personal', 'salary'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: any[] }>('/personal/salary');
+      return response.data.data;
+    },
   });
 };
 
@@ -18,7 +28,7 @@ export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId, data }: { userId: number; data: any }) => {
-      const response = await api.put<{ success: boolean; message?: string }>(`/users/${userId}/profile`, data);
+      const response = await api.put<{ success: boolean; message?: string }>(`/personal/profile`, data);
       return response.data;
     },
     onSuccess: (_, variables) => {

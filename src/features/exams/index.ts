@@ -1,4 +1,4 @@
 export * from './api';
-export * from './index';
+export * from './ExamCenter';
 export * from './ExamEditor';
 export * from './ExamPlayer';

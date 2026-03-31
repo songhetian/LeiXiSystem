@@ -18,15 +18,15 @@ export const theme = createTheme({
   colors: {
     emerald: leixiEmerald,
   },
-  defaultRadius: 'sm', // 符合文档要求的“专业办公”硬朗感
-  fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  defaultRadius: 'md',
+  fontFamily: '"PingFang SC", "Helvetica Neue", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   headings: {
-    fontWeight: '900',
+    fontWeight: '800',
   },
   components: {
     Button: {
       defaultProps: {
-        fw: 900,
+        fw: 700,
       },
     },
     TextInput: {
@@ -34,9 +34,14 @@ export const theme = createTheme({
         label: { marginBottom: 4, fontSize: 12, fontWeight: 700 },
       },
     },
+    Paper: {
+      defaultProps: {
+        radius: 'xl',
+      },
+    },
     Table: {
       styles: {
-        th: { backgroundColor: '#f8fafc', padding: '12px 16px' },
+        th: { backgroundColor: '#f7f8fa', padding: '12px 16px' },
         td: { padding: '12px 16px' },
       },
     },

@@ -30,6 +30,29 @@ export const reimbursementSchema = z.object({
 export default async function reimbursementRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
+  app.get('/api/reimbursement/types', {
+    schema: {
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          data: z.array(z.object({
+            id: z.number(),
+            name: z.string(),
+            code: z.string().nullable(),
+          })),
+        }),
+      },
+    },
+  }, async () => {
+    const types = await prisma.reimbursement_types.findMany({
+      where: { is_active: true },
+      orderBy: { sort_order: 'asc' },
+      select: { id: true, name: true, code: true },
+    });
+
+    return { success: true, data: types };
+  });
+
   // 获取报销列表 (规约执行：全铺满数据自适应 + 巅峰序列化)
   app.get('/api/reimbursement/list', {
     schema: {
@@ -166,6 +189,8 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
         title: z.string().min(1),
         type: z.string(),
         amount: z.number(),
+        status: z.enum(['draft', 'pending']).optional(),
+        remark: z.string().optional(),
         items: z.array(z.object({
           item_type: z.string(),
           amount: z.number(),
@@ -193,6 +218,19 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
     if (!user || !user.employees[0]) throw new Error('Employee profile not bound');
 
     const result = await prisma.$transaction(async (tx) => {
+      const workflow = body.status === 'pending'
+        ? await tx.approval_workflows.findFirst({
+            where: { type: 'reimbursement', status: 'active' },
+            include: {
+              approval_workflow_nodes: {
+                orderBy: { node_order: 'asc' },
+                take: 1,
+              },
+            },
+            orderBy: [{ is_default: 'desc' }, { id: 'asc' }],
+          })
+        : null;
+
       const main = await tx.reimbursements.create({
         data: {
           reimbursement_no,
@@ -201,8 +239,12 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
           department_id: user.department_id,
           title: body.title,
           total_amount: body.amount,
-          type: body.type,
-          status: 'pending',
+          type: body.type as any,
+          status: (body.status || 'pending') as any,
+          remark: body.remark || '',
+          workflow_id: workflow?.id,
+          current_node_id: workflow?.approval_workflow_nodes[0]?.id,
+          submitted_at: body.status === 'pending' ? new Date() : null,
         }
       });
 
@@ -223,7 +265,7 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
         data: {
           job_id: `FINANCE-BX-${main.id}`,
           queue_name: 'finance-reimbursement',
-          task_type: 'create-application',
+          task_type: body.status === 'draft' ? 'save-draft' : 'create-application',
           status: 'completed',
           operator_id: userId,
           payload: { mainId: main.id, no: reimbursement_no } as any,
@@ -235,5 +277,194 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
     });
 
     return { success: true, id: result.id };
+  });
+
+  app.put('/api/reimbursement/:id', {
+    schema: {
+      params: z.object({ id: z.string() }),
+      body: z.object({
+        title: z.string().min(1),
+        type: z.string(),
+        amount: z.number(),
+        status: z.enum(['draft', 'pending']).optional(),
+        remark: z.string().optional(),
+        items: z.array(z.object({
+          item_type: z.string(),
+          amount: z.number(),
+          date: z.string(),
+          description: z.string().optional(),
+          attachment_url: z.string().optional(),
+        })),
+      }),
+      response: {
+        200: z.object({ success: z.boolean(), id: z.number() }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, message: 'Unauthorized' });
+
+    const id = Number(request.params.id);
+    const existing = await prisma.reimbursements.findUnique({
+      where: { id },
+      select: { user_id: true, status: true },
+    });
+
+    if (!existing) return reply.code(404).send({ success: false, message: 'Not found' });
+    if (existing.user_id !== userId) return reply.code(403).send({ success: false, message: 'Forbidden' });
+    if (existing.status !== 'draft') return reply.code(400).send({ success: false, message: 'Only draft can be edited' });
+
+    const body = request.body;
+    const workflow = body.status === 'pending'
+      ? await prisma.approval_workflows.findFirst({
+          where: { type: 'reimbursement', status: 'active' },
+          include: { approval_workflow_nodes: { orderBy: { node_order: 'asc' }, take: 1 } },
+          orderBy: [{ is_default: 'desc' }, { id: 'asc' }],
+        })
+      : null;
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.reimbursement_items.deleteMany({ where: { reimbursement_id: id } });
+
+      const updated = await tx.reimbursements.update({
+        where: { id },
+        data: {
+          title: body.title,
+          total_amount: body.amount,
+          type: body.type as any,
+          remark: body.remark || '',
+          status: (body.status || 'draft') as any,
+          workflow_id: workflow?.id ?? null,
+          current_node_id: workflow?.approval_workflow_nodes[0]?.id ?? null,
+          submitted_at: body.status === 'pending' ? new Date() : null,
+          completed_at: null,
+          updated_at: new Date(),
+        },
+      });
+
+      if (body.items.length > 0) {
+        await tx.reimbursement_items.createMany({
+          data: body.items.map(item => ({
+            reimbursement_id: id,
+            item_type: item.item_type,
+            amount: item.amount,
+            expense_date: new Date(item.date),
+            description: item.description || '',
+            attachment_url: item.attachment_url || '',
+          })),
+        });
+      }
+
+      return updated;
+    });
+
+    return { success: true, id: result.id };
+  });
+
+  app.delete('/api/reimbursement/:id', {
+    schema: {
+      params: z.object({ id: z.string() }),
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, message: 'Unauthorized' });
+
+    const id = Number(request.params.id);
+    const record = await prisma.reimbursements.findUnique({
+      where: { id },
+      select: { id: true, user_id: true, status: true },
+    });
+
+    if (!record) return reply.code(404).send({ success: false, message: 'Not found' });
+    if (record.user_id !== userId) return reply.code(403).send({ success: false, message: 'Forbidden' });
+    if (record.status !== 'draft') return reply.code(400).send({ success: false, message: 'Only draft can be deleted' });
+
+    await prisma.reimbursements.delete({ where: { id } });
+    return { success: true };
+  });
+
+  app.post('/api/reimbursement/:id/submit', {
+    schema: {
+      params: z.object({ id: z.string() }),
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, message: 'Unauthorized' });
+
+    const id = Number(request.params.id);
+    const record = await prisma.reimbursements.findUnique({
+      where: { id },
+      select: { id: true, user_id: true, status: true },
+    });
+
+    if (!record) return reply.code(404).send({ success: false, message: 'Not found' });
+    if (record.user_id !== userId) return reply.code(403).send({ success: false, message: 'Forbidden' });
+    if (record.status !== 'draft') return reply.code(400).send({ success: false, message: 'Only draft can be submitted' });
+
+    const workflow = await prisma.approval_workflows.findFirst({
+      where: { type: 'reimbursement', status: 'active' },
+      include: {
+        approval_workflow_nodes: {
+          orderBy: { node_order: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: [{ is_default: 'desc' }, { id: 'asc' }],
+    });
+
+    await prisma.reimbursements.update({
+      where: { id },
+      data: {
+        status: 'pending',
+        workflow_id: workflow?.id,
+        current_node_id: workflow?.approval_workflow_nodes[0]?.id,
+        submitted_at: new Date(),
+        updated_at: new Date(),
+      },
+    });
+
+    return { success: true };
+  });
+
+  app.post('/api/reimbursement/:id/cancel', {
+    schema: {
+      params: z.object({ id: z.string() }),
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+    },
+  }, async (request, reply) => {
+    const userId = (request as any).user?.id;
+    if (!userId) return reply.code(401).send({ success: false, message: 'Unauthorized' });
+
+    const id = Number(request.params.id);
+    const record = await prisma.reimbursements.findUnique({
+      where: { id },
+      select: { id: true, user_id: true, status: true },
+    });
+
+    if (!record) return reply.code(404).send({ success: false, message: 'Not found' });
+    if (record.user_id !== userId) return reply.code(403).send({ success: false, message: 'Forbidden' });
+    if (!['pending', 'approving'].includes(record.status)) {
+      return reply.code(400).send({ success: false, message: 'Only pending or approving items can be cancelled' });
+    }
+
+    await prisma.reimbursements.update({
+      where: { id },
+      data: {
+        status: 'cancelled',
+        current_node_id: null,
+        completed_at: new Date(),
+        updated_at: new Date(),
+      },
+    });
+
+    return { success: true };
   });
 }

@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { 
   Box, Paper, Group, Title, Text, TextInput, Select, Button, Badge, 
   ActionIcon, Tooltip, Stack, SimpleGrid, Divider, rem, ThemeIcon, 
-  Modal, Textarea, RefreshCw, Search, Eye, CheckCircle2, XCircle, Filter
+  Modal, Textarea
 } from '@mantine/core';
+import { RefreshCw, Search, Eye, CheckCircle2, XCircle, Filter } from 'lucide-react';
 import { useReimbursements, useReimbursementActions } from '../api';
 import { useWorkflowActions } from '../workflow/api';
 import { LXTable } from '@/components/common/LXTable';
 import { notifications } from '@mantine/notifications';
+import { ReimbursementDetailModal } from './ReimbursementDetailModal';
 
 export const ReimbursementApproval = () => {
   const [filters, setFilters] = useState({ status: 'pending', keyword: '' });
   const [page, setPage] = useState(1);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [decisionModal, setDecisionModal] = useState<{ opened: boolean; record: any; action: string }>({
     opened: false, record: null, action: ''
   });
@@ -58,6 +61,7 @@ export const ReimbursementApproval = () => {
       key: 'actions', title: '决策操作', align: 'center' as const,
       render: (r: any) => (
         <Group gap={4} justify="center">
+          <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => setDetailId(r.id)}><Eye size={16} /></ActionIcon>
           <Button variant="filled" color="emerald" size="compact-xs" onClick={() => setDecisionModal({ opened: true, record: r, action: 'approved' })}>通过</Button>
           <Button variant="filled" color="red" size="compact-xs" onClick={() => setDecisionModal({ opened: true, record: r, action: 'rejected' })}>驳回</Button>
         </Group>
@@ -119,6 +123,8 @@ export const ReimbursementApproval = () => {
           <Button color={decisionModal.action === 'approved' ? 'emerald' : 'red'} fullWidth mt="md" fw={900} onClick={handleDecision} loading={decide.isPending}>确认并执行逻辑闭环</Button>
         </Stack>
       </Modal>
+
+      <ReimbursementDetailModal id={detailId} opened={detailId !== null} onClose={() => setDetailId(null)} />
     </Stack>
   );
 };
