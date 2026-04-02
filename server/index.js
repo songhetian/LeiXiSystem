@@ -191,19 +191,48 @@ const setupServer = async () => {
     }
   });
 
-  fastify.get('/api/auth/permissions', async (request, reply) => {
-    try {
-      const token = request.headers.authorization?.replace('Bearer ', '');
-      const decoded = jwt.verify(token, JWT_SECRET);
-      const [roles] = await pool.query(`SELECT r.name FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = ?`, [decoded.id]);
-      const roleNames = roles.map(r => r.name);
-      const isAdmin = roleNames.includes('超级管理员') || decoded.username === 'admin';
-      const [all] = await pool.query('SELECT code FROM permissions');
-      const codes = isAdmin ? all.map(p => p.code) : []; // 简化逻辑供测试
-      const [uRows] = await pool.query('SELECT id, avatar FROM users WHERE id = ?', [decoded.id]);
-      return { success: true, permissions: codes, roles: roleNames, data: { permissions: codes, isAdmin, user: sanitizeUser(uRows[0], request) } };
-    } catch (e) { return reply.code(401).send({ success: false }); }
-  });
+    fastify.get('/api/auth/permissions', async (request, reply) => {
+      try {
+        const token = request.headers.authorization?.replace('Bearer ', '');
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // 1. 获取用户基本信息及角色
+        const [roles] = await pool.query(`SELECT r.name, r.id FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = ?`, [decoded.id]);
+        const roleNames = roles.map(r => r.name);
+        const roleIds = roles.map(r => r.id);
+        const isAdmin = roleNames.includes('超级管理员') || decoded.username === 'admin';
+
+        // 2. 获取权限列表 (针对超级管理员与普通角色的差异化逻辑)
+        let codes = [];
+        if (isAdmin) {
+          const [all] = await pool.query('SELECT code FROM permissions');
+          codes = all.map(p => p.code);
+        } else if (roleIds.length > 0) {
+          const [userPermissions] = await pool.query(`
+            SELECT DISTINCT p.code 
+            FROM permissions p
+            INNER JOIN role_permissions rp ON p.id = rp.permission_id
+            WHERE rp.role_id IN (?)
+          `, [roleIds]);
+          codes = userPermissions.map(p => p.code);
+        }
+
+        const [uRows] = await pool.query('SELECT id, avatar, real_name, username FROM users WHERE id = ?', [decoded.id]);
+        return { 
+          success: true, 
+          permissions: codes, 
+          roles: roleNames, 
+          data: { 
+            permissions: codes, 
+            isAdmin, 
+            user: sanitizeUser(uRows[0], request) 
+          } 
+        };
+      } catch (e) { 
+        console.error('Permission sync error:', e);
+        return reply.code(401).send({ success: false }); 
+      }
+    });
 
   // --- 关键增强：全局异常汉化拦截器 ---
   fastify.setErrorHandler((error, request, reply) => {

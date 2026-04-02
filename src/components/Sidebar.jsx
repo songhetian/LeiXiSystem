@@ -288,7 +288,7 @@ const SidebarFooter = ({ user, onLogout }) => {
 
 // --- Menu Item Definitions ---
 const allMenuItems = [
-  { id: 'dashboard', label: '控制面板', icon: <HomeOutlined />, permission: 'system:dashboard:view' },
+  { id: 'dashboard', label: '控制面板', icon: <HomeOutlined /> },
   { id: 'admin-dashboard', label: '企业看板', icon: <BarChartOutlined />, permission: 'system:dashboard:admin' },
   { id: 'hr', label: '人事管理', icon: <TeamOutlined />, children: [
     { id: 'hr-employee', label: '员工管理', icon: <UserOutlined />, permission: 'user:employee:view', children: [

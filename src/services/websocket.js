@@ -117,6 +117,12 @@ class WebSocketManager {
       this.emit('unread_count_update', data)
     })
 
+    // 权限变动
+    this.socket.on('permissions_updated', (data) => {
+      logger.info('🔐 [WebSocket] 权限体系变动指令:', data.message)
+      this.emit('permissions_updated', data)
+    })
+
     // Pong响应
     this.socket.on('pong', (data) => {
       // logger.debug('🏓 [WebSocket] Pong received')
