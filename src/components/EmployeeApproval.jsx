@@ -171,24 +171,22 @@ function EmployeeApproval() {
           </div>
         </div>
 
-        {/* 2. 横向紧凑搜索区 - 高轮廓 border-slate-500 */}
+        {/* 2. 横向铺满搜索区 - 雷犀标准布局 */}
         <div className="bg-slate-50/40 px-10 py-8">
-            <div className="flex flex-wrap items-center gap-4 mb-6">
-                <div className="flex-1 min-w-[300px]">
-                    <div className="relative group">
-                        <input type="text" placeholder="检索姓名、账号或手机号码关键字..." value={searchFilters.keyword} onChange={e => handleSearchChange('keyword', e.target.value)}
-                            className="w-full h-11 pl-12 pr-4 bg-white border-[1px] border-slate-500 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm font-black" />
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-600" size={18} />
-                    </div>
+            <div className="flex items-center gap-4 w-full mb-6">
+                <div className="flex-grow relative group">
+                    <input type="text" placeholder="检索姓名、账号或手机号码关键字..." value={searchFilters.keyword} onChange={e => handleSearchChange('keyword', e.target.value)}
+                        className="w-full h-11 pl-12 pr-4 bg-white border-[1px] border-slate-500 rounded-lg text-sm font-black text-slate-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-600" size={18} />
                 </div>
-                <div className="w-[240px]">
-                    <Select showSearch allowClear placeholder="🏢 筛选意向部门" className="w-full h-11 font-black"
+                <div className="w-[300px]">
+                    <Select showSearch allowClear placeholder="🏢 筛选意向部门" className="w-full h-11 font-black" variant="borderless" style={{ border:'1px solid #64748b', borderRadius:'8px', background:'#fff' }}
                         value={searchFilters.department || undefined} onChange={v => handleSearchChange('department', v)} options={departments.map(d => ({ label: d.name, value: String(d.id) }))} />
                 </div>
                 <button onClick={clearFilters} className="h-11 px-8 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-400 shadow-sm">重置</button>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-6 border-t border-slate-200 pt-6">
+            <div className="flex items-center justify-between gap-6 border-t border-slate-200 pt-6">
                 <div className="flex items-center gap-2">
                     {[
                         { id: 'today', label: '今天', f: getLocalDateString(), t: getLocalDateString() },
@@ -198,18 +196,18 @@ function EmployeeApproval() {
                         { id: 'thisMonth', label: '本月累计', f: getLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), t: getLocalDateString() }
                     ].map(btn => (
                         <button key={btn.id} onClick={() => handleDateQuickSelect(btn.id)}
-                            className={`h-9 px-5 rounded-lg text-[11px] font-black transition-all ${isDateActive(btn.f, btn.t) ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-slate-500 text-slate-600 hover:border-slate-900'}`}>
+                            className={`h-11 px-6 rounded-lg text-[11px] font-black transition-all ${isDateActive(btn.f, btn.t) ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-[#64748b] text-slate-600 hover:border-slate-900'}`}>
                             {btn.label}
                         </button>
                     ))}
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-bold">自定义申请周期：</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">自定义申请周期：</span>
                     <div className="flex items-center gap-2">
-                        <input type="date" value={searchFilters.dateFrom} onChange={e => handleSearchChange('dateFrom', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+                        <input type="date" value={searchFilters.dateFrom} onChange={e => handleSearchChange('dateFrom', e.target.value)} className="h-11 px-4 bg-white border-[1px] border-[#64748b] text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm" />
                         <span className="text-slate-400 font-black">→</span>
-                        <input type="date" value={searchFilters.dateTo} onChange={e => handleSearchChange('dateTo', e.target.value)} className="h-10 px-4 bg-white border-[1px] border-slate-500 text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm font-black" />
+                        <input type="date" value={searchFilters.dateTo} onChange={e => handleSearchChange('dateTo', e.target.value)} className="h-11 px-4 bg-white border-[1px] border-[#64748b] text-[11px] font-black text-slate-900 rounded-lg focus:border-indigo-500 outline-none transition-all shadow-sm" />
                     </div>
                 </div>
             </div>

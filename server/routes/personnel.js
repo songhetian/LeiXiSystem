@@ -1204,11 +1204,6 @@ async function personnelRoutes(fastify, options) {
       return reply.code(500).send({ success: false, message: '重置密码失败: ' + error.message });
     }
   });
-    } catch (error) {
-      console.error('❌ 重置用户密码失败:', error);
-      return reply.code(500).send({ success: false, message: '重置密码失败: ' + error.message });
-    }
-  });
 }
 
 module.exports = personnelRoutes;
