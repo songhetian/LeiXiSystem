@@ -198,25 +198,26 @@ const OperationLogs = () => {
           <button onClick={() => { setCurrentPage(1); fetchLogs(); }} className="h-11 px-8 bg-indigo-50 text-indigo-600 font-black rounded-lg text-xs hover:bg-indigo-100 transition-all flex items-center gap-2 border-[1px] border-indigo-200 shadow-sm"><RefreshCcw size={16} /> 刷新同步</button>
         </div>
 
-        {/* 2. 旗舰全铺满·自适应单行搜索条 */}
+        {/* 2. 旗舰全铺满·物理缝合搜索条 (高度 44px 锁定) */}
         <div className="bg-slate-50/40 px-10 py-8">
-            <div className="flex flex-wrap items-center gap-4 w-full">
-                <div className="flex-[1.5] min-w-[150px]">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">执行者</label>
-                    <Input placeholder="姓名/账号" value={filters.username} onChange={e => setFilters({...filters, username: e.target.value})} 
+            <div className="flex items-center gap-3 w-full">
+                <div className="w-[160px] flex-none">
+                    <Input placeholder="执行者姓名/账号" value={filters.username} onChange={e => setFilters({...filters, username: e.target.value})} 
                         className="w-full h-11 px-3 font-black text-slate-900 rounded-lg shadow-sm border-[1px] border-slate-500" prefix={<Search size={14} className="text-slate-400" />} />
                 </div>
-                <div className="flex-1 min-w-[140px]">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">业务域</label>
-                    <Select placeholder="全部模块" allowClear options={modules} value={filters.module} onChange={val => setFilters({...filters, module: val})} className="w-full h-11 font-black" />
+                <div className="w-[160px] flex-none">
+                    <Select placeholder="📦 全部业务域" allowClear options={modules} value={filters.module} 
+                        onChange={val => { const nf = {...filters, module: val}; setFilters(nf); setCurrentPage(1); fetchLogs(nf); }} 
+                        className="w-full h-11 font-black" variant="borderless" style={{ border:'1px solid #64748b', borderRadius:'8px', background:'#fff' }} />
                 </div>
-                <div className="flex-[2.5] min-w-[240px]">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest ml-1">审计周期</label>
-                    <RangePicker value={filters.dateRange} onChange={dates => setFilters({...filters, dateRange: dates})} className="w-full h-11 font-black shadow-sm" suffixIcon={<Calendar size={14} className="text-slate-400" />} />
+                <div className="flex-grow min-w-[200px]">
+                    <RangePicker value={filters.dateRange} 
+                        onChange={dates => { const nf = {...filters, dateRange: dates}; setFilters(nf); setCurrentPage(1); fetchLogs(nf); }} 
+                        className="w-full h-11 font-black shadow-sm border-[1px] border-slate-500 rounded-lg px-4" suffixIcon={<Calendar size={14} className="text-slate-400" />} />
                 </div>
                 
-                {/* 物理合并：快捷日期按钮组 (自适应空间，且具备 1px slate-500 标准) */}
-                <div className="flex items-center gap-1.5 mt-[19px]">
+                {/* 快捷日期按钮组 - 物理对齐 44px */}
+                <div className="flex items-center gap-1.5 flex-none">
                     {[
                         { id: 'today', label: '今天' },
                         { id: 'yesterday', label: '昨天' },
@@ -230,10 +231,10 @@ const OperationLogs = () => {
                     ))}
                 </div>
 
-                {/* 操作按钮区 (flex-none 保持固定宽度) */}
-                <div className="flex gap-2 mt-[19px] flex-none">
-                    <button onClick={() => { setCurrentPage(1); fetchLogs(); }} className="h-11 px-10 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black transition-all shadow-lg border-[1px] border-slate-800">查询</button>
-                    <button onClick={() => { setFilters({ username: '', module: undefined, status: undefined, dateRange: null }); setCurrentPage(1); }} className="h-11 px-6 bg-white border-[1px] border-slate-500 text-slate-600 font-black rounded-lg text-xs hover:bg-slate-50 transition-all shadow-sm">重置</button>
+                <div className="flex gap-2 flex-none ml-2">
+                    <button onClick={() => { setCurrentPage(1); fetchLogs(); }} className="h-11 px-8 bg-slate-900 text-white font-black rounded-lg text-xs hover:bg-black transition-all shadow-lg border-[1px] border-slate-800">检索</button>
+                    <button onClick={() => { const nf = { username: '', module: undefined, status: undefined, dateRange: null }; setFilters(nf); setCurrentPage(1); fetchLogs(nf); }} 
+                        className="h-11 px-6 bg-white border-[1px] border-slate-500 text-slate-600 font-black rounded-lg text-xs hover:bg-slate-50 transition-all shadow-sm">重置</button>
                 </div>
             </div>
         </div>

@@ -172,14 +172,15 @@ export default function ApprovalManagement() {
           </div>
       </div>
 
-      {/* 2. 物理缝合搜索条 */}
-      <div className="flex items-center gap-3 w-full bg-white p-0 rounded-xl shadow-sm border border-slate-200 overflow-hidden h-[38px]">
-          <div className="flex shrink-0 h-full border-r border-slate-100">
+      {/* 2. 旗舰物理缝合搜索条 (高度 44px 锁定) */}
+      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3 w-full">
+          <div className="w-[160px] flex-none">
             <Select 
                 value={filters.status} 
                 onChange={v => setFilters({...filters, status: v})}
-                className="w-36 h-full flagship-select"
+                className="w-full h-11 flagship-select font-black"
                 variant="borderless"
+                style={{ border:'1px solid #64748b', borderRadius:'8px', background:'#fff' }}
                 options={[
                     { label: '🕒 待我审批', value: 'pending' },
                     { label: '✅ 已通过', value: 'approved' },
@@ -188,16 +189,46 @@ export default function ApprovalManagement() {
                 ]}
             />
           </div>
-          <div className="flex-1 h-full">
-            <div className="flex items-center h-full px-4 gap-2">
+          
+          {/* 快捷日期按钮组 - 物理缝合 */}
+          <div className="flex items-center gap-1.5 flex-none">
+            {[
+                { id: 'today', label: '今天' },
+                { id: 'yesterday', label: '昨天' },
+                { id: 'last7', label: '近7天' }
+            ].map(btn => {
+                const now = new Date().toISOString().split('T')[0];
+                const yest = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                const l7 = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+                const isActive = (btn.id === 'today' && filters.start_date === now) || 
+                               (btn.id === 'yesterday' && filters.start_date === yest) ||
+                               (btn.id === 'last7' && filters.start_date === l7);
+                
+                return (
+                    <button key={btn.id} 
+                        onClick={() => {
+                            const d = btn.id === 'today' ? now : btn.id === 'yesterday' ? yest : l7;
+                            setFilters({...filters, start_date: d, end_date: now});
+                        }}
+                        className={`h-11 px-5 rounded-lg text-[11px] font-black transition-all ${isActive ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border-[1px] border-[#64748b] text-slate-600 hover:border-slate-900'}`}>
+                        {btn.label}
+                    </button>
+                );
+            })}
+          </div>
+
+          <div className="flex-grow flex items-center h-11 px-4 gap-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <SearchOutlined className="text-slate-400" />
-                <span className="text-[10px] text-slate-400 uppercase font-bold">按时间过滤:</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold">时段:</span>
                 <input type="date" value={filters.start_date} onChange={e => setFilters({...filters, start_date: e.target.value})} className="bg-transparent outline-none font-bold text-xs" />
                 <span className="text-slate-300">→</span>
                 <input type="date" value={filters.end_date} onChange={e => setFilters({...filters, end_date: e.target.value})} className="bg-transparent outline-none font-bold text-xs" />
-            </div>
           </div>
-          <button onClick={() => setFilters({status:'pending', start_date:'', end_date:''})} className="shrink-0 h-full px-6 bg-slate-50 border-l border-slate-100 font-black text-[10px] text-slate-500 hover:bg-white transition-all">重置</button>
+
+          <button onClick={() => setFilters({status:'pending', start_date:'', end_date:''})} 
+            className="shrink-0 h-11 px-8 bg-indigo-50 border-[1px] border-indigo-200 font-black text-xs text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all">
+            重置
+          </button>
       </div>
 
       {/* 3. 内容区 */}

@@ -152,24 +152,42 @@ const RoleManagement = () => {
   };
 
   const BUILTIN_TEMPLATES = [
-    { key: 'customer_basic', name: '客服基础', modules: ['quality', 'learning', 'memo'] },
-    { key: 'attendance_admin', name: '考勤管理员', modules: ['attendance', 'schedule'] },
-    { key: 'org_admin', name: '组织管理员', modules: ['system', 'user'] },
+    { key: 'customer_basic', name: '客服基础', modules: ['quality', 'knowledge', 'personal', 'messaging'] },
+    { key: 'attendance_admin', name: '考勤管理员', modules: ['attendance', 'vacation'] },
+    { key: 'org_admin', name: '组织管理员', modules: ['system', 'user', 'organization'] },
     { key: 'employee_basic', name: '员工基础权限', permissions: ['messaging:broadcast:view','attendance:record:view','vacation:record:view','attendance:approval:manage','vacation:approval:manage','knowledge:article:view','assessment:plan:view','assessment:result:view','user:profile:update','user:memo:manage'] },
-    { key: 'full_access', name: '全权限体系', modules: Object.keys(moduleNames) }
+    { key: 'full_access', name: '全权限体系', modules: ['system', 'user', 'organization', 'messaging', 'attendance', 'vacation', 'quality', 'knowledge', 'assessment', 'finance', 'payroll', 'reimbursement', 'personal', 'personnel'] }
   ];
 
   const getTemplatePermissionIds = (tplKey) => {
     if (!tplKey) return [];
+    
+    // 🛡️ 雷犀强化：优先处理自定义模板
     if (tplKey.startsWith('custom:')) {
       const id = parseInt(tplKey.split(':')[1]);
       const tpl = customTemplates.find(t => t.id === id);
       return Array.isArray(tpl?.permission_ids) ? tpl.permission_ids : [];
     }
+    
+    // 🛡️ 雷犀强化：处理内置模板，增加数据加载校验
     const tpl = BUILTIN_TEMPLATES.find(t => t.key === tplKey);
-    if (!tpl) return [];
-    if (tpl.permissions) return permissions.filter(p => tpl.permissions.includes(p.code)).map(p => p.id);
-    return permissions.filter(p => tpl.modules.includes(p.module)).map(p => p.id);
+    if (!tpl || !permissions || permissions.length === 0) return [];
+    
+    if (tpl.permissions) {
+      // 🚀 精准代码匹配
+      return permissions
+        .filter(p => p.code && tpl.permissions.includes(p.code))
+        .map(p => p.id);
+    }
+    
+    if (tpl.modules) {
+      // 🚀 模块归类匹配
+      return permissions
+        .filter(p => p.module && tpl.modules.includes(p.module))
+        .map(p => p.id);
+    }
+    
+    return [];
   };
 
   const handleApplyTemplateToSelectedRoles = async () => {
@@ -218,10 +236,17 @@ const RoleManagement = () => {
   const filteredPermissionTreeData = useMemo(() => {
     const modules = {}; const searchLower = permissionSearchText.toLowerCase();
     permissions.forEach(p => {
-      const mod = p.module || 'system'; const desc = p.description || '未命名'; const code = p.code || '';
+      const mod = p.module || 'system'; 
+      // 🛡️ 雷犀强化：即使数据库缺失描述，也确保不显示空白
+      const desc = p.description || `未命名权限 (${p.code})`; 
+      const code = p.code || '';
+      
       if (permissionSearchText && !desc.toLowerCase().includes(searchLower) && !code.toLowerCase().includes(searchLower) && !(moduleNames[mod] || '').toLowerCase().includes(searchLower)) return;
+      
       if (!modules[mod]) modules[mod] = { title: moduleNames[mod] || '系统管理', key: `module-${mod}`, children: [] };
-      modules[mod].children.push({ title: `${desc} (${code})`, key: p.id.toString(), isLeaf: true });
+      
+      // 🚀 物理去英文：只保留中文描述
+      modules[mod].children.push({ title: desc, key: p.id.toString(), isLeaf: true });
     });
     return Object.values(modules);
   }, [permissions, permissionSearchText]);
@@ -365,6 +390,26 @@ const RoleManagement = () => {
           ))}
       </div>
 
+      {selectedRoleIds.length > 0 && (
+        <div className="mb-6 p-4 bg-slate-900 rounded-2xl flex items-center justify-between px-10 animate-in slide-in-from-top-4 shadow-2xl">
+            <div className="flex items-center gap-4">
+                <span className="text-xs font-black text-white bg-white/10 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+                    <Grid size={14} className="text-indigo-400" />
+                    已锁定 {selectedRoleIds.length} 个目标角色
+                </span>
+            </div>
+            <div className="flex gap-3">
+                <button onClick={() => setIsTemplateModalOpen(true)} className="h-10 px-6 bg-indigo-600 text-white font-black rounded-xl text-[11px] hover:bg-indigo-500 transition-all shadow-lg border border-indigo-400 flex items-center gap-2">
+                    <Zap size={14} /> 批量注入模板
+                </button>
+                <button onClick={() => setIsCloneModalOpen(true)} className="h-10 px-6 bg-white/10 text-white font-black rounded-xl text-[11px] hover:bg-white/20 transition-all border border-white/20 flex items-center gap-2">
+                    <Copy size={14} /> 级联克隆
+                </button>
+                <button onClick={() => setSelectedRoleIds([])} className="h-10 px-6 bg-transparent text-slate-400 font-black text-[11px] hover:text-white transition-colors">放弃选择</button>
+            </div>
+        </div>
+      )}
+
       {/* 3. 列表容器 */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <Table columns={columns} dataSource={getCurrentPageData()} rowKey="id" loading={loading} pagination={false}
@@ -397,9 +442,33 @@ const RoleManagement = () => {
       <AntdModal title={<div className="flex items-center gap-2 text-slate-900 font-black uppercase text-sm tracking-widest"><Settings size={18} className="text-indigo-600" />{editingRole ? '配置修订' : '创建新角色'}</div>}
         open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} width={900} styles={{ body: { padding: '24px' } }} zIndex={3000}>
         <Form form={form} layout="vertical" className="text-left font-black">
-          <Form.Item name="name" label={<span className="text-[13px] font-black text-slate-700 uppercase tracking-widest">官方角色标识</span>} rules={[{ required: true, message: '请输入名称' }]}>
-            <Input placeholder="输入官方名称..." className="h-11 rounded-lg border-2 border-slate-100 font-black text-[15px]" />
-          </Form.Item>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Form.Item name="name" label={<span className="text-[13px] font-black text-slate-700 uppercase tracking-widest">官方角色标识</span>} rules={[{ required: true, message: '请输入名称' }]}>
+              <Input placeholder="输入官方名称..." className="h-11 rounded-lg border-2 border-slate-100 font-black text-[15px]" />
+            </Form.Item>
+            <Form.Item label={<span className="text-[13px] font-black text-indigo-600 uppercase tracking-widest">⚡ 快速应用模板 (可选)</span>}>
+              <Select placeholder="选择预置或自定义模板进行快速赋权..." className="h-11 font-black" allowClear
+                onChange={(val) => {
+                  if (!val) return;
+                  const pIds = getTemplatePermissionIds(val);
+                  if (pIds.length === 0) {
+                    toast.error('当前模板内无可用权限，请检查数据加载或模板配置');
+                    return;
+                  }
+                  setCheckedKeys(pIds.map(id => id.toString()));
+                  toast.success(`模板权限同步成功 (注入 ${pIds.length} 项)`);
+                }}>
+                <Select.OptGroup label="官方预置模板">
+                  {BUILTIN_TEMPLATES.map(t => <Option key={t.key} value={t.key}>{t.name}</Option>)}
+                </Select.OptGroup>
+                {customTemplates.length > 0 && (
+                  <Select.OptGroup label="团队自定义模板">
+                    {customTemplates.map(t => <Option key={`custom:${t.id}`} value={`custom:${t.id}`}>{t.name}</Option>)}
+                  </Select.OptGroup>
+                )}
+              </Select>
+            </Form.Item>
+          </div>
           <Form.Item name="description" label={<span className="text-[13px] font-black text-slate-700 uppercase tracking-widest">职能详细说明</span>}>
             <Input.TextArea placeholder="简述业务覆盖范围..." rows={2} className="rounded-lg border-2 border-slate-100 font-black text-[15px]" />
           </Form.Item>
@@ -452,7 +521,10 @@ const RoleManagement = () => {
                     {filteredModulesForTemplate.map(([key, name]) => (
                         <div key={key} className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[11px] font-black text-slate-900 uppercase">{name}</span><div className="grid grid-cols-1 gap-1 mt-2">
                             {permissions.filter(p => p.module === key && ((p.description || '').includes(templateSearchText) || (p.code || '').includes(templateSearchText))).map(p => (
-                                <label key={p.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-all"><input type="checkbox" checked={templateForm.permission_ids.includes(p.id)} onChange={e => setTemplateForm({...templateForm, permission_ids: e.target.checked ? [...templateForm.permission_ids, p.id] : templateForm.permission_ids.filter(id => id !== p.id)})} className="w-4 h-4 rounded border-slate-300" /><span className="text-[13px] font-bold text-slate-700">{p.description}</span></label>
+                                <label key={p.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-all">
+                                    <input type="checkbox" checked={templateForm.permission_ids.includes(p.id)} onChange={e => setTemplateForm({...templateForm, permission_ids: e.target.checked ? [...templateForm.permission_ids, p.id] : templateForm.permission_ids.filter(id => id !== p.id)})} className="w-4 h-4 rounded border-slate-300" />
+                                    <span className="text-[13px] font-bold text-slate-700">{p.description || `未命名 (${p.code})`}</span>
+                                </label>
                             ))}
                         </div></div>
                     ))}
@@ -484,6 +556,34 @@ const RoleManagement = () => {
 
       <RoleDepartmentModal isOpen={isDepartmentModalOpen} onClose={() => { setIsDepartmentModalOpen(false); setSelectedRoleForDepartment(null); }} role={selectedRoleForDepartment} onSuccess={() => fetchRoles()} zIndex={3000} />
       <AntdModal title="角色体系快速克隆" open={isCloneModalOpen} onCancel={() => setIsCloneModalOpen(false)} onOk={handleCloneSelectedRoles} okText="立即克隆" cancelText="取消" width={480} zIndex={3000} styles={{ body: { padding: '24px' } }}><div className="space-y-4 py-4 text-left font-black"><div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-blue-800 text-xs shadow-inner">已锁定 {selectedRoleIds.length} 个角色</div><div className="grid grid-cols-2 gap-4"><div><label className="text-[10px] text-slate-400 uppercase ml-1">前缀</label><Input value={clonePrefix} onChange={e => setClonePrefix(e.target.value)} className="h-11 rounded-lg border-2 text-[15px]" /></div><div><label className="text-[10px] text-slate-400 uppercase ml-1">后缀</label><Input value={cloneSuffix} onChange={e => setCloneSuffix(e.target.value)} className="h-11 rounded-lg border-2 text-[15px]" /></div></div><label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer"><input type="checkbox" checked={cloneCopyDepartments} onChange={e => setCloneCopyDepartments(e.target.checked)} className="w-4 h-4 rounded" /> 物理复制部门可见范围</label></div></AntdModal>
+      
+      <AntdModal title={<div className="flex items-center gap-2 text-slate-900 font-black uppercase text-sm tracking-widest"><Zap size={18} className="text-indigo-600" />批量注入权限模板</div>} 
+        open={isTemplateModalOpen} onCancel={() => setIsTemplateModalOpen(false)} onOk={handleApplyTemplateToSelectedRoles} okText="立即分发" cancelText="取消" width={480} zIndex={3000} styles={{ body: { padding: '24px' } }}>
+        <div className="space-y-4 py-4 text-left font-black">
+            <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-indigo-800 text-[11px] shadow-inner font-black">已锁定 {selectedRoleIds.length} 个角色进行批量赋权</div>
+            <div>
+                <label className="text-[11px] text-slate-500 uppercase ml-1 font-black">请指定目标权限模板</label>
+                <Select placeholder="选择模板..." value={selectedTemplateKey} onChange={setSelectedTemplateKey} className="w-full h-11 mt-1 font-black" allowClear>
+                    <Select.OptGroup label="官方预置模板库">
+                        {BUILTIN_TEMPLATES.map(t => <Option key={t.key} value={t.key}>{t.name}</Option>)}
+                    </Select.OptGroup>
+                    {customTemplates.length > 0 && (
+                        <Select.OptGroup label="团队私有模板库">
+                            {customTemplates.map(t => <Option key={`custom:${t.id}`} value={`custom:${t.id}`}>{t.name}</Option>)}
+                        </Select.OptGroup>
+                    )}
+                </Select>
+            </div>
+            <div>
+                <label className="text-[11px] text-slate-500 uppercase ml-1 font-black">应用逻辑模式</label>
+                <Select value={templateApplyMode} onChange={setTemplateApplyMode} className="w-full h-11 mt-1 font-black">
+                    <Option value="merge">增量合并 (保留现状，仅注入模板权限)</Option>
+                    <Option value="replace">全量覆盖 (抹除现状，完全同步模板)</Option>
+                </Select>
+            </div>
+        </div>
+      </AntdModal>
+
       <ConfirmDialog isOpen={isConfirmDialogOpen} onClose={() => setIsConfirmDialogOpen(false)} onConfirm={confirmDialogConfig.onConfirm} title={confirmDialogConfig.title} message={confirmDialogConfig.message} zIndex={5000} />
     </div>
     </ConfigProvider>
