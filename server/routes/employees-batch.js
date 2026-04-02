@@ -20,7 +20,7 @@ module.exports = async function (fastify, opts) {
     let successCount = 0
     let failCount = 0
     const errors = []
-    const passwordHashDefault = '$2b$12$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq'; // 默认 123456
+    const passwordHashDefault = '$2b$10$ZmQ5snpKRKE4E1uM7NDSLeYkouyYOIK1fvsZ6BOwQ0mPhsWo4HJTG'; // 默认 123456
 
     // 获取当前最大工号用于连续生成
     let currentMaxNumber = 0;

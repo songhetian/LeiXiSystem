@@ -68,13 +68,12 @@ async function personnelRoutes(fastify, options) {
       const departmentId = deptRows[0]?.id || 6 
 
       const username = `CS${Date.now()}`
-      const passwordHash = '$2b$12$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq' 
+      const passwordHash = '$2b$10$ZmQ5snpKRKE4E1uM7NDSLeYkouyYOIK1fvsZ6BOwQ0mPhsWo4HJTG'
 
       const [userResult] = await pool.query(
         'INSERT INTO users (username, password_hash, real_name, email, phone, department_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [username, passwordHash, name, email, phone, departmentId, status]
       )
-
       let positionId;
       const [existingPositions] = await pool.query('SELECT id FROM positions WHERE name = ?', ['客服专员']);
       if (existingPositions.length > 0) {
@@ -419,10 +418,9 @@ async function personnelRoutes(fastify, options) {
       hire_date, rating, status, username: providedUsername, avatar 
     } = request.body;
     try {
-      const passwordHash = '$2b$12$KIXxLQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqNqYq'; 
+      const passwordHash = '$2b$10$ZmQ5snpKRKE4E1uM7NDSLeYkouyYOIK1fvsZ6BOwQ0mPhsWo4HJTG';
 
-      // --- 路径自愈与兼容逻辑 ---
-      let finalAvatar = avatar;
+      // --- 路径自愈与兼容逻辑 ---      let finalAvatar = avatar;
       if (avatar) {
         if (avatar.startsWith('data:image')) {
           finalAvatar = await saveBase64Image(avatar, 'avatar');
@@ -1125,6 +1123,90 @@ async function personnelRoutes(fastify, options) {
         db_message: error.message,
         sql_state: error.sqlState
       });
+    }
+  });
+
+  /**
+   * 管理员强制重置用户登录密码 (一键重置为 123456)
+   * POST /api/users/:id/reset-password
+   */
+  fastify.post('/api/users/:id/reset-password', async (request, reply) => {
+    let { id } = request.params;
+    const DEFAULT_PWD = '123456';
+
+    try {
+      // 检查用户是否存在 (先查 users 表，若无则尝试查 employees 表关联的 user_id)
+      let [users] = await pool.query('SELECT id, username, real_name FROM users WHERE id = ?', [id]);
+      
+      if (users.length === 0) {
+        const [emps] = await pool.query('SELECT user_id FROM employees WHERE id = ?', [id]);
+        if (emps.length > 0) {
+          id = emps[0].user_id;
+          [users] = await pool.query('SELECT id, username, real_name FROM users WHERE id = ?', [id]);
+        }
+      }
+
+      if (users.length === 0) {
+        return reply.code(404).send({ success: false, message: '用户不存在' });
+      }
+
+      const user = users[0];
+      const passwordHash = await bcrypt.hash(DEFAULT_PWD, 10);
+
+      // 1. 物理更新数据库密码
+      await pool.query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', [passwordHash, id]);
+
+      // 2. 物理清理 Redis 会话，强制所有设备下线
+      if (redis) {
+        await redis.del(`user:session:${id}`);
+        await redis.del(`user:permissions:${id}`);
+        await redis.del(`user:profile:${id}`);
+        
+        const { forceDisconnectUser } = require('../websocket');
+        if (typeof forceDisconnectUser === 'function') {
+          forceDisconnectUser(fastify.io, id);
+        }
+      }
+
+      // 3. 记录操作日志
+      const permissions = await extractUserPermissions(request, pool);
+      const opId = permissions?.userId;
+      let opRealName = '管理员';
+      let opUsername = 'admin';
+
+      if (opId) {
+        const [opRows] = await pool.query('SELECT real_name, username FROM users WHERE id = ?', [opId]);
+        if (opRows.length > 0) {
+          opRealName = opRows[0].real_name;
+          opUsername = opRows[0].username;
+        }
+      }
+
+      await recordLog(pool, {
+        user_id: opId,
+        username: opUsername,
+        real_name: opRealName,
+        module: 'user',
+        action: `一键重置密码: ${user.real_name} (${user.username})`,
+        method: 'POST',
+        url: request.url,
+        ip: request.ip,
+        status: 1
+      });
+
+      return {
+        success: true,
+        message: `用户 ${user.real_name} 的密码已成功重置为 123456`,
+        default_password: DEFAULT_PWD
+      };
+    } catch (error) {
+      console.error('❌ 重置用户密码失败:', error);
+      return reply.code(500).send({ success: false, message: '重置密码失败: ' + error.message });
+    }
+  });
+    } catch (error) {
+      console.error('❌ 重置用户密码失败:', error);
+      return reply.code(500).send({ success: false, message: '重置密码失败: ' + error.message });
     }
   });
 }

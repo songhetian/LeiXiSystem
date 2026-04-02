@@ -67,7 +67,12 @@ const setupServer = async () => {
   await fastify.register(cors, { origin: true, credentials: true });
   await fastify.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
 
-  const uploadDir = dbConfigJson.upload?.sharedDirectory || path.join(__dirname, '../uploads');
+  let uploadDir = dbConfigJson.upload?.sharedDirectory || path.join(__dirname, '../uploads');
+  // 确保是绝对路径
+  if (!path.isAbsolute(uploadDir)) {
+    uploadDir = path.resolve(process.cwd(), uploadDir);
+  }
+  
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
   fastify.uploadDir = uploadDir; // 挂载到实例供其他路由使用
   fastify.register(require('@fastify/static'), { 
