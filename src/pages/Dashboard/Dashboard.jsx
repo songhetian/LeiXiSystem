@@ -168,50 +168,50 @@ const Dashboard = ({ onNavigate }) => {
           <>
             {/* 1. 核心任务条 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div onClick={() => onNavigate('attendance-home')} className="bg-white p-6 rounded-[32px] shadow-sm flex items-center justify-between cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-[#07C160] transition-all group border-2 border-transparent">
+              <div onClick={() => onNavigate('attendance-home')} className="bg-white p-6 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:shadow-lg transition-all group border border-slate-200">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg transition-transform group-hover:scale-110 ${stats?.personalStats?.todayClock?.clock_in ? 'bg-[#07C160] text-white' : 'bg-amber-500 text-white'}`}>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-md transition-transform group-hover:scale-105 ${stats?.personalStats?.todayClock?.clock_in ? 'bg-indigo-600 text-white' : 'bg-amber-500 text-white'}`}>
                     <ClockCircleOutlined />
                   </div>
                   <div className="text-left">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">今日考勤打卡</p>
-                    <Text strong className={`text-lg ${stats?.personalStats?.todayClock?.clock_in ? 'text-[#07C160]' : 'text-amber-600'}`}>
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-none mb-1">今日考勤打卡</p>
+                    <Text className={`text-[15px] font-black ${stats?.personalStats?.todayClock?.clock_in ? 'text-indigo-700' : 'text-amber-700'}`}>
                       {stats?.personalStats?.todayClock?.clock_in ? '签到已完成' : '尚未进行签到'}
                     </Text>
                   </div>
                 </div>
-                <RightOutlined className="text-slate-200 group-hover:text-[#07C160]" />
+                <RightOutlined className="text-slate-300 group-hover:text-indigo-600" />
               </div>
 
-              <div onClick={() => onNavigate('my-todo')} className="bg-white p-6 rounded-[32px] shadow-sm flex items-center justify-between cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-[#07C160] transition-all group border-2 border-transparent">
+              <div onClick={() => onNavigate('my-todo')} className="bg-white p-6 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:shadow-lg transition-all group border border-slate-200">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center text-xl shadow-lg transition-transform group-hover:scale-110">
+                  <div className="w-12 h-12 bg-rose-600 text-white rounded-xl flex items-center justify-center text-xl shadow-md transition-transform group-hover:scale-105">
                     <BellOutlined />
                   </div>
                   <div className="text-left">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">待办处理中心</p>
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-none mb-1">待办处理中心</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-900">{stats?.pendingCount || 0}</span>
-                      <span className="text-xs font-bold text-slate-400">项流程待审</span>
+                      <span className="text-[11px] font-bold text-slate-700 uppercase">项流程待审</span>
                     </div>
                   </div>
                 </div>
-                <RightOutlined className="text-slate-200 group-hover:text-[#07C160]" />
+                <RightOutlined className="text-slate-300 group-hover:text-rose-600" />
               </div>
 
-              <div onClick={() => onNavigate('my-notifications')} className="bg-white p-6 rounded-[32px] shadow-sm flex items-center justify-between cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-[#07C160] transition-all group border-2 border-transparent">
+              <div onClick={() => onNavigate('my-notifications')} className="bg-white p-6 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:shadow-lg transition-all group border border-slate-200">
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-xl shadow-lg transition-transform group-hover:scale-110">
+                  <div className="w-12 h-12 bg-indigo-700 text-white rounded-xl flex items-center justify-center text-xl shadow-md transition-transform group-hover:scale-105">
                     <InfoCircleOutlined />
                   </div>
                   <div className="min-w-0 flex-1 text-left">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">最新系统消息</p>
-                    <Text strong className="text-slate-800 text-sm block truncate pr-2 font-bold italic">
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-none mb-1">最新系统消息</p>
+                    <Text className="text-slate-900 text-sm block truncate pr-2 font-bold">
                       {latestSignal ? latestSignal.title : '暂无最新通知'}
                     </Text>
                   </div>
                 </div>
-                {!latestSignal?.is_read && latestSignal && <div className="w-2 h-2 rounded-full bg-[#07C160] animate-pulse shrink-0" />}
+                {!latestSignal?.is_read && latestSignal && <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />}
               </div>
             </div>
 
@@ -220,12 +220,12 @@ const Dashboard = ({ onNavigate }) => {
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-3">
                   <div className="w-1 h-4 bg-slate-900 rounded-full" />
-                  <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">快速功能启动墙</h2>
+                  <h2 className="text-[13px] font-bold text-slate-900 uppercase tracking-widest">快速功能启动墙</h2>
                 </div>
                 <Button 
                   type="text" 
                   icon={<SettingOutlined />} 
-                  className="text-slate-400 hover:text-[#07C160] font-bold text-[10px] uppercase"
+                  className="text-slate-600 hover:text-indigo-600 font-bold text-[10px] uppercase"
                   onClick={() => setIsConfigModalOpen(true)}
                 >
                   自定义桌面布局
@@ -240,12 +240,12 @@ const Dashboard = ({ onNavigate }) => {
                     <div 
                       key={id}
                       onClick={() => onNavigate(id)}
-                      className="group bg-white p-4 rounded-[28px] border border-transparent hover:border-[#07C160] shadow-sm hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center aspect-square"
+                      className="group bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-600 shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col items-center justify-center aspect-square"
                     >
-                      <div className={`w-12 h-12 rounded-[18px] ${tile.color || 'bg-slate-400'} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                      <div className={`w-12 h-12 rounded-lg ${tile.color || 'bg-slate-400'} flex items-center justify-center mb-3 shadow-md group-hover:scale-105 transition-transform`}>
                         {React.cloneElement(tile.icon, { style: { fontSize: 22, color: '#fff' } })}
                       </div>
-                      <Text strong className="text-slate-700 text-[11px] font-bold">{tile.label}</Text>
+                      <Text className="text-slate-900 text-[11px] font-bold">{tile.label}</Text>
                     </div>
                   );
                 })}

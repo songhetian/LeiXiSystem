@@ -98,9 +98,14 @@ export const getFileUrl = (url) => {
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
-  const baseUrl = getUploadBaseUrl();
-  const normalizedPath = url.startsWith("/") ? url : `/${url}`;
-  return `${baseUrl}${normalizedPath}`;
+
+  if (url.startsWith("/uploads/")) {
+    const baseUrl = getUploadBaseUrl();
+    return `${baseUrl}${url}`;
+  }
+
+  const cleanPath = url.startsWith("/") ? url.slice(1) : url;
+  return getApiUrl(`/api/files/inline?path=${encodeURIComponent(cleanPath)}`);
 };
 
 /**

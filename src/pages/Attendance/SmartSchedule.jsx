@@ -25,8 +25,11 @@ import {
 } from 'lucide-react';
 import { RocketOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import api from '../../api';
+import { getApiUrl } from '../../utils/apiConfig';
 import dayjs from 'dayjs';
 import { toast } from 'sonner';
+import { wsManager } from '../../services/websocket';
+import logger from '../../utils/logger';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -34,13 +37,31 @@ const { Option } = Select;
 const SmartSchedule = () => {
     const [currentStep, setCurrentStep] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [inferencing, setInferencing] = useState(false);
     
     // --- 业务数据 ---
     const [departments, setDepartments] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
     const [selectedDept, setSelectedDept] = useState(null);
-    const [targetMonth, setTargetMonth] = useState(dayjs().add(1, 'month').startOf('month'));
+    
+    // --- [智能进化] 时间维度：从月切换为任意区间 ---
+    const [dateRange, setDateRange] = useState([
+        dayjs().add(1, 'month').startOf('month'),
+        dayjs().add(1, 'month').endOf('month')
+    ]);
+
+    // 快捷设置逻辑
+    const quickSetRange = (type) => {
+        const base = dateRange[0] || dayjs();
+        if (type === 'first_half') {
+            setDateRange([base.startOf('month'), base.date(15)]);
+        } else if (type === 'second_half') {
+            setDateRange([base.date(16), base.endOf('month')]);
+        } else if (type === 'full_month') {
+            setDateRange([base.startOf('month'), base.endOf('month')]);
+        }
+    };
     
     // --- AI 智能参数 (白话增强) ---
     const [rules, setRules] = useState({
@@ -55,27 +76,63 @@ const SmartSchedule = () => {
     const [scheduleDraft, setDraft] = useState([]); 
     const [healthReport, setHealthReport] = useState(null); // [新] AI 健康审计报告
 
-    useEffect(() => { fetchBaseData(); }, []);
+    useEffect(() => { 
+        fetchBaseData(); 
+
+        // 🛡️ 雷犀强化：监听实时权限同步指令
+        const handleRefresh = () => {
+            logger.info('📡 [SmartSchedule] 收到权限变更指令，正在重构部门白名单...');
+            fetchBaseData();
+        };
+
+        wsManager.on('permissions_updated', handleRefresh);
+        return () => {
+            wsManager.off('permissions_updated', handleRefresh);
+        };
+    }, []);
+
     useEffect(() => { if (selectedDept) fetchEmployees(); }, [selectedDept]);
 
     const fetchBaseData = async () => {
         try {
+            setLoading(true);
+            const timestamp = Date.now();
+            
+            // 🛡️ 雷犀强化：使用统一的 api 实例请求数据
             const [deptRes, shiftRes] = await Promise.all([
-                api.get('/departments/list', { params: { forManagement: true } }),
-                api.get('/shifts', { params: { is_active: 1, limit: 100 } })
+                api.get(`/departments/list?t=${timestamp}`),
+                api.get(`/shifts?t=${timestamp}`, { params: { is_active: 1, limit: 100 } })
             ]);
-            if (deptRes.data?.success) {
-                setDepartments(deptRes.data.data);
-                if (deptRes.data.data.length > 0) setSelectedDept(deptRes.data.data[0].id);
+            
+            // 解析部门数据
+            const deptPayload = deptRes.data || {};
+            const departmentsData = Array.isArray(deptPayload.data) ? deptPayload.data : (Array.isArray(deptPayload) ? deptPayload : []);
+            setDepartments(departmentsData);
+            
+            if (departmentsData.length > 0) {
+                const isStillValid = departmentsData.some(d => d.id === selectedDept);
+                if (!selectedDept || !isStillValid) {
+                    setSelectedDept(departmentsData[0].id);
+                }
+            } else {
+                setSelectedDept(null);
+                toast.warning('您暂无任何部门的排班调度权限');
             }
-            if (shiftRes.data?.success) {
-                const activeShifts = shiftRes.data.data.filter(s => s.work_hours > 0);
-                setShifts(activeShifts);
-                const initTargets = {};
-                activeShifts.forEach(s => initTargets[s.id] = 2); 
-                setTargets(initTargets);
-            }
-        } catch (error) { toast.error('基础数据同步失败'); }
+
+            // 解析班次数据
+            const shiftPayload = shiftRes.data || {};
+            const shiftsData = Array.isArray(shiftPayload.data) ? shiftPayload.data : (Array.isArray(shiftPayload) ? shiftPayload : []);
+            const activeShifts = shiftsData.filter(s => s.work_hours > 0);
+            setShifts(activeShifts);
+            
+            const initTargets = {};
+            activeShifts.forEach(s => initTargets[s.id] = 2); 
+            setTargets(initTargets);
+
+        } catch (error) { 
+            logger.error('基础数据同步失败:', error);
+            toast.error('基础数据同步失败'); 
+        }
     };
 
     const fetchEmployees = async () => {
@@ -86,20 +143,22 @@ const SmartSchedule = () => {
         } catch (e) {}
     };
 
-    // --- [智能进化] AI 核心引擎逻辑 ---
+    // --- [智能进化] AI 核心引擎逻辑 (区间推演版) ---
     const executeAIGeneration = async () => {
-        if (!selectedDept) return toast.error('请选择调度部门');
-        setLoading(true);
+        if (!selectedDept || !dateRange[0] || !dateRange[1]) return toast.error('请选择调度部门及有效区间');
+        setInferencing(true);
         
         try {
-            const daysInMonth = targetMonth.daysInMonth();
-            const startDate = targetMonth.startOf('month').format('YYYY-MM-DD');
-            const endDate = targetMonth.endOf('month').format('YYYY-MM-DD');
+            const start = dateRange[0];
+            const end = dateRange[1];
+            const daysCount = end.diff(start, 'day') + 1;
+            const startDateStr = start.format('YYYY-MM-DD');
+            const endDateStr = end.format('YYYY-MM-DD');
 
             const leaveRes = await api.get('/attendance/leave/records', { 
-                params: { department_id: selectedDept, start_date: startDate, end_date: endDate, status: 'approved', limit: 1000 }
+                params: { department_id: selectedDept, start_date: startDateStr, end_date: endDateStr, status: 'approved', limit: 1000 }
             });
-            const currentLeaves = leaveRes.data?.data || [];
+            const currentLeaves = leaveRes.data?.data || leaveRes.data || [];
 
             const newDraft = employees.map(emp => ({ id: emp.id, real_name: emp.real_name, days: {} }));
             const empStats = employees.reduce((acc, emp) => { 
@@ -111,9 +170,10 @@ const SmartSchedule = () => {
             let totalFilled = 0;
             const dailyGaps = [];
 
-            // 执行多轮迭代优化 (物理模拟)
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateStr = targetMonth.date(d).format('YYYY-MM-DD');
+            // 执行多轮迭代优化 (动态区间模拟)
+            for (let i = 0; i < daysCount; i++) {
+                const currentDate = start.add(i, 'day');
+                const dateKey = currentDate.format('YYYY-MM-DD');
                 let dayNeeds = 0;
                 let dayFilled = 0;
                 
@@ -122,27 +182,41 @@ const SmartSchedule = () => {
                     dayNeeds += needed;
                     totalNeeds += needed;
 
-                    // 启发式搜索：根据工时、稳定性、连班状态排序
-                    const sortedEmployees = [...newDraft].sort((a, b) => {
-                        const sA = empStats[a.id];
-                        const sB = empStats[b.id];
-                        if (rules.shiftStability && sA.lastShiftId === shift.id) return -1; 
-                        if (rules.balanceWorkload) return sA.total - sB.total; 
-                        return Math.random() - 0.5;
-                    });
+                    // 🛡️ [智能修正] 科学公平性排序逻辑
+                    const sortedEmployees = [...newDraft]
+                        .map(e => ({ ...e, _random: Math.random() })) // 1. 注入随机扰动，粉碎原始排名偏见
+                        .sort((a, b) => {
+                            const sA = empStats[a.id];
+                            const sB = empStats[b.id];
+                            
+                            // 2. 总工时平衡（核心优先级）：优先选干活最少的人
+                            if (rules.balanceWorkload && sA.total !== sB.total) {
+                                return sA.total - sB.total;
+                            }
+                            
+                            // 3. 班次稳定性（次要优先级）：仅在总量相等时，为了舒适度减少倒班
+                            if (rules.shiftStability) {
+                                if (sA.lastShiftId === shift.id && sB.lastShiftId !== shift.id) return -1;
+                                if (sB.lastShiftId === shift.id && sA.lastShiftId !== shift.id) return 1;
+                            }
+                            
+                            // 4. 随机兜底：打破一切僵局
+                            return a._random - b._random;
+                        });
                     
                     for (const empRow of sortedEmployees) {
                         if (needed <= 0) break;
-                        if (empRow.days[d]) continue; 
+                        if (empRow.days[dateKey]) continue; 
 
-                        // 冲突审计
+                        // 冲突审计 (区间内物理验证)
                         if (rules.avoidLeave) {
-                            const hasLeave = currentLeaves.some(l => l.employee_id === empRow.id && dayjs(dateStr).isBetween(dayjs(l.start_date), dayjs(l.end_date), 'day', '[]'));
+                            const hasLeave = currentLeaves.some(l => l.employee_id === empRow.id && currentDate.isBetween(dayjs(l.start_date), dayjs(l.end_date), 'day', '[]'));
                             if (hasLeave) continue;
                         }
                         if (empStats[empRow.id].consecutive >= rules.maxConsecutive) continue;
 
-                        empRow.days[d] = shift.id;
+                        // 分配班次并更新统计
+                        empRow.days[dateKey] = shift.id;
                         empStats[empRow.id].consecutive++;
                         empStats[empRow.id].total++;
                         empStats[empRow.id].lastShiftId = shift.id;
@@ -152,8 +226,13 @@ const SmartSchedule = () => {
                     }
                 });
                 
-                if (dayFilled < dayNeeds) dailyGaps.push({ day: d, gap: dayNeeds - dayFilled });
-                newDraft.forEach(emp => { if (!emp.days[d]) empStats[emp.id].consecutive = 0; });
+                // 🛡️ [逻辑加固] 每日结转：没排班的人，其连续上班计数清零，班次记忆失效
+                newDraft.forEach(emp => { 
+                    if (!emp.days[dateKey]) {
+                        empStats[emp.id].consecutive = 0;
+                        empStats[emp.id].lastShiftId = null; // 休息一天后，不再享受稳定性加成，强制进入下一轮公平竞争
+                    }
+                });
             }
 
             // 生成健康报告
@@ -162,14 +241,17 @@ const SmartSchedule = () => {
                 coverage: `${totalFilled}/${totalNeeds}`,
                 gaps: dailyGaps,
                 fairness: 92,
-                issues: dailyGaps.length > 0 ? [`检测到 ${dailyGaps.length} 天存在人手缺口`] : []
+                issues: dailyGaps.length > 0 ? [`检测到区间内存在 ${dailyGaps.length} 天调度缺口`] : []
             });
 
             setDraft(newDraft);
             setCurrentStep(1);
-            toast.success('AI 引擎已输出推演方案');
-        } catch (error) { toast.error('推演计算失败'); }
-        finally { setLoading(false); }
+            toast.success('AI 区间调度推演已成功输出');
+        } catch (error) { 
+            logger.error('🚨 [SmartSchedule] AI 推演失败:', error);
+            toast.error('推演计算失败'); 
+        }
+        finally { setInferencing(false); }
     };
 
     const handleFinalPublish = async () => {
@@ -177,10 +259,10 @@ const SmartSchedule = () => {
             setLoading(true);
             const publishData = [];
             scheduleDraft.forEach(emp => {
-                Object.entries(emp.days).forEach(([day, shiftId]) => {
+                Object.entries(emp.days).forEach(([dateStr, shiftId]) => {
                     publishData.push({
                         employee_id: emp.id,
-                        schedule_date: targetMonth.date(parseInt(day)).format('YYYY-MM-DD'),
+                        schedule_date: dateStr,
                         shift_id: shiftId
                     });
                 });
@@ -195,25 +277,34 @@ const SmartSchedule = () => {
         finally { setLoading(false); }
     };
 
-    // --- 动态列配置 ---
+    // --- [智能进化] 动态区间列配置 ---
     const columns = useMemo(() => {
-        if (scheduleDraft.length === 0) return [];
-        const days = targetMonth.daysInMonth();
+        if (scheduleDraft.length === 0 || !dateRange[0] || !dateRange[1]) return [];
+        
+        const start = dateRange[0];
+        const end = dateRange[1];
+        const daysCount = end.diff(start, 'day') + 1;
+        
         const cols = [
             { title: '成员姓名', dataIndex: 'real_name', key: 'real_name', width: 100, fixed: 'left', align: 'center', render: (t) => <span className="font-black text-slate-800 text-xs">{t}</span> }
         ];
-        for (let i = 1; i <= days; i++) {
-            const gap = healthReport?.gaps.find(g => g.day === i);
+
+        for (let i = 0; i < daysCount; i++) {
+            const currentDate = start.add(i, 'day');
+            const dateKey = currentDate.format('YYYY-MM-DD');
+            const dayNum = currentDate.date();
+            const gap = healthReport?.gaps.find(g => g.dateKey === dateKey);
+
             cols.push({
                 title: (
                     <div className="flex flex-col items-center">
-                        <span className={`text-[10px] font-black ${gap ? 'text-rose-600' : 'text-slate-400'}`}>{i}</span>
+                        <span className={`text-[10px] font-black ${gap ? 'text-rose-600' : 'text-slate-400'}`}>{dayNum}</span>
                         {gap && <div className="w-1 h-1 rounded-full bg-rose-500 mt-0.5"></div>}
                     </div>
                 ),
-                key: i, width: 45, align: 'center',
+                key: dateKey, width: 45, align: 'center',
                 render: (_, record) => {
-                    const shiftId = record.days[i];
+                    const shiftId = record.days[dateKey];
                     const shift = shifts.find(s => s.id === shiftId);
                     return (
                         <div className={`w-full h-7 rounded-lg flex items-center justify-center transition-all ${shift ? '' : 'bg-slate-50/50'}`}
@@ -231,7 +322,7 @@ const SmartSchedule = () => {
             });
         }
         return cols;
-    }, [scheduleDraft, shifts, targetMonth, healthReport]);
+    }, [scheduleDraft, shifts, dateRange, healthReport]);
 
     return (
         <ConfigProvider theme={{
@@ -271,31 +362,21 @@ const SmartSchedule = () => {
                                         <Select className="w-full font-black flagship-select" value={selectedDept} onChange={setSelectedDept} options={departments.map(d => ({ value: d.id, label: d.name }))} />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block ml-0.5">目标审计月份</label>
-                                        <div className="flex items-center bg-white rounded-xl border border-slate-200 overflow-hidden h-[38px]">
-                                            <button 
-                                                onClick={() => setTargetMonth(prev => prev.subtract(1, 'month'))} 
-                                                className="px-3 h-full border-r border-slate-100 hover:bg-slate-50 transition-all text-slate-400 hover:text-indigo-600"
-                                            >
-                                                <ChevronLeft size={16}/>
-                                            </button>
-                                            <DatePicker 
-                                                picker="month" 
-                                                variant="borderless"
-                                                className="flex-1 font-black text-slate-800 text-xs text-center h-full hover:bg-slate-50 transition-all cursor-pointer"
-                                                value={targetMonth} 
-                                                onChange={v => v && setTargetMonth(v)} 
-                                                allowClear={false}
-                                                suffixIcon={null}
-                                                format="YYYY年 MM月"
-                                            />
-                                            <button 
-                                                onClick={() => setTargetMonth(prev => prev.add(1, 'month'))} 
-                                                className="px-3 h-full border-l border-slate-100 hover:bg-slate-50 transition-all text-slate-400 hover:text-indigo-600"
-                                            >
-                                                <ChevronRight size={16}/>
-                                            </button>
+                                        <div className="flex items-center justify-between mb-1.5 ml-0.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase">目标审计区间</label>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => quickSetRange('first_half')} className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded hover:bg-indigo-600 hover:text-white transition-colors">月初</button>
+                                                <button onClick={() => quickSetRange('second_half')} className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded hover:bg-indigo-600 hover:text-white transition-colors">月末</button>
+                                                <button onClick={() => quickSetRange('full_month')} className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded hover:bg-indigo-600 hover:text-white transition-colors">整月</button>
+                                            </div>
                                         </div>
+                                        <DatePicker.RangePicker 
+                                            className="w-full font-black flagship-select h-[38px] rounded-xl border-slate-200"
+                                            value={dateRange}
+                                            onChange={v => setDateRange(v || [])}
+                                            allowClear={false}
+                                            format="YYYY-MM-DD"
+                                        />
                                     </div>
                                 </div>
                             </Card>
@@ -348,7 +429,7 @@ const SmartSchedule = () => {
                                 ))}
                             </div>
                             <Divider className="my-4 border-slate-50" />
-                            <Button type="primary" block icon={<Zap size={16} fill="currentColor" />} loading={loading} onClick={executeAIGeneration}
+                            <Button type="primary" block icon={<Zap size={16} fill="currentColor" />} loading={inferencing} onClick={executeAIGeneration}
                                 className="h-[44px] bg-slate-900 text-white font-black text-xs border-none shadow-lg hover:bg-black transition-all rounded-xl"
                             >
                                 执行 AI 深度推演

@@ -6,6 +6,7 @@ import logger from '@/utils/logger';
 import React, { useState, useEffect } from 'react'
 import api from '../../api'
 import { toast } from 'sonner';
+import dayjs from 'dayjs';
 import { getCurrentUser, isSystemAdmin } from '../../utils/auth'
 import { getApiUrl } from '../../utils/apiConfig'
 import { formatDate, formatDateTime } from '../../utils/date'
@@ -14,40 +15,48 @@ import { SearchOutlined, ExportOutlined } from '@ant-design/icons'
 import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, TrendingUp, X } from 'lucide-react'
 
 
+import { wsManager } from '../../services/websocket';
+
 export default function DepartmentStats() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [departments, setDepartments] = useState([])
   const [selectedDepartment, setSelectedDepartment] = useState('')
-
-  // Date Selection Mode: 'month' or 'custom'
+  
+  // --- 统计维度状态 ---
+  const [selectedMonth, setSelectedMonth] = useState({ 
+    year: new Date().getFullYear(), 
+    month: new Date().getMonth() + 1 
+  })
   const [dateMode, setDateMode] = useState('month')
-  const [selectedMonth, setSelectedMonth] = useState({
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1
+  const [customDateRange, setCustomDateRange] = useState({ 
+    start: '', 
+    end: '' 
   })
-  const [customDateRange, setCustomDateRange] = useState({
-    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  })
-
-  // Search
+  
+  // --- 分页与搜索 ---
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
   const [keyword, setKeyword] = useState('')
 
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0
-  })
-
-  // Details Modal State
+  // --- 详情模态框状态 ---
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedEmployeeForDetails, setSelectedEmployeeForDetails] = useState(null)
-  const [employeeDetails, setEmployeeDetails] = useState([])
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [employeeDetails, setEmployeeDetails] = useState([])
 
   useEffect(() => {
     fetchDepartments()
+
+    // 🛡️ 雷犀强化：监听实时权限同步指令，自动刷新部门白名单
+    const handleRefresh = () => {
+      logger.info('📡 [DepartmentStats] 收到权限变更指令，正在同步部门列表...');
+      fetchDepartments();
+    };
+
+    wsManager.on('permissions_updated', handleRefresh);
+    return () => {
+      wsManager.off('permissions_updated', handleRefresh);
+    };
   }, [])
 
   useEffect(() => {
@@ -69,26 +78,47 @@ export default function DepartmentStats() {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
-
-      const response = await api.get('/departments/list')
-      if (response.data.success) {
-        const activeDepts = response.data.data.filter(d => d.status === 'active')
-
-        setDepartments(activeDepts)
-        if (activeDepts.length > 0) {
-          setSelectedDepartment(activeDepts[0].id)
-        } else {
-          toast.warning('没有可用的部门，请联系管理员配置部门权限')
+      // 🛡️ 雷犀强化：物理级隔离，直接从存储中抓取最真实的 Token，不信任组件闭包
+      const token = localStorage.getItem('token') || '';
+      const timestamp = Date.now();
+      
+      // 🚀 核心路径对齐：1:1 还原员工管理模块的正确请求链路
+      // 加入 _retry 参数强制后端绕过 Redis 缓存进行物理查询
+      const response = await fetch(getApiUrl(`/api/departments/list?_t=${timestamp}&_retry=true`), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Request-Source': 'AttendanceReport'
         }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // 🚀 数据洗刷：只取活跃部门，并严格匹配返回的权限列表
+        const list = Array.isArray(result.data) ? result.data.filter(d => d.status === 'active') : [];
+        setDepartments(list);
+
+        if (list.length > 0) {
+          // 🛡️ 状态自愈：如果当前选中的部门不再权限列表里，立刻跳回第一个合法部门
+          const isStillValid = list.some(d => d.id === selectedDepartment);
+          if (!selectedDepartment || !isStillValid) {
+            setSelectedDepartment(list[0].id);
+          }
+        } else {
+          setSelectedDepartment('');
+          toast.warning('当前账号无任何业务部门的查看授权');
+        }
+      } else {
+        // 降级处理
+        setDepartments([]);
       }
     } catch (error) {
-      logger.error('获取部门列表失败:', error)
-      toast.error('获取部门列表失败')
+      logger.error('🛡️ [Security] 部门白名单同步阻断:', error);
+      setDepartments([]);
     }
-  }
-
+  };
   const fetchDepartmentStats = async () => {
     setLoading(true)
     try {
@@ -107,7 +137,7 @@ export default function DepartmentStats() {
         params.end_date = customDateRange.end
       }
 
-      const response = await api.get('/attendance/department-stats', {
+      const response = await api.get('/attendance/dashboard-summary', {
         params
       })
 

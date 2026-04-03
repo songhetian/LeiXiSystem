@@ -5,6 +5,7 @@ const util = require('util');
 const pump = util.promisify(pipeline);
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, oss } = require('../config');
+const { formatFileUrl, extractRelativePath } = require('../utils/pathHelper');
 const OSS = require('ali-oss');
 const dayjs = require('dayjs');
 
@@ -79,9 +80,10 @@ async function uploadRoutes(fastify, options) {
           headers: { 'x-oss-object-acl': 'public-read' }
         };
         // 针对 PDF 强制注入 inline 元数据和正确的 MIME 类型
+        // 按阿里云 OSS 官方示例使用标准头名，确保浏览器直接预览而不是下载
         if (data.filename.toLowerCase().endsWith('.pdf')) {
-          options.headers['content-disposition'] = 'inline';
           options.headers['Content-Type'] = 'application/pdf';
+          options.headers['Content-Disposition'] = 'inline';
         }
         await ossClient.put(cloudPath, buffer, options);
         return {
@@ -103,6 +105,7 @@ async function uploadRoutes(fastify, options) {
         }
       }
     } catch (error) {
+      console.error('[Upload] 单文件上传失败:', error);
       return reply.code(500).send({ success: false, message: error.message });
     }
   })
@@ -126,10 +129,10 @@ async function uploadRoutes(fastify, options) {
             const options = {
               headers: { 'x-oss-object-acl': 'public-read' }
             };
-            // 🔴 关键修复：多文件上传也要强制注入 PDF inline 元数据和 MIME
+            // 多文件上传同样按阿里云 OSS 官方示例设置 PDF 预览头
             if (part.filename.toLowerCase().endsWith('.pdf')) {
-              options.headers['content-disposition'] = 'inline';
               options.headers['Content-Type'] = 'application/pdf';
+              options.headers['Content-Disposition'] = 'inline';
             }
             await ossClient.put(cloudPath, buffer, options);
             uploadedFiles.push({ url: formatPublicUrl(cloudPath), bizPath: cloudPath, filename: part.filename });
@@ -144,9 +147,80 @@ async function uploadRoutes(fastify, options) {
       }
       return { success: true, files: uploadedFiles }
     } catch (error) {
+      console.error('[Upload] 多文件上传失败:', error);
       return reply.code(500).send({ success: false, message: '批量处理失败' });
     }
   })
+
+  fastify.get('/api/files/resolve', async (request, reply) => {
+    const rawPath = request.query.path || request.query.url;
+    if (!rawPath) {
+      return reply.code(400).send({ success: false, message: '缺少文件路径' });
+    }
+
+    try {
+      const resolvedUrl = formatFileUrl(String(rawPath), request);
+      return { success: true, url: resolvedUrl };
+    } catch (error) {
+      return reply.code(500).send({ success: false, message: error.message });
+    }
+  });
+
+  fastify.get('/api/files/inline', async (request, reply) => {
+    const rawPath = request.query.path || request.query.url;
+    if (!rawPath) {
+      return reply.code(400).send({ success: false, message: '缺少文件路径' });
+    }
+
+    try {
+      const input = String(rawPath);
+      const relativePath = extractRelativePath(input);
+      const ext = path.extname(relativePath || input).toLowerCase();
+
+      const contentTypeMap = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.txt': 'text/plain; charset=utf-8',
+        '.md': 'text/markdown; charset=utf-8',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav'
+      };
+
+      const contentType = contentTypeMap[ext] || 'application/octet-stream';
+      const filename = path.basename(relativePath || input) || 'file';
+
+      reply.header('Cache-Control', 'no-store');
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
+
+      if (ossClient && relativePath) {
+        const result = await ossClient.getStream(relativePath);
+        if (result?.res?.headers?.['content-length']) {
+          reply.header('Content-Length', result.res.headers['content-length']);
+        }
+        return reply.send(result.stream);
+      }
+
+      if (relativePath && !input.startsWith('http://') && !input.startsWith('https://')) {
+        const normalized = relativePath.replace(/^uploads\//, '');
+        const localFilePath = path.join(uploadDir, normalized);
+        if (fs.existsSync(localFilePath)) {
+          return reply.send(fs.createReadStream(localFilePath));
+        }
+      }
+
+      const resolvedUrl = formatFileUrl(input, request);
+      return reply.redirect(resolvedUrl);
+    } catch (error) {
+      return reply.code(500).send({ success: false, message: error.message });
+    }
+  });
 }
 
 module.exports = uploadRoutes;

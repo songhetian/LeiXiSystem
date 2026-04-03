@@ -57,16 +57,16 @@ const StatCard = React.memo(({ title, value, suffix, subValue, subLabel, icon: I
     </div>
     
     <div className="text-left flex-1">
-      <p className="text-xs font-bold text-slate-400 mb-1">{title}</p>
+      <p className="text-xs font-bold text-slate-500 mb-1">{title}</p>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-slate-800">{value || 0}</span>
-        {suffix && <span className="text-xs text-slate-400">{suffix}</span>}
+        <span className="text-2xl font-bold text-slate-900">{value || 0}</span>
+        {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
       </div>
     </div>
 
-    <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between">
-      <span className="text-[10px] text-slate-400">{subLabel}</span>
-      <span className="text-[10px] font-bold text-slate-600">{subValue}</span>
+    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+      <span className="text-[10px] text-slate-500 font-medium">{subLabel}</span>
+      <span className="text-[10px] font-bold text-slate-700">{subValue}</span>
     </div>
   </div>
 ));
@@ -106,17 +106,17 @@ const AdminDashboard = ({ onNavigate }) => {
         {/* 简洁页头 */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
           <div className="text-left">
-            <h1 className="text-xl font-bold text-slate-800 m-0 flex items-center gap-2">
+            <h1 className="text-xl font-black text-slate-900 m-0 flex items-center gap-2">
               <SmileOutlined className="text-emerald-500" /> 这里是公司最近的情况
             </h1>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+            <p className="text-xs text-slate-500 font-bold mt-1 flex items-center gap-1.5">
               <ClockCircleOutlined /> 数据是 {syncTime} 更新的，自动同步开启中
             </p>
           </div>
           <Button 
             icon={<ReloadOutlined spin={refreshing} />} 
             onClick={() => fetchAdminStats(true)} 
-            className="rounded-xl border-slate-200 font-bold text-slate-600 hover:text-emerald-500 hover:border-emerald-500"
+            className="rounded-xl border-slate-300 font-bold text-slate-700 hover:text-emerald-500 hover:border-emerald-500"
           >
             {refreshing ? '正在刷新...' : '手动刷新一下'}
           </Button>
@@ -181,7 +181,7 @@ const AdminDashboard = ({ onNavigate }) => {
             <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-6">
                     <SettingOutlined className="text-emerald-500" />
-                    <h3 className="text-sm font-bold text-slate-700 m-0">快速设置审批流程</h3>
+                    <h3 className="text-sm font-black text-slate-900 m-0">快速设置审批流程</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[
@@ -193,11 +193,11 @@ const AdminDashboard = ({ onNavigate }) => {
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-lg ${link.color} flex items-center justify-center transition-colors`}>{link.icon}</div>
                                 <div className="text-left">
-                                    <div className="text-xs font-bold text-slate-700">{link.title}</div>
-                                    <div className="text-[10px] text-slate-400 mt-0.5">{link.desc}</div>
+                                    <div className="text-xs font-black text-slate-900">{link.title}</div>
+                                    <div className="text-[10px] text-slate-500 font-bold mt-0.5">{link.desc}</div>
                                 </div>
                             </div>
-                            <ArrowRightOutlined className="text-slate-200 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                            <ArrowRightOutlined className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
                         </div>
                     ))}
                 </div>
@@ -209,9 +209,9 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-2 text-left">
                             <LineChartOutlined className="text-emerald-500" />
-                            <h3 className="text-sm font-bold text-slate-700 m-0">最近一周出勤情况</h3>
+                            <h3 className="text-sm font-black text-slate-900 m-0">最近一周出勤情况</h3>
                         </div>
-                        <Tag color="success" className="m-0 border-none px-2 text-[10px] font-bold">实到比率</Tag>
+                        <Tag color="success" className="m-0 border-none px-2 text-[10px] font-black">实到比率</Tag>
                     </div>
                     <div className="h-[280px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -223,8 +223,8 @@ const AdminDashboard = ({ onNavigate }) => {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dx={-10} />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dx={-10} />
                             <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                             <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" name="出勤率" />
                         </AreaChart>
@@ -238,15 +238,15 @@ const AdminDashboard = ({ onNavigate }) => {
                         <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm h-full flex flex-col">
                             <div className="flex items-center gap-2 mb-6 text-left">
                                 <PieChartOutlined className="text-orange-500" />
-                                <h3 className="text-sm font-bold text-slate-700 m-0">钱都花哪了 (按分类)</h3>
+                                <h3 className="text-sm font-black text-slate-900 m-0">钱都花哪了 (按分类)</h3>
                             </div>
                             <div className="flex-1 min-h-[260px]">
                                 {data?.charts?.reimbursementByType?.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data?.charts?.reimbursementByType} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dx={-10} tickFormatter={(v) => `¥${v}`} />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dx={-10} tickFormatter={(v) => `¥${v}`} />
                                         <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                                         <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={24} name="报销总额" />
                                     </BarChart>

@@ -67,6 +67,15 @@ export default function ScheduleManagement() {
   // 统计与覆盖率弹窗状态
   const [showStatsModal, setShowStatsModal] = useState(false)
   const [auditSelectedShifts, setAuditSelectedShifts] = useState([])
+  const [statsViewTab, setStatsViewTab] = useState('member') // 'member' or 'shift'
+  const [statsDateRange, setStatsDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')])
+
+  // 当主页月份切换时，同步更新统计弹窗的默认范围
+  useEffect(() => {
+    if (selectedMonth) {
+      setStatsDateRange([selectedMonth.startOf('month'), selectedMonth.endOf('month')]);
+    }
+  }, [selectedMonth]);
 
   const scheduleMap = useMemo(() => {
     const map = new Map();
@@ -161,18 +170,21 @@ export default function ScheduleManagement() {
 
   // 统计计算逻辑
   const employeeStats = useMemo(() => {
+    if (!statsDateRange || !statsDateRange[0] || !statsDateRange[1]) return [];
+    
     const stats = [];
-    const days = selectedMonth.daysInMonth();
+    const start = statsDateRange[0];
+    const end = statsDateRange[1];
+    const days = end.diff(start, 'day') + 1;
     
     employees.forEach(emp => {
-      const empSchedules = [];
       let restDays = 0;
       let workDays = 0;
       let leaveDays = 0;
       const shiftCounts = {};
 
-      for (let d = 1; d <= days; d++) {
-        const dateStr = selectedMonth.date(d).format('YYYY-MM-DD');
+      for (let i = 0; i < days; i++) {
+        const dateStr = start.add(i, 'day').format('YYYY-MM-DD');
         const schedule = scheduleMap.get(`${emp.id}_${dateStr}`);
         const leave = conflictMap.get(`${emp.id}_${dateStr}`);
 
@@ -198,15 +210,69 @@ export default function ScheduleManagement() {
       });
     });
     return stats;
-  }, [employees, scheduleMap, conflictMap, selectedMonth]);
+  }, [employees, scheduleMap, conflictMap, statsDateRange]);
+
+  // 新增：班次维度统计 (增强明细版)
+  const shiftStats = useMemo(() => {
+    if (!statsDateRange || !statsDateRange[0] || !statsDateRange[1]) return [];
+    
+    const start = statsDateRange[0];
+    const end = statsDateRange[1];
+    const days = end.diff(start, 'day') + 1;
+    
+    const statsMap = {};
+    shifts.forEach(s => {
+        statsMap[s.id] = {
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            startTime: s.start_time,
+            endTime: s.end_time,
+            details: [], // 存储 { date, employeeName } 的明细
+            uniqueEmployees: new Set()
+        };
+    });
+
+    for (let i = 0; i < days; i++) {
+        const currentDate = start.add(i, 'day');
+        const dateStr = currentDate.format('YYYY-MM-DD');
+        const displayDate = currentDate.format('MM-DD'); // 用于显示的简短日期
+        
+        employees.forEach(emp => {
+            const schedule = scheduleMap.get(`${emp.id}_${dateStr}`);
+            if (schedule && !schedule.is_rest_day && statsMap[schedule.shift_id]) {
+                statsMap[schedule.shift_id].details.push({
+                    date: dateStr,
+                    shortDate: displayDate,
+                    employeeName: emp.real_name
+                });
+                statsMap[schedule.shift_id].uniqueEmployees.add(emp.real_name);
+            }
+        });
+    }
+
+    return Object.values(statsMap).map(s => ({
+        ...s,
+        totalCount: s.details.length,
+        employeeCount: s.uniqueEmployees.size
+    }));
+  }, [shifts, employees, scheduleMap, statsDateRange]);
+
+  // 详情弹窗状态
+  const [detailModal, setDetailModal] = useState({ visible: false, data: null });
 
   // 每日覆盖率审计
   const coverageAudit = useMemo(() => {
-    const days = selectedMonth.daysInMonth();
+    if (!statsDateRange || !statsDateRange[0] || !statsDateRange[1]) return [];
+    
+    const start = statsDateRange[0];
+    const end = statsDateRange[1];
+    const days = end.diff(start, 'day') + 1;
     const dailyStatus = [];
     
-    for (let d = 1; d <= days; d++) {
-      const dateStr = selectedMonth.date(d).format('YYYY-MM-DD');
+    for (let i = 0; i < days; i++) {
+      const currentDate = start.add(i, 'day');
+      const dateStr = currentDate.format('YYYY-MM-DD');
       const dayShifts = schedules.filter(s => dayjs(s.schedule_date).format('YYYY-MM-DD') === dateStr && !s.is_rest_day);
       
       const missingShifts = auditSelectedShifts.filter(sid => {
@@ -214,13 +280,14 @@ export default function ScheduleManagement() {
       }).map(sid => shifts.find(s => s.id === sid)?.name).filter(Boolean);
 
       dailyStatus.push({
-        day: d,
+        day: currentDate.date(),
+        dateStr,
         isCovered: missingShifts.length === 0,
         missing: missingShifts
       });
     }
     return dailyStatus;
-  }, [schedules, auditSelectedShifts, shifts, selectedMonth]);
+  }, [schedules, auditSelectedShifts, shifts, statsDateRange]);
 
   const handleCellClick = (employee, day) => {
     if (activeStamp) {
@@ -302,24 +369,23 @@ export default function ScheduleManagement() {
     <ConfigProvider theme={{
         token: { colorPrimary: '#4f46e5', borderRadius: 8, controlHeight: 32, colorBorder: '#e2e8f0', fontSize: 12 }
     }}>
-    <div className="space-y-4 animate-in fade-in duration-500 text-left">
-      
-      <div className="flex flex-wrap items-center gap-4 px-1">
-          <div className="flex items-center gap-2">
+    <div className="space-y-3 text-left">
+      <div className="flex flex-wrap items-center gap-4 bg-white p-3 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-2 px-2">
             <Users size={14} className="text-slate-400" />
             <Select value={selectedDepartment} onChange={setSelectedDepartment} className="w-40 flagship-clean-select" variant="borderless" options={departments.map(d => ({ label: d.name, value: d.id }))} />
           </div>
           <div className="w-px h-4 bg-slate-200"></div>
-          <div className="flex items-center">
-            <DatePicker picker="month" variant="borderless" className="font-black text-black text-xs text-center w-32 cursor-pointer" allowClear={false} value={selectedMonth} onChange={(val) => val && setSelectedMonth(val)} format="YYYY年 MM月" suffixIcon={<CalendarOutlined style={{ fontSize: 12, color: '#000' }} />} />
+          <div className="flex items-center gap-2 px-2">
+            <CalendarOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
+            <DatePicker picker="month" variant="borderless" className="font-bold text-slate-700 text-xs w-28 cursor-pointer p-0" allowClear={false} value={selectedMonth} onChange={(val) => val && setSelectedMonth(val)} format="YYYY年 MM月" suffixIcon={null} />
           </div>
           <div className="flex gap-2 ml-auto">
-            <Button size="small" icon={<RefreshCcw size={12}/>} onClick={fetchSchedules} className="h-8 px-3 font-bold border-slate-200 rounded-lg text-[10px]">刷新</Button>
-            <Button size="small" icon={<Download size={12}/>} onClick={handleExport} className="h-8 px-3 font-bold border-slate-200 rounded-lg text-[10px]">导出</Button>
-            <Button type="primary" size="small" icon={<BarChart3 size={14} />} onClick={() => setShowStatsModal(true)} className="h-8 px-5 bg-black font-black border-none rounded-lg text-[10px] shadow-sm">排班统计</Button>
+            <Button size="small" icon={<RefreshCcw size={12}/>} onClick={fetchSchedules} className="h-8 px-3 font-bold border-slate-200 rounded-lg text-[11px] text-slate-600">刷新</Button>
+            <Button size="small" icon={<Download size={12}/>} onClick={handleExport} className="h-8 px-3 font-bold border-slate-200 rounded-lg text-[11px] text-slate-600">导出</Button>
+            <Button type="primary" size="small" icon={<BarChart3 size={14} />} onClick={() => setShowStatsModal(true)} className="h-8 px-4 bg-indigo-600 font-bold border-none rounded-lg text-[11px] shadow-sm">查看排班统计</Button>
           </div>
       </div>
-
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-2 bg-slate-50 rounded-xl border border-slate-200/60">
           <div className="flex items-center gap-2 px-2 border-r border-slate-200 mr-1">
               <Paintbrush size={14} className={activeStamp ? "text-indigo-600 animate-pulse" : "text-slate-400"} />
@@ -434,38 +500,48 @@ export default function ScheduleManagement() {
         closable={false}
         styles={{ body: { padding: '0' } }}
       >
-        <div className="flex flex-col h-[650px] overflow-hidden rounded-[32px] bg-white">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                    <h3 className="text-lg font-black text-slate-900">月度排班统计与审计</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Monthly Schedule Analytics & Audit</p>
+        <div className="flex flex-col h-[650px] overflow-hidden rounded-2xl bg-white border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div>
+                        <h3 className="text-base font-bold text-slate-800">排班数据审计与统计</h3>
+                    </div>
+                    <div className="h-4 w-px bg-slate-200"></div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-slate-500">统计区间:</span>
+                        <DatePicker.RangePicker 
+                            size="small"
+                            className="flagship-range-picker-flat"
+                            value={statsDateRange}
+                            onChange={v => setStatsDateRange(v)}
+                            allowClear={false}
+                            format="YYYY-MM-DD"
+                        />
+                    </div>
                 </div>
-                <button onClick={() => setShowStatsModal(false)} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-                    <XCircle size={18} />
+                <button onClick={() => setShowStatsModal(false)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
+                    <XCircle size={20} />
                 </button>
             </div>
 
             <div className="flex-1 overflow-hidden flex">
-                {/* 左侧：覆盖率审计 - 增强滚动支持 */}
-                <div className="w-[300px] border-r border-slate-100 bg-slate-50/50 flex flex-col h-full">
-                    <div className="p-6 space-y-6 overflow-y-auto custom-micro-scrollbar flex-1">
-                        <div className="space-y-4">
+                {/* 左侧：覆盖率审计 - 极简线框风 */}
+                <div className="w-[260px] border-r border-slate-100 bg-white flex flex-col h-full">
+                    <div className="p-5 space-y-6 overflow-y-auto custom-micro-scrollbar flex-1">
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">1. 覆盖班次定义</span>
-                                <Tooltip title="选择需要满足全员/部门覆盖的必要班次">
-                                    <Info size={12} className="text-slate-400" />
-                                </Tooltip>
+                                <span className="text-[11px] font-bold text-slate-600 uppercase">1. 覆盖班次定义</span>
                             </div>
                             <Checkbox.Group 
-                                className="flex flex-col gap-3 w-full"
+                                className="flex flex-col gap-2 w-full"
                                 value={auditSelectedShifts} 
                                 onChange={setAuditSelectedShifts}
                             >
                                 {shifts.map(s => (
-                                    <Checkbox key={s.id} value={s.id} className="flagship-checkbox m-0">
+                                    <Checkbox key={s.id} value={s.id} className="m-0 text-[11px] font-medium text-slate-600">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: s.color }}></div>
-                                            <span className="text-[11px] font-black text-slate-700">{s.name}</span>
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }}></div>
+                                            <span>{s.name}</span>
                                         </div>
                                     </Checkbox>
                                 ))}
@@ -473,40 +549,30 @@ export default function ScheduleManagement() {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex flex-col gap-3">
-                                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">2. 每日合规状况</span>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-bold text-slate-600 uppercase">2. 每日合规状况</span>
                                 {coverageAudit.filter(d => !d.isCovered).length > 0 ? (
-                                    <div className="p-4 bg-white border-2 border-rose-500/20 rounded-2xl flex items-center gap-4 shadow-sm animate-in fade-in zoom-in duration-300">
-                                        <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-200 shrink-0">
-                                            <AlertCircle size={20} />
-                                        </div>
-                                        <div>
-                                            <div className="text-[13px] font-black text-rose-600">检测到缺口</div>
-                                            <div className="text-[10px] font-black text-rose-400 uppercase tracking-tighter">缺失 {coverageAudit.filter(d => !d.isCovered).length} 天覆盖</div>
-                                        </div>
+                                    <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-3">
+                                        <AlertCircle size={16} className="text-rose-500" />
+                                        <div className="text-[11px] font-bold text-rose-600">缺失 {coverageAudit.filter(d => !d.isCovered).length} 天覆盖</div>
                                     </div>
                                 ) : (
-                                    <div className="p-4 bg-white border-2 border-emerald-500/20 rounded-2xl flex items-center gap-4 shadow-sm animate-in fade-in zoom-in duration-300">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-200 shrink-0">
-                                            <ShieldCheck size={20} />
-                                        </div>
-                                        <div>
-                                            <div className="text-[13px] font-black text-emerald-600">全覆盖达成</div>
-                                            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-tighter">逻辑审计 100% 通过</div>
-                                        </div>
+                                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-3">
+                                        <ShieldCheck size={16} className="text-emerald-500" />
+                                        <div className="text-[11px] font-bold text-emerald-600">逻辑审计通过</div>
                                     </div>
                                 )}
                             </div>
                             
-                            <div className="pt-2">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 px-1">审计明细日历:</p>
-                                <div className="grid grid-cols-5 gap-2.5">
+                            <div className="pt-1">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">审计明细:</p>
+                                <div className="grid grid-cols-6 gap-1.5">
                                     {coverageAudit.map(audit => (
-                                        <Tooltip key={audit.day} title={audit.isCovered ? '全部班次已覆盖' : `缺失: ${audit.missing.join(', ')}`}>
-                                            <div className={`aspect-square rounded-xl flex items-center justify-center text-[11px] font-black transition-all cursor-help border-2 ${
+                                        <Tooltip key={audit.day} title={audit.isCovered ? '已覆盖' : `缺失: ${audit.missing.join(', ')}`}>
+                                            <div className={`aspect-square rounded border flex items-center justify-center text-[10px] font-bold transition-all ${
                                                 audit.isCovered 
-                                                ? 'bg-white text-emerald-500 border-slate-100 hover:border-emerald-200' 
-                                                : 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100 hover:scale-110 active:scale-95'
+                                                ? 'bg-white text-emerald-500 border-slate-100' 
+                                                : 'bg-rose-500 text-white border-rose-500 shadow-sm'
                                             }`}>
                                                 {audit.day}
                                             </div>
@@ -518,106 +584,147 @@ export default function ScheduleManagement() {
                     </div>
                 </div>
 
-                {/* 右侧：员工个人统计 */}
+                {/* 右侧：统计展示核心 - 高对比度政企风格 */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col bg-white">
-                    <div className="mb-6 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-4 bg-indigo-600 rounded-full"></div>
-                            <span className="text-sm font-black text-slate-900 uppercase tracking-tight">3. 成员排班分布明细</span>
+                    <div className="mb-6 flex items-center justify-between border-b-2 border-slate-100">
+                        <div className="flex gap-10">
+                            <button 
+                                onClick={() => setStatsViewTab('member')}
+                                className={`pb-3 text-sm font-bold transition-all relative ${statsViewTab === 'member' ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                按成员分布汇总
+                                {statsViewTab === 'member' && <div className="absolute bottom-[-2px] left-0 right-0 h-[3px] bg-indigo-700 rounded-full"></div>}
+                            </button>
+                            <button 
+                                onClick={() => setStatsViewTab('shift')}
+                                className={`pb-3 text-sm font-bold transition-all relative ${statsViewTab === 'shift' ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                按班次人力汇总
+                                {statsViewTab === 'shift' && <div className="absolute bottom-[-2px] left-0 right-0 h-[3px] bg-indigo-700 rounded-full"></div>}
+                            </button>
                         </div>
-                        <div className="text-[10px] font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-                            实时同步：{dayjs().format('HH:mm:ss')}
+                        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-2 pb-3">
+                            数据更新：{dayjs().format('HH:mm:ss')}
                         </div>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto pr-2 custom-micro-scrollbar">
-                        <table className="w-full border-separate border-spacing-y-3">
-                            <thead>
-                                <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-left">
-                                    <th className="px-4 pb-1">成员姓名</th>
-                                    <th className="px-2 pb-1 text-center">月休</th>
-                                    <th className="px-2 pb-1 text-center">请假</th>
-                                    <th className="px-4 pb-1 text-center">出勤班次分布 (累计天数)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {employeeStats.map(stat => (
-                                    <tr key={stat.id} className="bg-slate-50/40 hover:bg-indigo-50/30 transition-all group rounded-2xl">
-                                        <td className="px-4 py-4 first:rounded-l-2xl border-y border-l border-transparent group-hover:border-indigo-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-slate-700 text-[11px] font-black border border-slate-100 shadow-sm group-hover:scale-110 transition-transform">{stat.name[0]}</div>
-                                                <span className="text-[13px] font-black text-slate-900">{stat.name}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-4 text-center border-y border-transparent group-hover:border-indigo-100">
-                                            <div className="inline-flex flex-col items-center">
-                                                <span className="text-base font-black text-emerald-600 leading-none">{stat.restDays}</span>
-                                                <span className="text-[9px] font-black text-emerald-400 uppercase mt-1.5">Rest</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-4 text-center border-y border-transparent group-hover:border-indigo-100">
-                                            <div className="inline-flex flex-col items-center">
-                                                <span className="text-base font-black text-amber-600 leading-none">{stat.leaveDays}</span>
-                                                <span className="text-[9px] font-black text-amber-500 uppercase mt-1.5">Leave</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 last:rounded-r-2xl border-y border-r border-transparent group-hover:border-indigo-100">
-                                            <div className="flex flex-col gap-2.5 max-w-[550px] mx-auto items-center">
-                                                {stat.workDays > 0 ? (
-                                                    <>
-                                                        {/* 旗舰级：堆叠比例分布条 */}
-                                                        <div className="h-5 w-full bg-slate-100 rounded-lg overflow-hidden flex shadow-inner border border-slate-200/50">
-                                                            {Object.entries(stat.shiftCounts).map(([name, count]) => {
-                                                                const shiftInfo = shifts.find(s => s.name === name);
-                                                                const percentage = (count / stat.workDays) * 100;
-                                                                return (
-                                                                    <Tooltip key={name} title={`${name}: ${count}天 (${percentage.toFixed(1)}%)`}>
-                                                                        <div 
-                                                                            className="h-full transition-all hover:scale-y-110 hover:brightness-110 cursor-help border-r border-white/30 last:border-r-0 relative group/segment"
-                                                                            style={{ 
-                                                                                width: `${percentage}%`, 
-                                                                                backgroundColor: shiftInfo?.color || '#cbd5e1' 
-                                                                            }}
-                                                                        >
-                                                                            {percentage > 15 && (
-                                                                                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white pointer-events-none opacity-80 group-hover/segment:opacity-100">
-                                                                                    {count}
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </Tooltip>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        {/* 紧凑型图例 */}
-                                                        <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-1 justify-center">
-                                                             {Object.entries(stat.shiftCounts).map(([name, count]) => {
-                                                                const shiftInfo = shifts.find(s => s.name === name);
-                                                                return (
-                                                                    <div key={name} className="flex items-center gap-1.5">
-                                                                        <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: shiftInfo?.color || '#cbd5e1' }}></div>
-                                                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{name}</span>
-                                                                        <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 rounded">{count}天</span>
-                                                                    </div>
-                                                                )
-                                                             })}
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="flex items-center justify-center gap-2 py-2">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                                        <span className="text-[11px] text-slate-400 font-bold italic">暂无出勤排班记录</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
+                        {statsViewTab === 'member' ? (
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="text-[11px] font-bold text-slate-800 uppercase tracking-wider bg-slate-50 border-y border-slate-200">
+                                        <th className="py-2.5 px-3">姓名</th>
+                                        <th className="py-2.5 px-3 text-center">区间休 (天)</th>
+                                        <th className="py-2.5 px-3 text-center">请假 (天)</th>
+                                        <th className="py-2.5 px-3">出勤班次明细</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {employeeStats.map(stat => (
+                                        <tr key={stat.id} className="hover:bg-indigo-50/30 transition-colors">
+                                            <td className="py-3 px-3">
+                                                <span className="text-[13px] font-bold text-slate-900">{stat.name}</span>
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                <span className="text-[14px] font-bold text-emerald-700">{stat.restDays}</span>
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                <span className="text-[14px] font-bold text-amber-700">{stat.leaveDays}</span>
+                                            </td>
+                                            <td className="py-3 px-3">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    {Object.entries(stat.shiftCounts).map(([name, count]) => {
+                                                        const shiftInfo = shifts.find(s => s.name === name);
+                                                        return (
+                                                            <div key={name} className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-slate-300 shadow-sm">
+                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: shiftInfo?.color || '#000' }}></div>
+                                                                <span className="text-[11px] font-bold text-slate-800">{name}</span>
+                                                                <span className="text-[11px] font-black text-indigo-700 ml-1">{count}</span>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                    {stat.workDays === 0 && <span className="text-[11px] text-slate-400 italic">此区间暂无排班</span>}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="text-[11px] font-bold text-slate-800 uppercase tracking-wider bg-slate-50 border-y border-slate-200">
+                                        <th className="py-2.5 px-3">班次名称</th>
+                                        <th className="py-2.5 px-3 text-center">时间跨度</th>
+                                        <th className="py-2.5 px-3 text-center">累计排班 (人次)</th>
+                                        <th className="py-2.5 px-3 text-center">涉及总人数</th>
+                                        <th className="py-2.5 px-3 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {shiftStats.map(stat => (
+                                        <tr key={stat.id} className="hover:bg-indigo-50/30 transition-colors">
+                                            <td className="py-4 px-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: stat.color }}></div>
+                                                    <span className="text-[13px] font-bold text-slate-900">{stat.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-3 text-center">
+                                                <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{stat.startTime} ~ {stat.endTime}</span>
+                                            </td>
+                                            <td className="py-4 px-3 text-center">
+                                                <span className="text-base font-bold text-indigo-700">{stat.totalCount}</span>
+                                            </td>
+                                            <td className="py-4 px-3 text-center text-slate-700 font-bold">
+                                                {stat.employeeCount} 人
+                                            </td>
+                                            <td className="py-4 px-3 text-center">
+                                                <Button size="small" className="text-[11px] font-bold border-slate-300 hover:border-indigo-600 hover:text-indigo-600" onClick={() => setDetailModal({ visible: true, data: stat })}>查看排班明细</Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             </div>
+        </div>
+      </Modal>
+
+      {/* 班次深度明细弹窗 - 解决显示器模糊问题 */}
+      <Modal
+        title={<div className="flex items-center gap-3 border-b border-slate-100 pb-4"><div className="w-2 h-5 bg-indigo-600 rounded-full"></div><span className="font-bold text-slate-800">班次排班执行明细: {detailModal.data?.name}</span></div>}
+        open={detailModal.visible}
+        onCancel={() => setDetailModal({ visible: false, data: null })}
+        footer={null}
+        width={500}
+        centered
+        className="flatship-detail-modal"
+      >
+        <div className="max-h-[450px] overflow-y-auto pr-2 custom-micro-scrollbar">
+            <table className="w-full">
+                <thead>
+                    <tr className="text-[11px] font-bold text-slate-500 text-left border-b border-slate-100">
+                        <th className="py-2 px-2">执行日期</th>
+                        <th className="py-2 px-2">排班成员</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                    {detailModal.data?.details.map((d, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2.5 px-2 text-[12px] font-bold text-slate-700">{d.date}</td>
+                            <td className="py-2.5 px-2">
+                                <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[12px] font-bold border border-indigo-100">{d.employeeName}</span>
+                            </td>
+                        </tr>
+                    ))}
+                    {(!detailModal.data?.details || detailModal.data.details.length === 0) && (
+                        <tr><td colSpan="2" className="py-10 text-center text-slate-400 italic">此区间暂无人力部署记录</td></tr>
+                    )}
+                </tbody>
+            </table>
         </div>
       </Modal>
     </div>
@@ -630,6 +737,9 @@ export default function ScheduleManagement() {
         .ant-modal-content { border-radius: 32px !important; padding: 0 !important; overflow: hidden; }
         .flagship-checkbox .ant-checkbox-inner { border-radius: 6px; border-color: #e2e8f0; }
         .flagship-checkbox .ant-checkbox-checked .ant-checkbox-inner { background-color: #4f46e5; border-color: #4f46e5; }
+        .flagship-range-picker { border-radius: 10px !important; border: 1px solid #f1f5f9 !important; background: #f8fafc !important; }
+        .flagship-range-picker:hover { border-color: #4f46e5 !important; background: white !important; }
+        .flagship-range-picker .ant-picker-input > input { font-weight: 900 !important; font-size: 11px !important; color: #1e293b !important; }
     `}} />
     </ConfigProvider>
   )

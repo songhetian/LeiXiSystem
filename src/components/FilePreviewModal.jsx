@@ -54,25 +54,25 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
   }, [isMaximized]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] p-4">
-      <div className={`bg-white rounded-xl shadow-2xl w-full ${actualModalWidth} ${actualModalHeight} flex flex-col`}>
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
+      <div className={`bg-white rounded-xl shadow-xl w-full ${actualModalWidth} ${actualModalHeight} flex flex-col overflow-hidden border border-slate-200`}>
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
           <div className="flex-1 min-w-0">
-            <h2 className="text-3xl font-bold text-gray-900 truncate">{file.name}</h2>
-            <div className="flex flex-wrap items-center gap-4 mt-3 text-base text-gray-700">
-              <span className="flex items-center gap-2 text-lg">
+            <h2 className="text-lg font-semibold text-slate-900 truncate">{file.name}</h2>
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1">
                 {getFileIcon ? getFileIcon(file.type) : '📄'} {file.type}
               </span>
-              <span className="flex items-center gap-2 text-lg">
+              <span className="inline-flex items-center gap-1">
                 📅 {formatDate(new Date())}
               </span>
-              <span className="flex items-center gap-2 text-lg">
-                � {formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}
+              <span className="inline-flex items-center gap-1">
+                📦 {formatFileSize ? formatFileSize(file.size) : `${((file.size || 0) / 1024).toFixed(2)} KB`}
               </span>
+              {isPdf && <span>PDF 预览</span>}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* 调整宽高按钮 */}
             <div className="flex gap-1">
               {!isMaximized && (
                 <>
@@ -84,7 +84,7 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
                       const nextIndex = (currentIndex + 1) % widths.length
                       setActualModalWidth(widths[nextIndex])
                     }}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    className="w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all text-sm"
                     title="调整宽度"
                   >
                     ↔️
@@ -97,7 +97,7 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
                       const nextIndex = (currentIndex + 1) % heights.length
                       setActualModalHeight(heights[nextIndex])
                     }}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                    className="w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all text-sm"
                     title="调整高度"
                   >
                     ↕️
@@ -109,7 +109,7 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
                   e.stopPropagation();
                   toggleMaximize();
                 }}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md text-lg"
+                className="w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all text-sm"
                 title={isMaximized ? "恢复窗口" : "最大化"}
               >
                 {isMaximized ? '⛶' : '⛶'}
@@ -117,109 +117,98 @@ const FilePreviewModal = ({ file, onClose, getFileIcon, formatFileSize, modalWid
             </div>
             <button
               onClick={onClose}
-              className="w-12 h-12 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-700 transition-all shadow-md ml-4 text-2xl"
+              className="w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all ml-2 text-sm"
             >
               ✕
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-6 bg-gray-50">
+        <div className="flex-1 overflow-auto bg-slate-50 p-4">
           {isImage && (
             <div className="flex flex-col items-center justify-center h-full">
               <img
                 src={file.url}
                 alt={file.name}
-                className="max-w-full h-auto max-h-[70vh] rounded-xl shadow-lg"
+                className="max-w-full h-auto max-h-[70vh] border border-slate-200 bg-white"
               />
-              <div className="mt-4 text-center">
-                <p className="text-lg text-gray-700">{file.name}</p>
-              </div>
             </div>
           )}
           {isVideo && (
             <div className="flex flex-col items-center justify-center h-full">
               <video
                 controls
-                className="max-w-full h-auto max-h-[70vh] rounded-xl shadow-lg"
+                className="max-w-full h-auto max-h-[70vh] border border-slate-200 bg-black"
               >
                 <source src={file.url} type={file.type} />
                 您的浏览器不支持视频播放
               </video>
-              <div className="mt-4 text-center">
-                <p className="text-lg text-gray-700">{file.name}</p>
-              </div>
             </div>
           )}
           {isPdf && (
-            <div className="flex flex-col h-full bg-slate-200 rounded-xl overflow-hidden relative">
+            <div className="h-full min-h-[72vh] border border-slate-200 bg-white">
               <iframe
-                src={`${file.url}#toolbar=0`}
-                className="w-full h-full min-h-[70vh] border-none"
+                key={file.url}
+                src={`${file.url}#toolbar=1&navpanes=0&scrollbar=1`}
+                className="w-full h-full min-h-[72vh] border-0"
                 title={file.name}
-                loading="lazy"
               />
-              <div className="absolute bottom-4 right-4 flex gap-2">
-                 <a 
-                   href={file.url} 
-                   target="_blank" 
-                   rel="noreferrer"
-                   className="px-4 py-2 bg-white/90 backdrop-blur shadow-sm rounded-lg text-xs font-black text-slate-600 hover:text-indigo-600 transition-all flex items-center gap-2"
-                 >
-                   在新窗口打开预览
-                 </a>
-              </div>
             </div>
           )}
           {isPpt && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full border border-slate-200 bg-white">
               <iframe
                 src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`}
-                className="w-full h-full min-h-[70vh] rounded-xl shadow-lg"
+                className="w-full h-full min-h-[70vh]"
                 frameBorder="0"
                 title={file.name}
               />
-              <div className="mt-4 text-center">
-                <p className="text-lg text-gray-700">{file.name}</p>
-                <p className="text-sm text-gray-500 mt-2">使用 Microsoft Office 在线预览</p>
-              </div>
             </div>
           )}
           {!isImage && !isVideo && !isPdf && !isPpt && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white rounded-xl shadow-sm">
-              <div className="text-8xl mb-6">
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white border border-slate-200">
+              <div className="text-6xl mb-4">
                 {getFileIcon ? getFileIcon(file.type) : '📄'}
               </div>
-              <div className="text-2xl font-bold text-gray-900 mb-3">{file.name}</div>
-              <div className="text-xl text-gray-600 mb-6">此文件类型不支持在线预览</div>
-              <div className="text-lg text-gray-500 mb-8">
+              <div className="text-lg font-semibold text-slate-900 mb-2">{file.name}</div>
+              <div className="text-sm text-slate-600 mb-4">此文件类型不支持在线预览</div>
+              <div className="text-sm text-slate-500 mb-6">
                 文件大小: {formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}
               </div>
               <a
                 href={file.url}
                 download={file.name}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-3 text-xl font-medium shadow-lg"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-all text-sm font-medium"
               >
                 📥 下载文件
               </a>
-              <p className="text-gray-500 mt-6">点击上方按钮下载文件到本地</p>
             </div>
           )}
         </div>
-        <div className="p-6 border-t border-gray-200 flex justify-between items-center bg-gray-50">
-          <div className="text-lg text-gray-700">
+        <div className="p-4 border-t border-slate-200 flex justify-between items-center bg-white">
+          <div className="text-xs text-slate-500">
             文件大小：{formatFileSize ? formatFileSize(file.size) : `${(file.size / 1024).toFixed(2)} KB`}
           </div>
           <div className="flex gap-4">
             <a
               href={file.url}
               download={file.name}
-              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all flex items-center gap-3 text-lg font-medium shadow-md"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-all text-sm"
             >
               📥 下载
             </a>
+            {isPdf && (
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded hover:bg-slate-50 transition-all text-sm"
+              >
+                新窗口打开
+              </a>
+            )}
             <button
               onClick={onClose}
-              className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-all text-lg font-medium shadow-md"
+              className="px-4 py-2 border border-slate-300 text-slate-700 rounded hover:bg-slate-50 transition-all text-sm"
             >
               关闭
             </button>

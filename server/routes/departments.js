@@ -32,33 +32,51 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  // 获取部门列表 (带权限)
+  // 获取部门列表 (带权限感知的安全视图)
   fastify.get('/api/departments/list', async (request, reply) => {
     try {
-      // 获取用户权限
-      const permissions = await extractUserPermissions(request, pool)
+      const { _t, _retry } = request.query;
+      
+      // 1. 严格提取用户权限 (如果带了 _retry，则强制跳过 Redis 缓存)
+      const { getUserPermissions } = require('../middleware/checkPermission');
+      const jwt = require('jsonwebtoken');
+      const { JWT_SECRET } = require('../config');
+      
+      const authHeader = request.headers.authorization;
+      const token = authHeader?.replace('Bearer ', '').trim();
+      
+      if (!token) return reply.code(401).send({ success: false, message: '身份过期' });
+      
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // 🚀 核心物理穿透：如果是带了重试标志，强制物理查询数据库
+      let permissions;
+      if (_retry === 'true') {
+        // 物理同步：直接查库，不走 Redis，不走 Token 旧数据
+        permissions = await getUserPermissions(pool, decoded.id, null, null); 
+      } else {
+        permissions = await require('../middleware/checkPermission').extractUserPermissions(request, pool);
+      }
+      
+      if (!permissions) return reply.code(401).send({ success: false, message: '权限识别失败' });
 
       let query = 'SELECT * FROM departments WHERE status != "deleted"'
       const params = []
 
-      // 权限控制
-      if (permissions) {
-        // 根据用户权限过滤部门
-        // 优先使用 viewableDepartmentIds（配置的部门权限）
-        if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
-          query += ` AND id IN (${permissions.viewableDepartmentIds.map(() => '?').join(',')})`
-          params.push(...permissions.viewableDepartmentIds)
-        } else if (permissions.departmentId) {
-          // 如果没有配置部门权限，则只能看到自己所在的部门
-          query += ' AND id = ?'
-          params.push(permissions.departmentId)
-        } else {
-          // 没有任何部门权限
-          return { success: true, data: [] }
-        }
-      } else {
-        // 未登录用户可以查看所有启用的部门
+      // 3. 🚀 严格分级决策
+      // 🛡️ 雷犀强化：只有显式名为“超级管理员”的角色才放行，不再信任 admin 用户名
+      const isRealAdmin = permissions.roles?.some(r => r.name === '超级管理员');
+      
+      if (isRealAdmin) {
         query += ' AND status = "active"'
+      } else if (permissions.viewableDepartmentIds && permissions.viewableDepartmentIds.length > 0) {
+        query += ` AND id IN (${permissions.viewableDepartmentIds.map(() => '?').join(',')})`
+        params.push(...permissions.viewableDepartmentIds)
+      } else if (permissions.departmentId) {
+        query += ' AND id = ?'
+        params.push(permissions.departmentId)
+      } else {
+        return { success: true, data: [] }
       }
 
       query += ' ORDER BY sort_order, id'
@@ -66,8 +84,8 @@ module.exports = async function (fastify, opts) {
       const [rows] = await pool.query(query, params)
       return { success: true, data: rows }
     } catch (error) {
-      console.error('获取部门列表失败:', error)
-      return reply.code(500).send({ success: false, message: '获取失败' })
+      console.error('部门权限引擎物理穿透失败:', error)
+      return reply.code(500).send({ success: false, message: '系统繁忙' })
     }
   })
 

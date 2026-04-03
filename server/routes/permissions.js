@@ -828,6 +828,22 @@ const permissionRoutes = async (fastify, options) => {
 
       await connection.commit();
 
+      // --- 🛡️ 雷犀强化：实时同步体系 ---
+      // 1. 清理 Redis 缓存
+      const redis = fastify.redis;
+      if (redis) {
+        await redis.del(`user:permissions:${id}`);
+        await redis.del(`user:identity:${id}`);
+      }
+
+      // 2. WebSocket 广播静默刷新
+      if (fastify.io) {
+        fastify.io.to(`user_${id}`).emit('permissions_updated', { 
+          message: '您的部门访问权限已由管理员更新',
+          type: 'department_scope'
+        });
+      }
+
       // --- 关键修复：从 Token 中提取真实操作人 ---
       const token = request.headers.authorization?.replace('Bearer ', '');
       const decoded = jwt.verify(token, JWT_SECRET);

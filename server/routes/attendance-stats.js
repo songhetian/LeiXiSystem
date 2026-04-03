@@ -70,16 +70,58 @@ module.exports = async function (fastify, opts) {
   });
 
   /**
-   * 3. 部门看板聚合 (对齐)
+   * 3. 部门看板聚合 (对齐 + 🛡️ 安全强化)
    */
   fastify.get('/api/attendance/dashboard-summary', async (request, reply) => {
     const { department_id, year, month } = request.query;
+    const { extractUserPermissions, applyDepartmentFilter } = require('../middleware/checkPermission');
+    
     try {
+      // 🛡️ 强制权限提取
+      const permissions = await extractUserPermissions(request, pool);
+      if (!permissions) return reply.code(401).send({ success: false, message: '请重新登录' });
+
+      // 🛡️ 安全审计：判断是否有权访问该部门
+      const canAccess = permissions.canViewAllDepartments || 
+                        permissions.viewableDepartmentIds?.includes(parseInt(department_id)) ||
+                        permissions.departmentId === parseInt(department_id);
+      
+      if (!canAccess) {
+        return reply.code(403).send({ success: false, message: '您无权查看该部门的统计数据' });
+      }
+
       const startDate = dayjs(`${year}-${month}-01`).format('YYYY-MM-DD');
       const endDate = dayjs(startDate).endOf('month').format('YYYY-MM-DD');
-      const [deptStats] = await pool.query(`SELECT COUNT(DISTINCT e.id) as total_employees, SUM(CASE WHEN ar.status = 'normal' THEN 1 ELSE 0 END) as normal_days, SUM(CASE WHEN ar.status IN ('late', 'early') THEN 1 ELSE 0 END) as abnormal_days, COALESCE(SUM(ar.work_hours), 0) as total_work_hours FROM employees e JOIN users u ON e.user_id = u.id LEFT JOIN attendance_records ar ON e.id = ar.employee_id AND ar.record_date BETWEEN ? AND ? WHERE u.department_id = ? AND e.status = 'active'`, [startDate, endDate, department_id]);
-      const [employeeDetails] = await pool.query(`SELECT e.id, u.real_name, u.avatar, COUNT(CASE WHEN ar.status = 'normal' THEN 1 END) as normal_days, COUNT(CASE WHEN ar.status IN ('late', 'early') THEN 1 END) as abnormal_days, (SELECT COALESCE(SUM(days), 0) FROM leave_records lr WHERE lr.employee_id = e.id AND lr.status = 'approved' AND lr.start_date BETWEEN ? AND ?) as leave_days FROM employees e JOIN users u ON e.user_id = u.id LEFT JOIN attendance_records ar ON e.id = ar.employee_id AND ar.record_date BETWEEN ? AND ? WHERE u.department_id = ? AND e.status = 'active' GROUP BY e.id, u.real_name, u.avatar`, [startDate, endDate, startDate, endDate, department_id]);
+      
+      // 1. 获取部门总体概况
+      const [deptStats] = await pool.query(`
+        SELECT 
+          COUNT(DISTINCT e.id) as total_employees, 
+          SUM(CASE WHEN ar.status = 'normal' THEN 1 ELSE 0 END) as normal_days, 
+          SUM(CASE WHEN ar.status IN ('late', 'early') THEN 1 ELSE 0 END) as abnormal_days, 
+          COALESCE(SUM(ar.work_hours), 0) as total_work_hours 
+        FROM employees e 
+        JOIN users u ON e.user_id = u.id 
+        LEFT JOIN attendance_records ar ON e.id = ar.employee_id AND ar.record_date BETWEEN ? AND ? 
+        WHERE u.department_id = ? AND e.status = 'active'`, [startDate, endDate, department_id]);
+      
+      // 2. 获取员工明细
+      const [employeeDetails] = await pool.query(`
+        SELECT 
+          e.id, u.real_name, u.avatar, 
+          COUNT(CASE WHEN ar.status = 'normal' THEN 1 END) as normal_days, 
+          COUNT(CASE WHEN ar.status IN ('late', 'early') THEN 1 END) as abnormal_days, 
+          (SELECT COALESCE(SUM(days), 0) FROM leave_records lr WHERE lr.employee_id = e.id AND lr.status = 'approved' AND lr.start_date BETWEEN ? AND ?) as leave_days 
+        FROM employees e 
+        JOIN users u ON e.user_id = u.id 
+        LEFT JOIN attendance_records ar ON e.id = ar.employee_id AND ar.record_date BETWEEN ? AND ? 
+        WHERE u.department_id = ? AND e.status = 'active' 
+        GROUP BY e.id, u.real_name, u.avatar`, [startDate, endDate, startDate, endDate, department_id]);
+      
       return { success: true, data: { summary: deptStats[0], employeeDetails } };
-    } catch (error) { return reply.code(500).send({ success: false }); }
+    } catch (error) { 
+      console.error('部门考勤看板获取失败:', error);
+      return reply.code(500).send({ success: false }); 
+    }
   });
 };

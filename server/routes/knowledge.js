@@ -1,8 +1,22 @@
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config');
 const { recordLog } = require('../utils/logger');
 
 async function knowledgeRoutes(fastify, options) {
   const pool = fastify.mysql;
   const redis = fastify.redis;
+
+  async function authenticateRequest(request) {
+    const token = request.headers.authorization?.replace('Bearer ', '').trim();
+    if (!token || token === 'null' || token === 'undefined' || token.split('.').length !== 3) {
+      return null;
+    }
+    try {
+      return jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return null;
+    }
+  }
 
   // 获取知识库分类列表
   fastify.get('/api/knowledge/categories', async (request, reply) => {
@@ -157,15 +171,22 @@ async function knowledgeRoutes(fastify, options) {
       });
     }
 
-    const { title, category_id, summary, content, type, status, icon, attachments, is_public, owner_id } = request.body;
+    const { title, category_id, summary, content, type, status, icon, attachments, is_public, owner_id, original_article_id } = request.body;
     try {
-      const attachmentsJson = attachments && attachments.length > 0 ? JSON.stringify(attachments) : null;
+      let attachmentsJson = null;
+      if (typeof attachments === 'string') {
+        attachmentsJson = attachments.trim() ? attachments : null;
+      } else if (Array.isArray(attachments)) {
+        attachmentsJson = attachments.length > 0 ? JSON.stringify(attachments) : null;
+      } else if (attachments && typeof attachments === 'object') {
+        attachmentsJson = JSON.stringify(attachments);
+      }
 
       const [result] = await pool.query(
         `INSERT INTO knowledge_articles
-        (title, category_id, summary, content, attachments, type, status, icon, is_public, owner_id, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [title, category_id || null, summary || null, content || '', attachmentsJson, type || 'common', status || 'published', icon || '📄', is_public !== undefined ? is_public : 1, owner_id || null, request.user?.id || null]
+        (title, category_id, summary, content, attachments, original_article_id, type, status, icon, is_public, owner_id, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [title, category_id || null, summary || null, content || '', attachmentsJson, original_article_id || null, type || 'common', status || 'published', icon || '📄', is_public !== undefined ? is_public : 1, owner_id || null, request.user?.id || null]
       );
       return { success: true, id: result.insertId };
     } catch (error) {
@@ -229,7 +250,7 @@ async function knowledgeRoutes(fastify, options) {
         params.push(is_public === 'true' || is_public === '1' ? 1 : 0);
       }
 
-      if (status) {
+      if (status && status !== 'all') {
         const statusClause = ' AND status = ?';
         query += statusClause;
         countQuery += statusClause;
@@ -298,24 +319,93 @@ async function knowledgeRoutes(fastify, options) {
     const { id } = request.params;
     const updates = request.body;
     try {
-      const { title, content, summary, category_id, is_public, status, attachments, notes } = updates;
-      
-      await pool.query(
-        `UPDATE knowledge_articles SET 
-          title = COALESCE(?, title),
-          content = COALESCE(?, content),
-          summary = COALESCE(?, summary),
-          category_id = ?,
-          is_public = COALESCE(?, is_public),
-          status = COALESCE(?, status),
-          attachments = COALESCE(?, attachments),
-          notes = COALESCE(?, notes),
-          updated_at = NOW()
-        WHERE id = ?`,
-        [title, content, summary, category_id, is_public, status, 
-         attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null,
-         notes, id]
+      const {
+        title,
+        content,
+        summary,
+        category_id,
+        is_public,
+        status,
+        attachments,
+        notes
+      } = updates;
+
+      const [currentRows] = await pool.query(
+        'SELECT id, category_id, type, owner_id FROM knowledge_articles WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL',
+        [id]
       );
+
+      if (currentRows.length === 0) {
+        return reply.code(404).send({ error: 'Article not found' });
+      }
+
+      const currentArticle = currentRows[0];
+      const nextCategoryId = Object.prototype.hasOwnProperty.call(updates, 'category_id')
+        ? (category_id || null)
+        : currentArticle.category_id;
+
+      const updateFields = [];
+      const values = [];
+
+      if (title !== undefined) {
+        updateFields.push('title = ?');
+        values.push(title);
+      }
+      if (content !== undefined) {
+        updateFields.push('content = ?');
+        values.push(content);
+      }
+      if (summary !== undefined) {
+        updateFields.push('summary = ?');
+        values.push(summary);
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'category_id')) {
+        updateFields.push('category_id = ?');
+        values.push(category_id || null);
+      }
+      if (is_public !== undefined) {
+        updateFields.push('is_public = ?');
+        values.push(Number(is_public) === 1 ? 1 : 0);
+      }
+      if (status !== undefined) {
+        updateFields.push('status = ?');
+        values.push(status);
+      }
+      if (attachments !== undefined) {
+        updateFields.push('attachments = ?');
+        values.push(typeof attachments === 'string' ? attachments : JSON.stringify(attachments || []));
+      }
+      if (notes !== undefined) {
+        updateFields.push('notes = ?');
+        values.push(notes);
+      }
+
+      if (updateFields.length === 0) {
+        return reply.code(400).send({ error: 'No updates provided' });
+      }
+
+      updateFields.push('updated_at = NOW()');
+      values.push(id);
+
+      await pool.query(
+        `UPDATE knowledge_articles SET ${updateFields.join(', ')} WHERE id = ?`,
+        values
+      );
+
+      if (
+        currentArticle.type === 'common' &&
+        is_public !== undefined &&
+        Number(is_public) === 1 &&
+        nextCategoryId
+      ) {
+        await pool.query(
+          `UPDATE knowledge_categories
+           SET is_public = 1
+           WHERE id = ? AND type = 'common' AND is_deleted = 0 AND deleted_at IS NULL`,
+          [nextCategoryId]
+        );
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Update article failed:', error);
@@ -327,21 +417,116 @@ async function knowledgeRoutes(fastify, options) {
 
   // 获取个人分类
   fastify.get('/api/my-knowledge/categories', async (request, reply) => {
-    const { userId } = request.query;
+    const authUser = await authenticateRequest(request);
+    const userId = request.query?.userId || authUser?.id;
+    console.log('--- [Backend Knowledge] Category Request ---');
+    console.log('Received userId from query/auth:', userId);
     try {
+      if (!userId) {
+        return reply.code(400).send({ error: 'userId is required' });
+      }
+      
+      const targetUserId = Number(userId);
+      console.log('Querying for owner_id (converted):', targetUserId);
+
       // 🔴 物理锁死：仅返回该用户下的个人类型(personal)且未删除的分类
       const [rows] = await pool.query(
         "SELECT * FROM knowledge_categories WHERE owner_id = ? AND type = 'personal' AND is_deleted = 0 AND deleted_at IS NULL ORDER BY name ASC",
-        [userId]
+        [targetUserId]
       );
+      
+      console.log('Query result count:', rows.length);
       return rows;
-    } catch (e) { return reply.code(500).send({ error: e.message }); }
+    } catch (e) { 
+      console.error('Fetch categories failed:', e);
+      return reply.code(500).send({ error: e.message }); 
+    }
+  });
+
+  // 创建个人分类
+  fastify.post('/api/my-knowledge/categories', async (request, reply) => {
+    const { name, description, icon, owner_id } = request.body;
+    try {
+      if (!name) {
+        return reply.code(400).send({ error: 'Category name is required' });
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO knowledge_categories (name, description, icon, owner_id, type, is_public)
+         VALUES (?, ?, ?, ?, 'personal', 0)`,
+        [name, description || null, icon || '📁', owner_id || null]
+      );
+
+      return { success: true, id: result.insertId };
+    } catch (e) {
+      return reply.code(500).send({ error: e.message });
+    }
+  });
+
+  // 更新个人分类
+  fastify.put('/api/my-knowledge/categories/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { name, description, icon } = request.body;
+    try {
+      const updates = [];
+      const values = [];
+
+      if (name !== undefined) {
+        updates.push('name = ?');
+        values.push(name);
+      }
+      if (description !== undefined) {
+        updates.push('description = ?');
+        values.push(description || null);
+      }
+      if (icon !== undefined) {
+        updates.push('icon = ?');
+        values.push(icon || '📁');
+      }
+
+      if (updates.length === 0) {
+        return reply.code(400).send({ error: 'No updates provided' });
+      }
+
+      values.push(id);
+      await pool.query(
+        `UPDATE knowledge_categories SET ${updates.join(', ')} WHERE id = ? AND type = 'personal'`,
+        values
+      );
+
+      return { success: true };
+    } catch (e) {
+      return reply.code(500).send({ error: e.message });
+    }
+  });
+
+  // 删除个人分类
+  fastify.delete('/api/my-knowledge/categories/:id', async (request, reply) => {
+    const { id } = request.params;
+    try {
+      await pool.query(
+        "UPDATE knowledge_articles SET category_id = NULL WHERE category_id = ? AND type = 'personal'",
+        [id]
+      );
+      await pool.query(
+        "DELETE FROM knowledge_categories WHERE id = ? AND type = 'personal'",
+        [id]
+      );
+      return { success: true };
+    } catch (e) {
+      return reply.code(500).send({ error: e.message });
+    }
   });
 
   // 获取个人文档
   fastify.get('/api/my-knowledge/articles', async (request, reply) => {
-    const { userId, category_id } = request.query;
+    const authUser = await authenticateRequest(request);
+    const userId = request.query?.userId || authUser?.id;
+    const { category_id } = request.query;
     try {
+      if (!userId) {
+        return reply.code(400).send({ error: 'userId is required' });
+      }
       // 🔴 关键修复：强制过滤 type = 'personal'，确保个人库只显示收藏或私有内容
       let query = "SELECT * FROM knowledge_articles WHERE owner_id = ? AND type = 'personal' AND is_deleted = 0 AND deleted_at IS NULL";
       const params = [userId];
