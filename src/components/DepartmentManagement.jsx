@@ -4,364 +4,216 @@ import { formatDate } from '../utils/date'
 import { toast } from 'sonner';
 import Modal from './Modal'
 import ConfirmDialog from './ConfirmDialog'
-import { getApiUrl } from '../utils/apiConfig'
+import { 
+    LayoutGrid, 
+    Table as TableIcon, 
+    Plus, 
+    RefreshCcw, 
+    Trash2, 
+    Edit3, 
+    RotateCcw,
+    Users,
+    Building2,
+    Search
+} from 'lucide-react';
+import { 
+    ConfigProvider, 
+    Button, 
+    Tag, 
+    Space, 
+    Typography, 
+    Input, 
+    Switch,
+    Divider
+} from 'antd';
+
+const { Text, Title } = Typography;
 
 function DepartmentManagement() {
   const [departments, setDepartments] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
   const [editingDept, setEditingDept] = useState(null)
-  const [viewingDept, setViewingDept] = useState(null)
-  const [statusChangingDept, setStatusChangingDept] = useState(null)
-  const [deptDetails, setDeptDetails] = useState(null)
   const [showDeleted, setShowDeleted] = useState(false)
-  const [viewMode, setViewMode] = useState('card')
+  const [viewMode, setViewMode] = useState('table')
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(12)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    status: 'active'
-  })
+  const [pageSize, setPageSize] = useState(10)
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({ name: '', description: '', status: 'active' })
 
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
-  const [confirmDialogConfig, setConfirmDialogConfig] = useState({
-    title: '',
-    message: '',
-    onConfirm: null
-  })
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState({ title: '', message: '', onConfirm: null })
 
-  useEffect(() => {
-    fetchDepartments()
-  }, [showDeleted])
-
-  const totalPages = Math.ceil(departments.length / pageSize)
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return departments.slice(startIndex, endIndex)
-  }
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
-
-  const handlePageSizeChange = (size) => {
-    setPageSize(size)
-    setCurrentPage(1)
-  }
+  useEffect(() => { fetchDepartments() }, [showDeleted])
 
   const fetchDepartments = async () => {
+    setLoading(true)
     try {
       const path = showDeleted ? '/departments?includeDeleted=true' : '/departments'
       const response = await api.get(path)
       const data = response.data
-
-      // 获取每个部门的员工数量 (优化：并行请求)
       const deptsWithCount = await Promise.all(
         data.map(async (dept) => {
           try {
             const empResponse = await api.get('/employees')
-            const employees = empResponse.data
-            const count = employees.filter(emp => emp.department_id === dept.id).length
+            const count = empResponse.data.filter(emp => emp.department_id === dept.id).length
             return { ...dept, employee_count: count }
-          } catch {
-            return { ...dept, employee_count: 0 }
-          }
+          } catch { return { ...dept, employee_count: 0 } }
         })
       )
-
       setDepartments(deptsWithCount)
-    } catch (error) {
-      toast.error('获取部门列表失败')
-    }
+    } catch (error) { toast.error('同步部门数据失败') } finally { setLoading(false) }
   }
 
-  const fetchDepartmentDetails = async (deptId) => {
-    try {
-      const empResponse = await api.get('/employees')
-      const allEmployees = empResponse.data
-      const deptEmployees = allEmployees.filter(emp => emp.department_id === deptId)
+  const totalPages = Math.max(1, Math.ceil(departments.length / pageSize))
+  const getCurrentPageData = () => departments.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-      const positionStats = {}
-      deptEmployees.forEach(emp => {
-        const position = emp.position || '未分配职位'
-        positionStats[position] = (positionStats[position] || 0) + 1
-      })
-
-      const positionList = Object.entries(positionStats).map(([position, count]) => ({
-        position,
-        count
-      }))
-
-      setDeptDetails({
-        totalCount: deptEmployees.length,
-        positions: positionList,
-        employees: deptEmployees
-      })
-    } catch (error) {
-      toast.error('获取部门详情失败')
-    }
-  }
-
-  const handleViewDetail = async (dept) => {
-    setViewingDept(dept)
-    setIsDetailModalOpen(true)
-    await fetchDepartmentDetails(dept.id)
-  }
-
-  const handleStatusClick = (dept) => {
-    setStatusChangingDept(dept)
-    setIsStatusModalOpen(true)
-  }
-
-  const handleStatusChange = async (newStatus) => {
-    if (!statusChangingDept) return
-    if (statusChangingDept.status === newStatus) {
-      setIsStatusModalOpen(false)
-      setStatusChangingDept(null)
-      return
-    }
-
-    const employeeCount = statusChangingDept.employee_count || 0
-    if (employeeCount > 0) {
-      const action = newStatus === 'active' ? '启用' : '停用'
-      const confirmMsg = `该部门有 ${employeeCount} 名员工，${action}部门后，所有员工状态将同步${action}。\n\n确定要继续吗？`
-
-      setConfirmDialogConfig({
-        title: '确认操作',
-        message: confirmMsg,
-        onConfirm: async () => {
-          await performStatusChange(newStatus)
-        }
-      })
-      setIsConfirmDialogOpen(true)
-      return
-    }
-
-    await performStatusChange(newStatus)
-  }
-
-  const performStatusChange = async (newStatus) => {
-    try {
-      const response = await api.put(`/departments/update/${statusChangingDept.id}`, {
-        ...statusChangingDept,
-        status: newStatus
-      })
-
-      if (response.data) {
-        const affectedCount = response.data.affectedEmployees || 0
-        toast.success(affectedCount > 0 ? `部门状态已修改，同时更新了 ${affectedCount} 名员工的状态` : '部门状态修改成功')
-        setIsStatusModalOpen(false)
-        setStatusChangingDept(null)
-        fetchDepartments()
+  const handleStatusChange = async (dept, newStatus) => {
+    const action = newStatus === 'active' ? '启用' : '停用'
+    setConfirmDialogConfig({
+      title: `${action}部门`,
+      message: `确定要${action}部门 "${dept.name}" 吗？该操作将同步更新所属员工状态。`,
+      onConfirm: async () => {
+        try {
+          await api.put(`/departments/update/${dept.id}`, { ...dept, status: newStatus })
+          toast.success(`部门已${action}`); fetchDepartments();
+        } catch { toast.error('操作失败') }
       }
-    } catch (error) {
-      toast.error('修改失败')
-    }
+    })
+    setIsConfirmDialogOpen(true)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
       const path = editingDept ? `/departments/update/${editingDept.id}` : '/departments/create'
-      const response = editingDept ? await api.put(path, formData) : await api.post(path, formData)
-
-      if (response.data) {
-        toast.success(editingDept ? '部门更新成功' : '部门及关联聊天群组创建成功')
-        setIsModalOpen(false)
-        fetchDepartments()
-        resetForm()
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || '操作失败')
-    }
+      await (editingDept ? api.put(path, formData) : api.post(path, formData))
+      toast.success(editingDept ? '配置更新成功' : '部门创建成功'); setIsModalOpen(false); fetchDepartments(); resetForm();
+    } catch (e) { toast.error('保存失败') }
   }
 
-  const handleEdit = (dept) => {
-    setEditingDept(dept)
-    setFormData({
-      name: dept.name,
-      description: dept.description || '',
-      status: dept.status
-    })
-    setIsModalOpen(true)
-  }
-
-  const handleDelete = async (dept) => {
-    const employeeCount = dept.employee_count || 0
-    let confirmMsg = `确定要删除这个部门吗？\n\n${employeeCount > 0 ? `该部门有 ${employeeCount} 名员工，删除后员工也将被标记为删除状态。\n\n` : ''}删除后可以随时恢复。`
-
+  const handleDelete = (dept) => {
     setConfirmDialogConfig({
-      title: '删除部门',
-      message: confirmMsg,
+      title: '物理销毁部门',
+      message: `确定要删除部门 "${dept.name}" 吗？删除后可随时恢复。`,
       onConfirm: async () => {
-        try {
-          const response = await api.delete(`/departments/delete/${dept.id}`)
-          if (response.data) {
-            toast.success('部门已删除（可恢复）')
-            fetchDepartments()
-          }
-        } catch (error) {
-          toast.error('删除失败')
-        }
+        try { await api.delete(`/departments/delete/${dept.id}`); toast.success('已移至回收站'); fetchDepartments(); }
+        catch { toast.error('删除失败') }
       }
     })
     setIsConfirmDialogOpen(true)
   }
 
-  const handleRestore = async (id) => {
+  const handleRestore = (id) => {
     setConfirmDialogConfig({
       title: '恢复部门',
-      message: '确定要恢复这个部门吗？\n\n恢复后部门和员工状态将变为启用。',
+      message: '确定要恢复该部门吗？恢复后部门将重新投入使用。',
       onConfirm: async () => {
-        try {
-          const response = await api.post(`/departments/restore/${id}`)
-          if (response.data) {
-            toast.success('部门已恢复')
-            fetchDepartments()
-          }
-        } catch (error) {
-          toast.error('恢复失败')
-        }
+        try { await api.post(`/departments/restore/${id}`); toast.success('部门已恢复'); fetchDepartments(); }
+        catch { toast.error('恢复失败') }
       }
     })
     setIsConfirmDialogOpen(true)
   }
 
-  const resetForm = () => {
-    setFormData({ name: '', description: '', status: 'active' })
-    setEditingDept(null)
-  }
-
-  const handleSyncGroups = async () => {
-    setConfirmDialogConfig({
-      title: '一键同步群组',
-      message: '系统将扫描所有部门，自动补全缺失的聊天群组，并将部门下的所有在职员工同步加入群聊。是否继续？',
-      onConfirm: async () => {
-        try {
-          const response = await api.post('/departments/sync-all-groups')
-          if (response.data) {
-            toast.success(response.data.message)
-            fetchDepartments()
-          }
-        } catch (error) {
-          toast.error('同步失败')
-        }
-      }
-    })
-    setIsConfirmDialogOpen(true)
-  }
+  const resetForm = () => { setFormData({ name: '', description: '', status: 'active' }); setEditingDept(null); }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">部门管理</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            共 {departments.filter(d => d.status !== 'deleted').length} 个部门
-            {departments.filter(d => d.status === 'deleted').length > 0 &&
-              ` (${departments.filter(d => d.status === 'deleted').length} 个已删除)`
-            }
-          </p>
+    <ConfigProvider theme={{
+        token: { colorPrimary: '#000000', borderRadius: 6, controlHeight: 36, colorBorder: '#64748b' }
+    }}>
+    <div className="p-4 bg-[#f8fafc] min-h-screen text-left font-black">
+      {/* 1. Header */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-4 overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100">
+          <Space size={16}>
+            <div className="w-11 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-lg"><Building2 size={22} /></div>
+            <div>
+                <h1 className="text-lg font-black text-slate-900 m-0">组织架构管理</h1>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-0.5">企业部门层级定义与人力资源归属维护</p>
+            </div>
+          </Space>
+          <Space>
+            <Button onClick={() => { resetForm(); setIsModalOpen(true); }} type="primary" icon={<Plus size={14} />} className="font-black bg-slate-900 text-white h-9 px-6 border-none">新增部门</Button>
+            <Button onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')} icon={viewMode === 'table' ? <LayoutGrid size={14} /> : <TableIcon size={14} />} className="font-black h-9 border-slate-400 text-slate-900">{viewMode === 'table' ? '卡片视图' : '表格视图'}</Button>
+            <Button onClick={fetchDepartments} icon={<RefreshCcw size={14} />} loading={loading} className="font-black h-9 border-slate-400 text-slate-900" />
+          </Space>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setViewMode('table')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`} title="表格视图">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-            </button>
-            <button onClick={() => setViewMode('card')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'card' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`} title="卡片视图">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-            </button>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-            <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-            显示已删除
-          </label>
-          <button onClick={handleSyncGroups} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2">
-            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            同步群组
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors shadow-sm">+ 新增部门</button>
+        <div className="bg-slate-50/40 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <Text className="text-[11px] font-black text-slate-900">共计活跃部门: <span className="text-indigo-700">{departments.filter(d => d.status !== 'deleted').length}</span></Text>
+                <Divider type="vertical" className="border-slate-300" />
+                <label className="flex items-center gap-2 text-[11px] font-black text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} className="w-4 h-4 rounded border-slate-400" />
+                    显示回收站 (已删除)
+                </label>
+            </div>
         </div>
       </div>
 
-      {viewMode === 'table' && (
-        <div className="bg-white rounded-lg shadow-sm">
-          <table className="w-full">
-            <thead className="bg-primary-50 border-b border-primary-100">
-              <tr>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">部门名称</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">描述</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">人数</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">状态</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">创建时间</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-primary-700 uppercase tracking-wider">操作</th>
+      {/* 2. Content */}
+      {viewMode === 'table' ? (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px]">
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">部门名称</th>
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">职责描述</th>
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">在册人数</th>
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">运行状态</th>
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">创建时间</th>
+                <th className="px-6 py-3 text-center font-black text-slate-900 uppercase tracking-widest">管理决策</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100 text-center font-black">
               {getCurrentPageData().map((dept) => (
-              <tr key={dept.id} className="hover:bg-primary-50/30 transition-colors">
-                <td className="px-6 py-4 text-center">
-                  <button onClick={() => handleViewDetail(dept)} className="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline">{dept.name}</button>
-                </td>
-                <td className="px-6 py-4 text-center text-sm text-gray-600">{dept.description || '-'}</td>
-                <td className="px-6 py-4 text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {dept.employee_count || 0} 人
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {dept.status === 'deleted' ? <span className="inline-block px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">已删除</span> : (
-                    <button onClick={() => handleStatusClick(dept)} className={`px-2 py-1 text-xs rounded-full cursor-pointer hover:opacity-80 transition-opacity ${dept.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {dept.status === 'active' ? '启用' : '停用'}
-                    </button>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-center text-sm text-gray-600">{formatDate(dept.created_at)}</td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-2">
-                    {dept.status === 'deleted' ? (
-                      <button onClick={() => handleRestore(dept.id)} className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1">恢复</button>
-                    ) : (
-                      <>
-                        <button onClick={() => handleEdit(dept)} className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1">编辑</button>
-                        <button onClick={() => handleDelete(dept)} className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1">删除</button>
-                      </>
+                <tr key={dept.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4"><Text className="text-[14px] font-black text-slate-900">{dept.name}</Text></td>
+                  <td className="px-6 py-4"><Text className="text-[13px] font-black text-slate-700">{dept.description || '-'}</Text></td>
+                  <td className="px-6 py-4"><Tag className="m-0 bg-indigo-100 text-indigo-900 border-none font-black px-3 py-0.5">{dept.employee_count || 0} 人</Tag></td>
+                  <td className="px-6 py-4">
+                    {dept.status === 'deleted' ? <Tag color="error" className="m-0 font-black">已销毁</Tag> : (
+                      <Switch checked={dept.status === 'active'} size="small" onChange={(checked) => handleStatusChange(dept, checked ? 'active' : 'inactive')} className={dept.status === 'active' ? 'bg-emerald-600' : 'bg-slate-200'} />
                     )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-6 py-4 text-[12px] text-slate-600 font-bold">{formatDate(dept.created_at)}</td>
+                  <td className="px-6 py-4">
+                    <Space size={4}>
+                      {dept.status === 'deleted' ? (
+                        <Button size="small" icon={<RotateCcw size={12} />} onClick={() => handleRestore(dept.id)} className="text-[11px] font-black text-emerald-700 border-emerald-200 bg-emerald-50">恢复</Button>
+                      ) : (
+                        <>
+                          <Button size="small" icon={<Edit3 size={12} />} onClick={() => { setEditingDept(dept); setFormData({name:dept.name, description:dept.description||'', status:dept.status}); setIsModalOpen(true); }} className="text-[11px] font-black text-blue-700 border-blue-200 bg-blue-50">编辑</Button>
+                          <Button size="small" icon={<Trash2 size={12} />} onClick={() => handleDelete(dept)} className="text-[11px] font-black text-rose-700 border-rose-200 bg-rose-50">删除</Button>
+                        </>
+                      )}
+                    </Space>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {viewMode === 'card' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {getCurrentPageData().map((dept) => (
-            <div key={dept.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-5">
-              <div className="flex items-start justify-between mb-3">
-                <button onClick={() => handleViewDetail(dept)} className="text-lg font-semibold text-gray-900 hover:text-primary-600 transition-colors text-left">{dept.name}</button>
-                {dept.status === 'deleted' ? <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex-shrink-0">已删除</span> : (
-                  <button onClick={() => handleStatusClick(dept)} className={`px-2 py-1 text-xs rounded-full cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 ${dept.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{dept.status === 'active' ? '启用' : '停用'}</button>
-                )}
+            <div key={dept.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-start mb-3">
+                <Title level={5} className="m-0 font-black text-slate-900">{dept.name}</Title>
+                {dept.status === 'deleted' ? <Tag color="error" className="m-0 font-black">已销毁</Tag> : <Tag color={dept.status === 'active'?'success':'default'} className="m-0 font-black">{dept.status === 'active'?'运行中':'已停用'}</Tag>}
               </div>
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">{dept.description || '暂无描述'}</p>
-              <div className="flex items-center gap-4 mb-4 text-sm">
-                <span className="text-gray-600">👥 {dept.employee_count || 0} 人</span>
-                <span className="text-gray-600">📅 {formatDate(dept.created_at)}</span>
+              <Text className="text-[12px] text-slate-600 font-bold block min-h-[36px] line-clamp-2 mb-4">{dept.description || '无详细职责描述'}</Text>
+              <div className="flex items-center gap-4 mb-4">
+                <Tag className="m-0 border-none bg-slate-100 text-slate-900 font-black"><Users size={12} className="inline mr-1" /> {dept.employee_count || 0}</Tag>
+                <Text className="text-[10px] text-slate-400 font-bold">{formatDate(dept.created_at)}</Text>
               </div>
-              <div className="flex gap-2 pt-3 border-t border-gray-100">
+              <div className="pt-3 border-t border-slate-100 flex gap-2">
                 {dept.status === 'deleted' ? (
-                  <button onClick={() => handleRestore(dept.id)} className="flex-1 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">恢复</button>
+                  <Button block size="small" onClick={() => handleRestore(dept.id)} className="font-black text-emerald-700 border-emerald-200">恢复部门</Button>
                 ) : (
                   <>
-                    <button onClick={() => handleEdit(dept)} className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">编辑</button>
-                    <button onClick={() => handleDelete(dept)} className="flex-1 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">删除</button>
+                    <Button block size="small" onClick={() => { setEditingDept(dept); setFormData({name:dept.name, description:dept.description||'', status:dept.status}); setIsModalOpen(true); }} className="font-black text-blue-700 border-blue-200">编辑</Button>
+                    <Button block size="small" onClick={() => handleDelete(dept)} className="font-black text-rose-700 border-rose-200">移除</Button>
                   </>
                 )}
               </div>
@@ -370,18 +222,18 @@ function DepartmentManagement() {
         </div>
       )}
 
-      {/* 分页与模态框保持原有逻辑，已确保路径规范化 */}
-      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title={editingDept ? '编辑部门' : '新增部门'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">部门名称 *</label><input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">部门描述</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows="3" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" /></div>
-          <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-4 py-2 border border-gray-300 rounded-lg">取消</button><button type="submit" className="px-4 py-2 bg-primary-500 text-white rounded-lg">{editingDept ? '更新' : '创建'}</button></div>
+      {/* 3. Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title={editingDept ? '部门配置修订' : '创建新组织架构'}>
+        <form onSubmit={handleSubmit} className="space-y-4 font-black">
+          <div><label className="block text-[13px] font-black text-slate-700 mb-1">部门官方全称 *</label><input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full h-9 px-3 border border-slate-300 rounded-lg font-black text-slate-900 outline-none focus:border-slate-900" /></div>
+          <div><label className="block text-[13px] font-black text-slate-700 mb-1">主要职责描述</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows="3" className="w-full p-3 border border-slate-300 rounded-lg font-black text-slate-900 outline-none focus:border-slate-900 resize-none" /></div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100"><button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-6 h-9 border border-slate-300 rounded-lg text-[13px] font-black text-slate-600">放弃</button><button type="submit" className="px-8 h-9 bg-slate-900 text-white rounded-lg text-[13px] font-black">同步并保存</button></div>
         </form>
       </Modal>
 
-      {/* 详情与状态对话框逻辑保持不变，确保 api 实例使用无误 */}
-      <ConfirmDialog isOpen={isConfirmDialogOpen} onClose={() => setIsConfirmDialogOpen(false)} onConfirm={confirmDialogConfig.onConfirm} title={confirmDialogConfig.title} message={confirmDialogConfig.message} />
+      <ConfirmDialog isOpen={isConfirmDialogOpen} onClose={() => setIsConfirmDialogOpen(false)} onConfirm={confirmDialogConfig.onConfirm} title={confirmDialogConfig.title} message={confirmDialogConfig.message} zIndex={5000} />
     </div>
+    </ConfigProvider>
   )
 }
 

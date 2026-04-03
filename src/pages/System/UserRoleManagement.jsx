@@ -152,30 +152,30 @@ const UserRoleManagement = () => {
         <div className="flex items-center justify-center gap-4 text-left font-black">
             <div className="relative">
                 <div className="w-12 h-12 rounded-xl bg-slate-100 border-[1px] border-slate-300 shadow-sm overflow-hidden">
-                    {r.avatar ? <img src={r.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-400 font-black">{r.real_name?.charAt(0)}</div>}
+                    {r.avatar ? <img src={r.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500 font-black">{r.real_name?.charAt(0)}</div>}
                 </div>
-                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${r.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${r.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
             </div>
             <div className="flex flex-col">
                 <span className="text-[15px] font-black text-slate-900 leading-tight">{r.real_name}</span>
-                <span className="text-[12px] font-bold text-slate-500 mt-0.5 tracking-tighter">@{r.username}</span>
+                <span className="text-[12px] font-black text-slate-600 mt-0.5 tracking-tighter">@{r.username}</span>
             </div>
         </div>
     )},
-    { title: '组织架构', dataIndex: 'department_name', key: 'dept', align: 'center', render: (t) => <span className="text-[13px] font-black text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border-[1px] border-slate-300">{t || '未分配部门'}</span> },
+    { title: '组织架构', dataIndex: 'department_name', key: 'dept', align: 'center', render: (t) => <span className="text-[13px] font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border-[1px] border-slate-400">{t || '未分配部门'}</span> },
     { title: '当前权限角色', key: 'roles', align: 'center', render: (_, r) => (
         <div className="flex flex-wrap gap-1.5 justify-center">
             {r.roles?.length > 0 ? r.roles.map(role => (
-                <Tag key={role.id} variant="borderless" className={`m-0 font-black text-[11px] px-2.5 py-0.5 rounded-md border-[1px] ${role.name === '超级管理员' ? 'bg-rose-50 text-rose-600 border-rose-300' : 'bg-indigo-50 text-indigo-600 border-indigo-300'}`}>
+                <Tag key={role.id} variant="borderless" className={`m-0 font-black text-[11px] px-2.5 py-0.5 rounded-md border-[1px] ${role.name === '超级管理员' ? 'bg-rose-100 text-rose-900 border-rose-400' : 'bg-indigo-100 text-indigo-900 border-indigo-400'}`}>
                     {role.name.toUpperCase()}
                 </Tag>
-            )) : <button onClick={() => handleManageRoles(r)} className="text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-all italic">+ 待分配角色</button>}
+            )) : <button onClick={() => handleManageRoles(r)} className="text-[11px] font-black text-slate-600 hover:text-indigo-600 transition-all">+ 待分配角色</button>}
         </div>
     )},
     { title: '数据可见性', key: 'scope', align: 'center', render: (_, r) => (
         <div className="flex flex-wrap gap-1 justify-center">
-            {r.departments?.length > 0 ? r.departments.slice(0, 2).map(d => <span key={d.id} className="px-2.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-black border-[1px] border-purple-300">{d.name}</span>) : <span className="text-[11px] font-bold text-slate-400">仅本人数据</span>}
-            {r.departments?.length > 2 && <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-black border-[1px] border-slate-300">+{r.departments.length - 2}</span>}
+            {r.departments?.length > 0 ? r.departments.slice(0, 2).map(d => <span key={d.id} className="px-2.5 py-0.5 bg-purple-100 text-purple-900 rounded text-[11px] font-black border-[1px] border-purple-400">{d.name}</span>) : <span className="text-[11px] font-black text-slate-500">仅本人数据</span>}
+            {r.departments?.length > 2 && <span className="px-2 py-0.5 bg-slate-200 text-slate-900 rounded text-[11px] font-black border-[1px] border-slate-400">+{r.departments.length - 2}</span>}
         </div>
     )},
     { title: '决策中心', key: 'action', align: 'center', width: 200, render: (_, r) => (
@@ -204,7 +204,7 @@ const UserRoleManagement = () => {
             <div className="w-14 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100"><UserCheck size={26} /></div>
             <div className="flex flex-col">
                 <h1 className="text-xl font-black text-slate-900 tracking-tight">成员授权管理</h1>
-                <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] mt-1">企业人才权限分配与组织架构对齐</p>
+                <p className="text-[10px] font-black text-slate-800 uppercase tracking-[0.3em] mt-1">企业人才权限分配与组织架构对齐</p>
             </div>
           </div>
           <button onClick={fetchUsers} className="h-11 w-11 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border-[1px] border-indigo-200"><RefreshCcw size={18} /></button>
@@ -235,13 +235,13 @@ const UserRoleManagement = () => {
           ].map((item, idx) => (
             <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm group hover:shadow-xl hover:border-slate-300 transition-all">
                 <div className="flex items-center justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-xl bg-${item.color}-50 text-${item.color}-600 flex items-center justify-center group-hover:scale-110 transition-transform`}><item.icon size={24} /></div>
+                    <div className={`w-12 h-12 rounded-xl bg-${item.color}-100 text-${item.color}-700 flex items-center justify-center group-hover:scale-110 transition-transform`}><item.icon size={24} /></div>
                     <div className="text-right">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{item.label}</p>
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">{item.label}</p>
                         <h3 className="text-3xl font-black text-slate-900 mt-1">{item.val}</h3>
                     </div>
                 </div>
-                <div className="pt-4 border-t border-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">{item.desc}</div>
+                <div className="pt-4 border-t border-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-widest">{item.desc}</div>
             </div>
           ))}
       </div>
