@@ -1,4 +1,6 @@
-import { Card, Row, Col, Table, Tag, Statistic, List, Typography, Space, Grid } from '@arco-design/web-react'
+import { Card, Table, Tag, Statistic, List, Typography, Space } from '@arco-design/web-react'
+import Row from '@arco-design/web-react/es/Grid/row'
+import Col from '@arco-design/web-react/es/Grid/col'
 import { useNavigate } from 'react-router-dom'
 import './index.css'
 

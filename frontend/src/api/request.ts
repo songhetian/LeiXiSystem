@@ -30,6 +30,10 @@ request.interceptors.response.use(
       Message.error(data.message || '请求失败')
       return Promise.reject(data)
     }
+    if (data && typeof data === 'object' && 'code' in data && data.code !== 0) {
+      Message.error(data.message || '请求失败')
+      return Promise.reject(data)
+    }
     return data
   },
   (error) => {
@@ -44,6 +48,15 @@ request.interceptors.response.use(
         break
       case 403:
         Message.error('没有权限执行此操作')
+        break
+      case 423:
+        Message.error(message || '账号已临时锁定，请稍后再试')
+        break
+      case 429:
+        Message.error(message || '请求过于频繁，请稍后再试')
+        break
+      case 413:
+        Message.error(message || '上传内容超过大小限制')
         break
       case 404:
         Message.error(message || '请求的资源不存在')

@@ -149,7 +149,7 @@ function Records() {
         {stats.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
-              <Statistic title={item.title} value={data.filter(d => d.status === (index === 0 ? 'normal' : index === 1 ? 'late' : index === 2 ? 'early' : 'leave').length} style={{ color: item.color }} />
+              <Statistic title={item.title} value={data.filter(d => d.status === (index === 0 ? 'normal' : index === 1 ? 'late' : index === 2 ? 'early' : 'leave')).length} style={{ color: item.color }} />
             </Card>
           </Col>
         ))}

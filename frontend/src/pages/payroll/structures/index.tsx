@@ -1,0 +1,237 @@
+import { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
+import { createSalaryStructure, getSalaryComponents, getSalaryStructures, updateSalaryStructure } from '@/api/payroll'
+
+const { Title, Text } = Typography
+const FormItem = Form.Item
+const Option = Select.Option
+
+function SalaryStructuresPage() {
+  const [data, setData] = useState<any[]>([])
+  const [components, setComponents] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
+  const [items, setItems] = useState<any[]>([])
+  const [form] = Form.useForm()
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [structureRes, componentRes]: any[] = await Promise.all([
+        getSalaryStructures(),
+        getSalaryComponents(),
+      ])
+      setData(structureRes.data || [])
+      setComponents(componentRes.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const openCreate = () => {
+    setEditing(null)
+    setItems([])
+    form.resetFields()
+    form.setFieldsValue({
+      payrollFrequency: 'monthly',
+      status: 'active',
+      effectiveFrom: new Date().toISOString().slice(0, 10),
+    })
+    setVisible(true)
+  }
+
+  const openEdit = (record: any) => {
+    setEditing(record)
+    setItems((record.items || []).map((item: any) => ({
+      componentId: item.componentId,
+      amount: Number(item.amount || 0),
+      formula: item.formula,
+      condition: item.condition,
+      sortOrder: item.sortOrder || 0,
+    })))
+    form.setFieldsValue({
+      name: record.name,
+      payrollFrequency: record.payrollFrequency,
+      status: record.status,
+      effectiveFrom: record.effectiveFrom?.slice(0, 10),
+      effectiveTo: record.effectiveTo?.slice(0, 10),
+    })
+    setVisible(true)
+  }
+
+  const addItem = () => {
+    setItems([...items, { componentId: undefined, amount: 0, sortOrder: items.length }])
+  }
+
+  const updateItem = (index: number, field: string, value: any) => {
+    setItems(items.map((item, idx) => idx === index ? { ...item, [field]: value } : item))
+  }
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, idx) => idx !== index))
+  }
+
+  const handleSubmit = async () => {
+    const values = await form.validate()
+    const payload = {
+      ...values,
+      items: items.filter((item) => item.componentId).map((item) => ({
+        ...item,
+        componentId: Number(item.componentId),
+        amount: Number(item.amount || 0),
+        sortOrder: Number(item.sortOrder || 0),
+      })),
+    }
+
+    if (editing) {
+      await updateSalaryStructure(editing.id, payload)
+      Message.success('薪资结构更新成功')
+    } else {
+      await createSalaryStructure(payload)
+      Message.success('薪资结构创建成功')
+    }
+
+    setVisible(false)
+    loadData()
+  }
+
+  return (
+    <div style={{ paddingBottom: 20 }}>
+      <Card bordered={false} style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Title heading={5} style={{ margin: 0 }}>薪资结构</Title>
+            <Button type="primary" onClick={openCreate}>新增结构</Button>
+          </div>
+          <Text type="secondary">把薪资组件组合成可分配给员工的薪资结构，计算工资条时会读取这里的组件明细。</Text>
+        </Space>
+      </Card>
+
+      <Card bordered={false}>
+        <Table
+          rowKey="id"
+          loading={loading}
+          data={data}
+          columns={[
+            { title: '结构名称', dataIndex: 'name' },
+            { title: '发薪频率', dataIndex: 'payrollFrequency' },
+            {
+              title: '组件数',
+              render: (_: unknown, record: any) => record.items?.length || 0,
+            },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              render: (value) => <Tag color={value === 'active' ? 'green' : 'gray'}>{value === 'active' ? '启用' : value}</Tag>,
+            },
+            { title: '生效日期', dataIndex: 'effectiveFrom' },
+            {
+              title: '操作',
+              width: 90,
+              render: (_: unknown, record: any) => (
+                <Button type="text" size="small" onClick={() => openEdit(record)}>编辑</Button>
+              ),
+            },
+          ]}
+          pagination={{ pageSize: 10 }}
+        />
+      </Card>
+
+      <Modal
+        title={editing ? '编辑薪资结构' : '新增薪资结构'}
+        visible={visible}
+        onOk={handleSubmit}
+        onCancel={() => setVisible(false)}
+        style={{ width: 860 }}
+      >
+        <Form form={form} layout="vertical">
+          <FormItem label="结构名称" field="name" rules={[{ required: true, message: '请输入结构名称' }]}>
+            <Input placeholder="例如：正式员工月薪结构" />
+          </FormItem>
+          <Space size="large" style={{ width: '100%' }}>
+            <FormItem label="发薪频率" field="payrollFrequency" rules={[{ required: true, message: '请选择发薪频率' }]}>
+              <Select style={{ width: 180 }}>
+                <Option value="monthly">月薪</Option>
+                <Option value="weekly">周薪</Option>
+                <Option value="daily">日薪</Option>
+              </Select>
+            </FormItem>
+            <FormItem label="状态" field="status" rules={[{ required: true, message: '请选择状态' }]}>
+              <Select style={{ width: 160 }}>
+                <Option value="active">启用</Option>
+                <Option value="draft">草稿</Option>
+                <Option value="disabled">停用</Option>
+              </Select>
+            </FormItem>
+            <FormItem label="生效日期" field="effectiveFrom" rules={[{ required: true, message: '请输入生效日期' }]}>
+              <Input style={{ width: 160 }} placeholder="YYYY-MM-DD" />
+            </FormItem>
+            <FormItem label="失效日期" field="effectiveTo">
+              <Input style={{ width: 160 }} placeholder="YYYY-MM-DD" />
+            </FormItem>
+          </Space>
+        </Form>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0' }}>
+          <Text style={{ fontWeight: 600 }}>组件明细</Text>
+          <Button size="small" onClick={addItem}>添加组件</Button>
+        </div>
+
+        <Table
+          rowKey={(record) => String(record.componentId || record.sortOrder)}
+          pagination={false}
+          data={items}
+          columns={[
+            {
+              title: '薪资组件',
+              render: (_: unknown, record: any, index: number) => (
+                <Select
+                  value={record.componentId}
+                  onChange={(value) => updateItem(index, 'componentId', value)}
+                  style={{ width: 220 }}
+                  placeholder="选择组件"
+                >
+                  {components.map((component) => (
+                    <Option key={component.id} value={component.id}>{component.name}</Option>
+                  ))}
+                </Select>
+              ),
+            },
+            {
+              title: '金额',
+              render: (_: unknown, record: any, index: number) => (
+                <InputNumber value={record.amount} onChange={(value) => updateItem(index, 'amount', value)} min={0} />
+              ),
+            },
+            {
+              title: '公式覆盖',
+              render: (_: unknown, record: any, index: number) => (
+                <Input value={record.formula} onChange={(value) => updateItem(index, 'formula', value)} placeholder="可留空" />
+              ),
+            },
+            {
+              title: '排序',
+              render: (_: unknown, record: any, index: number) => (
+                <InputNumber value={record.sortOrder} onChange={(value) => updateItem(index, 'sortOrder', value)} min={0} />
+              ),
+            },
+            {
+              title: '操作',
+              width: 80,
+              render: (_: unknown, __: any, index: number) => (
+                <Button type="text" status="danger" size="small" onClick={() => removeItem(index)}>删除</Button>
+              ),
+            },
+          ]}
+        />
+      </Modal>
+    </div>
+  )
+}
+
+export default SalaryStructuresPage

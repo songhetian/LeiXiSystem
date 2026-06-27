@@ -288,7 +288,7 @@ function Leave() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={560}
+        style={{ width: 560 }}
       >
         <Form form={form} layout="vertical">
           <FormItem

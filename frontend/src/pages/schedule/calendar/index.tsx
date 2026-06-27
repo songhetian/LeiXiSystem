@@ -12,6 +12,7 @@ import {
   Grid,
   Calendar,
   Badge,
+  Input,
 } from '@arco-design/web-react'
 import {
   IconLeft,
@@ -67,7 +68,7 @@ function CalendarPage() {
   const [form] = Form.useForm()
   const [department, setDepartment] = useState<string>('全部')
 
-  const dateCellRender = (date: Date) => {
+  const dateCellRender = (date: any) => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     const dayData = mockCalendarData[dateStr]
 
@@ -95,7 +96,7 @@ function CalendarPage() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: any) => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     setSelectedDate(dateStr)
     setVisible(true)
@@ -152,10 +153,10 @@ function CalendarPage() {
         </div>
 
         <Calendar
-          dateCellRender={dateCellRender}
+          dateRender={dateCellRender}
           panel={false}
           defaultValue={currentMonth}
-          onSelect={handleDateSelect}
+          onChange={handleDateSelect}
         />
       </Card>
 
@@ -164,7 +165,7 @@ function CalendarPage() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={560}
+        style={{ width: 560 }}
       >
         <Form form={form} layout="vertical">
           <FormItem label="班次类型">
@@ -186,7 +187,7 @@ function CalendarPage() {
           </FormItem>
           <FormItem label="备注">
             <Form.Item field="remark">
-              <Form.TextArea placeholder="请输入备注" rows={3} />
+              <Input.TextArea placeholder="请输入备注" rows={3} />
             </Form.Item>
           </FormItem>
         </Form>

@@ -268,7 +268,7 @@ function ListPage() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={600}
+        style={{ width: 600 }}
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -326,7 +326,7 @@ function ListPage() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        width={600}
+        style={{ width: 600 }}
       >
         {currentRecord && (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>

@@ -1,0 +1,64 @@
+import { FastifyInstance, FastifyRequest } from 'fastify'
+import prisma from '../prisma'
+import { authMiddleware } from '../middleware/auth'
+
+export default async function notificationRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', authMiddleware)
+
+  fastify.get('/list', async (request: FastifyRequest<{
+    Querystring: {
+      page?: number
+      pageSize?: number
+      type?: string
+      isRead?: boolean
+    }
+  }>) => {
+    const { page = 1, pageSize = 10, type, isRead } = request.query
+    const userId = request.user.id
+
+    const where: any = { userId }
+    if (type) where.type = type
+    if (isRead !== undefined) where.isRead = isRead
+
+    const [total, list] = await Promise.all([
+      prisma.notification.count({ where }),
+      prisma.notification.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+
+    const unreadCount = await prisma.notification.count({
+      where: { userId, isRead: false },
+    })
+
+    return {
+      code: 0,
+      data: { list, total, page, pageSize, unreadCount },
+    }
+  })
+
+  fastify.post('/:id/read', async (request: FastifyRequest<{
+    Params: { id: string }
+  }>) => {
+    const { id } = request.params
+
+    await prisma.notification.update({
+      where: { id: parseInt(id), userId: request.user.id },
+      data: { isRead: true, readAt: new Date() },
+    })
+
+    return { code: 0, message: '已读' }
+  })
+
+  fastify.post('/read-all', async (request) => {
+    await prisma.notification.updateMany({
+      where: { userId: request.user.id, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    })
+
+    return { code: 0, message: '全部已读' }
+  })
+}

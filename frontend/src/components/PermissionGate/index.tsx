@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button } from '@arco-design/web-react'
+import AccessControl from '@/components/AccessControl'
 
 interface PermissionGateProps {
   permission: string
@@ -8,13 +8,11 @@ interface PermissionGateProps {
 }
 
 function PermissionGate({ permission, children, fallback = null }: PermissionGateProps) {
-  const hasPermission = true
-
-  if (!hasPermission) {
-    return <>{fallback}</>
-  }
-
-  return <>{children}</>
+  return (
+    <AccessControl permission={permission} fallback={fallback}>
+      {children}
+    </AccessControl>
+  )
 }
 
 export default PermissionGate

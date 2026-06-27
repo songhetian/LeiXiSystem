@@ -237,7 +237,7 @@ function Flow() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={560}
+        style={{ width: 560 }}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -279,7 +279,7 @@ function Flow() {
         title={`流程配置 - ${currentFlow?.name}`}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        width={700}
+        style={{ width: 700 }}
         footer={[
           <Button key="cancel" onClick={() => setDetailVisible(false)}>
             关闭

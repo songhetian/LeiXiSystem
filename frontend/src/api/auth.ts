@@ -9,6 +9,10 @@ export function logout() {
   return post('/auth/logout')
 }
 
+export function getMe() {
+  return get('/auth/me')
+}
+
 export function getPermissions() {
   return get('/auth/permissions')
 }

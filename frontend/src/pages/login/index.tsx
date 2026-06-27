@@ -29,7 +29,7 @@ function Login() {
     setLoading(true)
     try {
       const res: any = await login(values)
-      if (res.success) {
+      if (res.success || res.code === 0) {
         setToken(res.data.token)
         setUser(res.data.user)
         Message.success('登录成功')
@@ -92,7 +92,7 @@ function Login() {
               <Form
                 onSubmit={handleSubmit}
                 layout="vertical"
-                initialValues={{ remember: true }}
+
               >
                 <Form.Item field="username" label="用户名">
                   <Input
@@ -114,8 +114,7 @@ function Login() {
                 <Form.Item>
                   <Space
                     direction="horizontal"
-                    justify="space-between"
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', justifyContent: 'space-between' }}
                   >
                     <Checkbox>记住密码</Checkbox>
                     <a style={{ color: 'rgb(var(--primary-6))' }}>忘记密码？</a>

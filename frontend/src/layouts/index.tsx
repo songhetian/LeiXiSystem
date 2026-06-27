@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Badge, Space } from '@arco-design/web-react'
+import type { ComponentType } from 'react'
+import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Badge, Space, Divider } from '@arco-design/web-react'
 import {
   IconDashboard,
   IconUserGroup,
@@ -17,16 +18,31 @@ import {
   IconClockCircle,
   IconLink,
   IconDownload,
+  IconStorage,
+  IconSubscribed,
+  IconTrophy,
+  IconExperiment,
 } from '@arco-design/web-react/icon'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useUserStore } from '@/store/user'
+import { hasClientPermission } from '@/components/AccessControl'
 import './index.css'
 
 const { Header, Sider, Content } = Layout
 const MenuItem = Menu.Item
 const SubMenu = Menu.SubMenu
 
-const menuList = [
+type MenuConfig = {
+  key: string
+  icon?: ComponentType<any>
+  label: string
+  children?: Array<{
+    key: string
+    label: string
+  }>
+}
+
+const menuList: MenuConfig[] = [
   {
     key: '/dashboard',
     icon: IconDashboard,
@@ -39,6 +55,7 @@ const menuList = [
     children: [
       { key: '/personnel/employee', label: '员工管理' },
       { key: '/personnel/changes', label: '人员变动' },
+      { key: '/personnel/lifecycle', label: '员工生命周期' },
     ],
   },
   {
@@ -58,6 +75,54 @@ const menuList = [
       { key: '/rbac/role', label: '角色管理' },
       { key: '/rbac/permission', label: '权限管理' },
       { key: '/rbac/user-role', label: '用户授权' },
+    ],
+  },
+  {
+    key: 'security',
+    icon: IconSafe,
+    label: '安全中心',
+    children: [
+      { key: '/security/audit-logs', label: '审计日志' },
+    ],
+  },
+  {
+    key: 'asset',
+    icon: IconStorage,
+    label: '资产管理',
+    children: [
+      { key: '/asset/items', label: '资产台账' },
+    ],
+  },
+  {
+    key: 'helpdesk',
+    icon: IconQuestionCircle,
+    label: 'HR服务台',
+    children: [
+      { key: '/helpdesk/tickets', label: '服务工单' },
+    ],
+  },
+  {
+    key: 'recruitment',
+    icon: IconSubscribed,
+    label: '招聘管理',
+    children: [
+      { key: '/recruitment/overview', label: '招聘总览' },
+    ],
+  },
+  {
+    key: 'performance',
+    icon: IconTrophy,
+    label: '绩效管理',
+    children: [
+      { key: '/performance/overview', label: '绩效总览' },
+    ],
+  },
+  {
+    key: 'training',
+    icon: IconExperiment,
+    label: '培训管理',
+    children: [
+      { key: '/training/overview', label: '培训总览' },
     ],
   },
   {
@@ -85,7 +150,24 @@ const menuList = [
     children: [
       { key: '/attendance/records', label: '打卡记录' },
       { key: '/attendance/calculation', label: '考勤核算' },
+      { key: '/attendance/exceptions', label: '考勤异常' },
+      { key: '/attendance/corrections', label: '补卡申请' },
       { key: '/attendance/stats', label: '考勤统计' },
+    ],
+  },
+  {
+    key: 'payroll',
+    icon: IconBook,
+    label: '薪资中心',
+    children: [
+      { key: '/payroll/components', label: '薪资组件' },
+      { key: '/payroll/structures', label: '薪资结构' },
+      { key: '/payroll/assignments', label: '薪资分配' },
+      { key: '/payroll/runs', label: '薪资批次' },
+      { key: '/payroll/payslips', label: '工资条管理' },
+      { key: '/payroll/adjustments', label: '薪资调整项' },
+      { key: '/payroll/disputes', label: '工资条申诉' },
+      { key: '/payroll/my-payslips', label: '我的工资条' },
     ],
   },
   {
@@ -173,14 +255,85 @@ const menuList = [
   },
 ]
 
+const pathPermissionMap: Record<string, string | undefined> = {
+  '/dashboard': 'dashboard:view',
+  '/personnel/employee': 'personnel:view',
+  '/personnel/changes': 'personnel:view',
+  '/personnel/lifecycle': 'lifecycle:view',
+  '/organization/department': 'organization:view',
+  '/organization/position': 'organization:view',
+  '/rbac/role': 'rbac:view',
+  '/rbac/permission': 'rbac:view',
+  '/rbac/user-role': 'rbac:view',
+  '/security/audit-logs': 'security:audit:view',
+  '/asset/items': 'asset:view',
+  '/helpdesk/tickets': 'helpdesk:view',
+  '/recruitment/overview': 'recruitment:view',
+  '/performance/overview': 'performance:view',
+  '/training/overview': 'training:view',
+  '/shift/list': 'shift:view',
+  '/shift/rule': 'shift:view',
+  '/schedule/calendar': 'schedule:view',
+  '/schedule/assign': 'schedule:assign',
+  '/attendance/records': 'attendance:view',
+  '/attendance/calculation': 'attendance:calculate',
+  '/attendance/exceptions': 'attendance:view',
+  '/attendance/corrections': 'attendance:view',
+  '/attendance/stats': 'attendance:view',
+  '/payroll/components': 'payroll:manage',
+  '/payroll/structures': 'payroll:manage',
+  '/payroll/assignments': 'payroll:manage',
+  '/payroll/runs': 'payroll:manage',
+  '/payroll/payslips': 'payroll:payslip:view-all',
+  '/payroll/adjustments': 'payroll:manage',
+  '/payroll/disputes': 'payroll:manage',
+  '/payroll/my-payslips': 'payroll:payslip:view-self',
+  '/vacation/types': 'vacation:view',
+  '/vacation/quota': 'vacation:view',
+  '/vacation/balance': 'vacation:view',
+  '/reimbursement/apply': 'reimbursement:view',
+  '/reimbursement/list': 'reimbursement:view',
+  '/reimbursement/approval': 'reimbursement:view',
+  '/adjustment/shift-change': 'attendance:view',
+  '/adjustment/overtime': 'attendance:view',
+  '/adjustment/leave': 'vacation:view',
+  '/approval/pending': 'approval:view',
+  '/approval/history': 'approval:view',
+  '/approval/flow': 'approval:view',
+  '/visualization': 'dashboard:view',
+  '/sso/config': 'sso:manage',
+  '/sso/apps': 'sso:manage',
+  '/data/import': 'data:import',
+  '/data/export': 'data:export',
+  '/data/template': 'data:import',
+  '/notification/config': 'rbac:view',
+}
+
 function PageLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
-  const { user, logout } = useUserStore()
+  const { user, permissions, logoutRemote } = useUserStore()
 
-  const handleLogout = () => {
-    logout()
+  const canAccessPath = (path: string) => hasClientPermission({
+    roles: user?.roles,
+    permissions,
+    permission: pathPermissionMap[path],
+  })
+
+  const visibleMenuList = menuList
+    .map((item) => {
+      if (!item.children) {
+        return canAccessPath(item.key) ? item : null
+      }
+
+      const children = item.children.filter((child) => canAccessPath(child.key))
+      return children.length ? { ...item, children } : null
+    })
+    .filter(Boolean) as MenuConfig[]
+
+  const handleLogout = async () => {
+    await logoutRemote()
     navigate('/login')
   }
 
@@ -192,6 +345,7 @@ function PageLayout() {
     const pathMap: Record<string, string> = {
       '/dashboard': '仪表盘',
       '/personnel/employee': '员工管理',
+      '/personnel/lifecycle': '员工生命周期',
       '/personnel/department': '部门管理',
       '/personnel/position': '岗位管理',
       '/personnel/changes': '变动记录',
@@ -203,29 +357,37 @@ function PageLayout() {
       '/attendance/overtime': '加班管理',
       '/attendance/stats': '考勤统计',
       '/attendance/settings': '考勤设置',
+      '/attendance/calculation': '考勤核算',
+      '/attendance/exceptions': '考勤异常',
+      '/attendance/corrections': '补卡申请',
+      '/payroll/components': '薪资组件',
+      '/payroll/structures': '薪资结构',
+      '/payroll/assignments': '薪资分配',
+      '/payroll/runs': '薪资批次',
+      '/payroll/payslips': '工资条管理',
+      '/payroll/adjustments': '薪资调整项',
+      '/payroll/disputes': '工资条申诉',
+      '/payroll/my-payslips': '我的工资条',
+      '/security/audit-logs': '审计日志',
+      '/asset/items': '资产台账',
+      '/helpdesk/tickets': '服务工单',
+      '/recruitment/overview': '招聘总览',
+      '/performance/overview': '绩效总览',
+      '/training/overview': '培训总览',
     }
     return ['首页', pathMap[location.pathname] || '页面']
   }
 
-  const userDropdownItems = [
-    {
-      key: 'profile',
-      content: '个人信息',
-    },
-    {
-      key: 'settings',
-      content: '账号设置',
-    },
-    {
-      key: 'divider',
-      type: 'divider' as const,
-    },
-    {
-      key: 'logout',
-      content: '退出登录',
-      onClick: handleLogout,
-    },
-  ]
+  const userDropdownMenu = (
+    <Menu>
+      <MenuItem key="profile">个人信息</MenuItem>
+      <MenuItem key="settings">账号设置</MenuItem>
+      <Divider style={{ margin: '4px 0' }} />
+      <MenuItem key="logout" onClick={handleLogout}>
+        退出登录
+      </MenuItem>
+    </Menu>
+  )
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -246,20 +408,25 @@ function PageLayout() {
           onClickMenuItem={handleMenuClick}
           style={{ width: '100%' }}
         >
-          {menuList.map((item) => {
+          {visibleMenuList.map((item) => {
             const IconComp = item.icon
             return item.children ? (
               <SubMenu
                 key={item.key}
-                title={item.label}
-                icon={<IconComp />}
+                title={
+                  <span>
+                    {IconComp ? <IconComp style={{ marginRight: 8 }} /> : null}
+                    {item.label}
+                  </span>
+                }
               >
                 {item.children.map((child) => (
                   <MenuItem key={child.key}>{child.label}</MenuItem>
                 ))}
               </SubMenu>
             ) : (
-              <MenuItem key={item.key} icon={<IconComp />}>
+              <MenuItem key={item.key}>
+                {IconComp ? <IconComp style={{ marginRight: 8 }} /> : null}
                 {item.label}
               </MenuItem>
             )
@@ -291,12 +458,12 @@ function PageLayout() {
               <span style={{ cursor: 'pointer', fontSize: 18, color: '#4e5969' }}>
                 <IconQuestionCircle />
               </span>
-              <Dropdown droplist={userDropdownItems} position="br">
+              <Dropdown droplist={userDropdownMenu} position="br">
                 <Space size="small" style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
                   <Avatar size={32} style={{ backgroundColor: '#165DFF' }}>
                     <IconUser />
                   </Avatar>
-                  {!collapsed && <span>{user?.real_name || '用户'}</span>}
+                  {!collapsed && <span>{user?.realName || user?.real_name || '用户'}</span>}
                 </Space>
               </Dropdown>
             </Space>

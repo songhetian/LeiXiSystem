@@ -304,7 +304,7 @@ function Role() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={520}
+        style={{ width: 520 }}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -341,14 +341,14 @@ function Role() {
         visible={permVisible}
         onOk={handlePermOk}
         onCancel={() => setPermVisible(false)}
-        width={520}
+        style={{ width: 520 }}
       >
         <Tree
           checkable
           checkedKeys={checkedKeys}
           onCheck={setCheckedKeys as any}
           treeData={permissionTreeData}
-          defaultExpandAll
+          defaultExpandedKeys={permissionTreeData.map((item) => item.key)}
         />
       </Modal>
     </div>

@@ -8,10 +8,14 @@ export interface ApiResponse<T = any> {
 export interface User {
   id: number
   username: string
+  realName?: string
   real_name: string
   avatar?: string
   role?: string
+  roles?: string[]
+  permissions?: string[]
   department_id?: number
+  departmentId?: number
 }
 
 export interface LoginParams {

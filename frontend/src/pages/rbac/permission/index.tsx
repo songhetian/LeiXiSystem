@@ -219,16 +219,16 @@ function PermissionPage() {
                   key: 'all',
                   title: '全部权限',
                   children: data.filter(d => d.parentId === null).map(d => ({
-                    key: d.id,
+                    key: String(d.id),
                     title: d.name,
                     children: data.filter(c => c.parentId === d.id).map(c => ({
-                      key: c.id,
+                      key: String(c.id),
                       title: c.name,
                     })),
                   })),
                 },
               ]}
-              defaultExpandAll
+              defaultExpandedKeys={['all']}
             />
           </Card>
         </Col>
@@ -293,7 +293,7 @@ function PermissionPage() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={560}
+        style={{ width: 560 }}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>

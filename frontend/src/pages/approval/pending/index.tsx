@@ -283,7 +283,7 @@ function Pending() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        width={600}
+        style={{ width: 600 }}
       >
         {currentRecord && (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>

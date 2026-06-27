@@ -149,6 +149,7 @@ function Assign() {
 
   const employees = data.map((item) => ({
     key: String(item.id),
+    value: String(item.id),
     name: `${item.employeeName} (${item.employeeNo})`,
   }))
 
@@ -215,7 +216,7 @@ function Assign() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={600}
+        style={{ width: 600 }}
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -227,8 +228,8 @@ function Assign() {
               targetKeys={targetKeys}
               onChange={setTargetKeys as any}
               listStyle={{ width: 240, height: 260 }}
-              render={(item) => item.name}
-              titles={['可选人员', '已选人员']}
+              render={(item: any) => item.name}
+              titleTexts={['可选人员', '已选人员']}
             />
           </FormItem>
           <Row gutter={16}>

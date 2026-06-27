@@ -1,0 +1,230 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, Descriptions, Form, Input, Message, Modal, Popconfirm, Select, Space, Table, Typography } from '@arco-design/web-react'
+import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip } from '@/api/payroll'
+import { getEmployees } from '@/api/personnel'
+import StatusTag from '@/components/StatusTag'
+
+const { Title, Text } = Typography
+const FormItem = Form.Item
+const Option = Select.Option
+
+const payslipStatusText: Record<string, string> = {
+  draft: '草稿',
+  published: '已发布',
+  viewed: '已查看',
+  confirmed: '已确认',
+  disputed: '有申诉',
+  cancelled: '已取消',
+}
+
+function PayslipsPage() {
+  const [data, setData] = useState<any[]>([])
+  const [runs, setRuns] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
+  const [detail, setDetail] = useState<any>(null)
+  const [visible, setVisible] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [form] = Form.useForm()
+
+  const loadData = useCallback(async (params?: any) => {
+    setLoading(true)
+    try {
+      const res: any = await getPayslips(params)
+      setData(res.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadInitialData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [runRes, employeeRes, payslipRes]: any[] = await Promise.all([
+        getPayrollRuns(),
+        getEmployees({ page: 1, pageSize: 1000, status: 'active' }),
+        getPayslips(),
+      ])
+      setRuns(runRes.data || [])
+      setEmployees(employeeRes.data?.list || [])
+      setData(payslipRes.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadInitialData()
+  }, [loadInitialData])
+
+  const handleSearch = useCallback(async () => {
+    const values = form.getFieldsValue()
+    await loadData(values)
+  }, [form, loadData])
+
+  const handleReset = useCallback(async () => {
+    form.resetFields()
+    await loadData()
+  }, [form, loadData])
+
+  const handleRecalculate = useCallback(async (record: any) => {
+    await recalculatePayslip(record.id)
+    Message.success('工资条重算完成')
+    await loadData(form.getFieldsValue())
+  }, [form, loadData])
+
+  const handleWithdraw = useCallback(async (record: any) => {
+    await withdrawPayslip(record.id)
+    Message.success('工资条已撤回')
+    await loadData(form.getFieldsValue())
+  }, [form, loadData])
+
+  const openDetail = useCallback((record: any) => {
+    setDetail(record)
+    setVisible(true)
+  }, [])
+
+  const columns = useMemo(() => [
+    {
+      title: '薪资期间',
+      render: (_: unknown, record: any) => {
+        const period = record.payrollRun?.payrollPeriod
+        return period ? `${period.year}-${String(period.month).padStart(2, '0')}` : '-'
+      },
+    },
+    {
+      title: '员工',
+      render: (_: unknown, record: any) => record.employee?.user?.realName || '-',
+    },
+    {
+      title: '部门',
+      render: (_: unknown, record: any) => record.employee?.user?.department?.name || '-',
+    },
+    { title: '应发', dataIndex: 'grossPay' },
+    { title: '扣款', dataIndex: 'totalDeduction' },
+    { title: '实发', dataIndex: 'netPay' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      render: (value: string) => <StatusTag preset="payslip" value={value} />,
+    },
+    { title: '发布时间', dataIndex: 'publishedAt' },
+    {
+      title: '操作',
+      width: 190,
+      render: (_: unknown, record: any) => (
+        <Space>
+          <Button type="text" size="small" onClick={() => openDetail(record)}>
+            查看
+          </Button>
+          <Popconfirm
+            title="重算会把工资条退回草稿并清空已查看状态，确认重算？"
+            onOk={() => handleRecalculate(record)}
+          >
+            <Button
+              type="text"
+              size="small"
+              disabled={['confirmed', 'cancelled'].includes(record.status)}
+            >
+              重算
+            </Button>
+          </Popconfirm>
+          <Popconfirm
+            title="撤回后员工将不能继续查看该工资条，确认撤回？"
+            onOk={() => handleWithdraw(record)}
+          >
+            <Button
+              type="text"
+              size="small"
+              status="warning"
+              disabled={!['published', 'viewed'].includes(record.status)}
+            >
+              撤回
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ], [handleRecalculate, handleWithdraw, openDetail])
+
+  return (
+    <div style={{ paddingBottom: 20 }}>
+      <Card bordered={false} style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={4}>
+          <Title heading={5} style={{ margin: 0 }}>工资条管理</Title>
+          <Text type="secondary">HR/财务查看薪资批次下的工资条状态和金额汇总，员工端仍需二级密码查看明细。</Text>
+        </Space>
+      </Card>
+
+      <Card bordered={false} style={{ marginBottom: 16 }}>
+        <Form form={form} layout="inline">
+          <FormItem label="薪资批次" field="payrollRunId">
+            <Select style={{ width: 220 }} placeholder="全部批次" allowClear>
+              {runs.map((run) => (
+                <Option key={run.id} value={run.id}>
+                  #{run.id} {run.payrollPeriod ? `${run.payrollPeriod.year}-${String(run.payrollPeriod.month).padStart(2, '0')}` : ''}
+                </Option>
+              ))}
+            </Select>
+          </FormItem>
+          <FormItem label="员工" field="employeeId">
+            <Select style={{ width: 220 }} placeholder="全部员工" allowClear showSearch>
+              {employees.map((employee) => (
+                <Option key={employee.id} value={employee.id}>
+                  {employee.realName}（{employee.employeeNo}）
+                </Option>
+              ))}
+            </Select>
+          </FormItem>
+          <FormItem>
+            <Space>
+              <Button type="primary" onClick={handleSearch}>查询</Button>
+              <Button onClick={handleReset}>重置</Button>
+            </Space>
+          </FormItem>
+        </Form>
+      </Card>
+
+      <Card bordered={false}>
+        <Table
+          rowKey="id"
+          loading={loading}
+          data={data}
+          columns={columns}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1100 }}
+        />
+      </Card>
+
+      <Modal
+        title="工资条摘要"
+        visible={visible}
+        footer={null}
+        onCancel={() => setVisible(false)}
+        style={{ width: 720 }}
+      >
+        {detail && (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Descriptions
+              column={2}
+              data={[
+                { label: '员工', value: detail.employee?.user?.realName || '-' },
+                { label: '状态', value: payslipStatusText[detail.status] || detail.status },
+                { label: '应发工资', value: detail.grossPay },
+                { label: '扣款合计', value: detail.totalDeduction },
+                { label: '实发工资', value: detail.netPay },
+                { label: '已出勤天数', value: detail.paidDays },
+              ]}
+            />
+            <Input.TextArea
+              value={JSON.stringify(detail.attendanceSnapshot || {}, null, 2)}
+              autoSize={{ minRows: 4, maxRows: 8 }}
+              readOnly
+            />
+          </Space>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+export default PayslipsPage

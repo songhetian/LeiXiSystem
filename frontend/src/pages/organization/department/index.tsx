@@ -238,7 +238,7 @@ function Department() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={520}
+        style={{ width: 520 }}
       >
         <Form form={form} layout="vertical">
           <FormItem

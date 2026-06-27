@@ -46,13 +46,13 @@ const mockData: UserRole[] = [
 ]
 
 const allRoles = [
-  { key: 'SUPER_ADMIN', name: '超级管理员' },
-  { key: 'ADMIN', name: '系统管理员' },
-  { key: 'HR_MANAGER', name: '人事主管' },
-  { key: 'HR_STAFF', name: '人事专员' },
-  { key: 'DEPT_MANAGER', name: '部门经理' },
-  { key: 'EMPLOYEE', name: '普通员工' },
-  { key: 'FINANCE', name: '财务人员' },
+  { key: 'SUPER_ADMIN', value: 'SUPER_ADMIN', name: '超级管理员' },
+  { key: 'ADMIN', value: 'ADMIN', name: '系统管理员' },
+  { key: 'HR_MANAGER', value: 'HR_MANAGER', name: '人事主管' },
+  { key: 'HR_STAFF', value: 'HR_STAFF', name: '人事专员' },
+  { key: 'DEPT_MANAGER', value: 'DEPT_MANAGER', name: '部门经理' },
+  { key: 'EMPLOYEE', value: 'EMPLOYEE', name: '普通员工' },
+  { key: 'FINANCE', value: 'FINANCE', name: '财务人员' },
 ]
 
 function UserRolePage() {
@@ -221,15 +221,15 @@ function UserRolePage() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={600}
+        style={{ width: 600 }}
       >
         <Transfer
           dataSource={allRoles}
           targetKeys={targetKeys}
           onChange={setTargetKeys as any}
           listStyle={{ width: 240, height: 300 }}
-          render={(item) => item.name}
-          titles={['可选角色', '已选角色']}
+          render={(item: any) => item.name}
+          titleTexts={['可选角色', '已选角色']}
         />
       </Modal>
     </div>

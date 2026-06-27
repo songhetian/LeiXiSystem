@@ -278,7 +278,7 @@ function Employee() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        width={600}
+        style={{ width: 600 }}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>

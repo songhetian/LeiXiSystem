@@ -28,4 +28,34 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('@arco-design') && id.includes('/icon/')) {
+            return 'vendor-arco-icons'
+          }
+          if (id.includes('@arco-design')) {
+            return 'vendor-arco'
+          }
+          if (id.includes('axios') || id.includes('dayjs') || id.includes('zustand')) {
+            return 'vendor-utils'
+          }
+          if (
+            id.includes('/react/') ||
+            id.includes('\\react\\') ||
+            id.includes('/react-dom/') ||
+            id.includes('\\react-dom\\') ||
+            id.includes('/react-router-dom/') ||
+            id.includes('\\react-router-dom\\')
+          ) {
+            return 'vendor-react'
+          }
+          return undefined
+        },
+      },
+    },
+  },
 })
