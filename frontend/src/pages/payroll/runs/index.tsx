@@ -17,10 +17,11 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react'
-import { calculatePayrollRun, createPayrollRun, getPayrollRunDetail, getPayrollRuns, publishPayrollRun } from '@/api/payroll'
-import { getEmployees } from '@/api/personnel'
-import { getDepartmentsList } from '@/api/organization'
+import { calculatePayrollRun, createPayrollRun, getPayrollRunDetail, getPayrollRuns, publishPayrollRun, PayrollRun, PayrollRunDetail } from '@/api/payroll'
+import { getEmployees, Employee } from '@/api/personnel'
+import { getDepartmentsList, Department } from '@/api/organization'
 import StatusTag from '@/components/StatusTag'
+import './index.css'
 
 const { Title, Text } = Typography
 const { Row, Col } = Grid
@@ -41,10 +42,10 @@ function getDefaultPeriod() {
 }
 
 function PayrollRunsPage() {
-  const [data, setData] = useState<any[]>([])
-  const [employees, setEmployees] = useState<any[]>([])
-  const [departments, setDepartments] = useState<any[]>([])
-  const [detail, setDetail] = useState<any>(null)
+  const [data, setData] = useState<PayrollRun[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [detail, setDetail] = useState<PayrollRunDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -55,7 +56,7 @@ function PayrollRunsPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res: any = await getPayrollRuns()
+      const res = await getPayrollRuns()
       setData(res.data || [])
     } finally {
       setLoading(false)
@@ -65,7 +66,7 @@ function PayrollRunsPage() {
   const loadInitialData = useCallback(async () => {
     setLoading(true)
     try {
-      const [runRes, employeeRes, departmentRes]: any[] = await Promise.all([
+      const [runRes, employeeRes, departmentRes] = await Promise.all([
         getPayrollRuns(),
         getEmployees({ page: 1, pageSize: 1000, status: 'active' }),
         getDepartmentsList(),
@@ -123,7 +124,7 @@ function PayrollRunsPage() {
     setDetailVisible(true)
     setDetailLoading(true)
     try {
-      const res: any = await getPayrollRunDetail(record.id)
+      const res = await getPayrollRunDetail(record.id)
       setDetail(res.data)
     } finally {
       setDetailLoading(false)
@@ -208,11 +209,11 @@ function PayrollRunsPage() {
   const summary = detail?.summary || {}
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title heading={5} style={{ margin: 0 }}>薪资批次</Title>
+    <div className="payroll-runs">
+      <Card bordered={false} className="payroll-runs__card">
+        <Space direction="vertical" size={4} className="payroll-runs__space">
+          <div className="payroll-runs__header">
+            <Title heading={5} className="payroll-runs__title">薪资批次</Title>
             <Button type="primary" onClick={openCreate}>创建批次</Button>
           </div>
           <Text type="secondary">参考 ERPNext Payroll Entry：先生成批次，再计算工资条，最后复核、审批、发布。</Text>
@@ -234,18 +235,18 @@ function PayrollRunsPage() {
         visible={visible}
         onOk={handleCreate}
         onCancel={() => setVisible(false)}
-        style={{ width: 520 }}
+        className="payroll-runs__modal"
       >
         <Form form={form} layout="vertical">
           <Space size="large">
             <FormItem label="年份" field="year" rules={[{ required: true, message: '请输入年份' }]}>
-              <Input style={{ width: 120 }} />
+              <Input className="payroll-runs__input" />
             </FormItem>
             <FormItem label="月份" field="month" rules={[{ required: true, message: '请输入月份' }]}>
-              <Input style={{ width: 120 }} />
+              <Input className="payroll-runs__input" />
             </FormItem>
             <FormItem label="范围" field="scopeType" rules={[{ required: true, message: '请选择范围' }]}>
-              <Select style={{ width: 140 }} onChange={handleScopeTypeChange}>
+              <Select className="payroll-runs__input--wide" onChange={handleScopeTypeChange}>
                 <Option value="all">全公司</Option>
                 <Option value="department">指定部门</Option>
                 <Option value="employee">指定员工</Option>
@@ -276,10 +277,10 @@ function PayrollRunsPage() {
           )}
           <Space size="large">
             <FormItem label="开始日期" field="startDate" rules={[{ required: true, message: '请输入开始日期' }]}>
-              <Input style={{ width: 180 }} placeholder="YYYY-MM-DD" />
+              <Input className="payroll-runs__input--wider" placeholder="YYYY-MM-DD" />
             </FormItem>
             <FormItem label="结束日期" field="endDate" rules={[{ required: true, message: '请输入结束日期' }]}>
-              <Input style={{ width: 180 }} placeholder="YYYY-MM-DD" />
+              <Input className="payroll-runs__input--wider" placeholder="YYYY-MM-DD" />
             </FormItem>
           </Space>
         </Form>
@@ -288,11 +289,11 @@ function PayrollRunsPage() {
       <Drawer
         title="薪资批次详情"
         visible={detailVisible}
-        width={920}
+        className="payroll-runs__drawer"
         footer={null}
         onCancel={() => setDetailVisible(false)}
       >
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Space direction="vertical" size="large" className="payroll-runs__space">
           <Descriptions
             column={3}
             data={[
@@ -309,10 +310,10 @@ function PayrollRunsPage() {
           />
 
           <Row gutter={16}>
-            <Col span={6}><Card bordered={false}><Statistic title="工资条" value={summary.payslipCount || 0} suffix="条" /></Card></Col>
-            <Col span={6}><Card bordered={false}><Statistic title="实发合计" value={summary.netPay || 0} /></Card></Col>
-            <Col span={6}><Card bordered={false}><Statistic title="调整项" value={summary.adjustmentCount || 0} suffix="条" /></Card></Col>
-            <Col span={6}><Card bordered={false}><Statistic title="申诉" value={summary.disputeCount || 0} suffix="条" /></Card></Col>
+            <Col span={6}><Card bordered={false} className="payroll-runs__statistic-card"><Statistic title="工资条" value={summary.payslipCount || 0} suffix="条" /></Card></Col>
+            <Col span={6}><Card bordered={false} className="payroll-runs__statistic-card"><Statistic title="实发合计" value={summary.netPay || 0} /></Card></Col>
+            <Col span={6}><Card bordered={false} className="payroll-runs__statistic-card"><Statistic title="调整项" value={summary.adjustmentCount || 0} suffix="条" /></Card></Col>
+            <Col span={6}><Card bordered={false} className="payroll-runs__statistic-card"><Statistic title="申诉" value={summary.disputeCount || 0} suffix="条" /></Card></Col>
           </Row>
 
           <Tabs>

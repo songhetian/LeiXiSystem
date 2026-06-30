@@ -2,11 +2,14 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/layouts'
 import { RouteGuard } from '@/components/AccessControl'
+import './index.css'
 
 const Dashboard = lazy(() => import('@/pages/dashboard'))
 const Employee = lazy(() => import('@/pages/personnel/employee'))
 const Changes = lazy(() => import('@/pages/personnel/changes'))
 const Lifecycle = lazy(() => import('@/pages/personnel/lifecycle'))
+const OnboardingFlow = lazy(() => import('@/pages/personnel/onboarding-flow'))
+const Onboarding = lazy(() => import('@/pages/personnel/onboarding'))
 const Department = lazy(() => import('@/pages/organization/department'))
 const Position = lazy(() => import('@/pages/organization/position'))
 const Role = lazy(() => import('@/pages/rbac/role'))
@@ -16,11 +19,29 @@ const ShiftList = lazy(() => import('@/pages/shift/list'))
 const ShiftRule = lazy(() => import('@/pages/shift/rule'))
 const ScheduleCalendar = lazy(() => import('@/pages/schedule/calendar'))
 const ScheduleAssign = lazy(() => import('@/pages/schedule/assign'))
+const ScheduleRules = lazy(() => import('@/pages/schedule/rules'))
+const ScheduleRecommend = lazy(() => import('@/pages/schedule/recommend'))
+const ScheduleSwaps = lazy(() => import('@/pages/schedule/swaps'))
+const ScheduleSecondments = lazy(() => import('@/pages/schedule/secondments'))
+const ScheduleTemplates = lazy(() => import('@/pages/schedule/templates'))
+const SchedulePublish = lazy(() => import('@/pages/schedule/publish'))
+const MySchedule = lazy(() => import('@/pages/schedule/my'))
 const AttendanceRecords = lazy(() => import('@/pages/attendance/records'))
 const AttendanceCalculation = lazy(() => import('@/pages/attendance/calculation'))
 const AttendanceExceptions = lazy(() => import('@/pages/attendance/exceptions'))
+const AttendanceExceptionRules = lazy(() => import('@/pages/attendance/exception-rules'))
+const AttendanceExceptionStats = lazy(() => import('@/pages/attendance/exception-stats'))
+const AttendanceLocations = lazy(() => import('@/pages/attendance/locations'))
+const AttendanceOvertimeTypes = lazy(() => import('@/pages/attendance/overtime-types'))
 const AttendanceCorrections = lazy(() => import('@/pages/attendance/corrections'))
 const AttendanceStats = lazy(() => import('@/pages/attendance/stats'))
+const AttendanceReport = lazy(() => import('@/pages/attendance/report'))
+const LeaveOvertimeReport = lazy(() => import('@/pages/attendance/leave-overtime-report'))
+const AttendanceDetail = lazy(() => import('@/pages/attendance/attendance-detail'))
+const DepartmentRanking = lazy(() => import('@/pages/attendance/department-ranking'))
+const TrendAnalysis = lazy(() => import('@/pages/attendance/trend-analysis'))
+const ScheduleReport = lazy(() => import('@/pages/schedule/report'))
+const FinanceReport = lazy(() => import('@/pages/finance/report'))
 const VacationTypes = lazy(() => import('@/pages/vacation/types'))
 const VacationQuota = lazy(() => import('@/pages/vacation/quota'))
 const VacationBalance = lazy(() => import('@/pages/vacation/balance'))
@@ -34,6 +55,8 @@ const ProfileInfo = lazy(() => import('@/pages/profile/info'))
 const ProfilePassword = lazy(() => import('@/pages/profile/password'))
 const ProfileAttendance = lazy(() => import('@/pages/profile/attendance'))
 const ApprovalPending = lazy(() => import('@/pages/approval/pending'))
+const FinancialBudgets = lazy(() => import('@/pages/financial/budgets'))
+const ExpenseStandards = lazy(() => import('@/pages/financial/expense-standards'))
 const ApprovalHistory = lazy(() => import('@/pages/approval/history'))
 const ApprovalFlow = lazy(() => import('@/pages/approval/flow'))
 const Visualization = lazy(() => import('@/pages/visualization'))
@@ -42,6 +65,7 @@ const SsoApps = lazy(() => import('@/pages/sso/apps'))
 const DataImport = lazy(() => import('@/pages/data/import'))
 const DataExport = lazy(() => import('@/pages/data/export'))
 const DataTemplate = lazy(() => import('@/pages/data/template'))
+const ExportTasks = lazy(() => import('@/pages/data/export-tasks'))
 const NotificationList = lazy(() => import('@/pages/notification/list'))
 const NotificationConfig = lazy(() => import('@/pages/notification/config'))
 const PayrollComponents = lazy(() => import('@/pages/payroll/components'))
@@ -58,9 +82,11 @@ const HelpdeskTickets = lazy(() => import('@/pages/helpdesk/tickets'))
 const RecruitmentOverview = lazy(() => import('@/pages/recruitment/overview'))
 const PerformanceOverview = lazy(() => import('@/pages/performance/overview'))
 const TrainingOverview = lazy(() => import('@/pages/training/overview'))
+const AnnouncementManage = lazy(() => import('@/pages/system/announcement'))
+const EmployeeTagManage = lazy(() => import('@/pages/personnel/employee-tag'))
 
 function Loading() {
-  return <div style={{ padding: 20, textAlign: 'center' }}>加载中...</div>
+  return <div className="router-loading">加载中...</div>
 }
 
 function protect(element: JSX.Element, permission?: string) {
@@ -80,6 +106,9 @@ function AppRoutes() {
             <Route path="employee" element={protect(<Employee />, 'personnel:view')} />
             <Route path="changes" element={protect(<Changes />, 'personnel:view')} />
             <Route path="lifecycle" element={protect(<Lifecycle />, 'lifecycle:view')} />
+            <Route path="onboarding" element={protect(<Onboarding />, 'lifecycle:manage')} />
+            <Route path="onboarding-flow" element={protect(<OnboardingFlow />, 'lifecycle:manage')} />
+            <Route path="employee-tag" element={protect(<EmployeeTagManage />, 'personnel:manage')} />
           </Route>
 
           {/* 公司架构 */}
@@ -105,15 +134,32 @@ function AppRoutes() {
           <Route path="schedule">
             <Route path="calendar" element={protect(<ScheduleCalendar />, 'schedule:view')} />
             <Route path="assign" element={protect(<ScheduleAssign />, 'schedule:assign')} />
+            <Route path="rules" element={protect(<ScheduleRules />, 'schedule:manage')} />
+            <Route path="recommend" element={protect(<ScheduleRecommend />, 'schedule:assign')} />
+            <Route path="swaps" element={protect(<ScheduleSwaps />, 'schedule:view')} />
+            <Route path="secondments" element={protect(<ScheduleSecondments />, 'schedule:manage')} />
+            <Route path="templates" element={protect(<ScheduleTemplates />, 'schedule:manage')} />
+            <Route path="publish" element={protect(<SchedulePublish />, 'schedule:assign')} />
+            <Route path="report" element={protect(<ScheduleReport />, 'schedule:view')} />
           </Route>
+          <Route path="/my" element={<MySchedule />} />
 
           {/* 考勤打卡核算 */}
           <Route path="attendance">
             <Route path="records" element={protect(<AttendanceRecords />, 'attendance:view')} />
             <Route path="calculation" element={protect(<AttendanceCalculation />, 'attendance:calculate')} />
             <Route path="exceptions" element={protect(<AttendanceExceptions />, 'attendance:view')} />
+            <Route path="exception-rules" element={protect(<AttendanceExceptionRules />, 'attendance:manage')} />
+            <Route path="exception-stats" element={protect(<AttendanceExceptionStats />, 'attendance:view')} />
+            <Route path="locations" element={protect(<AttendanceLocations />, 'attendance:manage')} />
+            <Route path="overtime-types" element={protect(<AttendanceOvertimeTypes />, 'attendance:manage')} />
             <Route path="corrections" element={protect(<AttendanceCorrections />, 'attendance:view')} />
             <Route path="stats" element={protect(<AttendanceStats />, 'attendance:view')} />
+            <Route path="report" element={protect(<AttendanceReport />, 'attendance:view')} />
+            <Route path="leave-overtime-report" element={protect(<LeaveOvertimeReport />, 'attendance:view')} />
+            <Route path="attendance-detail" element={protect(<AttendanceDetail />, 'attendance:view')} />
+            <Route path="department-ranking" element={protect(<DepartmentRanking />, 'attendance:view')} />
+            <Route path="trend-analysis" element={protect(<TrendAnalysis />, 'attendance:view')} />
           </Route>
 
           {/* 薪资中心 */}
@@ -131,6 +177,11 @@ function AppRoutes() {
           {/* 安全中心 */}
           <Route path="security">
             <Route path="audit-logs" element={protect(<AuditLogs />, 'security:audit:view')} />
+          </Route>
+
+          {/* 系统管理 */}
+          <Route path="system">
+            <Route path="announcement" element={protect(<AnnouncementManage />, 'system:announcement:manage')} />
           </Route>
 
           {/* 资产管理 */}
@@ -172,6 +223,13 @@ function AppRoutes() {
             <Route path="approval" element={protect(<ReimbursementApproval />, 'reimbursement:view')} />
           </Route>
 
+          {/* 财务管理 */}
+          <Route path="financial">
+            <Route path="budgets" element={protect(<FinancialBudgets />, 'reimbursement:approve')} />
+            <Route path="expense-standards" element={protect(<ExpenseStandards />, 'reimbursement:approve')} />
+            <Route path="report" element={protect(<FinanceReport />, 'finance:view')} />
+          </Route>
+
           {/* 调班/加班申请 */}
           <Route path="adjustment">
             <Route path="shift-change" element={protect(<ShiftChange />, 'attendance:view')} />
@@ -206,6 +264,7 @@ function AppRoutes() {
           <Route path="data">
             <Route path="import" element={protect(<DataImport />, 'data:import')} />
             <Route path="export" element={protect(<DataExport />, 'data:export')} />
+            <Route path="export-tasks" element={protect(<ExportTasks />, 'data:export')} />
             <Route path="template" element={protect(<DataTemplate />, 'data:import')} />
           </Route>
 
@@ -215,7 +274,7 @@ function AppRoutes() {
             <Route path="config" element={protect(<NotificationConfig />, 'rbac:view')} />
           </Route>
 
-          <Route path="*" element={<div style={{ padding: 40, textAlign: 'center' }}><h3>404 页面不存在</h3></div>} />
+          <Route path="*" element={<div className="router-not-found"><h3>404 页面不存在</h3></div>} />
         </Route>
       </Routes>
     </Suspense>

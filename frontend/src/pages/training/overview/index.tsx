@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import './index.css';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
 import { IconCheck, IconPlus, IconRefresh } from '@arco-design/web-react/icon'
 import { createTrainingCourse, createTrainingEnrollment, createTrainingSession, getTrainingCourses, getTrainingEnrollments, getTrainingSessions, completeTrainingEnrollment } from '@/api/training'
-import { getEmployees } from '@/api/personnel'
+import { getEmployees, type Employee } from '@/api/personnel'
 
 const FormItem = Form.Item
 const Option = Select.Option
@@ -59,7 +60,7 @@ function TrainingOverviewPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
-  const [employees, setEmployees] = useState<any[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(false)
   const [courseVisible, setCourseVisible] = useState(false)
   const [sessionVisible, setSessionVisible] = useState(false)
@@ -164,12 +165,12 @@ function TrainingOverviewPage() {
   ]
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="training-overview">
       <Card bordered={false}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="training-overview__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>培训管理</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>课程、班次、报名</Tag>
+            <span className="training-overview__title">培训管理</span>
+            <Tag color="blue" className="training-overview__tag">课程、班次、报名</Tag>
           </div>
           <Space>
             <Button icon={<IconRefresh />} onClick={loadData}>刷新</Button>
@@ -192,29 +193,29 @@ function TrainingOverviewPage() {
         </Tabs>
       </Card>
 
-      <Modal title="新增课程" visible={courseVisible} onOk={handleCreateCourse} onCancel={() => setCourseVisible(false)} style={{ width: 600 }}>
+      <Modal title="新增课程" visible={courseVisible} onOk={handleCreateCourse} onCancel={() => setCourseVisible(false)} className="training-overview__modal--md">
         <Form form={courseForm} layout="vertical" initialValues={{ status: 'active' }}>
           <FormItem label="课程名称" field="title" rules={[{ required: true, message: '请输入课程名称' }]}><Input /></FormItem>
           <FormItem label="课程编码" field="code" rules={[{ required: true, message: '请输入课程编码' }]}><Input /></FormItem>
           <FormItem label="分类" field="category"><Input placeholder="例如：合规、技能、管理" /></FormItem>
-          <FormItem label="课时" field="durationHours"><InputNumber min={0} style={{ width: '100%' }} /></FormItem>
+          <FormItem label="课时" field="durationHours"><InputNumber min={0} className="training-overview__input-full" /></FormItem>
           <FormItem label="说明" field="description"><Input.TextArea rows={3} /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="新增培训班次" visible={sessionVisible} onOk={handleCreateSession} onCancel={() => setSessionVisible(false)} style={{ width: 620 }}>
+      <Modal title="新增培训班次" visible={sessionVisible} onOk={handleCreateSession} onCancel={() => setSessionVisible(false)} className="training-overview__modal--lg">
         <Form form={sessionForm} layout="vertical" initialValues={{ status: 'planned' }}>
           <FormItem label="课程" field="courseId" rules={[{ required: true, message: '请选择课程' }]}>
             <Select>{courses.map((course) => <Option key={course.id} value={course.id}>{course.title}</Option>)}</Select>
           </FormItem>
           <FormItem label="班次名称" field="title" rules={[{ required: true, message: '请输入班次名称' }]}><Input /></FormItem>
-          <FormItem label="时间范围" field="timeRange" rules={[{ required: true, message: '请选择时间范围' }]}><RangePicker showTime style={{ width: '100%' }} /></FormItem>
+          <FormItem label="时间范围" field="timeRange" rules={[{ required: true, message: '请选择时间范围' }]}><RangePicker showTime className="training-overview__input-full" /></FormItem>
           <FormItem label="地点" field="location"><Input /></FormItem>
-          <FormItem label="容量" field="capacity"><InputNumber min={1} style={{ width: '100%' }} /></FormItem>
+          <FormItem label="容量" field="capacity"><InputNumber min={1} className="training-overview__input-full" /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="员工报名" visible={enrollVisible} onOk={handleEnroll} onCancel={() => setEnrollVisible(false)} style={{ width: 560 }}>
+      <Modal title="员工报名" visible={enrollVisible} onOk={handleEnroll} onCancel={() => setEnrollVisible(false)} className="training-overview__modal--sm">
         <Form form={enrollForm} layout="vertical">
           <FormItem label="培训班次" field="sessionId" rules={[{ required: true, message: '请选择班次' }]}>
             <Select>{sessions.map((session) => <Option key={session.id} value={session.id}>{session.title}</Option>)}</Select>

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useUserStore } from '@/store/user'
+import './index.css'
 
 type AccessControlProps = {
   permission?: string
@@ -39,7 +40,7 @@ function AccessControl({ permission, anyOf, fallback = null, children }: AccessC
 }
 
 export function Forbidden() {
-  return <div style={{ padding: 40, textAlign: 'center' }}><h3>403 没有权限访问该页面</h3></div>
+  return <div className="forbidden"><h3>403 没有权限访问该页面</h3></div>
 }
 
 export function RouteGuard({ permission, anyOf, children }: AccessControlProps) {

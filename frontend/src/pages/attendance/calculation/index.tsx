@@ -16,6 +16,7 @@ import {
 import { IconCheck, IconCommon, IconRefresh } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { calculateAttendance, getAttendanceMonthly, lockAttendanceMonthly } from '@/api/attendance'
+import './calculation.css'
 
 const { Row, Col } = Grid
 const { Text, Title } = Typography
@@ -88,7 +89,7 @@ function AttendanceCalculationPage() {
     const { year, month } = getSelectedYearMonth()
     setLoading(true)
     try {
-      const res: any = await getAttendanceMonthly({ year, month })
+      const res = await getAttendanceMonthly({ year, month })
       setData((res.data || []).map(normalizeMonthly))
     } finally {
       setLoading(false)
@@ -189,8 +190,8 @@ function AttendanceCalculationPage() {
   ], [])
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+    <div className="attendance-calc">
+      <Row gutter={16} className="attendance-calc__stats-row">
         {stats.map((item) => (
           <Col span={6} key={item.title}>
             <Card bordered={false}>
@@ -198,25 +199,25 @@ function AttendanceCalculationPage() {
                 title={item.title}
                 value={item.value}
                 suffix={item.suffix}
-                style={{ color: item.color }}
+                className="attendance-calc__stat-value"
               />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="attendance-calc__intro-card">
         <Space direction="vertical" size={4}>
-          <Title heading={5} style={{ margin: 0 }}>考勤核算</Title>
+          <Title heading={5} className="attendance-calc__intro-title">考勤核算</Title>
           <Text type="secondary">读取真实月考勤数据，核算后可锁定，薪资批次会基于锁定后的月考勤生成工资条。</Text>
         </Space>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="attendance-calc__intro-card">
         <Form layout="inline">
           <FormItem label="部门">
             <Select
-              style={{ width: 160 }}
+              className="attendance-calc__dept-select"
               placeholder="全部部门"
               value={searchDept}
               onChange={setSearchDept}
@@ -228,7 +229,7 @@ function AttendanceCalculationPage() {
             </Select>
           </FormItem>
           <FormItem label="月份">
-            <Select style={{ width: 140 }} value={selectedMonth} onChange={setSelectedMonth}>
+            <Select className="attendance-calc__month-select" value={selectedMonth} onChange={setSelectedMonth}>
               <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
               <Option value="2024-06">2024-06</Option>
               <Option value="2024-05">2024-05</Option>
@@ -249,10 +250,10 @@ function AttendanceCalculationPage() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="attendance-calc__result-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>月考勤结果</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
+            <span className="attendance-calc__result-title">月考勤结果</span>
+            <Tag color="blue" className="attendance-calc__result-tag">
               共 {filteredData.length} 条
             </Tag>
           </div>

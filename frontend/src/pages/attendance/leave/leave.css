@@ -1,0 +1,54 @@
+.attendance-leave {
+  padding-bottom: 20px;
+}
+
+.attendance-leave__search-card {
+  margin-bottom: 16px;
+}
+
+.attendance-leave__search-input {
+  width: 180px;
+}
+
+.attendance-leave__status-select {
+  width: 130px;
+}
+
+.attendance-leave__date-picker {
+  width: 220px;
+}
+
+.attendance-leave__table-card {
+  /* default */
+}
+
+.attendance-leave__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-leave__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.attendance-leave__total-tag {
+  margin-left: 8px;
+}
+
+.attendance-leave__type-tag {
+  /* default */
+}
+
+.attendance-leave__days {
+  font-family: 'tabular-nums', monospace;
+}
+
+.attendance-leave__modal {
+  width: 560px;
+}
+.attendance-leave__range-picker {
+  width: 100%;
+}

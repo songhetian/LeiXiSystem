@@ -1,8 +1,8 @@
 import { get, post } from './request'
-import type { LoginParams, LoginResult } from '@/types'
+import type { LoginParams, LoginResult, User, ApiResponse } from '@/types'
 
 export function login(params: LoginParams) {
-  return post<LoginResult>('/auth/login', params)
+  return post<ApiResponse<LoginResult>>('/auth/login', params)
 }
 
 export function logout() {
@@ -10,7 +10,7 @@ export function logout() {
 }
 
 export function getMe() {
-  return get('/auth/me')
+  return get<ApiResponse<User>>('/auth/me')
 }
 
 export function getPermissions() {

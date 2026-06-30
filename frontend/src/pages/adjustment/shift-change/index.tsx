@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -13,32 +13,22 @@ import {
   Card,
   Grid,
   DatePicker,
+  Empty,
 } from '@arco-design/web-react'
 import {
   IconPlus,
   IconSearch,
   IconRefresh,
-  IconEdit,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getShiftChangeList } from '@/api/adjustment'
+import type { ShiftChange } from '@/api/adjustment'
+import './shift-change.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
-
-interface ShiftChange {
-  id: number
-  employeeName: string
-  employeeNo: string
-  department: string
-  originalShift: string
-  targetShift: string
-  date: string
-  reason: string
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
-  createTime: string
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: '审批中', color: 'orange' },
@@ -49,21 +39,44 @@ const statusMap: Record<string, { text: string; color: string }> = {
 
 const shiftOptions = ['标准早班', '午班', '夜班', '弹性工作制']
 
-const mockData: ShiftChange[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', originalShift: '标准早班', targetShift: '午班', date: '2024-06-25', reason: '有事需要下午处理', status: 'pending', createTime: '2024-06-20 10:30' },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', originalShift: '标准早班', targetShift: '弹性工作制', date: '2024-06-22', reason: '近期需要居家办公', status: 'approved', createTime: '2024-06-18 16:00' },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', originalShift: '标准早班', targetShift: '夜班', date: '2024-06-15', reason: '替同事值班', status: 'rejected', createTime: '2024-06-12 09:00' },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', originalShift: '午班', targetShift: '标准早班', date: '2024-06-21', reason: '个人原因', status: 'pending', createTime: '2024-06-19 14:00' },
-]
-
-function ShiftChange() {
-  const [data, setData] = useState<ShiftChange[]>(mockData)
+function ShiftChangePage() {
+  const [data, setData] = useState<ShiftChange[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<ShiftChange[]>(mockData)
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getShiftChangeList({
+        page,
+        pageSize,
+        status: searchStatus,
+      })
+      let list = res.data.list
+      if (searchText) {
+        list = list.filter(
+          (item: ShiftChange) =>
+            item.employeeName?.includes(searchText) ||
+            item.employeeNo?.includes(searchText),
+        )
+      }
+      setData(list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const columns: TableProps<ShiftChange>['columns'] = [
     {
@@ -78,7 +91,7 @@ function ShiftChange() {
     },
     {
       title: '部门',
-      dataIndex: 'department',
+      dataIndex: 'departmentName',
       width: 100,
     },
     {
@@ -103,43 +116,34 @@ function ShiftChange() {
       dataIndex: 'status',
       width: 90,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
       title: '申请时间',
-      dataIndex: 'createTime',
+      dataIndex: 'createdAt',
       width: 150,
+      render: (value: string) => (value ? new Date(value).toLocaleString() : '-'),
     },
     {
       title: '操作',
-      width: 150,
-      render: (_: any, record: ShiftChange) => (
+      width: 120,
+      render: (_: unknown, record: ShiftChange) => (
         <Space size="small">
           <Button type="text" size="small" icon={<IconEye />}>
             详情
           </Button>
           {record.status === 'pending' && (
-            <>
-              <Button
-                type="text"
-                size="small"
-                icon={<IconEdit />}
-                onClick={() => handleEdit(record)}
-              >
-                编辑
+            <Popconfirm
+              title="确认撤销"
+              content="确定要撤销该调班申请吗？"
+              onOk={() => handleCancel(record.id)}
+            >
+              <Button type="text" size="small" status="danger">
+                撤销
               </Button>
-              <Popconfirm
-                title="确认撤销"
-                content="确定要撤销该调班申请吗？"
-                onOk={() => handleCancel(record.id)}
-              >
-                <Button type="text" size="small" status="danger">
-                  撤销
-                </Button>
-              </Popconfirm>
-            </>
+            </Popconfirm>
           )}
         </Space>
       ),
@@ -147,79 +151,45 @@ function ShiftChange() {
   ]
 
   const handleAdd = () => {
-    setEditingId(null)
     form.resetFields()
     setVisible(true)
   }
 
-  const handleEdit = (record: ShiftChange) => {
-    setEditingId(record.id)
-    form.setFieldsValue(record)
-    setVisible(true)
-  }
-
-  const handleCancel = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    Message.success('撤销成功')
+  const handleCancel = (_id: number) => {
+    Message.info('功能开发中')
   }
 
   const handleOk = async () => {
     try {
-      const values = await form.validate()
-      if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        Message.success('修改成功')
-      } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          employeeName: '当前用户',
-          employeeNo: 'EMP000',
-          department: '技术部',
-          status: 'pending',
-          createTime: new Date().toLocaleString(),
-          ...values,
-        } as ShiftChange
-        setData([newRecord, ...data])
-        setFilteredData([newRecord, ...filteredData])
-        Message.success('申请成功')
-      }
+      await form.validate()
+      Message.info('调班功能开发中')
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+    } catch {
+      // error handled by interceptor
     }
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchStatus(undefined)
-    setFilteredData(data)
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="adjustment-shift">
+      <Card bordered={false} className="adjustment-shift__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="adjustment-shift__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
@@ -228,7 +198,7 @@ function ShiftChange() {
           </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 130 }}
+              className="adjustment-shift__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -253,12 +223,12 @@ function ShiftChange() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="adjustment-shift__table-card">
+        <div className="adjustment-shift__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>调班申请</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 条
+            <span className="adjustment-shift__table-title">调班申请</span>
+            <Tag color="blue" className="adjustment-shift__total-tag">
+              共 {pagination.total} 条
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -266,15 +236,27 @@ function ShiftChange() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+          noDataElement={<Empty description="暂无调班申请记录" />}
+        />
       </Card>
 
       <Modal
-        title={editingId ? '编辑调班' : '申请调班'}
+        title="申请调班"
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 520 }}
+        className="adjustment-shift__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -286,7 +268,9 @@ function ShiftChange() {
               >
                 <Select placeholder="请选择">
                   {shiftOptions.map((s) => (
-                    <Option key={s} value={s}>{s}</Option>
+                    <Option key={s} value={s}>
+                      {s}
+                    </Option>
                   ))}
                 </Select>
               </FormItem>
@@ -299,7 +283,9 @@ function ShiftChange() {
               >
                 <Select placeholder="请选择">
                   {shiftOptions.map((s) => (
-                    <Option key={s} value={s}>{s}</Option>
+                    <Option key={s} value={s}>
+                      {s}
+                    </Option>
                   ))}
                 </Select>
               </FormItem>
@@ -310,7 +296,7 @@ function ShiftChange() {
             field="date"
             rules={[{ required: true, message: '请选择日期' }]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker className="adjustment-shift__date-picker" />
           </FormItem>
           <FormItem label="调班原因" field="reason">
             <Input.TextArea placeholder="请输入调班原因" rows={4} />
@@ -321,4 +307,4 @@ function ShiftChange() {
   )
 }
 
-export default ShiftChange
+export default ShiftChangePage

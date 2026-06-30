@@ -1,0 +1,43 @@
+.adjustment-shift {
+  padding-bottom: 20px;
+}
+
+.adjustment-shift__search-card {
+  margin-bottom: 16px;
+}
+
+.adjustment-shift__search-input {
+  width: 180px;
+}
+
+.adjustment-shift__status-select {
+  width: 130px;
+}
+
+.adjustment-shift__table-card {
+  /* default */
+}
+
+.adjustment-shift__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.adjustment-shift__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.adjustment-shift__total-tag {
+  margin-left: 8px;
+}
+
+.adjustment-shift__modal {
+  width: 520px;
+}
+
+.adjustment-shift__date-picker {
+  width: 100%;
+}

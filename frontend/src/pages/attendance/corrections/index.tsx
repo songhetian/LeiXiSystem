@@ -9,6 +9,7 @@ import {
 import ApprovalActionModal from '@/components/ApprovalActionModal'
 import StatusTag from '@/components/StatusTag'
 import { useTableData } from '@/hooks/useTableData'
+import './style.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
@@ -88,21 +89,21 @@ function AttendanceCorrectionsPage() {
   ], [openAction])
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title heading={5} style={{ margin: 0 }}>补卡申请</Title>
+    <div className="attendance-corrections">
+      <Card bordered={false} className="attendance-corrections__card">
+        <Space direction="vertical" size={4} className="attendance-corrections__space-full">
+          <div className="attendance-corrections__header">
+            <Title heading={5} className="attendance-corrections__title">补卡申请</Title>
             <Button type="primary" onClick={openCreate}>发起补卡</Button>
           </div>
           <Text type="secondary">补卡审批通过后会写入一条来源为 correction 的原始打卡，并自动重算当天日考勤和月考勤。</Text>
         </Space>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="attendance-corrections__card">
         <Form form={filterForm} layout="inline">
           <FormItem label="状态" field="status">
-            <Select allowClear placeholder="全部状态" style={{ width: 140 }}>
+            <Select allowClear placeholder="全部状态" className="attendance-corrections__select">
               <Option value="pending">待审批</Option>
               <Option value="approved">已通过</Option>
               <Option value="rejected">已驳回</Option>
@@ -133,7 +134,7 @@ function AttendanceCorrectionsPage() {
         visible={visible}
         onOk={handleCreate}
         onCancel={() => setVisible(false)}
-        style={{ width: 520 }}
+        className="attendance-corrections__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem label="补卡日期" field="date" rules={[{ required: true, message: '请输入补卡日期' }]}>

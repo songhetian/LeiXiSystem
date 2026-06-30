@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -13,6 +13,7 @@ import {
   Steps,
   Input,
   Divider,
+  Switch,
 } from '@arco-design/web-react'
 import {
   IconPlus,
@@ -21,62 +22,13 @@ import {
   IconSettings,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getApprovalFlows, createApprovalFlow } from '@/api/approval'
+import type { ApprovalFlow } from '@/api/approval'
+import './flow.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
-
-interface ApprovalFlow {
-  id: number
-  name: string
-  type: string
-  steps: string[]
-  status: 'active' | 'inactive'
-  updateTime: string
-}
-
-const mockData: ApprovalFlow[] = [
-  {
-    id: 1,
-    name: '请假审批流程',
-    type: 'leave',
-    steps: ['提交申请', '直属上级审批', '人事备案', '完成'],
-    status: 'active',
-    updateTime: '2024-06-01 10:00',
-  },
-  {
-    id: 2,
-    name: '加班审批流程',
-    type: 'overtime',
-    steps: ['提交申请', '直属上级审批', '人事备案', '完成'],
-    status: 'active',
-    updateTime: '2024-06-01 10:00',
-  },
-  {
-    id: 3,
-    name: '报销审批流程',
-    type: 'reimbursement',
-    steps: ['提交申请', '直属上级审批', '财务审核', '完成支付'],
-    status: 'active',
-    updateTime: '2024-06-15 14:00',
-  },
-  {
-    id: 4,
-    name: '调班审批流程',
-    type: 'shift',
-    steps: ['提交申请', '直属上级审批', '人事备案', '完成'],
-    status: 'active',
-    updateTime: '2024-06-01 10:00',
-  },
-  {
-    id: 5,
-    name: '大额报销流程',
-    type: 'reimbursement',
-    steps: ['提交申请', '直属上级审批', '部门总监审批', '财务审核', '总经理审批', '完成支付'],
-    status: 'inactive',
-    updateTime: '2024-05-20 09:00',
-  },
-]
 
 const typeColorMap: Record<string, string> = {
   leave: 'blue',
@@ -93,12 +45,29 @@ const typeNameMap: Record<string, string> = {
 }
 
 function Flow() {
-  const [data, setData] = useState<ApprovalFlow[]>(mockData)
+  const [data, setData] = useState<ApprovalFlow[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [detailVisible, setDetailVisible] = useState(false)
   const [currentFlow, setCurrentFlow] = useState<ApprovalFlow | null>(null)
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await getApprovalFlows()
+      setData(res.data)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const columns: TableProps<ApprovalFlow>['columns'] = [
     {
@@ -111,18 +80,34 @@ function Flow() {
       dataIndex: 'type',
       width: 100,
       render: (value: string) => (
-        <Tag color={typeColorMap[value]}>{typeNameMap[value]}</Tag>
+        <Tag color={typeColorMap[value] || 'gray'}>
+          {typeNameMap[value] || value}
+        </Tag>
       ),
     },
     {
       title: '审批节点',
-      dataIndex: 'steps',
-      render: (value: string[]) => (
-        <Space size={4}>
-          {value.map((step, index) => (
-            <Tag key={index} size="small">{step}</Tag>
-          ))}
+      dataIndex: 'nodes',
+      render: (nodes: any[]) => (
+        <Space size={4} wrap>
+          {nodes?.length ? (
+            nodes.map((node: any, index: number) => (
+              <Tag key={index} size="small">{node.nodeName}</Tag>
+            ))
+          ) : (
+            <Tag size="small" color="gray">暂无节点</Tag>
+          )}
         </Space>
+      ),
+    },
+    {
+      title: '默认流程',
+      dataIndex: 'isDefault',
+      width: 100,
+      render: (value: boolean) => (
+        <Tag color={value ? 'green' : 'gray'}>
+          {value ? '是' : '否'}
+        </Tag>
       ),
     },
     {
@@ -137,13 +122,14 @@ function Flow() {
     },
     {
       title: '更新时间',
-      dataIndex: 'updateTime',
+      dataIndex: 'updatedAt',
       width: 160,
+      render: (value: string) => value ? new Date(value).toLocaleString() : '-',
     },
     {
       title: '操作',
       width: 200,
-      render: (_: any, record: ApprovalFlow) => (
+      render: (_: unknown, record: ApprovalFlow) => (
         <Space size="small">
           <Button
             type="text"
@@ -182,7 +168,13 @@ function Flow() {
 
   const handleEdit = (record: ApprovalFlow) => {
     setEditingId(record.id)
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      name: record.name,
+      type: record.type,
+      description: record.description,
+      isDefault: record.isDefault,
+      status: record.status,
+    })
     setVisible(true)
   }
 
@@ -195,32 +187,29 @@ function Flow() {
     try {
       const values = await form.validate()
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values, updateTime: new Date().toLocaleString() } : item)))
-        Message.success('修改成功')
+        Message.info('编辑功能开发中')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          steps: ['提交申请', '审批', '完成'],
-          updateTime: new Date().toLocaleString(),
-          ...values,
-        } as ApprovalFlow
-        setData([...data, newRecord])
+        await createApprovalFlow(values)
         Message.success('新增成功')
+        fetchData()
       }
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+    } catch {
+      // validation error
     }
   }
 
+  const stepNodes = currentFlow?.nodes?.length
+    ? currentFlow.nodes.map((n) => n.nodeName)
+    : ['提交申请', '审批', '完成']
+
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+    <div className="approval-flow">
+      <Card bordered={false} className="approval-flow__card">
+        <div className="approval-flow__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>审批流程配置</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
+            <span className="approval-flow__title">审批流程配置</span>
+            <Tag color="blue" className="approval-flow__total-tag">
               共 {data.length} 个流程
             </Tag>
           </div>
@@ -229,7 +218,13 @@ function Flow() {
           </Button>
         </div>
 
-        <Table columns={columns} data={data} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
 
       <Modal
@@ -237,7 +232,7 @@ function Flow() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="approval-flow__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -266,12 +261,24 @@ function Flow() {
               </FormItem>
             </Col>
           </Row>
-          <FormItem label="状态" field="status" initialValue="active">
-            <Select>
-              <Option value="active">启用</Option>
-              <Option value="inactive">停用</Option>
-            </Select>
+          <FormItem label="流程描述" field="description">
+            <Input.TextArea placeholder="请输入流程描述" rows={3} />
           </FormItem>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="状态" field="status" initialValue="active">
+                <Select>
+                  <Option value="active">启用</Option>
+                  <Option value="inactive">停用</Option>
+                </Select>
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="设为默认" field="isDefault" initialValue={false}>
+                <Switch />
+              </FormItem>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -279,40 +286,56 @@ function Flow() {
         title={`流程配置 - ${currentFlow?.name}`}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        style={{ width: 700 }}
+        className="approval-flow__detail-modal"
         footer={[
           <Button key="cancel" onClick={() => setDetailVisible(false)}>
             关闭
           </Button>,
-          <Button key="ok" type="primary" onClick={() => { Message.success('保存成功'); setDetailVisible(false) }}>
+          <Button
+            key="ok"
+            type="primary"
+            onClick={() => {
+              Message.success('保存成功')
+              setDetailVisible(false)
+            }}
+          >
             保存配置
           </Button>,
         ]}
       >
         {currentFlow && (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
+          <Space direction="vertical" size={20} className="approval-flow__space">
             <div>
-              <div style={{ marginBottom: 12, fontWeight: 600 }}>审批流程</div>
-              <Steps current={currentFlow.steps.length - 1}>
-                {currentFlow.steps.map((step, index) => (
+              <div className="approval-flow__section-title">审批流程</div>
+              <Steps current={stepNodes.length - 1}>
+                {stepNodes.map((step: string, index: number) => (
                   <Steps.Step key={index} title={step} />
                 ))}
               </Steps>
             </div>
             <Divider />
             <div>
-              <div style={{ marginBottom: 12, fontWeight: 600 }}>节点配置</div>
+              <div className="approval-flow__section-title">节点配置</div>
               <Table
                 size="small"
                 columns={[
                   { title: '节点名称', dataIndex: 'name' },
                   { title: '审批人', dataIndex: 'approver' },
-                  { title: '操作', width: 100, render: () => <Button type="text" size="small">配置</Button> },
+                  {
+                    title: '操作',
+                    width: 100,
+                    render: () => <Button type="text" size="small">配置</Button>,
+                  },
                 ]}
-                data={currentFlow.steps.map((step, index) => ({
+                data={stepNodes.map((step: string, index: number) => ({
                   key: index,
                   name: step,
-                  approver: index === 0 ? '申请人' : index === currentFlow.steps.length - 1 ? '系统' : '直属上级',
+                  approver:
+                    index === 0
+                      ? '申请人'
+                      : index === stepNodes.length - 1
+                      ? '系统'
+                      : '直属上级',
                 }))}
                 pagination={false}
               />

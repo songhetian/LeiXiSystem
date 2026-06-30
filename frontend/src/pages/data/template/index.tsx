@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Card,
   Table,
@@ -6,7 +5,6 @@ import {
   Tag,
   Space,
   Message,
-  Grid,
 } from '@arco-design/web-react'
 import {
   IconDownload,
@@ -15,8 +13,7 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { downloadTemplate } from '@/api/data'
 import { saveBlob } from '@/utils/url'
-
-const { Row, Col } = Grid
+import './style.css'
 
 interface Template {
   id: number
@@ -29,7 +26,7 @@ interface Template {
   updateTime: string
 }
 
-const mockData: Template[] = [
+const templateList: Template[] = [
   { id: 1, code: 'employee', name: '员工信息导入模板', type: '员工管理', description: '用于批量导入员工基础信息', fileType: 'csv', size: '按需生成', updateTime: '实时' },
   { id: 2, code: 'department', name: '部门信息导入模板', type: '公司架构', description: '用于批量导入部门架构信息', fileType: 'csv', size: '按需生成', updateTime: '实时' },
   { id: 3, code: 'attendance', name: '考勤数据导入模板', type: '考勤管理', description: '用于批量导入考勤打卡数据', fileType: 'csv', size: '按需生成', updateTime: '实时' },
@@ -38,7 +35,7 @@ const mockData: Template[] = [
 ]
 
 function Template() {
-  const [data] = useState<Template[]>(mockData)
+  const data = templateList
 
   const columns: TableProps<Template>['columns'] = [
     {
@@ -86,11 +83,7 @@ function Template() {
           type="text"
           size="small"
           icon={<IconDownload />}
-          onClick={async () => {
-            const blob = await downloadTemplate(record.code)
-            saveBlob(blob as unknown as Blob, `${record.code}_template.csv`)
-            Message.success('下载成功')
-          }}
+          onClick={() => handleDownload(record)}
         >
           下载
         </Button>
@@ -98,12 +91,22 @@ function Template() {
     },
   ]
 
+  const handleDownload = async (record: Template) => {
+    try {
+      const blob = await downloadTemplate(record.code)
+      saveBlob(blob as unknown as Blob, `${record.code}_template.csv`)
+      Message.success('下载成功')
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="data-template">
       <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>模板管理</span>
-          <Tag color="blue" style={{ marginLeft: 8 }}>
+        <div className="data-template__header">
+          <span className="data-template__title">模板管理</span>
+          <Tag color="blue" className="data-template__tag">
             共 {data.length} 个模板
           </Tag>
         </div>

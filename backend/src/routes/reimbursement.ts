@@ -2,7 +2,8 @@ import { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
-import { hasPermission, requireAnyPermission, requirePermission } from '../middleware/permission'
+import { requireAnyPermission, requirePermission } from '../middleware/permission'
+import { getAccessibleReimbursement } from '../services/objectAuthorization'
 import { normalizePagination } from '../utils/pagination'
 import { dateStringSchema, idParamsSchema, optionalKeywordSchema, statusSchema, validateData } from '../utils/validation'
 
@@ -29,7 +30,7 @@ const approvalOpinionSchema = z.object({
 export default async function reimbursementRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
 
-  fastify.get('/list', { preHandler: [requirePermission('reimbursement:view')] }, async (request: FastifyRequest<{
+  fastify.get('/', { preHandler: [requirePermission('reimbursement:view')] }, async (request: FastifyRequest<{
     Querystring: {
       page?: number
       pageSize?: number
@@ -97,22 +98,21 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
 
-    const reimbursement = await prisma.reimbursement.findUnique({
-      where: { id },
-      include: {
-        approvalRecords: {
-          orderBy: { approvedAt: 'asc' },
+    const reimbursement = await getAccessibleReimbursement(
+      request.user,
+      () => prisma.reimbursement.findUnique({
+        where: { id },
+        include: {
+          approvalRecords: {
+            orderBy: { approvedAt: 'asc' },
+          },
         },
-      },
-    })
+      }),
+      (item) => item.id,
+    )
 
     if (!reimbursement) {
       return { code: 404, message: '报销申请不存在' }
-    }
-
-    const canApprove = hasPermission(request, 'reimbursement:approve')
-    if (!canApprove && reimbursement.userId !== request.user.id) {
-      return { code: 403, message: '没有权限查看该报销申请' }
     }
 
     return { code: 0, data: reimbursement }
@@ -220,5 +220,87 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
     })
 
     return { code: 0, message: '已驳回' }
+  })
+
+  // 获取报销草稿
+  fastify.get('/draft', async (request: FastifyRequest) => {
+    const userId = request.user.id
+
+    const draft = await prisma.reimbursement.findFirst({
+      where: {
+        userId,
+        draftStatus: 'draft',
+        status: 'draft',
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (!draft) {
+      return { code: 0, data: null }
+    }
+
+    return {
+      code: 0,
+      data: {
+        title: draft.title,
+        type: draft.type,
+        amount: draft.amount,
+        expenseDate: draft.expenseDate,
+        description: draft.description,
+      },
+    }
+  })
+
+  // 保存报销草稿
+  fastify.post('/draft', async (request: FastifyRequest<{ Body: {
+    title?: string
+    type?: string
+    amount?: number
+    expenseDate?: string
+    description?: string
+  } }>) => {
+    const userId = request.user.id
+    const { title, type, amount, expenseDate, description } = request.body || {}
+
+    // 先删除旧草稿
+    await prisma.reimbursement.deleteMany({
+      where: {
+        userId,
+        draftStatus: 'draft',
+        status: 'draft',
+      },
+    })
+
+    // 如果没有数据，只删除旧草稿即可
+    if (!title && !type && !amount && !expenseDate && !description) {
+      return { code: 0, message: '草稿已清除' }
+    }
+
+    // 获取员工信息
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+    })
+
+    if (!employee) {
+      return { code: 400, message: '员工信息不存在' }
+    }
+
+    // 创建新草稿
+    const draft = await prisma.reimbursement.create({
+      data: {
+        userId,
+        employeeId: employee.id,
+        title: title || '',
+        type: type || '',
+        amount: amount || 0,
+        expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
+        description: description || '',
+        status: 'draft',
+        draftStatus: 'draft',
+        currentStep: 0,
+      },
+    })
+
+    return { code: 0, message: '草稿已保存', data: draft }
   })
 }

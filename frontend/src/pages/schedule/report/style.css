@@ -1,0 +1,87 @@
+.schedule-report {
+  padding: 16px;
+}
+
+.schedule-report .filter-card {
+  margin-bottom: 16px;
+}
+
+.schedule-report .filter-bar {
+  display: flex;
+  align-items: center;
+}
+
+.schedule-report .search-input {
+  width: 200px;
+}
+
+.schedule-report .date-range-picker {
+  width: 260px;
+}
+
+.schedule-report .type-select {
+  width: 150px;
+}
+
+.schedule-report .dept-filter-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.schedule-report .dept-filter-tag {
+  margin-left: 8px;
+}
+
+.schedule-report .dept-tree-popover {
+  min-width: 280px;
+}
+
+.schedule-report .tree-spin {
+  display: block;
+  padding: 20px;
+}
+
+.schedule-report .dept-tree {
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.schedule-report .page-spin {
+  width: 100%;
+}
+
+.schedule-report .stats-row {
+  margin-bottom: 16px;
+}
+
+.schedule-report .stat-card {
+  background: #fff;
+}
+
+.schedule-report .stat-card .arco-statistic {
+  padding: 16px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.schedule-report .charts-row {
+  margin-bottom: 16px;
+}
+
+.schedule-report .chart-card {
+  background: #fff;
+}
+
+.schedule-report .chart-container {
+  width: 100%;
+  height: 320px;
+}
+
+.schedule-report .table-card {
+  background: #fff;
+}
+
+.schedule-report .arco-table-wrapper {
+  background: #fff;
+}

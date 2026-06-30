@@ -1,0 +1,39 @@
+.vacation-types {
+  padding-bottom: 20px;
+}
+
+.vacation-types__search-card {
+  margin-bottom: 16px;
+}
+
+.vacation-types__search-input {
+  width: 200px;
+}
+
+.vacation-types__table-card {
+  /* default */
+}
+
+.vacation-types__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vacation-types__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vacation-types__total-tag {
+  margin-left: 8px;
+}
+
+.vacation-types__code-tag {
+  /* default */
+}
+
+.vacation-types__modal {
+  width: 560px;
+}

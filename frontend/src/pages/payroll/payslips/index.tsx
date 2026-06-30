@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, Descriptions, Form, Input, Message, Modal, Popconfirm, Select, Space, Table, Typography } from '@arco-design/web-react'
-import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip } from '@/api/payroll'
-import { getEmployees } from '@/api/personnel'
+import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip, Payslip, PayrollRun } from '@/api/payroll'
+import { getEmployees, Employee } from '@/api/personnel'
 import StatusTag from '@/components/StatusTag'
+import './index.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
@@ -18,10 +19,10 @@ const payslipStatusText: Record<string, string> = {
 }
 
 function PayslipsPage() {
-  const [data, setData] = useState<any[]>([])
-  const [runs, setRuns] = useState<any[]>([])
-  const [employees, setEmployees] = useState<any[]>([])
-  const [detail, setDetail] = useState<any>(null)
+  const [data, setData] = useState<Payslip[]>([])
+  const [runs, setRuns] = useState<PayrollRun[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [detail, setDetail] = useState<Payslip | null>(null)
   const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
@@ -29,8 +30,8 @@ function PayslipsPage() {
   const loadData = useCallback(async (params?: any) => {
     setLoading(true)
     try {
-      const res: any = await getPayslips(params)
-      setData(res.data || [])
+      const res = await getPayslips(params)
+      setData(res.data.list || [])
     } finally {
       setLoading(false)
     }
@@ -67,15 +68,23 @@ function PayslipsPage() {
   }, [form, loadData])
 
   const handleRecalculate = useCallback(async (record: any) => {
-    await recalculatePayslip(record.id)
-    Message.success('工资条重算完成')
-    await loadData(form.getFieldsValue())
+    try {
+      await recalculatePayslip(record.id)
+      Message.success('工资条重算完成')
+      await loadData(form.getFieldsValue())
+    } catch (e: any) {
+      Message.error(e?.message || '重算失败')
+    }
   }, [form, loadData])
 
   const handleWithdraw = useCallback(async (record: any) => {
-    await withdrawPayslip(record.id)
-    Message.success('工资条已撤回')
-    await loadData(form.getFieldsValue())
+    try {
+      await withdrawPayslip(record.id)
+      Message.success('工资条已撤回')
+      await loadData(form.getFieldsValue())
+    } catch (e: any) {
+      Message.error(e?.message || '撤回失败')
+    }
   }, [form, loadData])
 
   const openDetail = useCallback((record: any) => {
@@ -147,18 +156,18 @@ function PayslipsPage() {
   ], [handleRecalculate, handleWithdraw, openDetail])
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="payslips">
+      <Card bordered={false} className="payslips__card">
         <Space direction="vertical" size={4}>
-          <Title heading={5} style={{ margin: 0 }}>工资条管理</Title>
+          <Title heading={5} className="payslips__title">工资条管理</Title>
           <Text type="secondary">HR/财务查看薪资批次下的工资条状态和金额汇总，员工端仍需二级密码查看明细。</Text>
         </Space>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="payslips__card">
         <Form form={form} layout="inline">
           <FormItem label="薪资批次" field="payrollRunId">
-            <Select style={{ width: 220 }} placeholder="全部批次" allowClear>
+            <Select className="payslips__select" placeholder="全部批次" allowClear>
               {runs.map((run) => (
                 <Option key={run.id} value={run.id}>
                   #{run.id} {run.payrollPeriod ? `${run.payrollPeriod.year}-${String(run.payrollPeriod.month).padStart(2, '0')}` : ''}
@@ -167,7 +176,7 @@ function PayslipsPage() {
             </Select>
           </FormItem>
           <FormItem label="员工" field="employeeId">
-            <Select style={{ width: 220 }} placeholder="全部员工" allowClear showSearch>
+            <Select className="payslips__select" placeholder="全部员工" allowClear showSearch>
               {employees.map((employee) => (
                 <Option key={employee.id} value={employee.id}>
                   {employee.realName}（{employee.employeeNo}）
@@ -200,10 +209,10 @@ function PayslipsPage() {
         visible={visible}
         footer={null}
         onCancel={() => setVisible(false)}
-        style={{ width: 720 }}
+        className="payslips__modal"
       >
         {detail && (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className="payslips__space">
             <Descriptions
               column={2}
               data={[

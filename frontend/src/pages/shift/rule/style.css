@@ -1,0 +1,35 @@
+.shift-rule {
+  padding-bottom: 20px;
+}
+
+.shift-rule__toolbar {
+  margin-bottom: 16px;
+}
+
+.shift-rule__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shift-rule__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.shift-rule__toolbar-input {
+  width: 200px;
+}
+
+.shift-rule__tag {
+  margin-left: 8px;
+}
+
+.shift-rule__modal {
+  width: 560px;
+}
+
+.shift-rule__select-full {
+  width: 100%;
+}

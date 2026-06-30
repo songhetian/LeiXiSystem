@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Card,
   Input,
@@ -11,7 +11,7 @@ import {
   Grid,
   Progress,
   Avatar,
-  Descriptions,
+  Spin,
   Message,
 } from '@arco-design/web-react'
 import {
@@ -20,48 +20,49 @@ import {
   IconUser,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getVacationBalance } from '@/api/vacation'
+import type { VacationBalance } from '@/api/vacation'
+import './balance.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 
-interface LeaveBalance {
-  type: string
-  total: number
-  used: number
-  balance: number
-  unit: string
-  color: string
+const colorMap: Record<string, string> = {
+  ANNUAL: '#165DFF',
+  PERSONAL: '#FF7D00',
+  SICK: '#00B42A',
+  MARRIAGE: '#722ED1',
+  MATERNITY: '#F53F3F',
+  BEREAVEMENT: '#86909C',
+  COMPENSATORY: '#14C9C9',
 }
-
-interface EmployeeLeave {
-  id: number
-  name: string
-  employeeNo: string
-  department: string
-  avatar?: string
-  balances: LeaveBalance[]
-}
-
-const mockData: EmployeeLeave[] = [
-  {
-    id: 1,
-    name: '张三',
-    employeeNo: 'EMP001',
-    department: '技术部',
-    balances: [
-      { type: '年假', total: 10, used: 3, balance: 7, unit: '天', color: '#165DFF' },
-      { type: '事假', total: 5, used: 1, balance: 4, unit: '天', color: '#FF7D00' },
-      { type: '病假', total: 5, used: 0, balance: 5, unit: '天', color: '#00B42A' },
-      { type: '调休', total: 2, used: 1, balance: 1, unit: '天', color: '#722ED1' },
-    ],
-  },
-]
 
 function Balance() {
-  const [employeeNo, setEmployeeNo] = useState('EMP001')
-  const [employeeName, setEmployeeName] = useState('张三')
-  const [currentData] = useState<EmployeeLeave>(mockData[0])
+  const [employeeNo, setEmployeeNo] = useState('')
+  const [employeeName, setEmployeeName] = useState('')
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [balances, setBalances] = useState<VacationBalance[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await getVacationBalance({
+        year: Number(year),
+      })
+      setBalances(res.data)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year])
 
   const handleSearch = () => {
     Message.success('查询成功')
@@ -72,57 +73,64 @@ function Balance() {
     setEmployeeName('')
   }
 
-  const columns: TableProps<LeaveBalance>['columns'] = [
+  const getColor = (typeCode: string) => {
+    return colorMap[typeCode] || '#165DFF'
+  }
+
+  const columns: TableProps<VacationBalance>['columns'] = [
     {
       title: '假期类型',
-      dataIndex: 'type',
+      dataIndex: 'typeName',
       width: 120,
       render: (value: string, record) => (
-        <Tag color={record.color}>{value}</Tag>
+        <Tag color={getColor(record.typeCode)}>{value}</Tag>
       ),
     },
     {
       title: '总额度',
       dataIndex: 'total',
       width: 100,
-      render: (value: number, record) => `${value} ${record.unit}`,
+      render: (value: number, record) => `${value} ${record.unit === 'day' ? '天' : '小时'}`,
     },
     {
       title: '已使用',
       dataIndex: 'used',
       width: 100,
-      render: (value: number, record) => `${value} ${record.unit}`,
+      render: (value: number, record) => `${value} ${record.unit === 'day' ? '天' : '小时'}`,
     },
     {
       title: '剩余',
       dataIndex: 'balance',
       width: 100,
       render: (value: number, record) => (
-        <span style={{ fontWeight: 600, color: record.color }}>
-          {value} {record.unit}
+        <span className="vacation-balance__balance-text" style={{ "--balance-text-color": getColor(record.typeCode) } as React.CSSProperties}>
+          {value} {record.unit === 'day' ? '天' : '小时'}
         </span>
       ),
     },
     {
       title: '使用进度',
       dataIndex: 'progress',
-      render: (_: any, record) => (
+      render: (_: unknown, record) => (
         <Progress
-          percent={Math.round((record.used / record.total) * 100)}
-          color={record.color}
-          style={{ width: '100%', maxWidth: 200 }}
+          percent={record.total > 0 ? Math.round((record.used / record.total) * 100) : 0}
+          color={getColor(record.typeCode)}
+          className="vacation-balance__progress"
         />
       ),
     },
   ]
 
+  const currentYear = new Date().getFullYear()
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
+
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="vacation-balance">
+      <Card bordered={false} className="vacation-balance__search-card">
         <Form layout="inline">
           <FormItem label="工号">
             <Input
-              style={{ width: 150 }}
+              className="vacation-balance__search-input"
               placeholder="请输入工号"
               value={employeeNo}
               onChange={setEmployeeNo}
@@ -131,7 +139,7 @@ function Balance() {
           </FormItem>
           <FormItem label="姓名">
             <Input
-              style={{ width: 150 }}
+              className="vacation-balance__search-input"
               placeholder="请输入姓名"
               value={employeeName}
               onChange={setEmployeeName}
@@ -139,9 +147,14 @@ function Balance() {
             />
           </FormItem>
           <FormItem label="年度">
-            <Select style={{ width: 120 }} defaultValue="2024">
-              <Option value="2024">2024年</Option>
-              <Option value="2023">2023年</Option>
+            <Select
+              className="vacation-balance__year-select"
+              value={year}
+              onChange={setYear}
+            >
+              {yearOptions.map((y) => (
+                <Option key={y} value={String(y)}>{y}年</Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem>
@@ -159,41 +172,45 @@ function Balance() {
 
       <Row gutter={16}>
         <Col span={6}>
-          <Card bordered={false} style={{ textAlign: 'center' }}>
-            <Avatar size={80} style={{ marginBottom: 16 }}>
-              <IconUser style={{ fontSize: 40 }} />
+          <Card bordered={false} className="vacation-balance__avatar-card">
+            <Avatar size={80} className="vacation-balance__avatar">
+              <IconUser className="vacation-balance__avatar-icon" />
             </Avatar>
-            <h3 style={{ marginBottom: 4 }}>{currentData.name}</h3>
-            <Tag color="blue">{currentData.employeeNo}</Tag>
-            <div style={{ marginTop: 8, color: '#86909C' }}>
-              {currentData.department}
+            <h3 className="vacation-balance__employee-name">当前用户</h3>
+            <Tag color="blue">EMP000</Tag>
+            <div className="vacation-balance__employee-no">
+              暂无部门信息
             </div>
           </Card>
         </Col>
 
         <Col span={18}>
-          <Card bordered={false}>
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ fontSize: 16, fontWeight: 600 }}>假期余额</span>
-            </div>
-            <Table
-              columns={columns}
-              data={currentData.balances}
-              rowKey="type"
-              pagination={false}
-            />
+          <Card bordered={false} className="vacation-balance__table-card">
+            <div className="vacation-balance__table-title">假期余额</div>
+            <Spin loading={loading}>
+              <Table
+                columns={columns}
+                data={balances}
+                rowKey="id"
+                pagination={false}
+              />
+            </Spin>
           </Card>
 
-          <Card bordered={false} style={{ marginTop: 16 }}>
-            <div style={{ marginBottom: 12, fontSize: 16, fontWeight: 600 }}>额度概览</div>
+          <Card bordered={false} className="vacation-balance__overview-card">
+            <div className="vacation-balance__overview-title">额度概览</div>
             <Row gutter={16}>
-              {currentData.balances.map((item, index) => (
-                <Col span={6} key={index}>
-                  <Card bordered style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 600, color: item.color, marginBottom: 4 }}>
+              {balances.map((item) => (
+                <Col span={6} key={item.id}>
+                  <Card bordered className="vacation-balance__stat-card">
+                    <div
+                      className="vacation-balance__stat-value" style={{ "--stat-value-color": getColor(item.typeCode) } as React.CSSProperties}
+                    >
                       {item.balance}
                     </div>
-                    <div style={{ color: '#86909C', fontSize: 12 }}>{item.type}剩余({item.unit})</div>
+                    <div className="vacation-balance__stat-label">
+                      {item.typeName}剩余({item.unit === 'day' ? '天' : '小时'})
+                    </div>
                   </Card>
                 </Col>
               ))}

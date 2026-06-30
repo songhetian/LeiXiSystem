@@ -1,0 +1,32 @@
+.user-role {
+  padding-bottom: 20px;
+}
+
+.user-role__toolbar {
+  margin-bottom: 16px;
+}
+
+.user-role__toolbar-input {
+  width: 200px;
+}
+
+.user-role__header {
+  margin-bottom: 16px;
+}
+
+.user-role__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.user-role__tag {
+  margin-left: 8px;
+}
+
+.user-role__modal {
+  width: 520px;
+}
+
+.user-role__select-full {
+  width: 100%;
+}

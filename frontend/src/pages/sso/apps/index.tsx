@@ -22,6 +22,7 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { isSafeHttpUrl, openSafeExternalUrl } from '@/utils/url'
 import { createSsoApp, deleteSsoApp, getSsoApps, updateSsoApp } from '@/api/sso'
+import './style.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
@@ -47,7 +48,7 @@ function Apps() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res: any = await getSsoApps({ page: 1, pageSize: 100 })
+      const res = await getSsoApps({ page: 1, pageSize: 100 })
       const list = res?.data?.list || []
       setData(list.map((item: any) => ({
         id: item.id,
@@ -186,12 +187,12 @@ function Apps() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="sso-apps">
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="sso-apps__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>应用管理</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
+            <span className="sso-apps__title">应用管理</span>
+            <Tag color="blue" className="sso-apps__tag">
               共 {data.length} 个应用
             </Tag>
           </div>
@@ -208,7 +209,7 @@ function Apps() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="sso-apps__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem

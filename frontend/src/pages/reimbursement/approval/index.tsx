@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -23,31 +23,19 @@ import {
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import {
+  getPendingReimbursement,
+  approveReimbursement,
+  rejectReimbursement,
+  getReimbursementDetail,
+} from '@/api/reimbursement'
+import type { PendingReimbursement } from '@/api/reimbursement'
+import { formatDate } from '@/utils/date'
+import './approval.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
-
-interface Reimbursement {
-  id: number
-  title: string
-  type: string
-  applicant: string
-  department: string
-  amount: number
-  status: 'pending' | 'approved' | 'rejected'
-  createTime: string
-  currentStep: number
-}
-
-const typeMap: Record<string, string> = {
-  travel: '差旅费',
-  meal: '餐费',
-  transport: '交通费',
-  office: '办公用品',
-  entertainment: '招待费',
-  other: '其他',
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: '待审批', color: 'orange' },
@@ -55,24 +43,64 @@ const statusMap: Record<string, { text: string; color: string }> = {
   rejected: { text: '已驳回', color: 'red' },
 }
 
-const mockData: Reimbursement[] = [
-  { id: 1, title: '差旅费报销', type: 'travel', applicant: '张三', department: '技术部', amount: 2500, status: 'pending', createTime: '2024-06-20 10:30', currentStep: 1 },
-  { id: 2, title: '办公用品采购', type: 'office', applicant: '李四', department: '产品部', amount: 800, status: 'pending', createTime: '2024-06-20 14:00', currentStep: 1 },
-  { id: 3, title: '客户招待费', type: 'entertainment', applicant: '王五', department: '市场部', amount: 1200, status: 'pending', createTime: '2024-06-20 16:00', currentStep: 2 },
-  { id: 4, title: '交通费报销', type: 'transport', applicant: '赵六', department: '技术部', amount: 350, status: 'pending', createTime: '2024-06-21 09:00', currentStep: 1 },
-  { id: 5, title: '团建餐费', type: 'meal', applicant: '钱七', department: '人事部', amount: 600, status: 'pending', createTime: '2024-06-21 10:00', currentStep: 1 },
+const reimbursementTypes = [
+  { value: '差旅费', label: '差旅费' },
+  { value: '餐饮费', label: '餐费' },
+  { value: '交通费', label: '交通费' },
+  { value: '办公用品', label: '办公用品' },
+  { value: '招待费', label: '招待费' },
+  { value: '其他', label: '其他' },
 ]
 
 function Approval() {
-  const [data, setData] = useState<Reimbursement[]>(mockData)
+  const [data, setData] = useState<PendingReimbursement[]>([])
+  const [loading, setLoading] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
-  const [currentRecord, setCurrentRecord] = useState<Reimbursement | null>(null)
+  const [currentDetail, setCurrentDetail] = useState<{ id: number; title: string; type: string; amount: number; status: string; currentStep?: number; employee?: { user?: { realName: string; department?: { name: string } } }; description?: string | null; expenseDate?: string; createdAt: string } | null>(null)
   const [searchText, setSearchText] = useState('')
   const [searchType, setSearchType] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<Reimbursement[]>(mockData)
   const [activeTab, setActiveTab] = useState('all')
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+  const [opinionForm] = Form.useForm()
 
-  const columns: TableProps<Reimbursement>['columns'] = [
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getPendingReimbursement({
+        page,
+        pageSize,
+        type: activeTab !== 'all' ? activeTab : undefined,
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  const filteredData = useMemo(() => {
+    let result = data
+    if (searchText) {
+      result = result.filter(
+        (item) =>
+          item.title.includes(searchText) ||
+          item.applicantName.includes(searchText),
+      )
+    }
+    if (searchType) {
+      result = result.filter((item) => item.type === searchType)
+    }
+    return result
+  }, [data, searchText, searchType])
+
+  const columns: TableProps<PendingReimbursement>['columns'] = [
     {
       title: '标题',
       dataIndex: 'title',
@@ -82,16 +110,16 @@ function Approval() {
       title: '类型',
       dataIndex: 'type',
       width: 100,
-      render: (value: string) => <Tag color="blue">{typeMap[value] || value}</Tag>,
+      render: (value: string) => <Tag color="blue">{value}</Tag>,
     },
     {
       title: '申请人',
-      dataIndex: 'applicant',
+      dataIndex: 'applicantName',
       width: 100,
     },
     {
       title: '部门',
-      dataIndex: 'department',
+      dataIndex: 'departmentName',
       width: 100,
     },
     {
@@ -99,7 +127,7 @@ function Approval() {
       dataIndex: 'amount',
       width: 120,
       render: (value: number) => (
-        <span style={{ fontWeight: 600, color: '#F53F3F' }}>¥{value}</span>
+        <span className="reimbursement-approval__amount">¥{value}</span>
       ),
     },
     {
@@ -107,25 +135,26 @@ function Approval() {
       dataIndex: 'status',
       width: 90,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
       title: '申请时间',
-      dataIndex: 'createTime',
+      dataIndex: 'createdAt',
       width: 150,
+      render: (value: string) => new Date(value).toLocaleString(),
     },
     {
       title: '操作',
       width: 180,
-      render: (_: any, record: Reimbursement) => (
+      render: (_: unknown, record: PendingReimbursement) => (
         <Space size="small">
           <Button
             type="text"
             size="small"
             icon={<IconEye />}
-            onClick={() => handleView(record)}
+            onClick={() => handleView(record.id)}
           >
             详情
           </Button>
@@ -152,83 +181,95 @@ function Approval() {
     },
   ]
 
-  const handleView = (record: Reimbursement) => {
-    setCurrentRecord(record)
-    setDetailVisible(true)
+  const handleView = async (id: number) => {
+    try {
+      const res = await getReimbursementDetail(id)
+      setCurrentDetail(res.data)
+      setDetailVisible(true)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
-  const handleApprove = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)))
-    Message.success('审批通过')
+  const handleApprove = async (id: number) => {
+    Modal.confirm({
+      title: '通过确认',
+      content: '确定要通过该报销申请吗？',
+      okText: '确认通过',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await approveReimbursement(id)
+          Message.success('审批通过')
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+        }
+      },
+    })
   }
 
   const handleReject = (id: number) => {
+    opinionForm.resetFields()
     Modal.confirm({
       title: '驳回确认',
-      content: '请输入驳回原因：',
+      content: (
+        <Form form={opinionForm} layout="vertical">
+          <FormItem label="驳回原因" field="opinion" rules={[{ required: true, message: '请输入驳回原因' }]}>
+            <Input.TextArea placeholder="请输入驳回原因" rows={3} />
+          </FormItem>
+        </Form>
+      ),
       okText: '确认驳回',
       cancelText: '取消',
-      onOk: () => {
-        setData(data.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)))
-        Message.success('已驳回')
+      onOk: async () => {
+        try {
+          const values = await opinionForm.validate()
+          await rejectReimbursement(id, { opinion: values.opinion })
+          Message.success('已驳回')
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+          return false
+        }
       },
     })
   }
 
   const handleSearch = () => {
-    let result = data
-    if (activeTab !== 'all') {
-      result = result.filter((item) => item.status === activeTab)
-    }
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.title.includes(searchText) ||
-          item.applicant.includes(searchText),
-      )
-    }
-    if (searchType) {
-      result = result.filter((item) => item.type === searchType)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchType(undefined)
-    setFilteredData(data.filter((item) => activeTab === 'all' || item.status === activeTab))
+    fetchData(1, pagination.pageSize)
   }
 
   const handleTabChange = (key: string) => {
     setActiveTab(key)
-    if (key === 'all') {
-      setFilteredData(data.filter((d) => d.status === 'pending'))
-    } else {
-      setFilteredData(data.filter((d) => d.type === key && d.status === 'pending'))
-    }
   }
 
-  const pendingCount = data.filter((d) => d.status === 'pending').length
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
+  }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="reimbursement-approval">
+      <Card bordered={false} className="reimbursement-approval__tabs-card">
         <Tabs activeTab={activeTab} onChange={handleTabChange}>
-          <TabPane key="all" title={`全部待审批 (${pendingCount})`} />
-          <TabPane key="travel" title={`差旅费 (${data.filter(d => d.type === 'travel' && d.status === 'pending').length})`} />
-          <TabPane key="meal" title={`餐费 (${data.filter(d => d.type === 'meal' && d.status === 'pending').length})`} />
-          <TabPane key="transport" title={`交通费 (${data.filter(d => d.type === 'transport' && d.status === 'pending').length})`} />
-          <TabPane key="office" title={`办公用品 (${data.filter(d => d.type === 'office' && d.status === 'pending').length})`} />
+          <TabPane key="all" title={`全部待审批 (${pagination.total})`} />
+          {reimbursementTypes.map((type) => (
+            <TabPane key={type.value} title={type.label} />
+          ))}
         </Tabs>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="reimbursement-approval__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="reimbursement-approval__search-input"
               placeholder="标题/申请人"
               value={searchText}
               onChange={setSearchText}
@@ -237,17 +278,15 @@ function Approval() {
           </FormItem>
           <FormItem label="类型">
             <Select
-              style={{ width: 120 }}
+              className="reimbursement-approval__type-select"
               placeholder="请选择"
               value={searchType}
               onChange={setSearchType}
               allowClear
             >
-              <Option value="travel">差旅费</Option>
-              <Option value="meal">餐费</Option>
-              <Option value="transport">交通费</Option>
-              <Option value="office">办公用品</Option>
-              <Option value="entertainment">招待费</Option>
+              {reimbursementTypes.map((type) => (
+                <Option key={type.value} value={type.value}>{type.label}</Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem>
@@ -263,15 +302,26 @@ function Approval() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>报销审批</span>
-          <Tag color="orange" style={{ marginLeft: 8 }}>
-            共 {filteredData.filter(d => d.status === 'pending').length} 条待处理
+      <Card bordered={false} className="reimbursement-approval__table-card">
+        <div className="reimbursement-approval__table-header">
+          <span className="reimbursement-approval__table-title">报销审批</span>
+          <Tag color="orange" className="reimbursement-approval__total-tag">
+            共 {filteredData.length} 条待处理
           </Tag>
         </div>
 
-        <Table columns={columns} data={filteredData.filter(d => d.status === 'pending')} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={filteredData}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
@@ -279,13 +329,13 @@ function Approval() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        style={{ width: 600 }}
+        className="reimbursement-approval__modal"
       >
-        {currentRecord && (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <Steps current={currentRecord.currentStep}>
-              <Steps.Step title="提交申请" description={currentRecord.createTime} />
-              <Steps.Step title="部门审批" description="审批中" />
+        {currentDetail && (
+          <Space direction="vertical" size={20} className="reimbursement-approval__detail-space">
+            <Steps current={currentDetail.currentStep || 0}>
+              <Steps.Step title="提交申请" />
+              <Steps.Step title="部门审批" />
               <Steps.Step title="财务审核" />
               <Steps.Step title="完成支付" />
             </Steps>
@@ -293,12 +343,15 @@ function Approval() {
               border
               column={2}
               data={[
-                { label: '标题', value: currentRecord.title },
-                { label: '类型', value: typeMap[currentRecord.type] },
-                { label: '申请人', value: currentRecord.applicant },
-                { label: '部门', value: currentRecord.department },
-                { label: '金额', value: `¥${currentRecord.amount}` },
-                { label: '状态', value: statusMap[currentRecord.status].text },
+                { label: '标题', value: currentDetail.title },
+                { label: '类型', value: currentDetail.type },
+                { label: '申请人', value: currentDetail.employee?.user?.realName || '-' },
+                { label: '部门', value: currentDetail.employee?.user?.department?.name || '-' },
+                { label: '金额', value: `¥${currentDetail.amount}` },
+                { label: '费用日期', value: currentDetail.expenseDate ? formatDate(currentDetail.expenseDate) : '-' },
+                { label: '状态', value: (statusMap[currentDetail.status] || {}).text || currentDetail.status },
+                { label: '申请时间', value: new Date(currentDetail.createdAt).toLocaleString() },
+                { label: '费用说明', value: currentDetail.description || '-', span: 2 },
               ]}
             />
           </Space>

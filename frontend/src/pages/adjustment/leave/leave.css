@@ -1,0 +1,43 @@
+.adjustment-leave {
+  padding-bottom: 20px;
+}
+
+.adjustment-leave__search-card {
+  margin-bottom: 16px;
+}
+
+.adjustment-leave__search-input {
+  width: 180px;
+}
+
+.adjustment-leave__status-select {
+  width: 130px;
+}
+
+.adjustment-leave__table-card {
+  /* default */
+}
+
+.adjustment-leave__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.adjustment-leave__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.adjustment-leave__total-tag {
+  margin-left: 8px;
+}
+
+.adjustment-leave__modal {
+  width: 520px;
+}
+
+.adjustment-leave__range-picker {
+  width: 100%;
+}

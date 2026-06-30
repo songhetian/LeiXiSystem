@@ -112,6 +112,47 @@ export default async function vacationRoutes(fastify: FastifyInstance) {
     return { code: 0, message: '删除成功' }
   })
 
+  // 批量删除假期类型
+  fastify.post('/types/batch-delete', { preHandler: [requirePermission('vacation:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个假期类型'),
+    }), request.body)
+
+    const { count } = await prisma.vacationType.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'inactive' },
+    })
+
+    return {
+      code: 0,
+      message: `成功删除 ${count} 个假期类型`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
+  })
+
+  // 批量更新假期类型状态
+  fastify.post('/types/batch-status', { preHandler: [requirePermission('vacation:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids, status } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个假期类型'),
+      status: statusSchema,
+    }), request.body)
+
+    const { count } = await prisma.vacationType.updateMany({
+      where: { id: { in: ids } },
+      data: { status },
+    })
+
+    return {
+      code: 0,
+      message: `成功更新 ${count} 个假期类型状态`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
+  })
+
   fastify.get('/balance', async (request: FastifyRequest<{
     Querystring: { employeeId?: number; year?: number }
   }>) => {
@@ -143,6 +184,62 @@ export default async function vacationRoutes(fastify: FastifyInstance) {
         balance: b.balance,
         unit: b.vacationType.unit,
       })),
+    }
+  })
+
+  // 调整假期余额
+  fastify.post('/balance/adjust', { preHandler: [requirePermission('vacation:manage')] }, async (request: FastifyRequest<{
+    Body: { employeeId: number; vacationTypeId: number; year: number; adjustment: number; reason: string }
+  }>) => {
+    const schema = z.object({
+      employeeId: positiveIntSchema,
+      vacationTypeId: positiveIntSchema,
+      year: z.coerce.number().int().min(2000).max(2100),
+      adjustment: z.number(),
+      reason: z.string().trim().min(1).max(500),
+    })
+    const body = validateData(schema, request.body)
+
+    const balance = await prisma.vacationBalance.findUnique({
+      where: {
+        employeeId_vacationTypeId_year: {
+          employeeId: body.employeeId,
+          vacationTypeId: body.vacationTypeId,
+          year: body.year,
+        },
+      },
+    })
+
+    if (!balance) {
+      return { code: 404, message: '假期余额记录不存在' }
+    }
+
+    const newTotal = Number(balance.total) + body.adjustment
+    const newBalance = Number(balance.balance) + body.adjustment
+
+    if (newTotal < 0 || newBalance < 0) {
+      return { code: 400, message: '调整后余额不能为负' }
+    }
+
+    const updated = await prisma.vacationBalance.update({
+      where: { id: balance.id },
+      data: {
+        total: newTotal,
+        balance: newBalance,
+      },
+    })
+
+    return {
+      code: 0,
+      message: '假期余额调整成功',
+      data: {
+        id: updated.id,
+        total: updated.total,
+        used: updated.used,
+        balance: updated.balance,
+        adjustment: body.adjustment,
+        reason: body.reason,
+      },
     }
   })
 }

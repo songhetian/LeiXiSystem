@@ -1,0 +1,34 @@
+.department-page {
+  padding-bottom: 20px;
+}
+
+.department-page__search-card {
+  margin-bottom: 16px;
+}
+
+.department-page__search-input {
+  width: 200px;
+}
+
+.department-page__status-select {
+  width: 120px;
+}
+
+.department-page__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.department-page__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.department-page__total-tag {
+  margin-left: 8px;
+}
+.department-page__modal {
+  width: 520px;
+}

@@ -9,6 +9,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      include: ['src/utils/**/*.ts'],
+      exclude: ['src/utils/*.test.ts'],
+    },
+  },
   css: {
     preprocessorOptions: {
       less: {

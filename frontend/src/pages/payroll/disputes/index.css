@@ -1,0 +1,15 @@
+.payslip-disputes {
+  padding-bottom: 20px;
+}
+
+.payslip-disputes__card {
+  margin-bottom: 16px;
+}
+
+.payslip-disputes__title {
+  margin: 0;
+}
+
+.payslip-disputes__select {
+  width: 140px;
+}

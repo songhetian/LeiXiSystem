@@ -1,0 +1,45 @@
+.payroll-runs {
+  padding-bottom: 20px;
+}
+
+.payroll-runs__card {
+  margin-bottom: 16px;
+}
+
+.payroll-runs__space {
+  width: 100%;
+}
+
+.payroll-runs__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payroll-runs__title {
+  margin: 0;
+}
+
+.payroll-runs__modal {
+  width: 520px;
+}
+
+.payroll-runs__input {
+  width: 120px;
+}
+
+.payroll-runs__input--wide {
+  width: 140px;
+}
+
+.payroll-runs__input--wider {
+  width: 180px;
+}
+
+.payroll-runs__drawer {
+  width: 920px;
+}
+
+.payroll-runs__statistic-card {
+  margin-bottom: 0;
+}

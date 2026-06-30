@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -18,13 +18,15 @@ import {
   IconExport,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getAttendanceMonthly } from '@/api/attendance'
+import './stats.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
 
-interface AttendanceStats {
+interface AttendanceStatsRow {
   id: number
   employeeName: string
   employeeNo: string
@@ -39,23 +41,89 @@ interface AttendanceStats {
   attendanceRate: number
 }
 
-const mockData: AttendanceStats[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', workDays: 22, actualDays: 22, lateTimes: 0, earlyTimes: 0, absentDays: 0, leaveDays: 0, overtimeHours: 12.5, attendanceRate: 100 },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', workDays: 22, actualDays: 21, lateTimes: 2, earlyTimes: 1, absentDays: 0, leaveDays: 1, overtimeHours: 8, attendanceRate: 95.5 },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', workDays: 22, actualDays: 20, lateTimes: 3, earlyTimes: 0, absentDays: 1, leaveDays: 2, overtimeHours: 4, attendanceRate: 90.9 },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', workDays: 22, actualDays: 21, lateTimes: 1, earlyTimes: 0, absentDays: 0, leaveDays: 1, overtimeHours: 15, attendanceRate: 95.5 },
-  { id: 5, employeeName: '钱七', employeeNo: 'EMP005', department: '人事部', workDays: 22, actualDays: 22, lateTimes: 0, earlyTimes: 0, absentDays: 0, leaveDays: 0, overtimeHours: 2, attendanceRate: 100 },
-  { id: 6, employeeName: '孙八', employeeNo: 'EMP006', department: '财务部', workDays: 22, actualDays: 21, lateTimes: 0, earlyTimes: 0, absentDays: 0, leaveDays: 1, overtimeHours: 0, attendanceRate: 95.5 },
-  { id: 7, employeeName: '吴十', employeeNo: 'EMP008', department: '运营部', workDays: 22, actualDays: 22, lateTimes: 1, earlyTimes: 0, absentDays: 0, leaveDays: 0, overtimeHours: 6, attendanceRate: 100 },
-]
+function getDefaultMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
 
 function Stats() {
-  const [data] = useState<AttendanceStats[]>(mockData)
+  const [data, setData] = useState<AttendanceStatsRow[]>([])
+  const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [searchDept, setSearchDept] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<AttendanceStats[]>(mockData)
+  const [selectedMonth, setSelectedMonth] = useState(getDefaultMonth())
 
-  const columns: TableProps<AttendanceStats>['columns'] = [
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const [year, month] = selectedMonth.split('-').map(Number)
+      const res = await getAttendanceMonthly({ year, month })
+      const list = (res.data || []).map((item: any) => ({
+        id: item.id,
+        employeeName: item.employee?.user?.realName || '-',
+        employeeNo: item.employee?.employeeNo || '-',
+        department: item.employee?.user?.department?.name || '-',
+        workDays: Number(item.expectedWorkDays || 0),
+        actualDays: Number(item.actualWorkDays || 0),
+        lateTimes: Number(item.lateCount || 0),
+        earlyTimes: Number(item.earlyCount || 0),
+        absentDays: Number(item.absentDays || 0),
+        leaveDays: Number(item.paidLeaveDays || 0) + Number(item.unpaidLeaveDays || 0),
+        overtimeHours: Math.round(Number(item.overtimeMinutes || 0) / 60 * 10) / 10,
+        attendanceRate: item.expectedWorkDays
+          ? Math.round((Number(item.actualWorkDays) / Number(item.expectedWorkDays)) * 1000) / 10
+          : 0,
+      }))
+      setData(list)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth])
+
+  const filteredData = useMemo(() => {
+    let result = data
+    if (searchText) {
+      result = result.filter(
+        (item) =>
+          item.employeeName.includes(searchText) ||
+          item.employeeNo.includes(searchText),
+      )
+    }
+    if (searchDept) {
+      result = result.filter((item) => item.department === searchDept)
+    }
+    return result
+  }, [data, searchText, searchDept])
+
+  const departments = useMemo(() => {
+    return Array.from(new Set(data.map((item) => item.department).filter(Boolean)))
+  }, [data])
+
+  const summaryStats = useMemo(() => {
+    const total = filteredData.length
+    const avgRate = total > 0
+      ? (filteredData.reduce((sum, item) => sum + item.attendanceRate, 0) / total).toFixed(1)
+      : '0'
+    const totalLate = filteredData.reduce((sum, item) => sum + item.lateTimes, 0)
+    const totalOvertime = filteredData.reduce((sum, item) => sum + item.overtimeHours, 0)
+    const totalLeave = filteredData.reduce((sum, item) => sum + item.leaveDays, 0)
+
+    return [
+      { title: '平均出勤率', value: `${avgRate}%`, color: '#00B42A' },
+      { title: '总迟到次数', value: totalLate, color: '#FF7D00' },
+      { title: '总加班时长', value: `${totalOvertime}h`, color: '#165DFF' },
+      { title: '总请假天数', value: totalLeave, color: '#86909C' },
+    ]
+  }, [filteredData])
+
+  const columns: TableProps<AttendanceStatsRow>['columns'] = [
     {
       title: '工号',
       dataIndex: 'employeeNo',
@@ -77,11 +145,13 @@ function Stats() {
       title: '应出勤(天)',
       dataIndex: 'workDays',
       width: 100,
+      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
     },
     {
       title: '实出勤(天)',
       dataIndex: 'actualDays',
       width: 100,
+      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
     },
     {
       title: '迟到(次)',
@@ -111,11 +181,13 @@ function Stats() {
       title: '请假(天)',
       dataIndex: 'leaveDays',
       width: 90,
+      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
     },
     {
       title: '加班(h)',
       dataIndex: 'overtimeHours',
       width: 90,
+      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
     },
     {
       title: '出勤率',
@@ -131,50 +203,31 @@ function Stats() {
   ]
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchDept) {
-      result = result.filter((item) => item.department === searchDept)
-    }
-    setFilteredData(result)
+    // search is done via useMemo filter on client side
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchDept(undefined)
-    setFilteredData(data)
   }
 
-  const summaryStats = [
-    { title: '平均出勤率', value: '96.8%', color: '#00B42A' },
-    { title: '总迟到次数', value: 7, color: '#FF7D00' },
-    { title: '总加班时长', value: '47.5h', color: '#165DFF' },
-    { title: '总请假天数', value: 5, color: '#86909C' },
-  ]
-
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+    <div className="attendance-stats">
+      <Row gutter={16} className="attendance-stats__summary-row">
         {summaryStats.map((item, index) => (
           <Col span={6} key={index}>
-            <Card bordered={false}>
-              <Statistic title={item.title} value={item.value} style={{ color: item.color }} />
+            <Card bordered={false} className="attendance-stats__stat-card">
+              <Statistic title={item.title} value={item.value} className="attendance-stats__stat-value" />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="attendance-stats__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="attendance-stats__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
@@ -183,22 +236,24 @@ function Stats() {
           </FormItem>
           <FormItem label="部门">
             <Select
-              style={{ width: 130 }}
+              className="attendance-stats__dept-select"
               placeholder="请选择"
               value={searchDept}
               onChange={setSearchDept}
               allowClear
             >
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
+              {departments.map((dept) => (
+                <Option key={dept} value={dept}>{dept}</Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem label="统计月份">
-            <Select style={{ width: 130 }} defaultValue="2024-06">
+            <Select
+              className="attendance-stats__month-select"
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+            >
+              <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
               <Option value="2024-06">2024年6月</Option>
               <Option value="2024-05">2024年5月</Option>
               <Option value="2024-04">2024年4月</Option>
@@ -218,7 +273,7 @@ function Stats() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="attendance-stats__table-header">
           <Tabs defaultActiveTab="personal">
             <TabPane key="personal" title="个人统计" />
             <TabPane key="department" title="部门统计" />
@@ -227,6 +282,7 @@ function Stats() {
         </div>
 
         <Table
+          loading={loading}
           columns={columns}
           data={filteredData}
           rowKey="id"

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import dayjs from 'dayjs'
 import {
   Table,
   Button,
@@ -9,55 +10,57 @@ import {
   Form,
   Tag,
   Card,
+  Spin,
 } from '@arco-design/web-react'
-import {
-  IconSearch,
-  IconRefresh,
-  IconEye,
-} from '@arco-design/web-react/icon'
+import { IconSearch, IconRefresh } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getEmployeeChanges, EmployeeChange } from '@/api/personnel'
+import './changes.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
 const { RangePicker } = DatePicker
 
-interface ChangeRecord {
-  id: number
-  employeeName: string
-  employeeNo: string
-  type: 'transfer' | 'promotion' | 'demotion' | 'entry' | 'leave' | 'adjust'
-  beforeContent: string
-  afterContent: string
-  changeDate: string
-  operator: string
-  remark: string
-}
-
-const typeMap: Record<string, { text: string; color: string }> = {
-  entry: { text: '入职', color: 'green' },
-  transfer: { text: '调岗', color: 'blue' },
-  promotion: { text: '晋升', color: 'orange' },
-  demotion: { text: '降职', color: 'red' },
-  adjust: { text: '调薪', color: 'purple' },
-  leave: { text: '离职', color: 'gray' },
-}
-
-const mockData: ChangeRecord[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', type: 'entry', beforeContent: '-', afterContent: '技术部-高级工程师', changeDate: '2023-01-15', operator: '人事经理', remark: '新员工入职' },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', type: 'transfer', beforeContent: '技术部-工程师', afterContent: '产品部-产品经理', changeDate: '2023-06-20', operator: '人事经理', remark: '内部转岗' },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', type: 'promotion', beforeContent: '市场部-市场专员', afterContent: '市场部-市场主管', changeDate: '2023-09-10', operator: '总经理', remark: '晋升为市场主管' },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', type: 'adjust', beforeContent: '薪资 15000', afterContent: '薪资 18000', changeDate: '2024-01-01', operator: '人事经理', remark: '年度调薪' },
-  { id: 5, employeeName: '周九', employeeNo: 'EMP007', type: 'leave', beforeContent: '技术部-测试工程师', afterContent: '-', changeDate: '2024-03-15', operator: '人事经理', remark: '个人原因离职' },
-  { id: 6, employeeName: '钱七', employeeNo: 'EMP005', type: 'promotion', beforeContent: '人事部-人事专员', afterContent: '人事部-人事主管', changeDate: '2024-04-01', operator: '总经理', remark: '业绩突出晋升' },
-]
-
 function Changes() {
-  const [data] = useState<ChangeRecord[]>(mockData)
+  const [data, setData] = useState<EmployeeChange[]>([])
+  const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [searchType, setSearchType] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<ChangeRecord[]>(mockData)
+  const [dateRange, setDateRange] = useState<ReturnType<typeof dayjs>[]>([])
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
-  const columns: TableProps<ChangeRecord>['columns'] = [
+  const loadData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getEmployeeChanges({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+        type: searchType,
+        startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
+        endDate: dateRange?.[1]?.format('YYYY-MM-DD'),
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const typeMap: Record<string, { text: string; color: string }> = {
+    '信息变更': { text: '信息变更', color: 'blue' },
+    '删除员工': { text: '删除员工', color: 'red' },
+    '新增员工': { text: '新增员工', color: 'green' },
+  }
+
+  const columns: TableProps<EmployeeChange>['columns'] = [
     {
       title: '工号',
       dataIndex: 'employeeNo',
@@ -74,7 +77,7 @@ function Changes() {
       width: 100,
       render: (value: string) => {
         const info = typeMap[value]
-        return <Tag color={info.color}>{info.text}</Tag>
+        return <Tag color={info?.color || 'gray'}>{info?.text || value}</Tag>
       },
     },
     {
@@ -104,45 +107,30 @@ function Changes() {
       dataIndex: 'remark',
       ellipsis: true,
     },
-    {
-      title: '操作',
-      width: 80,
-      render: () => (
-        <Button type="text" size="small" icon={<IconEye />}>
-          查看
-        </Button>
-      ),
-    },
   ]
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchType) {
-      result = result.filter((item) => item.type === searchType)
-    }
-    setFilteredData(result)
+    loadData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchType(undefined)
-    setFilteredData(data)
+    setDateRange([])
+    loadData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (current: number, pageSize: number) => {
+    loadData(current, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="changes-page">
+      <Card bordered={false} className="changes-page__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 200 }}
+              className="changes-page__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
@@ -151,22 +139,30 @@ function Changes() {
           </FormItem>
           <FormItem label="变动类型">
             <Select
-              style={{ width: 150 }}
+              className="changes-page__type-select"
               placeholder="请选择类型"
               value={searchType}
-              onChange={setSearchType}
+              onChange={(val) => {
+                setSearchType(val)
+                loadData(1, pagination.pageSize)
+              }}
               allowClear
             >
-              <Option value="entry">入职</Option>
-              <Option value="transfer">调岗</Option>
-              <Option value="promotion">晋升</Option>
-              <Option value="demotion">降职</Option>
-              <Option value="adjust">调薪</Option>
-              <Option value="leave">离职</Option>
+              <Option value="信息变更">信息变更</Option>
+              <Option value="删除员工">删除员工</Option>
+              <Option value="新增员工">新增员工</Option>
             </Select>
           </FormItem>
           <FormItem label="变动时间">
-            <RangePicker style={{ width: 260 }} />
+            <RangePicker
+              className="changes-page__date-range"
+              onChange={(v: ReturnType<typeof dayjs>[] | string[]) => {
+                setDateRange(v as ReturnType<typeof dayjs>[])
+                if (v && v.length === 2) {
+                  loadData(1, pagination.pageSize)
+                }
+              }}
+            />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -182,14 +178,25 @@ function Changes() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>变动记录</span>
-          <Tag color="blue" style={{ marginLeft: 8 }}>
-            共 {filteredData.length} 条
+        <div className="changes-page__margin-bottom">
+          <span className="changes-page__title">变动记录</span>
+          <Tag color="blue" className="changes-page__tag-margin">
+            共 {pagination.total} 条
           </Tag>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Spin loading={loading}>
+          <Table
+            columns={columns}
+            data={data}
+            rowKey="id"
+            pagination={{
+              ...pagination,
+              sizeOptions: [10, 20, 50],
+              onChange: handlePageChange,
+            }}
+          />
+        </Spin>
       </Card>
     </div>
   )

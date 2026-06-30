@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -13,6 +13,7 @@ import {
   Grid,
   Switch,
   Select,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconPlus,
@@ -22,44 +23,47 @@ import {
   IconDelete,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import {
+  getVacationTypes,
+  createVacationType,
+  updateVacationType,
+  deleteVacationType,
+} from '@/api/vacation'
+import type { VacationType } from '@/api/vacation'
+import './types.css'
 
 const { Row, Col } = Grid
 const Option = Select.Option
 const FormItem = Form.Item
 
-interface LeaveType {
-  id: number
-  name: string
-  code: string
-  totalDays: number
-  unit: 'day' | 'hour'
-  isCarryOver: boolean
-  carryOverDays: number
-  isPaid: boolean
-  sort: number
-  status: 'active' | 'inactive'
-  description: string
-}
-
-const mockData: LeaveType[] = [
-  { id: 1, name: '年假', code: 'ANNUAL', totalDays: 10, unit: 'day', isCarryOver: true, carryOverDays: 3, isPaid: true, sort: 1, status: 'active', description: '员工每年享有的带薪年休假' },
-  { id: 2, name: '事假', code: 'PERSONAL', totalDays: 5, unit: 'day', isCarryOver: false, carryOverDays: 0, isPaid: false, sort: 2, status: 'active', description: '因个人事务需请假的假期' },
-  { id: 3, name: '病假', code: 'SICK', totalDays: 5, unit: 'day', isCarryOver: false, carryOverDays: 0, isPaid: true, sort: 3, status: 'active', description: '因病需休息的假期，需提供医院证明' },
-  { id: 4, name: '婚假', code: 'MARRIAGE', totalDays: 3, unit: 'day', isCarryOver: false, carryOverDays: 0, isPaid: true, sort: 4, status: 'active', description: '员工结婚享有的假期' },
-  { id: 5, name: '产假', code: 'MATERNITY', totalDays: 98, unit: 'day', isCarryOver: false, carryOverDays: 0, isPaid: true, sort: 5, status: 'active', description: '女员工生育享有的假期' },
-  { id: 6, name: '丧假', code: 'BEREAVEMENT', totalDays: 3, unit: 'day', isCarryOver: false, carryOverDays: 0, isPaid: true, sort: 6, status: 'active', description: '直系亲属去世享有的假期' },
-  { id: 7, name: '调休', code: 'COMPENSATORY', totalDays: 0, unit: 'day', isCarryOver: true, carryOverDays: 0, isPaid: true, sort: 7, status: 'active', description: '加班后可调休的假期' },
-]
-
 function Types() {
-  const [data, setData] = useState<LeaveType[]>(mockData)
+  const [data, setData] = useState<VacationType[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
-  const [filteredData, setFilteredData] = useState<LeaveType[]>(mockData)
+  const [filteredData, setFilteredData] = useState<VacationType[]>([])
 
-  const columns: TableProps<LeaveType>['columns'] = [
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await getVacationTypes()
+      setData(res.data)
+      setFilteredData(res.data)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const columns: TableProps<VacationType>['columns'] = [
     {
       title: '假期名称',
       dataIndex: 'name',
@@ -69,12 +73,12 @@ function Types() {
       title: '假期编码',
       dataIndex: 'code',
       width: 120,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      render: (value: string) => <Tag color="blue" className="vacation-types__code-tag">{value}</Tag>,
     },
     {
       title: '年度配额',
       width: 120,
-      render: (_: any, record: LeaveType) => (
+      render: (_: unknown, record: VacationType) => (
         <span>{record.totalDays} {record.unit === 'day' ? '天' : '小时'}</span>
       ),
     },
@@ -126,7 +130,7 @@ function Types() {
     {
       title: '操作',
       width: 150,
-      render: (_: any, record: LeaveType) => (
+      render: (_: unknown, record: VacationType) => (
         <Space size="small">
           <Button
             type="text"
@@ -161,38 +165,39 @@ function Types() {
     setVisible(true)
   }
 
-  const handleEdit = (record: LeaveType) => {
+  const handleEdit = (record: VacationType) => {
     setEditingId(record.id)
     form.setFieldsValue(record)
     setVisible(true)
   }
 
-  const handleDelete = (id: number) => {
-    setData(data.filter((item) => item.id !== id))
-    setFilteredData(filteredData.filter((item) => item.id !== id))
-    Message.success('删除成功')
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteVacationType(id)
+      Message.success('删除成功')
+      fetchData()
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
+      setSaving(true)
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
+        await updateVacationType(editingId, values)
         Message.success('修改成功')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          ...values,
-        } as LeaveType
-        setData([...data, newRecord])
-        setFilteredData([...filteredData, newRecord])
+        await createVacationType(values)
         Message.success('新增成功')
       }
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData()
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -214,12 +219,12 @@ function Types() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="vacation-types">
+      <Card bordered={false} className="vacation-types__search-card">
         <Form layout="inline">
           <FormItem label="假期名称">
             <Input
-              style={{ width: 200 }}
+              className="vacation-types__search-input"
               placeholder="请输入名称/编码"
               value={searchText}
               onChange={setSearchText}
@@ -239,11 +244,11 @@ function Types() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="vacation-types__table-card">
+        <div className="vacation-types__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>假期类型</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
+            <span className="vacation-types__table-title">假期类型</span>
+            <Tag color="blue" className="vacation-types__total-tag">
               共 {filteredData.length} 种
             </Tag>
           </div>
@@ -252,7 +257,9 @@ function Types() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Spin loading={loading}>
+          <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        </Spin>
       </Card>
 
       <Modal
@@ -260,7 +267,8 @@ function Types() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        confirmLoading={saving}
+        className="vacation-types__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>

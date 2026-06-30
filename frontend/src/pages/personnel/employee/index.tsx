@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Table,
   Button,
@@ -12,6 +12,7 @@ import {
   Popconfirm,
   Card,
   Grid,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconPlus,
@@ -19,51 +20,64 @@ import {
   IconRefresh,
   IconEdit,
   IconDelete,
-  IconUser,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getEmployees, updateEmployee, deleteEmployee } from '@/api/personnel'
+import type { Employee } from '@/api/personnel'
+import './employee.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 
-interface Employee {
-  id: number
-  name: string
-  employeeNo: string
-  department: string
-  position: string
-  phone: string
-  email: string
-  entryDate: string
-  status: 'active' | 'leave' | 'probation'
+const statusMap: Record<string, { text: string; color: string }> = {
+  probation: { text: '试用期', color: 'orange' },
+  formal: { text: '正式', color: 'green' },
+  contract: { text: '合同工', color: 'arcoblue' },
+  terminated: { text: '已离职', color: 'red' },
 }
 
-const mockData: Employee[] = [
-  { id: 1, name: '张三', employeeNo: 'EMP001', department: '技术部', position: '高级工程师', phone: '13800138001', email: 'zhangsan@example.com', entryDate: '2023-01-15', status: 'active' },
-  { id: 2, name: '李四', employeeNo: 'EMP002', department: '产品部', position: '产品经理', phone: '13800138002', email: 'lisi@example.com', entryDate: '2023-03-20', status: 'active' },
-  { id: 3, name: '王五', employeeNo: 'EMP003', department: '市场部', position: '市场专员', phone: '13800138003', email: 'wangwu@example.com', entryDate: '2023-05-10', status: 'probation' },
-  { id: 4, name: '赵六', employeeNo: 'EMP004', department: '技术部', position: '前端工程师', phone: '13800138004', email: 'zhaoliu@example.com', entryDate: '2022-08-01', status: 'active' },
-  { id: 5, name: '钱七', employeeNo: 'EMP005', department: '人事部', position: '人事专员', phone: '13800138005', email: 'qianqi@example.com', entryDate: '2023-07-15', status: 'active' },
-  { id: 6, name: '孙八', employeeNo: 'EMP006', department: '财务部', position: '财务主管', phone: '13800138006', email: 'sunba@example.com', entryDate: '2021-11-20', status: 'active' },
-  { id: 7, name: '周九', employeeNo: 'EMP007', department: '技术部', position: '测试工程师', phone: '13800138007', email: 'zhoujiu@example.com', entryDate: '2023-09-01', status: 'leave' },
-  { id: 8, name: '吴十', employeeNo: 'EMP008', department: '运营部', position: '运营主管', phone: '13800138008', email: 'wushi@example.com', entryDate: '2022-04-10', status: 'active' },
+const statusOptions = [
+  { value: 'probation', label: '试用期' },
+  { value: 'formal', label: '正式' },
+  { value: 'contract', label: '合同工' },
+  { value: 'terminated', label: '已离职' },
 ]
 
-const statusMap: Record<string, { text: string; color: string }> = {
-  active: { text: '在职', color: 'green' },
-  leave: { text: '离职', color: 'red' },
-  probation: { text: '试用期', color: 'orange' },
-}
-
 function Employee() {
-  const [data, setData] = useState<Employee[]>(mockData)
+  const [data, setData] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchDept, setSearchDept] = useState<string | undefined>()
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getEmployees({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+        status: searchStatus,
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const columns: TableProps<Employee>['columns'] = [
     {
@@ -98,7 +112,7 @@ function Employee() {
     },
     {
       title: '入职日期',
-      dataIndex: 'entryDate',
+      dataIndex: 'hireDate',
       width: 120,
     },
     {
@@ -107,13 +121,15 @@ function Employee() {
       width: 100,
       render: (value: string) => {
         const info = statusMap[value]
+        if (!info) return <Tag>{value}</Tag>
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
       title: '操作',
       width: 150,
-      render: (_: any, record: Employee) => (
+      fixed: 'right' as const,
+      render: (_: unknown, record: Employee) => (
         <Space size="small">
           <Button
             type="text"
@@ -148,100 +164,108 @@ function Employee() {
     setVisible(true)
   }
 
-  const handleEdit = (record: Employee) => {
+  const handleEdit = async (record: Employee) => {
     setEditingId(record.id)
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      status: record.status,
+      gender: record.gender,
+      birthDate: record.birthDate,
+      idCardNo: record.idCardNo,
+      nationality: record.nationality,
+      maritalStatus: record.maritalStatus,
+      phone: record.phone,
+      bankName: record.bankName,
+      bankAccountNo: record.bankAccountNo,
+      probationEndDate: record.probationEndDate,
+      contractSignDate: record.contractSignDate,
+      terminationDate: record.terminationDate,
+      terminationType: record.terminationType,
+      terminationReason: record.terminationReason,
+      emergencyContact: record.emergencyContact,
+      emergencyPhone: record.emergencyPhone,
+      address: record.address,
+      education: record.education,
+      skills: record.skills,
+      remark: record.remark,
+      salary: record.salary,
+      rating: record.rating,
+    })
     setVisible(true)
   }
 
-  const handleDelete = (id: number) => {
-    setData(data.filter((item) => item.id !== id))
-    Message.success('删除成功')
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteEmployee(id)
+      Message.success('删除成功')
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
+      setSaving(true)
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
+        await updateEmployee(editingId, values)
         Message.success('修改成功')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        setData([...data, { id: newId, ...values } as Employee])
-        Message.success('新增成功')
+        Message.info('新增员工请通过入职流程办理')
       }
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleSearch = () => {
-    let result = mockData
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.name.includes(searchText) ||
-          item.employeeNo.includes(searchText) ||
-          item.phone.includes(searchText),
-      )
-    }
-    if (searchDept) {
-      result = result.filter((item) => item.department === searchDept)
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchDept(undefined)
     setSearchStatus(undefined)
-    setData(mockData)
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (current: number, pageSize: number) => {
+    fetchData(current, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="employee-page">
+      <Card bordered={false} className="employee-page__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 200 }}
+              className="employee-page__search-input"
               placeholder="姓名/工号/手机号"
               value={searchText}
               onChange={setSearchText}
               allowClear
             />
           </FormItem>
-          <FormItem label="部门">
-            <Select
-              style={{ width: 150 }}
-              placeholder="请选择部门"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
-            </Select>
-          </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 120 }}
+              className="employee-page__status-select"
               placeholder="请选择状态"
               value={searchStatus}
-              onChange={setSearchStatus}
+              onChange={(val) => {
+                setSearchStatus(val)
+                fetchData(1, pagination.pageSize)
+              }}
               allowClear
             >
-              <Option value="active">在职</Option>
-              <Option value="probation">试用期</Option>
-              <Option value="leave">离职</Option>
+              {statusOptions.map((opt) => (
+                <Option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem>
@@ -257,12 +281,12 @@ function Employee() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="employee-page__table-card">
+        <div className="employee-page__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>员工列表</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {data.length} 人
+            <span className="employee-page__table-title">员工列表</span>
+            <Tag color="blue" className="employee-page__total-tag">
+              共 {pagination.total} 人
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -270,7 +294,19 @@ function Employee() {
           </Button>
         </div>
 
-        <Table columns={columns} data={data} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Spin loading={loading}>
+          <Table
+            columns={columns}
+            data={data}
+            rowKey="id"
+            pagination={{
+              ...pagination,
+              sizeOptions: [10, 20, 50],
+              onChange: handlePageChange,
+            }}
+            scroll={{ x: 1100 }}
+          />
+        </Spin>
       </Card>
 
       <Modal
@@ -278,90 +314,176 @@ function Employee() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 600 }}
+        confirmLoading={saving}
+        className="employee-page__modal--700"
       >
         <Form form={form} layout="vertical">
+          {editingId && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <FormItem label="工号">
+                  <Input disabled />
+                </FormItem>
+              </Col>
+              <Col span={12}>
+                <FormItem label="姓名">
+                  <Input disabled />
+                </FormItem>
+              </Col>
+            </Row>
+          )}
           <Row gutter={16}>
             <Col span={12}>
-              <FormItem
-                label="工号"
-                field="employeeNo"
-                rules={[{ required: true, message: '请输入工号' }]}
-              >
-                <Input placeholder="请输入工号" />
-              </FormItem>
-            </Col>
-            <Col span={12}>
-              <FormItem
-                label="姓名"
-                field="name"
-                rules={[{ required: true, message: '请输入姓名' }]}
-              >
-                <Input placeholder="请输入姓名" />
-              </FormItem>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <FormItem
-                label="部门"
-                field="department"
-                rules={[{ required: true, message: '请选择部门' }]}
-              >
-                <Select placeholder="请选择部门">
-                  <Option value="技术部">技术部</Option>
-                  <Option value="产品部">产品部</Option>
-                  <Option value="市场部">市场部</Option>
-                  <Option value="人事部">人事部</Option>
-                  <Option value="财务部">财务部</Option>
-                  <Option value="运营部">运营部</Option>
-                </Select>
-              </FormItem>
-            </Col>
-            <Col span={12}>
-              <FormItem
-                label="岗位"
-                field="position"
-                rules={[{ required: true, message: '请输入岗位' }]}
-              >
-                <Input placeholder="请输入岗位" />
-              </FormItem>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <FormItem
-                label="手机号"
-                field="phone"
-                rules={[{ required: true, message: '请输入手机号' }]}
-              >
+              <FormItem label="手机号" field="phone">
                 <Input placeholder="请输入手机号" />
               </FormItem>
             </Col>
             <Col span={12}>
-              <FormItem label="邮箱" field="email">
-                <Input placeholder="请输入邮箱" />
+              <FormItem label="状态" field="status">
+                <Select placeholder="请选择状态">
+                  {statusOptions.map((opt) => (
+                    <Option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </Option>
+                  ))}
+                </Select>
               </FormItem>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <FormItem label="入职日期" field="entryDate">
-                <Input placeholder="请输入入职日期" />
+              <FormItem label="性别" field="gender">
+                <Select placeholder="请选择性别" allowClear>
+                  <Option value="男">男</Option>
+                  <Option value="女">女</Option>
+                </Select>
               </FormItem>
             </Col>
             <Col span={12}>
-              <FormItem
-                label="状态"
-                field="status"
-                initialValue="active"
-                rules={[{ required: true, message: '请选择状态' }]}
-              >
-                <Select placeholder="请选择状态">
-                  <Option value="active">在职</Option>
-                  <Option value="probation">试用期</Option>
-                  <Option value="leave">离职</Option>
+              <FormItem label="出生日期" field="birthDate">
+                <Input placeholder="YYYY-MM-DD" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="身份证号" field="idCardNo">
+                <Input placeholder="请输入身份证号" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="国籍" field="nationality">
+                <Input placeholder="请输入国籍" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="婚姻状况" field="maritalStatus">
+                <Select placeholder="请选择婚姻状况" allowClear>
+                  <Option value="未婚">未婚</Option>
+                  <Option value="已婚">已婚</Option>
+                  <Option value="离异">离异</Option>
+                  <Option value="丧偶">丧偶</Option>
                 </Select>
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="学历" field="education">
+                <Input placeholder="请输入学历" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="开户银行" field="bankName">
+                <Input placeholder="请输入开户银行" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="银行账号" field="bankAccountNo">
+                <Input placeholder="请输入银行账号" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="试用期结束日期" field="probationEndDate">
+                <Input placeholder="YYYY-MM-DD" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="合同签订日期" field="contractSignDate">
+                <Input placeholder="YYYY-MM-DD" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="离职日期" field="terminationDate">
+                <Input placeholder="YYYY-MM-DD" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="离职类型" field="terminationType">
+                <Select placeholder="请选择离职类型" allowClear>
+                  <Option value="主动离职">主动离职</Option>
+                  <Option value="被动离职">被动离职</Option>
+                  <Option value="合同到期">合同到期</Option>
+                  <Option value="退休">退休</Option>
+                </Select>
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <FormItem label="离职原因" field="terminationReason">
+                <Input placeholder="请输入离职原因" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="紧急联系人" field="emergencyContact">
+                <Input placeholder="请输入紧急联系人姓名" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="紧急联系电话" field="emergencyPhone">
+                <Input placeholder="请输入紧急联系电话" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <FormItem label="家庭住址" field="address">
+                <Input placeholder="请输入家庭住址" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <FormItem label="技能" field="skills">
+                <Input placeholder="请输入技能特长" />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <FormItem label="薪资" field="salary">
+                <Input type="number" placeholder="请输入薪资" />
+              </FormItem>
+            </Col>
+            <Col span={12}>
+              <FormItem label="评级" field="rating">
+                <Input type="number" placeholder="1-5" min={1} max={5} />
+              </FormItem>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <FormItem label="备注" field="remark">
+                <Input placeholder="请输入备注" />
               </FormItem>
             </Col>
           </Row>

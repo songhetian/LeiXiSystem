@@ -5,6 +5,8 @@ import { authMiddleware } from '../middleware/auth'
 import { hasPermission, requireAnyPermission, requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
 import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { invalidateUserPermissionsCache } from '../utils/permissionCache'
+import { canAccessEmployee } from '../services/objectAuthorization'
 
 const employeeListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -50,6 +52,15 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
 
+    const canAccess = await canAccessEmployee(request.user, id, {
+      adminPermissions: ['personnel:view', 'personnel:employee:view'],
+      allowSelf: true,
+    })
+
+    if (!canAccess) {
+      return { code: 404, message: '员工不存在' }
+    }
+
     const employee = await prisma.employee.findUnique({
       where: { id },
       include: {
@@ -80,11 +91,6 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
 
     if (!employee) {
       return { code: 404, message: '员工不存在' }
-    }
-
-    const canViewAll = hasPermission(request, 'personnel:view') || hasPermission(request, 'personnel:employee:view')
-    if (!canViewAll && employee.userId !== request.user.id) {
-      return { code: 403, message: '没有权限查看该员工' }
     }
 
     return {
@@ -158,9 +164,24 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
         skip,
         take,
         orderBy: { id: 'desc' },
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          employeeNo: true,
+          hireDate: true,
+          salary: true,
+          status: true,
+          education: true,
           user: {
-            include: { department: true, position: true },
+            select: {
+              realName: true,
+              email: true,
+              phone: true,
+              departmentId: true,
+              positionId: true,
+              department: { select: { name: true } },
+              position: { select: { name: true } },
+            },
           },
         },
       }),
@@ -183,7 +204,6 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
           hireDate: item.hireDate,
           salary: item.salary,
           status: item.status,
-          rating: item.rating,
           education: item.education,
         })),
         total,
@@ -197,6 +217,20 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
     Body: any
   }>, reply) => {
     const body = validateData(employeeBodySchema, request.body)
+
+    // 检查用户名唯一性
+    const existingUser = await prisma.user.findUnique({ where: { username: body.username } })
+    if (existingUser) {
+      return { code: 400, message: '用户名已存在' }
+    }
+
+    // 检查员工编号唯一性
+    if (body.employeeNo) {
+      const existingEmployee = await prisma.employee.findUnique({ where: { employeeNo: body.employeeNo } })
+      if (existingEmployee) {
+        return { code: 400, message: '员工编号已存在' }
+      }
+    }
 
     const bcrypt = await import('bcryptjs')
     const hashedPassword = await bcrypt.hash(body.password || '123456', 10)
@@ -239,13 +273,14 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
 
   fastify.put('/employees/:id', { preHandler: [requireAnyPermission(['personnel:edit', 'personnel:employee:update'])] }, async (request: FastifyRequest<{
     Params: { id: string }
-    Body: any
+    Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(employeeUpdateSchema, request.body)
 
     const employee = await prisma.employee.findUnique({
       where: { id },
+      include: { user: { select: { departmentId: true, status: true } } },
     })
 
     if (!employee) {
@@ -276,6 +311,12 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
       },
     })
 
+    const deptChanged = body.departmentId !== undefined && body.departmentId !== employee.user.departmentId
+    const statusChanged = body.status !== undefined && body.status !== employee.user.status
+    if (deptChanged || statusChanged) {
+      await invalidateUserPermissionsCache(employee.userId)
+    }
+
     return { code: 0, message: '更新成功' }
   })
 
@@ -286,12 +327,37 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
 
     const employee = await prisma.employee.findUnique({
       where: { id },
+      include: {
+        _count: {
+          select: {
+            documents: true,
+            contracts: true,
+            lifecycleEvents: true,
+            onboardingTasks: true,
+            offboardingTasks: true,
+          },
+        },
+      },
     })
 
     if (!employee) {
       return { code: 404, message: '员工不存在' }
     }
 
+    // 检查是否有未完成的生命周期事件
+    const activeEvents = await prisma.employeeLifecycleEvent.count({
+      where: { employeeId: id, status: { in: ['pending', 'processing'] } },
+    })
+    if (activeEvents > 0) {
+      return { code: 400, message: '该员工有待处理的生命周期事件，请先完成' }
+    }
+
+    // 检查是否有未完成的入职/离职任务
+    if (employee._count.onboardingTasks > 0 || employee._count.offboardingTasks > 0) {
+      return { code: 400, message: '该员工有未完成的入职/离职任务，请先完成' }
+    }
+
+    // 软删除：标记状态而非物理删除
     await prisma.user.update({
       where: { id: employee.userId },
       data: { status: 'deleted' },
@@ -301,6 +367,8 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
       where: { id },
       data: { status: 'deleted' },
     })
+
+    await invalidateUserPermissionsCache(employee.userId)
 
     return { code: 0, message: '删除成功' }
   })

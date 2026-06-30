@@ -1,0 +1,67 @@
+.schedule-templates {
+  padding: 16px;
+}
+
+.template-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.template-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.template-item-label {
+  width: 60px;
+  text-align: right;
+  font-weight: 500;
+  color: #1d2129;
+}
+
+.template-item-select {
+  width: 300px;
+}
+
+.schedule-templates__modal-large {
+  width: 700px;
+}
+
+.schedule-templates__input-number {
+  width: 100%;
+}
+
+.schedule-templates__select-status {
+  width: 150px;
+}
+
+.schedule-templates__modal-xlarge {
+  width: 900px;
+}
+
+.schedule-templates__range-picker {
+  width: 100%;
+}
+
+.schedule-templates__select-employees {
+  width: 100%;
+}
+
+.schedule-templates__preview-stats {
+  margin-bottom: 16px;
+}
+
+.schedule-templates__preview-empty {
+  text-align: center;
+  padding: 40px;
+  color: #86909c;
+}
+
+.schedule-templates__cell-name {
+  font-weight: 500;
+}

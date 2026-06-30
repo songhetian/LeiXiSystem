@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Grid,
@@ -8,6 +8,7 @@ import {
   Progress,
   Table,
   Avatar,
+  Typography,
 } from '@arco-design/web-react'
 import {
   IconUser,
@@ -16,23 +17,17 @@ import {
   IconUserGroup,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getDashboardStats, getAttendanceOverview } from '@/api/dashboard'
+import './style.css'
 
 const { Row, Col } = Grid
+const { Title, Text } = Typography
 
 interface DeptAttendance {
   dept: string
   rate: number
   count: number
 }
-
-const deptData: DeptAttendance[] = [
-  { dept: '技术部', rate: 98.5, count: 80 },
-  { dept: '产品部', rate: 97.2, count: 35 },
-  { dept: '市场部', rate: 96.8, count: 30 },
-  { dept: '人事部', rate: 99.1, count: 12 },
-  { dept: '财务部', rate: 97.5, count: 8 },
-  { dept: '运营部', rate: 95.6, count: 25 },
-]
 
 interface RealtimeRecord {
   time: string
@@ -42,16 +37,12 @@ interface RealtimeRecord {
   location: string
 }
 
-const realtimeData: RealtimeRecord[] = [
-  { time: '09:01:23', name: '张三', dept: '技术部', type: 'in', location: 'A栋1楼' },
-  { time: '09:00:45', name: '李四', dept: '产品部', type: 'in', location: 'A栋1楼' },
-  { time: '08:59:30', name: '王五', dept: '市场部', type: 'in', location: 'B栋1楼' },
-  { time: '08:58:12', name: '赵六', dept: '技术部', type: 'in', location: 'A栋1楼' },
-  { time: '08:57:05', name: '钱七', dept: '人事部', type: 'in', location: 'B栋2楼' },
-]
-
 function Visualization() {
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [stats, setStats] = useState<{ totalUsers?: number; pendingApprovals?: number } | null>(null)
+  const [attendanceOverview, setAttendanceOverview] = useState<{ normal?: number; attendanceRate?: number; total?: number; late?: number; early?: number; absent?: number; recentList?: { checkIn?: string; checkOut?: string; name: string; department?: string }[] } | null>(null)
+  const [deptData, setDeptData] = useState<DeptAttendance[]>([])
+  const [realtimeData, setRealtimeData] = useState<RealtimeRecord[]>([])
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -59,6 +50,34 @@ function Visualization() {
     }, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const loadData = useCallback(async () => {
+    try {
+      const [statsRes, attendanceRes]: any = await Promise.all([
+        getDashboardStats(),
+        getAttendanceOverview(),
+      ])
+      setStats(statsRes.data)
+      setAttendanceOverview(attendanceRes.data)
+
+      const recentList = attendanceRes.data?.recentList || []
+      setRealtimeData(
+        recentList.map((item: any) => ({
+          time: item.checkIn || item.checkOut || '--:--:--',
+          name: item.name,
+          dept: item.department || '-',
+          type: item.checkIn ? 'in' : 'out',
+          location: '办公区',
+        }))
+      )
+    } catch {
+      // error handled by interceptor
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const columns: TableProps<DeptAttendance>['columns'] = [
     {
@@ -70,37 +89,31 @@ function Visualization() {
       title: '出勤人数',
       dataIndex: 'count',
       width: 90,
-      render: (value: number) => <span style={{ fontWeight: 600 }}>{value}人</span>,
+      render: (value: number) => <span className="tabular-nums">{value}人</span>,
     },
     {
       title: '出勤率',
       dataIndex: 'rate',
       render: (value: number) => (
-        <Progress percent={value} style={{ width: '100%', maxWidth: 150 }} />
+        <Progress percent={value} className="visualization__progress" />
       ),
     },
   ]
 
-  const stats = [
-    { title: '总人数', value: 190, suffix: '人', color: '#165DFF', icon: IconUserGroup },
-    { title: '已出勤', value: 186, suffix: '人', color: '#00B42A', icon: IconUser },
-    { title: '出勤率', value: 97.9, suffix: '%', color: '#722ED1', icon: IconCalendar },
-    { title: '平均工时', value: 8.2, suffix: 'h', color: '#FF7D00', icon: IconClockCircle },
+  const statCards = [
+    { title: '总人数', value: stats?.totalUsers || 0, suffix: '人', color: '#165DFF', icon: IconUserGroup },
+    { title: '已出勤', value: attendanceOverview?.normal || 0, suffix: '人', color: '#00B42A', icon: IconUser },
+    { title: '出勤率', value: Number(attendanceOverview?.attendanceRate || 0), suffix: '%', color: '#722ED1', icon: IconCalendar },
+    { title: '待审批', value: stats?.pendingApprovals || 0, suffix: '条', color: '#FF7D00', icon: IconClockCircle },
   ]
 
   return (
-    <div
-      style={{
-        padding: 20,
-        minHeight: 'calc(100vh - 120px)',
-        background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
-      }}
-    >
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <h1 style={{ color: '#fff', fontSize: 32, marginBottom: 8 }}>
-          人事考勤数据可视化大屏
-        </h1>
-        <p style={{ color: 'rgba(255,255,255,0.7)' }}>
+    <div className="visualization">
+      <div className="visualization__header">
+        <Title heading={3} className="visualization__title-margin">
+          人事考勤数据可视化
+        </Title>
+        <Text type="secondary">
           {currentTime.toLocaleDateString('zh-CN', {
             year: 'numeric',
             month: 'long',
@@ -108,41 +121,26 @@ function Visualization() {
             weekday: 'long',
           })}{' '}
           {currentTime.toLocaleTimeString('zh-CN')}
-        </p>
+        </Text>
       </div>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        {stats.map((item, index) => {
+      <Row gutter={16} className="visualization__row">
+        {statCards.map((item, index) => {
           const IconComp = item.icon
           return (
             <Col span={6} key={index}>
-              <Card
-                bordered={false}
-                style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: 12,
-                }}
-              >
-                <Space size="large" style={{ width: '100%', justifyContent: 'center' }}>
+              <Card bordered={false} className="visualization__stat-card">
+                <Space size="large" className="visualization__stat-content">
                   <div
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: '50%',
-                      background: `${item.color}20`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    className="visualization__stat-icon"
+                    style={{ background: `${item.color}15` }}
                   >
                     <IconComp style={{ fontSize: 24, color: item.color }} />
                   </div>
                   <Statistic
-                    title={<span style={{ color: 'rgba(255,255,255,0.7)' }}>{item.title}</span>}
+                    title={<span className="visualization__stat-title">{item.title}</span>}
                     value={item.value}
                     suffix={<span style={{ color: item.color }}>{item.suffix}</span>}
-                    style={{ color: '#fff' }}
                   />
                 </Space>
               </Card>
@@ -151,116 +149,96 @@ function Visualization() {
         })}
       </Row>
 
-      <Row gutter={16}>
+      <Row gutter={16} className="visualization__row">
         <Col span={12}>
-          <Card
-            bordered={false}
-            title={<span style={{ color: '#fff' }}>各部门出勤率</span>}
-            style={{
-              background: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 12,
-              border: 'none',
-            }}
-          >
+          <Card bordered={false} title="各部门出勤统计">
             <Table
               columns={columns}
               data={deptData}
               rowKey="dept"
               pagination={false}
-              style={{ color: '#fff' }}
+              size="small"
             />
           </Card>
         </Col>
 
         <Col span={12}>
-          <Card
-            bordered={false}
-            title={<span style={{ color: '#fff' }}>实时打卡动态</span>}
-            style={{
-              background: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 12,
-            }}
-          >
-            <Space direction="vertical" size="medium" style={{ width: '100%' }}>
-              {realtimeData.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'rgba(255,255,255,0.05)',
-                    borderRadius: 8,
-                  }}
-                >
-                  <Space size="medium">
-                    <Avatar size={36}>
-                      <IconUser />
-                    </Avatar>
-                    <div>
-                      <div style={{ color: '#fff', fontWeight: 600 }}>
-                        {item.name}
-                        <Tag color="blue" size="small" style={{ marginLeft: 8 }}>
-                          {item.dept}
-                        </Tag>
+          <Card bordered={false} title="实时打卡动态">
+            <Space direction="vertical" size="medium" className="visualization__record-meta">
+              {realtimeData.length > 0 ? (
+                realtimeData.map((item, index) => (
+                  <div key={index} className="visualization__record-item">
+                    <Space size="medium">
+                      <Avatar size={36}>
+                        <IconUser />
+                      </Avatar>
+                      <div>
+                        <div className="visualization__record-name">
+                          {item.name}
+                          <Tag color="blue" size="small" className="visualization__tag-margin">
+                            {item.dept}
+                          </Tag>
+                        </div>
+                        <div className="visualization__record-location">
+                          {item.location}
+                        </div>
                       </div>
-                      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
-                        {item.location}
-                      </div>
-                    </div>
-                  </Space>
-                  <Space direction="vertical" size={4} style={{ textAlign: 'right' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
-                      {item.type === 'in' ? '上班打卡' : '下班打卡'}
-                    </span>
-                    <span style={{ color: item.type === 'in' ? '#00B42A' : '#FF7D00', fontWeight: 600 }}>
-                      {item.time}
-                    </span>
-                  </Space>
-                </div>
-              ))}
+                    </Space>
+                    <Space direction="vertical" size={4} className="visualization__record-align-right">
+                      <span className="visualization__record-type">
+                        {item.type === 'in' ? '上班打卡' : '下班打卡'}
+                      </span>
+                      <span
+                        className="visualization__record-time tabular-nums"
+                        style={{ color: item.type === 'in' ? '#00B42A' : '#FF7D00' }}
+                      >
+                        {item.time}
+                      </span>
+                    </Space>
+                  </div>
+                ))
+              ) : (
+                <div className="visualization__empty">暂无打卡记录</div>
+              )}
             </Space>
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={16} style={{ marginTop: 16 }}>
+      <Row gutter={16} className="visualization__row">
         <Col span={24}>
-          <Card
-            bordered={false}
-            title={<span style={{ color: '#fff' }}>本月考勤概况</span>}
-            style={{
-              background: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 12,
-            }}
-          >
+          <Card bordered={false} title="本月考勤概况">
             <Row gutter={16}>
               <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#fff', fontSize: 36, fontWeight: 700, marginBottom: 4 }}>15</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)' }}>正常工作日</div>
+                <div className="visualization__summary-item">
+                  <div className="visualization__summary-value tabular-nums">
+                    {attendanceOverview?.total || 0}
+                  </div>
+                  <div className="visualization__summary-label">今日打卡</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#00B42A', fontSize: 36, fontWeight: 700, marginBottom: 4 }}>12.5</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)' }}>总加班(小时)</div>
+                <div className="visualization__summary-item">
+                  <div className="tabular-nums visualization__color-success">
+                    {attendanceOverview?.normal || 0}
+                  </div>
+                  <div className="visualization__summary-label">正常</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#FF7D00', fontSize: 36, fontWeight: 700, marginBottom: 4 }}>5</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)' }}>迟到次数</div>
+                <div className="visualization__summary-item">
+                  <div className="tabular-nums visualization__color-warning">
+                    {(attendanceOverview?.late || 0) + (attendanceOverview?.early || 0)}
+                  </div>
+                  <div className="visualization__summary-label">迟到/早退</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#165DFF', fontSize: 36, fontWeight: 700, marginBottom: 4 }}>2</div>
-                  <div style={{ color: 'rgba(255,255,255,0.6)' }}>请假天数</div>
+                <div className="visualization__summary-item">
+                  <div className="tabular-nums visualization__color-danger">
+                    {attendanceOverview?.absent || 0}
+                  </div>
+                  <div className="visualization__summary-label">旷工</div>
                 </div>
               </Col>
             </Row>

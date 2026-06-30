@@ -1,0 +1,17 @@
+.profile-attendance {
+  padding-bottom: 20px;
+}
+
+.profile-attendance__toolbar {
+  margin-bottom: 16px;
+}
+
+.profile-attendance__select-month {
+  width: 150px;
+}
+
+.profile-attendance__empty {
+  text-align: center;
+  padding: 40px;
+  color: #86909c;
+}

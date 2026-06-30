@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -23,10 +23,14 @@ import {
   IconSettings,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getDepartmentsList, type Department } from '@/api/organization'
+import './style.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
+
+const STORAGE_KEY = 'shift_rules'
 
 interface ShiftRule {
   id: number
@@ -42,20 +46,38 @@ interface ShiftRule {
   createTime: string
 }
 
-const mockData: ShiftRule[] = [
-  { id: 1, name: '技术部班次规则', code: 'TECH_RULE', applicableDept: ['技术部'], applicablePosition: ['全部'], effectiveDate: '2024-01-01', workDayRule: '标准早班', restDayRule: '双休', isAutoAssign: true, status: 'active', createTime: '2024-01-01' },
-  { id: 2, name: '客服部轮班规则', code: 'SERVICE_ROTATE', applicableDept: ['客服部'], applicablePosition: ['客服专员'], effectiveDate: '2024-02-01', workDayRule: '早晚轮班', restDayRule: '调休', isAutoAssign: true, status: 'active', createTime: '2024-01-20' },
-  { id: 3, name: '行政班规则', code: 'ADMIN_RULE', applicableDept: ['人事部', '财务部', '总经办'], applicablePosition: ['全部'], effectiveDate: '2024-01-01', workDayRule: '标准早班', restDayRule: '双休', isAutoAssign: false, status: 'active', createTime: '2024-01-01' },
-  { id: 4, name: '运营部弹性规则', code: 'OPS_FLEX', applicableDept: ['运营部'], applicablePosition: ['全部'], effectiveDate: '2024-03-01', workDayRule: '弹性工作制', restDayRule: '大小周', isAutoAssign: true, status: 'inactive', createTime: '2024-02-25' },
-]
+function loadRules(): ShiftRule[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY)
+    return data ? JSON.parse(data) : []
+  } catch {
+    return []
+  }
+}
+
+function saveRules(rules: ShiftRule[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rules))
+}
 
 function Rule() {
-  const [data, setData] = useState<ShiftRule[]>(mockData)
+  const [data, setData] = useState<ShiftRule[]>([])
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
-  const [filteredData, setFilteredData] = useState<ShiftRule[]>(mockData)
+  const [filteredData, setFilteredData] = useState<ShiftRule[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+
+  useEffect(() => {
+    const rules = loadRules()
+    setData(rules)
+    setFilteredData(rules)
+    getDepartmentsList().then((res: any) => {
+      setDepartments(res.data?.list || [])
+    }).catch(() => {
+      // error handled by interceptor
+    })
+  }, [])
 
   const columns: TableProps<ShiftRule>['columns'] = [
     {
@@ -117,7 +139,7 @@ function Rule() {
     {
       title: '操作',
       width: 150,
-      render: (_: any, record: ShiftRule) => (
+      render: (_: unknown, record: ShiftRule) => (
         <Space size="small">
           <Button
             type="text"
@@ -166,32 +188,36 @@ function Rule() {
   }
 
   const handleDelete = (id: number) => {
-    setData(data.filter((item) => item.id !== id))
-    setFilteredData(filteredData.filter((item) => item.id !== id))
+    const newData = data.filter((item) => item.id !== id)
+    setData(newData)
+    setFilteredData(newData)
+    saveRules(newData)
     Message.success('删除成功')
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
+      let newData: ShiftRule[]
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
+        newData = data.map((item) => (item.id === editingId ? { ...item, ...values } : item))
         Message.success('修改成功')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
+        const newId = data.length > 0 ? Math.max(...data.map((d) => d.id)) + 1 : 1
+        const newRecord: ShiftRule = {
           id: newId,
-          createTime: new Date().toLocaleDateString(),
+          createTime: new Date().toISOString().split('T')[0],
           ...values,
-        } as ShiftRule
-        setData([...data, newRecord])
-        setFilteredData([...filteredData, newRecord])
+        }
+        newData = [...data, newRecord]
         Message.success('新增成功')
       }
+      setData(newData)
+      setFilteredData(newData)
+      saveRules(newData)
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+    } catch {
+      // validation error
     }
   }
 
@@ -213,12 +239,12 @@ function Rule() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="shift-rule">
+      <Card bordered={false} className="shift-rule__toolbar">
         <Form layout="inline">
           <FormItem label="规则名称">
             <Input
-              style={{ width: 200 }}
+              className="shift-rule__toolbar-input"
               placeholder="请输入名称/编码"
               value={searchText}
               onChange={setSearchText}
@@ -239,10 +265,10 @@ function Rule() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="shift-rule__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>班次规则</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
+            <span className="shift-rule__title">班次规则</span>
+            <Tag color="blue" className="shift-rule__tag">
               共 {filteredData.length} 条规则
             </Tag>
           </div>
@@ -259,7 +285,7 @@ function Rule() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="shift-rule__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -283,14 +309,12 @@ function Rule() {
             </Col>
           </Row>
           <FormItem label="适用部门" field="applicableDept">
-            <Select mode="multiple" placeholder="请选择适用部门" style={{ width: '100%' }}>
-              <Option value="总经办">总经办</Option>
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
+            <Select mode="multiple" placeholder="请选择适用部门" className="shift-rule__select-full">
+              {departments.map((dept) => (
+                <Option key={dept.id} value={dept.name}>
+                  {dept.name}
+                </Option>
+              ))}
             </Select>
           </FormItem>
           <Row gutter={16}>

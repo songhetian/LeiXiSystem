@@ -1,0 +1,39 @@
+.role {
+  padding-bottom: 20px;
+}
+
+.role__toolbar {
+  margin-bottom: 16px;
+}
+
+.role__toolbar-input {
+  width: 200px;
+}
+
+.role__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.role__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.role__tag {
+  margin-left: 8px;
+}
+
+.role__bold {
+  font-weight: 600;
+}
+
+.role__modal {
+  width: 520px;
+}
+
+.role__input-full {
+  width: 100%;
+}

@@ -1,0 +1,93 @@
+.vacation-balance {
+  padding-bottom: 20px;
+}
+
+.vacation-balance__search-card {
+  margin-bottom: 16px;
+}
+
+.vacation-balance__search-input {
+  width: 150px;
+}
+
+.vacation-balance__year-select {
+  width: 120px;
+}
+
+.vacation-balance__avatar-card {
+  text-align: center;
+}
+
+.vacation-balance__avatar {
+  margin-bottom: 16px;
+}
+
+.vacation-balance__employee-name {
+  margin-bottom: 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.vacation-balance__employee-no {
+  margin-top: 8px;
+  color: #86909C;
+}
+
+.vacation-balance__table-card {
+  /* default */
+}
+
+.vacation-balance__table-title {
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vacation-balance__overview-card {
+  margin-top: 16px;
+}
+
+.vacation-balance__overview-title {
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vacation-balance__stat-card {
+  text-align: center;
+}
+
+.vacation-balance__stat-value {
+  margin-bottom: 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.vacation-balance__stat-label {
+  color: #86909C;
+  font-size: 12px;
+}
+
+.vacation-balance__progress {
+  width: 100%;
+  max-width: 200px;
+}
+
+.vacation-balance__balance-text {
+  font-weight: 600;
+}
+.vacation-balance__balance-text {
+  font-weight: 600;
+  color: var(--balance-text-color);
+}
+
+.vacation-balance__avatar-icon {
+  font-size: 40px;
+}
+
+.vacation-balance__stat-value {
+  margin-bottom: 4px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--stat-value-color);
+}

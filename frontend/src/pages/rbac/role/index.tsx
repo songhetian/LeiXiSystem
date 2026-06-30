@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
   Input,
+  Select,
   Space,
   Modal,
   Form,
@@ -12,6 +13,7 @@ import {
   Card,
   Tree,
   Grid,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconPlus,
@@ -22,89 +24,62 @@ import {
   IconUser,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getRoles, createRole, updateRole, deleteRole, getPermissionsTree } from '@/api/rbac'
+import type { Role, Permission } from '@/api/rbac'
+import './style.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
+const Option = Select.Option
 
-interface Role {
-  id: number
-  name: string
-  code: string
-  description: string
-  userCount: number
-  status: 'active' | 'inactive'
-  createTime: string
-}
-
-const mockData: Role[] = [
-  { id: 1, name: '超级管理员', code: 'SUPER_ADMIN', description: '系统最高权限，拥有所有功能的访问权限', userCount: 2, status: 'active', createTime: '2024-01-01 00:00' },
-  { id: 2, name: '系统管理员', code: 'ADMIN', description: '负责系统管理和配置', userCount: 5, status: 'active', createTime: '2024-01-01 00:00' },
-  { id: 3, name: '人事主管', code: 'HR_MANAGER', description: '负责人力资源管理', userCount: 3, status: 'active', createTime: '2024-01-15 10:00' },
-  { id: 4, name: '人事专员', code: 'HR_STAFF', description: '负责人事事务处理', userCount: 8, status: 'active', createTime: '2024-01-15 10:30' },
-  { id: 5, name: '部门经理', code: 'DEPT_MANAGER', description: '负责部门日常管理和审批', userCount: 15, status: 'active', createTime: '2024-02-01 09:00' },
-  { id: 6, name: '普通员工', code: 'EMPLOYEE', description: '普通员工基础权限', userCount: 120, status: 'active', createTime: '2024-01-01 00:00' },
-  { id: 7, name: '财务人员', code: 'FINANCE', description: '负责财务相关工作', userCount: 6, status: 'inactive', createTime: '2024-03-01 14:00' },
-]
-
-const permissionTreeData = [
-  {
-    key: 'dashboard',
-    title: '仪表盘',
-    children: [
-      { key: 'dashboard:view', title: '查看仪表盘' },
-    ],
-  },
-  {
-    key: 'personnel',
-    title: '人员管理',
-    children: [
-      { key: 'personnel:view', title: '查看' },
-      { key: 'personnel:add', title: '新增' },
-      { key: 'personnel:edit', title: '编辑' },
-      { key: 'personnel:delete', title: '删除' },
-    ],
-  },
-  {
-    key: 'organization',
-    title: '公司架构',
-    children: [
-      { key: 'organization:view', title: '查看' },
-      { key: 'organization:add', title: '新增' },
-      { key: 'organization:edit', title: '编辑' },
-      { key: 'organization:delete', title: '删除' },
-    ],
-  },
-  {
-    key: 'rbac',
-    title: 'RBAC权限',
-    children: [
-      { key: 'rbac:view', title: '查看' },
-      { key: 'rbac:add', title: '新增' },
-      { key: 'rbac:edit', title: '编辑' },
-      { key: 'rbac:delete', title: '删除' },
-    ],
-  },
-  {
-    key: 'attendance',
-    title: '考勤打卡核算',
-    children: [
-      { key: 'attendance:view', title: '查看' },
-      { key: 'attendance:export', title: '导出' },
-      { key: 'attendance:checkin', title: '打卡管理' },
-    ],
-  },
-]
-
-function Role() {
-  const [data, setData] = useState<Role[]>(mockData)
+function RolePage() {
+  const [data, setData] = useState<Role[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [permVisible, setPermVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [currentRole, setCurrentRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
-  const [filteredData, setFilteredData] = useState<Role[]>(mockData)
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+  const [permissionTree, setPermissionTree] = useState<Permission[]>([])
   const [checkedKeys, setCheckedKeys] = useState<string[]>([])
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getRoles({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+      })
+      setData(res.data.list)
+      setPagination({
+        current: res.data.page,
+        pageSize: res.data.pageSize,
+        total: res.data.total,
+      })
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchPermissionTree = async () => {
+    try {
+      const res = await getPermissionsTree()
+      setPermissionTree(res.data)
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    fetchPermissionTree()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const columns: TableProps<Role>['columns'] = [
     {
@@ -113,10 +88,9 @@ function Role() {
       width: 140,
     },
     {
-      title: '角色编码',
-      dataIndex: 'code',
-      width: 140,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      title: '角色级别',
+      dataIndex: 'level',
+      width: 80,
     },
     {
       title: '角色描述',
@@ -128,28 +102,32 @@ function Role() {
       dataIndex: 'userCount',
       width: 80,
       render: (value: number) => (
-        <span style={{ fontWeight: 600 }}>{value}</span>
+        <span className="role__bold">{value}</span>
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
+      title: '权限数',
+      dataIndex: 'permissionCount',
+      width: 80,
+    },
+    {
+      title: '系统角色',
+      dataIndex: 'isSystem',
       width: 90,
-      render: (value: string) => (
-        <Tag color={value === 'active' ? 'green' : 'gray'}>
-          {value === 'active' ? '启用' : '停用'}
-        </Tag>
+      render: (value: boolean) => (
+        <Tag color={value ? 'gold' : 'gray'}>{value ? '是' : '否'}</Tag>
       ),
     },
     {
       title: '创建时间',
-      dataIndex: 'createTime',
+      dataIndex: 'createdAt',
       width: 160,
+      render: (value: string) => (value ? new Date(value).toLocaleString() : '-'),
     },
     {
       title: '操作',
       width: 200,
-      render: (_: any, record: Role) => (
+      render: (_: unknown, record: Role) => (
         <Space size="small">
           <Button
             type="text"
@@ -167,20 +145,22 @@ function Role() {
           >
             编辑
           </Button>
-          <Popconfirm
-            title="确认删除"
-            content="确定要删除该角色吗？"
-            onOk={() => handleDelete(record.id)}
-          >
-            <Button
-              type="text"
-              size="small"
-              status="danger"
-              icon={<IconDelete />}
+          {!record.isSystem && (
+            <Popconfirm
+              title="确认删除"
+              content="确定要删除该角色吗？"
+              onOk={() => handleDelete(record.id)}
             >
-              删除
-            </Button>
-          </Popconfirm>
+              <Button
+                type="text"
+                size="small"
+                status="danger"
+                icon={<IconDelete />}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -194,76 +174,99 @@ function Role() {
 
   const handleEdit = (record: Role) => {
     setEditingId(record.id)
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      name: record.name,
+      description: record.description,
+      level: record.level,
+      canViewAllDepts: record.canViewAllDepts,
+    })
     setVisible(true)
   }
 
   const handlePermission = (record: Role) => {
     setCurrentRole(record)
-    setCheckedKeys(['dashboard:view', 'personnel:view'])
+    setCheckedKeys(record.permissions || [])
     setPermVisible(true)
   }
 
-  const handleDelete = (id: number) => {
-    setData(data.filter((item) => item.id !== id))
-    setFilteredData(filteredData.filter((item) => item.id !== id))
-    Message.success('删除成功')
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteRole(id)
+      Message.success('删除成功')
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
+      const payload = {
+        ...values,
+        canViewAllDepts: values.canViewAllDepts === 'true',
+      }
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
+        await updateRole(editingId, payload)
         Message.success('修改成功')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          userCount: 0,
-          createTime: new Date().toLocaleString(),
-          ...values,
-        } as Role
-        setData([...data, newRecord])
-        setFilteredData([...filteredData, newRecord])
+        await createRole(payload)
         Message.success('新增成功')
       }
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
     }
   }
 
-  const handlePermOk = () => {
-    Message.success('权限保存成功')
-    setPermVisible(false)
+  const handlePermOk = async () => {
+    if (!currentRole) return
+    try {
+      await updateRole(currentRole.id, {
+        permissions: checkedKeys.map((k) => parseInt(k)),
+      })
+      Message.success('权限保存成功')
+      setPermVisible(false)
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.name.includes(searchText) ||
-          item.code.includes(searchText),
-      )
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
-    setFilteredData(data)
+    fetchData(1, pagination.pageSize)
   }
 
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
+  }
+
+  const treeData = permissionTree.map((p) => ({
+    key: String(p.id),
+    title: p.name,
+    children: p.children?.map((c) => ({
+      key: String(c.id),
+      title: c.name,
+      children: c.children?.map((cc) => ({
+        key: String(cc.id),
+        title: cc.name,
+      })),
+    })),
+  }))
+
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="role">
+      <Card bordered={false} className="role__toolbar">
         <Form layout="inline">
           <FormItem label="角色名称">
             <Input
-              style={{ width: 200 }}
+              className="role__toolbar-input"
               placeholder="请输入角色名称"
               value={searchText}
               onChange={setSearchText}
@@ -284,11 +287,11 @@ function Role() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="role__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>角色列表</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 个角色
+            <span className="role__title">角色列表</span>
+            <Tag color="blue" className="role__tag">
+              共 {pagination.total} 个角色
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -296,7 +299,18 @@ function Role() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
@@ -304,7 +318,7 @@ function Role() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 520 }}
+        className="role__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -319,19 +333,22 @@ function Role() {
             </Col>
             <Col span={12}>
               <FormItem
-                label="角色编码"
-                field="code"
-                rules={[{ required: true, message: '请输入角色编码' }]}
+                label="角色级别"
+                field="level"
+                initialValue={1}
               >
-                <Input placeholder="请输入角色编码" />
+                <Input type="number" min={1} max={99} className="role__input-full" />
               </FormItem>
             </Col>
           </Row>
           <FormItem label="角色描述" field="description">
             <Input.TextArea placeholder="请输入角色描述" rows={3} />
           </FormItem>
-          <FormItem label="状态" field="status" initialValue="active">
-            <Input placeholder="状态" />
+          <FormItem label="可查看所有部门" field="canViewAllDepts" initialValue="false">
+            <Select>
+              <Option value="true">是</Option>
+              <Option value="false">否</Option>
+            </Select>
           </FormItem>
         </Form>
       </Modal>
@@ -341,18 +358,19 @@ function Role() {
         visible={permVisible}
         onOk={handlePermOk}
         onCancel={() => setPermVisible(false)}
-        style={{ width: 520 }}
+        className="role__modal"
       >
-        <Tree
-          checkable
-          checkedKeys={checkedKeys}
-          onCheck={setCheckedKeys as any}
-          treeData={permissionTreeData}
-          defaultExpandedKeys={permissionTreeData.map((item) => item.key)}
-        />
+        <Spin loading={permissionTree.length === 0}>
+          <Tree
+            checkable
+            checkedKeys={checkedKeys}
+            onCheck={setCheckedKeys}
+            treeData={treeData}
+          />
+        </Spin>
       </Modal>
     </div>
   )
 }
 
-export default Role
+export default RolePage

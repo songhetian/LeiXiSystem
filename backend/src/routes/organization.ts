@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
 import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { getDepartmentTree, invalidateDepartmentCache } from '../services/cacheService'
 
 const orgListQuerySchema = z.object({
   keyword: optionalKeywordSchema,
@@ -53,6 +54,17 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
 
   fastify.get('/departments', async () => {
+    const cacheKey = 'hr:org:departments:tree:full'
+    const { getJSON, setJSON, isAvailable } = await import('../utils/cache')
+    const { CACHE_TTL } = await import('../types/cache')
+
+    if (isAvailable()) {
+      const cached = await getJSON<any[]>(cacheKey)
+      if (cached) {
+        return { code: 0, data: cached }
+      }
+    }
+
     const departments = await prisma.department.findMany({
       where: { status: { not: 'deleted' } },
       orderBy: { sortOrder: 'asc' },
@@ -75,7 +87,12 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
         }))
     }
 
-    return { code: 0, data: buildTree(null) }
+    const tree = buildTree(null)
+    if (isAvailable()) {
+      setJSON(cacheKey, tree, CACHE_TTL.DEPARTMENTS_TREE)
+    }
+
+    return { code: 0, data: tree }
   })
 
   fastify.get('/departments/list', async (request: FastifyRequest<{
@@ -123,6 +140,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
       },
     })
 
+    invalidateDepartmentCache()
     return { code: 0, message: '创建成功', data: dept }
   })
 
@@ -145,6 +163,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
       },
     })
 
+    invalidateDepartmentCache()
     return { code: 0, message: '更新成功' }
   })
 
@@ -166,7 +185,59 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
       data: { status: 'deleted' },
     })
 
+    invalidateDepartmentCache()
     return { code: 0, message: '删除成功' }
+  })
+
+  // 批量删除部门
+  fastify.post('/departments/batch-delete', { preHandler: [requirePermission('department:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个部门'),
+    }), request.body)
+
+    const hasChildren = await prisma.department.count({
+      where: { parentId: { in: ids }, status: { not: 'deleted' } },
+    })
+
+    if (hasChildren > 0) {
+      return { code: 400, message: '选中的部门下还有子部门，无法批量删除' }
+    }
+
+    const { count } = await prisma.department.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'deleted' },
+    })
+
+    invalidateDepartmentCache()
+    return {
+      code: 0,
+      message: `成功删除 ${count} 个部门`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
+  })
+
+  // 批量更新部门状态
+  fastify.post('/departments/batch-status', { preHandler: [requirePermission('department:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids, status } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个部门'),
+      status: statusSchema,
+    }), request.body)
+
+    const { count } = await prisma.department.updateMany({
+      where: { id: { in: ids } },
+      data: { status },
+    })
+
+    invalidateDepartmentCache()
+    return {
+      code: 0,
+      message: `成功更新 ${count} 个部门状态`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
   })
 
   fastify.get('/positions', async (request: FastifyRequest<{
@@ -267,5 +338,46 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     })
 
     return { code: 0, message: '删除成功' }
+  })
+
+  // 批量删除职位
+  fastify.post('/positions/batch-delete', { preHandler: [requirePermission('position:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个职位'),
+    }), request.body)
+
+    const { count } = await prisma.position.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'deleted' },
+    })
+
+    return {
+      code: 0,
+      message: `成功删除 ${count} 个职位`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
+  })
+
+  // 批量更新职位状态
+  fastify.post('/positions/batch-status', { preHandler: [requirePermission('position:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const { ids, status } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个职位'),
+      status: statusSchema,
+    }), request.body)
+
+    const { count } = await prisma.position.updateMany({
+      where: { id: { in: ids } },
+      data: { status },
+    })
+
+    return {
+      code: 0,
+      message: `成功更新 ${count} 个职位状态`,
+      data: { successCount: count, failedCount: ids.length - count },
+    }
   })
 }

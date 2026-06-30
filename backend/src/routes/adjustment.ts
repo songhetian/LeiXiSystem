@@ -3,14 +3,18 @@ import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { hasPermission, requireAnyPermission, requirePermission } from '../middleware/permission'
+import { getAccessibleLeaveRequest, getAccessibleOvertimeRequest } from '../services/objectAuthorization'
 import { recalculateAttendanceRange } from '../services/attendanceCalculation'
 import { normalizePagination } from '../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, statusSchema, timeSchema, validateData } from '../utils/validation'
+import { opinionSchema, leaveStatusSchema, overtimeStatusSchema, adjustmentStatusSchema } from '../utils/schemas'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, timeSchema, validateData } from '../utils/validation'
+import { enqueueNotification, enqueueNotifications } from '../plugins/notification'
+import type { SendNotificationInput } from '../services/notification'
 
 const leaveListQuerySchema = z.object({
   page: z.unknown().optional(),
   pageSize: z.unknown().optional(),
-  status: statusSchema,
+  status: leaveStatusSchema,
   leaveType: z.string().trim().max(50).optional(),
   departmentId: z.coerce.number().int().positive().optional(),
   keyword: optionalKeywordSchema,
@@ -19,7 +23,7 @@ const leaveListQuerySchema = z.object({
 const overtimeListQuerySchema = z.object({
   page: z.unknown().optional(),
   pageSize: z.unknown().optional(),
-  status: statusSchema,
+  status: overtimeStatusSchema,
   overtimeType: z.string().trim().max(50).optional(),
   departmentId: z.coerce.number().int().positive().optional(),
   keyword: optionalKeywordSchema,
@@ -42,10 +46,8 @@ const overtimeApplySchema = z.object({
   endTime: timeSchema,
   hours: z.coerce.number().positive().max(24),
   reason: z.string().trim().min(1).max(1000),
-})
-
-const opinionSchema = z.object({
-  opinion: z.string().trim().max(1000).optional(),
+}).refine((value) => value.endTime > value.startTime, {
+  message: '结束时间必须晚于开始时间',
 })
 
 export default async function adjustmentRoutes(fastify: FastifyInstance) {
@@ -123,10 +125,42 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
 
     const employee = await prisma.employee.findUnique({
       where: { userId },
+      include: { user: { select: { realName: true } } },
     })
 
     if (!employee) {
       return { code: 400, message: '员工信息不存在' }
+    }
+
+    // leaveType 存储的是 VacationType.code，需要先查找 VacationType 得到 id
+    const vacationType = await prisma.vacationType.findUnique({ where: { code: body.leaveType } })
+    if (!vacationType) {
+      return { code: 400, message: '假期类型不存在' }
+    }
+
+    // 检查假期余额（警告提示，不阻止申请）
+    const year = new Date(body.startDate).getFullYear()
+    const balance = await prisma.vacationBalance.findUnique({
+      where: { employeeId_vacationTypeId_year: { employeeId: employee.id, vacationTypeId: vacationType.id, year } },
+      include: { vacationType: true },
+    })
+    const balanceNum = balance ? Number(balance.balance) : 0
+    if (balance && balanceNum < body.days) {
+      // 余额不足仍可提交申请，但提示审批人注意
+      await prisma.leaveRequest.create({
+        data: {
+          userId,
+          employeeId: employee.id,
+          leaveType: body.leaveType,
+          startDate: new Date(body.startDate),
+          endDate: new Date(body.endDate),
+          days: body.days,
+          reason: `[余额不足警告] ${body.reason || ''}`,
+          status: 'pending',
+          currentStep: 0,
+        },
+      })
+      return { code: 0, message: '申请已提交（余额不足，请注意审批）', data: null }
     }
 
     const leave = await prisma.leaveRequest.create({
@@ -143,6 +177,31 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
       },
     })
 
+    // 通知审批人
+    const approvers = await prisma.user.findMany({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              rolePermissions: {
+                some: { permission: { code: 'vacation:manage' } },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    })
+    const notifications: SendNotificationInput[] = approvers.map((approver) => ({
+      userId: approver.id,
+      title: '新的请假申请待审批',
+      content: `${employee.user?.realName || '员工'} 提交了 ${body.days} 天 ${vacationType.name} 申请，请及时审批。`,
+      type: 'approval',
+      relatedId: leave.id,
+      relatedType: 'leave_request',
+    }))
+    enqueueNotifications(request, notifications)
+
     return { code: 0, message: '申请成功', data: leave }
   })
 
@@ -151,21 +210,20 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
 
-    const leave = await prisma.leaveRequest.findUnique({
-      where: { id },
-      include: {
-        employee: { include: { user: { include: { department: true } } } },
-        approvalRecords: { orderBy: { approvedAt: 'asc' } },
-      },
-    })
+    const leave = await getAccessibleLeaveRequest(
+      request.user,
+      () => prisma.leaveRequest.findUnique({
+        where: { id },
+        include: {
+          employee: { include: { user: { include: { department: true } } } },
+          approvalRecords: { orderBy: { approvedAt: 'asc' } },
+        },
+      }),
+      (item) => item.id,
+    )
 
     if (!leave) {
       return { code: 404, message: '请假申请不存在' }
-    }
-
-    const canViewAll = hasPermission(request, 'approval:view') || hasPermission(request, 'vacation:manage')
-    if (!canViewAll && leave.userId !== request.user.id) {
-      return { code: 403, message: '没有权限查看该请假申请' }
     }
 
     return {
@@ -194,7 +252,40 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
 
-    const leave = await prisma.leaveRequest.update({
+    const leave = await prisma.leaveRequest.findUnique({
+      where: { id, userId: request.user.id },
+      include: { employee: true },
+    })
+    if (!leave) return { code: 404, message: '请假申请不存在' }
+    if (leave.status === 'cancelled') return { code: 400, message: '已取消' }
+    if (leave.status === 'rejected') return { code: 400, message: '已驳回无法取消' }
+
+    // 如果已批准，需要恢复假期余额
+    if (leave.status === 'approved') {
+      const year = new Date(leave.startDate).getFullYear()
+      // leave.leaveType 是 VacationType.code，需要先查找 VacationType 得到 id
+      const vacationType = await prisma.vacationType.findUnique({ where: { code: leave.leaveType } })
+      if (vacationType) {
+        const balance = await prisma.vacationBalance.findUnique({
+          where: { employeeId_vacationTypeId_year: { employeeId: leave.employeeId, vacationTypeId: vacationType.id, year } },
+        })
+        if (balance) {
+          const daysNum = Number(leave.days)
+          const usedNum = Number(balance.used)
+          const totalNum = Number(balance.total)
+          const balNum = Number(balance.balance)
+          await prisma.vacationBalance.update({
+            where: { id: balance.id },
+            data: {
+              used: Math.max(0, usedNum - daysNum),
+              balance: Math.min(totalNum, balNum + daysNum),
+            },
+          })
+        }
+      }
+    }
+
+    await prisma.leaveRequest.update({
       where: { id, userId: request.user.id },
       data: { status: 'cancelled' },
     })
@@ -216,7 +307,40 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
     const { id } = validateData(idParamsSchema, request.params)
     const { opinion } = validateData(opinionSchema, request.body || {})
 
-    const leave = await prisma.leaveRequest.update({
+    // 查找请假单
+    const leave = await prisma.leaveRequest.findUnique({
+      where: { id },
+      include: { employee: true },
+    })
+    if (!leave) return { code: 404, message: '请假申请不存在' }
+    if (leave.status !== 'pending') return { code: 400, message: '只能审批待审批状态的请假' }
+
+    // leave.leaveType 是 VacationType.code，需要先查找 VacationType 得到 id
+    const vacationType = await prisma.vacationType.findUnique({ where: { code: leave.leaveType } })
+    if (!vacationType) return { code: 400, message: '假期类型不存在' }
+
+    // 扣减假期余额
+    const year = new Date(leave.startDate).getFullYear()
+    const balance = await prisma.vacationBalance.findUnique({
+      where: { employeeId_vacationTypeId_year: { employeeId: leave.employeeId, vacationTypeId: vacationType.id, year } },
+    })
+    if (balance) {
+      const daysNum = Number(leave.days)
+      const usedNum = Number(balance.used)
+      const totalNum = Number(balance.total)
+      const balNum = Number(balance.balance)
+      const newUsed = usedNum + daysNum
+      const newBalance = totalNum - newUsed
+      if (newBalance < 0) {
+        return { code: 400, message: `余额不足，该假期类型剩余${balNum}天，申请${daysNum}天` }
+      }
+      await prisma.vacationBalance.update({
+        where: { id: balance.id },
+        data: { used: newUsed, balance: Math.max(0, newBalance) },
+      })
+    }
+
+    await prisma.leaveRequest.update({
       where: { id },
       data: { status: 'approved', currentStep: 100 },
     })
@@ -238,6 +362,15 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
       operatorId: request.user.id,
     })
 
+    enqueueNotification(request, {
+      userId: leave.userId,
+      title: '请假申请已通过',
+      content: `您的 ${leave.leaveType} 请假申请（${leave.days}天）已审批通过。`,
+      type: 'approval',
+      relatedId: leave.id,
+      relatedType: 'leave_request',
+    })
+
     return { code: 0, message: '审批通过' }
   })
 
@@ -247,6 +380,12 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const { opinion } = validateData(opinionSchema, request.body || {})
+
+    const leave = await prisma.leaveRequest.findUnique({
+      where: { id },
+      select: { id: true, userId: true, leaveType: true, days: true },
+    })
+    if (!leave) return { code: 404, message: '请假申请不存在' }
 
     await prisma.leaveRequest.update({
       where: { id },
@@ -263,7 +402,141 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
       },
     })
 
+    enqueueNotification(request, {
+      userId: leave.userId,
+      title: '请假申请已驳回',
+      content: `您的 ${leave.leaveType} 请假申请已被驳回${opinion ? `：${opinion}` : ''}`,
+      type: 'approval',
+      relatedId: leave.id,
+      relatedType: 'leave_request',
+    })
+
     return { code: 0, message: '已驳回' }
+  })
+
+  // 批量审批请假申请
+  fastify.post('/leave/batch-approve', { preHandler: [requirePermission('approval:view')] }, async (request: FastifyRequest<{
+    Body: { ids: number[]; opinion?: string }
+  }>) => {
+    const { ids, opinion } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个请假申请'),
+      opinion: z.string().trim().max(1000).optional(),
+    }), request.body)
+    const opinionValue: string | null = (opinion as string | undefined) ?? null
+
+    const leaves = await prisma.leaveRequest.findMany({
+      where: { id: { in: ids }, status: 'pending' },
+      include: { employee: true },
+    })
+
+    let successCount = 0
+    for (const leave of leaves) {
+      try {
+        // 查找假期类型
+        const vacationType = await prisma.vacationType.findUnique({ where: { code: leave.leaveType } })
+        if (!vacationType) continue
+
+        // 扣减假期余额
+        const year = new Date(leave.startDate).getFullYear()
+        const balance = await prisma.vacationBalance.findUnique({
+          where: { employeeId_vacationTypeId_year: { employeeId: leave.employeeId, vacationTypeId: vacationType.id, year } },
+        })
+        if (balance) {
+          const daysNum = Number(leave.days)
+          const usedNum = Number(balance.used)
+          const totalNum = Number(balance.total)
+          const newUsed = usedNum + daysNum
+          const newBalance = totalNum - newUsed
+          if (newBalance >= 0) {
+            await prisma.vacationBalance.update({
+              where: { id: balance.id },
+              data: { used: newUsed, balance: Math.max(0, newBalance) },
+            })
+          }
+        }
+
+        await prisma.leaveRequest.update({
+          where: { id: leave.id },
+          data: { status: 'approved', currentStep: 100 },
+        })
+
+        await prisma.leaveApprovalRecord.create({
+          data: {
+            leaveId: leave.id,
+            approverId: request.user.id,
+            action: 'approve',
+            opinion: opinionValue,
+            nodeOrder: 1,
+          },
+        })
+
+        enqueueNotification(request, {
+          userId: leave.userId,
+          title: '请假申请已通过',
+          content: `您的 ${leave.leaveType} 请假申请已通过${opinion ? `：${opinion}` : ''}`,
+          type: 'approval',
+          relatedId: leave.id,
+          relatedType: 'leave_request',
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    return { code: 0, message: `成功批准 ${successCount} 个请假申请`, data: { successCount, total: ids.length } }
+  })
+
+  // 批量驳回请假申请
+  fastify.post('/leave/batch-reject', { preHandler: [requirePermission('approval:view')] }, async (request: FastifyRequest<{
+    Body: { ids: number[]; opinion?: string }
+  }>) => {
+    const { ids, opinion } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个请假申请'),
+      opinion: z.string().trim().max(1000).optional(),
+    }), request.body)
+    const opinionValue: string | null = (opinion as string | undefined) ?? null
+
+    const leaves = await prisma.leaveRequest.findMany({
+      where: { id: { in: ids }, status: 'pending' },
+      select: { id: true, userId: true, leaveType: true },
+    })
+
+    let successCount = 0
+    for (const leave of leaves) {
+      try {
+        await prisma.leaveRequest.update({
+          where: { id: leave.id },
+          data: { status: 'rejected' },
+        })
+
+        await prisma.leaveApprovalRecord.create({
+          data: {
+            leaveId: leave.id,
+            approverId: request.user.id,
+            action: 'reject',
+            opinion: opinionValue,
+            nodeOrder: 1,
+          },
+        })
+
+        enqueueNotification(request, {
+          userId: leave.userId,
+          title: '请假申请已驳回',
+          content: `您的 ${leave.leaveType} 请假申请已被驳回${opinionValue ? `：${opinionValue}` : ''}`,
+          type: 'approval',
+          relatedId: leave.id,
+          relatedType: 'leave_request',
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    return { code: 0, message: `成功驳回 ${successCount} 个请假申请`, data: { successCount, total: ids.length } }
   })
 
   fastify.get('/overtime', async (request: FastifyRequest<{
@@ -366,20 +639,19 @@ export default async function adjustmentRoutes(fastify: FastifyInstance) {
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
 
-    const overtime = await prisma.overtimeRequest.findUnique({
-      where: { id },
-      include: {
-        employee: { include: { user: { include: { department: true } } } },
-      },
-    })
+    const overtime = await getAccessibleOvertimeRequest(
+      request.user,
+      () => prisma.overtimeRequest.findUnique({
+        where: { id },
+        include: {
+          employee: { include: { user: { include: { department: true } } } },
+        },
+      }),
+      (item) => item.id,
+    )
 
     if (!overtime) {
       return { code: 404, message: '加班申请不存在' }
-    }
-
-    const canViewAll = hasPermission(request, 'approval:view') || hasPermission(request, 'attendance:calculate')
-    if (!canViewAll && overtime.userId !== request.user.id) {
-      return { code: 403, message: '没有权限查看该加班申请' }
     }
 
     return {

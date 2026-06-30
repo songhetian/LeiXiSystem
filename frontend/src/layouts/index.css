@@ -7,10 +7,10 @@
   border-bottom: 1px solid var(--color-border-2);
 }
 
-.sider-logo-icon {
+.sider-logo__icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, #165dff 0%, #4080ff 100%);
+  background: #165dff;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -21,8 +21,48 @@
   flex-shrink: 0;
 }
 
-.sider-logo-text {
+.sider-logo__text {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text-1);
+}
+
+.layout-wrapper {
+  height: 100vh;
+}
+
+.layout-header {
+  background: #fff;
+  padding: 0 20px;
+}
+
+.layout-header__content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+}
+
+.layout-header__menu-toggle {
+  cursor: pointer;
+  font-size: 18px;
+  color: #4e5969;
+}
+
+.layout-header__icon {
+  cursor: pointer;
+  font-size: 18px;
+  color: #4e5969;
+}
+
+.layout-header__user-menu {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.layout-content {
+  padding: 20px;
+  background-color: var(--color-fill-3);
+  overflow: auto;
 }

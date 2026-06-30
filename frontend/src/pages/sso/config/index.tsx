@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Card,
   Form,
@@ -9,26 +9,89 @@ import {
   Tabs,
   Input,
   Select,
-  Tag,
 } from '@arco-design/web-react'
-import {
-  IconSettings,
-} from '@arco-design/web-react/icon'
+import './style.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
 
+const STORAGE_KEY = 'sso_config'
+
+interface SsoConfig {
+  ssoEnabled: boolean
+  protocol: string
+  loginUrl: string
+  callbackUrl: string
+  logoutUrl: string
+  clientId: string
+  clientSecret: string
+  defaultRole: string
+  ldapUrl: string
+  adminDn: string
+  adminPassword: string
+  userBaseDn: string
+  userObjectClass: string
+  usernameAttribute: string
+  emailAttribute: string
+  usernameMapping: string
+  nameMapping: string
+  emailMapping: string
+  phoneMapping: string
+  deptMapping: string
+}
+
+const defaultConfig: SsoConfig = {
+  ssoEnabled: false,
+  protocol: 'oauth2',
+  loginUrl: '',
+  callbackUrl: '',
+  logoutUrl: '',
+  clientId: '',
+  clientSecret: '',
+  defaultRole: 'employee',
+  ldapUrl: '',
+  adminDn: '',
+  adminPassword: '',
+  userBaseDn: '',
+  userObjectClass: 'inetOrgPerson',
+  usernameAttribute: 'uid',
+  emailAttribute: 'mail',
+  usernameMapping: 'username',
+  nameMapping: 'displayName',
+  emailMapping: 'email',
+  phoneMapping: 'mobile',
+  deptMapping: 'department',
+}
+
+function loadConfig(): SsoConfig {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY)
+    return data ? { ...defaultConfig, ...JSON.parse(data) } : defaultConfig
+  } catch {
+    return defaultConfig
+  }
+}
+
+function saveConfig(config: SsoConfig) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+}
+
 function ConfigPage() {
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    const config = loadConfig()
+    form.setFieldsValue(config)
+  }, [form])
 
   const handleSave = async () => {
     try {
       const values = await form.validate()
-      console.log('SSO配置:', values)
+      saveConfig(values)
       Message.success('保存成功')
-    } catch (e) {
-      console.error(e)
+    } catch {
+      // validation error
     }
   }
 
@@ -37,11 +100,11 @@ function ConfigPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="sso-config">
       <Card bordered={false}>
         <Tabs defaultActiveTab="basic">
           <TabPane key="basic" title="基础配置">
-            <Form form={form} layout="vertical" style={{ maxWidth: 700 }}>
+            <Form form={form} layout="vertical" className="sso-config__form">
               <FormItem label="SSO 开关" field="ssoEnabled" initialValue={false}>
                 <Switch />
               </FormItem>
@@ -79,7 +142,7 @@ function ConfigPage() {
           </TabPane>
 
           <TabPane key="ldap" title="LDAP配置">
-            <Form form={form} layout="vertical" style={{ maxWidth: 700 }}>
+            <Form form={form} layout="vertical" className="sso-config__form">
               <FormItem label="LDAP 服务器地址" field="ldapUrl">
                 <Input placeholder="ldap://ldap.example.com:389" />
               </FormItem>
@@ -105,7 +168,7 @@ function ConfigPage() {
           </TabPane>
 
           <TabPane key="mapping" title="属性映射">
-            <Form form={form} layout="vertical" style={{ maxWidth: 700 }}>
+            <Form form={form} layout="vertical" className="sso-config__form">
               <FormItem label="用户名映射" field="usernameMapping">
                 <Input placeholder="username" />
               </FormItem>
@@ -125,7 +188,7 @@ function ConfigPage() {
           </TabPane>
         </Tabs>
 
-        <div style={{ marginTop: 32, textAlign: 'center' }}>
+        <div className="sso-config__footer">
           <Space size="large">
             <Button onClick={handleTest}>测试连接</Button>
             <Button type="primary" onClick={handleSave}>保存配置</Button>

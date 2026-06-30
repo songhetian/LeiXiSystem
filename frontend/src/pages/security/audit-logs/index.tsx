@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
 import { getAuditLogDetail, getAuditLogs } from '@/api/security'
+import './audit-logs.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
@@ -15,19 +16,20 @@ const moduleColor: Record<string, string> = {
 }
 
 function AuditLogsPage() {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<{ id: number; createdAt: string; username: string; module: string; action: string; ipAddress?: string; status: string; requestSummary?: string }[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState<any>({})
-  const [detail, setDetail] = useState<any>(null)
+  const [filters, setFilters] = useState<Record<string, string>>( {})
+  const [detail, setDetail] = useState<{ id: number; createdAt: string; username?: string; module: string; action: string; ipAddress?: string; status: string; requestData?: Record<string, unknown>; responseData?: Record<string, unknown>; userAgent?: string } | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [form] = Form.useForm()
 
   const loadData = async (nextPage = page, nextFilters = filters) => {
     setLoading(true)
     try {
-      const res: any = await getAuditLogs({ page: nextPage, pageSize: 20, ...nextFilters })
+      const res = await getAuditLogs({ page: nextPage, pageSize: 20, ...nextFilters })
       setData(res.data?.list || [])
       setTotal(res.data?.total || 0)
       setPage(nextPage)
@@ -53,24 +55,25 @@ function AuditLogsPage() {
 
   const openDetail = async (record: any) => {
     setVisible(true)
-    setDetail({ ...record, loading: true })
-    const res: any = await getAuditLogDetail(record.id)
+    setDetailLoading(true)
+    const res = await getAuditLogDetail(record.id)
     setDetail(res.data)
+    setDetailLoading(false)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="security-audit-logs">
+      <Card bordered={false} className="security-audit-logs__header-card">
         <Space direction="vertical" size={4}>
-          <Title heading={5} style={{ margin: 0 }}>安全审计日志</Title>
+          <Title heading={5} className="security-audit-logs__header-title">安全审计日志</Title>
           <Text type="secondary">集中查看登录、打卡、薪资、工资条查看、权限变更等敏感操作，敏感字段已在后端脱敏。</Text>
         </Space>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="security-audit-logs__header-card">
         <Form form={form} layout="inline">
           <FormItem label="模块" field="module">
-            <Select style={{ width: 140 }} allowClear placeholder="全部模块">
+            <Select className="security-audit-logs__search-select" allowClear placeholder="全部模块">
               <Option value="payroll">薪资</Option>
               <Option value="attendance">考勤</Option>
               <Option value="auth">认证</Option>
@@ -79,10 +82,10 @@ function AuditLogsPage() {
             </Select>
           </FormItem>
           <FormItem label="动作" field="action">
-            <Input style={{ width: 180 }} placeholder="例如 payslip" allowClear />
+            <Input className="security-audit-logs__search-input" placeholder="例如 payslip" allowClear />
           </FormItem>
           <FormItem label="用户" field="username">
-            <Input style={{ width: 160 }} placeholder="用户名" allowClear />
+            <Input className="security-audit-logs__search-input--sm" placeholder="用户名" allowClear />
           </FormItem>
           <FormItem>
             <Space>
@@ -145,11 +148,11 @@ function AuditLogsPage() {
         visible={visible}
         footer={null}
         onCancel={() => setVisible(false)}
-        style={{ width: 860 }}
+        className="security-audit-logs__modal"
       >
-        {detail?.loading && <Text type="secondary">正在加载详情...</Text>}
-        {detail && !detail.loading && (
-          <Space direction="vertical" style={{ width: '100%' }}>
+        {detailLoading && <Text type="secondary">正在加载详情...</Text>}
+        {detail && !detailLoading && (
+          <Space direction="vertical" className="security-audit-logs__modal-content">
             <Descriptions
               column={2}
               data={[
@@ -161,19 +164,19 @@ function AuditLogsPage() {
                 { label: '状态', value: detail.status },
               ]}
             />
-            <Typography.Text style={{ fontWeight: 600 }}>请求数据</Typography.Text>
+            <Typography.Text className="security-audit-logs__section-title">请求数据</Typography.Text>
             <Input.TextArea
               value={JSON.stringify(detail.requestData || {}, null, 2)}
               autoSize={{ minRows: 5, maxRows: 10 }}
               readOnly
             />
-            <Typography.Text style={{ fontWeight: 600 }}>响应数据</Typography.Text>
+            <Typography.Text className="security-audit-logs__section-title">响应数据</Typography.Text>
             <Input.TextArea
               value={JSON.stringify(detail.responseData || {}, null, 2)}
               autoSize={{ minRows: 5, maxRows: 10 }}
               readOnly
             />
-            <Typography.Text style={{ fontWeight: 600 }}>User-Agent</Typography.Text>
+            <Typography.Text className="security-audit-logs__section-title">User-Agent</Typography.Text>
             <Input.TextArea
               value={detail.userAgent || '-'}
               autoSize={{ minRows: 2, maxRows: 4 }}

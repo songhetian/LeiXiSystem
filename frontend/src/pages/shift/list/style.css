@@ -1,0 +1,43 @@
+.shift-list {
+  padding-bottom: 20px;
+}
+
+.shift-list__toolbar {
+  margin-bottom: 16px;
+}
+
+.shift-list__toolbar-input {
+  width: 180px;
+}
+
+.shift-list__toolbar-select {
+  width: 120px;
+}
+
+.shift-list__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shift-list__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.shift-list__tag {
+  margin-left: 8px;
+}
+
+.shift-list__modal {
+  width: 760px;
+}
+
+.shift-list__input-full {
+  width: 100%;
+}
+
+.shift-list__select {
+  width: 120px;
+}

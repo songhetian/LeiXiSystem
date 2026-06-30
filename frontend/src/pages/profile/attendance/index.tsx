@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import './index.css';
 import {
   Card,
   Table,
@@ -8,43 +9,24 @@ import {
   Statistic,
   Select,
   Form,
-  Button,
   Tabs,
   Calendar,
   Badge,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconCalendar,
   IconClockCircle,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import type { Dayjs } from 'dayjs'
+import { getAttendanceRecords } from '@/api/attendance'
+import type { AttendanceRecord } from '@/api/attendance'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
-
-interface MyAttendanceRecord {
-  id: number
-  date: string
-  dayOfWeek: string
-  shift: string
-  checkIn: string
-  checkOut: string
-  workHours: number
-  status: 'normal' | 'late' | 'early' | 'absent' | 'leave' | 'weekend'
-}
-
-const mockRecords: MyAttendanceRecord[] = [
-  { id: 1, date: '2024-06-24', dayOfWeek: '周一', shift: '标准早班', checkIn: '08:55', checkOut: '18:10', workHours: 8.25, status: 'normal' },
-  { id: 2, date: '2024-06-21', dayOfWeek: '周五', shift: '标准早班', checkIn: '09:12', checkOut: '18:05', workHours: 7.8, status: 'late' },
-  { id: 3, date: '2024-06-20', dayOfWeek: '周四', shift: '标准早班', checkIn: '08:50', checkOut: '17:30', workHours: 7.5, status: 'early' },
-  { id: 4, date: '2024-06-19', dayOfWeek: '周三', shift: '标准早班', checkIn: '09:00', checkOut: '18:00', workHours: 8, status: 'normal' },
-  { id: 5, date: '2024-06-18', dayOfWeek: '周二', shift: '标准早班', checkIn: '08:58', checkOut: '18:02', workHours: 8.07, status: 'normal' },
-  { id: 6, date: '2024-06-17', dayOfWeek: '周一', shift: '标准早班', checkIn: '09:05', checkOut: '18:00', workHours: 7.92, status: 'late' },
-  { id: 7, date: '2024-06-16', dayOfWeek: '周日', shift: '休息', checkIn: '-', checkOut: '-', workHours: 0, status: 'weekend' },
-  { id: 8, date: '2024-06-15', dayOfWeek: '周六', shift: '休息', checkIn: '-', checkOut: '-', workHours: 0, status: 'weekend' },
-]
 
 const statusMap: Record<string, { text: string; color: string }> = {
   normal: { text: '正常', color: 'green' },
@@ -56,71 +38,124 @@ const statusMap: Record<string, { text: string; color: string }> = {
 }
 
 function MyAttendance() {
-  const [month, setMonth] = useState('2024-06')
   const [activeTab, setActiveTab] = useState('calendar')
+  const [records, setRecords] = useState<AttendanceRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState<string>(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
 
-  const columns: TableProps<MyAttendanceRecord>['columns'] = [
+  const fetchRecords = async (month: string) => {
+    setLoading(true)
+    try {
+      const [year, monthNum] = month.split('-')
+      const startDate = `${year}-${monthNum}-01`
+      const endDate = `${year}-${monthNum}-${new Date(parseInt(year), parseInt(monthNum), 0).getDate()}`
+      const res = await getAttendanceRecords({
+        page: 1,
+        pageSize: 50,
+        startDate,
+        endDate,
+      })
+      setRecords(res.data.list || [])
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecords(currentMonth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth])
+
+  const normalCount = records.filter((r) => r.status === 'normal').length
+  const lateCount = records.filter((r) => r.status === 'late').length
+  const earlyCount = records.filter((r) => r.status === 'early').length
+  const absentCount = records.filter((r) => r.status === 'absent').length
+
+  const columns: TableProps<AttendanceRecord>['columns'] = [
     {
       title: '日期',
       dataIndex: 'date',
       width: 120,
     },
     {
-      title: '星期',
-      dataIndex: 'dayOfWeek',
-      width: 80,
-    },
-    {
       title: '班次',
-      dataIndex: 'shift',
+      dataIndex: 'shiftName',
       width: 120,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      render: (value?: string) => (value ? <Tag color="blue">{value}</Tag> : '-'),
     },
     {
       title: '上班打卡',
       dataIndex: 'checkIn',
       width: 110,
+      render: (value?: string) => value || '-',
     },
     {
       title: '下班打卡',
       dataIndex: 'checkOut',
       width: 110,
-    },
-    {
-      title: '工时',
-      dataIndex: 'workHours',
-      width: 100,
-      render: (value: number) => `${value} 小时`,
+      render: (value?: string) => value || '-',
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
   ]
 
   const stats = [
-    { title: '出勤天数', value: 19, unit: '天', color: '#00B42A', icon: IconCalendar },
-    { title: '迟到', value: 2, unit: '次', color: '#FF7D00', icon: IconClockCircle },
-    { title: '早退', value: 1, unit: '次', color: '#FF7D00', icon: IconClockCircle },
-    { title: '请假', value: 1, unit: '天', color: '#165DFF', icon: IconCalendar },
+    { title: '出勤天数', value: normalCount, unit: '天', color: '#00B42A', icon: IconCalendar },
+    { title: '迟到', value: lateCount, unit: '次', color: '#FF7D00', icon: IconClockCircle },
+    { title: '早退', value: earlyCount, unit: '次', color: '#FF7D00', icon: IconClockCircle },
+    { title: '旷工', value: absentCount, unit: '天', color: '#F53F3F', icon: IconCalendar },
   ]
 
-  const dateCellRender = (date: any) => {
-    const day = date.getDay()
-    if (day === 0 || day === 6) {
+  const recordMap = new Map(
+    records.map((r) => [new Date(r.date).toDateString(), r]),
+  )
+
+  const dateCellRender = (date: Dayjs) => {
+    const record = recordMap.get(date.toDate().toDateString())
+    const day = date.day()
+    const isWeekend = day === 0 || day === 6
+
+    if (record) {
+      const info = statusMap[record.status]
+      return <Badge status={info?.color === 'green' ? 'success' : info?.color === 'orange' ? 'warning' : info?.color === 'red' ? 'error' : 'default'} text={info?.text || record.status} />
+    }
+
+    if (isWeekend) {
       return <Badge status="default" text="休" />
     }
-    return <Badge status="success" text="✓" />
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (date.toDate() > today) {
+      return <Badge status="default" text="-" />
+    }
+
+    return <Badge status="default" text="-" />
+  }
+
+  const monthOptions = []
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    monthOptions.push({ value: val, label: `${d.getFullYear()}年${d.getMonth() + 1}月` })
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+    <div className="profile-attendance">
+      <Row gutter={16} className="profile-attendance__toolbar">
         {stats.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
@@ -135,13 +170,15 @@ function MyAttendance() {
         ))}
       </Row>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="profile-attendance__toolbar">
         <Form layout="inline">
           <FormItem label="月份">
-            <Select style={{ width: 150 }} value={month} onChange={setMonth}>
-              <Option value="2024-06">2024年6月</Option>
-              <Option value="2024-05">2024年5月</Option>
-              <Option value="2024-04">2024年4月</Option>
+            <Select className="profile-attendance__select-month" value={currentMonth} onChange={setCurrentMonth}>
+              {monthOptions.map((m) => (
+                <Option key={m.value} value={m.value}>
+                  {m.label}
+                </Option>
+              ))}
             </Select>
           </FormItem>
         </Form>
@@ -153,20 +190,23 @@ function MyAttendance() {
           <TabPane key="list" title="明细列表" />
         </Tabs>
 
-        {activeTab === 'calendar' ? (
-          <Calendar
-            dateRender={dateCellRender}
-            panel={false}
-            defaultValue={new Date(2024, 5, 1)}
-          />
-        ) : (
-          <Table
-            columns={columns}
-            data={mockRecords}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-          />
-        )}
+        <Spin loading={loading}>
+          {activeTab === 'calendar' ? (
+            <Calendar
+              dateRender={dateCellRender}
+              panel={false}
+              defaultValue={new Date(parseInt(currentMonth.split('-')[0]), parseInt(currentMonth.split('-')[1]) - 1, 1)}
+            />
+          ) : (
+            <Table
+              columns={columns}
+              data={records}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              noDataElement={<div className="profile-attendance__empty">暂无考勤记录</div>}
+            />
+          )}
+        </Spin>
       </Card>
     </div>
   )

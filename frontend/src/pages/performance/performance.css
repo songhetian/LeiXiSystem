@@ -1,0 +1,56 @@
+.performance {
+  padding-bottom: 20px;
+}
+
+.performance__header {
+  margin-bottom: 16px;
+}
+
+.performance__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.performance__tag {
+  margin-left: 8px;
+}
+
+/* Common */
+.performance__actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.performance__select {
+  width: 160px;
+}
+
+.performance__select--sm {
+  width: 110px;
+}
+
+.performance__select--xs {
+  width: 120px;
+}
+
+.performance__modal {
+  width: 680px;
+}
+
+.performance__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.performance__form-grid--triple {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0 16px;
+}
+
+/* Score Bar */
+.performance__score-bar {
+  width: 80px;
+}

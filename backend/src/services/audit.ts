@@ -1,4 +1,5 @@
 import { FastifyRequest } from 'fastify'
+import { Prisma } from '@prisma/client'
 import prisma from '../prisma'
 
 type AuditInput = {
@@ -7,6 +8,9 @@ type AuditInput = {
   status?: 'success' | 'failed'
   requestData?: unknown
   responseData?: unknown
+  requestId?: string
+  beforeData?: unknown
+  afterData?: unknown
 }
 
 const SENSITIVE_KEY_PATTERN = /password|passwd|pwd|token|secret|authorization|cookie|salary|amount|idCard|identity|phone|mobile|email|bank|card|credential|private|key/i
@@ -15,13 +19,14 @@ const MAX_ARRAY_LENGTH = 50
 const MAX_STRING_LENGTH = 1000
 const MAX_JSON_LENGTH = 20000
 
-function maskStringValue(value: string) {
+function maskStringValue(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return value
 
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     const [name, domain] = trimmed.split('@')
-    return `${name.slice(0, 2)}***@${domain}`
+    const maskedName = name.length > 0 ? `${name.charAt(0)}***` : '***'
+    return `${maskedName}@${domain}`
   }
 
   if (/^1[3-9]\d{9}$/.test(trimmed)) {
@@ -29,14 +34,18 @@ function maskStringValue(value: string) {
   }
 
   if (/^\d{15}$|^\d{17}[\dXx]$/.test(trimmed)) {
-    return `${trimmed.slice(0, 4)}**********${trimmed.slice(-4)}`
+    return `${trimmed.slice(0, 3)}***********${trimmed.slice(-4)}`
   }
 
   if (/^\d{12,19}$/.test(trimmed)) {
-    return `${trimmed.slice(0, 4)}********${trimmed.slice(-4)}`
+    return `**** **** **** ${trimmed.slice(-4)}`
   }
 
   return value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}...[TRUNCATED]` : value
+}
+
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_PATTERN.test(key)
 }
 
 function maskSensitive(value: unknown, depth = 0): unknown {
@@ -54,8 +63,8 @@ function maskSensitive(value: unknown, depth = 0): unknown {
 
   const masked: Record<string, unknown> = {}
   for (const [key, item] of Object.entries(value)) {
-    if (SENSITIVE_KEY_PATTERN.test(key)) {
-      masked[key] = '[MASKED]'
+    if (isSensitiveKey(key)) {
+      masked[key] = maskSensitiveValueByKey(key, item)
     } else if (item && typeof item === 'object') {
       masked[key] = maskSensitive(item, depth + 1)
     } else {
@@ -65,7 +74,50 @@ function maskSensitive(value: unknown, depth = 0): unknown {
   return masked
 }
 
-function toSafeJson(value: unknown) {
+function maskSensitiveValueByKey(key: string, value: unknown): unknown {
+  const lowerKey = key.toLowerCase()
+
+  if (lowerKey.includes('password') || lowerKey.includes('passwd') || lowerKey.includes('pwd') ||
+      lowerKey.includes('token') || lowerKey.includes('secret') || lowerKey.includes('authorization')) {
+    return '***'
+  }
+
+  if (lowerKey.includes('salary') || lowerKey.includes('amount')) {
+    return '***'
+  }
+
+  if (lowerKey.includes('idcard') || lowerKey.includes('identity')) {
+    if (typeof value === 'string') {
+      return maskStringValue(value)
+    }
+    return '***'
+  }
+
+  if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
+    if (typeof value === 'string') {
+      return maskStringValue(value)
+    }
+    return '***'
+  }
+
+  if (lowerKey.includes('email')) {
+    if (typeof value === 'string') {
+      return maskStringValue(value)
+    }
+    return '***'
+  }
+
+  if (lowerKey.includes('bank') || lowerKey.includes('card')) {
+    if (typeof value === 'string') {
+      return maskStringValue(value)
+    }
+    return '***'
+  }
+
+  return '***'
+}
+
+function toSafeJson(value: unknown): unknown {
   const masked = maskSensitive(value)
   const json = JSON.stringify(masked)
   if (json.length <= MAX_JSON_LENGTH) return masked
@@ -75,22 +127,60 @@ function toSafeJson(value: unknown) {
   }
 }
 
-export async function writeAuditLog(request: FastifyRequest, input: AuditInput) {
+export async function writeAuditLog(request: FastifyRequest, input: AuditInput): Promise<void> {
   try {
-    await prisma.systemLog.create({
-      data: {
-        userId: request.user?.id,
-        username: request.user?.username,
-        action: input.action,
-        module: input.module,
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'],
-        requestData: input.requestData ? toSafeJson(input.requestData) as any : undefined,
-        responseData: input.responseData ? toSafeJson(input.responseData) as any : undefined,
-        status: input.status || 'success',
-      },
-    })
+    const data: Prisma.SystemLogCreateInput = {
+      action: input.action,
+      module: input.module,
+      status: input.status || 'success',
+      requestId: input.requestId || request.id,
+      userId: request.user?.id,
+      username: request.user?.username,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'],
+    }
+
+    if (input.requestData !== undefined) {
+      data.requestData = toSafeJson(input.requestData) as Prisma.InputJsonValue
+    }
+    if (input.responseData !== undefined) {
+      data.responseData = toSafeJson(input.responseData) as Prisma.InputJsonValue
+    }
+    if (input.beforeData !== undefined) {
+      data.beforeData = toSafeJson(input.beforeData) as Prisma.InputJsonValue
+    }
+    if (input.afterData !== undefined) {
+      data.afterData = toSafeJson(input.afterData) as Prisma.InputJsonValue
+    }
+
+    await prisma.systemLog.create({ data })
   } catch (error) {
     request.log.warn({ error }, '写入审计日志失败')
   }
+}
+
+type LogOperationInput = {
+  action: string
+  module: string
+  beforeData?: unknown
+  afterData?: unknown
+  requestData?: unknown
+  responseData?: unknown
+  status?: 'success' | 'failed'
+}
+
+export async function logOperation(
+  request: FastifyRequest,
+  input: LogOperationInput,
+): Promise<void> {
+  await writeAuditLog(request, {
+    action: input.action,
+    module: input.module,
+    status: input.status,
+    requestData: input.requestData,
+    responseData: input.responseData,
+    beforeData: input.beforeData,
+    afterData: input.afterData,
+    requestId: request.id,
+  })
 }

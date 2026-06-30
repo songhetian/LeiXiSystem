@@ -1,0 +1,95 @@
+.trend-analysis-report {
+  padding: 16px;
+}
+
+.trend-analysis-report .filter-card {
+  margin-bottom: 16px;
+}
+
+.trend-analysis-report .filter-bar {
+  display: flex;
+  align-items: center;
+}
+
+.trend-analysis-report .year-select {
+  width: 200px;
+}
+
+.trend-analysis-report .dept-filter-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.trend-analysis-report .dept-filter-tag {
+  margin-left: 8px;
+}
+
+.trend-analysis-report .dept-tree-popover {
+  min-width: 280px;
+}
+
+.trend-analysis-report .tree-spin {
+  display: block;
+  padding: 20px;
+}
+
+.trend-analysis-report .dept-tree {
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.trend-analysis-report .page-spin {
+  width: 100%;
+}
+
+.trend-analysis-report .stats-row {
+  margin-bottom: 16px;
+}
+
+.trend-analysis-report .stat-card {
+  background: #fff;
+}
+
+.trend-analysis-report .stat-card .arco-statistic {
+  padding: 16px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.trend-analysis-report .charts-row {
+  margin-bottom: 16px;
+}
+
+.trend-analysis-report .chart-card {
+  background: #fff;
+}
+
+.trend-analysis-report .chart-container {
+  width: 100%;
+  height: 320px;
+}
+
+.trend-analysis-report .table-card {
+  background: #fff;
+}
+
+.trend-analysis-report .arco-table-wrapper {
+  background: #fff;
+}
+
+.trend-analysis-report .icon-up {
+  color: #00B42A;
+}
+
+.trend-analysis-report .icon-down {
+  color: #F53F3F;
+}
+
+.trend-analysis-report .stat-positive {
+  color: #00B42A;
+}
+
+.trend-analysis-report .stat-negative {
+  color: #F53F3F;
+}

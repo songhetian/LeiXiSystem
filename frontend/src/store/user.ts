@@ -17,29 +17,28 @@ function getStoredUser() {
 const storedUser = getStoredUser()
 
 interface UserState {
-  token: string
+  isLoggedIn: boolean
   user: User | null
   permissions: string[]
-  setToken: (token: string) => void
   setUser: (user: User) => void
   setPermissions: (permissions: string[]) => void
+  setLoggedIn: (value: boolean) => void
   logout: () => void
   logoutRemote: () => Promise<void>
 }
 
 export const useUserStore = create<UserState>((set) => ({
-  token: localStorage.getItem('token') || '',
+  isLoggedIn: false,
   user: storedUser,
   permissions: storedUser?.permissions || [],
 
-  setToken: (token) => {
-    localStorage.setItem('token', token)
-    set({ token })
+  setLoggedIn: (value) => {
+    set({ isLoggedIn: value })
   },
 
   setUser: (user) => {
     localStorage.setItem('user', JSON.stringify(user))
-    set({ user, permissions: user.permissions || [] })
+    set({ user, permissions: user.permissions || [], isLoggedIn: true })
   },
 
   setPermissions: (permissions) => {
@@ -56,18 +55,16 @@ export const useUserStore = create<UserState>((set) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('token')
     localStorage.removeItem('user')
-    set({ token: '', user: null, permissions: [] })
+    set({ isLoggedIn: false, user: null, permissions: [] })
   },
 
   logoutRemote: async () => {
     try {
       await logoutApi()
     } finally {
-      localStorage.removeItem('token')
       localStorage.removeItem('user')
-      set({ token: '', user: null, permissions: [] })
+      set({ isLoggedIn: false, user: null, permissions: [] })
     }
   },
 }))

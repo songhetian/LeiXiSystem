@@ -1,0 +1,32 @@
+.changes-page {
+  padding-bottom: 20px;
+}
+
+.changes-page__search-card {
+  margin-bottom: 16px;
+}
+
+.changes-page__search-input {
+  width: 200px;
+}
+
+.changes-page__type-select {
+  width: 150px;
+}
+
+.changes-page__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.changes-page__margin-bottom {
+  margin-bottom: 16px;
+}
+
+.changes-page__tag-margin {
+  margin-left: 8px;
+}
+
+.changes-page__date-range {
+  width: 260px;
+}

@@ -56,6 +56,9 @@ const menuList: MenuConfig[] = [
       { key: '/personnel/employee', label: '员工管理' },
       { key: '/personnel/changes', label: '人员变动' },
       { key: '/personnel/lifecycle', label: '员工生命周期' },
+      { key: '/personnel/onboarding', label: '入职办理' },
+      { key: '/personnel/onboarding-flow', label: '入职流程配置' },
+      { key: '/personnel/employee-tag', label: '员工标签' },
     ],
   },
   {
@@ -83,6 +86,14 @@ const menuList: MenuConfig[] = [
     label: '安全中心',
     children: [
       { key: '/security/audit-logs', label: '审计日志' },
+    ],
+  },
+  {
+    key: 'system',
+    icon: IconSettings,
+    label: '系统管理',
+    children: [
+      { key: '/system/announcement', label: '公告管理' },
     ],
   },
   {
@@ -141,6 +152,14 @@ const menuList: MenuConfig[] = [
     children: [
       { key: '/schedule/calendar', label: '排班日历' },
       { key: '/schedule/assign', label: '排班分配' },
+      { key: '/schedule/rules', label: '排班规则' },
+      { key: '/schedule/recommend', label: '智能排班' },
+      { key: '/schedule/swaps', label: '换班申请' },
+      { key: '/schedule/secondments', label: '借调管理' },
+      { key: '/schedule/templates', label: '排班模板' },
+      { key: '/schedule/publish', label: '发布确认' },
+      { key: '/schedule/report', label: '排班报表' },
+      { key: '/my/schedule', label: '我的排班' },
     ],
   },
   {
@@ -151,8 +170,17 @@ const menuList: MenuConfig[] = [
       { key: '/attendance/records', label: '打卡记录' },
       { key: '/attendance/calculation', label: '考勤核算' },
       { key: '/attendance/exceptions', label: '考勤异常' },
+      { key: '/attendance/exception-rules', label: '异常规则' },
+      { key: '/attendance/exception-stats', label: '异常统计' },
+      { key: '/attendance/locations', label: '打卡位置' },
+      { key: '/attendance/overtime-types', label: '加班类型' },
       { key: '/attendance/corrections', label: '补卡申请' },
       { key: '/attendance/stats', label: '考勤统计' },
+      { key: '/attendance/report', label: '考勤报表' },
+      { key: '/attendance/leave-overtime-report', label: '加班请假报表' },
+      { key: '/attendance/attendance-detail', label: '考勤明细报表' },
+      { key: '/attendance/department-ranking', label: '部门排名报表' },
+      { key: '/attendance/trend-analysis', label: '同比环比分析' },
     ],
   },
   {
@@ -188,6 +216,16 @@ const menuList: MenuConfig[] = [
       { key: '/reimbursement/apply', label: '申请报销' },
       { key: '/reimbursement/list', label: '我的报销' },
       { key: '/reimbursement/approval', label: '报销审批' },
+    ],
+  },
+  {
+    key: 'financial',
+    icon: IconBook,
+    label: '财务管理',
+    children: [
+      { key: '/financial/budgets', label: '预算管理' },
+      { key: '/financial/expense-standards', label: '费用标准' },
+      { key: '/financial/report', label: '财务报表' },
     ],
   },
   {
@@ -241,6 +279,7 @@ const menuList: MenuConfig[] = [
     children: [
       { key: '/data/import', label: '数据导入' },
       { key: '/data/export', label: '数据导出' },
+      { key: '/data/export-tasks', label: '导出任务' },
       { key: '/data/template', label: '模板管理' },
     ],
   },
@@ -260,6 +299,8 @@ const pathPermissionMap: Record<string, string | undefined> = {
   '/personnel/employee': 'personnel:view',
   '/personnel/changes': 'personnel:view',
   '/personnel/lifecycle': 'lifecycle:view',
+  '/personnel/onboarding': 'lifecycle:manage',
+  '/personnel/onboarding-flow': 'lifecycle:manage',
   '/organization/department': 'organization:view',
   '/organization/position': 'organization:view',
   '/rbac/role': 'rbac:view',
@@ -275,11 +316,28 @@ const pathPermissionMap: Record<string, string | undefined> = {
   '/shift/rule': 'shift:view',
   '/schedule/calendar': 'schedule:view',
   '/schedule/assign': 'schedule:assign',
+  '/schedule/rules': 'schedule:manage',
+  '/schedule/recommend': 'schedule:assign',
+  '/schedule/swaps': 'schedule:view',
+  '/schedule/secondments': 'schedule:manage',
+  '/schedule/templates': 'schedule:manage',
+  '/schedule/publish': 'schedule:assign',
   '/attendance/records': 'attendance:view',
   '/attendance/calculation': 'attendance:calculate',
   '/attendance/exceptions': 'attendance:view',
+  '/attendance/exception-rules': 'attendance:manage',
+  '/attendance/exception-stats': 'attendance:view',
+  '/attendance/locations': 'attendance:manage',
+  '/attendance/overtime-types': 'attendance:manage',
   '/attendance/corrections': 'attendance:view',
   '/attendance/stats': 'attendance:view',
+  '/attendance/report': 'attendance:view',
+  '/attendance/leave-overtime-report': 'attendance:view',
+  '/attendance/attendance-detail': 'attendance:view',
+  '/attendance/department-ranking': 'attendance:view',
+  '/attendance/trend-analysis': 'attendance:view',
+  '/schedule/report': 'schedule:view',
+  '/financial/report': 'finance:view',
   '/payroll/components': 'payroll:manage',
   '/payroll/structures': 'payroll:manage',
   '/payroll/assignments': 'payroll:manage',
@@ -294,6 +352,8 @@ const pathPermissionMap: Record<string, string | undefined> = {
   '/reimbursement/apply': 'reimbursement:view',
   '/reimbursement/list': 'reimbursement:view',
   '/reimbursement/approval': 'reimbursement:view',
+  '/financial/budgets': 'reimbursement:approve',
+  '/financial/expense-standards': 'reimbursement:approve',
   '/adjustment/shift-change': 'attendance:view',
   '/adjustment/overtime': 'attendance:view',
   '/adjustment/leave': 'vacation:view',
@@ -305,8 +365,11 @@ const pathPermissionMap: Record<string, string | undefined> = {
   '/sso/apps': 'sso:manage',
   '/data/import': 'data:import',
   '/data/export': 'data:export',
+  '/data/export-tasks': 'data:export',
   '/data/template': 'data:import',
   '/notification/config': 'rbac:view',
+  '/system/announcement': 'system:announcement:manage',
+  '/personnel/employee-tag': 'personnel:manage',
 }
 
 function PageLayout() {
@@ -374,6 +437,17 @@ function PageLayout() {
       '/recruitment/overview': '招聘总览',
       '/performance/overview': '绩效总览',
       '/training/overview': '培训总览',
+      '/schedule/calendar': '排班日历',
+      '/schedule/assign': '排班分配',
+      '/schedule/rules': '排班规则',
+      '/schedule/recommend': '智能排班',
+      '/schedule/swaps': '换班申请',
+      '/schedule/secondments': '借调管理',
+      '/schedule/templates': '排班模板',
+      '/schedule/publish': '发布确认',
+      '/my/schedule': '我的排班',
+      '/system/announcement': '公告管理',
+      '/personnel/employee-tag': '员工标签',
     }
     return ['首页', pathMap[location.pathname] || '页面']
   }
@@ -390,7 +464,7 @@ function PageLayout() {
   )
 
   return (
-    <Layout style={{ height: '100vh' }}>
+    <Layout className="layout-wrapper">
       <Sider
         collapsible
         collapsed={collapsed}
@@ -399,8 +473,8 @@ function PageLayout() {
         breakpoint="xl"
       >
         <div className="sider-logo">
-          <div className="sider-logo-icon">雷</div>
-          {!collapsed && <span className="sider-logo-text">雷犀系统</span>}
+          <div className="sider-logo__icon">雷</div>
+          {!collapsed && <span className="sider-logo__text">雷犀系统</span>}
         </div>
         <Menu
           selectedKeys={[location.pathname]}
@@ -434,11 +508,11 @@ function PageLayout() {
         </Menu>
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%' }}>
+        <Header className="layout-header">
+          <div className="layout-header__content">
             <Space size="medium">
               <div
-                style={{ cursor: 'pointer', fontSize: 18, color: '#4e5969' }}
+                className="layout-header__menu-toggle"
                 onClick={() => setCollapsed(!collapsed)}
               >
                 {collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
@@ -451,25 +525,25 @@ function PageLayout() {
             </Space>
             <Space size="small">
               <Badge count={5} dot>
-                <span style={{ cursor: 'pointer', fontSize: 18, color: '#4e5969' }}>
+                <span className="layout-header__icon">
                   <IconNotification />
                 </span>
               </Badge>
-              <span style={{ cursor: 'pointer', fontSize: 18, color: '#4e5969' }}>
+              <span className="layout-header__icon">
                 <IconQuestionCircle />
               </span>
               <Dropdown droplist={userDropdownMenu} position="br">
-                <Space size="small" style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}>
+                <Space size="small" className="layout-header__user-menu">
                   <Avatar size={32} style={{ backgroundColor: '#165DFF' }}>
                     <IconUser />
                   </Avatar>
-                  {!collapsed && <span>{user?.realName || user?.real_name || '用户'}</span>}
+                  {!collapsed && <span>{user?.realName || '用户'}</span>}
                 </Space>
               </Dropdown>
             </Space>
           </div>
         </Header>
-        <Content style={{ padding: 20, backgroundColor: 'var(--color-fill-3)', overflow: 'auto' }}>
+        <Content className="layout-content">
           <Outlet />
         </Content>
       </Layout>

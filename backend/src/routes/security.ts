@@ -59,26 +59,17 @@ export default async function securityRoutes(fastify: FastifyInstance) {
           module: true,
           ipAddress: true,
           userAgent: true,
-          requestData: true,
-          responseData: true,
+          requestId: true,
           status: true,
           createdAt: true,
         },
       }),
     ])
 
-    const summaryList = list.map((item) => ({
-      ...item,
-      requestSummary: summarizeJson(item.requestData),
-      responseSummary: summarizeJson(item.responseData),
-      requestData: undefined,
-      responseData: undefined,
-    }))
-
     return {
       code: 0,
       data: {
-        list: summaryList,
+        list,
         total,
         page,
         pageSize,

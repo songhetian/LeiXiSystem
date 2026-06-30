@@ -19,6 +19,7 @@ import {
 import { IconDelete, IconEdit, IconPlus, IconRefresh, IconSearch } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { createShift, deleteShift, getShifts, updateShift } from '@/api/shift'
+import './style.css'
 
 const { Row, Col } = Grid
 const { Text } = Typography
@@ -56,7 +57,7 @@ function ShiftList() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const res: any = await getShifts({
+      const res = await getShifts({
         page: 1,
         pageSize: 100,
         keyword: searchText || undefined,
@@ -179,12 +180,12 @@ function ShiftList() {
   ]
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="shift-list">
+      <Card bordered={false} className="shift-list__toolbar">
         <Form layout="inline">
           <FormItem label="班次">
             <Input
-              style={{ width: 180 }}
+              className="shift-list__toolbar-input"
               placeholder="名称/编码"
               value={searchText}
               onChange={setSearchText}
@@ -192,7 +193,7 @@ function ShiftList() {
             />
           </FormItem>
           <FormItem label="状态">
-            <Select style={{ width: 120 }} placeholder="全部" value={searchStatus} onChange={setSearchStatus} allowClear>
+            <Select className="shift-list__toolbar-select" placeholder="全部" value={searchStatus} onChange={setSearchStatus} allowClear>
               <Option value="active">启用</Option>
               <Option value="inactive">停用</Option>
             </Select>
@@ -207,10 +208,10 @@ function ShiftList() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div className="shift-list__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>班次列表</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>共 {total} 个班次</Tag>
+            <span className="shift-list__title">班次列表</span>
+            <Tag color="blue" className="shift-list__tag">共 {total} 个班次</Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={openCreate}>新增班次</Button>
         </div>
@@ -223,7 +224,7 @@ function ShiftList() {
         visible={visible}
         onOk={handleSubmit}
         onCancel={() => setVisible(false)}
-        style={{ width: 760 }}
+        className="shift-list__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -252,7 +253,7 @@ function ShiftList() {
             </Col>
             <Col span={8}>
               <FormItem label="工时" field="workHours" rules={[{ required: true, message: '请输入工时' }]}>
-                <InputNumber min={0} style={{ width: '100%' }} />
+                <InputNumber min={0} className="shift-list__input-full" />
               </FormItem>
             </Col>
           </Row>
@@ -260,22 +261,22 @@ function ShiftList() {
           <Row gutter={16}>
             <Col span={6}>
               <FormItem label="提前打卡窗口" field="beginCheckinMinutes">
-                <InputNumber min={0} style={{ width: '100%' }} suffix="分钟" />
+                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="延后签退窗口" field="allowCheckoutMinutes">
-                <InputNumber min={0} style={{ width: '100%' }} suffix="分钟" />
+                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="迟到宽限" field="lateGraceMinutes">
-                <InputNumber min={0} style={{ width: '100%' }} suffix="分钟" />
+                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="早退宽限" field="earlyGraceMinutes">
-                <InputNumber min={0} style={{ width: '100%' }} suffix="分钟" />
+                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
               </FormItem>
             </Col>
           </Row>
@@ -288,13 +289,13 @@ function ShiftList() {
               <Switch />
             </FormItem>
             <FormItem label="状态" field="status">
-              <Select style={{ width: 120 }}>
+              <Select className="shift-list__select">
                 <Option value="active">启用</Option>
                 <Option value="inactive">停用</Option>
               </Select>
             </FormItem>
             <FormItem label="排序" field="sortOrder">
-              <InputNumber min={0} style={{ width: 120 }} />
+              <InputNumber min={0} className="shift-list__select" />
             </FormItem>
           </Space>
 

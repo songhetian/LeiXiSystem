@@ -1,0 +1,47 @@
+.attendance-calc {
+  padding-bottom: 20px;
+}
+
+.attendance-calc__stats-row {
+  margin-bottom: 16px;
+}
+
+.attendance-calc__stat-value {
+  color: inherit;
+}
+
+.attendance-calc__intro-card {
+  margin-bottom: 16px;
+}
+
+.attendance-calc__intro-title {
+  margin: 0;
+}
+
+.attendance-calc__filter-card {
+  margin-bottom: 16px;
+}
+
+.attendance-calc__dept-select {
+  width: 160px;
+}
+
+.attendance-calc__month-select {
+  width: 140px;
+}
+
+.attendance-calc__result-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-calc__result-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.attendance-calc__result-tag {
+  margin-left: 8px;
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Table,
@@ -8,7 +8,6 @@ import {
   Space,
   Form,
   Select,
-  Message,
   Grid,
   Progress,
   Tabs,
@@ -22,11 +21,15 @@ import {
 import type { TableProps, UploadProps } from '@arco-design/web-react'
 import { downloadTemplate, uploadImportFile } from '@/api/data'
 import { saveBlob } from '@/utils/url'
+import { toast } from '@/utils/toast'
+import '../style.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
+
+const STORAGE_KEY = 'import_records'
 
 interface ImportRecord {
   id: number
@@ -40,12 +43,6 @@ interface ImportRecord {
   createTime: string
 }
 
-const mockData: ImportRecord[] = [
-  { id: 1, fileName: '员工信息_202406.xlsx', type: '员工导入', totalCount: 150, successCount: 148, failCount: 2, status: 'success', operator: '管理员', createTime: '2024-06-20 10:30' },
-  { id: 2, fileName: '部门架构.xlsx', type: '部门导入', totalCount: 20, successCount: 20, failCount: 0, status: 'success', operator: '管理员', createTime: '2024-06-15 14:00' },
-  { id: 3, fileName: '考勤数据_06月.xlsx', type: '考勤导入', totalCount: 500, successCount: 0, failCount: 0, status: 'processing', operator: '管理员', createTime: '2024-06-24 09:00' },
-]
-
 const statusMap: Record<string, { text: string; color: string }> = {
   uploading: { text: '上传中', color: 'blue' },
   processing: { text: '处理中', color: 'orange' },
@@ -53,10 +50,38 @@ const statusMap: Record<string, { text: string; color: string }> = {
   failed: { text: '失败', color: 'red' },
 }
 
+function loadRecords(): ImportRecord[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY)
+    return data ? JSON.parse(data) : []
+  } catch {
+    return []
+  }
+}
+
+function saveRecords(records: ImportRecord[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
+}
+
 function DataImport() {
-  const [data] = useState<ImportRecord[]>(mockData)
+  const [data, setData] = useState<ImportRecord[]>([])
   const [importType, setImportType] = useState('employee')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    setData(loadRecords())
+  }, [])
+
+  const handleAddRecord = useCallback((record: Omit<ImportRecord, 'id'>) => {
+    const records = loadRecords()
+    const newRecord = {
+      ...record,
+      id: Date.now(),
+    }
+    const updatedRecords = [newRecord, ...records]
+    saveRecords(updatedRecords)
+    setData(updatedRecords)
+  }, [])
 
   const columns: TableProps<ImportRecord>['columns'] = [
     {
@@ -85,7 +110,7 @@ function DataImport() {
       dataIndex: 'successCount',
       width: 80,
       render: (value: number) => (
-        <span style={{ color: '#00B42A' }}>{value}</span>
+        <span className="data-import__success">{value}</span>
       ),
     },
     {
@@ -93,14 +118,14 @@ function DataImport() {
       dataIndex: 'failCount',
       width: 80,
       render: (value: number) => (
-        <span style={{ color: '#F53F3F' }}>{value}</span>
+        <span className="data-import__fail">{value}</span>
       ),
     },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
-      render: (value: string, record) => {
+      width: 120,
+      render: (value: string) => {
         const info = statusMap[value]
         if (value === 'processing') {
           return (
@@ -128,9 +153,11 @@ function DataImport() {
       width: 120,
       render: (_: any, record: ImportRecord) => (
         <Space size="small">
-          <Button type="text" size="small" icon={<IconDownload />}>
-            下载错误
-          </Button>
+          {record.status === 'failed' && (
+            <Button type="text" size="small" icon={<IconDownload />}>
+              下载错误
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -141,48 +168,73 @@ function DataImport() {
     const lowerName = file.name.toLowerCase()
     const isAllowed = ['.xlsx', '.xls', '.csv'].some((ext) => lowerName.endsWith(ext))
     if (!isAllowed) {
-      Message.error('仅支持 .xlsx、.xls 或 .csv 文件')
+      toast.error('仅支持 .xlsx、.xls 或 .csv 文件')
       option.onError?.()
       return
     }
     if (file.size > 10 * 1024 * 1024) {
-      Message.error('文件大小不能超过 10MB')
+      toast.error('文件大小不能超过 10MB')
       option.onError?.()
       return
     }
     setSelectedFile(file)
     option.onSuccess?.({})
-    Message.success('文件已选择，点击开始导入后上传校验')
+    toast.success('文件已选择，点击开始导入后上传校验')
   }
 
   const handleDownloadTemplate = async () => {
-    const blob = await downloadTemplate(importType)
-    saveBlob(blob as unknown as Blob, `${importType}_template.csv`)
-    Message.success('模板下载成功')
+    const loading = toast.loading('正在下载模板...')
+    try {
+      const blob = await downloadTemplate(importType)
+      saveBlob(blob as unknown as Blob, `${importType}_template.csv`)
+      loading()
+      toast.success('模板下载成功')
+    } catch (err) {
+      loading()
+      toast.error(err instanceof Error ? err.message : '操作失败')
+    }
   }
 
   const handleStartImport = async () => {
     if (!selectedFile) {
-      Message.warning('请先选择导入文件')
+      toast.warning('请先选择导入文件')
       return
     }
-    await uploadImportFile(importType, selectedFile)
-    Message.success('文件已上传并通过安全校验')
+    const loading = toast.loading('正在上传文件...')
+    try {
+      await uploadImportFile(importType, selectedFile)
+      handleAddRecord({
+        fileName: selectedFile.name,
+        type: `${importType}导入`,
+        totalCount: 0,
+        successCount: 0,
+        failCount: 0,
+        status: 'success',
+        operator: '当前用户',
+        createTime: new Date().toLocaleString('zh-CN'),
+      })
+      loading()
+      toast.success('文件已上传并通过安全校验')
+      setSelectedFile(null)
+    } catch (err) {
+      loading()
+      toast.error(err instanceof Error ? err.message : '操作失败')
+    }
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="data-import">
       <Row gutter={16}>
         <Col span={8}>
           <Card bordered={false}>
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <h3 style={{ marginBottom: 4 }}>数据导入</h3>
-              <p style={{ color: '#86909C', fontSize: 12 }}>支持 Excel 格式文件导入</p>
+            <div className="data-import__form">
+              <h3 className="data-import__form-title">数据导入</h3>
+              <p className="data-import__form-desc">支持 Excel 格式文件导入</p>
             </div>
 
             <Form layout="vertical">
               <FormItem label="导入类型">
-                <Select value={importType} onChange={setImportType} style={{ width: '100%' }}>
+                <Select value={importType} onChange={setImportType} className="data-import__select-full">
                   <Option value="employee">员工信息导入</Option>
                   <Option value="department">部门信息导入</Option>
                   <Option value="attendance">考勤数据导入</Option>
@@ -196,15 +248,15 @@ function DataImport() {
               accept=".xlsx,.xls,.csv"
               drag
               tip="仅支持 .xlsx / .xls / .csv，最大 10MB"
-              style={{ marginBottom: 16 }}
+              className="data-import__upload"
             >
-              <div style={{ padding: '30px 0' }}>
-                <IconUpload style={{ fontSize: 48, marginBottom: 8 }} />
+              <div className="data-import__upload-content">
+                <IconUpload className="data-import__upload-icon" />
                 <div>点击或拖拽文件到此处上传</div>
               </div>
             </Upload>
 
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Space className="data-import__space-between">
               <Button type="text" icon={<IconDownload />} onClick={handleDownloadTemplate}>
                 下载模板
               </Button>
@@ -228,6 +280,7 @@ function DataImport() {
               data={data}
               rowKey="id"
               pagination={{ pageSize: 10 }}
+              noDataElement={<div className="data-import__empty">暂无导入记录</div>}
             />
           </Card>
         </Col>

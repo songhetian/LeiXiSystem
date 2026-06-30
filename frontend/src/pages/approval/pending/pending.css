@@ -1,0 +1,39 @@
+.approval-pending {
+  padding-bottom: 20px;
+}
+
+.approval-pending__tabs-card {
+  margin-bottom: 16px;
+}
+
+.approval-pending__search-card {
+  margin-bottom: 16px;
+}
+
+.approval-pending__search-input {
+  width: 180px;
+}
+
+.approval-pending__type-select {
+  width: 120px;
+}
+
+.approval-pending__table-card {
+  /* default */
+}
+
+.approval-pending__table-header {
+  margin-bottom: 16px;
+}
+
+.approval-pending__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.approval-pending__total-tag {
+  margin-left: 8px;
+}
+.approval-pending__modal {
+  width: 560px;
+}

@@ -1,0 +1,51 @@
+.reimbursement-approval {
+  padding-bottom: 20px;
+}
+
+.reimbursement-approval__tabs-card {
+  margin-bottom: 16px;
+}
+
+.reimbursement-approval__search-card {
+  margin-bottom: 16px;
+}
+
+.reimbursement-approval__search-input {
+  width: 180px;
+}
+
+.reimbursement-approval__type-select {
+  width: 120px;
+}
+
+.reimbursement-approval__table-card {
+  /* default */
+}
+
+.reimbursement-approval__table-header {
+  margin-bottom: 16px;
+}
+
+.reimbursement-approval__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.reimbursement-approval__total-tag {
+  margin-left: 8px;
+}
+
+.reimbursement-approval__amount {
+  font-weight: 600;
+  color: #F53F3F;
+  font-family: 'tabular-nums', monospace;
+}
+
+.reimbursement-approval__modal {
+  width: 600px;
+}
+
+/* Additional styles for inline styles */
+.reimbursement-approval__detail-space {
+  width: 100%;
+}

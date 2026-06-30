@@ -1,0 +1,84 @@
+.recruitment-overview {
+  padding-bottom: 20px;
+}
+
+.recruitment-overview__filter {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.recruitment-overview__filter-select {
+  width: 160px;
+}
+
+.recruitment-overview__filter-select--sm {
+  width: 120px;
+}
+
+.recruitment-overview__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.recruitment-overview__form-grid--detail {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.recruitment-overview__form-grid-full {
+  grid-column: 1 / -1;
+}
+
+.recruitment-overview__rate {
+  font-size: 12px;
+}
+
+.recruitment-overview__interview-item {
+  background: #f7f8fa;
+  padding: 8px 12px;
+  border-radius: 4;
+  margin-bottom: 4px;
+}
+
+.recruitment-overview__interview-feedback {
+  font-size: 12px;
+  color: #666;
+}
+
+.recruitment-overview__input-full {
+  width: 100%;
+}
+
+.recruitment-overview__text-block {
+  margin-bottom: 8px;
+  display: block;
+}
+
+.recruitment-overview__header {
+  margin-bottom: 16px;
+}
+
+.recruitment-overview__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.recruitment-overview__tag {
+  margin-left: 8px;
+}
+
+.recruitment-overview__text-secondary {
+  color: #86909C;
+}
+
+.recruitment-overview__modal--lg {
+  width: 640px;
+}
+
+.recruitment-overview__empty {
+  text-align: center;
+  padding: 20px;
+}

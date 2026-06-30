@@ -5,6 +5,7 @@ export interface AuthUser {
   username: string
   realName: string
   departmentId: number | null
+  employeeId?: number | null
   roles: string[]
   permissions: string[]
 }

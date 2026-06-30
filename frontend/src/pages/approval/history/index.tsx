@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -7,13 +7,10 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
-  Grid,
-  Steps,
-  Descriptions,
   Tabs,
+  Descriptions,
 } from '@arco-design/web-react'
 import {
   IconSearch,
@@ -21,66 +18,90 @@ import {
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getApprovalHistory } from '@/api/approval'
+import './history.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
 
-interface ApprovalHistory {
-  id: number
-  title: string
-  type: 'leave' | 'overtime' | 'reimbursement' | 'shift'
-  applicant: string
-  department: string
-  amount?: number
-  days?: number
-  status: 'approved' | 'rejected'
-  createTime: string
-  approver: string
-  approveTime: string
-}
-
 const typeMap: Record<string, { text: string; color: string }> = {
   leave: { text: '请假', color: 'blue' },
   overtime: { text: '加班', color: 'orange' },
   reimbursement: { text: '报销', color: 'green' },
-  shift: { text: '调班', color: 'purple' },
 }
 
 const statusMap: Record<string, { text: string; color: string }> = {
   approved: { text: '已通过', color: 'green' },
   rejected: { text: '已驳回', color: 'red' },
+  cancelled: { text: '已撤销', color: 'gray' },
+  paid: { text: '已支付', color: 'cyan' },
 }
 
-const mockData: ApprovalHistory[] = [
-  { id: 1, title: '年假申请', type: 'leave', applicant: '张三', department: '技术部', days: 3, status: 'approved', createTime: '2024-06-15 10:30', approver: '李经理', approveTime: '2024-06-16 09:00' },
-  { id: 2, title: '加班申请', type: 'overtime', applicant: '李四', department: '产品部', status: 'approved', createTime: '2024-06-18 14:00', approver: '王总监', approveTime: '2024-06-18 16:00' },
-  { id: 3, title: '差旅费报销', type: 'reimbursement', applicant: '王五', department: '市场部', amount: 2500, status: 'approved', createTime: '2024-06-10 16:00', approver: '张经理', approveTime: '2024-06-11 10:00' },
-  { id: 4, title: '调班申请', type: 'shift', applicant: '赵六', department: '技术部', status: 'rejected', createTime: '2024-06-12 09:00', approver: '李经理', approveTime: '2024-06-12 14:00' },
-  { id: 5, title: '病假申请', type: 'leave', applicant: '钱七', department: '人事部', days: 1, status: 'approved', createTime: '2024-06-19 10:00', approver: '孙主管', approveTime: '2024-06-19 11:00' },
-]
+interface HistoryItem {
+  id: number
+  type: string
+  title: string
+  applicant: string
+  status: string
+  createdAt: string
+  [key: string]: any
+}
 
 function History() {
-  const [data] = useState<ApprovalHistory[]>(mockData)
+  const [data, setData] = useState<HistoryItem[]>([])
+  const [loading, setLoading] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
-  const [currentRecord, setCurrentRecord] = useState<ApprovalHistory | null>(null)
+  const [currentRecord, setCurrentRecord] = useState<HistoryItem | null>(null)
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<ApprovalHistory[]>(mockData)
   const [activeTab, setActiveTab] = useState('all')
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
-  const columns: TableProps<ApprovalHistory>['columns'] = [
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getApprovalHistory({ page, pageSize })
+      let list = res.data.list as HistoryItem[]
+      if (activeTab !== 'all') {
+        list = list.filter((item) => item.status === activeTab)
+      }
+      if (searchText) {
+        list = list.filter(
+          (item) =>
+            item.title?.includes(searchText) ||
+            item.applicant?.includes(searchText),
+        )
+      }
+      if (searchStatus) {
+        list = list.filter((item) => item.status === searchStatus)
+      }
+      setData(list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  const columns: TableProps<HistoryItem>['columns'] = [
     {
       title: '标题',
       dataIndex: 'title',
-      width: 180,
+      width: 200,
     },
     {
       title: '类型',
       dataIndex: 'type',
-      width: 80,
+      width: 90,
       render: (value: string) => {
-        const info = typeMap[value]
+        const info = typeMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
@@ -90,38 +111,24 @@ function History() {
       width: 100,
     },
     {
-      title: '部门',
-      dataIndex: 'department',
-      width: 100,
-    },
-    {
       title: '状态',
       dataIndex: 'status',
       width: 90,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
-      title: '审批人',
-      dataIndex: 'approver',
-      width: 100,
-    },
-    {
       title: '申请时间',
-      dataIndex: 'createTime',
-      width: 150,
-    },
-    {
-      title: '审批时间',
-      dataIndex: 'approveTime',
-      width: 150,
+      dataIndex: 'createdAt',
+      width: 160,
+      render: (value: string) => value ? new Date(value).toLocaleString() : '-',
     },
     {
       title: '操作',
       width: 80,
-      render: (_: any, record: ApprovalHistory) => (
+      render: (_: unknown, record: HistoryItem) => (
         <Button
           type="text"
           size="small"
@@ -134,59 +141,44 @@ function History() {
     },
   ]
 
-  const handleView = (record: ApprovalHistory) => {
+  const handleView = (record: HistoryItem) => {
     setCurrentRecord(record)
     setDetailVisible(true)
   }
 
   const handleSearch = () => {
-    let result = data
-    if (activeTab !== 'all') {
-      result = result.filter((item) => item.status === activeTab)
-    }
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.title.includes(searchText) ||
-          item.applicant.includes(searchText),
-      )
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchStatus(undefined)
-    setFilteredData(data.filter((item) => activeTab === 'all' || item.status === activeTab))
+    fetchData(1, pagination.pageSize)
   }
 
   const handleTabChange = (key: string) => {
     setActiveTab(key)
-    if (key === 'all') {
-      setFilteredData(data)
-    } else {
-      setFilteredData(data.filter((item) => item.status === key))
-    }
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="approval-history">
+      <Card bordered={false} className="approval-history__tabs-card">
         <Tabs activeTab={activeTab} onChange={handleTabChange}>
-          <TabPane key="all" title={`全部 (${data.length})`} />
-          <TabPane key="approved" title={`已通过 (${data.filter(d => d.status === 'approved').length})`} />
-          <TabPane key="rejected" title={`已驳回 (${data.filter(d => d.status === 'rejected').length})`} />
+          <TabPane key="all" title={`全部 (${pagination.total})`} />
+          <TabPane key="approved" title="已通过" />
+          <TabPane key="rejected" title="已驳回" />
         </Tabs>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="approval-history__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="approval-history__search-input"
               placeholder="标题/申请人"
               value={searchText}
               onChange={setSearchText}
@@ -195,7 +187,7 @@ function History() {
           </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 120 }}
+              className="approval-history__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -203,6 +195,7 @@ function History() {
             >
               <Option value="approved">已通过</Option>
               <Option value="rejected">已驳回</Option>
+              <Option value="cancelled">已撤销</Option>
             </Select>
           </FormItem>
           <FormItem>
@@ -218,15 +211,26 @@ function History() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>审批历史</span>
-          <Tag color="blue" style={{ marginLeft: 8 }}>
-            共 {filteredData.length} 条
+      <Card bordered={false} className="approval-history__table-card">
+        <div className="approval-history__table-header">
+          <span className="approval-history__table-title">审批历史</span>
+          <Tag color="blue" className="approval-history__total-tag">
+            共 {data.length} 条
           </Tag>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey={(record) => `${record.type}-${record.id}`}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
@@ -234,29 +238,20 @@ function History() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        style={{ width: 600 }}
+        className="approval-history__modal"
       >
         {currentRecord && (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <Steps current={4}>
-              <Steps.Step title="提交申请" description={currentRecord.createTime} />
-              <Steps.Step title="部门审批" description={currentRecord.approveTime} />
-              <Steps.Step title="人事备案" description="已完成" />
-              <Steps.Step title="完成" />
-            </Steps>
-            <Descriptions
-              border
-              column={2}
-              data={[
-                { label: '标题', value: currentRecord.title },
-                { label: '类型', value: typeMap[currentRecord.type].text },
-                { label: '申请人', value: currentRecord.applicant },
-                { label: '部门', value: currentRecord.department },
-                { label: '状态', value: statusMap[currentRecord.status].text },
-                { label: '审批人', value: currentRecord.approver },
-              ]}
-            />
-          </Space>
+          <Descriptions
+            border
+            column={2}
+            data={[
+              { label: '标题', value: currentRecord.title || '-' },
+              { label: '类型', value: typeMap[currentRecord.type]?.text || currentRecord.type || '-' },
+              { label: '申请人', value: currentRecord.applicant || '-' },
+              { label: '状态', value: statusMap[currentRecord.status]?.text || currentRecord.status || '-' },
+              { label: '申请时间', value: currentRecord.createdAt ? new Date(currentRecord.createdAt).toLocaleString() : '-', span: 2 },
+            ]}
+          />
         )}
       </Modal>
     </div>

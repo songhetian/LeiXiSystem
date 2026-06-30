@@ -3,7 +3,8 @@ import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../middleware/permission'
-import { writeAuditLog } from '../services/audit'
+import { setAudit, captureBefore, setAfter } from '../plugins/audit'
+import { getAccessibleAsset } from '../services/objectAuthorization'
 import { normalizePagination } from '../utils/pagination'
 import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
 
@@ -64,13 +65,13 @@ export default async function assetRoutes(fastify: FastifyInstance) {
 
   fastify.post('/categories', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(categorySchema, request.body)
-    const category = await prisma.assetCategory.create({ data: body })
-    await writeAuditLog(request, {
+    setAudit(request, {
       action: 'asset_category_create',
       module: 'asset',
       requestData: body,
-      responseData: { id: category.id },
     })
+    const category = await prisma.assetCategory.create({ data: body })
+    setAfter(request, { id: category.id })
     return { code: 0, message: '创建成功', data: category }
   })
 
@@ -118,42 +119,96 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     return { code: 0, data: { list, total, page, pageSize } }
   })
 
+  fastify.get('/items/:id', { preHandler: [requireAnyPermission(['asset:view', 'asset:manage', 'asset:assign'])] }, async (request: FastifyRequest<{ Params: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({
+        where: { id },
+        include: {
+          category: true,
+          currentEmployee: { select: { employeeNo: true, user: { select: { realName: true } } } },
+          assignments: {
+            orderBy: { assignedAt: 'desc' },
+            include: {
+              employee: { select: { employeeNo: true, user: { select: { realName: true } } } },
+              operator: { select: { realName: true } },
+            },
+          },
+        },
+      }),
+      (item) => item.id,
+    )
+
+    if (!asset) {
+      return { code: 404, message: '资产不存在' }
+    }
+
+    return { code: 0, data: asset }
+  })
+
   fastify.post('/items', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(assetBodySchema, request.body)
+    setAudit(request, {
+      action: 'asset_item_create',
+      module: 'asset',
+      requestData: body,
+    })
     const asset = await prisma.assetItem.create({
       data: {
         ...body,
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
       },
     })
-    await writeAuditLog(request, {
-      action: 'asset_item_create',
-      module: 'asset',
-      requestData: body,
-      responseData: { id: asset.id },
-    })
+    setAfter(request, { id: asset.id })
     return { code: 0, message: '创建成功', data: asset }
   })
 
   fastify.put('/items/:id', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(assetUpdateSchema, request.body)
-    const asset = await prisma.assetItem.update({
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({ where: { id } }),
+      (item) => item.id,
+    )
+
+    if (!asset) {
+      return { code: 404, message: '资产不存在' }
+    }
+
+    const updatedAsset = await prisma.assetItem.update({
       where: { id },
       data: {
         ...body,
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
       },
     })
-    return { code: 0, message: '更新成功', data: asset }
+    return { code: 0, message: '更新成功', data: updatedAsset }
   })
 
   fastify.post('/items/:id/assign', { preHandler: [requirePermission('asset:assign')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(assignAssetSchema, request.body)
-    const asset = await prisma.assetItem.findUnique({ where: { id } })
-    if (!asset) return { code: 404, message: '资产不存在' }
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({ where: { id } }),
+      (item) => item.id,
+    )
+
+    if (!asset) {
+      return { code: 404, message: '资产不存在' }
+    }
     if (asset.status === 'retired') return { code: 400, message: '已报废资产不能领用' }
+
+    setAudit(request, {
+      action: 'asset_assign',
+      module: 'asset',
+      requestData: { assetId: id, ...body },
+    })
 
     const assignment = await prisma.$transaction(async (tx) => {
       if (asset.currentEmployeeId) {
@@ -179,12 +234,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       })
     })
 
-    await writeAuditLog(request, {
-      action: 'asset_assign',
-      module: 'asset',
-      requestData: { assetId: id, ...body },
-      responseData: { id: assignment.id },
-    })
+    setAfter(request, { id: assignment.id })
 
     return { code: 0, message: '领用成功', data: assignment }
   })
@@ -192,9 +242,23 @@ export default async function assetRoutes(fastify: FastifyInstance) {
   fastify.post('/items/:id/return', { preHandler: [requirePermission('asset:assign')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(returnAssetSchema, request.body || {})
-    const asset = await prisma.assetItem.findUnique({ where: { id } })
-    if (!asset) return { code: 404, message: '资产不存在' }
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({ where: { id } }),
+      (item) => item.id,
+    )
+
+    if (!asset) {
+      return { code: 404, message: '资产不存在' }
+    }
     if (!asset.currentEmployeeId) return { code: 400, message: '资产当前未领用' }
+
+    setAudit(request, {
+      action: 'asset_return',
+      module: 'asset',
+      requestData: { assetId: id, ...body },
+    })
 
     await prisma.$transaction(async (tx) => {
       await tx.assetAssignment.updateMany({
@@ -207,11 +271,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       })
     })
 
-    await writeAuditLog(request, {
-      action: 'asset_return',
-      module: 'asset',
-      requestData: { assetId: id, ...body },
-    })
+    setAfter(request, { assetId: id })
 
     return { code: 0, message: '归还成功' }
   })
@@ -238,5 +298,347 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     ])
 
     return { code: 0, data: { list, total, page, pageSize } }
+  })
+
+  // 资产转移（重新分配给其他员工）
+  fastify.post('/items/:id/transfer', { preHandler: [requirePermission('asset:assign')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(assignAssetSchema, request.body)
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({ where: { id } }),
+      (item) => item.id,
+    )
+
+    if (!asset) return { code: 404, message: '资产不存在' }
+    if (asset.status === 'retired') return { code: 400, message: '已报废资产不能转移' }
+
+    setAudit(request, {
+      action: 'asset_transfer',
+      module: 'asset',
+      requestData: { assetId: id, employeeId: body.employeeId, note: body.note },
+    })
+
+    const assignment = await prisma.$transaction(async (tx) => {
+      if (asset.currentEmployeeId) {
+        await tx.assetAssignment.updateMany({
+          where: { assetId: id, returnedAt: null },
+          data: { returnedAt: new Date(), note: body.note ? `转移：${body.note}` : '资产转移' },
+        })
+      }
+      await tx.assetItem.update({
+        where: { id },
+        data: { currentEmployeeId: body.employeeId, status: 'assigned' },
+      })
+      return tx.assetAssignment.create({
+        data: {
+          assetId: id,
+          employeeId: body.employeeId,
+          action: 'transfer',
+          operatorId: request.user.id,
+          note: body.note,
+        },
+      })
+    })
+
+    setAfter(request, { id: assignment.id })
+
+    return { code: 0, message: '转移成功', data: assignment }
+  })
+
+  // 资产报废
+  fastify.post('/items/:id/retire', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(returnAssetSchema, request.body || {})
+
+    const asset = await getAccessibleAsset(
+      request.user,
+      () => prisma.assetItem.findUnique({ where: { id } }),
+      (item) => item.id,
+    )
+
+    if (!asset) return { code: 404, message: '资产不存在' }
+    if (asset.status === 'retired') return { code: 400, message: '资产已报废' }
+
+    setAudit(request, {
+      action: 'asset_retire',
+      module: 'asset',
+      beforeData: { id: asset.id, status: asset.status },
+      requestData: { assetId: id, note: body.note },
+    })
+
+    await prisma.$transaction(async (tx) => {
+      if (asset.currentEmployeeId) {
+        await tx.assetAssignment.updateMany({
+          where: { assetId: id, returnedAt: null },
+          data: { returnedAt: new Date(), note: '资产报废' },
+        })
+      }
+      await tx.assetItem.update({
+        where: { id },
+        data: { currentEmployeeId: null, status: 'retired' },
+      })
+    })
+
+    setAfter(request, { id, status: 'retired' })
+
+    return { code: 0, message: '报废成功' }
+  })
+
+  // 删除资产
+  fastify.delete('/items/:id', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const asset = await prisma.assetItem.findUnique({ where: { id } })
+    if (!asset) return { code: 404, message: '资产不存在' }
+
+    const activeAssignments = await prisma.assetAssignment.count({
+      where: { assetId: id, status: { in: ['assigned', 'pending'] } },
+    })
+    if (activeAssignments > 0) {
+      return { code: 400, message: '该资产有未归还的分配记录，请先完成归还' }
+    }
+
+    const maintenanceCount = await prisma.assetItem.count({
+      where: { id, maintenanceCount: { gt: 0 } },
+    })
+    if (maintenanceCount > 0) {
+      return { code: 400, message: '该资产有维修记录，无法删除' }
+    }
+
+    setAudit(request, {
+      action: 'asset_item_delete',
+      module: 'asset',
+      beforeData: { id: asset.id, name: asset.name, assetNo: asset.assetNo },
+      requestData: { id },
+    })
+
+    await prisma.assetItem.delete({ where: { id } })
+    return { code: 0, message: '删除成功' }
+  })
+
+  const batchIdsSchema = z.object({
+    ids: z.array(z.coerce.number().int().positive()).min(1).max(100),
+  })
+
+  const batchStatusSchema = batchIdsSchema.extend({
+    status: z.enum(['available', 'in_use', 'repair', 'scrapped', 'lost']),
+  })
+
+  fastify.post('/items/batch-delete', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
+    const { ids } = validateData(batchIdsSchema, request.body)
+
+    const assets = await prisma.assetItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, assetNo: true, maintenanceCount: true },
+    })
+
+    const activeAssignments = await prisma.assetAssignment.count({
+      where: { assetId: { in: ids }, status: { in: ['assigned', 'pending'] } },
+    })
+    if (activeAssignments > 0) {
+      return { code: 400, message: '部分资产有未归还的分配记录，请先完成归还' }
+    }
+
+    const hasMaintenance = assets.some((a) => a.maintenanceCount > 0)
+    if (hasMaintenance) {
+      return { code: 400, message: '部分资产有维修记录，无法删除' }
+    }
+
+    setAudit(request, {
+      action: 'asset_item_batch_delete',
+      module: 'asset',
+      beforeData: { ids, count: assets.length },
+      requestData: { ids },
+    })
+
+    const result = await prisma.assetItem.deleteMany({
+      where: { id: { in: ids } },
+    })
+
+    return { code: 0, message: `删除成功（${result.count} 条）`, data: { count: result.count } }
+  })
+
+  fastify.post('/items/batch-status', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
+    const { ids, status } = validateData(batchStatusSchema, request.body)
+
+    setAudit(request, {
+      action: 'asset_item_batch_status',
+      module: 'asset',
+      requestData: { ids, status },
+    })
+
+    const result = await prisma.assetItem.updateMany({
+      where: { id: { in: ids } },
+      data: { status },
+    })
+
+    setAfter(request, { count: result.count })
+
+    return { code: 0, message: `状态更新成功（${result.count} 条）`, data: { count: result.count } }
+  })
+
+  // 批量分配资产
+  fastify.post('/items/batch-assign', { preHandler: [requirePermission('asset:assign')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
+    const { ids, employeeId, note } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个资产'),
+      employeeId: positiveIntSchema,
+      note: z.string().trim().max(1000).optional(),
+    }), request.body)
+
+    const assets = await prisma.assetItem.findMany({
+      where: { id: { in: ids } },
+    })
+
+    let successCount = 0
+    const results: Array<{ id: number; assignmentId?: number; error?: string }> = []
+
+    for (const assetId of ids) {
+      try {
+        const assignment = await prisma.$transaction(async (tx) => {
+          // 如果资产当前有分配，先归还
+          await tx.assetAssignment.updateMany({
+            where: { assetId, returnedAt: null },
+            data: { returnedAt: new Date(), note: '批量分配前归还' },
+          })
+          // 更新资产状态
+          await tx.assetItem.update({
+            where: { id: assetId },
+            data: { currentEmployeeId: employeeId, status: 'assigned' },
+          })
+          // 创建分配记录
+          return tx.assetAssignment.create({
+            data: {
+              assetId,
+              employeeId,
+              action: 'assign',
+              operatorId: request.user.id,
+              note,
+            },
+          })
+        })
+        successCount++
+        results.push({ id: assetId, assignmentId: assignment.id })
+      } catch (e) {
+        results.push({ id: assetId, error: String(e) })
+      }
+    }
+
+    setAudit(request, {
+      module: 'asset',
+      action: 'asset.batchAssign',
+      requestData: { ids, employeeId, note, successCount },
+    })
+
+    return {
+      code: 0,
+      message: `成功分配 ${successCount} 个资产`,
+      data: { successCount, failedCount: ids.length - successCount, results },
+    }
+  })
+
+  // 批量归还资产
+  fastify.post('/items/batch-return', { preHandler: [requirePermission('asset:assign')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
+    const { ids, note } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个资产'),
+      note: z.string().trim().max(1000).optional(),
+    }), request.body)
+
+    let successCount = 0
+
+    for (const assetId of ids) {
+      await prisma.$transaction(async (tx) => {
+        await tx.assetAssignment.updateMany({
+          where: { assetId, returnedAt: null },
+          data: { returnedAt: new Date(), note: note || '批量归还' },
+        })
+        await tx.assetItem.update({
+          where: { id: assetId },
+          data: { currentEmployeeId: null, status: 'available' },
+        })
+      })
+      successCount++
+    }
+
+    setAudit(request, {
+      module: 'asset',
+      action: 'asset.batchReturn',
+      requestData: { ids, note, successCount },
+    })
+
+    return {
+      code: 0,
+      message: `成功归还 ${successCount} 个资产`,
+      data: { successCount, failedCount: ids.length - successCount },
+    }
+  })
+
+  // 导出资产分配记录
+  fastify.post('/assignments/export', { preHandler: [requireAnyPermission(['asset:view', 'asset:manage'])] }, async (request: FastifyRequest<{
+    Body: {
+      categoryId?: number
+      status?: string
+      fields?: string[]
+    }
+  }>) => {
+    const body = request.body as any
+    const { categoryId, status, fields = [] } = body || {}
+
+    const where: any = {}
+    if (status === 'assigned') {
+      where.returnedAt = null
+    } else if (status === 'returned') {
+      where.returnedAt = { not: null }
+    }
+    if (categoryId) where.asset = { categoryId }
+
+    const assignments = await prisma.assetAssignment.findMany({
+      where,
+      select: {
+        assignedAt: true,
+        returnedAt: true,
+        note: true,
+        operator: { select: { realName: true } },
+        asset: {
+          select: {
+            assetNo: true,
+            name: true,
+            category: { select: { name: true } },
+          },
+        },
+        employee: {
+          select: {
+            employeeNo: true,
+            department: { select: { name: true } },
+            user: { select: { realName: true } },
+          },
+        },
+      },
+      orderBy: { assignedAt: 'desc' },
+    })
+
+    const rows = assignments.map((a: any) => ({
+      assetNo: a.asset?.assetNo || '-',
+      assetName: a.asset?.name || '-',
+      category: a.asset?.category?.name || '-',
+      employeeNo: a.employee?.employeeNo || '-',
+      employeeName: a.employee?.user?.realName || '-',
+      department: a.employee?.department?.name || '-',
+      assignedAt: a.assignedAt ? new Date(a.assignedAt).toISOString().split('T')[0] : '-',
+      returnedAt: a.returnedAt ? new Date(a.returnedAt).toISOString().split('T')[0] : '-',
+      status: a.returnedAt ? '已归还' : '使用中',
+      operator: a.operator?.realName || '-',
+      note: a.note || '-',
+    }))
+
+    return {
+      code: 0,
+      message: `共 ${rows.length} 条数据`,
+      data: {
+        filename: `资产分配记录_${new Date().toISOString().split('T')[0]}.xlsx`,
+        fields: fields.length > 0 ? fields : ['assetNo', 'assetName', 'category', 'employeeNo', 'employeeName', 'department', 'assignedAt', 'returnedAt', 'status', 'operator', 'note'],
+        rows,
+      },
+    }
   })
 }

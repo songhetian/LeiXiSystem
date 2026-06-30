@@ -1,0 +1,19 @@
+.exception-rules {
+  padding-bottom: 20px;
+}
+
+.exception-rules__text-bold {
+  font-weight: 500;
+}
+
+.exception-rules__modal {
+  width: 600px;
+}
+
+.exception-rules__input-full {
+  width: 100%;
+}
+
+.exception-rules__select-small {
+  width: 150px;
+}

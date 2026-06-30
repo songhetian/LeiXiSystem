@@ -1,0 +1,38 @@
+.exception-stats {
+  padding-bottom: 20px;
+}
+
+.exception-stats__card {
+  margin-bottom: 16px;
+}
+
+.exception-stats__title {
+  margin: 0;
+}
+
+.exception-stats__picker {
+  width: 280px;
+}
+
+.exception-stats__stat-title {
+  color: #86909c;
+  font-size: 14px;
+}
+
+.exception-stats__stat-icon {
+  margin-right: 8px;
+}
+
+.exception-stats__bold {
+  font-weight: 600;
+}
+
+.exception-stats__text-muted {
+  color: #86909c;
+}
+
+.exception-stats__empty {
+  text-align: center;
+  padding: 40px 0;
+  color: #86909c;
+}

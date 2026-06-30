@@ -1,0 +1,83 @@
+.finance-report {
+  padding: 16px;
+}
+
+.finance-report .filter-card {
+  margin-bottom: 16px;
+}
+
+.finance-report .filter-bar {
+  display: flex;
+  align-items: center;
+}
+
+.finance-report .search-input {
+  width: 200px;
+}
+
+.finance-report .date-range-picker {
+  width: 260px;
+}
+
+.finance-report .dept-filter-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.finance-report .dept-filter-tag {
+  margin-left: 8px;
+}
+
+.finance-report .dept-tree-popover {
+  min-width: 280px;
+}
+
+.finance-report .tree-spin {
+  display: block;
+  padding: 20px;
+}
+
+.finance-report .dept-tree {
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.finance-report .page-spin {
+  width: 100%;
+}
+
+.finance-report .stats-row {
+  margin-bottom: 16px;
+}
+
+.finance-report .stat-card {
+  background: #fff;
+}
+
+.finance-report .stat-card .arco-statistic {
+  padding: 16px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.finance-report .charts-row {
+  margin-bottom: 16px;
+}
+
+.finance-report .chart-card {
+  background: #fff;
+}
+
+.finance-report .chart-container {
+  width: 100%;
+  height: 320px;
+}
+
+.finance-report .table-card {
+  background: #fff;
+}
+
+.finance-report .arco-table-wrapper {
+  background: #fff;
+}

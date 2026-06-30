@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -10,10 +10,8 @@ import {
   Message,
   Tag,
   Card,
-  Grid,
-  Steps,
-  Descriptions,
   Tabs,
+  Descriptions,
 } from '@arco-design/web-react'
 import {
   IconSearch,
@@ -23,30 +21,20 @@ import {
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getPendingApproval } from '@/api/approval'
+import type { PendingApproval } from '@/api/approval'
+import { approveLeave, rejectLeave } from '@/api/attendance'
+import { approveReimbursement, rejectReimbursement } from '@/api/reimbursement'
+import './pending.css'
 
-const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
-
-interface ApprovalItem {
-  id: number
-  title: string
-  type: 'leave' | 'overtime' | 'reimbursement' | 'shift'
-  applicant: string
-  department: string
-  amount?: number
-  days?: number
-  status: 'pending' | 'approved' | 'rejected'
-  createTime: string
-  currentStep: number
-}
 
 const typeMap: Record<string, { text: string; color: string }> = {
   leave: { text: '请假', color: 'blue' },
   overtime: { text: '加班', color: 'orange' },
   reimbursement: { text: '报销', color: 'green' },
-  shift: { text: '调班', color: 'purple' },
 }
 
 const statusMap: Record<string, { text: string; color: string }> = {
@@ -55,36 +43,62 @@ const statusMap: Record<string, { text: string; color: string }> = {
   rejected: { text: '已驳回', color: 'red' },
 }
 
-const mockData: ApprovalItem[] = [
-  { id: 1, title: '年假申请', type: 'leave', applicant: '张三', department: '技术部', days: 3, status: 'pending', createTime: '2024-06-20 10:30', currentStep: 1 },
-  { id: 2, title: '加班申请', type: 'overtime', applicant: '李四', department: '产品部', status: 'pending', createTime: '2024-06-20 14:00', currentStep: 1 },
-  { id: 3, title: '差旅费报销', type: 'reimbursement', applicant: '王五', department: '市场部', amount: 2500, status: 'pending', createTime: '2024-06-20 16:00', currentStep: 2 },
-  { id: 4, title: '调班申请', type: 'shift', applicant: '赵六', department: '技术部', status: 'pending', createTime: '2024-06-21 09:00', currentStep: 1 },
-  { id: 5, title: '病假申请', type: 'leave', applicant: '钱七', department: '人事部', days: 1, status: 'pending', createTime: '2024-06-21 10:00', currentStep: 1 },
-]
-
 function Pending() {
-  const [data, setData] = useState<ApprovalItem[]>(mockData)
+  const [data, setData] = useState<PendingApproval[]>([])
+  const [loading, setLoading] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
-  const [currentRecord, setCurrentRecord] = useState<ApprovalItem | null>(null)
-  const [form] = Form.useForm()
+  const [currentRecord, setCurrentRecord] = useState<PendingApproval | null>(null)
   const [searchText, setSearchText] = useState('')
   const [searchType, setSearchType] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<ApprovalItem[]>(mockData)
   const [activeTab, setActiveTab] = useState('all')
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+  const [opinionForm] = Form.useForm()
 
-  const columns: TableProps<ApprovalItem>['columns'] = [
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getPendingApproval({
+        page,
+        pageSize,
+        type: activeTab !== 'all' ? activeTab : undefined,
+      })
+      let list = res.data.list
+      if (searchText) {
+        list = list.filter(
+          (item: PendingApproval) =>
+            item.title.includes(searchText) ||
+            item.applicant.includes(searchText),
+        )
+      }
+      if (searchType) {
+        list = list.filter((item: PendingApproval) => item.type === searchType)
+      }
+      setData(list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  const columns: TableProps<PendingApproval>['columns'] = [
     {
       title: '标题',
       dataIndex: 'title',
-      width: 180,
+      width: 200,
     },
     {
       title: '类型',
       dataIndex: 'type',
-      width: 80,
+      width: 90,
       render: (value: string) => {
-        const info = typeMap[value]
+        const info = typeMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
@@ -94,37 +108,29 @@ function Pending() {
       width: 100,
     },
     {
-      title: '部门',
-      dataIndex: 'department',
-      width: 100,
-    },
-    {
       title: '金额/天数',
+      dataIndex: 'amount',
       width: 100,
-      render: (_: any, record: ApprovalItem) => (
-        <span>
-          {record.amount ? `¥${record.amount}` : record.days ? `${record.days}天` : '-'}
-        </span>
-      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 90,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
       title: '申请时间',
-      dataIndex: 'createTime',
-      width: 150,
+      dataIndex: 'createdAt',
+      width: 160,
+      render: (value: string) => new Date(value).toLocaleString(),
     },
     {
       title: '操作',
       width: 180,
-      render: (_: any, record: ApprovalItem) => (
+      render: (_: unknown, record: PendingApproval) => (
         <Space size="small">
           <Button
             type="text"
@@ -139,7 +145,7 @@ function Pending() {
             size="small"
             status="success"
             icon={<IconCheck />}
-            onClick={() => handleApprove(record.id)}
+            onClick={() => handleApprove(record)}
           >
             通过
           </Button>
@@ -148,7 +154,7 @@ function Pending() {
             size="small"
             status="danger"
             icon={<IconClose />}
-            onClick={() => handleReject(record.id)}
+            onClick={() => handleReject(record)}
           >
             驳回
           </Button>
@@ -157,83 +163,98 @@ function Pending() {
     },
   ]
 
-  const handleView = (record: ApprovalItem) => {
+  const handleView = (record: PendingApproval) => {
     setCurrentRecord(record)
     setDetailVisible(true)
   }
 
-  const handleApprove = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)))
-    Message.success('审批通过')
+  const handleApprove = (record: PendingApproval) => {
+    Modal.confirm({
+      title: '通过确认',
+      content: `确定要通过该${typeMap[record.type]?.text || ''}申请吗？`,
+      okText: '确认通过',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          if (record.type === 'leave') {
+            await approveLeave(record.id)
+          } else if (record.type === 'reimbursement') {
+            await approveReimbursement(record.id)
+          }
+          Message.success('审批通过')
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+        }
+      },
+    })
   }
 
-  const handleReject = (id: number) => {
+  const handleReject = (record: PendingApproval) => {
+    opinionForm.resetFields()
     Modal.confirm({
       title: '驳回确认',
-      content: '请输入驳回原因：',
+      content: (
+        <Form form={opinionForm} layout="vertical">
+          <FormItem label="驳回原因" field="opinion" rules={[{ required: true, message: '请输入驳回原因' }]}>
+            <Input.TextArea placeholder="请输入驳回原因" rows={3} />
+          </FormItem>
+        </Form>
+      ),
       okText: '确认驳回',
       cancelText: '取消',
-      onOk: () => {
-        setData(data.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)))
-        Message.success('已驳回')
+      onOk: async () => {
+        try {
+          const values = await opinionForm.validate()
+          if (record.type === 'leave') {
+            await rejectLeave(record.id, { opinion: values.opinion })
+          } else if (record.type === 'reimbursement') {
+            await rejectReimbursement(record.id, { opinion: values.opinion })
+          }
+          Message.success('已驳回')
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+          return false
+        }
       },
     })
   }
 
   const handleSearch = () => {
-    let result = data
-    if (activeTab !== 'all') {
-      result = result.filter((item) => item.type === activeTab)
-    }
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.title.includes(searchText) ||
-          item.applicant.includes(searchText),
-      )
-    }
-    if (searchType) {
-      result = result.filter((item) => item.type === searchType)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchType(undefined)
-    setFilteredData(data.filter((item) => activeTab === 'all' || item.type === activeTab))
+    fetchData(1, pagination.pageSize)
   }
 
   const handleTabChange = (key: string) => {
     setActiveTab(key)
-    if (key === 'all') {
-      setFilteredData(data.filter((item) => item.status === 'pending'))
-    } else {
-      setFilteredData(data.filter((item) => item.type === key && item.status === 'pending'))
-    }
   }
 
-  const pendingCount = data.filter((d) => d.status === 'pending').length
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
+  }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="approval-pending">
+      <Card bordered={false} className="approval-pending__tabs-card">
         <Tabs activeTab={activeTab} onChange={handleTabChange}>
-          <TabPane key="all" title={`全部 (${pendingCount})`} />
-          <TabPane key="leave" title={`请假 (${data.filter(d => d.type === 'leave' && d.status === 'pending').length})`} />
-          <TabPane key="overtime" title={`加班 (${data.filter(d => d.type === 'overtime' && d.status === 'pending').length})`} />
-          <TabPane key="reimbursement" title={`报销 (${data.filter(d => d.type === 'reimbursement' && d.status === 'pending').length})`} />
-          <TabPane key="shift" title={`调班 (${data.filter(d => d.type === 'shift' && d.status === 'pending').length})`} />
+          <TabPane key="all" title={`全部 (${pagination.total})`} />
+          <TabPane key="leave" title="请假" />
+          <TabPane key="overtime" title="加班" />
+          <TabPane key="reimbursement" title="报销" />
         </Tabs>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="approval-pending__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="approval-pending__search-input"
               placeholder="标题/申请人"
               value={searchText}
               onChange={setSearchText}
@@ -242,7 +263,7 @@ function Pending() {
           </FormItem>
           <FormItem label="类型">
             <Select
-              style={{ width: 120 }}
+              className="approval-pending__type-select"
               placeholder="请选择"
               value={searchType}
               onChange={setSearchType}
@@ -251,7 +272,6 @@ function Pending() {
               <Option value="leave">请假</Option>
               <Option value="overtime">加班</Option>
               <Option value="reimbursement">报销</Option>
-              <Option value="shift">调班</Option>
             </Select>
           </FormItem>
           <FormItem>
@@ -267,15 +287,26 @@ function Pending() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>待审批列表</span>
-          <Tag color="orange" style={{ marginLeft: 8 }}>
-            共 {filteredData.filter(d => d.status === 'pending').length} 条待处理
+      <Card bordered={false} className="approval-pending__table-card">
+        <div className="approval-pending__table-header">
+          <span className="approval-pending__table-title">待审批列表</span>
+          <Tag color="orange" className="approval-pending__total-tag">
+            共 {data.length} 条待处理
           </Tag>
         </div>
 
-        <Table columns={columns} data={filteredData.filter(d => d.status === 'pending')} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey={(record) => `${record.type}-${record.id}`}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
@@ -283,32 +314,21 @@ function Pending() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        style={{ width: 600 }}
+        className="approval-pending__modal"
       >
         {currentRecord && (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <Steps current={currentRecord.currentStep}>
-              <Steps.Step title="提交申请" description={currentRecord.createTime} />
-              <Steps.Step title="部门审批" description="审批中" />
-              <Steps.Step title="人事备案" />
-              <Steps.Step title="完成" />
-            </Steps>
-            <Descriptions
-              border
-              column={2}
-              data={[
-                { label: '标题', value: currentRecord.title },
-                { label: '类型', value: typeMap[currentRecord.type].text },
-                { label: '申请人', value: currentRecord.applicant },
-                { label: '部门', value: currentRecord.department },
-                { label: '申请时间', value: currentRecord.createTime },
-                {
-                  label: '金额/天数',
-                  value: currentRecord.amount ? `¥${currentRecord.amount}` : currentRecord.days ? `${currentRecord.days}天` : '-',
-                },
-              ]}
-            />
-          </Space>
+          <Descriptions
+            border
+            column={2}
+            data={[
+              { label: '标题', value: currentRecord.title },
+              { label: '类型', value: typeMap[currentRecord.type]?.text || currentRecord.type },
+              { label: '申请人', value: currentRecord.applicant },
+              { label: '金额/天数', value: currentRecord.amount },
+              { label: '状态', value: statusMap[currentRecord.status]?.text || currentRecord.status },
+              { label: '申请时间', value: new Date(currentRecord.createdAt).toLocaleString() },
+            ]}
+          />
         )}
       </Modal>
     </div>

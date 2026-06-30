@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, Descriptions, Form, Input, Message, Modal, Space, Table, Typography } from '@arco-design/web-react'
-import { confirmMyPayslip, disputeMyPayslip, getMyPayslipDetail, getMyPayslips, setPayslipPassword, verifyPayslipPassword } from '@/api/payroll'
+import { confirmMyPayslip, disputeMyPayslip, getMyPayslipDetail, getMyPayslips, setPayslipPassword, verifyPayslipPassword, MyPayslip, Payslip } from '@/api/payroll'
 import StatusTag from '@/components/StatusTag'
+import './index.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
 
 function MyPayslipsPage() {
-  const [data, setData] = useState<any[]>([])
-  const [detail, setDetail] = useState<any>(null)
+  const [data, setData] = useState<Payslip[]>([])
+  const [detail, setDetail] = useState<Payslip | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [verifyVisible, setVerifyVisible] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
@@ -20,7 +21,7 @@ function MyPayslipsPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res: any = await getMyPayslips()
+      const res = await getMyPayslips()
       setData(res.data || [])
     } finally {
       setLoading(false)
@@ -48,15 +49,15 @@ function MyPayslipsPage() {
       if (error?.response?.status === 404) {
         const setupPassword = values.password
         await setPayslipPassword({ password: setupPassword, confirmPassword: setupPassword })
-        const verifyRes: any = await verifyPayslipPassword({ password: setupPassword })
-        token = verifyRes.data?.payslipAccessToken
+        const verifyRes = await verifyPayslipPassword({ password: setupPassword })
+        token = verifyRes.data?.payslipAccessToken || ''
       } else {
         throw error
       }
     }
 
     if (!selectedId || !token) return
-    const detailRes: any = await getMyPayslipDetail(selectedId, token)
+    const detailRes = await getMyPayslipDetail(selectedId, token)
     setDetail(detailRes.data)
     setVerifyVisible(false)
     setDetailVisible(true)
@@ -122,10 +123,10 @@ function MyPayslipsPage() {
   ], [])
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="my-payslips">
+      <Card bordered={false} className="my-payslips__card">
         <Space direction="vertical" size={4}>
-          <Title heading={5} style={{ margin: 0 }}>我的工资条</Title>
+          <Title heading={5} className="my-payslips__title">我的工资条</Title>
           <Text type="secondary">工资金额默认脱敏，查看明细前必须验证二级密码；首次验证时会自动设置二级密码。</Text>
         </Space>
       </Card>
@@ -145,7 +146,7 @@ function MyPayslipsPage() {
         visible={verifyVisible}
         onOk={handleVerify}
         onCancel={() => setVerifyVisible(false)}
-        style={{ width: 420 }}
+        className="my-payslips__modal--verify"
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -169,10 +170,10 @@ function MyPayslipsPage() {
           </Space>
         )}
         onCancel={() => setDetailVisible(false)}
-        style={{ width: 720 }}
+        className="my-payslips__modal--detail"
       >
         {detail && (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className="my-payslips__space">
             <Descriptions
               column={2}
               data={[
@@ -188,7 +189,7 @@ function MyPayslipsPage() {
               data={detail.items || []}
               columns={itemColumns}
             />
-            {detail.disputes?.length > 0 && (
+            {detail.disputes && detail.disputes.length > 0 && (
               <Table
                 rowKey="id"
                 pagination={false}
@@ -205,7 +206,7 @@ function MyPayslipsPage() {
         visible={disputeVisible}
         onOk={handleDispute}
         onCancel={() => setDisputeVisible(false)}
-        style={{ width: 520 }}
+        className="my-payslips__modal--dispute"
       >
         <Form form={disputeForm} layout="vertical">
           <FormItem label="申诉原因" field="reason" rules={[{ required: true, message: '请输入申诉原因' }]}>

@@ -1,0 +1,61 @@
+.notification-config {
+  padding-bottom: 20px;
+}
+
+.notification-config__footer {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.notification-config__channel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.notification-config__channel-title {
+  font-weight: 600;
+}
+
+.notification-config__channel-desc {
+  color: #86909C;
+  font-size: 12px;
+}
+
+.notification-config__type-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.notification-config__type-title {
+  font-weight: 600;
+}
+
+.notification-config__type-desc {
+  color: #86909C;
+  font-size: 12px;
+}
+
+.notification-config__form {
+  max-width: 600px;
+}
+
+
+.notification-config__icon {
+  font-size: 20px;
+}
+
+.notification-config__icon--notification {
+  color: #165DFF;
+}
+
+.notification-config__icon--email {
+  color: #00B42A;
+}
+
+.notification-config__icon--phone {
+  color: #FF7D00;
+}

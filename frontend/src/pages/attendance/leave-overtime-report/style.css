@@ -1,0 +1,83 @@
+.leave-overtime-report {
+  padding: 16px;
+}
+
+.leave-overtime-report .filter-card {
+  margin-bottom: 16px;
+}
+
+.leave-overtime-report .filter-bar {
+  display: flex;
+  align-items: center;
+}
+
+.leave-overtime-report .search-input {
+  width: 200px;
+}
+
+.leave-overtime-report .date-range-picker {
+  width: 260px;
+}
+
+.leave-overtime-report .dept-filter-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.leave-overtime-report .dept-filter-tag {
+  margin-left: 8px;
+}
+
+.leave-overtime-report .dept-tree-popover {
+  min-width: 280px;
+}
+
+.leave-overtime-report .tree-spin {
+  display: block;
+  padding: 20px;
+}
+
+.leave-overtime-report .dept-tree {
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.leave-overtime-report .page-spin {
+  width: 100%;
+}
+
+.leave-overtime-report .stats-row {
+  margin-bottom: 16px;
+}
+
+.leave-overtime-report .stat-card {
+  background: #fff;
+}
+
+.leave-overtime-report .stat-card .arco-statistic {
+  padding: 16px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.leave-overtime-report .charts-row {
+  margin-bottom: 16px;
+}
+
+.leave-overtime-report .chart-card {
+  background: #fff;
+}
+
+.leave-overtime-report .chart-container {
+  width: 100%;
+  height: 320px;
+}
+
+.leave-overtime-report .table-card {
+  background: #fff;
+}
+
+.leave-overtime-report .arco-table-wrapper {
+  background: #fff;
+}

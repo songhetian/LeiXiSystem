@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -9,7 +9,6 @@ import {
   Form,
   Message,
   Tag,
-  Popconfirm,
   Card,
   DatePicker,
   Grid,
@@ -25,23 +24,21 @@ import {
   IconUpload,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import dayjs, { Dayjs } from 'dayjs'
+import {
+  getReimbursementList,
+  applyReimbursement,
+  cancelReimbursement,
+  getReimbursementDetail,
+} from '@/api/reimbursement'
+import type { Reimbursement } from '@/api/reimbursement'
+import { formatDate } from '@/utils/date'
+import './list.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const { RangePicker } = DatePicker
-
-interface Reimbursement {
-  id: number
-  title: string
-  applicant: string
-  department: string
-  type: string
-  amount: number
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'paid'
-  createTime: string
-  currentApprover: string
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   draft: { text: '草稿', color: 'gray' },
@@ -49,28 +46,46 @@ const statusMap: Record<string, { text: string; color: string }> = {
   approved: { text: '已通过', color: 'green' },
   rejected: { text: '已驳回', color: 'red' },
   paid: { text: '已支付', color: 'blue' },
+  cancelled: { text: '已撤销', color: 'gray' },
 }
 
 const reimbursementTypes = ['差旅费', '交通费', '餐饮费', '办公用品', '招待费', '其他']
 
-const mockData: Reimbursement[] = [
-  { id: 1, title: '6月差旅报销', applicant: '张三', department: '技术部', type: '差旅费', amount: 2500, status: 'pending', createTime: '2024-06-20 10:30', currentApprover: '部门经理' },
-  { id: 2, title: '客户招待费', applicant: '李四', department: '产品部', type: '招待费', amount: 800, status: 'approved', createTime: '2024-06-18 14:00', currentApprover: '-' },
-  { id: 3, title: '办公用品采购', applicant: '钱七', department: '人事部', type: '办公用品', amount: 350, status: 'paid', createTime: '2024-06-15 09:00', currentApprover: '-' },
-  { id: 4, title: '交通补贴', applicant: '王五', department: '市场部', type: '交通费', amount: 200, status: 'rejected', createTime: '2024-06-12 16:30', currentApprover: '-' },
-  { id: 5, title: '加班打车费', applicant: '赵六', department: '技术部', type: '交通费', amount: 150, status: 'pending', createTime: '2024-06-21 18:00', currentApprover: '部门经理' },
-  { id: 6, title: '出差餐饮', applicant: '吴十', department: '运营部', type: '餐饮费', amount: 450, status: 'draft', createTime: '2024-06-22 11:00', currentApprover: '-' },
-]
-
 function ListPage() {
-  const [data, setData] = useState<Reimbursement[]>(mockData)
+  const [data, setData] = useState<Reimbursement[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
-  const [currentRecord, setCurrentRecord] = useState<Reimbursement | null>(null)
+  const [currentDetail, setCurrentDetail] = useState<{ id: number; title: string; type: string; amount: number; status: string; currentStep?: number; description?: string | null; expenseDate?: string; createdAt: string } | null>(null)
+  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<Reimbursement[]>(mockData)
+  const [dateRange, setDateRange] = useState<Dayjs[]>([])
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getReimbursementList({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+        status: searchStatus,
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const columns: TableProps<Reimbursement>['columns'] = [
     {
@@ -79,69 +94,60 @@ function ListPage() {
       width: 180,
     },
     {
-      title: '申请人',
-      dataIndex: 'applicant',
-      width: 100,
-    },
-    {
-      title: '部门',
-      dataIndex: 'department',
-      width: 100,
-    },
-    {
       title: '报销类型',
       dataIndex: 'type',
       width: 100,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      render: (value: string) => <Tag color="blue" className="reimbursement-list__type-tag">{value}</Tag>,
     },
     {
       title: '金额(元)',
       dataIndex: 'amount',
       width: 100,
-      render: (value: number) => <span style={{ fontWeight: 600, color: '#FF7D00' }}>¥{value}</span>,
+      render: (value: number) => <span className="reimbursement-list__amount">¥{value}</span>,
+    },
+    {
+      title: '费用日期',
+      dataIndex: 'expenseDate',
+      width: 110,
+      render: (value: string) => formatDate(value),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
-      title: '当前节点',
-      dataIndex: 'currentApprover',
-      width: 100,
-    },
-    {
       title: '申请时间',
-      dataIndex: 'createTime',
-      width: 150,
+      dataIndex: 'createdAt',
+      width: 160,
+      render: (value: string) => new Date(value).toLocaleString(),
     },
     {
       title: '操作',
       width: 150,
-      render: (_: any, record: Reimbursement) => (
+      render: (_: unknown, record: Reimbursement) => (
         <Space size="small">
           <Button
             type="text"
             size="small"
             icon={<IconEye />}
-            onClick={() => handleView(record)}
+            onClick={() => handleView(record.id)}
           >
             详情
           </Button>
-          {(record.status === 'draft' || record.status === 'rejected') && (
-            <Popconfirm
-              title="确认提交"
-              content="确定要提交该报销单吗？"
-              onOk={() => handleSubmit(record.id)}
+          {record.status === 'pending' && (
+            <Button
+              type="text"
+              size="small"
+              status="danger"
+              onClick={() => handleCancel(record.id)}
             >
-              <Button type="text" size="small">
-                提交
-              </Button>
-            </Popconfirm>
+              撤销
+            </Button>
           )}
         </Space>
       ),
@@ -153,64 +159,75 @@ function ListPage() {
     setVisible(true)
   }
 
-  const handleView = (record: Reimbursement) => {
-    setCurrentRecord(record)
-    setDetailVisible(true)
+  const handleView = async (id: number) => {
+    try {
+      const res = await getReimbursementDetail(id)
+      setCurrentDetail(res.data)
+      setDetailVisible(true)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
-  const handleSubmit = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'pending', currentApprover: '部门经理' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'pending', currentApprover: '部门经理' } : item)))
-    Message.success('提交成功')
+  const handleCancel = async (id: number) => {
+    Modal.confirm({
+      title: '确认撤销',
+      content: '确定要撤销该报销申请吗？',
+      onOk: async () => {
+        try {
+          await cancelReimbursement(id)
+          Message.success('撤销成功')
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+        }
+      },
+    })
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
-      const newId = Math.max(...data.map((d) => d.id)) + 1
-      const newRecord = {
-        id: newId,
-        applicant: '当前用户',
-        department: '技术部',
-        status: 'draft',
-        currentApprover: '-',
-        createTime: new Date().toLocaleString(),
+      setSaving(true)
+      await applyReimbursement({
         ...values,
-      } as Reimbursement
-      setData([newRecord, ...data])
-      setFilteredData([newRecord, ...filteredData])
-      Message.success('创建成功')
+        expenseDate: values.expenseDate
+          ? new Date(values.expenseDate).toISOString().split('T')[0]
+          : undefined,
+      })
+      Message.success('申请成功')
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData(1, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter((item) => item.title.includes(searchText) || item.applicant.includes(searchText))
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchStatus(undefined)
-    setFilteredData(data)
+    setDateRange([])
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="reimbursement-list">
+      <Card bordered={false} className="reimbursement-list__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
-              placeholder="标题/申请人"
+              className="reimbursement-list__search-input"
+              placeholder="标题"
               value={searchText}
               onChange={setSearchText}
               allowClear
@@ -218,7 +235,7 @@ function ListPage() {
           </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 130 }}
+              className="reimbursement-list__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -229,10 +246,15 @@ function ListPage() {
               <Option value="approved">已通过</Option>
               <Option value="rejected">已驳回</Option>
               <Option value="paid">已支付</Option>
+              <Option value="cancelled">已撤销</Option>
             </Select>
           </FormItem>
           <FormItem label="申请时间">
-            <RangePicker style={{ width: 220 }} />
+            <RangePicker
+              className="reimbursement-list__date-picker"
+              value={dateRange}
+              onChange={(_, date) => setDateRange(date)}
+            />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -247,12 +269,12 @@ function ListPage() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="reimbursement-list__table-card">
+        <div className="reimbursement-list__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>我的报销</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 条
+            <span className="reimbursement-list__table-title">我的报销</span>
+            <Tag color="blue" className="reimbursement-list__total-tag">
+              共 {pagination.total} 条
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -260,7 +282,18 @@ function ListPage() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
@@ -268,7 +301,8 @@ function ListPage() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 600 }}
+        confirmLoading={saving}
+        className="reimbursement-list__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -302,6 +336,13 @@ function ListPage() {
               </FormItem>
             </Col>
           </Row>
+          <FormItem
+            label="费用日期"
+            field="expenseDate"
+            rules={[{ required: true, message: '请选择日期' }]}
+          >
+            <DatePicker className="reimbursement-list__form-item" />
+          </FormItem>
           <FormItem label="费用说明" field="description">
             <Input.TextArea placeholder="请输入费用说明" rows={3} />
           </FormItem>
@@ -312,9 +353,9 @@ function ListPage() {
               limit={5}
               customRequest={() => {}}
             >
-              <div style={{ padding: '10px 0' }}>
-                <IconUpload style={{ fontSize: 20 }} />
-                <div style={{ marginTop: 4, fontSize: 12, color: '#86909C' }}>上传凭证</div>
+              <div className="reimbursement-list__upload-wrapper">
+                <IconUpload className="reimbursement-list__upload-icon" />
+                <div className="reimbursement-list__upload-text">上传凭证</div>
               </div>
             </Upload>
           </FormItem>
@@ -326,26 +367,27 @@ function ListPage() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        style={{ width: 600 }}
+        className="reimbursement-list__modal"
       >
-        {currentRecord && (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <Steps current={2} style={{ marginBottom: 20 }}>
-              <Steps.Step title="提交申请" description="2024-06-20 10:30" />
-              <Steps.Step title="部门审批" description="2024-06-20 14:00" />
-              <Steps.Step title="财务审核" description="审批中" />
+        {currentDetail && (
+          <Space direction="vertical" size={20} className="reimbursement-list__form-item">
+            <Steps current={currentDetail.currentStep || 0} className="reimbursement-list__steps">
+              <Steps.Step title="提交申请" />
+              <Steps.Step title="部门审批" />
+              <Steps.Step title="财务审核" />
               <Steps.Step title="完成支付" />
             </Steps>
             <Descriptions
               border
               column={2}
               data={[
-                { label: '报销标题', value: currentRecord.title },
-                { label: '申请人', value: currentRecord.applicant },
-                { label: '部门', value: currentRecord.department },
-                { label: '报销类型', value: currentRecord.type },
-                { label: '金额', value: `¥${currentRecord.amount}` },
-                { label: '状态', value: statusMap[currentRecord.status].text },
+                { label: '报销标题', value: currentDetail.title },
+                { label: '报销类型', value: currentDetail.type },
+                { label: '金额', value: `¥${currentDetail.amount}` },
+                { label: '费用日期', value: currentDetail.expenseDate ? formatDate(currentDetail.expenseDate) : '-' },
+                { label: '状态', value: (statusMap[currentDetail.status] || {}).text || currentDetail.status },
+                { label: '申请时间', value: new Date(currentDetail.createdAt).toLocaleString() },
+                { label: '费用说明', value: currentDetail.description || '-', span: 2 },
               ]}
             />
           </Space>

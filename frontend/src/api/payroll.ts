@@ -1,15 +1,177 @@
-import { get, post, put } from './request'
+import { get, post, put, del } from './request'
+
+export interface SalaryComponent {
+  id: number
+  name: string
+  type: 'fixed' | 'variable' | 'allowance' | 'deduction'
+  amount: number
+  description?: string
+  status: string
+}
+
+export interface PayrollRun {
+  id: number
+  name: string
+  period?: string
+  payrollPeriod?: { year: number; month: number }
+  status: 'draft' | 'calculating' | 'ready' | 'published'
+  totalAmount?: number
+  employeeCount?: number
+  createdAt: string
+  publishedAt?: string
+  creator?: { realName: string }
+  scopeType?: string
+}
+
+export interface Payslip {
+  id: number
+  employeeId: number
+  employeeName: string
+  employeeNo: string
+  department: string
+  baseSalary: number
+  totalEarnings: number
+  totalDeductions: number
+  netSalary: number
+  status: string
+  payPeriod: string
+  paidAt?: string
+  payrollRun?: { id: number; name: string; payrollPeriod?: { year: number; month: number } }
+  employee?: {
+    id: number
+    user?: { realName: string; department?: { name: string } }
+  }
+  grossPay?: number
+  totalDeduction?: number
+  netPay?: number
+  paidDays?: number
+  attendanceSnapshot?: Record<string, unknown>
+  items?: PayslipItem[]
+  disputes?: PayslipDispute[]
+  year?: number
+  month?: number
+}
+
+export interface PayslipItem {
+  id: number
+  component?: { id: number; name: string }
+  type: string
+  amount: number
+}
+
+export interface SalaryStructure {
+  id: number
+  name: string
+  payrollFrequency: string
+  status: string
+  effectiveFrom: string
+  effectiveTo?: string
+  items: SalaryStructureItem[]
+  createdAt?: string
+}
+
+export interface SalaryStructureItem {
+  componentId?: number
+  amount?: number
+  formula?: string
+  condition?: string
+  sortOrder: number
+}
+
+export interface SalaryAssignment {
+  id: number
+  employeeId: number
+  salaryStructureId: number
+  baseSalary: number
+  effectiveFrom: string
+  effectiveTo?: string
+  status: string
+  employee?: {
+    id: number
+    user?: { realName: string; department?: { name: string } }
+  }
+  salaryStructure?: { id: number; name: string }
+}
+
+export interface PayrollAdjustment {
+  id: number
+  year: number
+  month: number
+  type: string
+  amount: number
+  reason?: string
+  status: string
+  employee?: {
+    id: number
+    user?: { realName: string; department?: { name: string } }
+  }
+  component?: { id: number; name: string }
+}
+
+export interface PayslipDispute {
+  id: number
+  reason?: string
+  status: string
+  handlerReply?: string
+  employee?: {
+    id: number
+    user?: { realName: string; department?: { name: string } }
+  }
+  payslip?: {
+    id: number
+    payrollRun?: { payrollPeriod?: { year: number; month: number } }
+  }
+}
+
+export interface PayrollRunDetail {
+  run: PayrollRun
+  payslips: Payslip[]
+  adjustments: PayrollAdjustment[]
+  disputes: PayslipDispute[]
+  summary: {
+    payslipCount?: number
+    netPay?: number
+    adjustmentCount?: number
+    disputeCount?: number
+  }
+}
+
+export interface MyPayslip {
+  id: number
+  year: number
+  month: number
+  netPayMasked?: string
+  status: string
+  publishedAt?: string
+  grossPay?: number
+  totalDeduction?: number
+  netPay?: number
+  items?: PayslipItem[]
+  disputes?: PayslipDispute[]
+}
 
 export function getSalaryComponents() {
-  return get('/payroll/components')
+  return get<{ code: 0; data: SalaryComponent[] }>('/payroll/components')
 }
 
-export function createSalaryComponent(data: any) {
-  return post('/payroll/components', data)
+export function createSalaryComponent(data: Omit<SalaryComponent, 'id'>) {
+  return post<{ code: 0; data: SalaryComponent }>('/payroll/components', data)
 }
 
-export function updateSalaryComponent(id: number, data: any) {
-  return put(`/payroll/components/${id}`, data)
+export function updateSalaryComponent(id: number, data: Partial<Omit<SalaryComponent, 'id'>>) {
+  return put<{ code: 0; data: SalaryComponent }>(`/payroll/components/${id}`, data)
+}
+
+export function deleteSalaryComponent(id: number) {
+  return del(`/payroll/components/${id}`)
+}
+
+export function batchDeleteSalaryComponents(ids: number[]) {
+  return post('/payroll/components/batch-delete', { ids })
+}
+
+export function batchUpdateSalaryComponentStatus(ids: number[], status: string) {
+  return post('/payroll/components/batch-status', { ids, status })
 }
 
 export function getSalaryStructures() {
@@ -37,11 +199,11 @@ export function updateSalaryAssignment(id: number, data: any) {
 }
 
 export function getPayrollRuns() {
-  return get('/payroll/runs')
+  return get<{ code: 0; data: PayrollRun[] }>('/payroll/runs')
 }
 
 export function getPayrollRunDetail(id: number) {
-  return get(`/payroll/runs/${id}/detail`)
+  return get<{ code: 0; data: PayrollRunDetail }>(`/payroll/runs/${id}/detail`)
 }
 
 export function createPayrollRun(data: any) {
@@ -56,8 +218,8 @@ export function publishPayrollRun(id: number) {
   return post(`/payroll/runs/${id}/publish`)
 }
 
-export function getPayslips(params?: any) {
-  return get('/payroll/payslips', { params })
+export function getPayslips(params?: { page?: number; pageSize?: number; status?: string }) {
+  return get<{ code: 0; data: { list: Payslip[]; total: number; page: number; pageSize: number } }>('/payroll/payslips', { params })
 }
 
 export function recalculatePayslip(id: number) {
@@ -93,7 +255,7 @@ export function handlePayslipDispute(id: number, data: { status: 'resolved' | 'r
 }
 
 export function getMyPayslips() {
-  return get('/payroll/my-payslips')
+  return get<{ code: 0; data: Payslip[] }>('/payroll/my-payslips')
 }
 
 export function getMyPayslipDetail(id: number, payslipAccessToken: string) {
@@ -120,6 +282,14 @@ export function setPayslipPassword(data: { password: string; confirmPassword: st
   return post('/payslip/set-password', data)
 }
 
+export function confirmPayslip(id: number) {
+  return post(`/payroll/payslips/${id}/confirm`)
+}
+
+export function disputePayslip(id: number, data: { reason: string }) {
+  return post(`/payroll/payslips/${id}/dispute`, data)
+}
+
 export function verifyPayslipPassword(data: { password: string }) {
-  return post('/payslip/verify-password', data)
+  return post<{ code: 0; data: { payslipAccessToken?: string } }>('/payslip/verify-password', data)
 }

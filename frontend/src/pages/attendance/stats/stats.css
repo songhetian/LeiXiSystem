@@ -1,0 +1,46 @@
+.attendance-stats {
+  padding-bottom: 20px;
+}
+
+.attendance-stats__summary-row {
+  margin-bottom: 16px;
+}
+
+.attendance-stats__stat-card {
+  /* default */
+}
+
+.attendance-stats__search-card {
+  margin-bottom: 16px;
+}
+
+.attendance-stats__search-input {
+  width: 180px;
+}
+
+.attendance-stats__dept-select {
+  width: 130px;
+}
+
+.attendance-stats__month-select {
+  width: 130px;
+}
+
+.attendance-stats__table-card {
+  /* default */
+}
+
+.attendance-stats__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-stats__tabular-nums {
+  font-family: 'tabular-nums', monospace;
+}
+
+.attendance-stats__stat-value {
+  color: inherit;
+}

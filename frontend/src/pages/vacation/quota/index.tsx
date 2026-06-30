@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -11,201 +11,197 @@ import {
   Statistic,
   Grid,
   Progress,
+  Spin,
+  Message,
 } from '@arco-design/web-react'
 import {
   IconSearch,
   IconRefresh,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getVacationBalance, getVacationTypes } from '@/api/vacation'
+import type { VacationBalance, VacationType } from '@/api/vacation'
+import './quota.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 
-interface QuotaRecord {
-  id: number
-  employeeName: string
-  employeeNo: string
-  department: string
-  annualLeave: { total: number; used: number }
-  personalLeave: { total: number; used: number }
-  sickLeave: { total: number; used: number }
-  compensatoryLeave: { total: number; used: number }
+interface QuotaRow {
+  vacationTypeId: number
+  typeName: string
+  typeCode: string
+  total: number
+  used: number
+  balance: number
+  unit: 'day' | 'hour'
 }
 
-const mockData: QuotaRecord[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', annualLeave: { total: 10, used: 3 }, personalLeave: { total: 5, used: 1 }, sickLeave: { total: 5, used: 0 }, compensatoryLeave: { total: 2, used: 1 } },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', annualLeave: { total: 10, used: 2 }, personalLeave: { total: 5, used: 2 }, sickLeave: { total: 5, used: 1 }, compensatoryLeave: { total: 3, used: 0 } },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', annualLeave: { total: 8, used: 5 }, personalLeave: { total: 5, used: 3 }, sickLeave: { total: 5, used: 2 }, compensatoryLeave: { total: 1, used: 1 } },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', annualLeave: { total: 10, used: 1 }, personalLeave: { total: 5, used: 0 }, sickLeave: { total: 5, used: 0 }, compensatoryLeave: { total: 4, used: 2 } },
-  { id: 5, employeeName: '钱七', employeeNo: 'EMP005', department: '人事部', annualLeave: { total: 10, used: 0 }, personalLeave: { total: 5, used: 0 }, sickLeave: { total: 5, used: 0 }, compensatoryLeave: { total: 2, used: 0 } },
-]
-
 function Quota() {
-  const [data] = useState<QuotaRecord[]>(mockData)
-  const [searchText, setSearchText] = useState('')
+  const [employeeId, setEmployeeId] = useState<number | undefined>()
+  const [employeeNo, setEmployeeNo] = useState('')
+  const [employeeName, setEmployeeName] = useState('')
   const [searchDept, setSearchDept] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<QuotaRecord[]>(mockData)
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [balances, setBalances] = useState<VacationBalance[]>([])
+  const [loading, setLoading] = useState(false)
+  const [types, setTypes] = useState<VacationType[]>([])
 
-  const columns: TableProps<QuotaRecord>['columns'] = [
-    {
-      title: '工号',
-      dataIndex: 'employeeNo',
-      width: 100,
-    },
-    {
-      title: '姓名',
-      dataIndex: 'employeeName',
-      width: 100,
-    },
-    {
-      title: '部门',
-      dataIndex: 'department',
-      width: 100,
-    },
-    {
-      title: '年假(天)',
-      width: 160,
-      render: (_: any, record: QuotaRecord) => (
-        <div>
-          <Progress
-            percent={Math.round((record.annualLeave.used / record.annualLeave.total) * 100)}
-            status="normal"
-            style={{ width: 120 }}
-          />
-          <span style={{ fontSize: 12, color: '#86909C' }}>
-            {record.annualLeave.used}/{record.annualLeave.total}
-          </span>
-        </div>
-      ),
-    },
-    {
-      title: '事假(天)',
-      width: 160,
-      render: (_: any, record: QuotaRecord) => (
-        <div>
-          <Progress
-            percent={Math.round((record.personalLeave.used / record.personalLeave.total) * 100)}
-            status="normal"
-            style={{ width: 120 }}
-          />
-          <span style={{ fontSize: 12, color: '#86909C' }}>
-            {record.personalLeave.used}/{record.personalLeave.total}
-          </span>
-        </div>
-      ),
-    },
-    {
-      title: '病假(天)',
-      width: 160,
-      render: (_: any, record: QuotaRecord) => (
-        <div>
-          <Progress
-            percent={Math.round((record.sickLeave.used / record.sickLeave.total) * 100)}
-            status="normal"
-            style={{ width: 120 }}
-          />
-          <span style={{ fontSize: 12, color: '#86909C' }}>
-            {record.sickLeave.used}/{record.sickLeave.total}
-          </span>
-        </div>
-      ),
-    },
-    {
-      title: '调休(天)',
-      width: 160,
-      render: (_: any, record: QuotaRecord) => (
-        <div>
-          <Progress
-            percent={Math.round((record.compensatoryLeave.used / record.compensatoryLeave.total) * 100)}
-            status="normal"
-            style={{ width: 120 }}
-          />
-          <span style={{ fontSize: 12, color: '#86909C' }}>
-            {record.compensatoryLeave.used}/{record.compensatoryLeave.total}
-          </span>
-        </div>
-      ),
-    },
-  ]
+  const fetchTypes = async () => {
+    try {
+      const res = await getVacationTypes()
+      setTypes(res.data)
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await getVacationBalance({
+        employeeId,
+        year: Number(year),
+      })
+      setBalances(res.data)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTypes()
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year])
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
+    if (!employeeId) {
+      Message.warning('请先选择员工')
+      return
     }
-    if (searchDept) {
-      result = result.filter((item) => item.department === searchDept)
-    }
-    setFilteredData(result)
+    fetchData()
   }
 
   const handleReset = () => {
-    setSearchText('')
+    setEmployeeId(undefined)
+    setEmployeeNo('')
+    setEmployeeName('')
     setSearchDept(undefined)
-    setFilteredData(data)
   }
 
-  const summary = [
-    { title: '年假总额度', value: '48 天', color: '#165DFF' },
-    { title: '已使用', value: '11 天', color: '#FF7D00' },
-    { title: '剩余', value: '37 天', color: '#00B42A' },
-    { title: '使用率', value: '22.9%', color: '#86909C' },
+  const totalAll = balances.reduce((sum, b) => sum + b.total, 0)
+  const usedAll = balances.reduce((sum, b) => sum + b.used, 0)
+  const balanceAll = balances.reduce((sum, b) => sum + b.balance, 0)
+  const usageRate = totalAll > 0 ? ((usedAll / totalAll) * 100).toFixed(1) : '0'
+
+  const columns: TableProps<QuotaRow>['columns'] = [
+    {
+      title: '假期类型',
+      dataIndex: 'typeName',
+      width: 120,
+      render: (value: string) => <Tag color="blue">{value}</Tag>,
+    },
+    {
+      title: '总额度',
+      dataIndex: 'total',
+      width: 100,
+      render: (value: number, record) => `${value} ${record.unit === 'day' ? '天' : '小时'}`,
+    },
+    {
+      title: '已使用',
+      dataIndex: 'used',
+      width: 100,
+      render: (value: number, record) => `${value} ${record.unit === 'day' ? '天' : '小时'}`,
+    },
+    {
+      title: '剩余',
+      dataIndex: 'balance',
+      width: 100,
+      render: (value: number, record) => `${value} ${record.unit === 'day' ? '天' : '小时'}`,
+    },
+    {
+      title: '使用率',
+      width: 200,
+      render: (_: unknown, record) => (
+        <div className="vacation-quota__progress-cell">
+          <Progress
+            percent={record.total > 0 ? Math.round((record.used / record.total) * 100) : 0}
+            status="normal"
+            className="vacation-quota__progress-bar"
+          />
+          <span className="vacation-quota__progress-text">
+            {record.used}/{record.total}
+          </span>
+        </div>
+      ),
+    },
   ]
 
+  const summary = [
+    { title: '总额度', value: `${totalAll} 天`, color: '#165DFF' },
+    { title: '已使用', value: `${usedAll} 天`, color: '#FF7D00' },
+    { title: '剩余', value: `${balanceAll} 天`, color: '#00B42A' },
+    { title: '使用率', value: `${usageRate}%`, color: '#86909C' },
+  ]
+
+  const currentYear = new Date().getFullYear()
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
+
+  const tableData = balances.map((b) => ({
+    vacationTypeId: b.vacationTypeId,
+    typeName: b.typeName,
+    typeCode: b.typeCode,
+    total: b.total,
+    used: b.used,
+    balance: b.balance,
+    unit: b.unit,
+  }))
+
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+    <div className="vacation-quota">
+      <Row gutter={16} className="vacation-quota__stats-row">
         {summary.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
-              <Statistic title={item.title} value={item.value} style={{ color: item.color }} />
+              <Statistic title={item.title} value={item.value} className="vacation-quota__statistic-value" style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="vacation-quota__search-card">
         <Form layout="inline">
-          <FormItem label="关键字">
+          <FormItem label="员工ID">
             <Input
-              style={{ width: 180 }}
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
+              className="vacation-quota__search-input"
+              placeholder="请输入员工ID"
+              type="number"
+              value={employeeId ? String(employeeId) : ''}
+              onChange={(val) => setEmployeeId(val ? Number(val) : undefined)}
               allowClear
             />
           </FormItem>
-          <FormItem label="部门">
-            <Select
-              style={{ width: 130 }}
-              placeholder="请选择"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
-            </Select>
-          </FormItem>
           <FormItem label="年度">
-            <Select style={{ width: 110 }} defaultValue="2024">
-              <Option value="2024">2024年</Option>
-              <Option value="2023">2023年</Option>
+            <Select
+              className="vacation-quota__year-select"
+              value={year}
+              onChange={setYear}
+            >
+              {yearOptions.map((y) => (
+                <Option key={y} value={String(y)}>{y}年</Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem>
             <Space size="small">
               <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
+                查询
               </Button>
               <Button icon={<IconRefresh />} onClick={handleReset}>
                 重置
@@ -215,21 +211,22 @@ function Quota() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>假期额度</span>
-          <Tag color="blue" style={{ marginLeft: 8 }}>
-            共 {filteredData.length} 人
+      <Card bordered={false} className="vacation-quota__table-card">
+        <div className="vacation-quota__table-header">
+          <span className="vacation-quota__table-title">假期额度详情</span>
+          <Tag color="blue" className="vacation-quota__total-tag">
+            共 {balances.length} 种
           </Tag>
         </div>
 
-        <Table
-          columns={columns}
-          data={filteredData}
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1000 }}
-        />
+        <Spin loading={loading}>
+          <Table
+            columns={columns}
+            data={tableData}
+            rowKey="vacationTypeId"
+            pagination={false}
+          />
+        </Spin>
       </Card>
     </div>
   )

@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
-import { createSalaryStructure, getSalaryComponents, getSalaryStructures, updateSalaryStructure } from '@/api/payroll'
+import { createSalaryStructure, getSalaryComponents, getSalaryStructures, updateSalaryStructure, SalaryComponent, SalaryStructure, SalaryStructureItem } from '@/api/payroll'
+import './index.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
 const Option = Select.Option
 
 function SalaryStructuresPage() {
-  const [data, setData] = useState<any[]>([])
-  const [components, setComponents] = useState<any[]>([])
+  const [data, setData] = useState<SalaryStructure[]>([])
+  const [components, setComponents] = useState<SalaryComponent[]>([])
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
-  const [items, setItems] = useState<any[]>([])
+  const [editing, setEditing] = useState<SalaryStructure | null>(null)
+  const [items, setItems] = useState<SalaryStructureItem[]>([])
   const [form] = Form.useForm()
 
   const loadData = async () => {
@@ -101,11 +102,11 @@ function SalaryStructuresPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title heading={5} style={{ margin: 0 }}>薪资结构</Title>
+    <div className="salary-structures">
+      <Card bordered={false} className="salary-structures__card">
+        <Space direction="vertical" size={4} className="salary-structures__space">
+          <div className="salary-structures__header">
+            <Title heading={5} className="salary-structures__title">薪资结构</Title>
             <Button type="primary" onClick={openCreate}>新增结构</Button>
           </div>
           <Text type="secondary">把薪资组件组合成可分配给员工的薪资结构，计算工资条时会读取这里的组件明细。</Text>
@@ -147,38 +148,38 @@ function SalaryStructuresPage() {
         visible={visible}
         onOk={handleSubmit}
         onCancel={() => setVisible(false)}
-        style={{ width: 860 }}
+        className="salary-structures__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem label="结构名称" field="name" rules={[{ required: true, message: '请输入结构名称' }]}>
             <Input placeholder="例如：正式员工月薪结构" />
           </FormItem>
-          <Space size="large" style={{ width: '100%' }}>
+          <Space size="large" className="salary-structures__space">
             <FormItem label="发薪频率" field="payrollFrequency" rules={[{ required: true, message: '请选择发薪频率' }]}>
-              <Select style={{ width: 180 }}>
+              <Select className="salary-structures__select">
                 <Option value="monthly">月薪</Option>
                 <Option value="weekly">周薪</Option>
                 <Option value="daily">日薪</Option>
               </Select>
             </FormItem>
             <FormItem label="状态" field="status" rules={[{ required: true, message: '请选择状态' }]}>
-              <Select style={{ width: 160 }}>
+              <Select className="salary-structures__select--narrow">
                 <Option value="active">启用</Option>
                 <Option value="draft">草稿</Option>
                 <Option value="disabled">停用</Option>
               </Select>
             </FormItem>
             <FormItem label="生效日期" field="effectiveFrom" rules={[{ required: true, message: '请输入生效日期' }]}>
-              <Input style={{ width: 160 }} placeholder="YYYY-MM-DD" />
+              <Input className="salary-structures__input" placeholder="YYYY-MM-DD" />
             </FormItem>
             <FormItem label="失效日期" field="effectiveTo">
-              <Input style={{ width: 160 }} placeholder="YYYY-MM-DD" />
+              <Input className="salary-structures__input" placeholder="YYYY-MM-DD" />
             </FormItem>
           </Space>
         </Form>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0' }}>
-          <Text style={{ fontWeight: 600 }}>组件明细</Text>
+        <div className="salary-structures__table-header">
+          <Text className="salary-structures__table-header-text">组件明细</Text>
           <Button size="small" onClick={addItem}>添加组件</Button>
         </div>
 
@@ -193,7 +194,7 @@ function SalaryStructuresPage() {
                 <Select
                   value={record.componentId}
                   onChange={(value) => updateItem(index, 'componentId', value)}
-                  style={{ width: 220 }}
+                  className="salary-structures__component-select"
                   placeholder="选择组件"
                 >
                   {components.map((component) => (

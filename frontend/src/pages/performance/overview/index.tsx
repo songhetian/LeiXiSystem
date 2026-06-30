@@ -3,7 +3,8 @@ import { Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal, Sel
 import type { TableProps } from '@arco-design/web-react'
 import { IconPlus, IconRefresh } from '@arco-design/web-react/icon'
 import { createPerformanceCycle, createPerformanceGoal, createPerformanceReview, getPerformanceCycles, getPerformanceGoals, getPerformanceReviews } from '@/api/performance'
-import { getEmployees } from '@/api/personnel'
+import { getEmployees, type Employee } from '@/api/personnel'
+import './overview.css'
 
 const FormItem = Form.Item
 const Option = Select.Option
@@ -60,7 +61,7 @@ function PerformanceOverviewPage() {
   const [cycles, setCycles] = useState<Cycle[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
-  const [employees, setEmployees] = useState<any[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(false)
   const [cycleVisible, setCycleVisible] = useState(false)
   const [goalVisible, setGoalVisible] = useState(false)
@@ -148,12 +149,12 @@ function PerformanceOverviewPage() {
   ]
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="performance-overview">
       <Card bordered={false}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="performance-overview__header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>绩效管理</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>周期、目标、评估</Tag>
+            <span className="performance-overview__title">绩效管理</span>
+            <Tag color="blue" className="performance-overview__tag">周期、目标、评估</Tag>
           </div>
           <Space>
             <Button icon={<IconRefresh />} onClick={loadData}>刷新</Button>
@@ -176,7 +177,7 @@ function PerformanceOverviewPage() {
         </Tabs>
       </Card>
 
-      <Modal title="新增绩效周期" visible={cycleVisible} onOk={handleCreateCycle} onCancel={() => setCycleVisible(false)} style={{ width: 560 }}>
+      <Modal title="新增绩效周期" visible={cycleVisible} onOk={handleCreateCycle} onCancel={() => setCycleVisible(false)} className="performance-overview__modal">
         <Form form={cycleForm} layout="vertical" initialValues={{ cycleType: 'quarter', status: 'active' }}>
           <FormItem label="周期名称" field="name" rules={[{ required: true, message: '请输入周期名称' }]}><Input /></FormItem>
           <FormItem label="周期类型" field="cycleType">
@@ -187,11 +188,11 @@ function PerformanceOverviewPage() {
               <Option value="year">年度</Option>
             </Select>
           </FormItem>
-          <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}><RangePicker style={{ width: '100%' }} /></FormItem>
+          <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}><RangePicker className="performance-overview__form-item" /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="新增绩效目标" visible={goalVisible} onOk={handleCreateGoal} onCancel={() => setGoalVisible(false)} style={{ width: 620 }}>
+      <Modal title="新增绩效目标" visible={goalVisible} onOk={handleCreateGoal} onCancel={() => setGoalVisible(false)} className="performance-overview__modal--wide">
         <Form form={goalForm} layout="vertical" initialValues={{ weight: 0, progress: 0, status: 'active' }}>
           <FormItem label="绩效周期" field="cycleId" rules={[{ required: true, message: '请选择周期' }]}>
             <Select>{cycles.map((cycle) => <Option key={cycle.id} value={cycle.id}>{cycle.name}</Option>)}</Select>
@@ -201,13 +202,13 @@ function PerformanceOverviewPage() {
           </FormItem>
           <FormItem label="目标标题" field="title" rules={[{ required: true, message: '请输入目标标题' }]}><Input /></FormItem>
           <FormItem label="指标口径" field="metric"><Input /></FormItem>
-          <FormItem label="目标值" field="targetValue"><InputNumber min={0} style={{ width: '100%' }} /></FormItem>
-          <FormItem label="权重" field="weight"><InputNumber min={0} max={100} style={{ width: '100%' }} /></FormItem>
+          <FormItem label="目标值" field="targetValue"><InputNumber min={0} className="performance-overview__form-item" /></FormItem>
+          <FormItem label="权重" field="weight"><InputNumber min={0} max={100} className="performance-overview__form-item" /></FormItem>
           <FormItem label="说明" field="description"><Input.TextArea rows={3} /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="新增绩效评估" visible={reviewVisible} onOk={handleCreateReview} onCancel={() => setReviewVisible(false)} style={{ width: 620 }}>
+      <Modal title="新增绩效评估" visible={reviewVisible} onOk={handleCreateReview} onCancel={() => setReviewVisible(false)} className="performance-overview__modal--wide">
         <Form form={reviewForm} layout="vertical" initialValues={{ status: 'draft' }}>
           <FormItem label="绩效周期" field="cycleId" rules={[{ required: true, message: '请选择周期' }]}>
             <Select>{cycles.map((cycle) => <Option key={cycle.id} value={cycle.id}>{cycle.name}</Option>)}</Select>
@@ -215,7 +216,7 @@ function PerformanceOverviewPage() {
           <FormItem label="员工" field="employeeId" rules={[{ required: true, message: '请选择员工' }]}>
             <Select showSearch>{employees.map((employee) => <Option key={employee.id} value={employee.id}>{employee.realName}（{employee.employeeNo}）</Option>)}</Select>
           </FormItem>
-          <FormItem label="最终分" field="finalScore"><InputNumber min={0} max={100} style={{ width: '100%' }} /></FormItem>
+          <FormItem label="最终分" field="finalScore"><InputNumber min={0} max={100} className="performance-overview__form-item" /></FormItem>
           <FormItem label="评级" field="rating"><Input placeholder="例如：A / B / C" /></FormItem>
           <FormItem label="评语" field="managerComment"><Input.TextArea rows={3} /></FormItem>
         </Form>

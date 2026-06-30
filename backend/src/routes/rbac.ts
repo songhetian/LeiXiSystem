@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
 import { idParamsSchema, optionalKeywordSchema, validateData } from '../utils/validation'
+import { invalidateUserPermissionsCache, invalidateRoleUsersCache } from '../utils/permissionCache'
 
 const roleListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -132,6 +133,7 @@ export default async function rbacRoutes(fastify: FastifyInstance) {
           })),
         })
       }
+      await invalidateRoleUsersCache(roleId)
     }
 
     return { code: 0, message: '更新成功' }
@@ -140,9 +142,10 @@ export default async function rbacRoutes(fastify: FastifyInstance) {
   fastify.delete('/roles/:id', { preHandler: [requirePermission('role:manage')] }, async (request: FastifyRequest<{
     Params: { id: string }
   }>) => {
-    const { id } = validateData(idParamsSchema, request.params)
+    const { id: roleId } = validateData(idParamsSchema, request.params)
 
-    await prisma.role.delete({ where: { id } })
+    await invalidateRoleUsersCache(roleId)
+    await prisma.role.delete({ where: { id: roleId } })
 
     return { code: 0, message: '删除成功' }
   })
@@ -211,6 +214,8 @@ export default async function rbacRoutes(fastify: FastifyInstance) {
         data: roleIds.map((roleId) => ({ userId: uid, roleId })),
       })
     }
+
+    await invalidateUserPermissionsCache(uid)
 
     return { code: 0, message: '分配成功' }
   })

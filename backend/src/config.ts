@@ -11,13 +11,39 @@ if (isProduction && (!corsOrigin || corsOrigin === '*')) {
   throw new Error('生产环境必须配置明确的 CORS_ORIGIN，不能使用 *')
 }
 
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '2h'
+
+function parseDurationToSeconds(duration: string): number {
+  const match = duration.match(/^(\d+)(s|m|h|d)$/)
+  if (!match) {
+    return 7200
+  }
+  const value = parseInt(match[1], 10)
+  const unit = match[2]
+  switch (unit) {
+    case 's': return value
+    case 'm': return value * 60
+    case 'h': return value * 3600
+    case 'd': return value * 86400
+    default: return 7200
+  }
+}
+
 export const config = {
   isProduction,
   appVersion: process.env.APP_VERSION || '1.0.0',
   port: parseInt(process.env.PORT || '3001', 10),
   jwt: {
     secret: jwtSecret || 'dev-only-leixi-hr-system-secret-key',
-    expiresIn: process.env.JWT_EXPIRES_IN || '2h',
+    expiresIn: jwtExpiresIn,
+    expiresInSeconds: parseDurationToSeconds(jwtExpiresIn),
+  },
+  cookie: {
+    name: 'token',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isProduction,
   },
   cors: {
     origin: corsOrigin || true,
@@ -38,5 +64,10 @@ export const config = {
   pagination: {
     defaultPageSize: 10,
     maxPageSize: 100,
+  },
+  redis: {
+    url: process.env.REDIS_URL || '',
+    enabled: !!process.env.REDIS_URL,
+    cacheTtl: parseInt(process.env.REDIS_CACHE_TTL || '1800', 10),
   },
 }

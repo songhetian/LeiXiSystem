@@ -3,7 +3,7 @@ import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
-import { writeAuditLog } from '../services/audit'
+import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { normalizePagination } from '../utils/pagination'
 import { idParamsSchema, optionalKeywordSchema, statusSchema, validateData } from '../utils/validation'
 import { parseSafeHttpUrl } from '../utils/security'
@@ -62,6 +62,8 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
     const appUrl = parseSafeHttpUrl(body.appUrl)
     const logoUrl = body.logoUrl ? parseSafeHttpUrl(body.logoUrl) : undefined
 
+    setAudit(request, { action: 'sso_app_create', module: 'sso', requestData: { ...body, appUrl, logoUrl } })
+
     const app = await prisma.ssoApp.create({
       data: {
         ...body,
@@ -70,12 +72,7 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
       },
     })
 
-    await writeAuditLog(request, {
-      action: 'sso_app_create',
-      module: 'sso',
-      requestData: { ...body, appUrl, logoUrl },
-      responseData: { id: app.id },
-    })
+    setAfter(request, { id: app.id })
 
     return { code: 0, message: '创建成功', data: app }
   })
@@ -88,30 +85,26 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
     if (body.appUrl) data.appUrl = parseSafeHttpUrl(body.appUrl)
     if (body.logoUrl) data.logoUrl = parseSafeHttpUrl(body.logoUrl)
 
+    setAudit(request, { action: 'sso_app_update', module: 'sso', requestData: { id, ...data } })
+    await captureBefore(request, { id })
     const app = await prisma.ssoApp.update({
       where: { id },
       data,
     })
 
-    await writeAuditLog(request, {
-      action: 'sso_app_update',
-      module: 'sso',
-      requestData: { id, ...data },
-      responseData: { id: app.id },
-    })
+    setAfter(request, { id: app.id })
 
     return { code: 0, message: '更新成功', data: app }
   })
 
   fastify.delete('/apps/:id', { preHandler: [requirePermission('sso:manage')] }, async (request: FastifyRequest<{ Params: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
+
+    setAudit(request, { action: 'sso_app_delete', module: 'sso', requestData: { id } })
+    await captureBefore(request, { id })
     await prisma.ssoApp.delete({ where: { id } })
 
-    await writeAuditLog(request, {
-      action: 'sso_app_delete',
-      module: 'sso',
-      requestData: { id },
-    })
+    setAfter(request, { id })
 
     return { code: 0, message: '删除成功' }
   })

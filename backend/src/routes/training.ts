@@ -3,7 +3,7 @@ import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../middleware/permission'
-import { writeAuditLog } from '../services/audit'
+import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { normalizePagination } from '../utils/pagination'
 import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
 import { parseSafeHttpUrl } from '../utils/security'
@@ -67,8 +67,9 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
 
   fastify.post('/courses', { preHandler: [requirePermission('training:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(courseSchema, request.body)
+    setAudit(request, { action: 'training_course_create', module: 'training', requestData: body })
     const course = await prisma.trainingCourse.create({ data: { ...body, createdBy: request.user.id } })
-    await writeAuditLog(request, { action: 'training_course_create', module: 'training', requestData: body, responseData: { id: course.id } })
+    setAfter(request, { id: course.id })
     return { code: 0, message: '创建成功', data: course }
   })
 
@@ -94,6 +95,7 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
 
   fastify.post('/sessions', { preHandler: [requirePermission('training:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(sessionSchema, request.body)
+    setAudit(request, { action: 'training_session_create', module: 'training', requestData: body })
     const session = await prisma.trainingSession.create({
       data: {
         ...body,
@@ -103,7 +105,7 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
         createdBy: request.user.id,
       },
     })
-    await writeAuditLog(request, { action: 'training_session_create', module: 'training', requestData: body, responseData: { id: session.id } })
+    setAfter(request, { id: session.id })
     return { code: 0, message: '创建成功', data: session }
   })
 
@@ -135,6 +137,8 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
   fastify.post('/enrollments/:id/complete', { preHandler: [requirePermission('training:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(completeSchema, request.body || {})
+    setAudit(request, { action: 'training_enrollment_complete', module: 'training', requestData: { id, ...body } })
+    await captureBefore(request, { id })
     const enrollment = await prisma.trainingEnrollment.update({
       where: { id },
       data: {
@@ -144,7 +148,7 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
         completedAt: new Date(),
       },
     })
-    await writeAuditLog(request, { action: 'training_enrollment_complete', module: 'training', requestData: { id, ...body }, responseData: { id } })
+    setAfter(request, { id })
     return { code: 0, message: '已完成培训', data: enrollment }
   })
 }

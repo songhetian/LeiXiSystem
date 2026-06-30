@@ -1,0 +1,58 @@
+.my-schedule {
+  padding: 16px;
+}
+
+.my-schedule__stat {
+  text-align: center;
+}
+
+.my-schedule__stat-value {
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.my-schedule__stat-label {
+  font-size: 14px;
+  color: #86909c;
+  margin-top: 4px;
+}
+
+.my-schedule__period {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f7f8fa;
+  border-radius: 4px;
+}
+
+.my-schedule__period-title {
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #1d2129;
+}
+
+.my-schedule__row {
+  margin-bottom: 16px;
+}
+
+.my-schedule__stat-value-orange {
+  color: #ff7d00;
+}
+
+.my-schedule__period-count {
+  margin-left: 8px;
+  color: #86909c;
+}
+
+.my-schedule__empty {
+  text-align: center;
+  padding: 40px;
+  color: #86909c;
+}
+
+.my-schedule__date-picker {
+  width: 100%;
+}
+
+.my-schedule__text-secondary {
+  color: #86909c;
+}

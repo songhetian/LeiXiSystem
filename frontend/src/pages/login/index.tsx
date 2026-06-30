@@ -16,7 +16,6 @@ const { Title, Text } = Typography
 
 function Login() {
   const navigate = useNavigate()
-  const setToken = useUserStore((state) => state.setToken)
   const setUser = useUserStore((state) => state.setUser)
   const [loading, setLoading] = useState(false)
 
@@ -28,10 +27,11 @@ function Login() {
 
     setLoading(true)
     try {
-      const res: any = await login(values)
+      const res = await login(values)
       if (res.success || res.code === 0) {
-        setToken(res.data.token)
-        setUser(res.data.user)
+        if (res.data) {
+          setUser(res.data.user)
+        }
         Message.success('登录成功')
         navigate('/dashboard')
       }
@@ -67,7 +67,7 @@ function Login() {
               return (
                 <div className="illustration-card" key={index}>
                   <div className="illustration-icon">
-                    <IconComp style={{ fontSize: 20, color: '#fff' }} />
+                    <IconComp className="login-illustration-icon" />
                   </div>
                   <div>
                     <div className="illustration-title">{item.title}</div>
@@ -81,9 +81,9 @@ function Login() {
 
         <div className="login-right">
           <Card className="login-card" bordered={false}>
-            <Space direction="vertical" size={32} style={{ width: '100%' }}>
+            <Space direction="vertical" size={32} className="login-form__space">
               <div>
-                <Title heading={4} style={{ margin: '0 0 8px 0' }}>
+                <Title heading={4} className="login-form__title">
                   账号登录
                 </Title>
                 <Text type="secondary">请输入您的账号信息登录系统</Text>
@@ -99,7 +99,7 @@ function Login() {
                     size="large"
                     placeholder="请输入用户名"
                     allowClear
-                    prefix={<IconUser style={{ color: 'rgb(var(--text-3))' }} />}
+                    prefix={<IconUser className="login-form__icon-prefix" />}
                   />
                 </Form.Item>
 
@@ -107,17 +107,17 @@ function Login() {
                   <Input.Password
                     size="large"
                     placeholder="请输入密码"
-                    prefix={<IconLock style={{ color: 'rgb(var(--text-3))' }} />}
+                    prefix={<IconLock className="login-form__icon-prefix" />}
                   />
                 </Form.Item>
 
                 <Form.Item>
                   <Space
                     direction="horizontal"
-                    style={{ width: '100%', justifyContent: 'space-between' }}
+                    className="login-form__actions"
                   >
                     <Checkbox>记住密码</Checkbox>
-                    <a style={{ color: 'rgb(var(--primary-6))' }}>忘记密码？</a>
+                    <a className="login-form__link">忘记密码？</a>
                   </Space>
                 </Form.Item>
 
@@ -134,10 +134,10 @@ function Login() {
                 </Form.Item>
               </Form>
 
-              <Divider style={{ margin: 0 }} />
+              <Divider className="login-form__divider" />
 
-              <div style={{ textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
+              <div className="login-form__footer">
+                <Text type="secondary" className="login-form__footer-text">
                   © 2024 雷犀系统 版权所有
                 </Text>
               </div>

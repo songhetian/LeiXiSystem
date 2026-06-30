@@ -1,0 +1,15 @@
+.attendance-locations {
+  padding-bottom: 20px;
+}
+
+.attendance-locations__text-bold {
+  font-weight: 500;
+}
+
+.attendance-locations__modal {
+  width: 600px;
+}
+
+.attendance-locations__input-full {
+  width: 100%;
+}

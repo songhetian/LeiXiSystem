@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Table,
   Button,
@@ -11,6 +11,7 @@ import {
   Card,
   Statistic,
   Grid,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconSearch,
@@ -18,22 +19,15 @@ import {
   IconExport,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import dayjs, { Dayjs } from 'dayjs'
+import { getAttendanceRecords, getAttendanceStats } from '@/api/attendance'
+import type { AttendanceRecord } from '@/api/attendance'
+import './records.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
-
-interface AttendanceRecord {
-  id: number
-  employeeName: string
-  employeeNo: string
-  department: string
-  date: string
-  checkIn: string
-  checkOut: string
-  workHours: number
-  status: 'normal' | 'late' | 'early' | 'absent' | 'leave' | 'business'
-}
+const { RangePicker } = DatePicker
 
 const statusMap: Record<string, { text: string; color: string }> = {
   normal: { text: '正常', color: 'green' },
@@ -44,31 +38,90 @@ const statusMap: Record<string, { text: string; color: string }> = {
   business: { text: '出差', color: 'purple' },
 }
 
-const mockData: AttendanceRecord[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', date: '2024-06-20', checkIn: '08:55', checkOut: '18:05', workHours: 9.2, status: 'normal' },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', date: '2024-06-20', checkIn: '09:15', checkOut: '18:30', workHours: 9.3, status: 'late' },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', date: '2024-06-20', checkIn: '08:58', checkOut: '17:30', workHours: 8.5, status: 'early' },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', date: '2024-06-20', checkIn: '-', checkOut: '-', workHours: 0, status: 'leave' },
-  { id: 5, employeeName: '钱七', employeeNo: 'EMP005', department: '人事部', date: '2024-06-20', checkIn: '08:50', checkOut: '18:10', workHours: 9.3, status: 'normal' },
-  { id: 6, employeeName: '孙八', employeeNo: 'EMP006', department: '财务部', date: '2024-06-20', checkIn: '-', checkOut: '-', workHours: 0, status: 'business' },
-  { id: 7, employeeName: '吴十', employeeNo: 'EMP008', department: '运营部', date: '2024-06-20', checkIn: '09:00', checkOut: '18:00', workHours: 9, status: 'normal' },
-  { id: 8, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', date: '2024-06-19', checkIn: '08:52', checkOut: '18:10', workHours: 9.3, status: 'normal' },
-  { id: 9, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', date: '2024-06-19', checkIn: '08:58', checkOut: '18:05', workHours: 9.1, status: 'normal' },
-  { id: 10, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', date: '2024-06-19', checkIn: '-', checkOut: '-', workHours: 0, status: 'absent' },
-]
-
 function Records() {
-  const [data] = useState<AttendanceRecord[]>(mockData)
+  const [data, setData] = useState<AttendanceRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const [searchDept, setSearchDept] = useState<string | undefined>()
+  const [searchDept, setSearchDept] = useState<number | undefined>()
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<AttendanceRecord[]>(mockData)
+  const [dateRange, setDateRange] = useState<Dayjs[]>([])
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+  const [stats, setStats] = useState({
+    total: 0,
+    normal: 0,
+    late: 0,
+    early: 0,
+    absent: 0,
+    leave: 0,
+    attendanceRate: '0',
+  })
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getAttendanceRecords({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+        departmentId: searchDept,
+        status: searchStatus,
+        startDate: dateRange[0]?.format('YYYY-MM-DD'),
+        endDate: dateRange[1]?.format('YYYY-MM-DD'),
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchStats = async () => {
+    setStatsLoading(true)
+    try {
+      const res = await getAttendanceStats({
+        departmentId: searchDept,
+      })
+      setStats(res.data)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    fetchStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleSearch = () => {
+    fetchData(1, pagination.pageSize)
+    fetchStats()
+  }
+
+  const handleReset = () => {
+    setSearchText('')
+    setSearchDept(undefined)
+    setSearchStatus(undefined)
+    setDateRange([])
+    fetchData(1, pagination.pageSize)
+    fetchStats()
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
+  }
 
   const columns: TableProps<AttendanceRecord>['columns'] = [
     {
       title: '日期',
       dataIndex: 'date',
       width: 120,
+      render: (value: string) => new Date(value).toLocaleDateString(),
     },
     {
       title: '工号',
@@ -82,109 +135,75 @@ function Records() {
     },
     {
       title: '部门',
-      dataIndex: 'department',
+      dataIndex: 'departmentName',
       width: 100,
     },
     {
       title: '上班打卡',
       dataIndex: 'checkIn',
       width: 110,
+      render: (value: string | null | undefined) => value || '-',
     },
     {
       title: '下班打卡',
       dataIndex: 'checkOut',
       width: 110,
+      render: (value: string | null | undefined) => value || '-',
     },
     {
       title: '工时(h)',
       dataIndex: 'workHours',
       width: 90,
+      render: (value: number | null | undefined) => (
+        <span className="attendance-records__work-hours">{value ?? 0}</span>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
   ]
 
-  const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchDept) {
-      result = result.filter((item) => item.department === searchDept)
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
-  }
-
-  const handleReset = () => {
-    setSearchText('')
-    setSearchDept(undefined)
-    setSearchStatus(undefined)
-    setFilteredData(data)
-  }
-
-  const stats = [
-    { title: '今日出勤', value: 115, color: '#165DFF' },
-    { title: '迟到', value: 3, color: '#FF7D00' },
-    { title: '早退', value: 2, color: '#FF7D00' },
-    { title: '请假', value: 5, color: '#14C9C9' },
+  const statsData = [
+    { title: '今日出勤', value: stats.normal, color: '#165DFF' },
+    { title: '迟到', value: stats.late, color: '#FF7D00' },
+    { title: '早退', value: stats.early, color: '#FF7D00' },
+    { title: '请假', value: stats.leave, color: '#14C9C9' },
   ]
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        {stats.map((item, index) => (
+    <div className="attendance-records">
+      <Row gutter={16} className="attendance-records__stats-row">
+        {statsData.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
-              <Statistic title={item.title} value={data.filter(d => d.status === (index === 0 ? 'normal' : index === 1 ? 'late' : index === 2 ? 'early' : 'leave')).length} style={{ color: item.color }} />
+              <Spin loading={statsLoading}>
+                <Statistic title={item.title} value={item.value} className="attendance-records__statistic-value" style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
+              </Spin>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="attendance-records__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="attendance-records__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
               allowClear
             />
           </FormItem>
-          <FormItem label="部门">
-            <Select
-              style={{ width: 130 }}
-              placeholder="请选择"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
-            </Select>
-          </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 110 }}
+              className="attendance-records__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -195,11 +214,14 @@ function Records() {
               <Option value="early">早退</Option>
               <Option value="absent">旷工</Option>
               <Option value="leave">请假</Option>
-              <Option value="business">出差</Option>
             </Select>
           </FormItem>
           <FormItem label="日期">
-            <DatePicker.RangePicker style={{ width: 220 }} />
+            <RangePicker
+              className="attendance-records__date-picker"
+              value={dateRange}
+              onChange={(_, date) => setDateRange(date)}
+            />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -214,18 +236,29 @@ function Records() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="attendance-records__table-card">
+        <div className="attendance-records__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>打卡记录</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 条
+            <span className="attendance-records__table-title">打卡记录</span>
+            <Tag color="blue" className="attendance-records__total-tag">
+              共 {pagination.total} 条
             </Tag>
           </div>
           <Button icon={<IconExport />}>导出</Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
     </div>
   )

@@ -1,4 +1,5 @@
 import prisma from '../prisma'
+import { processDailyExceptions } from './exceptionRuleEngine'
 
 type CalculateMonthlyInput = {
   year: number
@@ -253,6 +254,18 @@ export async function calculateDailyAttendance(employeeId: number, date: Date, o
       type: status === 'absent' ? 'absent' : 'missing_checkin',
       relatedIds: checkins.map((item) => item.id),
       reason: status === 'absent' ? '无有效打卡记录' : '缺少上班或下班打卡',
+    })
+  }
+
+  // 应用异常规则引擎（针对迟到、早退、旷工）
+  const currentLate = lateMinutes
+  const currentEarly = earlyMinutes
+  const currentAbsent = absentMinutes
+  if (currentLate > 0 || currentEarly > 0 || currentAbsent > 0) {
+    await processDailyExceptions(employeeId, day, {
+      lateMinutes: currentLate,
+      earlyMinutes: currentEarly,
+      absentMinutes: currentAbsent,
     })
   }
 

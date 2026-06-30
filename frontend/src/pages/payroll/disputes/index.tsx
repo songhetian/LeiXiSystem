@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Button, Card, Form, Message, Select, Space, Table, Typography } from '@arco-design/web-react'
-import { getPayslipDisputes, handlePayslipDispute } from '@/api/payroll'
+import { getPayslipDisputes, handlePayslipDispute, PayslipDispute } from '@/api/payroll'
 import ApprovalActionModal from '@/components/ApprovalActionModal'
 import StatusTag from '@/components/StatusTag'
 import { useTableData } from '@/hooks/useTableData'
+import './index.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
@@ -11,7 +12,7 @@ const Option = Select.Option
 
 function PayslipDisputesPage() {
   const [visible, setVisible] = useState(false)
-  const [current, setCurrent] = useState<any>(null)
+  const [current, setCurrent] = useState<PayslipDispute | null>(null)
   const [targetStatus, setTargetStatus] = useState<'resolved' | 'rejected'>('resolved')
   const [filterForm] = Form.useForm()
   const { data, loading, loadData, handleSearch, handleReset } = useTableData({
@@ -61,18 +62,18 @@ function PayslipDisputesPage() {
   ], [openHandle])
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="payslip-disputes">
+      <Card bordered={false} className="payslip-disputes__card">
         <Space direction="vertical" size={4}>
-          <Title heading={5} style={{ margin: 0 }}>工资条申诉</Title>
+          <Title heading={5} className="payslip-disputes__title">工资条申诉</Title>
           <Text type="secondary">处理员工对工资条的异议；解决后工资条会从申诉中状态回到已查看，便于员工重新确认。</Text>
         </Space>
       </Card>
 
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+      <Card bordered={false} className="payslip-disputes__card">
         <Form form={filterForm} layout="inline">
           <FormItem label="状态" field="status">
-            <Select allowClear placeholder="全部状态" style={{ width: 140 }}>
+            <Select allowClear placeholder="全部状态" className="payslip-disputes__select">
               <Option value="pending">待处理</Option>
               <Option value="resolved">已解决</Option>
               <Option value="rejected">已驳回</Option>

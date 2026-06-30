@@ -4,7 +4,7 @@ import { z } from 'zod'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { config } from '../config'
-import { writeAuditLog } from '../services/audit'
+import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { buildLoginAttemptKeys, assertLoginAllowed, recordLoginFailure, clearLoginFailures } from '../services/loginSecurity'
 import { validateData } from '../utils/validation'
 
@@ -63,23 +63,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     if (!user) {
       recordLoginFailure(attemptKeys)
-      await writeAuditLog(request, {
-        action: 'login_failed',
-        module: 'auth',
-        status: 'failed',
-        requestData: { username, reason: 'user_not_found' },
-      })
+      setAudit(request, { action: 'auth.login.failed', module: 'auth', requestData: { username, reason: 'user_not_found' } })
       return reply.status(401).send({ code: 401, message: '用户名或密码错误' })
     }
 
     if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
-      await writeAuditLog(request, {
-        action: 'login_blocked',
-        module: 'auth',
-        status: 'failed',
-        requestData: { username, reason: 'account_locked', lockedUntil: user.loginLockedUntil },
-        responseData: { userId: user.id },
-      })
+      setAudit(request, { action: 'auth.login.blocked', module: 'auth', requestData: { username, reason: 'account_locked', lockedUntil: user.loginLockedUntil } })
+      setAfter(request, { userId: user.id })
       return reply.status(423).send({ code: 423, message: '登录失败次数过多，账号已临时锁定' })
     }
 
@@ -95,24 +85,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
         where: { id: user.id },
         data: { failedLoginAttempts, loginLockedUntil },
       })
-      await writeAuditLog(request, {
-        action: 'login_failed',
-        module: 'auth',
-        status: 'failed',
-        requestData: { username, reason: 'invalid_password' },
-        responseData: { userId: user.id, failedLoginAttempts, locked: Boolean(loginLockedUntil) },
-      })
+      setAudit(request, { action: 'auth.login.failed', module: 'auth', requestData: { username, reason: 'invalid_password' } })
+      setAfter(request, { userId: user.id, failedLoginAttempts, locked: Boolean(loginLockedUntil) })
       return reply.status(401).send({ code: 401, message: '用户名或密码错误' })
     }
 
     if (user.status !== 'active') {
-      await writeAuditLog(request, {
-        action: 'login_failed',
-        module: 'auth',
-        status: 'failed',
-        requestData: { username, reason: 'inactive_user' },
-        responseData: { userId: user.id },
-      })
+      setAudit(request, { action: 'auth.login.failed', module: 'auth', requestData: { username, reason: 'inactive_user' } })
+      setAfter(request, { userId: user.id })
       return reply.status(403).send({ code: 403, message: '账号已被禁用，请联系管理员' })
     }
 
@@ -138,6 +118,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
       ur.role.rolePermissions.map((rp) => rp.permission.code),
     )
 
+    reply.setCookie(config.cookie.name, token, {
+      path: config.cookie.path,
+      httpOnly: config.cookie.httpOnly,
+      sameSite: config.cookie.sameSite,
+      secure: config.cookie.secure,
+      maxAge: config.jwt.expiresInSeconds,
+    })
+
     const response = {
       code: 0,
       message: '登录成功',
@@ -159,12 +147,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       },
     }
-    await writeAuditLog(request, {
-      action: 'login',
-      module: 'auth',
-      requestData: { username },
-      responseData: { userId: user.id },
-    })
+    setAudit(request, { action: 'auth.login', module: 'auth', requestData: { username } })
+    setAfter(request, { userId: user.id })
 
     return response
   })
@@ -173,6 +157,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
     await prisma.user.update({
       where: { id: request.user.id },
       data: { sessionToken: null, sessionCreatedAt: null, sessionVersion: { increment: 1 } },
+    })
+
+    reply.clearCookie(config.cookie.name, {
+      path: config.cookie.path,
+      httpOnly: config.cookie.httpOnly,
+      sameSite: config.cookie.sameSite,
+      secure: config.cookie.secure,
     })
 
     return { code: 0, message: '登出成功' }

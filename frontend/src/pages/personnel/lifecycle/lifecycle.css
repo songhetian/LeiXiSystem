@@ -1,0 +1,68 @@
+.lifecycle-page {
+  padding-bottom: 20px;
+}
+
+.lifecycle-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.lifecycle-page__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lifecycle-page__tab-tag {
+  margin-left: 8px;
+}
+
+.lifecycle-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.lifecycle-page__modal--560 {
+  width: 560px;
+}
+
+.lifecycle-page__modal--600 {
+  width: 600px;
+}
+
+.lifecycle-page__detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+}
+
+.lifecycle-page__detail-col-full {
+  grid-column: 1 / -1;
+}
+
+.lifecycle-page__text-center {
+  text-align: center;
+  padding: 20px;
+}
+
+.lifecycle-page__filter-select--140 {
+  width: 140px;
+}
+
+.lifecycle-page__filter-select--120 {
+  width: 120px;
+}
+
+.lifecycle-page__filter-select--100 {
+  width: 100px;
+}
+
+.lifecycle-page__date-picker-full {
+  width: 100%;
+}
+
+.lifecycle-page__status-select--80 {
+  width: 80px;
+}

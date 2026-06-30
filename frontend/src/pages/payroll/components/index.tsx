@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Switch, Table, Tag, Typography } from '@arco-design/web-react'
-import { createSalaryComponent, getSalaryComponents, updateSalaryComponent } from '@/api/payroll'
+import { createSalaryComponent, getSalaryComponents, updateSalaryComponent, SalaryComponent } from '@/api/payroll'
+import './index.css'
 
 const { Title, Text } = Typography
 const FormItem = Form.Item
@@ -12,17 +13,22 @@ const typeMap: Record<string, { text: string; color: string }> = {
   employer_contribution: { text: '公司承担', color: 'blue' },
 }
 
+const statusMap: Record<string, { text: string; color: string }> = {
+  active: { text: '启用', color: 'green' },
+  inactive: { text: '停用', color: 'gray' },
+}
+
 function PayrollComponentsPage() {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<SalaryComponent[]>([])
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
+  const [editing, setEditing] = useState<SalaryComponent | null>(null)
   const [form] = Form.useForm()
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const res: any = await getSalaryComponents()
+      const res = await getSalaryComponents()
       setData(res.data || [])
     } finally {
       setLoading(false)
@@ -36,7 +42,7 @@ function PayrollComponentsPage() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ type: 'earning', amountType: 'fixed', taxable: false, enabled: true, sortOrder: 0 })
+    form.setFieldsValue({ type: 'earning', amountType: 'fixed', taxable: false, status: 'active', sortOrder: 0 })
     setVisible(true)
   }
 
@@ -60,11 +66,11 @@ function PayrollComponentsPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title heading={5} style={{ margin: 0 }}>薪资组件</Title>
+    <div className="payroll-components">
+      <Card bordered={false} className="payroll-components__card">
+        <Space direction="vertical" size={4} className="payroll-components__space">
+          <div className="payroll-components__header">
+            <Title heading={5} className="payroll-components__title">薪资组件</Title>
             <Button type="primary" onClick={openCreate}>新增组件</Button>
           </div>
           <Text type="secondary">参考 ERPNext 的 Earnings / Deductions 思路，把基本工资、津贴、扣款、个税等拆成可复用组件。</Text>
@@ -95,8 +101,11 @@ function PayrollComponentsPage() {
             },
             {
               title: '状态',
-              dataIndex: 'enabled',
-              render: (value) => <Tag color={value ? 'green' : 'gray'}>{value ? '启用' : '停用'}</Tag>,
+              dataIndex: 'status',
+              render: (value) => {
+                const info = statusMap[value] || { text: value, color: 'gray' }
+                return <Tag color={info.color}>{info.text}</Tag>
+              },
             },
             {
               title: '操作',
@@ -117,7 +126,7 @@ function PayrollComponentsPage() {
         visible={visible}
         onOk={handleSubmit}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="payroll-components__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem label="组件名称" field="name" rules={[{ required: true, message: '请输入组件名称' }]}>
@@ -148,8 +157,11 @@ function PayrollComponentsPage() {
             <FormItem label="是否计税" field="taxable" triggerPropName="checked">
               <Switch />
             </FormItem>
-            <FormItem label="启用状态" field="enabled" triggerPropName="checked">
-              <Switch />
+            <FormItem label="状态" field="status">
+              <Select className="payroll-components__select">
+                <Option value="active">启用</Option>
+                <Option value="inactive">停用</Option>
+              </Select>
             </FormItem>
             <FormItem label="排序" field="sortOrder">
               <InputNumber min={0} />

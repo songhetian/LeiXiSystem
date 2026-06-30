@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -18,30 +18,21 @@ import {
   IconPlus,
   IconSearch,
   IconRefresh,
-  IconEdit,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import {
+  getAdjustmentOvertime,
+  applyAdjustmentOvertime,
+  cancelAdjustmentOvertime,
+} from '@/api/adjustment'
+import type { OvertimeAdjustment } from '@/api/adjustment'
+import { getAllOvertimeTypes, type OvertimeType } from '@/api/attendance-overtime-type'
+import './overtime.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
-const { RangePicker } = DatePicker
-
-interface OvertimeRecord {
-  id: number
-  employeeName: string
-  employeeNo: string
-  department: string
-  overtimeType: string
-  date: string
-  startTime: string
-  endTime: string
-  hours: number
-  reason: string
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
-  createTime: string
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: '审批中', color: 'orange' },
@@ -50,26 +41,55 @@ const statusMap: Record<string, { text: string; color: string }> = {
   cancelled: { text: '已撤销', color: 'gray' },
 }
 
-const overtimeTypes = ['工作日加班', '周末加班', '节假日加班']
-
-const mockData: OvertimeRecord[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', overtimeType: '工作日加班', date: '2024-06-20', startTime: '18:30', endTime: '21:00', hours: 2.5, reason: '项目紧急上线', status: 'approved', createTime: '2024-06-20 09:00' },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', overtimeType: '周末加班', date: '2024-06-22', startTime: '10:00', endTime: '18:00', hours: 8, reason: '版本迭代', status: 'pending', createTime: '2024-06-21 16:00' },
-  { id: 3, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', overtimeType: '工作日加班', date: '2024-06-19', startTime: '19:00', endTime: '22:00', hours: 3, reason: '修复bug', status: 'approved', createTime: '2024-06-19 18:00' },
-  { id: 4, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', overtimeType: '节假日加班', date: '2024-06-10', startTime: '09:00', endTime: '18:00', hours: 8, reason: '活动筹备', status: 'rejected', createTime: '2024-06-08 10:00' },
-  { id: 5, employeeName: '吴十', employeeNo: 'EMP008', department: '运营部', overtimeType: '工作日加班', date: '2024-06-21', startTime: '18:30', endTime: '20:30', hours: 2, reason: '活动运营', status: 'pending', createTime: '2024-06-21 09:30' },
-]
-
 function Overtime() {
-  const [data, setData] = useState<OvertimeRecord[]>(mockData)
+  const [data, setData] = useState<OvertimeAdjustment[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<OvertimeRecord[]>(mockData)
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
+  const [overtimeTypes, setOvertimeTypes] = useState<OvertimeType[]>([])
 
-  const columns: TableProps<OvertimeRecord>['columns'] = [
+  const fetchOvertimeTypes = useCallback(async () => {
+    try {
+      const res = await getAllOvertimeTypes()
+      if (res.code === 0) {
+        setOvertimeTypes(res.data)
+      }
+    } catch {
+      // error handled by interceptor
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOvertimeTypes()
+  }, [fetchOvertimeTypes])
+
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getAdjustmentOvertime({
+        page,
+        pageSize,
+        status: searchStatus,
+        keyword: searchText || undefined,
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const columns: TableProps<OvertimeAdjustment>['columns'] = [
     {
       title: '申请人',
       dataIndex: 'employeeName',
@@ -82,14 +102,17 @@ function Overtime() {
     },
     {
       title: '部门',
-      dataIndex: 'department',
+      dataIndex: 'departmentName',
       width: 100,
     },
     {
       title: '加班类型',
       dataIndex: 'overtimeType',
       width: 110,
-      render: (value: string) => <Tag color="orange">{value}</Tag>,
+      render: (value: string) => {
+        const type = overtimeTypes.find((t) => t.code === value)
+        return <Tag color="orange">{type?.name || value}</Tag>
+      },
     },
     {
       title: '加班日期',
@@ -116,38 +139,34 @@ function Overtime() {
       dataIndex: 'status',
       width: 100,
       render: (value: string) => {
-        const info = statusMap[value]
+        const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>
       },
     },
     {
+      title: '申请时间',
+      dataIndex: 'createdAt',
+      width: 140,
+      render: (value: string) => new Date(value).toLocaleString(),
+    },
+    {
       title: '操作',
-      width: 150,
-      render: (_: any, record: OvertimeRecord) => (
+      width: 120,
+      render: (_: unknown, record: OvertimeAdjustment) => (
         <Space size="small">
           <Button type="text" size="small" icon={<IconEye />}>
             详情
           </Button>
           {record.status === 'pending' && (
-            <>
-              <Button
-                type="text"
-                size="small"
-                icon={<IconEdit />}
-                onClick={() => handleEdit(record)}
-              >
-                编辑
+            <Popconfirm
+              title="确认撤销"
+              content="确定要撤销该加班申请吗？"
+              onOk={() => handleCancel(record.id)}
+            >
+              <Button type="text" size="small" status="danger">
+                撤销
               </Button>
-              <Popconfirm
-                title="确认撤销"
-                content="确定要撤销该加班申请吗？"
-                onOk={() => handleCancel(record.id)}
-              >
-                <Button type="text" size="small" status="danger">
-                  撤销
-                </Button>
-              </Popconfirm>
-            </>
+            </Popconfirm>
           )}
         </Space>
       ),
@@ -155,79 +174,67 @@ function Overtime() {
   ]
 
   const handleAdd = () => {
-    setEditingId(null)
     form.resetFields()
     setVisible(true)
   }
 
-  const handleEdit = (record: OvertimeRecord) => {
-    setEditingId(record.id)
-    form.setFieldsValue(record)
-    setVisible(true)
-  }
-
-  const handleCancel = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    Message.success('撤销成功')
+  const handleCancel = async (id: number) => {
+    try {
+      await cancelAdjustmentOvertime(id)
+      Message.success('撤销成功')
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
-      if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        Message.success('修改成功')
-      } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          employeeName: '当前用户',
-          employeeNo: 'EMP000',
-          department: '技术部',
-          status: 'pending',
-          createTime: new Date().toLocaleString(),
-          ...values,
-        } as OvertimeRecord
-        setData([newRecord, ...data])
-        setFilteredData([newRecord, ...filteredData])
-        Message.success('申请成功')
+      let hours = values.hours
+      if (!hours && values.startTime && values.endTime) {
+        const [startH, startM] = values.startTime.split(':').map(Number)
+        const [endH, endM] = values.endTime.split(':').map(Number)
+        hours = ((endH * 60 + endM) - (startH * 60 + startM)) / 60
       }
+
+      await applyAdjustmentOvertime({
+        overtimeType: values.overtimeType,
+        date: values.date,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        hours: hours || 0,
+        reason: values.reason,
+      })
+      Message.success('申请成功')
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
     }
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchStatus(undefined)
-    setFilteredData(data)
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="adjustment-overtime">
+      <Card bordered={false} className="adjustment-overtime__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="adjustment-overtime__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
@@ -236,7 +243,7 @@ function Overtime() {
           </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 130 }}
+              className="adjustment-overtime__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -247,9 +254,6 @@ function Overtime() {
               <Option value="rejected">已驳回</Option>
               <Option value="cancelled">已撤销</Option>
             </Select>
-          </FormItem>
-          <FormItem label="加班日期">
-            <RangePicker style={{ width: 220 }} />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -264,12 +268,12 @@ function Overtime() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="adjustment-overtime__table-card">
+        <div className="adjustment-overtime__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>加班申请</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 条
+            <span className="adjustment-overtime__table-title">加班申请</span>
+            <Tag color="blue" className="adjustment-overtime__total-tag">
+              共 {pagination.total} 条
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -277,15 +281,26 @@ function Overtime() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
-        title={editingId ? '编辑加班' : '申请加班'}
+        title="申请加班"
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="adjustment-overtime__modal"
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -297,7 +312,9 @@ function Overtime() {
               >
                 <Select placeholder="请选择">
                   {overtimeTypes.map((type) => (
-                    <Option key={type} value={type}>{type}</Option>
+                    <Option key={type.code} value={type.code}>
+                      {type.name}
+                    </Option>
                   ))}
                 </Select>
               </FormItem>
@@ -308,7 +325,7 @@ function Overtime() {
                 field="date"
                 rules={[{ required: true, message: '请选择日期' }]}
               >
-                <DatePicker style={{ width: '100%' }} />
+                <DatePicker className="adjustment-overtime__date-picker" />
               </FormItem>
             </Col>
           </Row>
@@ -333,9 +350,13 @@ function Overtime() {
             </Col>
           </Row>
           <FormItem label="加班时长" field="hours">
-            <Input type="number" placeholder="请输入时长" suffix="小时" />
+            <Input type="number" placeholder="自动计算" suffix="小时" />
           </FormItem>
-          <FormItem label="加班原因" field="reason">
+          <FormItem
+            label="加班原因"
+            field="reason"
+            rules={[{ required: true, message: '请输入加班原因' }]}
+          >
             <Input.TextArea placeholder="请输入加班原因" rows={4} />
           </FormItem>
         </Form>

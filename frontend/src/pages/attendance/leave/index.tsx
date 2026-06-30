@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -19,30 +19,24 @@ import {
   IconSearch,
   IconRefresh,
   IconEdit,
-  IconDelete,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import dayjs, { Dayjs } from 'dayjs'
+import {
+  getLeaveList,
+  createLeave,
+  updateLeave,
+  cancelLeave,
+} from '@/api/attendance'
+import type { LeaveRequest } from '@/api/attendance'
+import { formatDate } from '@/utils/date'
+import './leave.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const { RangePicker } = DatePicker
-
-interface LeaveRecord {
-  id: number
-  employeeName: string
-  employeeNo: string
-  department: string
-  leaveType: string
-  startDate: string
-  endDate: string
-  days: number
-  reason: string
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
-  applicant: string
-  createTime: string
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: '审批中', color: 'orange' },
@@ -53,24 +47,44 @@ const statusMap: Record<string, { text: string; color: string }> = {
 
 const leaveTypes = ['年假', '事假', '病假', '婚假', '产假', '丧假', '调休']
 
-const mockData: LeaveRecord[] = [
-  { id: 1, employeeName: '张三', employeeNo: 'EMP001', department: '技术部', leaveType: '年假', startDate: '2024-06-25', endDate: '2024-06-27', days: 3, reason: '家中有事', status: 'pending', applicant: '张三', createTime: '2024-06-20 10:30' },
-  { id: 2, employeeName: '李四', employeeNo: 'EMP002', department: '产品部', leaveType: '病假', startDate: '2024-06-18', endDate: '2024-06-18', days: 1, reason: '身体不适', status: 'approved', applicant: '李四', createTime: '2024-06-17 16:00' },
-  { id: 3, employeeName: '王五', employeeNo: 'EMP003', department: '市场部', leaveType: '事假', startDate: '2024-06-15', endDate: '2024-06-16', days: 2, reason: '处理私事', status: 'rejected', applicant: '王五', createTime: '2024-06-14 09:00' },
-  { id: 4, employeeName: '赵六', employeeNo: 'EMP004', department: '技术部', leaveType: '调休', startDate: '2024-06-21', endDate: '2024-06-21', days: 1, reason: '周末加班调休', status: 'approved', applicant: '赵六', createTime: '2024-06-19 14:00' },
-  { id: 5, employeeName: '钱七', employeeNo: 'EMP005', department: '人事部', leaveType: '年假', startDate: '2024-07-01', endDate: '2024-07-05', days: 5, reason: '外出旅游', status: 'pending', applicant: '钱七', createTime: '2024-06-20 11:00' },
-]
-
 function Leave() {
-  const [data, setData] = useState<LeaveRecord[]>(mockData)
+  const [data, setData] = useState<LeaveRequest[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<LeaveRecord[]>(mockData)
+  const [dateRange, setDateRange] = useState<Dayjs[]>([])
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
-  const columns: TableProps<LeaveRecord>['columns'] = [
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getLeaveList({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+        status: searchStatus,
+        startDate: dateRange[0]?.format('YYYY-MM-DD'),
+        endDate: dateRange[1]?.format('YYYY-MM-DD'),
+      })
+      setData(res.data.list)
+      setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData(pagination.current, pagination.pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const columns: TableProps<LeaveRequest>['columns'] = [
     {
       title: '申请人',
       dataIndex: 'employeeName',
@@ -83,30 +97,34 @@ function Leave() {
     },
     {
       title: '部门',
-      dataIndex: 'department',
+      dataIndex: 'departmentName',
       width: 100,
     },
     {
       title: '假别',
       dataIndex: 'leaveType',
       width: 90,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
+      render: (value: string) => <Tag color="blue" className="attendance-leave__type-tag">{value}</Tag>,
     },
     {
       title: '开始时间',
       dataIndex: 'startDate',
       width: 110,
+      render: (value: string) => formatDate(value),
     },
     {
       title: '结束时间',
       dataIndex: 'endDate',
       width: 110,
+      render: (value: string) => formatDate(value),
     },
     {
       title: '天数',
       dataIndex: 'days',
       width: 80,
-      render: (value: number) => `${value} 天`,
+      render: (value: number) => (
+        <span className="attendance-leave__days">{value} 天</span>
+      ),
     },
     {
       title: '状态',
@@ -119,13 +137,14 @@ function Leave() {
     },
     {
       title: '申请时间',
-      dataIndex: 'createTime',
-      width: 140,
+      dataIndex: 'createdAt',
+      width: 160,
+      render: (value: string) => new Date(value).toLocaleString(),
     },
     {
       title: '操作',
       width: 150,
-      render: (_: any, record: LeaveRecord) => (
+      render: (_: unknown, record: LeaveRequest) => (
         <Space size="small">
           <Button type="text" size="small" icon={<IconEye />}>
             详情
@@ -162,75 +181,83 @@ function Leave() {
     setVisible(true)
   }
 
-  const handleEdit = (record: LeaveRecord) => {
+  const handleEdit = (record: LeaveRequest) => {
     setEditingId(record.id)
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      ...record,
+      dateRange: [new Date(record.startDate), new Date(record.endDate)],
+    })
     setVisible(true)
   }
 
-  const handleCancel = (id: number) => {
-    setData(data.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    setFilteredData(filteredData.map((item) => (item.id === id ? { ...item, status: 'cancelled' } : item)))
-    Message.success('撤销成功')
+  const handleCancel = async (id: number) => {
+    try {
+      await cancelLeave(id)
+      Message.success('撤销成功')
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    }
   }
 
   const handleOk = async () => {
     try {
       const values = await form.validate()
+      setSaving(true)
+
+      const startDate = values.dateRange?.[0]
+        ? new Date(values.dateRange[0]).toISOString().split('T')[0]
+        : undefined
+      const endDate = values.dateRange?.[1]
+        ? new Date(values.dateRange[1]).toISOString().split('T')[0]
+        : undefined
+
+      const submitData = {
+        leaveType: values.leaveType,
+        startDate,
+        endDate,
+        days: values.days,
+        reason: values.reason,
+      }
+
       if (editingId) {
-        setData(data.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
-        setFilteredData(filteredData.map((item) => (item.id === editingId ? { ...item, ...values } : item)))
+        await updateLeave(editingId, submitData)
         Message.success('修改成功')
       } else {
-        const newId = Math.max(...data.map((d) => d.id)) + 1
-        const newRecord = {
-          id: newId,
-          employeeName: '当前用户',
-          employeeNo: 'EMP000',
-          department: '技术部',
-          status: 'pending',
-          applicant: '当前用户',
-          createTime: new Date().toLocaleString(),
-          ...values,
-        } as LeaveRecord
-        setData([newRecord, ...data])
-        setFilteredData([newRecord, ...filteredData])
+        await createLeave(submitData as { leaveType: string; startDate: string; endDate: string; days: number; reason: string })
         Message.success('申请成功')
       }
       setVisible(false)
-    } catch (e) {
-      console.error(e)
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.employeeName.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchStatus) {
-      result = result.filter((item) => item.status === searchStatus)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchStatus(undefined)
-    setFilteredData(data)
+    setDateRange([])
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="attendance-leave">
+      <Card bordered={false} className="attendance-leave__search-card">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
+              className="attendance-leave__search-input"
               placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
@@ -239,7 +266,7 @@ function Leave() {
           </FormItem>
           <FormItem label="状态">
             <Select
-              style={{ width: 130 }}
+              className="attendance-leave__status-select"
               placeholder="请选择"
               value={searchStatus}
               onChange={setSearchStatus}
@@ -251,8 +278,12 @@ function Leave() {
               <Option value="cancelled">已撤销</Option>
             </Select>
           </FormItem>
-          <FormItem label="申请时间">
-            <RangePicker style={{ width: 220 }} />
+          <FormItem label="请假时间">
+            <RangePicker
+              className="attendance-leave__date-picker"
+              value={dateRange}
+              onChange={(_, date) => setDateRange(date)}
+            />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -267,12 +298,12 @@ function Leave() {
         </Form>
       </Card>
 
-      <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <Card bordered={false} className="attendance-leave__table-card">
+        <div className="attendance-leave__table-header">
           <div>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>请假记录</span>
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              共 {filteredData.length} 条
+            <span className="attendance-leave__table-title">请假记录</span>
+            <Tag color="blue" className="attendance-leave__total-tag">
+              共 {pagination.total} 条
             </Tag>
           </div>
           <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
@@ -280,7 +311,19 @@ function Leave() {
           </Button>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+          scroll={{ x: 1200 }}
+        />
       </Card>
 
       <Modal
@@ -288,7 +331,8 @@ function Leave() {
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        confirmLoading={saving}
+        className="attendance-leave__modal"
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -307,7 +351,7 @@ function Leave() {
             field="dateRange"
             rules={[{ required: true, message: '请选择请假时间' }]}
           >
-            <RangePicker style={{ width: '100%' }} />
+            <RangePicker className="attendance-leave__range-picker" />
           </FormItem>
           <Row gutter={16}>
             <Col span={12}>

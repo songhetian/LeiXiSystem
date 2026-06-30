@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeiXiSystem 架构深化报告</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+  .badge-strong { background: #dc2626; color: white; }
+  .badge-worth { background: #d97706; color: white; }
+  .card { background: #111827; border: 1px solid #374151; border-radius: 12px; overflow: hidden; }
+  .card-body { padding: 24px; }
+  .card-header { background: #1f2937; padding: 16px 24px; border-bottom: 1px solid #374151; }
+  .code-block { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; font-size: 13px; overflow-x: auto; }
+  .heatmap-row { display: flex; gap: 4px; align-items: center; }
+  .heatmap-bar { height: 20px; border-radius: 2px; min-width: 4px; }
+  .heatmap-bar.heavy { background: #ef4444; }
+  .heatmap-bar.medium { background: #f59e0b; }
+  .heatmap-bar.light { background: #6b7280; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+<!-- Hero -->
+<div class="border-b border-gray-800 px-8 py-12">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-center gap-3 mb-3">
+      <span class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">ARCHITECTURE REVIEW</span>
+      <span class="text-gray-500 text-sm">LeiXiSystem · 2026-06-28</span>
+    </div>
+    <h1 class="text-4xl font-bold mb-2">代码架构深化扫描</h1>
+    <p class="text-gray-400 text-lg max-w-2xl">7806 行路由代码，25 个文件，219 个路由 handler。扫描横切关注点、浅层模块与紧耦合泄漏。</p>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="px-8 py-8 border-b border-gray-800">
+  <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+      <div class="text-3xl font-bold text-red-400">97</div>
+      <div class="text-gray-400 text-sm mt-1">审计日志调用</div>
+      <div class="text-gray-600 text-xs mt-1">分散在 11 个文件</div>
+    </div>
+    <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+      <div class="text-3xl font-bold text-orange-400">231</div>
+      <div class="text-gray-400 text-sm mt-1">Zod 校验调用</div>
+      <div class="text-gray-600 text-xs mt-1">每个文件自行定义 schema</div>
+    </div>
+    <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+      <div class="text-3xl font-bold text-yellow-400">3 / 25</div>
+      <div class="text-gray-400 text-sm mt-1">通知已用/应覆盖</div>
+      <div class="text-gray-600 text-xs mt-1">仅 helpdesk/adjustment/lifecycle</div>
+    </div>
+    <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+      <div class="text-3xl font-bold text-purple-400">972</div>
+      <div class="text-gray-400 text-sm mt-1">最大文件行数</div>
+      <div class="text-gray-600 text-xs mt-1">payroll.ts（需拆分）</div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-8 py-10 space-y-8">
+
+  <!-- Candidate 1 -->
+  <div class="card" id="c1">
+    <div class="card-header flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs text-gray-500 mono">Candidate 01</span>
+          <span class="badge badge-strong">Strong</span>
+        </div>
+        <h2 class="text-xl font-bold text-white">审计日志 → 统一 Hook 机制</h2>
+      </div>
+      <div class="text-right text-gray-500 text-sm">
+        <div class="mono text-red-400">97 处调用</div>
+        <div class="text-xs">分散在 11 个文件</div>
+      </div>
+    </div>
+    <div class="card-body space-y-6">
+      <p class="text-gray-400">每个路由 handler 内部手动调用 <code class="mono text-blue-300">writeAuditLog</code>，传参方式不统一（有的不传 beforeData，有的不传 module），难以批量添加 requestId，无法强制执行敏感字段脱敏规则。</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Before · 手动散布</div>
+          <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 text-sm">
+            <div class="text-gray-500 text-xs mb-2">// asset.ts</div>
+            <div class="code-block text-xs mono text-red-300" style="font-size:12px">
+<pre>fastify.post('/items', async (req) => {
+  const asset = await createAsset(data)
+  // ↓ 审计日志手写，分散在每个 handler
+  await writeAuditLog(req, {
+    action: 'asset_item_create',
+    module: 'asset',
+    requestData: data,
+    responseData: { id: asset.id }
+  })
+  return asset
+})</pre>
+            </div>
+            <div class="text-gray-600 text-xs mt-2">在 11 个文件中重复 97 次</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-green-400 mb-2 uppercase tracking-wider">After · 统一 Hook</div>
+          <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 text-sm">
+            <div class="text-gray-500 text-xs mb-2">// 新插件 auditPlugin.ts</div>
+            <div class="code-block text-xs mono text-green-300" style="font-size:12px">
+<pre>// 注册时注入 auditContext
+fastify.post('/items', async (req, reply) => {
+  req.auditContext = {
+    action: 'asset_item_create',
+    module: 'asset'
+  }
+  const asset = await createAsset(data)
+  return asset
+})
+
+// 统一 onSend Hook 自动记录
+f.addHook('onSend', async (req, reply) => {
+  const ctx = req.auditContext
+  if (ctx && reply.sent) {
+    await writeAuditLog(req, {
+      ...ctx,
+      beforeData: ctx.beforeData,
+      afterData: ctx.afterData,
+      requestId: req.id,
+    })
+  }
+})</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <h4 class="text-sm font-semibold mb-2 text-gray-300">Benefits</h4>
+        <ul class="text-sm text-gray-400 space-y-1">
+          <li>✅ <strong class="text-gray-200">Locality</strong>：审计逻辑与业务代码分离，handler 只关注业务</li>
+          <li>✅ <strong class="text-gray-200">Leverage</strong>：一次修改覆盖 97 处，自动获得 requestId、脱敏规则强制</li>
+          <li>✅ <strong class="text-gray-200">测试改进</strong>：Hook 可 mock，测试不依赖真实 audit 表</li>
+          <li>⚠️ 需处理：异步操作（setImmediate）、错误路径记录、beforeData 获取时机</li>
+        </ul>
+      </div>
+
+      <!-- Heatmap -->
+      <div>
+        <div class="text-xs font-bold text-gray-500 mb-2">受影响的文件（按调用密度）</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">payroll.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-red-500 h-5 rounded-full" style="width:100%"></div></div>
+            <div class="mono text-xs text-red-400 w-8 text-right">19</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">lifecycle.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-red-500 h-5 rounded-full" style="width:89%"></div></div>
+            <div class="mono text-xs text-red-400 w-8 text-right">17</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">asset.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-orange-500 h-5 rounded-full" style="width:53%"></div></div>
+            <div class="mono text-xs text-orange-400 w-8 text-right">10</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">recruitment.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-orange-500 h-5 rounded-full" style="width:58%"></div></div>
+            <div class="mono text-xs text-orange-400 w-8 text-right">11</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">performance.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-yellow-500 h-5 rounded-full" style="width:42%"></div></div>
+            <div class="mono text-xs text-yellow-400 w-8 text-right">8</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">+ 6 other files</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-5"><div class="bg-gray-500 h-5 rounded-full" style="width:21%"></div></div>
+            <div class="mono text-xs text-gray-400 w-8 text-right">32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidate 2 -->
+  <div class="card" id="c2">
+    <div class="card-header flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs text-gray-500 mono">Candidate 02</span>
+          <span class="badge badge-strong">Strong</span>
+        </div>
+        <h2 class="text-xl font-bold text-white">通知发送 → 声明式 Hook 自动触发</h2>
+      </div>
+      <div class="text-right text-gray-500 text-sm">
+        <div class="mono text-orange-400">仅 3/25 文件</div>
+        <div class="text-xs">其他 22 个路由均有需求</div>
+      </div>
+    </div>
+    <div class="card-body space-y-6">
+      <p class="text-gray-400"><code class="mono text-blue-300">sendNotification</code> 只在 helpdesk / adjustment / lifecycle 中使用。reimbursement、attendance、payroll 等场景同样需要通知但未触发，人工容易遗漏。</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs font-bold text-red-400 mb-2">Before</div>
+          <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+            <div class="code-block text-xs mono text-red-300" style="font-size:12px">
+<pre>import { sendNotification } from '../services/notification'
+
+fastify.post('/approve', async (req) => {
+  await reimburseApprove(id)
+  // 忘记通知？无法发现
+  return { code: 0 }
+})</pre>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-green-400 mb-2">After · 声明式</div>
+          <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+            <div class="code-block text-xs mono text-green-300" style="font-size:12px">
+<pre>// 路由元数据声明通知配置
+fastify.post('/approve', {
+  audit: { action: 'reimburse_approve' },
+  notify: {
+    recipients: (req, res) => [res.employeeId],
+    template: 'reimbursement_approved',
+  }
+}, async (req, res) => {
+  return reimburseApprove(id)
+})</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 md:grid-cols-5 gap-2">
+        <div class="bg-gray-900 rounded p-2 border border-green-800 text-center"><div class="text-green-400 font-bold">✓</div><div class="text-xs text-gray-400">helpdesk</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-green-800 text-center"><div class="text-green-400 font-bold">✓</div><div class="text-xs text-gray-400">adjustment</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-green-800 text-center"><div class="text-green-400 font-bold">✓</div><div class="text-xs text-gray-400">lifecycle</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">reimbursement</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">payroll</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">vacation</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">attendance</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">asset</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-red-900 text-center"><div class="text-red-400 font-bold">✗</div><div class="text-xs text-gray-400">recruitment</div></div>
+        <div class="bg-gray-900 rounded p-2 border border-gray-700 text-center"><div class="text-gray-500 font-bold">…</div><div class="text-xs text-gray-500">+18 others</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidate 3 -->
+  <div class="card" id="c3">
+    <div class="card-header flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs text-gray-500 mono">Candidate 03</span>
+          <span class="badge badge-worth">Worth exploring</span>
+        </div>
+        <h2 class="text-xl font-bold text-white">巨型路由文件 → 按资源子模块拆分</h2>
+      </div>
+      <div class="text-right text-gray-500 text-sm">
+        <div class="mono text-purple-400">3 个超大文件</div>
+        <div class="text-xs">&gt;700 行 / 文件</div>
+      </div>
+    </div>
+    <div class="card-body space-y-6">
+      <p class="text-gray-400">payroll.ts (972行)、lifecycle.ts (897行)、attendance.ts (713行) 滚动浏览时上下文跳跃严重，AI 导航和测试定位都困难。理想上限 200-300 行/文件。</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <div class="text-xs font-bold text-red-400 mb-2">Before · 单文件承载全模块</div>
+          <div class="code-block text-xs mono text-red-300">
+<pre>// payroll.ts · 972 行
+// import ... 10+ imports at top
+// const schema ... 5+ schemas
+
+fastify.post('/payslips', ...)
+fastify.get('/payslips', ...)
+fastify.post('/runs', ...)
+fastify.get('/runs', ...)
+fastify.post('/adjustments', ...)
+// ... 22 more handlers</pre>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <div class="text-xs font-bold text-green-400 mb-2">After · 按资源子模块拆分</div>
+          <div class="code-block text-xs mono text-green-300">
+<pre>// payroll/
+//   index.ts        (路由注册入口)
+//   payslips.ts     (~200行)
+//   runs.ts         (~180行)
+//   adjustments.ts  (~150行)
+//   components.ts  (~120行)
+// 每个子模块专注单一资源</pre>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold text-gray-500 mb-2">文件规模对比</div>
+        <div class="space-y-2">
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">payroll.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-4"><div class="bg-red-500 h-4 rounded-full" style="width:100%"></div></div>
+            <div class="mono text-xs text-red-400 w-12">972行</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">lifecycle.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-4"><div class="bg-red-500 h-4 rounded-full" style="width:92%"></div></div>
+            <div class="mono text-xs text-red-400 w-12">897行</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">attendance.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-4"><div class="bg-orange-500 h-4 rounded-full" style="width:73%"></div></div>
+            <div class="mono text-xs text-orange-400 w-12">713行</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="mono text-xs text-gray-500 w-32 text-right">recruitment.ts</div>
+            <div class="flex-1 bg-gray-800 rounded-full h-4"><div class="bg-yellow-500 h-4 rounded-full" style="width:50%"></div></div>
+            <div class="mono text-xs text-yellow-400 w-12">485行</div>
+          </div>
+          <div class="text-xs text-gray-600 mt-2">理想上限：200-300 行/文件</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidate 4 -->
+  <div class="card" id="c4">
+    <div class="card-header flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs text-gray-500 mono">Candidate 04</span>
+          <span class="badge badge-worth">Worth exploring</span>
+        </div>
+        <h2 class="text-xl font-bold text-white">Zod Schema 复用 → 集中 Schema 注册表</h2>
+      </div>
+      <div class="text-right text-gray-500 text-sm">
+        <div class="mono text-yellow-400">231 处 validateData</div>
+        <div class="text-xs">每个文件自行定义 schema</div>
+      </div>
+    </div>
+    <div class="card-body space-y-6">
+      <p class="text-gray-400">21 个路由文件各自定义 Zod schema。相同概念（如 <code>employeeId: number</code>）重复定义，修改字段需跨文件搜索。</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <div class="text-xs font-bold text-red-400 mb-2">Before</div>
+          <div class="code-block text-xs mono text-red-300">
+<pre>// lifecycle.ts
+const s = z.object({
+  employeeId: z.coerce.number().int().positive(),
+})
+// attendance.ts
+const s = z.object({
+  employeeId: z.coerce.number().int().positive(),
+})
+// 同一字段，两份定义</pre>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <div class="text-xs font-bold text-green-400 mb-2">After</div>
+          <div class="code-block text-xs mono text-green-300">
+<pre>// schemas/index.ts
+export const schemas = {
+  employeeId: z.coerce.number().int().positive(),
+  idParams: z.object({ id: z.coerce.number() }),
+  pagination: z.object({ page: ..., pageSize: ... }),
+} as const</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Top Recommendation -->
+<div class="max-w-6xl mx-auto px-8 pb-12 space-y-6">
+  <div class="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-8 border border-blue-700">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">TOP RECOMMENDATION</span>
+    </div>
+    <h2 class="text-2xl font-bold mb-3">优先推进：审计日志 Hook 机制（Candidate 01）</h2>
+    <p class="text-blue-200 mb-4">影响范围最广（97 处调用），收益最直接，且为后续所有横切关注点（通知、缓存失效）提供统一的 Hook 基础设施模式。</p>
+    <div class="grid grid-cols-3 gap-4 text-center">
+      <div class="bg-blue-800/50 rounded-lg p-3"><div class="text-2xl font-bold">97</div><div class="text-blue-200 text-xs">现有调用点</div></div>
+      <div class="bg-blue-800/50 rounded-lg p-3"><div class="text-2xl font-bold">~1天</div><div class="text-blue-200 text-xs">预估工作量</div></div>
+      <div class="bg-blue-800/50 rounded-lg p-3"><div class="text-2xl font-bold">11</div><div class="text-blue-200 text-xs">受益文件</div></div>
+    </div>
+  </div>
+
+  <div>
+    <h3 class="text-lg font-semibold mb-4 text-gray-300">✅ 已有的良好设计</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <div class="text-green-400 font-bold mb-1">对象级授权适配器</div>
+        <p class="text-xs text-gray-400">objectAuthorization.ts 有良好的 canAccessXxx / getAccessibleXxx 模式，职责清晰。</p>
+      </div>
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <div class="text-green-400 font-bold mb-1">Prisma Service 统一出口</div>
+        <p class="text-xs text-gray-400">prisma 实例统一导出，所有模块通过同一 client 访问 DB，连接管理一致。</p>
+      </div>
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <div class="text-green-400 font-bold mb-1">Redis 降级策略</div>
+        <p class="text-xs text-gray-400">Redis 不可用时自动降级为直查数据库，config.enabled 开关可控。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pt-6 border-t border-gray-800">
+    <h3 class="text-lg font-semibold mb-4 text-gray-300">你想深入哪个方向？</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <a href="#c1" class="bg-gray-900 hover:bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-blue-600 transition cursor-pointer text-decoration-none">
+        <div class="text-sm font-semibold text-blue-400">01 审计日志 Hook</div>
+        <div class="text-xs text-gray-500 mt-1">推荐优先 · 97处调用</div>
+      </a>
+      <a href="#c2" class="bg-gray-900 hover:bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-orange-600 transition cursor-pointer text-decoration-none">
+        <div class="text-sm font-semibold text-orange-400">02 通知 Hook</div>
+        <div class="text-xs text-gray-500 mt-1">声明式通知 · 覆盖全场景</div>
+      </a>
+      <a href="#c3" class="bg-gray-900 hover:bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-purple-600 transition cursor-pointer text-decoration-none">
+        <div class="text-sm font-semibold text-purple-400">03 巨型文件拆分</div>
+        <div class="text-xs text-gray-500 mt-1">payroll/lifecycle/attendance</div>
+      </a>
+      <a href="#c4" class="bg-gray-900 hover:bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-yellow-600 transition cursor-pointer text-decoration-none">
+        <div class="text-sm font-semibold text-yellow-400">04 Zod Schema 集中</div>
+        <div class="text-xs text-gray-500 mt-1">DRY + 类型一致性</div>
+      </a>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

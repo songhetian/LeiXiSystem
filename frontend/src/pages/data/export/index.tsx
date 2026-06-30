@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Table,
@@ -8,7 +8,6 @@ import {
   Form,
   Select,
   DatePicker,
-  Message,
   Grid,
 } from '@arco-design/web-react'
 import {
@@ -18,11 +17,15 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { createExportTask, downloadExportFile } from '@/api/data'
 import { saveBlob } from '@/utils/url'
+import { toast } from '@/utils/toast'
+import '../style.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const { RangePicker } = DatePicker
+
+const STORAGE_KEY = 'export_records'
 
 interface ExportRecord {
   id: number
@@ -34,12 +37,6 @@ interface ExportRecord {
   size: string
 }
 
-const mockData: ExportRecord[] = [
-  { id: 1, fileName: '员工信息_20240624.xlsx', type: '员工导出', status: 'success', operator: '管理员', createTime: '2024-06-24 10:30', size: '2.5MB' },
-  { id: 2, fileName: '考勤报表_6月.xlsx', type: '考勤导出', status: 'success', operator: '管理员', createTime: '2024-06-23 14:00', size: '5.2MB' },
-  { id: 3, fileName: '薪资明细_6月.xlsx', type: '薪资导出', status: 'processing', operator: '管理员', createTime: '2024-06-24 09:00', size: '-' },
-]
-
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: '待处理', color: 'gray' },
   processing: { text: '生成中', color: 'orange' },
@@ -47,9 +44,55 @@ const statusMap: Record<string, { text: string; color: string }> = {
   failed: { text: '失败', color: 'red' },
 }
 
+const typeLabels: Record<string, string> = {
+  employee: '员工信息导出',
+  department: '部门信息导出',
+  attendance: '考勤数据导出',
+  shift: '排班数据导出',
+  salary: '薪资数据导出',
+}
+
+function loadRecords(): ExportRecord[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY)
+    return data ? JSON.parse(data) : []
+  } catch {
+    return []
+  }
+}
+
+function saveRecords(records: ExportRecord[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
+}
+
 function DataExport() {
-  const [data] = useState<ExportRecord[]>(mockData)
+  const [data, setData] = useState<ExportRecord[]>([])
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    setData(loadRecords())
+  }, [])
+
+  const handleAddRecord = useCallback((record: Omit<ExportRecord, 'id'>) => {
+    const records = loadRecords()
+    const newRecord = {
+      ...record,
+      id: Date.now(),
+    }
+    const updatedRecords = [newRecord, ...records]
+    saveRecords(updatedRecords)
+    setData(updatedRecords)
+  }, [])
+
+  const handleDownload = async (record: ExportRecord) => {
+    try {
+      const blob = await downloadExportFile(record.id)
+      saveBlob(blob as unknown as Blob, record.fileName)
+      toast.success('下载成功')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '操作失败')
+    }
+  }
 
   const columns: TableProps<ExportRecord>['columns'] = [
     {
@@ -101,10 +144,7 @@ function DataExport() {
             type="text"
             size="small"
             icon={<IconDownload />}
-            onClick={async () => {
-              const blob = await downloadExportFile(record.id)
-              saveBlob(blob as unknown as Blob, record.fileName)
-            }}
+            onClick={() => handleDownload(record)}
           >
             下载
           </Button>
@@ -113,31 +153,46 @@ function DataExport() {
   ]
 
   const handleExport = async () => {
-    const values = await form.validate()
-    const [startDate, endDate] = values.dateRange || []
-    await createExportTask({
-      type: values.type,
-      format: values.format,
-      departmentIds: values.departmentIds || [],
-      startDate,
-      endDate,
-    })
-    Message.success('导出任务已创建，请稍候...')
+    const loading = toast.loading('正在创建导出任务...')
+    try {
+      const values = await form.validate()
+      const [startDate, endDate] = values.dateRange || []
+      const res = await createExportTask({
+        type: values.type,
+        format: values.format,
+        departmentIds: values.departmentIds || [],
+        startDate,
+        endDate,
+      })
+      handleAddRecord({
+        fileName: `${typeLabels[values.type]}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.${values.format}`,
+        type: typeLabels[values.type],
+        status: 'success',
+        operator: '当前用户',
+        createTime: new Date().toLocaleString('zh-CN'),
+        size: '-',
+      })
+      loading()
+      toast.success('导出任务已创建，请稍候...')
+    } catch (err) {
+      loading()
+      toast.error(err instanceof Error ? err.message : '操作失败')
+    }
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
+    <div className="data-export">
       <Row gutter={16}>
         <Col span={8}>
           <Card bordered={false}>
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <h3 style={{ marginBottom: 4 }}>数据导出</h3>
-              <p style={{ color: '#86909C', fontSize: 12 }}>选择导出类型和条件</p>
+            <div className="data-export__form">
+              <h3 className="data-export__form-title">数据导出</h3>
+              <p className="data-export__form-desc">选择导出类型和条件</p>
             </div>
 
             <Form form={form} layout="vertical" initialValues={{ type: 'employee', format: 'xlsx' }}>
               <FormItem label="导出类型" field="type" rules={[{ required: true, message: '请选择导出类型' }]}>
-                <Select style={{ width: '100%' }}>
+                <Select className="data-export__select-full">
                   <Option value="employee">员工信息导出</Option>
                   <Option value="department">部门信息导出</Option>
                   <Option value="attendance">考勤数据导出</Option>
@@ -147,11 +202,11 @@ function DataExport() {
               </FormItem>
 
               <FormItem label="时间范围" field="dateRange">
-                <RangePicker style={{ width: '100%' }} />
+                <RangePicker className="data-export__select-full" />
               </FormItem>
 
               <FormItem label="部门范围" field="departmentIds">
-                <Select mode="multiple" style={{ width: '100%' }} placeholder="不选则全部">
+                <Select mode="multiple" className="data-export__select-full" placeholder="不选则全部">
                   <Option value={1}>技术部</Option>
                   <Option value={2}>产品部</Option>
                   <Option value={3}>市场部</Option>
@@ -160,7 +215,7 @@ function DataExport() {
               </FormItem>
 
               <FormItem label="文件格式" field="format" rules={[{ required: true, message: '请选择文件格式' }]}>
-                <Select style={{ width: '100%' }}>
+                <Select className="data-export__select-full">
                   <Option value="xlsx">Excel (.xlsx)</Option>
                   <Option value="xls">Excel (.xls)</Option>
                   <Option value="csv">CSV (.csv)</Option>
@@ -181,8 +236,8 @@ function DataExport() {
 
         <Col span={16}>
           <Card bordered={false}>
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ fontSize: 16, fontWeight: 600 }}>导出记录</span>
+            <div className="data-export__header">
+              <span className="data-export__title">导出记录</span>
             </div>
 
             <Table
@@ -190,6 +245,7 @@ function DataExport() {
               data={data}
               rowKey="id"
               pagination={{ pageSize: 10 }}
+              noDataElement={<div className="data-export__empty">暂无导出记录</div>}
             />
           </Card>
         </Col>

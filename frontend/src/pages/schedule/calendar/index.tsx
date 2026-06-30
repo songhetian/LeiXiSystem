@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Card,
   Button,
@@ -8,80 +8,167 @@ import {
   Form,
   Message,
   Tag,
-  Table,
-  Grid,
   Calendar,
   Badge,
   Input,
+  DatePicker,
+  Table,
 } from '@arco-design/web-react'
 import {
   IconLeft,
   IconRight,
   IconPlus,
-  IconEdit,
 } from '@arco-design/web-react/icon'
+import type { TableProps } from '@arco-design/web-react'
+import { getScheduleCalendar, assignSchedule, updateSchedule, deleteSchedule } from '@/api/schedule'
+import { getShifts, Shift } from '@/api/shift'
+import { getDepartmentsList, Department } from '@/api/organization'
+import { getEmployees, Employee } from '@/api/personnel'
+import dayjs, { Dayjs } from 'dayjs'
+import './style.css'
 
-const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
+const RangePicker = DatePicker.RangePicker
 
 interface ScheduleDay {
   date: string
   shifts: { name: string; color: string; count: number }[]
 }
 
-const mockCalendarData: Record<string, ScheduleDay> = {}
-
-function generateCalendarData() {
-  const colors: Record<string, string> = {
-    '标准早班': 'blue',
-    '午班': 'orange',
-    '夜班': 'purple',
-    '休息': 'gray',
-  }
-  for (let i = 1; i <= 30; i++) {
-    const date = `2024-06-${String(i).padStart(2, '0')}`
-    const day = new Date(date).getDay()
-    if (day === 0 || day === 6) {
-      mockCalendarData[date] = {
-        date,
-        shifts: [{ name: '休息', color: 'gray', count: 120 }],
-      }
-    } else {
-      mockCalendarData[date] = {
-        date,
-        shifts: [
-          { name: '标准早班', color: 'blue', count: 80 },
-          { name: '午班', color: 'orange', count: 30 },
-          { name: '夜班', color: 'purple', count: 10 },
-        ],
-      }
-    }
-  }
+interface ScheduleDetail {
+  id: number
+  userId: number
+  userName: string
+  departmentName?: string
+  shiftId: number
+  shiftName: string
+  shiftColor?: string
+  scheduleDate: string
+  status: string
+  note?: string
 }
-generateCalendarData()
+
+function getMonthRange(date: Date) {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const lastDay = new Date(year, month + 1, 0)
+  const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay.getDate()}`
+  return { startDate, endDate }
+}
 
 function CalendarPage() {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2024, 5, 1))
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [schedules, setSchedules] = useState<ScheduleDetail[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [form] = Form.useForm()
-  const [department, setDepartment] = useState<string>('全部')
+  const [departmentId, setDepartmentId] = useState<number | undefined>()
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [shifts, setShifts] = useState<Shift[]>([])
+  const [employees, setEmployees] = useState<(Employee & { userId?: number; user?: { realName: string } })[]>([])
+  const [daySchedules, setDaySchedules] = useState<ScheduleDetail[]>([])
+  const [editVisible, setEditVisible] = useState(false)
+  const [editingRecord, setEditingRecord] = useState<ScheduleDetail | null>(null)
+  const [editForm] = Form.useForm()
+  const [batchVisible, setBatchVisible] = useState(false)
+  const [batchForm] = Form.useForm()
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
 
-  const dateCellRender = (date: any) => {
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    const dayData = mockCalendarData[dateStr]
+  const loadDepartments = useCallback(async () => {
+    try {
+      const res = await getDepartmentsList()
+      setDepartments(res.data || [])
+    } catch {
+      // error handled by interceptor
+    }
+  }, [])
 
-    if (!dayData) return null
+  const loadShifts = useCallback(async () => {
+    try {
+      const res = await getShifts({ page: 1, pageSize: 100, status: 'active' })
+      setShifts(res.data?.list || [])
+    } catch {
+      // error handled by interceptor
+    }
+  }, [])
+
+  const loadEmployees = useCallback(async () => {
+    try {
+      const res = await getEmployees({ page: 1, pageSize: 100, status: 'active', departmentId })
+      setEmployees(res.data?.list || [])
+    } catch {
+      // error handled by interceptor
+    }
+  }, [departmentId])
+
+  const loadSchedules = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { startDate, endDate } = getMonthRange(currentMonth)
+      const res = await getScheduleCalendar({
+        startDate,
+        endDate,
+        departmentId,
+      })
+      setSchedules(res.data || [])
+    } catch {
+        // error handled by interceptor
+      } finally {
+      setLoading(false)
+    }
+  }, [currentMonth, departmentId])
+
+  useEffect(() => {
+    loadDepartments()
+    loadShifts()
+  }, [loadDepartments, loadShifts])
+
+  useEffect(() => {
+    loadSchedules()
+  }, [loadSchedules])
+
+  useEffect(() => {
+    loadEmployees()
+  }, [loadEmployees])
+
+  const calendarData = useMemo(() => {
+    const map: Record<string, ScheduleDay> = {}
+    schedules.forEach((s) => {
+      const dateStr = new Date(s.scheduleDate).toISOString().split('T')[0]
+      if (!map[dateStr]) {
+        map[dateStr] = { date: dateStr, shifts: [] }
+      }
+      const existing = map[dateStr].shifts.find((sh) => sh.name === s.shiftName)
+      if (existing) {
+        existing.count += 1
+      } else {
+        map[dateStr].shifts.push({
+          name: s.shiftName,
+          color: s.shiftColor || 'blue',
+          count: 1,
+        })
+      }
+    })
+    return map
+  }, [schedules])
+
+  const dateCellRender = (date: Dayjs) => {
+    const dateStr = date.format('YYYY-MM-DD')
+    const dayData = calendarData[dateStr]
+
+    if (!dayData || dayData.shifts.length === 0) return null
 
     return (
-      <div style={{ fontSize: 12 }}>
+      <div className="schedule-calendar__cell">
         {dayData.shifts.map((shift, index) => (
           <Badge
             key={index}
             color={shift.color}
             text={`${shift.name} ${shift.count}人`}
-            style={{ display: 'block', marginBottom: 2 }}
+            className="schedule-calendar__badge"
           />
         ))}
       </div>
@@ -96,41 +183,150 @@ function CalendarPage() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }
 
-  const handleDateSelect = (date: any) => {
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const handleDateSelect = (date: Dayjs) => {
+    const dateStr = date.format('YYYY-MM-DD')
     setSelectedDate(dateStr)
+    const dayList = schedules.filter((s) => {
+      const sDate = new Date(s.scheduleDate).toISOString().split('T')[0]
+      return sDate === dateStr
+    })
+    setDaySchedules(dayList)
     setVisible(true)
   }
 
-  const handleOk = async () => {
+  const handleBatchAssign = () => {
+    batchForm.resetFields()
+    setSelectedEmployees([])
+    setBatchVisible(true)
+  }
+
+  const handleBatchOk = async () => {
     try {
-      await form.validate()
-      Message.success('排班设置成功')
-      setVisible(false)
-    } catch (e) {
-      console.error(e)
+      const values = await batchForm.validate()
+      const dateRange = values.dateRange
+      if (!dateRange || dateRange.length !== 2) {
+        Message.error('请选择日期范围')
+        return
+      }
+      if (selectedEmployees.length === 0) {
+        Message.error('请选择人员')
+        return
+      }
+      await assignSchedule({
+        userIds: selectedEmployees.map(Number),
+        shiftId: values.shiftId,
+        startDate: dateRange[0],
+        endDate: dateRange[1],
+      })
+      Message.success('批量排班成功')
+      setBatchVisible(false)
+      loadSchedules()
+    } catch {
+      // error handled by interceptor
     }
   }
 
+  const handleEdit = (record: ScheduleDetail) => {
+    setEditingRecord(record)
+    editForm.setFieldsValue({
+      shiftId: record.shiftId,
+      status: record.status,
+      note: record.note,
+    })
+    setEditVisible(true)
+  }
+
+  const handleEditOk = async () => {
+    if (!editingRecord) return
+    try {
+      const values = await editForm.validate()
+      await updateSchedule(editingRecord.id, values)
+      Message.success('更新成功')
+      setEditVisible(false)
+      loadSchedules()
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteSchedule(id)
+      Message.success('删除成功')
+      loadSchedules()
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
+  const columns: TableProps<ScheduleDetail>['columns'] = [
+    {
+      title: '员工',
+      dataIndex: 'userName',
+      width: 100,
+    },
+    {
+      title: '部门',
+      dataIndex: 'departmentName',
+      width: 100,
+    },
+    {
+      title: '班次',
+      dataIndex: 'shiftName',
+      width: 100,
+      render: (value: string, record: ScheduleDetail) => (
+        <Tag color={record.shiftColor || 'blue'}>{value}</Tag>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 80,
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: '备注',
+      dataIndex: 'note',
+    },
+    {
+      title: '操作',
+      width: 140,
+      render: (_: unknown, record: ScheduleDetail) => (
+        <Space size="small">
+          <Button type="text" size="small" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
+          <Button type="text" size="small" status="danger" onClick={() => handleDelete(record.id)}>
+            删除
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="schedule-calendar">
+      <Card bordered={false} className="schedule-calendar__toolbar">
         <Form layout="inline">
           <FormItem label="部门">
-            <Select style={{ width: 150 }} value={department} onChange={setDepartment}>
-              <Option value="全部">全部部门</Option>
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
+            <Select
+              className="schedule-calendar__select-dept"
+              placeholder="全部部门"
+              value={departmentId}
+              onChange={setDepartmentId}
+              allowClear
+            >
+              {departments.map((dept) => (
+                <Option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </Option>
+              ))}
             </Select>
           </FormItem>
           <FormItem>
             <Space size="small">
               <Button icon={<IconLeft />} onClick={handlePrevMonth} />
-              <Button type="primary" icon={<IconPlus />}>
+              <Button type="primary" icon={<IconPlus />} onClick={handleBatchAssign}>
                 批量排班
               </Button>
               <Button icon={<IconRight />} onClick={handleNextMonth} />
@@ -140,55 +336,110 @@ function CalendarPage() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>
+        <div className="schedule-calendar__header">
+          <span className="schedule-calendar__title">
             {currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月 排班日历
           </span>
           <Space size="small">
-            <Tag color="blue">早班 80人</Tag>
-            <Tag color="orange">午班 30人</Tag>
-            <Tag color="purple">夜班 10人</Tag>
-            <Tag color="gray">休息</Tag>
+            {shifts.slice(0, 5).map((shift) => (
+              <Tag key={shift.id} color={shift.color || 'blue'}>
+                {shift.name}
+              </Tag>
+            ))}
           </Space>
         </div>
 
         <Calendar
           dateRender={dateCellRender}
           panel={false}
-          defaultValue={currentMonth}
+          defaultValue={dayjs(currentMonth)}
           onChange={handleDateSelect}
+          className="schedule-calendar__calendar"
         />
       </Card>
 
       <Modal
-        title={`排班设置 - ${selectedDate}`}
+        title={`当日排班 - ${selectedDate}`}
         visible={visible}
-        onOk={handleOk}
+        onOk={() => setVisible(false)}
         onCancel={() => setVisible(false)}
-        style={{ width: 560 }}
+        className="schedule-calendar__modal-large"
+        footer={null}
       >
-        <Form form={form} layout="vertical">
-          <FormItem label="班次类型">
-            <Select placeholder="请选择班次" style={{ width: '100%' }}>
-              <Option value="morning">标准早班</Option>
-              <Option value="afternoon">午班</Option>
-              <Option value="night">夜班</Option>
+        <Table
+          columns={columns}
+          data={daySchedules}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+          size="small"
+        />
+      </Modal>
+
+      <Modal
+        title="编辑排班"
+        visible={editVisible}
+        onOk={handleEditOk}
+        onCancel={() => setEditVisible(false)}
+        className="schedule-calendar__modal-small"
+      >
+        <Form form={editForm} layout="vertical">
+          <FormItem label="班次" field="shiftId" rules={[{ required: true, message: '请选择班次' }]}>
+            <Select placeholder="请选择班次">
+              {shifts.map((shift) => (
+                <Option key={shift.id} value={shift.id}>
+                  {shift.name}
+                </Option>
+              ))}
+            </Select>
+          </FormItem>
+          <FormItem label="状态" field="status" initialValue="normal">
+            <Select placeholder="请选择状态">
+              <Option value="normal">正常</Option>
+              <Option value="leave">请假</Option>
+              <Option value="swap">调班</Option>
               <Option value="rest">休息</Option>
             </Select>
           </FormItem>
-          <FormItem label="排班人员">
-            <Select mode="multiple" placeholder="请选择人员" style={{ width: '100%' }}>
-              <Option value="1">张三 (EMP001)</Option>
-              <Option value="2">李四 (EMP002)</Option>
-              <Option value="3">王五 (EMP003)</Option>
-              <Option value="4">赵六 (EMP004)</Option>
-              <Option value="5">钱七 (EMP005)</Option>
+          <FormItem label="备注" field="note">
+            <Input.TextArea placeholder="请输入备注" rows={3} />
+          </FormItem>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="批量排班"
+        visible={batchVisible}
+        onOk={handleBatchOk}
+        onCancel={() => setBatchVisible(false)}
+        className="schedule-calendar__modal-medium"
+      >
+        <Form form={batchForm} layout="vertical">
+          <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}>
+            <RangePicker className="schedule-calendar__range-picker" />
+          </FormItem>
+          <FormItem label="班次" field="shiftId" rules={[{ required: true, message: '请选择班次' }]}>
+            <Select placeholder="请选择班次">
+              {shifts.map((shift) => (
+                <Option key={shift.id} value={shift.id}>
+                  {shift.name} ({shift.startTime} - {shift.endTime})
+                </Option>
+              ))}
             </Select>
           </FormItem>
-          <FormItem label="备注">
-            <Form.Item field="remark">
-              <Input.TextArea placeholder="请输入备注" rows={3} />
-            </Form.Item>
+          <FormItem label="选择人员" rules={[{ required: true, message: '请选择人员' }]}>
+            <Select
+              mode="multiple"
+              placeholder="请选择人员"
+              value={selectedEmployees}
+              onChange={setSelectedEmployees}
+              className="schedule-calendar__select-employees"
+            >
+              {employees.map((emp) => (
+                <Option key={String(emp.userId || emp.id)} value={String(emp.userId || emp.id)}>
+                  {emp.user?.realName || emp.realName} ({emp.employeeNo})
+                </Option>
+              ))}
+            </Select>
           </FormItem>
         </Form>
       </Modal>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -11,7 +11,7 @@ import {
   Tag,
   Card,
   Grid,
-  Transfer,
+  Spin,
 } from '@arco-design/web-react'
 import {
   IconSearch,
@@ -19,100 +19,106 @@ import {
   IconUser,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import { getEmployees } from '@/api/personnel'
+import { getRoles, getUserRoles, assignUserRoles } from '@/api/rbac'
+import type { Role } from '@/api/rbac'
+import './style.css'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 
-interface UserRole {
+interface EmployeeItem {
   id: number
-  username: string
-  name: string
   employeeNo: string
-  department: string
-  roles: string[]
-  status: 'active' | 'inactive'
+  realName: string
+  departmentName?: string
+  positionName?: string
+  status: string
 }
 
-const mockData: UserRole[] = [
-  { id: 1, username: 'admin', name: '管理员', employeeNo: 'EMP000', department: '总经办', roles: ['SUPER_ADMIN', 'ADMIN'], status: 'active' },
-  { id: 2, username: 'hr001', name: '张三', employeeNo: 'EMP001', department: '技术部', roles: ['EMPLOYEE'], status: 'active' },
-  { id: 3, username: 'hr002', name: '李四', employeeNo: 'EMP002', department: '产品部', roles: ['EMPLOYEE'], status: 'active' },
-  { id: 4, username: 'hr003', name: '王五', employeeNo: 'EMP003', department: '市场部', roles: ['EMPLOYEE'], status: 'active' },
-  { id: 5, username: 'hr004', name: '赵六', employeeNo: 'EMP004', department: '技术部', roles: ['EMPLOYEE'], status: 'active' },
-  { id: 6, username: 'hr005', name: '钱七', employeeNo: 'EMP005', department: '人事部', roles: ['HR_STAFF'], status: 'active' },
-  { id: 7, username: 'hr006', name: '孙八', employeeNo: 'EMP006', department: '财务部', roles: ['FINANCE'], status: 'inactive' },
-  { id: 8, username: 'hr007', name: '吴十', employeeNo: 'EMP008', department: '运营部', roles: ['EMPLOYEE'], status: 'active' },
-]
-
-const allRoles = [
-  { key: 'SUPER_ADMIN', value: 'SUPER_ADMIN', name: '超级管理员' },
-  { key: 'ADMIN', value: 'ADMIN', name: '系统管理员' },
-  { key: 'HR_MANAGER', value: 'HR_MANAGER', name: '人事主管' },
-  { key: 'HR_STAFF', value: 'HR_STAFF', name: '人事专员' },
-  { key: 'DEPT_MANAGER', value: 'DEPT_MANAGER', name: '部门经理' },
-  { key: 'EMPLOYEE', value: 'EMPLOYEE', name: '普通员工' },
-  { key: 'FINANCE', value: 'FINANCE', name: '财务人员' },
-]
-
 function UserRolePage() {
-  const [data, setData] = useState<UserRole[]>(mockData)
+  const [data, setData] = useState<EmployeeItem[]>([])
+  const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [currentUser, setCurrentUser] = useState<UserRole | null>(null)
-  const [targetKeys, setTargetKeys] = useState<string[]>([])
+  const [currentUser, setCurrentUser] = useState<EmployeeItem | null>(null)
+  const [allRoles, setAllRoles] = useState<Role[]>([])
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([])
   const [searchText, setSearchText] = useState('')
   const [searchDept, setSearchDept] = useState<string | undefined>()
-  const [filteredData, setFilteredData] = useState<UserRole[]>(mockData)
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
-  const columns: TableProps<UserRole>['columns'] = [
+  const fetchData = async (page = 1, pageSize = 10) => {
+    setLoading(true)
+    try {
+      const res = await getEmployees({
+        page,
+        pageSize,
+        keyword: searchText || undefined,
+      })
+      setData(res.data.list || [])
+      setPagination({
+        current: res.data.page || page,
+        pageSize: res.data.pageSize || pageSize,
+        total: res.data.total || 0,
+      })
+    } catch {
+      // error handled by interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchRoles = async () => {
+    try {
+      const res = await getRoles({ page: 1, pageSize: 100 })
+      setAllRoles(res.data.list)
+    } catch {
+      // error handled by interceptor
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+    fetchRoles()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const columns: TableProps<EmployeeItem>['columns'] = [
     {
-      title: '用户名',
-      dataIndex: 'username',
+      title: '工号',
+      dataIndex: 'employeeNo',
       width: 120,
     },
     {
       title: '姓名',
-      dataIndex: 'name',
-      width: 100,
-    },
-    {
-      title: '工号',
-      dataIndex: 'employeeNo',
+      dataIndex: 'realName',
       width: 100,
     },
     {
       title: '部门',
-      dataIndex: 'department',
-      width: 100,
+      dataIndex: 'departmentName',
+      width: 120,
     },
     {
-      title: '角色',
-      dataIndex: 'roles',
-      width: 200,
-      render: (value: string[]) => (
-        <Space size={4}>
-          {value.map((role) => (
-            <Tag key={role} color="blue" size="small">
-              {allRoles.find((r) => r.key === role)?.name || role}
-            </Tag>
-          ))}
-        </Space>
-      ),
+      title: '岗位',
+      dataIndex: 'positionName',
+      width: 120,
     },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 80,
+      width: 90,
       render: (value: string) => (
         <Tag color={value === 'active' ? 'green' : 'gray'}>
-          {value === 'active' ? '启用' : '停用'}
+          {value === 'active' ? '在职' : value === 'probation' ? '试用期' : value === 'deleted' ? '已删除' : value}
         </Tag>
       ),
     },
     {
       title: '操作',
       width: 120,
-      render: (_: any, record: UserRole) => (
+      render: (_: unknown, record: EmployeeItem) => (
         <Button
           type="text"
           size="small"
@@ -125,72 +131,54 @@ function UserRolePage() {
     },
   ]
 
-  const handleAssign = (record: UserRole) => {
+  const handleAssign = async (record: EmployeeItem) => {
     setCurrentUser(record)
-    setTargetKeys(record.roles)
+    try {
+      const res = await getUserRoles(record.id)
+      setSelectedRoles(res.data.assignedRoles || [])
+    } catch {
+      setSelectedRoles([])
+    }
     setVisible(true)
   }
 
-  const handleOk = () => {
-    if (currentUser) {
-      setData(data.map((item) => (item.id === currentUser.id ? { ...item, roles: targetKeys } : item)))
-      setFilteredData(filteredData.map((item) => (item.id === currentUser.id ? { ...item, roles: targetKeys } : item)))
+  const handleOk = async () => {
+    if (!currentUser) return
+    try {
+      await assignUserRoles(currentUser.id, selectedRoles)
       Message.success('角色分配成功')
+      setVisible(false)
+    } catch {
+      // error handled by interceptor
     }
-    setVisible(false)
   }
 
   const handleSearch = () => {
-    let result = data
-    if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.name.includes(searchText) ||
-          item.username.includes(searchText) ||
-          item.employeeNo.includes(searchText),
-      )
-    }
-    if (searchDept) {
-      result = result.filter((item) => item.department === searchDept)
-    }
-    setFilteredData(result)
+    fetchData(1, pagination.pageSize)
   }
 
   const handleReset = () => {
     setSearchText('')
     setSearchDept(undefined)
-    setFilteredData(data)
+    fetchData(1, pagination.pageSize)
+  }
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    fetchData(page, pageSize)
   }
 
   return (
-    <div style={{ paddingBottom: 20 }}>
-      <Card bordered={false} style={{ marginBottom: 16 }}>
+    <div className="user-role">
+      <Card bordered={false} className="user-role__toolbar">
         <Form layout="inline">
           <FormItem label="关键字">
             <Input
-              style={{ width: 180 }}
-              placeholder="用户名/姓名/工号"
+              className="user-role__toolbar-input"
+              placeholder="姓名/工号"
               value={searchText}
               onChange={setSearchText}
               allowClear
             />
-          </FormItem>
-          <FormItem label="部门">
-            <Select
-              style={{ width: 130 }}
-              placeholder="请选择"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              <Option value="总经办">总经办</Option>
-              <Option value="技术部">技术部</Option>
-              <Option value="产品部">产品部</Option>
-              <Option value="市场部">市场部</Option>
-              <Option value="人事部">人事部</Option>
-              <Option value="财务部">财务部</Option>
-              <Option value="运营部">运营部</Option>
-            </Select>
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -206,31 +194,53 @@ function UserRolePage() {
       </Card>
 
       <Card bordered={false}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>用户列表</span>
-          <Tag color="blue" style={{ marginLeft: 8 }}>
-            共 {filteredData.length} 人
+        <div className="user-role__toolbar">
+          <span className="user-role__title">用户角色分配</span>
+          <Tag color="blue" className="user-role__tag">
+            共 {pagination.total} 个用户
           </Tag>
         </div>
 
-        <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          loading={loading}
+          columns={columns}
+          data={data}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: handlePageChange,
+          }}
+        />
       </Card>
 
       <Modal
-        title={`分配角色 - ${currentUser?.name}`}
+        title={`分配角色 - ${currentUser?.realName}`}
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        style={{ width: 600 }}
+        className="user-role__modal"
       >
-        <Transfer
-          dataSource={allRoles}
-          targetKeys={targetKeys}
-          onChange={setTargetKeys as any}
-          listStyle={{ width: 240, height: 300 }}
-          render={(item: any) => item.name}
-          titleTexts={['可选角色', '已选角色']}
-        />
+        <Spin loading={allRoles.length === 0}>
+          <Form layout="vertical">
+            <FormItem label="选择角色">
+              <Select
+                mode="multiple"
+                className="user-role__select-full"
+                value={selectedRoles.map(String)}
+                onChange={(vals) => setSelectedRoles(vals.map((v: string) => parseInt(v)))}
+                placeholder="请选择角色"
+              >
+                {allRoles.map((r) => (
+                  <Option key={r.id} value={String(r.id)}>
+                    {r.name}
+                  </Option>
+                ))}
+              </Select>
+            </FormItem>
+          </Form>
+        </Spin>
       </Modal>
     </div>
   )

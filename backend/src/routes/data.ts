@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { authMiddleware } from '../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../middleware/permission'
-import { writeAuditLog } from '../services/audit'
+import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { dateStringSchema, idParamsSchema, validateData } from '../utils/validation'
 import { assertSpreadsheetFile, sanitizeSpreadsheetCell } from '../utils/security'
 
@@ -52,7 +52,7 @@ export default async function dataRoutes(fastify: FastifyInstance) {
       size: buffer.length,
     })
 
-    await writeAuditLog(request, {
+    setAudit(request, {
       action: 'data_import_upload',
       module: 'data',
       requestData: {
@@ -81,11 +81,10 @@ export default async function dataRoutes(fastify: FastifyInstance) {
       Object.entries(body).map(([key, value]) => [key, sanitizeSpreadsheetCell(value)]),
     )
 
-    await writeAuditLog(request, {
+    setAudit(request, {
       action: 'data_export_create',
       module: 'data',
       requestData: safePayload,
-      responseData: { status: 'pending' },
     })
 
     return {
@@ -104,7 +103,7 @@ export default async function dataRoutes(fastify: FastifyInstance) {
     const content = `${templateColumns[type].map(sanitizeSpreadsheetCell).join(',')}\n`
     const filename = `${type}_template.csv`
 
-    await writeAuditLog(request, {
+    setAudit(request, {
       action: 'data_template_download',
       module: 'data',
       requestData: { type },
@@ -119,7 +118,7 @@ export default async function dataRoutes(fastify: FastifyInstance) {
   fastify.get('/exports/:id/download', { preHandler: [requirePermission('data:export')] }, async (request: FastifyRequest<{ Params: unknown }>, reply) => {
     const { id } = validateData(idParamsSchema, request.params)
 
-    await writeAuditLog(request, {
+    setAudit(request, {
       action: 'data_export_download',
       module: 'data',
       requestData: { id },

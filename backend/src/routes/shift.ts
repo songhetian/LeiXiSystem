@@ -40,7 +40,7 @@ const shiftUpdateSchema = shiftBodySchema.partial().refine((value) => Object.key
 export default async function shiftRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
 
-  fastify.get('/list', async (request: FastifyRequest<{
+  fastify.get('/', async (request: FastifyRequest<{
     Querystring: {
       page?: number
       pageSize?: number
@@ -99,7 +99,7 @@ export default async function shiftRoutes(fastify: FastifyInstance) {
     }
   })
 
-  fastify.post('/list', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{ Body: any }>) => {
+  fastify.post('/', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{ Body: any }>) => {
     const body = validateData(shiftBodySchema, request.body)
 
     const shift = await prisma.shift.create({
@@ -125,7 +125,7 @@ export default async function shiftRoutes(fastify: FastifyInstance) {
     return { code: 0, message: '创建成功', data: shift }
   })
 
-  fastify.put('/list/:id', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{
+  fastify.put('/:id', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{
     Params: { id: string }
     Body: any
   }>) => {
@@ -157,7 +157,7 @@ export default async function shiftRoutes(fastify: FastifyInstance) {
     return { code: 0, message: '更新成功' }
   })
 
-  fastify.delete('/list/:id', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{
+  fastify.delete('/:id', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{
     Params: { id: string }
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
