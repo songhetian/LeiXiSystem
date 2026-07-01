@@ -13,17 +13,14 @@ import {
   Card,
   DatePicker,
   Grid,
-  Spin,
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
   IconEdit,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import dayjs, { Dayjs } from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import {
   getOvertimeList,
   createOvertime,
@@ -32,8 +29,9 @@ import {
 } from '@/api/attendance'
 import type { OvertimeRequest } from '@/api/attendance'
 import { getAllOvertimeTypes, type OvertimeType } from '@/api/attendance-overtime-type'
-import './overtime.css'
-
+import { FilterBar, PageHeader, flatEmployeeNameColumn, flatEmployeeNoColumn, flatDepartmentNameColumn } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './overtime.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -49,9 +47,6 @@ const statusMap: Record<string, { text: string; color: string }> = {
 function Overtime() {
   const [data, setData] = useState<OvertimeRequest[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
@@ -99,29 +94,39 @@ function Overtime() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const { visible, editingId, saving, openCreate: _openCreate, openEdit: _openEdit, close, handleOk } = useCrudModal<OvertimeRequest>({
+    form,
+    mapRecordToForm: (record) => ({
+      ...record,
+      date: new Date(record.date),
+    }),
+    onSubmit: async (values, id) => {
+      const submitData = {
+        ...values,
+        date: values.date ? new Date(values.date).toISOString().split('T')[0] : undefined,
+      }
+      if (id) {
+        await updateOvertime(id, submitData)
+        Message.success('修改成功')
+      } else {
+        await createOvertime(submitData)
+        Message.success('申请成功')
+      }
+    },
+    onSuccess: () => fetchData(pagination.current, pagination.pageSize),
+  })
+
   const columns: TableProps<OvertimeRequest>['columns'] = [
-    {
-      title: '申请人',
-      dataIndex: 'employeeName',
-      width: 100,
-    },
-    {
-      title: '工号',
-      dataIndex: 'employeeNo',
-      width: 100,
-    },
-    {
-      title: '部门',
-      dataIndex: 'departmentName',
-      width: 100,
-    },
+    flatEmployeeNameColumn(),
+    flatEmployeeNoColumn(),
+    flatDepartmentNameColumn(),
     {
       title: '加班类型',
       dataIndex: 'overtimeType',
       width: 110,
       render: (value: string) => {
         const type = overtimeTypes.find((t) => t.code === value)
-        return <Tag color="orange" className="attendance-overtime__type-tag">{type?.name || value}</Tag>
+        return <Tag color="orange" className={styles['attendance-overtime__type-tag']}>{type?.name || value}</Tag>
       },
     },
     {
@@ -130,22 +135,14 @@ function Overtime() {
       width: 110,
       render: (value: string) => new Date(value).toLocaleDateString(),
     },
-    {
-      title: '开始时间',
-      dataIndex: 'startTime',
-      width: 100,
-    },
-    {
-      title: '结束时间',
-      dataIndex: 'endTime',
-      width: 100,
-    },
+    { title: '开始时间', dataIndex: 'startTime', width: 100 },
+    { title: '结束时间', dataIndex: 'endTime', width: 100 },
     {
       title: '时长(h)',
       dataIndex: 'hours',
       width: 90,
       render: (value: number) => (
-        <span className="attendance-overtime__hours">{value}</span>
+        <span className={styles['attendance-overtime__hours']}>{value}</span>
       ),
     },
     {
@@ -258,65 +255,57 @@ function Overtime() {
   }
 
   return (
-    <div className="attendance-overtime">
-      <Card bordered={false} className="attendance-overtime__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="attendance-overtime__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="attendance-overtime__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="pending">审批中</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-              <Option value="cancelled">已撤销</Option>
-            </Select>
-          </FormItem>
-          <FormItem label="加班日期">
-            <RangePicker
-              className="attendance-overtime__date-picker"
-              value={dateRange}
-              onChange={(_, date) => setDateRange(date)}
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['attendance-overtime']}>
+      <Card bordered={false} className={styles['attendance-overtime__card']}>
+        <PageHeader
+          title="加班记录"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={handleAdd}>申请加班</Button>}
+        />
       </Card>
 
-      <Card bordered={false} className="attendance-overtime__table-card">
-        <div className="attendance-overtime__table-header">
-          <div>
-            <span className="attendance-overtime__table-title">加班记录</span>
-            <Tag color="blue" className="attendance-overtime__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            申请加班
-          </Button>
-        </div>
+      <Card bordered={false} className={styles['attendance-overtime__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['attendance-overtime__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['attendance-overtime__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="pending">审批中</Option>
+                  <Option value="approved">已通过</Option>
+                  <Option value="rejected">已驳回</Option>
+                  <Option value="cancelled">已撤销</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="加班日期">
+                <RangePicker
+                  className={styles['attendance-overtime__date-picker']}
+                  value={dateRange}
+                  onChange={(_, date) => setDateRange(date)}
+                />
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
+      </Card>
 
+      <Card bordered={false}>
         <Table
           loading={loading}
           columns={columns}
@@ -331,13 +320,13 @@ function Overtime() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑加班' : '申请加班'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
+        onCancel={close}
         confirmLoading={saving}
-        className="attendance-overtime__modal"
+        className={styles['attendance-overtime__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -360,7 +349,7 @@ function Overtime() {
                 field="date"
                 rules={[{ required: true, message: '请选择日期' }]}
               >
-                <DatePicker className="attendance-overtime__date-picker" />
+                <DatePicker className={styles['attendance-overtime__date-picker']} />
               </FormItem>
             </Col>
           </Row>

@@ -6,8 +6,7 @@ import {
   IconFolder,
   IconLock,
 } from '@arco-design/web-react/icon'
-import './index.css'
-
+import styles from './index.module.css'
 const { Text } = Typography
 
 export interface EmptyStateProps {
@@ -38,19 +37,19 @@ export function EmptyState({
   const IconComponent = type !== 'custom' ? iconMap[type] : null
 
   return (
-    <div className="empty-state">
+    <div className={styles['empty-state']}>
       <Empty
-        icon={icon || (IconComponent && <IconComponent className="empty-state__icon" />)}
+        icon={icon || (IconComponent && <IconComponent className={styles['empty-state__icon']} />)}
         description={
-          <div className="empty-state__description">
+          <div className={styles['empty-state__description']}>
             {title && (
-              <Text bold className="empty-state__title">
+              <Text bold className={styles['empty-state__title']}>
                 {title}
               </Text>
             )}
             {description && <Text type="secondary">{description}</Text>}
             {action && (
-              <Button type="primary" className="empty-state__action" onClick={action.onClick}>
+              <Button type="primary" className={styles['empty-state__action']} onClick={action.onClick}>
                 {action.text}
               </Button>
             )}
@@ -74,7 +73,6 @@ export interface TableEmptyProps {
 
 export function TableEmpty({
   loading,
-  dataLength,
   searchKeyword,
   onClearSearch,
   action,

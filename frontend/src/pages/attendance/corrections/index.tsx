@@ -1,17 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Card, Form, Input, Message, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
+import { Button, Card, Form, Input, Message, Modal, Select, Table, Tag } from '@arco-design/web-react'
 import {
   approveAttendanceCorrection,
   createAttendanceCorrection,
   getAttendanceCorrections,
   rejectAttendanceCorrection,
 } from '@/api/attendance'
-import ApprovalActionModal from '@/components/ApprovalActionModal'
-import StatusTag from '@/components/StatusTag'
+import { PageHeader, FilterBar, ApprovalActionModal, StatusTag, ApproveRejectButtons, employeeColumn, departmentColumn } from '@/components'
 import { useTableData } from '@/hooks/useTableData'
-import './style.css'
-
-const { Title, Text } = Typography
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -61,8 +58,8 @@ function AttendanceCorrectionsPage() {
   }, [actionState, closeAction, loadData, page])
 
   const columns = useMemo(() => [
-    { title: '员工', render: (_: unknown, record: any) => record.employee?.user?.realName || '-' },
-    { title: '部门', render: (_: unknown, record: any) => record.employee?.user?.department?.name || '-' },
+    employeeColumn(),
+    departmentColumn(),
     { title: '补卡日期', dataIndex: 'date' },
     {
       title: '类型',
@@ -80,42 +77,39 @@ function AttendanceCorrectionsPage() {
       title: '操作',
       width: 160,
       render: (_: unknown, record: any) => (
-        <Space>
-          <Button type="text" size="small" disabled={record.status !== 'pending'} onClick={() => openAction(record, 'approve')}>通过</Button>
-          <Button type="text" size="small" status="danger" disabled={record.status !== 'pending'} onClick={() => openAction(record, 'reject')}>驳回</Button>
-        </Space>
+        <ApproveRejectButtons
+          disabled={record.status !== 'pending'}
+          onApprove={() => openAction(record, 'approve')}
+          onReject={() => openAction(record, 'reject')}
+        />
       ),
     },
   ], [openAction])
 
   return (
-    <div className="attendance-corrections">
-      <Card bordered={false} className="attendance-corrections__card">
-        <Space direction="vertical" size={4} className="attendance-corrections__space-full">
-          <div className="attendance-corrections__header">
-            <Title heading={5} className="attendance-corrections__title">补卡申请</Title>
-            <Button type="primary" onClick={openCreate}>发起补卡</Button>
-          </div>
-          <Text type="secondary">补卡审批通过后会写入一条来源为 correction 的原始打卡，并自动重算当天日考勤和月考勤。</Text>
-        </Space>
+    <div className={styles['attendance-corrections']}>
+      <Card bordered={false} className={styles['attendance-corrections__card']}>
+        <PageHeader
+          title="补卡申请"
+          description="补卡审批通过后会写入一条来源为 correction 的原始打卡，并自动重算当天日考勤和月考勤。"
+          extra={<Button type="primary" onClick={openCreate}>发起补卡</Button>}
+        />
       </Card>
 
-      <Card bordered={false} className="attendance-corrections__card">
-        <Form form={filterForm} layout="inline">
-          <FormItem label="状态" field="status">
-            <Select allowClear placeholder="全部状态" className="attendance-corrections__select">
-              <Option value="pending">待审批</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space>
-              <Button type="primary" onClick={handleSearch}>查询</Button>
-              <Button onClick={handleReset}>重置</Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['attendance-corrections__card']}>
+        <FilterBar
+          filters={
+            <FormItem label="状态" field="status">
+              <Select allowClear placeholder="全部状态" className={styles['attendance-corrections__select']}>
+                <Option value="pending">待审批</Option>
+                <Option value="approved">已通过</Option>
+                <Option value="rejected">已驳回</Option>
+              </Select>
+            </FormItem>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
@@ -129,12 +123,12 @@ function AttendanceCorrectionsPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="发起补卡"
         visible={visible}
         onOk={handleCreate}
         onCancel={() => setVisible(false)}
-        className="attendance-corrections__modal"
+        className={styles['attendance-corrections__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem label="补卡日期" field="date" rules={[{ required: true, message: '请输入补卡日期' }]}>

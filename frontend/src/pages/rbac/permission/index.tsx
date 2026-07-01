@@ -4,34 +4,19 @@ import {
   Button,
   Input,
   Select,
-  Space,
-  Modal,
   Form,
-  Message,
   Tag,
   Card,
   Tree,
-  Grid,
   Spin,
 } from '@arco-design/web-react'
-import {
-  IconSearch,
-  IconRefresh,
-} from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getPermissions } from '@/api/rbac'
 import type { Permission } from '@/api/rbac'
-import './style.css'
-
-const { Row, Col } = Grid
+import { PageHeader, FilterBar } from '@/components'
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
-
-const typeMap: Record<string, { text: string; color: string }> = {
-  menu: { text: '菜单', color: 'blue' },
-  button: { text: '按钮', color: 'green' },
-  api: { text: '接口', color: 'orange' },
-}
 
 function PermissionPage() {
   const [data, setData] = useState<Permission[]>([])
@@ -46,11 +31,7 @@ function PermissionPage() {
       const res = await getPermissions()
       let list = res.data
       if (searchText) {
-        list = list.filter(
-          (item: any) =>
-            item.name.includes(searchText) ||
-            item.code.includes(searchText),
-        )
+        list = list.filter((item: any) => item.name.includes(searchText) || item.code.includes(searchText))
       }
       if (searchType) {
         list = list.filter((item: any) => item.action === searchType)
@@ -65,52 +46,16 @@ function PermissionPage() {
 
   useEffect(() => {
     fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const columns: TableProps<Permission>['columns'] = [
-    {
-      title: '权限名称',
-      dataIndex: 'name',
-      width: 180,
-    },
-    {
-      title: '权限编码',
-      dataIndex: 'code',
-      width: 200,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
-    },
-    {
-      title: '模块',
-      dataIndex: 'module',
-      width: 120,
-    },
-    {
-      title: '资源',
-      dataIndex: 'resource',
-      width: 120,
-    },
-    {
-      title: '操作',
-      dataIndex: 'action',
-      width: 100,
-    },
-    {
-      title: '排序',
-      dataIndex: 'sortOrder',
-      width: 80,
-    },
+    { title: '权限名称', dataIndex: 'name', width: 180 },
+    { title: '权限编码', dataIndex: 'code', width: 200, render: (value: string) => <Tag color="blue">{value}</Tag> },
+    { title: '模块', dataIndex: 'module', width: 120 },
+    { title: '资源', dataIndex: 'resource', width: 120 },
+    { title: '操作', dataIndex: 'action', width: 100 },
+    { title: '排序', dataIndex: 'sortOrder', width: 80 },
   ]
-
-  const handleSearch = () => {
-    fetchData()
-  }
-
-  const handleReset = () => {
-    setSearchText('')
-    setSearchType(undefined)
-    fetchData()
-  }
 
   const treeData = data.map((p) => ({
     key: String(p.id),
@@ -118,60 +63,43 @@ function PermissionPage() {
     children: p.children?.map((c) => ({
       key: String(c.id),
       title: c.name,
-      children: c.children?.map((cc) => ({
-        key: String(cc.id),
-        title: cc.name,
-      })),
+      children: c.children?.map((cc) => ({ key: String(cc.id), title: cc.name })),
     })),
   }))
 
   return (
-    <div className="permission">
-      <Card bordered={false} className="permission__toolbar">
-        <Form layout="inline">
-          <FormItem label="权限名称">
-            <Input
-              className="permission__toolbar-input"
-              placeholder="请输入权限名称"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="类型">
-            <Select
-              className="permission__toolbar-select"
-              placeholder="请选择"
-              value={searchType}
-              onChange={setSearchType}
-              allowClear
-            >
-              <Option value="view">查看</Option>
-              <Option value="create">创建</Option>
-              <Option value="edit">编辑</Option>
-              <Option value="delete">删除</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles.permission}>
+      <Card bordered={false} className={styles.permission__card}>
+        <PageHeader title="权限列表" description="查看系统中所有的菜单、按钮、接口权限，支持表格和树形视图切换。" />
+      </Card>
+
+      <Card bordered={false} className={styles.permission__card}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="权限名称">
+                <Input className={styles['permission__toolbar-input']} placeholder="请输入权限名称" value={searchText} onChange={setSearchText} allowClear />
+              </FormItem>
+              <FormItem label="类型">
+                <Select className={styles['permission__toolbar-select']} placeholder="请选择" value={searchType} onChange={setSearchType} allowClear>
+                  <Option value="view">查看</Option>
+                  <Option value="create">创建</Option>
+                  <Option value="edit">编辑</Option>
+                  <Option value="delete">删除</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={fetchData}
+          onReset={() => { setSearchText(''); setSearchType(undefined); fetchData() }}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="permission__header">
+        <div className={styles.permission__header}>
           <div>
-            <span className="permission__title">权限列表</span>
-            <Tag color="blue" className="permission__tag">
-              共 {data.length} 个权限
-            </Tag>
+            <span className={styles.permission__title}>权限列表</span>
+            <Tag color="blue" className={styles.permission__tag}>共 {data.length} 个权限</Tag>
           </div>
           <Button type="text" onClick={() => setShowTree(!showTree)}>
             {showTree ? '表格视图' : '树形视图'}
@@ -182,12 +110,7 @@ function PermissionPage() {
           {showTree ? (
             <Tree treeData={treeData} />
           ) : (
-            <Table
-              columns={columns}
-              data={data}
-              rowKey="id"
-              pagination={{ pageSize: 20 }}
-            />
+            <Table columns={columns} data={data} rowKey="id" pagination={{ pageSize: 20 }} />
           )}
         </Spin>
       </Card>

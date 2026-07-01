@@ -1,0 +1,28 @@
+.pagination-jumper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.pagination-jumper__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.pagination-jumper__input {
+  width: 48px !important;
+  text-align: center;
+}
+
+.pagination-jumper__input input {
+  text-align: center !important;
+}
+
+/* 深色模式 - 使用 Arco Design 方案 */
+body.arco-theme-dark .pagination-jumper {
+  color: var(--color-text-2);
+}

@@ -13,7 +13,6 @@ import {
   Message,
   Tag,
   Steps,
-  Popover,
   Empty,
 } from '@arco-design/web-react'
 import {
@@ -36,8 +35,7 @@ import {
   type OnboardingFlow,
   type OnboardingFlowStep,
 } from '@/api/onboarding'
-import './onboarding-flow.css'
-
+import styles from './onboarding-flow.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TextArea = Input.TextArea
@@ -203,7 +201,7 @@ function OnboardingFlowPage() {
       dataIndex: 'name',
       render: (val, record) => (
         <Space>
-          <span className="onboarding-flow__text-medium">{val}</span>
+          <span className={styles['onboarding-flow__text-medium']}>{val}</span>
           {record.isDefault && <Tag color="blue" size="small">默认</Tag>}
         </Space>
       ),
@@ -248,22 +246,8 @@ function OnboardingFlowPage() {
     },
   ]
 
-  const renderStepsPopover = (flow: OnboardingFlow) => (
-    <div className="onboarding-flow__steps-popover">
-      {flow.steps?.length ? (
-        <Steps direction="vertical" current={0} size="small">
-          {flow.steps.map((step) => (
-            <Steps.Step key={step.id} title={step.title} description={step.type} />
-          ))}
-        </Steps>
-      ) : (
-        <Empty description="暂无步骤" />
-      )}
-    </div>
-  )
-
   return (
-    <div className="onboarding-flow">
+    <div className={styles['onboarding-flow']}>
       <Card
         bordered={false}
         title="入职流程配置"
@@ -290,12 +274,12 @@ function OnboardingFlowPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingFlow ? '编辑流程' : '新建流程'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="onboarding-flow__modal--700"
+        className={styles['onboarding-flow__modal--700']}
         okText="保存"
         cancelText="取消"
       >
@@ -306,9 +290,9 @@ function OnboardingFlowPage() {
           <FormItem label="流程说明" field="description">
             <TextArea placeholder="请输入流程说明" rows={3} maxLength={500} />
           </FormItem>
-          <div className="onboarding-flow__form-row">
+          <div className={styles['onboarding-flow__form-row']}>
             <FormItem label="状态" field="status">
-              <Select className="onboarding-flow__select--150" defaultValue="active">
+              <Select className={styles['onboarding-flow__select--150']} defaultValue="active">
                 <Option value="active">启用</Option>
                 <Option value="inactive">停用</Option>
               </Select>
@@ -317,15 +301,15 @@ function OnboardingFlowPage() {
               <Switch />
             </FormItem>
             <FormItem label="排序" field="sortOrder">
-              <InputNumber min={0} max={9999} defaultValue={0} className="onboarding-flow__input--120" />
+              <InputNumber min={0} max={9999} defaultValue={0} className={styles['onboarding-flow__input--120']} />
             </FormItem>
           </div>
         </Form>
 
         {currentFlow && (
-          <div className="onboarding-flow__steps-section">
-            <div className="onboarding-flow__steps-header">
-              <span className="onboarding-flow__text-bold">流程步骤</span>
+          <div className={styles['onboarding-flow__steps-section']}>
+            <div className={styles['onboarding-flow__steps-header']}>
+              <span className={styles['onboarding-flow__text-bold']}>流程步骤</span>
               <Button type="primary" size="small" icon={<IconPlusCircle />} onClick={handleAddStep}>
                 添加步骤
               </Button>
@@ -336,7 +320,7 @@ function OnboardingFlowPage() {
                   <Steps.Step
                     key={step.id}
                     title={
-                      <div className="onboarding-flow__step-title">
+                      <div className={styles['onboarding-flow__step-title']}>
                         <Space>
                           <span>{step.title}</span>
                           <Tag size="small" color={step.required ? 'red' : 'gray'}>
@@ -369,12 +353,12 @@ function OnboardingFlowPage() {
         )}
       </Modal>
 
-      <Modal
+      <Modal focusLock
         title={editingStep ? '编辑步骤' : '添加步骤'}
         visible={stepModalVisible}
         onOk={handleSubmitStep}
         onCancel={() => setStepModalVisible(false)}
-        className="onboarding-flow__modal--500"
+        className={styles['onboarding-flow__modal--500']}
         okText="保存"
         cancelText="取消"
       >
@@ -385,22 +369,22 @@ function OnboardingFlowPage() {
           <FormItem label="步骤描述" field="description">
             <TextArea placeholder="请输入步骤描述" rows={2} maxLength={2000} />
           </FormItem>
-          <div className="onboarding-flow__form-row">
+          <div className={styles['onboarding-flow__form-row']}>
             <FormItem label="步骤类型" field="type">
-              <Select className="onboarding-flow__select--150">
+              <Select className={styles['onboarding-flow__select--150']}>
                 {STEP_TYPES.map((t) => (
                   <Option key={t.value} value={t.value}>{t.label}</Option>
                 ))}
               </Select>
             </FormItem>
             <FormItem label="排序" field="stepOrder">
-              <InputNumber min={0} className="onboarding-flow__input--100" />
+              <InputNumber min={0} className={styles['onboarding-flow__input--100']} />
             </FormItem>
             <FormItem label="完成期限(天)" field="dueDays">
-              <InputNumber min={1} max={365} defaultValue={1} className="onboarding-flow__input--100" />
+              <InputNumber min={1} max={365} defaultValue={1} className={styles['onboarding-flow__input--100']} />
             </FormItem>
           </div>
-          <div className="onboarding-flow__form-row">
+          <div className={styles['onboarding-flow__form-row']}>
             <FormItem label="是否必填" field="required" triggerPropName="checked">
               <Switch />
             </FormItem>

@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
   Table,
-  Button,
   Input,
   Select,
-  Space,
   Form,
   Tag,
   Card,
@@ -14,15 +12,12 @@ import {
   Spin,
   Message,
 } from '@arco-design/web-react'
-import {
-  IconSearch,
-  IconRefresh,
-} from '@arco-design/web-react/icon'
+import { IconSearch, IconRefresh } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getVacationBalance, getVacationTypes } from '@/api/vacation'
 import type { VacationBalance, VacationType } from '@/api/vacation'
-import './quota.css'
-
+import { PageHeader, FilterBar, TableHeader } from '@/components'
+import styles from './quota.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -39,13 +34,13 @@ interface QuotaRow {
 
 function Quota() {
   const [employeeId, setEmployeeId] = useState<number | undefined>()
-  const [employeeNo, setEmployeeNo] = useState('')
-  const [employeeName, setEmployeeName] = useState('')
-  const [searchDept, setSearchDept] = useState<string | undefined>()
+  const [_employeeNo, setEmployeeNo] = useState('')
+  const [_employeeName, setEmployeeName] = useState('')
+  const [_searchDept, setSearchDept] = useState<string | undefined>()
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [balances, setBalances] = useState<VacationBalance[]>([])
   const [loading, setLoading] = useState(false)
-  const [types, setTypes] = useState<VacationType[]>([])
+  const [_types, setTypes] = useState<VacationType[]>([])
 
   const fetchTypes = async () => {
     try {
@@ -93,6 +88,7 @@ function Quota() {
     setEmployeeNo('')
     setEmployeeName('')
     setSearchDept(undefined)
+    fetchData()
   }
 
   const totalAll = balances.reduce((sum, b) => sum + b.total, 0)
@@ -129,13 +125,13 @@ function Quota() {
       title: '使用率',
       width: 200,
       render: (_: unknown, record) => (
-        <div className="vacation-quota__progress-cell">
+        <div className={styles['vacation-quota__progress-cell']}>
           <Progress
             percent={record.total > 0 ? Math.round((record.used / record.total) * 100) : 0}
             status="normal"
-            className="vacation-quota__progress-bar"
+            className={styles['vacation-quota__progress-bar']}
           />
-          <span className="vacation-quota__progress-text">
+          <span className={styles['vacation-quota__progress-text']}>
             {record.used}/{record.total}
           </span>
         </div>
@@ -164,60 +160,55 @@ function Quota() {
   }))
 
   return (
-    <div className="vacation-quota">
-      <Row gutter={16} className="vacation-quota__stats-row">
+    <div className={styles['vacation-quota']}>
+      <Row gutter={16} className={styles['vacation-quota__stats-row']}>
         {summary.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
-              <Statistic title={item.title} value={item.value} className="vacation-quota__statistic-value" style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
+              <Statistic title={item.title} value={item.value} className={styles['vacation-quota__statistic-value']} style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} className="vacation-quota__search-card">
-        <Form layout="inline">
-          <FormItem label="员工ID">
-            <Input
-              className="vacation-quota__search-input"
-              placeholder="请输入员工ID"
-              type="number"
-              value={employeeId ? String(employeeId) : ''}
-              onChange={(val) => setEmployeeId(val ? Number(val) : undefined)}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="年度">
-            <Select
-              className="vacation-quota__year-select"
-              value={year}
-              onChange={setYear}
-            >
-              {yearOptions.map((y) => (
-                <Option key={y} value={String(y)}>{y}年</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                查询
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['vacation-quota__card']}>
+        <PageHeader title="假期配额" description="按员工查看各类型假期的额度、使用和剩余情况" />
       </Card>
 
-      <Card bordered={false} className="vacation-quota__table-card">
-        <div className="vacation-quota__table-header">
-          <span className="vacation-quota__table-title">假期额度详情</span>
-          <Tag color="blue" className="vacation-quota__total-tag">
-            共 {balances.length} 种
-          </Tag>
-        </div>
+      <Card bordered={false} className={styles['vacation-quota__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="员工ID">
+                <Input
+                  className={styles['vacation-quota__search-input']}
+                  placeholder="请输入员工ID"
+                  type="number"
+                  value={employeeId ? String(employeeId) : ''}
+                  onChange={(val) => setEmployeeId(val ? Number(val) : undefined)}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="年度">
+                <Select
+                  className={styles['vacation-quota__year-select']}
+                  value={year}
+                  onChange={setYear}
+                >
+                  {yearOptions.map((y) => (
+                    <Option key={y} value={String(y)}>{y}年</Option>
+                  ))}
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
+      </Card>
+
+      <Card bordered={false}>
+        <TableHeader title="假期额度详情" total={balances.length} totalText="种" />
 
         <Spin loading={loading}>
           <Table

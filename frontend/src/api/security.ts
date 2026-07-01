@@ -9,12 +9,21 @@ export interface AuditLog {
   ipAddress?: string
   status: string
   requestSummary?: string
-  requestData?: any
-  responseData?: any
+  requestData?: unknown
+  responseData?: unknown
   userAgent?: string
 }
 
-export function getAuditLogs(params?: any) {
+export function getAuditLogs(params?: {
+  page?: number
+  pageSize?: number
+  username?: string
+  module?: string
+  action?: string
+  status?: string
+  startDate?: string
+  endDate?: string
+}) {
   return get<{ code: 0; data: { list: AuditLog[]; total: number; page: number; pageSize: number } }>('/security/audit-logs', { params })
 }
 

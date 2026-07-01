@@ -1,0 +1,139 @@
+.profile-info {
+  padding-bottom: 20px;
+}
+
+.profile-info__card-center {
+  text-align: center;
+}
+
+.profile-info__avatar {
+  margin-bottom: 16px;
+}
+
+.profile-info__name {
+  margin-bottom: 4px;
+}
+
+.profile-info__dept {
+  margin-top: 16px;
+  color: #86909C;
+}
+
+.profile-info__btn-edit {
+  margin-top: 20px;
+  width: 100%;
+}
+
+.profile-info__section {
+  margin-top: 16px;
+}
+
+.profile-info__section-title {
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.profile-info__icon-user {
+  font-size: 40px;
+}
+
+.profile-info__space-full {
+  width: 100%;
+}
+
+/* Edit mode: readonly section visual cue */
+.profile-info__readonly-section {
+  opacity: 0.75;
+  margin-bottom: 8px;
+}
+
+/* Divider between readonly and editable fields */
+.profile-info__editable-divider {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+  color: #86909c;
+  font-size: 13px;
+}
+
+.profile-info__editable-divider::before,
+.profile-info__editable-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e6eb;
+}
+
+.profile-info__editable-divider span {
+  padding: 0 12px;
+}
+
+/* Self-Service Quick Access Panel */
+.self-service {
+  margin-top: 16px;
+}
+
+.self-service__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.self-service__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e6eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.self-service__card:hover {
+  border-color: rgb(var(--primary-6));
+  box-shadow: 0 2px 8px rgba(var(--primary-6), 0.12);
+  transform: translateY(-2px);
+}
+
+.self-service__card-icon {
+  font-size: 28px;
+  color: rgb(var(--primary-6));
+  margin-bottom: 10px;
+}
+
+.self-service__icon {
+  font-size: 28px;
+}
+
+.self-service__card-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #1d2129;
+}
+
+.self-service__card-desc {
+  font-size: 12px;
+  color: #86909c;
+  line-height: 1.4;
+}
+
+/* Responsive: 2 columns on smaller screens */
+@media (max-width: 992px) {
+  .self-service__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 576px) {
+  .self-service__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .self-service__card {
+    padding: 16px 8px;
+  }
+}

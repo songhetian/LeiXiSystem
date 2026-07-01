@@ -1,0 +1,46 @@
+.draggable-table {
+  width: 100%;
+}
+
+.draggable-table__drag-handle {
+  width: 40px;
+  text-align: center;
+  user-select: none;
+  cursor: grab;
+}
+
+.draggable-table__drag-handle:active {
+  cursor: grabbing;
+}
+
+.draggable-table__row {
+  transition: background-color 0.2s ease;
+}
+
+.draggable-table__row:hover {
+  background-color: var(--color-fill-1);
+}
+
+.draggable-table__drag-overlay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  color: var(--color-text-1);
+}
+
+.draggable-table__drag-overlay-text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.arco-theme-dark .draggable-table__drag-overlay {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}

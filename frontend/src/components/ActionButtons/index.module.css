@@ -1,0 +1,20 @@
+.action-buttons__shortcut {
+  margin-left: 6px;
+  padding: 1px 4px;
+  font-size: 10px;
+  color: var(--color-text-3);
+  background: var(--color-fill-1);
+  border-radius: 3px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.action-buttons__edit:hover .action-buttons__shortcut,
+.action-buttons__delete:hover .action-buttons__shortcut {
+  color: var(--color-text-2);
+}
+
+/* 深色模式 */
+[data-theme='dark'] .action-buttons__shortcut {
+  background: var(--color-fill-2-dark);
+  color: var(--color-text-3-dark);
+}

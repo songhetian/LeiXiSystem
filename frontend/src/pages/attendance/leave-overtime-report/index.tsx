@@ -19,8 +19,7 @@ import { getLeaveOvertimeReport, ReportQuery, ChartData } from '@/api/reports'
 import { getDepartmentTree, Department } from '@/api/organization'
 import EChart from '@/components/EChart'
 import type { EChartsOption } from 'echarts'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const { RangePicker } = DatePicker
 const { Search } = Input
@@ -318,8 +317,8 @@ const LeaveOvertimeReport: React.FC = () => {
   }
 
   const deptTreeContent = (
-    <div className="dept-tree-popover">
-      <Spin loading={treeLoading} className="tree-spin">
+    <div className={styles['dept-tree-popover']}>
+      <Spin loading={treeLoading} className={styles['tree-spin']}>
         <Tree
           checkable
           selectable={false}
@@ -327,7 +326,7 @@ const LeaveOvertimeReport: React.FC = () => {
           checkedKeys={selectedDeptKeys}
           onCheck={handleTreeCheck}
           size="small"
-          className="dept-tree"
+          className={styles['dept-tree']}
         />
       </Spin>
     </div>
@@ -353,19 +352,19 @@ const LeaveOvertimeReport: React.FC = () => {
   }
 
   return (
-    <div className="leave-overtime-report">
-      <Card className="filter-card">
-        <div className="filter-bar">
+    <div className={styles['leave-overtime-report']}>
+      <Card className={styles['filter-card']}>
+        <div className={styles['filter-bar']}>
           <Space size="medium" wrap>
             <Popover
               triggerProps={{ position: 'bl' }}
               content={deptTreeContent}
               trigger="click"
             >
-              <Button icon={<IconFilter />} className="dept-filter-btn">
+              <Button icon={<IconFilter />} className={styles['dept-filter-btn']}>
                 部门筛选
                 {selectedDeptKeys.length > 0 && (
-                  <Tag color="blue" className="dept-filter-tag">
+                  <Tag color="blue" className={styles['dept-filter-tag']}>
                     {selectedDeptKeys.length}
                   </Tag>
                 )}
@@ -373,7 +372,7 @@ const LeaveOvertimeReport: React.FC = () => {
             </Popover>
             <Search
               placeholder="搜索员工姓名/工号"
-              className="search-input"
+              className={styles['search-input']}
               value={keyword}
               onChange={setKeyword}
               onSearch={handleSearch}
@@ -381,7 +380,7 @@ const LeaveOvertimeReport: React.FC = () => {
             <RangePicker
               value={dateRange}
               onChange={(_, date) => setDateRange(date)}
-              className="date-range-picker"
+              className={styles['date-range-picker']}
             />
             <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
               搜索
@@ -393,12 +392,12 @@ const LeaveOvertimeReport: React.FC = () => {
         </div>
       </Card>
 
-      <Spin loading={loading} className="page-spin">
+      <Spin loading={loading} className={styles['page-spin']}>
         {data && (
           <>
-            <Row gutter={16} className="stats-row">
+            <Row gutter={16} className={styles['stats-row']}>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="请假总天数"
                     value={(data.totalLeaveDays || 0).toFixed(2)}
@@ -407,7 +406,7 @@ const LeaveOvertimeReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="加班总工时"
                     value={(data.totalOvertimeHours || 0).toFixed(2)}
@@ -416,7 +415,7 @@ const LeaveOvertimeReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="涉及员工数"
                     value={employeeCount}
@@ -425,7 +424,7 @@ const LeaveOvertimeReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="人均请假天数"
                     value={avgLeaveDays}
@@ -435,35 +434,35 @@ const LeaveOvertimeReport: React.FC = () => {
               </Col>
             </Row>
 
-            <Row gutter={16} className="charts-row">
+            <Row gutter={16} className={styles['charts-row']}>
               <Col span={12}>
-                <Card title="请假类型分布" className="chart-card">
-                  <EChart option={leaveTypePieOption} className="chart-container" />
+                <Card title="请假类型分布" className={styles['chart-card']}>
+                  <EChart option={leaveTypePieOption} className={styles['chart-container']} />
                 </Card>
               </Col>
               <Col span={12}>
-                <Card title="加班类型分布" className="chart-card">
-                  <EChart option={overtimeTypePieOption} className="chart-container" />
+                <Card title="加班类型分布" className={styles['chart-card']}>
+                  <EChart option={overtimeTypePieOption} className={styles['chart-container']} />
                 </Card>
               </Col>
             </Row>
 
-            <Row gutter={16} className="charts-row">
+            <Row gutter={16} className={styles['charts-row']}>
               <Col span={12}>
-                <Card title="部门对比" className="chart-card">
-                  <EChart option={departmentCompareOption} className="chart-container" />
+                <Card title="部门对比" className={styles['chart-card']}>
+                  <EChart option={departmentCompareOption} className={styles['chart-container']} />
                 </Card>
               </Col>
               <Col span={12}>
-                <Card title="月度趋势" className="chart-card">
-                  <EChart option={monthlyTrendOption} className="chart-container" />
+                <Card title="月度趋势" className={styles['chart-card']}>
+                  <EChart option={monthlyTrendOption} className={styles['chart-container']} />
                 </Card>
               </Col>
             </Row>
 
             <Card
               title="员工明细"
-              className="table-card"
+              className={styles['table-card']}
               extra={
                 <Button icon={<IconDownload />} onClick={handleExport}>
                   导出CSV

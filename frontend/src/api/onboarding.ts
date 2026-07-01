@@ -32,6 +32,16 @@ export interface OnboardingFlowStep {
   updatedAt: string
 }
 
+export interface OnboardingTaskItem {
+  id: number
+  title: string
+  type: string
+  status: string
+  dueDate?: string
+  completedAt?: string
+  assigneeRole?: string
+}
+
 export interface OnboardingProgress {
   id: number
   employeeId: number
@@ -44,7 +54,7 @@ export interface OnboardingProgress {
   totalTasks: number
   completedTasks: number
   progress: number
-  tasks: any[]
+  tasks: OnboardingTaskItem[]
 }
 
 // 获取入职流程模板列表
@@ -83,7 +93,16 @@ export function createOnboardingFlow(data: {
   status?: string
   isDefault?: boolean
   sortOrder?: number
-  steps?: any[]
+  steps?: Array<{
+    title: string
+    description?: string
+    stepOrder: number
+    type: string
+    assigneeRole?: string
+    departmentId?: number
+    dueDays: number
+    required?: boolean
+  }>
 }) {
   return post<{
     code: 0
@@ -92,7 +111,15 @@ export function createOnboardingFlow(data: {
 }
 
 // 更新流程模板
-export function updateOnboardingFlow(id: number, data: any) {
+export function updateOnboardingFlow(id: number, data: {
+  name?: string
+  description?: string
+  departmentId?: number
+  positionId?: number
+  status?: string
+  isDefault?: boolean
+  sortOrder?: number
+}) {
   return put<{
     code: 0
     data: OnboardingFlow
@@ -119,7 +146,16 @@ export function addFlowStep(flowId: number, data: {
 }
 
 // 更新流程步骤
-export function updateFlowStep(stepId: number, data: any) {
+export function updateFlowStep(stepId: number, data: {
+  title?: string
+  description?: string
+  stepOrder?: number
+  type?: string
+  assigneeRole?: string
+  departmentId?: number
+  dueDays?: number
+  required?: boolean
+}) {
   return put(`/lifecycle/steps/${stepId}`, data)
 }
 

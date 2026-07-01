@@ -2,8 +2,17 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const ANALYZE = process.env.ANALYZE === 'true'
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    ANALYZE && (await import('rollup-plugin-visualizer')).default({
+      filename: 'dist/stats.html',
+      open: true,
+      gzipSize: true,
+    }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
@@ -17,8 +26,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/utils/**/*.ts'],
-      exclude: ['src/utils/*.test.ts'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.spec.{ts,tsx}',
+        'src/test/**',
+        'src/**/__tests__/**',
+        'node_modules',
+      ],
     },
   },
   css: {
@@ -64,6 +79,9 @@ export default defineConfig({
             id.includes('\\react-router-dom\\')
           ) {
             return 'vendor-react'
+          }
+          if (id.includes('echarts')) {
+            return 'vendor-echarts'
           }
           return undefined
         },

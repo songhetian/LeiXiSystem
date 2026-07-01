@@ -1,0 +1,15 @@
+.virtual-table {
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-bg-1);
+  border-radius: var(--border-radius-medium);
+}
+
+.virtual-table .arco-table-body {
+  will-change: transform;
+}
+
+/* 深色模式 */
+body.arco-theme-dark .virtual-table {
+  background: var(--color-bg-2);
+}

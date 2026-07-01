@@ -16,13 +16,11 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
   IconEdit,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import dayjs, { Dayjs } from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import {
   getLeaveList,
   createLeave,
@@ -31,8 +29,9 @@ import {
 } from '@/api/attendance'
 import type { LeaveRequest } from '@/api/attendance'
 import { formatDate } from '@/utils/date'
-import './leave.css'
-
+import { FilterBar, PageHeader, flatEmployeeNameColumn, flatEmployeeNoColumn, flatDepartmentNameColumn } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './leave.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -50,9 +49,6 @@ const leaveTypes = ['年假', '事假', '病假', '婚假', '产假', '丧假', 
 function Leave() {
   const [data, setData] = useState<LeaveRequest[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
@@ -84,27 +80,48 @@ function Leave() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const { visible, editingId, saving, openCreate, openEdit: _openEdit, close: _close, handleOk } = useCrudModal<LeaveRequest>({
+    form,
+    mapRecordToForm: (record) => ({
+      ...record,
+      dateRange: [new Date(record.startDate), new Date(record.endDate)],
+    }),
+    onSubmit: async (values, id) => {
+      const startDate = values.dateRange?.[0]
+        ? new Date(values.dateRange[0]).toISOString().split('T')[0]
+        : undefined
+      const endDate = values.dateRange?.[1]
+        ? new Date(values.dateRange[1]).toISOString().split('T')[0]
+        : undefined
+
+      const submitData = {
+        leaveType: values.leaveType,
+        startDate,
+        endDate,
+        days: values.days,
+        reason: values.reason,
+      }
+
+      if (id) {
+        await updateLeave(id, submitData)
+        Message.success('修改成功')
+      } else {
+        await createLeave(submitData as { leaveType: string; startDate: string; endDate: string; days: number; reason: string })
+        Message.success('申请成功')
+      }
+    },
+    onSuccess: () => fetchData(pagination.current, pagination.pageSize),
+  })
+
   const columns: TableProps<LeaveRequest>['columns'] = [
-    {
-      title: '申请人',
-      dataIndex: 'employeeName',
-      width: 100,
-    },
-    {
-      title: '工号',
-      dataIndex: 'employeeNo',
-      width: 100,
-    },
-    {
-      title: '部门',
-      dataIndex: 'departmentName',
-      width: 100,
-    },
+    flatEmployeeNameColumn(),
+    flatEmployeeNoColumn(),
+    flatDepartmentNameColumn(),
     {
       title: '假别',
       dataIndex: 'leaveType',
       width: 90,
-      render: (value: string) => <Tag color="blue" className="attendance-leave__type-tag">{value}</Tag>,
+      render: (value: string) => <Tag color="blue" className={styles['attendance-leave__type-tag']}>{value}</Tag>,
     },
     {
       title: '开始时间',
@@ -123,7 +140,7 @@ function Leave() {
       dataIndex: 'days',
       width: 80,
       render: (value: number) => (
-        <span className="attendance-leave__days">{value} 天</span>
+        <span className={styles['attendance-leave__days']}>{value} 天</span>
       ),
     },
     {
@@ -174,12 +191,6 @@ function Leave() {
       ),
     },
   ]
-
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
 
   const handleEdit = (record: LeaveRequest) => {
     setEditingId(record.id)
@@ -252,65 +263,57 @@ function Leave() {
   }
 
   return (
-    <div className="attendance-leave">
-      <Card bordered={false} className="attendance-leave__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="attendance-leave__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="attendance-leave__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="pending">审批中</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-              <Option value="cancelled">已撤销</Option>
-            </Select>
-          </FormItem>
-          <FormItem label="请假时间">
-            <RangePicker
-              className="attendance-leave__date-picker"
-              value={dateRange}
-              onChange={(_, date) => setDateRange(date)}
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['attendance-leave']}>
+      <Card bordered={false} className={styles['attendance-leave__card']}>
+        <PageHeader
+          title="请假记录"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={openCreate}>申请请假</Button>}
+        />
       </Card>
 
-      <Card bordered={false} className="attendance-leave__table-card">
-        <div className="attendance-leave__table-header">
-          <div>
-            <span className="attendance-leave__table-title">请假记录</span>
-            <Tag color="blue" className="attendance-leave__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            申请请假
-          </Button>
-        </div>
+      <Card bordered={false} className={styles['attendance-leave__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['attendance-leave__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['attendance-leave__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="pending">审批中</Option>
+                  <Option value="approved">已通过</Option>
+                  <Option value="rejected">已驳回</Option>
+                  <Option value="cancelled">已撤销</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="请假时间">
+                <RangePicker
+                  className={styles['attendance-leave__date-picker']}
+                  value={dateRange}
+                  onChange={(_, date) => setDateRange(date)}
+                />
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
+      </Card>
 
+      <Card bordered={false}>
         <Table
           loading={loading}
           columns={columns}
@@ -326,13 +329,13 @@ function Leave() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑请假' : '申请请假'}
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
         confirmLoading={saving}
-        className="attendance-leave__modal"
+        className={styles['attendance-leave__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -351,7 +354,7 @@ function Leave() {
             field="dateRange"
             rules={[{ required: true, message: '请选择请假时间' }]}
           >
-            <RangePicker className="attendance-leave__range-picker" />
+            <RangePicker className={styles['attendance-leave__range-picker']} />
           </FormItem>
           <Row gutter={16}>
             <Col span={12}>

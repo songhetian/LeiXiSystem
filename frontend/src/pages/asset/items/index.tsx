@@ -13,8 +13,7 @@ import {
   getAssetAssignments,
 } from '@/api/asset'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './items.css'
-
+import styles from './items.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -163,11 +162,11 @@ function CategoriesTab() {
 
   return (
     <>
-      <div className="helpdesk-tickets__tickets-actions">
+      <div className={styles['helpdesk-tickets__tickets-actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => openModal()}>新增分类</Button>
       </div>
       <Table rowKey="id" loading={loading} columns={columns} data={data} pagination={false} />
-      <Modal title="新增资产分类" visible={modalVisible} onOk={handleSubmit}
+      <Modal focusLock title="新增资产分类" visible={modalVisible} onOk={handleSubmit}
         onCancel={() => setModalVisible(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">
           <FormItem label="分类编码" field="code" rules={[{ required: true, message: '请输入' }]}>
@@ -179,9 +178,9 @@ function CategoriesTab() {
           <FormItem label="描述" field="description">
             <Input.TextArea rows={2} />
           </FormItem>
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="排序" field="sortOrder">
-              <InputNumber min={0} max={9999} className="asset-items__form-grid-item" />
+              <InputNumber min={0} max={9999} className={styles['asset-items__form-grid-item']} />
             </FormItem>
             <FormItem label="状态" field="status">
               <Select>
@@ -407,14 +406,14 @@ function AssetsTab() {
 
   return (
     <>
-      <div className="asset-items__actions-bar">
+      <div className={styles['asset-items__actions-bar']}>
         <Space>
           {hasSelected && (
             <>
-              <span className="asset-items__selected-info">
-                已选 <b className="asset-items__selected-count">{selectedRowKeys.length}</b> 项
+              <span className={styles['asset-items__selected-info']}>
+                已选 <b className={styles['asset-items__selected-count']}>{selectedRowKeys.length}</b> 项
               </span>
-              <Select placeholder="批量改状态" className="asset-items__batch-select"
+              <Select placeholder="批量改状态" className={styles['asset-items__batch-select']}
                 onChange={(v) => handleBatchStatus(v as string)}>
                 {Object.entries(statusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
               </Select>
@@ -425,11 +424,11 @@ function AssetsTab() {
           )}
         </Space>
         <Space>
-          <Select placeholder="分类筛选" allowClear className="asset-items__filter-select"
+          <Select placeholder="分类筛选" allowClear className={styles['asset-items__filter-select']}
             onChange={(v) => handleFilter('categoryId', v)}>
             {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
           </Select>
-          <Select placeholder="状态筛选" allowClear className="asset-items__filter-select--sm"
+          <Select placeholder="状态筛选" allowClear className={styles['asset-items__filter-select--sm']}
             onChange={(v) => handleFilter('status', v)}>
             {Object.entries(statusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -445,11 +444,11 @@ function AssetsTab() {
         pagination={{ total, current: page, pageSize: 10, onChange: (p) => { setPage(p); setSelectedRowKeys([]) } }} />
 
       {/* Asset Form Modal */}
-      <Modal title={editing ? '编辑资产' : '新增资产'} visible={assetModal}
+      <Modal focusLock title={editing ? '编辑资产' : '新增资产'} visible={assetModal}
         onOk={handleAssetSubmit} onCancel={() => setAssetModal(false)}
-        confirmLoading={submitting} className="asset-items__modal">
+        confirmLoading={submitting} className={styles['asset-items__modal']}>
         <Form form={form} layout="vertical">
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="资产编号" field="assetNo" rules={[{ required: true, message: '请输入' }]}>
               <Input placeholder="如：A-2024-001" />
             </FormItem>
@@ -457,7 +456,7 @@ function AssetsTab() {
               <Input placeholder="如：MacBook Pro 16寸" />
             </FormItem>
           </div>
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="资产分类" field="categoryId" rules={[{ required: true, message: '请选择' }]}>
               <Select placeholder="选择分类">
                 {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
@@ -467,7 +466,7 @@ function AssetsTab() {
               <Input placeholder="如：总部3楼" />
             </FormItem>
           </div>
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="品牌" field="brand">
               <Input placeholder="如：Apple" />
             </FormItem>
@@ -475,17 +474,17 @@ function AssetsTab() {
               <Input placeholder="如：MacBook Pro" />
             </FormItem>
           </div>
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="序列号" field="serialNo">
               <Input placeholder="产品序列号" />
             </FormItem>
             <FormItem label="购买日期" field="purchaseDate">
-              <DatePicker className="asset-items__form-grid-item" />
+              <DatePicker className={styles['asset-items__form-grid-item']} />
             </FormItem>
           </div>
-          <div className="asset-items__form-grid">
+          <div className={styles['asset-items__form-grid']}>
             <FormItem label="购买金额" field="purchaseAmount">
-              <InputNumber min={0} className="asset-items__form-grid-item" prefix="¥" />
+              <InputNumber min={0} className={styles['asset-items__form-grid-item']} prefix="¥" />
             </FormItem>
             <FormItem label="状态" field="status">
               <Select>
@@ -500,13 +499,13 @@ function AssetsTab() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal title="资产详情" visible={detailModal}
+      <Modal focusLock title="资产详情" visible={detailModal}
         onOk={() => setDetailModal(false)} onCancel={() => setDetailModal(false)}
-        footer={null} className="asset-items__modal--wide">
+        footer={null} className={styles['asset-items__modal--wide']}>
         {detailData ? (
-          <div className="asset-items__form-grid--detail">
-            <div><Text type="secondary">资产编号</Text><div className="asset-items__detail-value">{detailData.assetNo}</div></div>
-            <div><Text type="secondary">资产名称</Text><div className="asset-items__detail-value">{detailData.name}</div></div>
+          <div className={styles['asset-items__form-grid--detail']}>
+            <div><Text type="secondary">资产编号</Text><div className={styles['asset-items__detail-value']}>{detailData.assetNo}</div></div>
+            <div><Text type="secondary">资产名称</Text><div className={styles['asset-items__detail-value']}>{detailData.name}</div></div>
             <div><Text type="secondary">分类</Text><div>{detailData.category?.name}</div></div>
             <div><Text type="secondary">品牌型号</Text><div>{[detailData.brand, detailData.model].filter(Boolean).join(' / ') || '-'}</div></div>
             <div><Text type="secondary">序列号</Text><div>{detailData.serialNo || '-'}</div></div>
@@ -516,30 +515,30 @@ function AssetsTab() {
             <div><Text type="secondary">购买日期</Text><div>{formatDate(detailData.purchaseDate)}</div></div>
             <div><Text type="secondary">购买金额</Text><div>{detailData.purchaseAmount ? `¥${detailData.purchaseAmount.toLocaleString()}` : '-'}</div></div>
             {detailData.assignments && detailData.assignments.length > 0 && (
-              <div className="asset-items__detail-grid-full">
-                <Text type="secondary" className="asset-items__detail-grid-label">领用历史</Text>
-                {detailData.assignments.map((a: any, idx: number) => (
-                  <div key={a.id} className="asset-items__history-item">
+              <div className={styles['asset-items__detail-grid-full']}>
+                <Text type="secondary" className={styles['asset-items__detail-grid-label']}>领用历史</Text>
+                {detailData.assignments.map((a: any, _idx: number) => (
+                  <div key={a.id} className={styles['asset-items__history-item']}>
                     <Space>
                       <ActionTag value={a.action} />
                       <Text type="secondary">{a.employee?.user?.realName || '-'}</Text>
                       <Text type="secondary">{formatDate(a.assignedAt)}</Text>
                       {a.returnedAt && <Text type="secondary">归还：{formatDate(a.returnedAt)}</Text>}
                     </Space>
-                    {a.note && <div className="asset-items__history-note">{a.note}</div>}
+                    {a.note && <div className={styles['asset-items__history-note']}>{a.note}</div>}
                   </div>
                 ))}
               </div>
             )}
           </div>
-        ) : <div className="asset-items__empty">未找到数据</div>}
+        ) : <div className={styles['asset-items__empty']}>未找到数据</div>}
       </Modal>
 
       {/* Assign Modal */}
-      <Modal title="资产领用" visible={assignModal} onOk={handleAssign}
+      <Modal focusLock title="资产领用" visible={assignModal} onOk={handleAssign}
         onCancel={() => setAssignModal(false)} confirmLoading={submitting}>
         <Form form={assignForm} layout="vertical">
-          <div className="asset-items__asset-info">
+          <div className={styles['asset-items__asset-info']}>
             资产：<strong>{selectedAsset?.name}</strong> ({selectedAsset?.assetNo})
           </div>
           <FormItem label="领用人" field="employeeId" rules={[{ required: true, message: '请选择领用人' }]}>
@@ -557,10 +556,10 @@ function AssetsTab() {
       </Modal>
 
       {/* Transfer Modal */}
-      <Modal title="资产转移" visible={transferModal} onOk={handleTransfer}
+      <Modal focusLock title="资产转移" visible={transferModal} onOk={handleTransfer}
         onCancel={() => setTransferModal(false)} confirmLoading={submitting}>
         <Form form={transferForm} layout="vertical">
-          <div className="asset-items__asset-info">
+          <div className={styles['asset-items__asset-info']}>
             资产：<strong>{selectedAsset?.name}</strong> ({selectedAsset?.assetNo})<br />
             当前使用人：{selectedAsset?.currentEmployee?.user?.realName || '-'}
           </div>
@@ -619,8 +618,8 @@ function AssignmentsTab() {
 
   return (
     <>
-      <div className="helpdesk-tickets__tickets-actions">
-        <Select placeholder="筛选员工" allowClear className="asset-items__assignments-select"
+      <div className={styles['helpdesk-tickets__tickets-actions']}>
+        <Select placeholder="筛选员工" allowClear className={styles['asset-items__assignments-select']}
           onChange={(v) => { setEmployeeFilter(v); setPage(1) }}>
           {employees.map((e) => <Option key={e.id} value={e.id}>{e.realName}({e.employeeNo})</Option>)}
         </Select>
@@ -637,11 +636,11 @@ export default function AssetManagementPage() {
   const [activeTab, setActiveTab] = useState('items')
 
   return (
-    <div className="asset-items">
+    <div className={styles['asset-items']}>
       <Card bordered={false}>
-        <div className="asset-items__header">
-          <span className="asset-items__title">资产管理</span>
-          <Tag color="arcoblue" className="asset-items__tag">
+        <div className={styles['asset-items__header']}>
+          <span className={styles['asset-items__title']}>资产管理</span>
+          <Tag color="arcoblue" className={styles['asset-items__tag']}>
             资产分类 · 资产台账 · 领用/转移/归还 · 领用记录
           </Tag>
         </div>

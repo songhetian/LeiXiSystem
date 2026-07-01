@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import type { ComponentType } from 'react'
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Badge, Space, Divider } from '@arco-design/web-react'
+import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Space, Divider, Tooltip } from '@arco-design/web-react'
 import {
   IconDashboard,
   IconUserGroup,
@@ -12,7 +12,6 @@ import {
   IconSettings,
   IconMenuFold,
   IconMenuUnfold,
-  IconNotification,
   IconQuestionCircle,
   IconUser,
   IconClockCircle,
@@ -22,12 +21,17 @@ import {
   IconSubscribed,
   IconTrophy,
   IconExperiment,
+  IconNotification,
+  IconSun,
+  IconMoon,
 } from '@arco-design/web-react/icon'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { useUserStore } from '@/store/user'
+import { useAuthStore } from '@/store/auth'
+import { useAppStore } from '@/store/app'
 import { hasClientPermission } from '@/components/AccessControl'
-import './index.css'
-
+import { NotificationCenter } from '@/components'
+import PageSkeleton from '@/components/PageSkeleton'
+import styles from './index.module.css'
 const { Header, Sider, Content } = Layout
 const MenuItem = Menu.Item
 const SubMenu = Menu.SubMenu
@@ -49,6 +53,16 @@ const menuList: MenuConfig[] = [
     label: '仪表盘',
   },
   {
+    key: '/dashboard/operations',
+    icon: IconDashboard,
+    label: '运营大屏',
+  },
+  {
+    key: '/message-center',
+    icon: IconMessage,
+    label: '消息中心',
+  },
+  {
     key: 'personnel',
     icon: IconUserGroup,
     label: '人员管理',
@@ -59,6 +73,7 @@ const menuList: MenuConfig[] = [
       { key: '/personnel/onboarding', label: '入职办理' },
       { key: '/personnel/onboarding-flow', label: '入职流程配置' },
       { key: '/personnel/employee-tag', label: '员工标签' },
+      { key: '/personnel/certificate', label: '证明管理' },
     ],
   },
   {
@@ -94,6 +109,14 @@ const menuList: MenuConfig[] = [
     label: '系统管理',
     children: [
       { key: '/system/announcement', label: '公告管理' },
+      { key: '/system/config', label: '配置导出导入' },
+      { key: '/system/report-template', label: '报表模板' },
+      { key: '/message-manage/send', label: '发送消息' },
+      { key: '/message-manage/templates', label: '消息模板' },
+      { key: '/message-manage/records', label: '发送记录' },
+      { key: '/message-manage/stats', label: '消息统计' },
+      { key: '/settings/holidays', label: '节假日日历' },
+      { key: '/settings/permissions', label: '数据权限' },
     ],
   },
   {
@@ -102,6 +125,7 @@ const menuList: MenuConfig[] = [
     label: '资产管理',
     children: [
       { key: '/asset/items', label: '资产台账' },
+      { key: '/asset/components', label: '配件管理' },
     ],
   },
   {
@@ -110,6 +134,28 @@ const menuList: MenuConfig[] = [
     label: 'HR服务台',
     children: [
       { key: '/helpdesk/tickets', label: '服务工单' },
+      { key: '/helpdesk/queue', label: '队列监控' },
+      { key: '/helpdesk/sla', label: 'SLA策略' },
+      { key: '/helpdesk/customers', label: '客户管理' },
+      { key: '/helpdesk/canned', label: '快捷回复' },
+    ],
+  },
+  {
+    key: '/kb',
+    icon: IconBook,
+    label: '知识库',
+  },
+  {
+    key: '/okr/dashboard',
+    icon: IconTrophy,
+    label: 'OKR',
+  },
+  {
+    key: 'employee',
+    icon: IconUser,
+    label: '员工自助',
+    children: [
+      { key: '/employee/dashboard', label: '我的首页' },
     ],
   },
   {
@@ -151,6 +197,7 @@ const menuList: MenuConfig[] = [
     label: '排班管理',
     children: [
       { key: '/schedule/calendar', label: '排班日历' },
+      { key: '/schedule/weekly', label: '周排班（拖拽）' },
       { key: '/schedule/assign', label: '排班分配' },
       { key: '/schedule/rules', label: '排班规则' },
       { key: '/schedule/recommend', label: '智能排班' },
@@ -158,6 +205,8 @@ const menuList: MenuConfig[] = [
       { key: '/schedule/secondments', label: '借调管理' },
       { key: '/schedule/templates', label: '排班模板' },
       { key: '/schedule/publish', label: '发布确认' },
+      { key: '/schedule/rotations', label: '轮转规则' },
+      { key: '/schedule/comparison', label: '版本对比' },
       { key: '/schedule/report', label: '排班报表' },
       { key: '/my/schedule', label: '我的排班' },
     ],
@@ -171,9 +220,11 @@ const menuList: MenuConfig[] = [
       { key: '/attendance/calculation', label: '考勤核算' },
       { key: '/attendance/exceptions', label: '考勤异常' },
       { key: '/attendance/exception-rules', label: '异常规则' },
+      { key: '/attendance/deduction-rules', label: '扣款规则' },
       { key: '/attendance/exception-stats', label: '异常统计' },
       { key: '/attendance/locations', label: '打卡位置' },
       { key: '/attendance/overtime-types', label: '加班类型' },
+      { key: '/attendance/overtime-calculation', label: '加班核算' },
       { key: '/attendance/corrections', label: '补卡申请' },
       { key: '/attendance/stats', label: '考勤统计' },
       { key: '/attendance/report', label: '考勤报表' },
@@ -190,11 +241,13 @@ const menuList: MenuConfig[] = [
     children: [
       { key: '/payroll/components', label: '薪资组件' },
       { key: '/payroll/structures', label: '薪资结构' },
+      { key: '/payroll/structure-versions', label: '结构版本' },
       { key: '/payroll/assignments', label: '薪资分配' },
       { key: '/payroll/runs', label: '薪资批次' },
       { key: '/payroll/payslips', label: '工资条管理' },
       { key: '/payroll/adjustments', label: '薪资调整项' },
       { key: '/payroll/disputes', label: '工资条申诉' },
+      { key: '/payroll/pending-settlements', label: '加班结算' },
       { key: '/payroll/my-payslips', label: '我的工资条' },
     ],
   },
@@ -206,6 +259,8 @@ const menuList: MenuConfig[] = [
       { key: '/vacation/types', label: '假期类型' },
       { key: '/vacation/quota', label: '假期额度' },
       { key: '/vacation/balance', label: '余额查询' },
+      { key: '/vacation/carryover', label: '结转记录' },
+      { key: '/vacation/policies', label: '请假策略' },
     ],
   },
   {
@@ -246,6 +301,7 @@ const menuList: MenuConfig[] = [
       { key: '/profile/info', label: '个人信息' },
       { key: '/profile/password', label: '修改密码' },
       { key: '/profile/attendance', label: '我的考勤' },
+      { key: '/profile/certificate', label: '证明申请' },
     ],
   },
   {
@@ -369,14 +425,21 @@ const pathPermissionMap: Record<string, string | undefined> = {
   '/data/template': 'data:import',
   '/notification/config': 'rbac:view',
   '/system/announcement': 'system:announcement:manage',
+  '/system/config': 'system:config',
+  '/system/report-template': 'report:manage',
   '/personnel/employee-tag': 'personnel:manage',
+  '/personnel/certificate': 'personnel:manage',
+  '/attendance/deduction-rules': 'attendance:manage',
+  '/vacation/carryover': 'vacation:manage',
+  '/payroll/structure-versions': 'payroll:manage',
 }
 
 function PageLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
-  const { user, permissions, logoutRemote } = useUserStore()
+  const { user, permissions, logoutRemote } = useAuthStore()
+  const { theme, toggleTheme } = useAppStore()
 
   const canAccessPath = (path: string) => hasClientPermission({
     roles: user?.roles,
@@ -447,7 +510,15 @@ function PageLayout() {
       '/schedule/publish': '发布确认',
       '/my/schedule': '我的排班',
       '/system/announcement': '公告管理',
+      '/system/config': '配置导出导入',
+      '/system/report-template': '报表模板',
       '/personnel/employee-tag': '员工标签',
+      '/personnel/certificate': '证明管理',
+      '/profile/certificate': '证明申请',
+      '/attendance/deduction-rules': '扣款规则',
+      '/vacation/carryover': '结转记录',
+      '/payroll/structure-versions': '结构版本',
+      '/settings': '系统设置',
     }
     return ['首页', pathMap[location.pathname] || '页面']
   }
@@ -455,7 +526,7 @@ function PageLayout() {
   const userDropdownMenu = (
     <Menu>
       <MenuItem key="profile">个人信息</MenuItem>
-      <MenuItem key="settings">账号设置</MenuItem>
+      <MenuItem key="settings" onClick={() => navigate('/settings')}>账号设置</MenuItem>
       <Divider style={{ margin: '4px 0' }} />
       <MenuItem key="logout" onClick={handleLogout}>
         退出登录
@@ -464,7 +535,7 @@ function PageLayout() {
   )
 
   return (
-    <Layout className="layout-wrapper">
+    <Layout className={styles['layout-wrapper']}>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -472,9 +543,9 @@ function PageLayout() {
         trigger={null}
         breakpoint="xl"
       >
-        <div className="sider-logo">
-          <div className="sider-logo__icon">雷</div>
-          {!collapsed && <span className="sider-logo__text">雷犀系统</span>}
+        <div className={styles['sider-logo']}>
+          <div className={styles['sider-logo__icon']}>雷</div>
+          {!collapsed && <span className={styles['sider-logo__text']}>雷犀系统</span>}
         </div>
         <Menu
           selectedKeys={[location.pathname]}
@@ -508,11 +579,11 @@ function PageLayout() {
         </Menu>
       </Sider>
       <Layout>
-        <Header className="layout-header">
-          <div className="layout-header__content">
+        <Header className={styles['layout-header']}>
+          <div className={styles['layout-header__content']}>
             <Space size="medium">
               <div
-                className="layout-header__menu-toggle"
+                className={styles['layout-header__menu-toggle']}
                 onClick={() => setCollapsed(!collapsed)}
               >
                 {collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
@@ -524,16 +595,23 @@ function PageLayout() {
               </Breadcrumb>
             </Space>
             <Space size="small">
-              <Badge count={5} dot>
-                <span className="layout-header__icon">
-                  <IconNotification />
+              <NotificationCenter placement="bottomRight" />
+              <Tooltip content={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'}>
+                <span
+                  className={styles['layout-header__icon']}
+                  onClick={toggleTheme}
+                  style={{ cursor: 'pointer' }}
+                  role="button"
+                  aria-label={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
+                >
+                  {theme === 'dark' ? <IconSun /> : <IconMoon />}
                 </span>
-              </Badge>
-              <span className="layout-header__icon">
+              </Tooltip>
+              <span className={styles['layout-header__icon']}>
                 <IconQuestionCircle />
               </span>
               <Dropdown droplist={userDropdownMenu} position="br">
-                <Space size="small" className="layout-header__user-menu">
+                <Space size="small" className={styles['layout-header__user-menu']}>
                   <Avatar size={32} style={{ backgroundColor: '#165DFF' }}>
                     <IconUser />
                   </Avatar>
@@ -543,8 +621,10 @@ function PageLayout() {
             </Space>
           </div>
         </Header>
-        <Content className="layout-content">
-          <Outlet />
+        <Content className={styles['layout-content']}>
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </Content>
       </Layout>
     </Layout>

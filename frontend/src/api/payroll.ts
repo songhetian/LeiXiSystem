@@ -1,5 +1,70 @@
 import { get, post, put, del } from './request'
 
+// ===== Local request type interfaces =====
+
+export interface CreateSalaryStructureParams {
+  name: string
+  payrollFrequency: string
+  status?: string
+  effectiveFrom: string
+  effectiveTo?: string
+  items: SalaryStructureItem[]
+}
+
+export type UpdateSalaryStructureParams = Partial<CreateSalaryStructureParams>
+
+export interface SalaryAssignmentQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  employeeId?: number
+  salaryStructureId?: number
+}
+
+export interface CreateSalaryAssignmentParams {
+  employeeId: number
+  salaryStructureId: number
+  baseSalary: number
+  effectiveFrom: string
+  effectiveTo?: string
+}
+
+export type UpdateSalaryAssignmentParams = Partial<CreateSalaryAssignmentParams>
+
+export interface CreatePayrollRunParams {
+  name: string
+  period?: string
+  scopeType?: string
+  scopeValue?: number[]
+}
+
+export interface PayrollAdjustmentQueryParams {
+  page?: number
+  pageSize?: number
+  year?: number
+  month?: number
+  status?: string
+  type?: string
+  employeeId?: number
+}
+
+export interface CreatePayrollAdjustmentParams {
+  employeeId: number
+  year: number
+  month: number
+  type: string
+  amount: number
+  reason?: string
+  componentId?: number
+}
+
+export interface PayslipDisputeQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  employeeId?: number
+}
+
 export interface SalaryComponent {
   id: number
   name: string
@@ -178,23 +243,23 @@ export function getSalaryStructures() {
   return get('/payroll/structures')
 }
 
-export function createSalaryStructure(data: any) {
+export function createSalaryStructure(data: CreateSalaryStructureParams) {
   return post('/payroll/structures', data)
 }
 
-export function updateSalaryStructure(id: number, data: any) {
+export function updateSalaryStructure(id: number, data: UpdateSalaryStructureParams) {
   return put(`/payroll/structures/${id}`, data)
 }
 
-export function getSalaryAssignments(params?: any) {
+export function getSalaryAssignments(params?: SalaryAssignmentQueryParams) {
   return get('/payroll/assignments', { params })
 }
 
-export function createSalaryAssignment(data: any) {
+export function createSalaryAssignment(data: CreateSalaryAssignmentParams) {
   return post('/payroll/assignments', data)
 }
 
-export function updateSalaryAssignment(id: number, data: any) {
+export function updateSalaryAssignment(id: number, data: UpdateSalaryAssignmentParams) {
   return put(`/payroll/assignments/${id}`, data)
 }
 
@@ -206,7 +271,7 @@ export function getPayrollRunDetail(id: number) {
   return get<{ code: 0; data: PayrollRunDetail }>(`/payroll/runs/${id}/detail`)
 }
 
-export function createPayrollRun(data: any) {
+export function createPayrollRun(data: CreatePayrollRunParams) {
   return post('/payroll/runs', data)
 }
 
@@ -230,11 +295,11 @@ export function withdrawPayslip(id: number) {
   return post(`/payroll/payslips/${id}/withdraw`)
 }
 
-export function getPayrollAdjustments(params?: any) {
+export function getPayrollAdjustments(params?: PayrollAdjustmentQueryParams) {
   return get('/payroll/adjustments', { params })
 }
 
-export function createPayrollAdjustment(data: any) {
+export function createPayrollAdjustment(data: CreatePayrollAdjustmentParams) {
   return post('/payroll/adjustments', data)
 }
 
@@ -246,7 +311,7 @@ export function rejectPayrollAdjustment(id: number, data?: { opinion?: string })
   return post(`/payroll/adjustments/${id}/reject`, data)
 }
 
-export function getPayslipDisputes(params?: any) {
+export function getPayslipDisputes(params?: PayslipDisputeQueryParams) {
   return get('/payroll/disputes', { params })
 }
 
@@ -279,7 +344,16 @@ export function getPayslipPasswordStatus() {
 }
 
 export function setPayslipPassword(data: { password: string; confirmPassword: string }) {
-  return post('/payslip/set-password', data)
+  return post('/payroll/set-password', data)
+}
+
+// ===== 薪资条批量操作 =====
+export function batchPublishPayslips(ids: number[]) {
+  return post('/payroll/payslips/batch-publish', { ids })
+}
+
+export function batchWithdrawPayslips(ids: number[]) {
+  return post('/payroll/payslips/batch-withdraw', { ids })
 }
 
 export function confirmPayslip(id: number) {
@@ -292,4 +366,133 @@ export function disputePayslip(id: number, data: { reason: string }) {
 
 export function verifyPayslipPassword(data: { password: string }) {
   return post<{ code: 0; data: { payslipAccessToken?: string } }>('/payslip/verify-password', data)
+}
+
+// ============== 薪资导入导出 ==============
+
+export interface ImportResult {
+  success: boolean
+  total: number
+  imported: number
+  failed: number
+  errors: Array<{ row: number; message: string }>
+  warnings: Array<{ row: number; message: string }>
+}
+
+export function downloadSalaryImportTemplate() {
+  return get<Blob>('/payroll/import/template', {
+    responseType: 'blob',
+  } as any)
+}
+
+export function importSalaryAdjustments(params: {
+  year: number
+  month: number
+  file: File
+}) {
+  const formData = new FormData()
+  formData.append('file', params.file)
+  return post<{ code: 0; data: ImportResult }>('/payroll/import/adjustments', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params: { year: params.year, month: params.month, importType: 'adjustments' },
+  } as any)
+}
+
+export function exportSalaryData(params: {
+  year: number
+  month: number
+  departmentId?: number
+  format?: 'csv' | 'xlsx'
+}) {
+  return get<Blob>('/payroll/import/export', {
+    responseType: 'blob',
+    params,
+  } as any)
+}
+
+export function batchCalculateSalary(params: {
+  year: number
+  month: number
+  scopeType?: 'all' | 'department' | 'employee'
+  scopeValue?: number[]
+}) {
+  return post<{ code: 0; data: { payrollRunId: number; status: string } }>('/payroll/import/calculate', params)
+}
+
+export interface FormulaValidationResult {
+  valid: boolean
+  testResult?: number
+  error?: string
+}
+
+export function validateFormula(formula: string, testValues?: Record<string, number>) {
+  return post<{ code: 0; data: FormulaValidationResult }>('/payroll/import/validate-formula', {
+    formula,
+    testValues,
+  })
+}
+
+export interface SalaryStructureVersion {
+  id: number
+  structureId: number
+  structureName: string
+  version: number
+  versionName: string
+  status: 'draft' | 'active' | 'inactive'
+  effectiveFrom: string
+  effectiveTo?: string
+  items: SalaryStructureItem[]
+  changeDescription?: string
+  createdBy?: number
+  creatorName?: string
+  createdAt: string
+  activatedAt?: string
+}
+
+export interface StructureVersionListResponse {
+  code: 0
+  data: {
+    list: SalaryStructureVersion[]
+    total: number
+    page: number
+    pageSize: number
+  }
+}
+
+export interface StructureVersionResponse {
+  code: 0
+  data: SalaryStructureVersion
+}
+
+export function getStructureVersions(
+  structureId: number,
+  params?: {
+    page?: number
+    pageSize?: number
+    status?: string
+  }
+) {
+  return get<StructureVersionListResponse>(`/payroll/structures/${structureId}/versions`, { params })
+}
+
+export function createStructureVersion(
+  structureId: number,
+  data: {
+    versionName: string
+    effectiveFrom: string
+    effectiveTo?: string
+    items: SalaryStructureItem[]
+    changeDescription?: string
+    baseOnVersionId?: number
+  }
+) {
+  return post<StructureVersionResponse>(`/payroll/structures/${structureId}/versions`, data)
+}
+
+export function getStructureVersion(structureId: number, versionId: number) {
+  return get<StructureVersionResponse>(`/payroll/structures/${structureId}/versions/${versionId}`)
+}
+
+export function activateStructureVersion(id: number) {
+  return put<StructureVersionResponse>(`/payroll/structures/versions/${id}/activate`)
 }

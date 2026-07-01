@@ -5,7 +5,7 @@ import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { buildEmployeeDataScopeWhere } from '../../services/dataScope'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { requirePermission } from '../../middleware/permission'
-import { dateStringSchema, idParamsSchema, positiveIntSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, positiveIntSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeOmit } from '../../utils/validation'
 
 const assignmentQuerySchema = z.object({
   employeeId: positiveIntSchema.optional(),
@@ -23,10 +23,7 @@ const assignmentCreateSchema = z.object({
   message: '生效开始日期不能晚于结束日期',
 })
 
-const assignmentUpdateSchema = assignmentCreateSchema.omit({ employeeId: true }).partial().refine(
-  (value) => Object.keys(value).length > 0,
-  { message: '至少需要提交一个更新字段' }
-)
+const assignmentUpdateSchema = partialUpdateSchema(safeOmit(assignmentCreateSchema, ['employeeId']))
 
 export default async function assignmentsRoutes(fastify: FastifyInstance) {
   fastify.get('/assignments', { preHandler: [requirePermission('payroll:manage')] }, async (request: FastifyRequest<{
@@ -83,11 +80,12 @@ export default async function assignmentsRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>, reply) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(assignmentUpdateSchema, request.body)
+    const data = validateData(assignmentUpdateSchema, request.body)
+    requireAtLeastOneField(data)
     setAudit(request, {
       module: 'payroll',
       action: 'payroll.assignment.update',
-      requestData: body,
+      requestData: data,
     })
     const existing = await prisma.salaryAssignment.findUnique({ where: { id } })
 
@@ -99,11 +97,11 @@ export default async function assignmentsRoutes(fastify: FastifyInstance) {
     const assignment = await prisma.salaryAssignment.update({
       where: { id },
       data: {
-        salaryStructureId: body.salaryStructureId,
-        baseSalary: body.baseSalary,
-        effectiveFrom: body.effectiveFrom ? new Date(body.effectiveFrom) : undefined,
-        effectiveTo: body.effectiveTo !== undefined ? (body.effectiveTo ? new Date(body.effectiveTo) : null) : undefined,
-        status: body.status,
+        salaryStructureId: data.salaryStructureId,
+        baseSalary: data.baseSalary,
+        effectiveFrom: data.effectiveFrom ? new Date(data.effectiveFrom) : undefined,
+        effectiveTo: data.effectiveTo !== undefined ? (data.effectiveTo ? new Date(data.effectiveTo) : null) : undefined,
+        status: data.status,
       },
       include: {
         employee: { include: { user: true } },

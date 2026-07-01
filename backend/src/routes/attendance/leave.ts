@@ -8,13 +8,13 @@ import { buildAttendanceDataScopeWhere } from '../../services/dataScope'
 import { normalizePagination } from '../../utils/pagination'
 import { dateRangeBaseQuerySchema } from '../../utils/schemas'
 import { leaveStatusSchema } from '../../utils/schemas/status'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeExtend, safeOmit } from '../../utils/validation'
 
 const dateRangeQuerySchema = dateRangeBaseQuerySchema.refine((value) => (!value.startDate && !value.endDate) || (value.startDate && value.endDate), {
   message: '开始日期和结束日期必须同时提供',
 })
 
-const leaveListQuerySchema = dateRangeQuerySchema.extend({
+const leaveListQuerySchema = safeExtend(dateRangeQuerySchema, {
   page: z.unknown().optional(),
   pageSize: z.unknown().optional(),
   keyword: optionalKeywordSchema,
@@ -33,9 +33,7 @@ const leaveCreateSchema = z.object({
   path: ['endDate'],
 })
 
-const leaveUpdateSchema = leaveCreateSchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const leaveUpdateSchema = partialUpdateSchema(leaveCreateSchema)
 
 const leaveApproveSchema = z.object({
   opinion: z.string().trim().max(500).optional().nullable(),
@@ -154,7 +152,7 @@ export default async function leaveRoutes(fastify: FastifyInstance) {
       endDate?: string
     }
   }>) => {
-    const query = validateData(leaveListQuerySchema.omit({ keyword: true, departmentId: true }), request.query)
+    const query = validateData(safeOmit(leaveListQuerySchema, ['keyword', 'departmentId']), request.query)
     const { page, pageSize, skip, take } = normalizePagination(query)
     const { status, startDate, endDate } = query
 
@@ -303,7 +301,8 @@ export default async function leaveRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(leaveUpdateSchema, request.body)
+    const data = validateData(leaveUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const existing = await prisma.leaveRequest.findUnique({
       where: { id },
@@ -325,16 +324,16 @@ export default async function leaveRoutes(fastify: FastifyInstance) {
     setAudit(request, {
       action: 'leave.update',
       module: 'attendance',
-      requestData: body,
+      requestData: data,
       beforeData: existing,
     })
 
-    const updateData: any = { ...body }
-    if (body.startDate) {
-      updateData.startDate = new Date(body.startDate)
+    const updateData: any = { ...data }
+    if (data.startDate) {
+      updateData.startDate = new Date(data.startDate)
     }
-    if (body.endDate) {
-      updateData.endDate = new Date(body.endDate)
+    if (data.endDate) {
+      updateData.endDate = new Date(data.endDate)
     }
 
     await prisma.leaveRequest.update({

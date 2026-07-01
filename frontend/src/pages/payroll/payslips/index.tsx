@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Message, Modal, Popconfirm, Select, Space, Table, Typography } from '@arco-design/web-react'
-import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip, Payslip, PayrollRun } from '@/api/payroll'
-import { getEmployees, Employee } from '@/api/personnel'
-import StatusTag from '@/components/StatusTag'
-import './index.css'
-
-const { Title, Text } = Typography
+import { Button, Card, Descriptions, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from '@arco-design/web-react'
+import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip, batchPublishPayslips, batchWithdrawPayslips, Payslip, PayrollRun } from '@/api/payroll'
+import { PageHeader, FilterBar, StatusTag, employeeColumn, departmentColumn, EmployeeSelect, BatchActions } from '@/components'
+import { useBatchSelection } from '@/hooks/useBatchSelection'
+import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -21,11 +19,11 @@ const payslipStatusText: Record<string, string> = {
 function PayslipsPage() {
   const [data, setData] = useState<Payslip[]>([])
   const [runs, setRuns] = useState<PayrollRun[]>([])
-  const [employees, setEmployees] = useState<Employee[]>([])
   const [detail, setDetail] = useState<Payslip | null>(null)
   const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
+  const batch = useBatchSelection<Payslip>()
 
   const loadData = useCallback(async (params?: any) => {
     setLoading(true)
@@ -40,13 +38,11 @@ function PayslipsPage() {
   const loadInitialData = useCallback(async () => {
     setLoading(true)
     try {
-      const [runRes, employeeRes, payslipRes]: any[] = await Promise.all([
+      const [runRes, payslipRes]: any[] = await Promise.all([
         getPayrollRuns(),
-        getEmployees({ page: 1, pageSize: 1000, status: 'active' }),
         getPayslips(),
       ])
       setRuns(runRes.data || [])
-      setEmployees(employeeRes.data?.list || [])
       setData(payslipRes.data || [])
     } finally {
       setLoading(false)
@@ -92,6 +88,42 @@ function PayslipsPage() {
     setVisible(true)
   }, [])
 
+  // 批量发布
+  const handleBatchPublish = useCallback(async () => {
+    const draftItems = data.filter((item) => item.status === 'draft' && batch.isSelected(item.id))
+    if (draftItems.length === 0) {
+      Message.warning('请选择草稿状态的工资条')
+      return
+    }
+    try {
+      await batchPublishPayslips(draftItems.map((item) => item.id))
+      Message.success(`成功发布 ${draftItems.length} 个工资条`)
+      batch.clearSelection()
+      await loadData(form.getFieldsValue())
+    } catch (e: any) {
+      Message.error(e?.message || '发布失败')
+    }
+  }, [data, batch, form, loadData])
+
+  // 批量撤回
+  const handleBatchWithdraw = useCallback(async () => {
+    const publishableItems = data.filter(
+      (item) => ['published', 'viewed'].includes(item.status) && batch.isSelected(item.id)
+    )
+    if (publishableItems.length === 0) {
+      Message.warning('请选择已发布或已查看状态的工资条')
+      return
+    }
+    try {
+      await batchWithdrawPayslips(publishableItems.map((item) => item.id))
+      Message.success(`成功撤回 ${publishableItems.length} 个工资条`)
+      batch.clearSelection()
+      await loadData(form.getFieldsValue())
+    } catch (e: any) {
+      Message.error(e?.message || '撤回失败')
+    }
+  }, [data, batch, form, loadData])
+
   const columns = useMemo(() => [
     {
       title: '薪资期间',
@@ -100,14 +132,8 @@ function PayslipsPage() {
         return period ? `${period.year}-${String(period.month).padStart(2, '0')}` : '-'
       },
     },
-    {
-      title: '员工',
-      render: (_: unknown, record: any) => record.employee?.user?.realName || '-',
-    },
-    {
-      title: '部门',
-      render: (_: unknown, record: any) => record.employee?.user?.department?.name || '-',
-    },
+    employeeColumn(),
+    departmentColumn(),
     { title: '应发', dataIndex: 'grossPay' },
     { title: '扣款', dataIndex: 'totalDeduction' },
     { title: '实发', dataIndex: 'netPay' },
@@ -153,66 +179,75 @@ function PayslipsPage() {
         </Space>
       ),
     },
-  ], [handleRecalculate, handleWithdraw, openDetail])
+  ], [handleRecalculate, handleWithdraw, openDetail, batch])
 
   return (
-    <div className="payslips">
-      <Card bordered={false} className="payslips__card">
-        <Space direction="vertical" size={4}>
-          <Title heading={5} className="payslips__title">工资条管理</Title>
-          <Text type="secondary">HR/财务查看薪资批次下的工资条状态和金额汇总，员工端仍需二级密码查看明细。</Text>
-        </Space>
+    <div className={styles.payslips}>
+      <Card bordered={false} className={styles.payslips__card}>
+        <PageHeader
+          title="工资条管理"
+          description="HR/财务查看薪资批次下的工资条状态和金额汇总，员工端仍需二级密码查看明细。"
+        />
       </Card>
 
-      <Card bordered={false} className="payslips__card">
-        <Form form={form} layout="inline">
-          <FormItem label="薪资批次" field="payrollRunId">
-            <Select className="payslips__select" placeholder="全部批次" allowClear>
-              {runs.map((run) => (
-                <Option key={run.id} value={run.id}>
-                  #{run.id} {run.payrollPeriod ? `${run.payrollPeriod.year}-${String(run.payrollPeriod.month).padStart(2, '0')}` : ''}
-                </Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="员工" field="employeeId">
-            <Select className="payslips__select" placeholder="全部员工" allowClear showSearch>
-              {employees.map((employee) => (
-                <Option key={employee.id} value={employee.id}>
-                  {employee.realName}（{employee.employeeNo}）
-                </Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space>
-              <Button type="primary" onClick={handleSearch}>查询</Button>
-              <Button onClick={handleReset}>重置</Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles.payslips__card}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="薪资批次" field="payrollRunId">
+                <Select className={styles.payslips__select} placeholder="全部批次" allowClear>
+                  {runs.map((run) => (
+                    <Option key={run.id} value={run.id}>
+                      #{run.id} {run.payrollPeriod ? `${run.payrollPeriod.year}-${String(run.payrollPeriod.month).padStart(2, '0')}` : ''}
+                    </Option>
+                  ))}
+                </Select>
+              </FormItem>
+              <FormItem label="员工" field="employeeId">
+                <EmployeeSelect />
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
+        <BatchActions
+          selectedCount={batch.selectedCount}
+          onClear={batch.clearSelection}
+          actions={
+            <>
+              <Button type="primary" onClick={handleBatchPublish}>
+                批量发布
+              </Button>
+              <Button status="warning" onClick={handleBatchWithdraw}>
+                批量撤回
+              </Button>
+            </>
+          }
+        />
         <Table
           rowKey="id"
           loading={loading}
           data={data}
           columns={columns}
+          rowSelection={batch.getRowSelection(data)}
           pagination={{ pageSize: 10 }}
           scroll={{ x: 1100 }}
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="工资条摘要"
         visible={visible}
         footer={null}
         onCancel={() => setVisible(false)}
-        className="payslips__modal"
+        className={styles.payslips__modal}
       >
         {detail && (
-          <Space direction="vertical" className="payslips__space">
+          <Space direction="vertical" className={styles.payslips__space}>
             <Descriptions
               column={2}
               data={[

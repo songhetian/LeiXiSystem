@@ -8,7 +8,7 @@ export interface Announcement {
   status: string
   priority: string
   targetType: string
-  targetConfig?: any
+  targetConfig?: Record<string, unknown>
   totalReceivers: number
   readCount: number
   createdById: number
@@ -46,13 +46,21 @@ export function createAnnouncement(data: {
   type?: string
   priority?: string
   targetType: string
-  targetConfig?: any
+  targetConfig?: Record<string, unknown>
   expiresAt?: string
 }) {
   return post('/announcements', data)
 }
 
-export function updateAnnouncement(id: number, data: any) {
+export function updateAnnouncement(id: number, data: {
+  title?: string
+  content?: string
+  type?: string
+  priority?: string
+  targetType?: string
+  targetConfig?: Record<string, unknown>
+  expiresAt?: string
+}) {
   return put(`/announcements/${id}`, data)
 }
 

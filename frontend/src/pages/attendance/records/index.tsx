@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
   Input,
   Select,
-  Space,
   DatePicker,
   Form,
   Tag,
@@ -14,16 +13,14 @@ import {
   Spin,
 } from '@arco-design/web-react'
 import {
-  IconSearch,
-  IconRefresh,
   IconExport,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import dayjs, { Dayjs } from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import { getAttendanceRecords, getAttendanceStats } from '@/api/attendance'
 import type { AttendanceRecord } from '@/api/attendance'
-import './records.css'
-
+import { FilterBar, TableHeader } from '@/components'
+import styles from './records.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -155,7 +152,7 @@ function Records() {
       dataIndex: 'workHours',
       width: 90,
       render: (value: number | null | undefined) => (
-        <span className="attendance-records__work-hours">{value ?? 0}</span>
+        <span className={styles['attendance-records__work-hours']}>{value ?? 0}</span>
       ),
     },
     {
@@ -177,75 +174,68 @@ function Records() {
   ]
 
   return (
-    <div className="attendance-records">
-      <Row gutter={16} className="attendance-records__stats-row">
+    <div className={styles['attendance-records']}>
+      <Row gutter={16} className={styles['attendance-records__stats-row']}>
         {statsData.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
               <Spin loading={statsLoading}>
-                <Statistic title={item.title} value={item.value} className="attendance-records__statistic-value" style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
+                <Statistic title={item.title} value={item.value} className={styles['attendance-records__statistic-value']} style={{ "--statistic-value-color": item.color } as React.CSSProperties} />
               </Spin>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} className="attendance-records__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="attendance-records__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="attendance-records__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="normal">正常</Option>
-              <Option value="late">迟到</Option>
-              <Option value="early">早退</Option>
-              <Option value="absent">旷工</Option>
-              <Option value="leave">请假</Option>
-            </Select>
-          </FormItem>
-          <FormItem label="日期">
-            <RangePicker
-              className="attendance-records__date-picker"
-              value={dateRange}
-              onChange={(_, date) => setDateRange(date)}
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['attendance-records__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['attendance-records__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['attendance-records__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="normal">正常</Option>
+                  <Option value="late">迟到</Option>
+                  <Option value="early">早退</Option>
+                  <Option value="absent">旷工</Option>
+                  <Option value="leave">请假</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="日期">
+                <RangePicker
+                  className={styles['attendance-records__date-picker']}
+                  value={dateRange}
+                  onChange={(_, date) => setDateRange(date)}
+                />
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
-      <Card bordered={false} className="attendance-records__table-card">
-        <div className="attendance-records__table-header">
-          <div>
-            <span className="attendance-records__table-title">打卡记录</span>
-            <Tag color="blue" className="attendance-records__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button icon={<IconExport />}>导出</Button>
-        </div>
+      <Card bordered={false} className={styles['attendance-records__table-card']}>
+        <TableHeader
+          title="打卡记录"
+          total={pagination.total}
+          totalText="条"
+          extra={<Button icon={<IconExport />}>导出</Button>}
+        />
 
         <Table
           loading={loading}

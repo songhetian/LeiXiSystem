@@ -84,7 +84,19 @@ export function createExceptionRule(data: {
 }
 
 // 更新异常规则
-export function updateExceptionRule(id: number, data: any) {
+export function updateExceptionRule(id: number, data: {
+  name?: string
+  type?: string
+  description?: string
+  departmentId?: number
+  threshold?: number
+  thresholdMax?: number
+  autoResolve?: boolean
+  autoResolveType?: string
+  deductMinutes?: number
+  status?: string
+  sortOrder?: number
+}) {
   return put<{
     code: 0
     data: AttendanceExceptionRule

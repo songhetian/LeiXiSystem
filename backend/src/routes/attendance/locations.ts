@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
-import { idParamsSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { idParamsSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 
 const locationTypeSchema = z.enum(['gps', 'wifi', 'both'])
 
@@ -30,9 +30,7 @@ const createSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
 })
 
-const updateSchema = createSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const updateSchema = partialUpdateSchema(createSchema)
 
 export const LOCATION_TYPE_LABELS: Record<string, string> = {
   gps: 'GPS定位',
@@ -115,14 +113,15 @@ export default async function locationRoutes(fastify: FastifyInstance) {
   // 更新打卡位置
   fastify.put('/locations/:id', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(updateSchema, request.body)
+    const data = validateData(updateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const location = await prisma.attendanceLocation.findUnique({ where: { id } })
     if (!location) return { code: 404, message: '打卡位置不存在' }
 
     const updated = await prisma.attendanceLocation.update({
       where: { id },
-      data: body,
+      data: data,
     })
 
     return { code: 0, message: '更新成功', data: updated }

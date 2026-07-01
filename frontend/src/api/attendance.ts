@@ -232,6 +232,14 @@ export function deleteOvertime(id: number) {
   return del(`/attendance/overtime/${id}`)
 }
 
+export function batchApproveOvertime(ids: number[], opinion?: string) {
+  return post('/attendance/overtime/batch-approve', { ids, opinion })
+}
+
+export function batchRejectOvertime(ids: number[], opinion?: string) {
+  return post('/attendance/overtime/batch-reject', { ids, opinion })
+}
+
 export interface LeaveRequest {
   id: number
   userId: number
@@ -315,10 +323,156 @@ export function approveLeave(id: number, data?: { opinion?: string }) {
   return post(`/attendance/leave/${id}/approve`, data)
 }
 
-export function rejectLeave(id: number, data?: { opinion?: string }) {
+export function rejectLeave(id: number, _data?: { opinion?: string }) {
   return post(`/attendance/leave/${id}/reject`)
 }
 
 export function deleteLeave(id: number) {
   return del(`/attendance/leave/${id}`)
+}
+
+export function batchApproveLeave(ids: number[], opinion?: string) {
+  return post('/attendance/leave/batch-approve', { ids, opinion })
+}
+
+export function batchRejectLeave(ids: number[], opinion?: string) {
+  return post('/attendance/leave/batch-reject', { ids, opinion })
+}
+
+export interface DeductionRule {
+  id: number
+  name: string
+  type: string
+  minMinutes: number
+  maxMinutes?: number | null
+  deductionType: string
+  deductionValue: number
+  salaryMultiplier?: number | null
+  affectAttendance: boolean
+  leaveType?: string | null
+  description?: string | null
+  sortOrder: number
+  status: string
+  departmentId?: number | null
+  createdBy?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DeductionRuleListResponse {
+  code: 0
+  data: {
+    list: DeductionRule[]
+    total: number
+    page: number
+    pageSize: number
+  }
+}
+
+export interface DeductionRuleResponse {
+  code: 0
+  data: DeductionRule
+}
+
+export interface DeductionCalculateResult {
+  type: string
+  minutes: number
+  dailySalary: number
+  deductionAmount: number
+  ruleName: string
+  details: string
+}
+
+export function getDeductionRules(params?: {
+  page?: number
+  pageSize?: number
+  type?: string
+  status?: string
+}) {
+  return get<DeductionRuleListResponse>('/attendance/deduction-rules', { params })
+}
+
+export function getDeductionRule(id: number) {
+  return get<DeductionRuleResponse>(`/attendance/deduction-rules/${id}`)
+}
+
+export function createDeductionRule(data: Partial<DeductionRule>) {
+  return post<DeductionRuleResponse>('/attendance/deduction-rules', data)
+}
+
+export function updateDeductionRule(id: number, data: Partial<DeductionRule>) {
+  return put<DeductionRuleResponse>(`/attendance/deduction-rules/${id}`, data)
+}
+
+export function deleteDeductionRule(id: number) {
+  return del(`/attendance/deduction-rules/${id}`)
+}
+
+export function calculateDeduction(data: {
+  type: string
+  minutes: number
+  dailySalary: number
+}) {
+  return post<{ code: 0; data: DeductionCalculateResult }>('/attendance/deduction-rules/calculate', data)
+}
+
+// ===== 考勤月度结算 =====
+export interface MonthlyAttendance {
+  id: number
+  employeeId: number
+  year: number
+  month: number
+  employee?: {
+    employeeNo: string
+    user: {
+      realName: string
+      department?: { name: string }
+    }
+  }
+  normalDays: number
+  lateDays: number
+  earlyDays: number
+  absentDays: number
+  leaveDays: number
+  overtimeHours: number
+  workHours: number
+  status: string
+  lockedAt?: string
+  lockedBy?: number
+}
+
+export function getMonthlyAttendance(params?: {
+  page?: number
+  pageSize?: number
+  year?: number
+  month?: number
+  employeeId?: number
+  departmentId?: number
+  status?: string
+}) {
+  return get<{ code: 0; data: { list: MonthlyAttendance[]; total: number; page: number; pageSize: number } }>('/attendance/monthly', { params })
+}
+
+export function batchCalculateMonthly(params: {
+  year: number
+  month: number
+  employeeIds?: number[]
+}) {
+  return post('/attendance/monthly/batch-calculate', params)
+}
+
+export function batchLockMonthly(params: {
+  year: number
+  month: number
+  employeeIds?: number[]
+}) {
+  return post('/attendance/monthly/batch-lock', params)
+}
+
+export function batchUnlockMonthly(params: {
+  year: number
+  month: number
+  employeeIds?: number[]
+}) {
+  return post('/attendance/monthly/batch-unlock', params)
 }

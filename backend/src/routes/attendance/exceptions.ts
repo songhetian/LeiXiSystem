@@ -7,7 +7,7 @@ import { buildAttendanceDataScopeWhere } from '../../services/dataScope'
 import { calculateDailyAttendance } from '../../services/attendanceCalculation'
 import { normalizePagination } from '../../utils/pagination'
 import { dateRangeBaseQuerySchema, attendanceExceptionResolutionStatusSchema } from '../../utils/schemas'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, statusSchema, validateData, safePick, safeExtend } from '../../utils/validation'
 
 const exceptionResolveSchema = z.object({
   status: attendanceExceptionResolutionStatusSchema,
@@ -34,14 +34,7 @@ export default async function exceptionsRoutes(fastify: FastifyInstance) {
   fastify.get('/exceptions', { preHandler: [requirePermission('attendance:view')] }, async (request: FastifyRequest<{
     Querystring: { employeeId?: number; status?: string; startDate?: string; endDate?: string; type?: string; page?: number; pageSize?: number }
   }>) => {
-    const query = validateData(dateRangeBaseQuerySchema.pick({
-      employeeId: true,
-      status: true,
-      startDate: true,
-      endDate: true,
-      page: true,
-      pageSize: true,
-    }).extend({
+    const query = validateData(safeExtend(safePick(dateRangeBaseQuerySchema, ['employeeId', 'status', 'startDate', 'endDate', 'page', 'pageSize']), {
       type: z.string().optional(),
     }), request.query)
     const { page, pageSize, skip, take } = normalizePagination(query)
@@ -171,12 +164,7 @@ export default async function exceptionsRoutes(fastify: FastifyInstance) {
   fastify.get('/exceptions/export/csv', { preHandler: [requirePermission('attendance:view')] }, async (request: FastifyRequest<{
     Querystring: { employeeId?: number; status?: string; startDate?: string; endDate?: string; type?: string }
   }>, reply) => {
-    const query = validateData(dateRangeBaseQuerySchema.pick({
-      employeeId: true,
-      status: true,
-      startDate: true,
-      endDate: true,
-    }).extend({
+    const query = validateData(safeExtend(safePick(dateRangeBaseQuerySchema, ['employeeId', 'status', 'startDate', 'endDate']), {
       type: z.string().optional(),
     }), request.query)
 

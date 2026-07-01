@@ -6,7 +6,7 @@ import { requireAnyPermission, requirePermission } from '../middleware/permissio
 import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { getAccessibleAsset } from '../services/objectAuthorization'
 import { normalizePagination } from '../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 
 const categorySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -39,9 +39,7 @@ const assetBodySchema = z.object({
   remark: z.string().trim().max(1000).optional().nullable(),
 })
 
-const assetUpdateSchema = assetBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const assetUpdateSchema = partialUpdateSchema(assetBodySchema)
 
 const assignAssetSchema = z.object({
   employeeId: positiveIntSchema,
@@ -167,7 +165,8 @@ export default async function assetRoutes(fastify: FastifyInstance) {
 
   fastify.put('/items/:id', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(assetUpdateSchema, request.body)
+    const data = validateData(assetUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const asset = await getAccessibleAsset(
       request.user,
@@ -182,8 +181,8 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const updatedAsset = await prisma.assetItem.update({
       where: { id },
       data: {
-        ...body,
-        purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
+        ...data,
+        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
       },
     })
     return { code: 0, message: '更新成功', data: updatedAsset }
@@ -640,5 +639,116 @@ export default async function assetRoutes(fastify: FastifyInstance) {
         rows,
       },
     }
+  })
+
+  // ══════════════════════════════════════════════
+  // G5: 资产配件管理
+  // ══════════════════════════════════════════════
+
+  // GET /api/asset/items/:id/components
+  fastify.get('/items/:id/components', async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const assetId = parseInt(request.params.id)
+    const components = await prisma.assetComponent.findMany({
+      where: { assetId },
+      orderBy: { createdAt: 'desc' },
+    })
+    return { code: 0, data: components }
+  })
+
+  // POST /api/asset/items/:id/components
+  fastify.post('/items/:id/components', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const assetId = parseInt(request.params.id)
+    const body = request.body as any
+    const userId = (request as any).user.id
+
+    const component = await prisma.assetComponent.create({
+      data: {
+        assetId,
+        componentName: body.componentName,
+        componentType: body.componentType,
+        specification: body.specification,
+        serialNo: body.serialNo,
+      },
+    })
+
+    // 记录操作日志
+    await prisma.assetOperation.create({
+      data: {
+        assetId,
+        operationType: 'add_component',
+        operationDetail: { action: 'add', component: body.componentName, spec: body.specification },
+        operatedBy: userId,
+      },
+    })
+
+    return { code: 0, data: component }
+  })
+
+  // PUT /api/asset/items/components/:compId
+  fastify.put('/items/components/:compId', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: { compId: string } }>) => {
+    const compId = parseInt(request.params.compId)
+    const body = request.body as any
+    const userId = (request as any).user.id
+
+    const existing = await prisma.assetComponent.findUnique({ where: { id: compId } })
+    if (!existing) return { code: 404, message: '配件不存在' }
+
+    const updateData: any = {}
+    if (body.specification !== undefined) updateData.specification = body.specification
+    if (body.status !== undefined) updateData.status = body.status
+    if (body.status === 'removed') updateData.removedAt = new Date()
+
+    const component = await prisma.assetComponent.update({
+      where: { id: compId },
+      data: updateData,
+    })
+
+    // 记录操作日志
+    await prisma.assetOperation.create({
+      data: {
+        assetId: existing.assetId,
+        operationType: body.status === 'removed' ? 'remove_component' : 'upgrade_component',
+        operationDetail: {
+          action: body.status === 'removed' ? 'remove' : 'upgrade',
+          component: existing.componentName,
+          from: existing.specification,
+          to: body.specification || 'removed',
+        },
+        operatedBy: userId,
+        note: body.note,
+      },
+    })
+
+    return { code: 0, data: component }
+  })
+
+  // DELETE /api/asset/items/components/:compId
+  fastify.delete('/items/components/:compId', { preHandler: [requirePermission('asset:manage')] }, async (request: FastifyRequest<{ Params: { compId: string } }>) => {
+    const compId = parseInt(request.params.compId)
+    const userId = (request as any).user.id
+    const component = await prisma.assetComponent.findUnique({ where: { id: compId } })
+    if (!component) return { code: 404, message: '配件不存在' }
+
+    await prisma.assetOperation.create({
+      data: {
+        assetId: component.assetId,
+        operationType: 'remove_component',
+        operationDetail: { action: 'remove', component: component.componentName, spec: component.specification },
+        operatedBy: userId,
+      },
+    })
+
+    await prisma.assetComponent.delete({ where: { id: compId } })
+    return { code: 0, message: '配件已移除' }
+  })
+
+  // GET /api/asset/items/:id/operations
+  fastify.get('/items/:id/operations', async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const assetId = parseInt(request.params.id)
+    const operations = await prisma.assetOperation.findMany({
+      where: { assetId },
+      orderBy: { operatedAt: 'desc' },
+    })
+    return { code: 0, data: operations }
   })
 }

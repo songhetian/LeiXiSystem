@@ -1,7 +1,6 @@
 import { ReactNode } from 'react'
 import { Spin, Typography } from '@arco-design/web-react'
-import './index.css'
-
+import styles from './index.module.css'
 const { Text } = Typography
 
 export interface LoadingOverlayProps {
@@ -22,10 +21,10 @@ export function LoadingOverlay({
   }
 
   const content = (
-    <div className={`loading-overlay${fullscreen ? ' loading-overlay--fullscreen' : ''}`}>
+    <div className={`${styles['loading-overlay']}${fullscreen ? ` ${styles['loading-overlay--fullscreen']}` : ''}`}>
       <Spin size={32} />
       {tip && (
-        <Text type="secondary" className="loading-overlay__tip">
+        <Text type="secondary" className={styles['loading-overlay__tip']}>
           {tip}
         </Text>
       )}
@@ -34,7 +33,7 @@ export function LoadingOverlay({
 
   if (fullscreen) {
     return (
-      <div className="loading-fullscreen">
+      <div className={styles['loading-fullscreen']}>
         {content}
       </div>
     )
@@ -49,7 +48,7 @@ export interface PageLoadingProps {
 
 export function PageLoading({ tip = '页面加载中...' }: PageLoadingProps) {
   return (
-    <div className="page-loading">
+    <div className={styles['page-loading']}>
       <Spin size={40} />
       <Text type="secondary">{tip}</Text>
     </div>
@@ -64,7 +63,7 @@ export interface SkeletonProps {
 
 export function Skeleton({ rows = 3, height = 40, active = true }: SkeletonProps) {
   return (
-    <div className="skeleton">
+    <div className={styles.skeleton}>
       {Array.from({ length: rows }).map((_, index) => (
         <div
           key={index}

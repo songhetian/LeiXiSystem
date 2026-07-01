@@ -4,7 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, validateData } from '../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 import { invalidateUserPermissionsCache, invalidateRoleUsersCache } from '../utils/permissionCache'
 
 const roleListQuerySchema = z.object({
@@ -21,9 +21,7 @@ const roleBodySchema = z.object({
   permissions: z.array(z.coerce.number().int().positive()).max(1000).optional().default([]),
 })
 
-const roleUpdateSchema = roleBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const roleUpdateSchema = partialUpdateSchema(roleBodySchema)
 
 const userRoleParamsSchema = z.object({
   userId: z.coerce.number().int().positive(),
@@ -111,23 +109,24 @@ export default async function rbacRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id: roleId } = validateData(idParamsSchema, request.params)
-    const body = validateData(roleUpdateSchema, request.body)
+    const data = validateData(roleUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     await prisma.role.update({
       where: { id: roleId },
       data: {
-        name: body.name,
-        description: body.description,
-        level: body.level,
-        canViewAllDepts: body.canViewAllDepts,
+        name: data.name,
+        description: data.description,
+        level: data.level,
+        canViewAllDepts: data.canViewAllDepts,
       },
     })
 
-    if (body.permissions) {
+    if (data.permissions) {
       await prisma.rolePermission.deleteMany({ where: { roleId } })
-      if (body.permissions.length) {
+      if (data.permissions.length) {
         await prisma.rolePermission.createMany({
-          data: body.permissions.map((permissionId: number) => ({
+          data: data.permissions.map((permissionId: number) => ({
             roleId,
             permissionId,
           })),

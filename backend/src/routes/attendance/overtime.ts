@@ -7,13 +7,13 @@ import { buildAttendanceDataScopeWhere } from '../../services/dataScope'
 import { normalizePagination } from '../../utils/pagination'
 import { dateRangeBaseQuerySchema } from '../../utils/schemas'
 import { overtimeStatusSchema } from '../../utils/schemas/status'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeExtend, safeOmit, positiveIntSchema } from '../../utils/validation'
 
 const dateRangeQuerySchema = dateRangeBaseQuerySchema.refine((value) => (!value.startDate && !value.endDate) || (value.startDate && value.endDate), {
   message: '开始日期和结束日期必须同时提供',
 })
 
-const overtimeListQuerySchema = dateRangeQuerySchema.extend({
+const overtimeListQuerySchema = safeExtend(dateRangeQuerySchema, {
   page: z.unknown().optional(),
   pageSize: z.unknown().optional(),
   keyword: optionalKeywordSchema,
@@ -30,11 +30,14 @@ const overtimeCreateSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 })
 
-const overtimeUpdateSchema = overtimeCreateSchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const overtimeUpdateSchema = partialUpdateSchema(overtimeCreateSchema)
 
 const overtimeApproveSchema = z.object({
+  opinion: z.string().trim().max(500).optional().nullable(),
+})
+
+const overtimeBatchApproveSchema = z.object({
+  ids: z.array(positiveIntSchema).min(1, '至少选择一个加班申请'),
   opinion: z.string().trim().max(500).optional().nullable(),
 })
 
@@ -151,7 +154,7 @@ export default async function overtimeRoutes(fastify: FastifyInstance) {
       endDate?: string
     }
   }>) => {
-    const query = validateData(overtimeListQuerySchema.omit({ keyword: true, departmentId: true }), request.query)
+    const query = validateData(safeOmit(overtimeListQuerySchema, ['keyword', 'departmentId']), request.query)
     const { page, pageSize, skip, take } = normalizePagination(query)
     const { status, startDate, endDate } = query
 
@@ -276,7 +279,8 @@ export default async function overtimeRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(overtimeUpdateSchema, request.body)
+    const data = validateData(overtimeUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const existing = await prisma.overtimeRequest.findUnique({
       where: { id },
@@ -298,13 +302,13 @@ export default async function overtimeRoutes(fastify: FastifyInstance) {
     setAudit(request, {
       action: 'overtime_update',
       module: 'attendance',
-      requestData: body,
+      requestData: data,
       beforeData: existing,
     })
 
-    const updateData: any = { ...body }
-    if (body.date) {
-      updateData.date = new Date(body.date)
+    const updateData: any = { ...data }
+    if (data.date) {
+      updateData.date = new Date(data.date)
     }
 
     await prisma.overtimeRequest.update({
@@ -440,6 +444,100 @@ export default async function overtimeRoutes(fastify: FastifyInstance) {
     }).catch(() => {})
 
     return { code: 0, message: '已驳回' }
+  })
+
+  fastify.post('/overtime/batch-approve', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const body = validateData(overtimeBatchApproveSchema, request.body)
+    const opinionValue: string | null = body.opinion ?? null
+
+    const records = await prisma.overtimeRequest.findMany({
+      where: { id: { in: body.ids }, status: 'pending' },
+    })
+
+    let successCount = 0
+    const { createApprovalRecord } = await import('../../services/approvalRecord')
+
+    for (const record of records) {
+      try {
+        setAudit(request, {
+          action: 'overtime.batch_approve',
+          module: 'attendance',
+          beforeData: record,
+          requestData: { id: record.id, opinion: opinionValue },
+        })
+
+        await prisma.overtimeRequest.update({
+          where: { id: record.id },
+          data: { status: 'approved' },
+        })
+
+        createApprovalRecord({
+          requestType: 'overtime',
+          requestId: record.id,
+          nodeOrder: 1,
+          nodeName: '审批',
+          approverId: request.user.id,
+          approverName: request.user.realName,
+          action: 'approve',
+          opinion: opinionValue,
+        }).catch(() => {})
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    return { code: 0, message: `成功批准 ${successCount} 个加班申请`, data: { successCount, total: body.ids.length } }
+  })
+
+  fastify.post('/overtime/batch-reject', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{
+    Body: unknown
+  }>) => {
+    const body = validateData(overtimeBatchApproveSchema, request.body)
+    const opinionValue: string | null = body.opinion ?? null
+
+    const records = await prisma.overtimeRequest.findMany({
+      where: { id: { in: body.ids }, status: 'pending' },
+    })
+
+    let successCount = 0
+    const { createApprovalRecord } = await import('../../services/approvalRecord')
+
+    for (const record of records) {
+      try {
+        setAudit(request, {
+          action: 'overtime.batch_reject',
+          module: 'attendance',
+          beforeData: record,
+          requestData: { id: record.id, opinion: opinionValue },
+        })
+
+        await prisma.overtimeRequest.update({
+          where: { id: record.id },
+          data: { status: 'rejected' },
+        })
+
+        createApprovalRecord({
+          requestType: 'overtime',
+          requestId: record.id,
+          nodeOrder: 1,
+          nodeName: '审批',
+          approverId: request.user.id,
+          approverName: request.user.realName,
+          action: 'reject',
+          opinion: opinionValue,
+        }).catch(() => {})
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    return { code: 0, message: `成功驳回 ${successCount} 个加班申请`, data: { successCount, total: body.ids.length } }
   })
 
   fastify.delete('/overtime/:id', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{

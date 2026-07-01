@@ -7,6 +7,7 @@ import correctionsRoutes from './corrections'
 import monthlyRoutes from './monthly'
 import exceptionsRoutes from './exceptions'
 import exceptionRulesRoutes from './exception-rules'
+import deductionRulesRoutes from './deduction-rules'
 import locationRoutes from './locations'
 import overtimeRoutes from './overtime'
 import overtimeTypesRoutes from './overtime-types'
@@ -21,6 +22,7 @@ export default async function attendanceRoutes(fastify: FastifyInstance) {
   await fastify.register(monthlyRoutes)
   await fastify.register(exceptionsRoutes)
   await fastify.register(exceptionRulesRoutes)
+  await fastify.register(deductionRulesRoutes)
   await fastify.register(locationRoutes)
   await fastify.register(overtimeRoutes)
   await fastify.register(overtimeTypesRoutes)

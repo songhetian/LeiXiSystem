@@ -17,7 +17,7 @@ import {
   IconCheck,
   IconClose,
 } from '@arco-design/web-react/icon'
-import dayjs, { Dayjs } from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import type { TableProps } from '@arco-design/web-react'
 import {
   getConfirmations,
@@ -27,8 +27,7 @@ import {
   type ScheduleConfirmationItem,
   type ScheduleAppealItem,
 } from '@/api/schedule'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -125,8 +124,8 @@ function PublishPage() {
       width: 100,
       render: (_: any, record: ScheduleConfirmationItem) => (
         <div>
-          <div className="schedule-publish__cell-name">{record.user?.realName}</div>
-          <div className="schedule-publish__cell-dept">{record.user?.department?.name}</div>
+          <div className={styles['schedule-publish__cell-name']}>{record.user?.realName}</div>
+          <div className={styles['schedule-publish__cell-dept']}>{record.user?.department?.name}</div>
         </div>
       ),
     },
@@ -178,8 +177,8 @@ function PublishPage() {
       width: 100,
       render: (_: any, record: ScheduleAppealItem) => (
         <div>
-          <div className="schedule-publish__cell-name">{record.user?.realName}</div>
-          <div className="schedule-publish__cell-dept">{record.user?.department?.name}</div>
+          <div className={styles['schedule-publish__cell-name']}>{record.user?.realName}</div>
+          <div className={styles['schedule-publish__cell-dept']}>{record.user?.department?.name}</div>
         </div>
       ),
     },
@@ -232,17 +231,17 @@ function PublishPage() {
           </Button>
         </Space>
       ) : (
-        <span className="schedule-publish__text-secondary">{record.handler?.realName} {record.handledAt?.split('T')[0]}</span>
+        <span className={styles['schedule-publish__text-secondary']}>{record.handler?.realName} {record.handledAt?.split('T')[0]}</span>
       ),
     },
   ]
 
   return (
-    <div className="schedule-publish">
+    <div className={styles['schedule-publish']}>
       <Card bordered={false} title="排班发布与确认">
         <Tabs defaultActiveTab="confirmations">
           <TabPane title="确认管理" key="confirmations">
-            <Row gutter={16} className="schedule-publish__row-margin">
+            <Row gutter={16} className={styles['schedule-publish__row-margin']}>
               <Col span={6}>
                 <Statistic title="待确认" value={stats.pending || 0} />
               </Col>
@@ -257,9 +256,9 @@ function PublishPage() {
               </Col>
             </Row>
 
-            <Space className="schedule-publish__space-margin" wrap>
-              <Input.Search placeholder="搜索员工" className="schedule-publish__search" onSearch={setSearchKeyword} allowClear />
-              <Select placeholder="状态" className="schedule-publish__select-status" allowClear onChange={setSearchStatus}>
+            <Space className={styles['schedule-publish__space-margin']} wrap>
+              <Input.Search placeholder="搜索员工" className={styles['schedule-publish__search']} onSearch={setSearchKeyword} allowClear />
+              <Select placeholder="状态" className={styles['schedule-publish__select-status']} allowClear onChange={setSearchStatus}>
                 <Option value="pending">待确认</Option>
                 <Option value="confirmed">已确认</Option>
                 <Option value="appealed">申诉中</Option>

@@ -27,6 +27,7 @@ import scheduleRecommendRoutes from './routes/schedule/recommend'
 import scheduleTemplateRoutes from './routes/schedule/templates'
 import schedulePublishRoutes from './routes/schedule/publish'
 import reportRoutes from './routes/reports'
+import reportTemplateRoutes from './routes/report-templates'
 import rbacRoutes from './routes/rbac'
 import notificationRoutes from './routes/notification'
 import dashboardRoutes from './routes/dashboard'
@@ -35,6 +36,7 @@ import payrollRoutes from './routes/payroll'
 import securityRoutes from './routes/security'
 import ssoRoutes from './routes/sso'
 import dataRoutes from './routes/data'
+import configRoutes from './routes/config'
 import lifecycleRoutes from './routes/lifecycle'
 import employeeRoutes from './routes/employee'
 import assetRoutes from './routes/asset'
@@ -45,10 +47,21 @@ import trainingRoutes from './routes/training'
 import expenseStandardRoutes from './routes/financial/expense-standards'
 import budgetRoutes from './routes/financial/budgets'
 import healthRoutes from './routes/health'
+import holidayRoutes from './routes/holidays'
+import kbRoutes from './routes/kb'
+import overtimePayrollRoutes from './routes/overtime-payroll'
+import okrRoutes from './routes/okr'
+import operationsDashboardRoutes from './routes/operations-dashboard'
+import employeePortalRoutes from './routes/employee-portal'
+import scheduleAdvancedRoutes from './routes/schedule-advanced'
 import exportRoutes from './routes/export'
 import websocketRoutes from './routes/websocket'
 import announcementRoutes from './routes/announcement'
 import employeeTagRoutes from './routes/employee-tags'
+import messageRoutes from './routes/message'
+import messageTemplateRoutes from './routes/messageTemplate'
+import messageStatsRoutes from './routes/messageStats'
+import messagePreferenceRoutes from './routes/messagePreference'
 import prisma from './prisma'
 import auditPlugin from './plugins/audit'
 import notificationPlugin from './plugins/notification'
@@ -264,6 +277,7 @@ async function start() {
     app.register(expenseStandardRoutes, { prefix: '/api/expense-standards' })
     app.register(budgetRoutes, { prefix: '/api/budgets' })
     app.register(reportRoutes, { prefix: '/api/reports' })
+    app.register(reportTemplateRoutes, { prefix: '/api' })
     app.register(rbacRoutes, { prefix: '/api/rbac' })
     app.register(notificationRoutes, { prefix: '/api/notifications' })
     app.register(dashboardRoutes, { prefix: '/api/dashboard' })
@@ -272,6 +286,7 @@ async function start() {
     app.register(securityRoutes, { prefix: '/api/security' })
     app.register(ssoRoutes, { prefix: '/api/sso' })
     app.register(dataRoutes, { prefix: '/api/data' })
+    app.register(configRoutes, { prefix: '/api' })
     app.register(lifecycleRoutes, { prefix: '/api/lifecycle' })
     app.register(employeeRoutes, { prefix: '/api/employee' })
     app.register(assetRoutes, { prefix: '/api/asset' })
@@ -280,10 +295,21 @@ async function start() {
     app.register(performanceRoutes, { prefix: '/api/performance' })
     app.register(trainingRoutes, { prefix: '/api/training' })
     app.register(healthRoutes, { prefix: '/api' })
+    app.register(holidayRoutes, { prefix: '/api/holidays' })
+    app.register(kbRoutes, { prefix: '/api/kb' })
+    app.register(overtimePayrollRoutes, { prefix: '/api/overtime-payroll' })
+    app.register(okrRoutes, { prefix: '/api/okr' })
+    app.register(operationsDashboardRoutes, { prefix: '/api/dashboard' })
+    app.register(employeePortalRoutes, { prefix: '/api/employee' })
+    app.register(scheduleAdvancedRoutes, { prefix: '/api/schedule' })
     app.register(exportRoutes, { prefix: '/api/export' })
     app.register(websocketRoutes, { prefix: '/api' })
     app.register(announcementRoutes, { prefix: '/api' })
     app.register(employeeTagRoutes, { prefix: '/api' })
+    app.register(messageRoutes, { prefix: '/api/messages' })
+    app.register(messageTemplateRoutes, { prefix: '/api/message-templates' })
+    app.register(messageStatsRoutes, { prefix: '/api/message-stats' })
+    app.register(messagePreferenceRoutes, { prefix: '/api/message-preferences' })
 
     await app.listen({ port: config.port, host: '0.0.0.0' })
     console.log(`🚀 Server running on http://localhost:${config.port}`)
@@ -294,6 +320,15 @@ async function start() {
         await warmupAll()
       } catch (err) {
         console.error('[CacheWarmup] 预热失败:', err instanceof Error ? err.message : String(err))
+      }
+    })
+
+    setImmediate(async () => {
+      try {
+        const { startMessageScheduler } = await import('./services/messageScheduler')
+        startMessageScheduler()
+      } catch (err) {
+        console.error('[MessageScheduler] 启动失败:', err instanceof Error ? err.message : String(err))
       }
     })
   } catch (err) {

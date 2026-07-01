@@ -1,0 +1,65 @@
+.enhanced-table-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.enhanced-table__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.enhanced-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* 斑马纹 */
+.enhanced-table--stripe .table-tr:nth-child(even) {
+  background: var(--color-fill-1);
+}
+
+.enhanced-table--stripe .table-tr:nth-child(even):hover {
+  background: var(--color-fill-2);
+}
+
+/* 表头固定 */
+.enhanced-table--sticky .arco-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-bg-popup);
+}
+
+/* 行悬停效果 */
+.enhanced-table .table-tr:hover {
+  background: var(--color-fill-1);
+  cursor: pointer;
+}
+
+/* 选中行 */
+.enhanced-table .table-tr--selected {
+  background: var(--color-primary-1) !important;
+}
+
+/* 深色模式 - 使用 Arco Design 方案 */
+body.arco-theme-dark .enhanced-table--stripe .table-tr:nth-child(even) {
+  background: var(--color-fill-1);
+}
+
+body.arco-theme-dark .enhanced-table--sticky .arco-table-header {
+  background: var(--color-bg-popup);
+}
+
+body.arco-theme-dark .enhanced-table .table-tr:hover {
+  background: var(--color-fill-2);
+}
+
+body.arco-theme-dark .enhanced-table .table-tr--selected {
+  background: rgba(var(--primary-6), 0.1) !important;
+}

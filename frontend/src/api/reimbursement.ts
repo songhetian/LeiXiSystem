@@ -97,6 +97,14 @@ export function rejectReimbursement(id: number, data?: { opinion?: string }) {
   return post(`/reimbursement/${id}/reject`, data)
 }
 
+export function batchApproveReimbursement(ids: number[], opinion?: string) {
+  return post('/reimbursement/batch-approve', { ids, opinion })
+}
+
+export function batchRejectReimbursement(ids: number[], opinion?: string) {
+  return post('/reimbursement/batch-reject', { ids, opinion })
+}
+
 // 预算预警检查
 export function checkBudget(data: { type: string; amount: number; departmentId?: number }) {
   return post<{

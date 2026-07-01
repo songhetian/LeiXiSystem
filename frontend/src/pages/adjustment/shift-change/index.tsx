@@ -17,15 +17,13 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getShiftChangeList } from '@/api/adjustment'
 import type { ShiftChange } from '@/api/adjustment'
-import './shift-change.css'
-
+import { FilterBar, TableHeader } from '@/components'
+import styles from './shift-change.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -184,57 +182,52 @@ function ShiftChangePage() {
   }
 
   return (
-    <div className="adjustment-shift">
-      <Card bordered={false} className="adjustment-shift__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="adjustment-shift__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="adjustment-shift__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="pending">审批中</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-              <Option value="cancelled">已撤销</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['adjustment-shift']}>
+      <Card bordered={false} className={styles['adjustment-shift__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['adjustment-shift__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['adjustment-shift__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="pending">审批中</Option>
+                  <Option value="approved">已通过</Option>
+                  <Option value="rejected">已驳回</Option>
+                  <Option value="cancelled">已撤销</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
-      <Card bordered={false} className="adjustment-shift__table-card">
-        <div className="adjustment-shift__table-header">
-          <div>
-            <span className="adjustment-shift__table-title">调班申请</span>
-            <Tag color="blue" className="adjustment-shift__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            申请调班
-          </Button>
-        </div>
+      <Card bordered={false} className={styles['adjustment-shift__table-card']}>
+        <TableHeader
+          title="调班申请"
+          total={pagination.total}
+          totalText="条"
+          extra={
+            <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+              申请调班
+            </Button>
+          }
+        />
 
         <Table
           loading={loading}
@@ -251,12 +244,12 @@ function ShiftChangePage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="申请调班"
         visible={visible}
         onOk={handleOk}
         onCancel={() => setVisible(false)}
-        className="adjustment-shift__modal"
+        className={styles['adjustment-shift__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -296,7 +289,7 @@ function ShiftChangePage() {
             field="date"
             rules={[{ required: true, message: '请选择日期' }]}
           >
-            <DatePicker className="adjustment-shift__date-picker" />
+            <DatePicker className={styles['adjustment-shift__date-picker']} />
           </FormItem>
           <FormItem label="调班原因" field="reason">
             <Input.TextArea placeholder="请输入调班原因" rows={4} />

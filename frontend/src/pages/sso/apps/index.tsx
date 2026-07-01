@@ -4,26 +4,22 @@ import {
   Table,
   Button,
   Tag,
-  Space,
   Modal,
   Form,
   Message,
-  Popconfirm,
   Input,
-  Switch,
   Select,
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconEdit,
-  IconDelete,
   IconLink,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { isSafeHttpUrl, openSafeExternalUrl } from '@/utils/url'
 import { createSsoApp, deleteSsoApp, getSsoApps, updateSsoApp } from '@/api/sso'
-import './style.css'
-
+import { ActionButtons } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -41,8 +37,6 @@ interface AppInfo {
 function Apps() {
   const [data, setData] = useState<AppInfo[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
 
   const loadData = useCallback(async () => {
@@ -68,6 +62,21 @@ function Apps() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<AppInfo>({
+    form,
+    initialValues: { status: 'active' },
+    onSubmit: async (values, id) => {
+      if (id) {
+        await updateSsoApp(id, values)
+        Message.success('修改成功')
+      } else {
+        await createSsoApp(values)
+        Message.success('新增成功')
+      }
+      await loadData()
+    },
+  })
 
   const columns: TableProps<AppInfo>['columns'] = [
     {
@@ -110,57 +119,28 @@ function Apps() {
       title: '操作',
       width: 180,
       render: (_: any, record: AppInfo) => (
-        <Space size="small">
-          <Button
-            type="text"
-            size="small"
-            icon={<IconLink />}
-            onClick={() => {
-              if (!openSafeExternalUrl(record.appUrl)) {
-                Message.error('应用地址不安全或格式不正确')
-              }
-            }}
-          >
-            访问
-          </Button>
-          <Button
-            type="text"
-            size="small"
-            icon={<IconEdit />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确认删除"
-            content="确定要删除该应用吗？"
-            onOk={() => handleDelete(record.id)}
-          >
+        <ActionButtons
+          onEdit={() => openEdit(record)}
+          onDelete={() => handleDelete(record.id)}
+          deleteContent="确定要删除该应用吗？"
+          extraBefore={
             <Button
               type="text"
               size="small"
-              status="danger"
-              icon={<IconDelete />}
+              icon={<IconLink />}
+              onClick={() => {
+                if (!openSafeExternalUrl(record.appUrl)) {
+                  Message.error('应用地址不安全或格式不正确')
+                }
+              }}
             >
-              删除
+              访问
             </Button>
-          </Popconfirm>
-        </Space>
+          }
+        />
       ),
     },
   ]
-
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
-
-  const handleEdit = (record: AppInfo) => {
-    setEditingId(record.id)
-    form.setFieldsValue(record)
-    setVisible(true)
-  }
 
   const handleDelete = (id: number) => {
     deleteSsoApp(id).then(() => {
@@ -169,34 +149,17 @@ function Apps() {
     })
   }
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      if (editingId) {
-        await updateSsoApp(editingId, values)
-        Message.success('修改成功')
-      } else {
-        await createSsoApp(values)
-        Message.success('新增成功')
-      }
-      await loadData()
-      setVisible(false)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   return (
-    <div className="sso-apps">
+    <div className={styles['sso-apps']}>
       <Card bordered={false}>
-        <div className="sso-apps__header">
+        <div className={styles['sso-apps__header']}>
           <div>
-            <span className="sso-apps__title">应用管理</span>
-            <Tag color="blue" className="sso-apps__tag">
+            <span className={styles['sso-apps__title']}>应用管理</span>
+            <Tag color="blue" className={styles['sso-apps__tag']}>
               共 {data.length} 个应用
             </Tag>
           </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+          <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
             新增应用
           </Button>
         </div>
@@ -204,12 +167,12 @@ function Apps() {
         <Table columns={columns} data={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑应用' : '新增应用'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="sso-apps__modal"
+        onCancel={close}
+        className={styles['sso-apps__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem

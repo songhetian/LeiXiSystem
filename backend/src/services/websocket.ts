@@ -7,9 +7,10 @@ export type { SendNotificationInput }
 interface ConnectedClient {
   userId: number
   socket: any
+  lastHeartbeat: number
 }
 
-const connectedClients = new Map<number, Set<any>>()
+const connectedClients = new Map<number, ConnectedClient>()
 
 const nodeId =
   process.env.NODE_ID ||
@@ -17,6 +18,11 @@ const nodeId =
 
 let redisInitialized = false
 let redisAvailable = false
+
+// 离线消息队列
+const OFFLINE_QUEUE_KEY = 'ws:offline_queue'
+const MAX_OFFLINE_MESSAGES = 100
+const OFFLINE_MESSAGE_TTL = 7 * 24 * 60 * 60 // 7 天
 
 function initRedisPubSub() {
   if (redisInitialized) return
@@ -66,81 +72,198 @@ async function cleanupNode() {
 }
 
 function pushLocal(userId: number, message: any): boolean {
-  const userSockets = connectedClients.get(userId)
-  if (!userSockets || userSockets.size === 0) return false
+  const client = connectedClients.get(userId)
+  if (!client) return false
 
-  const payload = typeof message === 'string' ? message : JSON.stringify(message)
-  let successCount = 0
-  userSockets.forEach(socket => {
-    try {
-      if (socket.readyState === 1) {
-        socket.send(payload)
-        successCount++
-      }
-    } catch (err) {
-      console.error(`[WebSocket] 推送给用户 ${userId} 失败:`, err instanceof Error ? err.message : String(err))
+  try {
+    if (client.socket.readyState === 1) {
+      const payload = typeof message === 'string' ? message : JSON.stringify(message)
+      client.socket.send(payload)
+      client.lastHeartbeat = Date.now()
+      return true
     }
-  })
-
-  return successCount > 0
-}
-
-export function registerWebSocketClient(userId: number, socket: any) {
-  if (!connectedClients.has(userId)) {
-    connectedClients.set(userId, new Set())
-  }
-  const wasOnline = connectedClients.get(userId)!.size > 0
-  connectedClients.get(userId)!.add(socket)
-
-  initRedisPubSub()
-
-  if (redisAvailable && !wasOnline) {
-    const userIdStr = String(userId)
-    redis.sadd(wsOnlineUsersKey(), userIdStr).catch(() => {})
-    redis.sadd(wsNodeUsersKey(nodeId), userIdStr).catch(() => {})
-  }
-
-  console.info(`[WebSocket] 用户 ${userId} 已连接，当前在线用户: ${connectedClients.size}`)
-}
-
-export function unregisterWebSocketClient(userId: number, socket: any) {
-  const userSockets = connectedClients.get(userId)
-  if (userSockets) {
-    userSockets.delete(socket)
-    if (userSockets.size === 0) {
-      connectedClients.delete(userId)
-
-      if (redisAvailable) {
-        const userIdStr = String(userId)
-        redis.srem(wsOnlineUsersKey(), userIdStr).catch(() => {})
-        redis.srem(wsNodeUsersKey(nodeId), userIdStr).catch(() => {})
-      }
-    }
-  }
-  console.info(`[WebSocket] 用户 ${userId} 已断开，当前在线用户: ${connectedClients.size}`)
-}
-
-export async function pushToUser(userId: number, message: any): Promise<boolean> {
-  const localSuccess = pushLocal(userId, message)
-  if (localSuccess) return true
-
-  initRedisPubSub()
-
-  if (redisAvailable) {
-    const isOnline = await redis.sismember(wsOnlineUsersKey(), String(userId))
-    if (isOnline) {
-      const payload = JSON.stringify({ userId, message, fromNode: nodeId })
-      return redis.publish(WS_CHANNEL.PUSH, payload)
-    }
+  } catch (err) {
+    console.error(`[WebSocket] 推送给用户 ${userId} 失败:`, err instanceof Error ? err.message : String(err))
   }
 
   return false
 }
 
+export function registerWebSocketClient(userId: number, socket: any) {
+  const existingClient = connectedClients.get(userId)
+
+  connectedClients.set(userId, {
+    userId,
+    socket,
+    lastHeartbeat: Date.now(),
+  })
+
+  initRedisPubSub()
+
+  if (redisAvailable) {
+    const userIdStr = String(userId)
+    redis.sadd(wsOnlineUsersKey(), userIdStr).catch(() => {})
+    redis.sadd(wsNodeUsersKey(nodeId), userIdStr).catch(() => {})
+
+    // 用户重新上线，同步离线消息
+    syncOfflineMessages(userId).catch(err => {
+      console.error(`[WebSocket] 同步离线消息失败:`, err)
+    })
+  }
+
+  const onlineCount = connectedClients.size
+  console.info(`[WebSocket] 用户 ${userId} 已连接，当前在线用户: ${onlineCount}`)
+}
+
+export function unregisterWebSocketClient(userId: number, socket: any) {
+  const client = connectedClients.get(userId)
+  if (client && client.socket === socket) {
+    connectedClients.delete(userId)
+
+    if (redisAvailable) {
+      const userIdStr = String(userId)
+      redis.srem(wsOnlineUsersKey(), userIdStr).catch(() => {})
+      redis.srem(wsNodeUsersKey(nodeId), userIdStr).catch(() => {})
+    }
+  }
+
+  console.info(`[WebSocket] 用户 ${userId} 已断开，当前在线用户: ${connectedClients.size}`)
+}
+
+// 心跳检测
+export function heartbeat(userId: number): boolean {
+  const client = connectedClients.get(userId)
+  if (client) {
+    client.lastHeartbeat = Date.now()
+    return true
+  }
+  return false
+}
+
+// 获取断开的连接并清理
+export function cleanupStaleConnections(timeoutMs: number = 60000): number {
+  const now = Date.now()
+  let cleaned = 0
+
+  for (const [userId, client] of connectedClients.entries()) {
+    if (now - client.lastHeartbeat > timeoutMs) {
+      try {
+        client.socket.close(4000, 'Heartbeat timeout')
+      } catch {}
+      connectedClients.delete(userId)
+      cleaned++
+
+      if (redisAvailable) {
+        redis.srem(wsOnlineUsersKey(), String(userId)).catch(() => {})
+        redis.srem(wsNodeUsersKey(nodeId), String(userId)).catch(() => {})
+      }
+    }
+  }
+
+  if (cleaned > 0) {
+    console.info(`[WebSocket] 清理了 ${cleaned} 个超时连接`)
+  }
+
+  return cleaned
+}
+
+// 存储离线消息
+async function storeOfflineMessage(userId: number, message: any) {
+  if (!redisAvailable) return
+
+  const key = `${OFFLINE_QUEUE_KEY}:${userId}`
+  const payload = JSON.stringify({
+    message,
+    timestamp: Date.now(),
+  })
+
+  try {
+    // 添加到队列
+    await redis.lpush(key, payload)
+    // 限制队列长度
+    await redis.ltrim(key, 0, MAX_OFFLINE_MESSAGES - 1)
+    // 设置过期时间
+    await redis.expire(key, OFFLINE_MESSAGE_TTL)
+  } catch (err) {
+    console.error('[WebSocket] 存储离线消息失败:', err)
+  }
+}
+
+// 同步离线消息
+async function syncOfflineMessages(userId: number): Promise<number> {
+  if (!redisAvailable) return 0
+
+  const key = `${OFFLINE_QUEUE_KEY}:${userId}`
+
+  try {
+    // 获取所有离线消息
+    const messages = await redis.lrange(key, 0, -1)
+    if (!messages || messages.length === 0) return 0
+
+    // 逐条发送
+    let synced = 0
+    for (const msgStr of messages) {
+      try {
+        const msg = JSON.parse(msgStr)
+        if (pushLocal(userId, msg.message)) {
+          synced++
+        }
+      } catch {}
+    }
+
+    // 清空已同步的消息
+    if (synced > 0) {
+      await redis.del(key)
+      console.info(`[WebSocket] 用户 ${userId} 上线，同步了 ${synced} 条离线消息`)
+    }
+
+    return synced
+  } catch (err) {
+    console.error('[WebSocket] 同步离线消息失败:', err)
+    return 0
+  }
+}
+
+// 获取离线消息数量
+export async function getOfflineMessageCount(userId: number): Promise<number> {
+  if (!redisAvailable) return 0
+
+  const key = `${OFFLINE_QUEUE_KEY}:${userId}`
+  try {
+    const len = await redis.llen(key)
+    return len ?? 0
+  } catch {
+    return 0
+  }
+}
+
+export async function pushToUser(userId: number, message: any): Promise<{ pushed: boolean; stored: boolean }> {
+  const localSuccess = pushLocal(userId, message)
+  if (localSuccess) return { pushed: true, stored: false }
+
+  initRedisPubSub()
+
+  if (redisAvailable) {
+    // 先尝试推送给其他节点的用户
+    const isOnline = await redis.sismember(wsOnlineUsersKey(), String(userId))
+    if (isOnline) {
+      const payload = JSON.stringify({ userId, message, fromNode: nodeId })
+      await redis.publish(WS_CHANNEL.PUSH, payload)
+      return { pushed: true, stored: false }
+    }
+
+    // 用户不在线，存储离线消息
+    await storeOfflineMessage(userId, message)
+    return { pushed: false, stored: true }
+  }
+
+  return { pushed: false, stored: false }
+}
+
 export async function sendAndPushNotification(input: SendNotificationInput) {
   const notification = await sendNotification(input)
 
-  const pushed = await pushToUser(input.userId, {
+  const { pushed } = await pushToUser(input.userId, {
     type: 'notification',
     data: {
       id: notification.id,

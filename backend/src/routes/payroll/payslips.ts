@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import prisma from '../../prisma'
 import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
+import { enqueueNotifications } from '../../plugins/notification'
+import type { SendNotificationInput } from '../../services/notification'
 import { buildEmployeeDataScopeWhere } from '../../services/dataScope'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { requirePermission, requireAnyPermission } from '../../middleware/permission'
@@ -322,5 +324,100 @@ export default async function payslipsRoutes(fastify: FastifyInstance) {
         rows,
       },
     }
+  })
+
+  fastify.post('/payslips/batch-publish', { preHandler: [requirePermission('payroll:manage')] }, async (request: FastifyRequest<{
+    Body: { ids: number[] }
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个工资条'),
+    }), request.body)
+
+    setAudit(request, {
+      module: 'payroll',
+      action: 'payslip.batch_publish',
+      requestData: { ids },
+    })
+
+    const payslips = await prisma.payslip.findMany({
+      where: { id: { in: ids }, status: 'draft' },
+      include: {
+        employee: { include: { user: true } },
+        payrollRun: { include: { payrollPeriod: true } },
+      },
+    })
+
+    let successCount = 0
+    const notifications: SendNotificationInput[] = []
+
+    for (const payslip of payslips) {
+      try {
+        await prisma.payslip.update({
+          where: { id: payslip.id },
+          data: { status: 'published', publishedAt: new Date() },
+        })
+
+        const period = payslip.payrollRun?.payrollPeriod
+        const periodText = period ? `${period.year}年${period.month}月` : ''
+
+        notifications.push({
+          userId: payslip.userId,
+          title: '工资条已发布',
+          content: `您的${periodText}工资条已发布，请及时查看`,
+          type: 'payroll',
+          relatedId: payslip.id,
+          relatedType: 'payslip',
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    if (notifications.length > 0) {
+      enqueueNotifications(request, notifications)
+    }
+
+    return { code: 0, message: `成功发布 ${successCount} 个工资条`, data: { successCount, total: ids.length } }
+  })
+
+  fastify.post('/payslips/batch-withdraw', { preHandler: [requirePermission('payroll:manage')] }, async (request: FastifyRequest<{
+    Body: { ids: number[] }
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个工资条'),
+    }), request.body)
+
+    setAudit(request, {
+      module: 'payroll',
+      action: 'payslip.batch_withdraw',
+      requestData: { ids },
+    })
+
+    const payslips = await prisma.payslip.findMany({
+      where: { id: { in: ids }, status: { in: ['published', 'viewed'] } },
+    })
+
+    let successCount = 0
+
+    for (const payslip of payslips) {
+      try {
+        await prisma.payslip.update({
+          where: { id: payslip.id },
+          data: {
+            status: 'draft',
+            publishedAt: null,
+            viewedAt: null,
+          },
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    return { code: 0, message: `成功撤回 ${successCount} 个工资条`, data: { successCount, total: ids.length } }
   })
 }

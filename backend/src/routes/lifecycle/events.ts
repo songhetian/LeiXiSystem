@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeOmit } from '../../utils/validation'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { handleOffboardingCompletion, handleOnboardingCompletion } from './helpers'
 
@@ -26,9 +26,7 @@ const lifecycleEventSchema = z.object({
   status: z.enum(['pending', 'processing', 'completed', 'cancelled']).optional().default('pending'),
 })
 
-const lifecycleEventUpdateSchema = lifecycleEventSchema.omit({ employeeId: true }).partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const lifecycleEventUpdateSchema = partialUpdateSchema(safeOmit(lifecycleEventSchema, ['employeeId']))
 
 export default async function eventsRoutes(fastify: FastifyInstance) {
   fastify.get('/events', { preHandler: [requireAnyPermission(['lifecycle:view', 'lifecycle:manage'])] }, async (request: FastifyRequest<{ Querystring: unknown }>) => {
@@ -114,12 +112,13 @@ export default async function eventsRoutes(fastify: FastifyInstance) {
 
   fastify.put('/events/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(lifecycleEventUpdateSchema, request.body)
+    const data = validateData(lifecycleEventUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     setAudit(request, {
       action: 'lifecycle.event.update',
       module: 'lifecycle',
-      requestData: body,
+      requestData: data,
     })
 
     const before = await prisma.employeeLifecycleEvent.findUnique({ where: { id }, select: { employeeId: true, status: true } })
@@ -130,8 +129,8 @@ export default async function eventsRoutes(fastify: FastifyInstance) {
     const updated = await prisma.employeeLifecycleEvent.update({
       where: { id },
       data: {
-        ...body,
-        effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : undefined,
+        ...data,
+        effectiveDate: data.effectiveDate ? new Date(data.effectiveDate) : undefined,
       },
     })
 

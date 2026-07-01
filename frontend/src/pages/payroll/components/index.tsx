@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Switch, Table, Tag, Typography } from '@arco-design/web-react'
+import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Switch, Table, Tag } from '@arco-design/web-react'
 import { createSalaryComponent, getSalaryComponents, updateSalaryComponent, SalaryComponent } from '@/api/payroll'
-import './index.css'
-
-const { Title, Text } = Typography
+import { PageHeader } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -21,8 +21,6 @@ const statusMap: Record<string, { text: string; color: string }> = {
 function PayrollComponentsPage() {
   const [data, setData] = useState<SalaryComponent[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editing, setEditing] = useState<SalaryComponent | null>(null)
   const [form] = Form.useForm()
 
   const loadData = async () => {
@@ -39,42 +37,29 @@ function PayrollComponentsPage() {
     loadData()
   }, [])
 
-  const openCreate = () => {
-    setEditing(null)
-    form.resetFields()
-    form.setFieldsValue({ type: 'earning', amountType: 'fixed', taxable: false, status: 'active', sortOrder: 0 })
-    setVisible(true)
-  }
-
-  const openEdit = (record: any) => {
-    setEditing(record)
-    form.setFieldsValue(record)
-    setVisible(true)
-  }
-
-  const handleSubmit = async () => {
-    const values = await form.validate()
-    if (editing) {
-      await updateSalaryComponent(editing.id, values)
-      Message.success('薪资组件更新成功')
-    } else {
-      await createSalaryComponent(values)
-      Message.success('薪资组件创建成功')
-    }
-    setVisible(false)
-    loadData()
-  }
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<SalaryComponent>({
+    form,
+    initialValues: { type: 'earning', amountType: 'fixed', taxable: false, status: 'active', sortOrder: 0 },
+    onSubmit: async (values, id) => {
+      if (id) {
+        await updateSalaryComponent(id, values)
+        Message.success('薪资组件更新成功')
+      } else {
+        await createSalaryComponent(values)
+        Message.success('薪资组件创建成功')
+      }
+    },
+    onSuccess: () => loadData(),
+  })
 
   return (
-    <div className="payroll-components">
-      <Card bordered={false} className="payroll-components__card">
-        <Space direction="vertical" size={4} className="payroll-components__space">
-          <div className="payroll-components__header">
-            <Title heading={5} className="payroll-components__title">薪资组件</Title>
-            <Button type="primary" onClick={openCreate}>新增组件</Button>
-          </div>
-          <Text type="secondary">参考 ERPNext 的 Earnings / Deductions 思路，把基本工资、津贴、扣款、个税等拆成可复用组件。</Text>
-        </Space>
+    <div className={styles['payroll-components']}>
+      <Card bordered={false} className={styles['payroll-components__card']}>
+        <PageHeader
+          title="薪资组件"
+          description="参考 ERPNext 的 Earnings / Deductions 思路，把基本工资、津贴、扣款、个税等拆成可复用组件。"
+          extra={<Button type="primary" onClick={openCreate}>新增组件</Button>}
+        />
       </Card>
 
       <Card bordered={false}>
@@ -121,19 +106,19 @@ function PayrollComponentsPage() {
         />
       </Card>
 
-      <Modal
-        title={editing ? '编辑薪资组件' : '新增薪资组件'}
+      <Modal focusLock
+        title={editingId ? '编辑薪资组件' : '新增薪资组件'}
         visible={visible}
-        onOk={handleSubmit}
-        onCancel={() => setVisible(false)}
-        className="payroll-components__modal"
+        onOk={handleOk}
+        onCancel={close}
+        className={styles['payroll-components__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem label="组件名称" field="name" rules={[{ required: true, message: '请输入组件名称' }]}>
             <Input placeholder="例如：基本工资、迟到扣款、个税" />
           </FormItem>
           <FormItem label="组件编码" field="code" rules={[{ required: true, message: '请输入组件编码' }]}>
-            <Input placeholder="例如：base_salary、late_deduction" disabled={Boolean(editing)} />
+            <Input placeholder="例如：base_salary、late_deduction" disabled={Boolean(editingId)} />
           </FormItem>
           <FormItem label="组件类型" field="type" rules={[{ required: true, message: '请选择组件类型' }]}>
             <Select>
@@ -158,7 +143,7 @@ function PayrollComponentsPage() {
               <Switch />
             </FormItem>
             <FormItem label="状态" field="status">
-              <Select className="payroll-components__select">
+              <Select className={styles['payroll-components__select']}>
                 <Option value="active">启用</Option>
                 <Option value="inactive">停用</Option>
               </Select>

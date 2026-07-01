@@ -1,0 +1,130 @@
+.message-send {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.message-send__form-item {
+  margin-bottom: 20px;
+}
+
+.message-send__label {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--color-text-1);
+}
+
+.message-send__required::before {
+  content: '*';
+  color: var(--color-red-6);
+  margin-right: 4px;
+}
+
+.message-send__editor {
+  border: 1px solid var(--color-border-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.message-send__editor-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-2);
+  background: var(--color-fill-2);
+  flex-wrap: wrap;
+}
+
+.message-send__editor-btn {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.message-send__editor-btn:hover {
+  background: var(--color-fill-3);
+}
+
+.message-send__editor-btn--active {
+  background: var(--color-primary-light-3);
+  color: var(--color-primary-6);
+}
+
+.message-send__editor-content {
+  min-height: 300px;
+  padding: 12px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.8;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.message-send__editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-4);
+}
+
+.message-send__range-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.message-send__range-select {
+  flex: 0 0 200px;
+}
+
+.message-send__range-config {
+  flex: 1;
+}
+
+.message-send__preview {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.message-send__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-send__attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.message-send__schedule-section {
+  padding: 16px;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.message-send__footer {
+  position: sticky;
+  bottom: 0;
+  padding: 16px 20px;
+  background: var(--color-bg-2);
+  border-top: 1px solid var(--color-border-2);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 20px -20px -20px;
+}

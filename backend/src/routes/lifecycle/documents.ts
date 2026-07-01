@@ -5,7 +5,7 @@ import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
 import { taskListQuerySchema } from '../../utils/schemas'
-import { dateStringSchema, idParamsSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeOmit } from '../../utils/validation'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { parseSafeHttpUrl } from '../../utils/security'
 
@@ -18,9 +18,7 @@ const documentSchema = z.object({
   expiresAt: dateStringSchema.optional().nullable(),
 })
 
-const documentUpdateSchema = documentSchema.omit({ employeeId: true }).partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const documentUpdateSchema = partialUpdateSchema(safeOmit(documentSchema, ['employeeId']))
 
 function normalizeFileUrl(fileUrl?: string | null) {
   return fileUrl ? parseSafeHttpUrl(fileUrl, { allowPrivateHosts: true }) : undefined
@@ -104,12 +102,13 @@ export default async function documentsRoutes(fastify: FastifyInstance) {
 
   fastify.put('/documents/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(documentUpdateSchema, request.body)
+    const data = validateData(documentUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     setAudit(request, {
       action: 'document.update',
       module: 'lifecycle',
-      requestData: body,
+      requestData: data,
     })
 
     const doc = await prisma.employeeDocument.findUnique({ where: { id } })
@@ -120,9 +119,9 @@ export default async function documentsRoutes(fastify: FastifyInstance) {
     const updated = await prisma.employeeDocument.update({
       where: { id },
       data: {
-        ...body,
-        fileUrl: body.fileUrl !== undefined ? normalizeFileUrl(body.fileUrl) : undefined,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
+        ...data,
+        fileUrl: data.fileUrl !== undefined ? normalizeFileUrl(data.fileUrl) : undefined,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
       },
     })
 

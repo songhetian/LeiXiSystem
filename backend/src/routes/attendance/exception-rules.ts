@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 
 const exceptionTypeSchema = z.enum([
   'late',
@@ -39,9 +39,7 @@ const createRuleSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
 })
 
-const updateRuleSchema = createRuleSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const updateRuleSchema = partialUpdateSchema(createRuleSchema)
 
 export const EXCEPTION_TYPES = [
   { value: 'late', label: '迟到' },
@@ -124,14 +122,15 @@ export default async function exceptionRulesRoutes(fastify: FastifyInstance) {
   // 更新异常规则
   fastify.put('/exception-rules/:id', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(updateRuleSchema, request.body)
+    const data = validateData(updateRuleSchema, request.body)
+    requireAtLeastOneField(data)
 
     const rule = await prisma.attendanceExceptionRule.findUnique({ where: { id } })
     if (!rule) return { code: 404, message: '规则不存在' }
 
     const updated = await prisma.attendanceExceptionRule.update({
       where: { id },
-      data: body,
+      data: data,
     })
 
     return { code: 0, message: '更新成功', data: updated }

@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 
 const flowListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -34,9 +34,7 @@ const createFlowSchema = z.object({
   })).optional().default([]),
 })
 
-const updateFlowSchema = createFlowSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const updateFlowSchema = partialUpdateSchema(createFlowSchema)
 
 const createStepSchema = z.object({
   title: z.string().trim().min(1).max(100),
@@ -49,9 +47,7 @@ const createStepSchema = z.object({
   required: z.boolean().optional().default(true),
 })
 
-const updateStepSchema = createStepSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const updateStepSchema = partialUpdateSchema(createStepSchema)
 
 const startOnboardingSchema = z.object({
   employeeId: positiveIntSchema,
@@ -143,8 +139,9 @@ export default async function onboardingFlowRoutes(fastify: FastifyInstance) {
   // 更新流程模板
   fastify.put('/flows/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(updateFlowSchema, request.body)
-    const { steps, ...flowData } = body
+    const data = validateData(updateFlowSchema, request.body)
+    requireAtLeastOneField(data)
+    const { steps, ...flowData } = data
 
     const flow = await prisma.onboardingFlow.findUnique({ where: { id } })
     if (!flow) return { code: 404, message: '流程模板不存在' }
@@ -211,14 +208,15 @@ export default async function onboardingFlowRoutes(fastify: FastifyInstance) {
   // 更新流程步骤
   fastify.put('/steps/:stepId', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { stepId } = validateData(z.object({ stepId: positiveIntSchema }), request.params)
-    const body = validateData(updateStepSchema, request.body)
+    const data = validateData(updateStepSchema, request.body)
+    requireAtLeastOneField(data)
 
     const step = await prisma.onboardingFlowStep.findUnique({ where: { id: stepId } })
     if (!step) return { code: 404, message: '步骤不存在' }
 
     const updatedStep = await prisma.onboardingFlowStep.update({
       where: { id: stepId },
-      data: body,
+      data: data,
     })
 
     return { code: 0, message: '更新成功', data: updatedStep }

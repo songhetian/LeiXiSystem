@@ -11,8 +11,7 @@ import {
   IconLock,
 } from '@arco-design/web-react/icon'
 import { post } from '@/api/request'
-import './index.css'
-
+import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 
@@ -44,7 +43,7 @@ function Password() {
   }
 
   return (
-    <div className="password-page">
+    <div className={styles['password-page']}>
       <Row justify="center">
         <Col span={12}>
           <Card bordered={false} title="修改密码">

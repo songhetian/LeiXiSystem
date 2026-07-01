@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Message, Modal, Space, Table, Typography } from '@arco-design/web-react'
-import { confirmMyPayslip, disputeMyPayslip, getMyPayslipDetail, getMyPayslips, setPayslipPassword, verifyPayslipPassword, MyPayslip, Payslip } from '@/api/payroll'
-import StatusTag from '@/components/StatusTag'
-import './index.css'
-
-const { Title, Text } = Typography
+import { Button, Card, Descriptions, Form, Input, Message, Modal, Space, Table } from '@arco-design/web-react'
+import { confirmMyPayslip, disputeMyPayslip, getMyPayslipDetail, getMyPayslips, setPayslipPassword, verifyPayslipPassword, Payslip } from '@/api/payroll'
+import { PageHeader, StatusTag } from '@/components'
+import styles from './index.module.css'
 const FormItem = Form.Item
 
 function MyPayslipsPage() {
@@ -123,12 +121,12 @@ function MyPayslipsPage() {
   ], [])
 
   return (
-    <div className="my-payslips">
-      <Card bordered={false} className="my-payslips__card">
-        <Space direction="vertical" size={4}>
-          <Title heading={5} className="my-payslips__title">我的工资条</Title>
-          <Text type="secondary">工资金额默认脱敏，查看明细前必须验证二级密码；首次验证时会自动设置二级密码。</Text>
-        </Space>
+    <div className={styles['my-payslips']}>
+      <Card bordered={false} className={styles['my-payslips__card']}>
+        <PageHeader
+          title="我的工资条"
+          description="工资金额默认脱敏，查看明细前必须验证二级密码；首次验证时会自动设置二级密码。"
+        />
       </Card>
 
       <Card bordered={false}>
@@ -141,12 +139,12 @@ function MyPayslipsPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="工资条二级密码"
         visible={verifyVisible}
         onOk={handleVerify}
         onCancel={() => setVerifyVisible(false)}
-        className="my-payslips__modal--verify"
+        className={styles['my-payslips__modal--verify']}
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -159,7 +157,7 @@ function MyPayslipsPage() {
         </Form>
       </Modal>
 
-      <Modal
+      <Modal focusLock
         title="工资条明细"
         visible={detailVisible}
         footer={detail?.status === 'disputed' ? null : (
@@ -170,10 +168,10 @@ function MyPayslipsPage() {
           </Space>
         )}
         onCancel={() => setDetailVisible(false)}
-        className="my-payslips__modal--detail"
+        className={styles['my-payslips__modal--detail']}
       >
         {detail && (
-          <Space direction="vertical" className="my-payslips__space">
+          <Space direction="vertical" className={styles['my-payslips__space']}>
             <Descriptions
               column={2}
               data={[
@@ -201,12 +199,12 @@ function MyPayslipsPage() {
         )}
       </Modal>
 
-      <Modal
+      <Modal focusLock
         title="工资条申诉"
         visible={disputeVisible}
         onOk={handleDispute}
         onCancel={() => setDisputeVisible(false)}
-        className="my-payslips__modal--dispute"
+        className={styles['my-payslips__modal--dispute']}
       >
         <Form form={disputeForm} layout="vertical">
           <FormItem label="申诉原因" field="reason" rules={[{ required: true, message: '请输入申诉原因' }]}>

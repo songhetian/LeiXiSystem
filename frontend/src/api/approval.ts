@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { get, post, put } from './request'
 
 export interface PendingApproval {
   id: number
@@ -74,4 +74,11 @@ export function createApprovalFlow(data: {
   status?: string
 }) {
   return post<ApiResponse<ApprovalFlow>>('/approval/flows', data)
+}
+
+export function updateApprovalFlow(
+  id: number,
+  data: { nodes?: any[]; [key: string]: any },
+) {
+  return put<ApiResponse<ApprovalFlow>>(`/approval/flows/${id}`, data)
 }

@@ -1,0 +1,164 @@
+/* ═══════════════════════════════════════════
+   LeiXi Design System v4
+   Based on Arco Design Pro design language
+   ═══════════════════════════════════════════ */
+
+/* ====== Arco ConfigProvider Global Overrides ====== */
+:root {
+  /* Border Radius — Arco Pro uses 4px */
+  --lx-radius: 4px;
+
+  /* Page background — soft gray like Arco Pro */
+  --lx-bg-page: var(--color-fill-2);
+
+  /* Card — white, subtle shadow, no border */
+  --lx-card-shadow: 0 1px 4px rgba(0,0,0,.04);
+
+  /* Spacing scale */
+  --lx-gap: 16px;
+  --lx-gap-sm: 8px;
+  --lx-gap-lg: 24px;
+
+  /* Transition */
+  --lx-ease: cubic-bezier(.4,0,.2,1);
+  --lx-fast: .15s var(--lx-ease);
+  --lx-normal: .25s var(--lx-ease);
+}
+
+/* ====== Page Layout ====== */
+.lx-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lx-gap);
+}
+
+.lx-page--header {
+  margin-bottom: 0;
+}
+
+/* ====== Stat Grid ====== */
+.lx-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--lx-gap);
+}
+
+.lx-stat-card {
+  border-radius: var(--lx-radius) !important;
+  transition: box-shadow var(--lx-fast), transform var(--lx-fast);
+}
+.lx-stat-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  transform: translateY(-1px);
+}
+.lx-stat-card .arco-card-body {
+  padding: 20px !important;
+}
+
+/* ====== Pro Card (clean bordered card) ====== */
+.lx-pro-card {
+  border-radius: var(--lx-radius);
+}
+.lx-pro-card .arco-card-header {
+  padding: 16px 20px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* ====== Pro Table Area ====== */
+.lx-table-wrap {
+  border-radius: var(--lx-radius);
+}
+
+/* Table row hover enhancement */
+.lx-table-wrap .arco-table-tr:hover {
+  background: var(--color-fill-1);
+  transition: background var(--lx-fast);
+}
+
+/* ====== Filter / Toolbar Row ====== */
+.lx-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--lx-gap-sm);
+  margin-bottom: var(--lx-gap);
+}
+
+.lx-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-gap-sm);
+  flex-wrap: wrap;
+}
+
+.lx-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-gap-sm);
+}
+
+/* ====== Empty State ====== */
+.lx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  color: var(--color-text-3);
+  gap: 12px;
+}
+.lx-empty__icon {
+  font-size: 48px;
+  opacity: .3;
+}
+.lx-empty__text {
+  font-size: 14px;
+}
+
+/* ====== Detail Rows ====== */
+.lx-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-2);
+}
+.lx-detail-row:last-child {
+  border-bottom: none;
+}
+.lx-detail-row__label {
+  font-size: 13px;
+  color: var(--color-text-3);
+}
+.lx-detail-row__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+/* ====== Animation ====== */
+.lx-fade-in {
+  animation: lxFadeIn .3s var(--lx-ease) both;
+}
+.lx-fade-in--delay {
+  animation-delay: .1s;
+  animation-fill-mode: both;
+}
+
+@keyframes lxFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ====== Responsive ====== */
+@media (max-width: 768px) {
+  .lx-stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lx-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

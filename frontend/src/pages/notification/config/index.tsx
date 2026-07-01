@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   Card,
   Form,
@@ -12,12 +12,10 @@ import {
 } from '@arco-design/web-react'
 import {
   IconNotification,
-  IconMessage,
   IconEmail,
   IconPhone,
 } from '@arco-design/web-react/icon'
-import './style.css'
-
+import styles from './style.module.css'
 const FormItem = Form.Item
 const TabPane = Tabs.TabPane
 
@@ -83,11 +81,11 @@ function Config() {
   }
 
   return (
-    <div className="notification-config">
+    <div className={styles['notification-config']}>
       <Card bordered={false}>
         <Tabs defaultActiveTab="basic">
           <TabPane key="basic" title="基础设置">
-            <Form form={form} layout="vertical" className="notification-config__form">
+            <Form form={form} layout="vertical" className={styles['notification-config__form']}>
               <FormItem label="消息通知" field="notificationEnabled" initialValue={true}>
                 <Switch />
               </FormItem>
@@ -107,13 +105,13 @@ function Config() {
           </TabPane>
 
           <TabPane key="channel" title="通知渠道">
-            <Form form={form} layout="vertical" className="notification-config__form">
-              <div className="notification-config__channel-item">
+            <Form form={form} layout="vertical" className={styles['notification-config__form']}>
+              <div className={styles['notification-config__channel-item']}>
                 <Space size="medium">
-                  <IconNotification className="notification-config__icon notification-config__icon--notification" />
+                  <IconNotification className={styles['notification-config__icon'] + ' ' + styles['notification-config__icon--notification']} />
                   <div>
-                    <div className="notification-config__channel-title">站内消息</div>
-                    <div className="notification-config__channel-desc">系统内消息通知</div>
+                    <div className={styles['notification-config__channel-title']}>站内消息</div>
+                    <div className={styles['notification-config__channel-desc']}>系统内消息通知</div>
                   </div>
                 </Space>
                 <FormItem field="siteEnabled" initialValue={true}>
@@ -121,12 +119,12 @@ function Config() {
                 </FormItem>
               </div>
               <Divider />
-              <div className="notification-config__channel-item">
+              <div className={styles['notification-config__channel-item']}>
                 <Space size="medium">
-                  <IconEmail className="notification-config__icon notification-config__icon--email" />
+                  <IconEmail className={styles['notification-config__icon'] + ' ' + styles['notification-config__icon--email']} />
                   <div>
-                    <div className="notification-config__channel-title">邮件通知</div>
-                    <div className="notification-config__channel-desc">发送邮件到绑定邮箱</div>
+                    <div className={styles['notification-config__channel-title']}>邮件通知</div>
+                    <div className={styles['notification-config__channel-desc']}>发送邮件到绑定邮箱</div>
                   </div>
                 </Space>
                 <FormItem field="emailEnabled" initialValue={true}>
@@ -134,12 +132,12 @@ function Config() {
                 </FormItem>
               </div>
               <Divider />
-              <div className="notification-config__channel-item">
+              <div className={styles['notification-config__channel-item']}>
                 <Space size="medium">
-                  <IconPhone className="notification-config__icon notification-config__icon--phone" />
+                  <IconPhone className={styles['notification-config__icon'] + ' ' + styles['notification-config__icon--phone']} />
                   <div>
-                    <div className="notification-config__channel-title">短信通知</div>
-                    <div className="notification-config__channel-desc">发送短信到绑定手机</div>
+                    <div className={styles['notification-config__channel-title']}>短信通知</div>
+                    <div className={styles['notification-config__channel-desc']}>发送短信到绑定手机</div>
                   </div>
                 </Space>
                 <FormItem field="smsEnabled" initialValue={false}>
@@ -150,31 +148,31 @@ function Config() {
           </TabPane>
 
           <TabPane key="type" title="消息类型">
-            <Form form={form} layout="vertical" className="notification-config__form">
-              <div className="notification-config__type-item">
+            <Form form={form} layout="vertical" className={styles['notification-config__form']}>
+              <div className={styles['notification-config__type-item']}>
                 <div>
-                  <div className="notification-config__type-title">审批通知</div>
-                  <div className="notification-config__type-desc">请假、报销、调班等审批相关</div>
+                  <div className={styles['notification-config__type-title']}>审批通知</div>
+                  <div className={styles['notification-config__type-desc']}>请假、报销、调班等审批相关</div>
                 </div>
                 <FormItem field="approvalEnabled" initialValue={true}>
                   <Switch />
                 </FormItem>
               </div>
               <Divider />
-              <div className="notification-config__type-item">
+              <div className={styles['notification-config__type-item']}>
                 <div>
-                  <div className="notification-config__type-title">考勤提醒</div>
-                  <div className="notification-config__type-desc">迟到、早退、考勤异常提醒</div>
+                  <div className={styles['notification-config__type-title']}>考勤提醒</div>
+                  <div className={styles['notification-config__type-desc']}>迟到、早退、考勤异常提醒</div>
                 </div>
                 <FormItem field="attendanceEnabled" initialValue={true}>
                   <Switch />
                 </FormItem>
               </div>
               <Divider />
-              <div className="notification-config__type-item">
+              <div className={styles['notification-config__type-item']}>
                 <div>
-                  <div className="notification-config__type-title">系统公告</div>
-                  <div className="notification-config__type-desc">系统维护、更新等公告</div>
+                  <div className={styles['notification-config__type-title']}>系统公告</div>
+                  <div className={styles['notification-config__type-desc']}>系统维护、更新等公告</div>
                 </div>
                 <FormItem field="systemEnabled" initialValue={true}>
                   <Switch />
@@ -184,7 +182,7 @@ function Config() {
           </TabPane>
         </Tabs>
 
-        <div className="notification-config__footer">
+        <div className={styles['notification-config__footer']}>
           <Space size="large">
             <Button onClick={() => form.resetFields()}>重置</Button>
             <Button type="primary" onClick={handleSave}>保存配置</Button>

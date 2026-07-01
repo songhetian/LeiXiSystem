@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import './index.css';
+import styles from './index.module.css'
 import {
-  Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Message, Modal,
+  Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal,
   Popconfirm, Rate, Select, Space, Table, Tabs, Tag, Typography,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
@@ -14,7 +14,7 @@ import {
   getCandidates, getCandidateDetail, createCandidate, updateCandidate,
   deleteCandidate,
   getInterviews, createInterview,
-  getOffers, getOfferDetail, createOffer, updateOffer, acceptOffer,
+  getOffers, getOfferDetail, createOffer, acceptOffer,
 } from '@/api/recruitment'
 import { getDepartmentsList, getPositions, type Department, type Position } from '@/api/organization'
 
@@ -163,8 +163,8 @@ function DetailModal({ title, visible, data, onClose, renderContent }: {
   renderContent: (data: any) => React.ReactNode
 }) {
   return (
-    <Modal title={title} visible={visible} onOk={onClose} onCancel={onClose} footer={null} className="recruitment-overview__modal--lg">
-      {data ? renderContent(data) : <div className="recruitment-overview__empty">未找到数据</div>}
+    <Modal focusLock title={title} visible={visible} onOk={onClose} onCancel={onClose} footer={null} className={styles['recruitment-overview__modal--lg']}>
+      {data ? renderContent(data) : <div className={styles['recruitment-overview__empty']}>未找到数据</div>}
     </Modal>
   )
 }
@@ -180,7 +180,7 @@ function FormModal({
   children: React.ReactNode
 }) {
   return (
-    <Modal title={title} visible={visible} onOk={onOk} onCancel={onCancel} className="recruitment-overview__modal--lg">
+    <Modal focusLock title={title} visible={visible} onOk={onOk} onCancel={onCancel} className={styles['recruitment-overview__modal--lg']}>
       <Form form={form} layout="vertical">{children}</Form>
     </Modal>
   )
@@ -199,7 +199,7 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
   const [editing, setEditing] = useState<RecruitmentRequest | null>(null)
   const [detailData, setDetailData] = useState<RecruitmentRequest | null>(null)
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
+  const [_submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async (p = page, s = statusFilter) => {
     setLoading(true)
@@ -278,9 +278,9 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
 
   return (
     <>
-      <div className="recruitment-overview__filter">
+      <div className={styles['recruitment-overview__filter']}>
         <Space>
-          <Select placeholder="状态筛选" allowClear className="recruitment-overview__filter-select--sm"
+          <Select placeholder="状态筛选" allowClear className={styles['recruitment-overview__filter-select--sm']}
             onChange={(v) => { setStatusFilter(v); setPage(1) }}>
             {Object.entries(requestStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -295,7 +295,7 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
         <FormItem label="需求标题" field="title" rules={[{ required: true, message: '请输入' }]}>
           <Input placeholder="如：前端工程师招聘需求" />
         </FormItem>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="部门" field="departmentId" rules={[{ required: true, message: '请选择' }]}>
             <Select placeholder="选择部门">
               {departments.map((d) => <Option key={d.id} value={d.id}>{d.name}</Option>)}
@@ -307,9 +307,9 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
             </Select>
           </FormItem>
         </div>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="招聘人数" field="headcount" rules={[{ required: true, message: '请输入' }]}>
-            <InputNumber min={1} max={999} className="recruitment-overview__input-full" />
+            <InputNumber min={1} max={999} className={styles['recruitment-overview__input-full']} />
           </FormItem>
           <FormItem label="优先级" field="priority">
             <Select>
@@ -326,14 +326,14 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
       </FormModal>
 
       <DetailModal title="需求详情" visible={detailVisible} data={detailData} onClose={() => setDetailVisible(false)} renderContent={(d) => (
-        <div className="recruitment-overview__form-grid--detail">
+        <div className={styles['recruitment-overview__form-grid--detail']}>
           <div><Text type="secondary">需求标题</Text><div>{d.title}</div></div>
           <div><Text type="secondary">部门</Text><div>{d.department?.name}</div></div>
           <div><Text type="secondary">岗位</Text><div>{d.position?.name || '-'}</div></div>
           <div><Text type="secondary">招聘人数</Text><div>{d.headcount}</div></div>
           <div><Text type="secondary">优先级</Text><div><StatusTag value={d.priority} map={priorityMap} /></div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={d.status} map={requestStatusMap} /></div></div>
-          <div className="recruitment-overview__form-grid-full"><Text type="secondary">申请原因</Text><div>{d.reason || '-'}</div></div>
+          <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">申请原因</Text><div>{d.reason || '-'}</div></div>
           <div><Text type="secondary">申请人</Text><div>{d.creator?.realName || '-'}</div></div>
           <div><Text type="secondary">创建时间</Text><div>{formatDate(d.createdAt)}</div></div>
         </div>
@@ -355,7 +355,7 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
   const [editing, setEditing] = useState<JobOpening | null>(null)
   const [detailData, setDetailData] = useState<JobOpening | null>(null)
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
+  const [_submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async (p = page, s = statusFilter) => {
     setLoading(true)
@@ -433,9 +433,9 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
 
   return (
     <>
-      <div className="recruitment-overview__filter">
+      <div className={styles['recruitment-overview__filter']}>
         <Space>
-          <Select placeholder="状态筛选" allowClear className="recruitment-overview__filter-select--sm"
+          <Select placeholder="状态筛选" allowClear className={styles['recruitment-overview__filter-select--sm']}
             onChange={(v) => { setStatusFilter(v); setPage(1) }}>
             {Object.entries(openingStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -450,7 +450,7 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
         <FormItem label="职位名称" field="title" rules={[{ required: true, message: '请输入' }]}>
           <Input placeholder="如：高级前端工程师" />
         </FormItem>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="部门" field="departmentId" rules={[{ required: true, message: '请选择' }]}>
             <Select placeholder="选择部门">
               {departments.map((d) => <Option key={d.id} value={d.id}>{d.name}</Option>)}
@@ -462,9 +462,9 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
             </Select>
           </FormItem>
         </div>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="招聘人数" field="headcount">
-            <InputNumber min={1} max={999} className="recruitment-overview__input-full" />
+            <InputNumber min={1} max={999} className={styles['recruitment-overview__input-full']} />
           </FormItem>
           <FormItem label="状态" field="status">
             <Select>{Object.entries(openingStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}</Select>
@@ -479,14 +479,14 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
       </FormModal>
 
       <DetailModal title="职位详情" visible={detailVisible} data={detailData} onClose={() => setDetailVisible(false)} renderContent={(d) => (
-        <div className="recruitment-overview__form-grid--detail">
-          <div className="recruitment-overview__form-grid-full"><Text type="secondary">职位名称</Text><div className="recruitment-overview__title">{d.title}</div></div>
+        <div className={styles['recruitment-overview__form-grid--detail']}>
+          <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">职位名称</Text><div className={styles['recruitment-overview__title']}>{d.title}</div></div>
           <div><Text type="secondary">部门</Text><div>{d.department?.name}</div></div>
           <div><Text type="secondary">岗位</Text><div>{d.position?.name || '-'}</div></div>
           <div><Text type="secondary">招聘人数</Text><div>{d.headcount}</div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={d.status} map={openingStatusMap} /></div></div>
-          <div className="recruitment-overview__form-grid-full"><Text type="secondary">职位描述</Text><div>{d.description || '-'}</div></div>
-          <div className="recruitment-overview__form-grid-full"><Text type="secondary">任职要求</Text><div>{d.requirements || '-'}</div></div>
+          <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">职位描述</Text><div>{d.description || '-'}</div></div>
+          <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">任职要求</Text><div>{d.requirements || '-'}</div></div>
           <div><Text type="secondary">发布人</Text><div>{d.creator?.realName || '-'}</div></div>
           <div><Text type="secondary">发布时间</Text><div>{formatDate(d.publishedAt)}</div></div>
         </div>
@@ -509,7 +509,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
   const [editing, setEditing] = useState<Candidate | null>(null)
   const [detailData, setDetailData] = useState<Candidate | null>(null)
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
+  const [_submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async (p = page, s = statusFilter, o = openingFilter) => {
     setLoading(true)
@@ -569,7 +569,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
     { title: '应聘职位', render: (_: any, r) => r.jobOpening?.title || '-' },
     { title: '手机', dataIndex: 'phone', width: 130 },
     { title: '邮箱', dataIndex: 'email', width: 180, ellipsis: true },
-    { title: '评分', dataIndex: 'rating', width: 100, render: (v: number) => <Rate readonly value={v} className="recruitment-overview__rate" /> },
+    { title: '评分', dataIndex: 'rating', width: 100, render: (v: number) => <Rate readonly value={v} className={styles['recruitment-overview__rate']} /> },
     { title: '状态', dataIndex: 'status', width: 100, render: (v) => <StatusTag value={v} map={candidateStatusMap} /> },
     { title: '面试', width: 70, render: (_: any, r) => r._count?.interviews || 0 },
     { title: 'Offer', width: 70, render: (_: any, r) => r._count?.offers || 0 },
@@ -589,13 +589,13 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
 
   return (
     <>
-      <div className="recruitment-overview__filter">
+      <div className={styles['recruitment-overview__filter']}>
         <Space>
-          <Select placeholder="筛选职位" allowClear className="recruitment-overview__filter-select"
+          <Select placeholder="筛选职位" allowClear className={styles['recruitment-overview__filter-select']}
             onChange={(v) => { setOpeningFilter(v); setPage(1) }}>
             {openings.map((o) => <Option key={o.id} value={o.id}>{o.title}</Option>)}
           </Select>
-          <Select placeholder="筛选状态" allowClear className="recruitment-overview__filter-select--sm"
+          <Select placeholder="筛选状态" allowClear className={styles['recruitment-overview__filter-select--sm']}
             onChange={(v) => { setStatusFilter(v); setPage(1) }}>
             {Object.entries(candidateStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -612,7 +612,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
             {openings.map((o) => <Option key={o.id} value={o.id}>{o.title} - {o.department?.name || ''}</Option>)}
           </Select>
         </FormItem>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="姓名" field="name" rules={[{ required: true, message: '请输入' }]}>
             <Input />
           </FormItem>
@@ -620,7 +620,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
             <Input />
           </FormItem>
         </div>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="邮箱" field="email">
             <Input />
           </FormItem>
@@ -628,7 +628,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
             <Input placeholder="如：BOSS直聘、内推" />
           </FormItem>
         </div>
-        <div className="recruitment-overview__form-grid">
+        <div className={styles['recruitment-overview__form-grid']}>
           <FormItem label="评分" field="rating">
             <Rate />
           </FormItem>
@@ -642,23 +642,23 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
       </FormModal>
 
       <DetailModal title="候选人详情" visible={detailVisible} data={detailData} onClose={() => setDetailVisible(false)} renderContent={(d) => (
-        <div className="recruitment-overview__form-grid--detail">
+        <div className={styles['recruitment-overview__form-grid--detail']}>
           <div><Text type="secondary">姓名</Text><div>{d.name}</div></div>
           <div><Text type="secondary">应聘职位</Text><div>{d.jobOpening?.title} - {d.jobOpening?.department?.name}</div></div>
           <div><Text type="secondary">手机</Text><div>{d.phone || '-'}</div></div>
           <div><Text type="secondary">邮箱</Text><div>{d.email || '-'}</div></div>
           <div><Text type="secondary">来源</Text><div>{d.source || '-'}</div></div>
-          <div><Text type="secondary">评分</Text><div><Rate readonly value={d.rating} className="recruitment-overview__rate" /></div></div>
+          <div><Text type="secondary">评分</Text><div><Rate readonly value={d.rating} className={styles['recruitment-overview__rate']} /></div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={d.status} map={candidateStatusMap} /></div></div>
           <div><Text type="secondary">面试次数</Text><div>{d.interviews?.length || 0}</div></div>
-          <div className="recruitment-overview__form-grid-full"><Text type="secondary">备注</Text><div>{d.note || '-'}</div></div>
+          <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">备注</Text><div>{d.note || '-'}</div></div>
           {d.interviews && d.interviews.length > 0 && (
-            <div className="recruitment-overview__form-grid-full">
-              <Text type="secondary" className="recruitment-overview__text-block">面试记录</Text>
+            <div className={styles['recruitment-overview__form-grid-full']}>
+              <Text type="secondary" className={styles['recruitment-overview__text-block']}>面试记录</Text>
               {d.interviews.map((i: any, idx: number) => (
-                <div key={i.id} className="recruitment-overview__interview-item">
+                <div key={i.id} className={styles['recruitment-overview__interview-item']}>
                   <Space><Text type="secondary">第{idx + 1}轮</Text>{i.roundName}<StatusTag value={i.result} map={interviewResultMap} /></Space>
-                  <div className="recruitment-overview__interview-feedback">{i.feedback || '无反馈'}</div>
+                  <div className={styles['recruitment-overview__interview-feedback']}>{i.feedback || '无反馈'}</div>
                 </div>
               ))}
             </div>
@@ -681,7 +681,7 @@ function InterviewsTab({ openings }: { openings: JobOpening[] }) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [modalVisible, setModalVisible] = useState(false)
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
+  const [_submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async (p = page, o = openingFilter, s = statusFilter) => {
     setLoading(true)
@@ -724,13 +724,13 @@ function InterviewsTab({ openings }: { openings: JobOpening[] }) {
 
   return (
     <>
-      <div className="recruitment-overview__filter">
+      <div className={styles['recruitment-overview__filter']}>
         <Space>
-          <Select placeholder="筛选职位" allowClear className="recruitment-overview__filter-select"
+          <Select placeholder="筛选职位" allowClear className={styles['recruitment-overview__filter-select']}
             onChange={(v) => { setOpeningFilter(v); setPage(1) }}>
             {openings.map((o) => <Option key={o.id} value={o.id}>{o.title}</Option>)}
           </Select>
-          <Select placeholder="筛选结果" allowClear className="recruitment-overview__filter-select--sm"
+          <Select placeholder="筛选结果" allowClear className={styles['recruitment-overview__filter-select--sm']}
             onChange={(v) => { setStatusFilter(v); setPage(1) }}>
             {Object.entries(interviewResultMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -753,7 +753,7 @@ function InterviewsTab({ openings }: { openings: JobOpening[] }) {
           <Input placeholder="如：第一轮技术面试" />
         </FormItem>
         <FormItem label="面试时间" field="interviewAt">
-          <DatePicker className="recruitment-overview__input-full" />
+          <DatePicker className={styles['recruitment-overview__input-full']} />
         </FormItem>
         <FormItem label="面试官" field="interviewerId">
           <Select placeholder="选择面试官" allowClear showSearch>
@@ -785,7 +785,7 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
   const [detailVisible, setDetailVisible] = useState(false)
   const [detailData, setDetailData] = useState<OfferRecord | null>(null)
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
+  const [_submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async (p = page, s = statusFilter, o = openingFilter) => {
     setLoading(true)
@@ -854,13 +854,13 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
 
   return (
     <>
-      <div className="recruitment-overview__filter">
+      <div className={styles['recruitment-overview__filter']}>
         <Space>
-          <Select placeholder="筛选职位" allowClear className="recruitment-overview__filter-select"
+          <Select placeholder="筛选职位" allowClear className={styles['recruitment-overview__filter-select']}
             onChange={(v) => { setOpeningFilter(v); setPage(1) }}>
             {openings.map((o) => <Option key={o.id} value={o.id}>{o.title}</Option>)}
           </Select>
-          <Select placeholder="筛选状态" allowClear className="recruitment-overview__filter-select--sm"
+          <Select placeholder="筛选状态" allowClear className={styles['recruitment-overview__filter-select--sm']}
             onChange={(v) => { setStatusFilter(v); setPage(1) }}>
             {Object.entries(offerStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -880,10 +880,10 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
           </Select>
         </FormItem>
         <FormItem label="薪资" field="salary">
-          <InputNumber min={0} max={99999999} className="recruitment-overview__input-full" prefix="¥" placeholder="月薪" />
+          <InputNumber min={0} max={99999999} className={styles['recruitment-overview__input-full']} prefix="¥" placeholder="月薪" />
         </FormItem>
         <FormItem label="入职日期" field="startDate">
-          <DatePicker className="recruitment-overview__input-full" />
+          <DatePicker className={styles['recruitment-overview__input-full']} />
         </FormItem>
         <FormItem label="状态" field="status">
           <Select>{Object.entries(offerStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}</Select>
@@ -891,7 +891,7 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
       </FormModal>
 
       <DetailModal title="Offer详情" visible={detailVisible} data={detailData} onClose={() => setDetailVisible(false)} renderContent={(d) => (
-        <div className="recruitment-overview__form-grid--detail">
+        <div className={styles['recruitment-overview__form-grid--detail']}>
           <div><Text type="secondary">Offer编号</Text><div>{d.offerNo}</div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={d.status} map={offerStatusMap} /></div></div>
           <div><Text type="secondary">候选人</Text><div>{d.candidate?.name}</div></div>
@@ -926,11 +926,11 @@ export default function RecruitmentPage() {
   }, [])
 
   return (
-    <div className="recruitment-overview">
+    <div className={styles['recruitment-overview']}>
       <Card bordered={false}>
-        <div className="recruitment-overview__header">
-          <span className="recruitment-overview__title">招聘管理</span>
-          <Tag color="arcoblue" className="recruitment-overview__tag">
+        <div className={styles['recruitment-overview__header']}>
+          <span className={styles['recruitment-overview__title']}>招聘管理</span>
+          <Tag color="arcoblue" className={styles['recruitment-overview__tag']}>
             招聘需求 · 职位 · 候选人 · 面试 · Offer
           </Tag>
         </div>

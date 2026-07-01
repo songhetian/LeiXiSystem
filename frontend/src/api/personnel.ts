@@ -119,3 +119,34 @@ export function getEmployeeChanges(params?: {
 }) {
   return get<EmployeeChangeResponse>('/employee/changes', { params })
 }
+
+// ============ Career Timeline ============
+
+export interface CareerTimelineItem {
+  type: string
+  date: string
+  title: string
+  description?: string
+  oldData?: Record<string, unknown>
+  newData?: Record<string, unknown>
+  operator?: string
+}
+
+export interface CareerTimelineResponse {
+  code: 0
+  data: {
+    employee: {
+      id: number
+      employeeNo: string
+      name: string
+      department: string
+      position: string
+      status: string
+    }
+    timeline: CareerTimelineItem[]
+  }
+}
+
+export function getCareerTimeline(employeeId: number) {
+  return get<CareerTimelineResponse>(`/employee/employees/${employeeId}/career-timeline`)
+}

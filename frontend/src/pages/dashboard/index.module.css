@@ -1,0 +1,202 @@
+/* ==================== Dashboard 页面样式 ==================== */
+.dashboard-container {
+  padding: 0;
+}
+
+.dashboard-wrapper {
+  padding-bottom: 24px;
+}
+
+/* 欢迎标题区域 */
+.dashboard-header {
+  margin-bottom: 20px;
+}
+
+.dashboard-title {
+  margin: 0 0 6px 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.dashboard-subtitle {
+  font-size: 14px;
+  color: var(--color-text-3);
+}
+
+/* ==================== 统计卡片 ==================== */
+.stat-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, rgb(var(--primary-6)) 0%, rgb(var(--primary-5)) 100%);
+}
+
+.stat-card--success::before {
+  background: linear-gradient(90deg, rgb(var(--success-6)) 0%, rgb(var(--success-5)) 100%);
+}
+
+.stat-card--warning::before {
+  background: linear-gradient(90deg, rgb(var(--warning-6)) 0%, rgb(var(--warning-5)) 100%);
+}
+
+.stat-card--danger::before {
+  background: linear-gradient(90deg, rgb(var(--danger-6)) 0%, rgb(var(--danger-5)) 100%);
+}
+
+.stat-card-body {
+  padding: 20px 24px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  line-height: 1.2;
+}
+
+.stat-title {
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin-top: 8px;
+}
+
+.stat-icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  background: rgba(var(--primary-6), 0.08);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--primary-6));
+  font-size: 20px;
+}
+
+/* ==================== 图表卡片 ==================== */
+.chart-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  height: 100%;
+}
+
+.chart-card :global(.arco-card-header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.chart-card :global(.arco-card-header-title) {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.chart-card :global(.arco-card-body) {
+  padding: 16px 20px 20px;
+}
+
+.chart-container {
+  width: 100%;
+  height: 280px;
+}
+
+/* ==================== 内容卡片 ==================== */
+.content-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.content-card :global(.arco-card-header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.content-card :global(.arco-card-header-title) {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.content-card :global(.arco-card-body) {
+  padding: 16px 20px;
+}
+
+/* ==================== 空状态 ==================== */
+.dashboard-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--color-text-3);
+  font-size: 14px;
+}
+
+/* ==================== 待办列表 ==================== */
+.todo-list-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.todo-list-item:last-child {
+  border-bottom: none;
+}
+
+.todo-list-item__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-1);
+}
+
+.todo-list-item__desc {
+  font-size: 12px;
+  color: var(--color-text-3);
+  margin-top: 4px;
+}
+
+.todo-list-item__time {
+  font-size: 12px;
+  color: var(--color-text-4);
+}
+
+/* ==================== 响应式调整 ==================== */
+@media (max-width: 1440px) {
+  .chart-container {
+    height: 240px;
+  }
+  
+  .stat-value {
+    font-size: 24px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .chart-container {
+    height: 320px;
+  }
+  
+  .stat-value {
+    font-size: 32px;
+  }
+}

@@ -10,7 +10,6 @@ import {
   Select,
   Message,
   Tag,
-  Typography,
   Tabs,
   Popconfirm,
 } from '@arco-design/web-react'
@@ -27,9 +26,7 @@ import {
   cancelShiftSwap,
   type ShiftSwapRequest,
 } from '@/api/schedule'
-import './style.css'
-
-const { Text } = Typography
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -132,12 +129,10 @@ function SwapsPage() {
       title: '申请人',
       dataIndex: 'requester',
       width: 100,
-      render: (val: any, record) => (
+      render: (val: any) => (
         <Space direction="vertical" size={4}>
-          <Text>{val?.realName}</Text>
-          <Text type="secondary" className="schedule-swaps__cell-secondary">
-            {val?.department?.name}
-          </Text>
+          <span>{val?.realName}</span>
+          <span className={styles['schedule-swaps__cell-secondary']}>{val?.department?.name}</span>
         </Space>
       ),
     },
@@ -145,12 +140,10 @@ function SwapsPage() {
       title: '被申请人',
       dataIndex: 'target',
       width: 100,
-      render: (val: any, record) => (
+      render: (val: any) => (
         <Space direction="vertical" size={4}>
-          <Text>{val?.realName}</Text>
-          <Text type="secondary" className="schedule-swaps__cell-secondary">
-            {val?.department?.name}
-          </Text>
+          <span>{val?.realName}</span>
+          <span className={styles['schedule-swaps__cell-secondary']}>{val?.department?.name}</span>
         </Space>
       ),
     },
@@ -159,9 +152,7 @@ function SwapsPage() {
       dataIndex: 'requesterSchedule',
       width: 120,
       render: (val: any) => (
-        <Tag color={val?.shift?.color || 'arcoblue'}>
-          {val?.shift?.name}
-        </Tag>
+        <Tag color={val?.shift?.color || 'arcoblue'}>{val?.shift?.name}</Tag>
       ),
     },
     {
@@ -169,9 +160,7 @@ function SwapsPage() {
       dataIndex: 'targetSchedule',
       width: 120,
       render: (val: any) => (
-        <Tag color={val?.shift?.color || 'arcoblue'}>
-          {val?.shift?.name}
-        </Tag>
+        <Tag color={val?.shift?.color || 'arcoblue'}>{val?.shift?.name}</Tag>
       ),
     },
     {
@@ -210,15 +199,15 @@ function SwapsPage() {
   ]
 
   return (
-    <div className="schedule-swaps">
-      <Card bordered={false} className="schedule-swaps__toolbar">
+    <div className={styles['schedule-swaps']}>
+      <Card bordered={false} className={styles['schedule-swaps__toolbar']}>
         <Space>
           <Tabs activeTab={activeTab} onChange={setActiveTab} size="small">
             <TabPane key="my" title="我的申请" />
             <TabPane key="target" title="收到的申请" />
           </Tabs>
           <Select
-            className="schedule-swaps__select-status"
+            className={styles['schedule-swaps__select-status']}
             placeholder="状态筛选"
             value={statusFilter}
             onChange={setStatusFilter}
@@ -249,8 +238,7 @@ function SwapsPage() {
         />
       </Card>
 
-      {/* 详情弹窗 */}
-      <Modal
+      <Modal focusLock
         title="换班申请详情"
         visible={detailVisible}
         onOk={() => setDetailVisible(false)}
@@ -269,32 +257,32 @@ function SwapsPage() {
         }
       >
         {selectedItem && (
-          <Space direction="vertical" className="schedule-swaps__modal-space" size="large">
+          <Space direction="vertical" className={styles['schedule-swaps__modal-space']} size="large">
             <div>
-              <Text type="secondary">单号：</Text>
-              <Text className="schedule-swaps__modal-text">{selectedItem.requestNo}</Text>
+              <span type="secondary">单号：</span>
+              <span className={styles['schedule-swaps__modal-text']}>{selectedItem.requestNo}</span>
             </div>
             <div>
-              <Text type="secondary">状态：</Text>
+              <span type="secondary">状态：</span>
               {getStatusTag(selectedItem.status)}
             </div>
 
-            <div className="schedule-swaps__modal-cards">
+            <div className={styles['schedule-swaps__modal-cards']}>
               <Card size="small" title="申请人">
                 <Space direction="vertical">
-                  <Text>{selectedItem.requester?.realName}</Text>
-                  <Text type="secondary">{selectedItem.requester?.department?.name}</Text>
+                  <span>{selectedItem.requester?.realName}</span>
+                  <span type="secondary">{selectedItem.requester?.department?.name}</span>
                 </Space>
               </Card>
               <Card size="small" title="被申请人">
                 <Space direction="vertical">
-                  <Text>{selectedItem.target?.realName}</Text>
-                  <Text type="secondary">{selectedItem.target?.department?.name}</Text>
+                  <span>{selectedItem.target?.realName}</span>
+                  <span type="secondary">{selectedItem.target?.department?.name}</span>
                 </Space>
               </Card>
             </div>
 
-            <div className="schedule-swaps__modal-cards">
+            <div className={styles['schedule-swaps__modal-cards']}>
               <Card size="small" title="申请人原班次">
                 <Tag color={selectedItem.requesterSchedule?.shift?.color || 'arcoblue'}>
                   {selectedItem.requesterSchedule?.shift?.name}
@@ -309,23 +297,22 @@ function SwapsPage() {
 
             {selectedItem.reason && (
               <div>
-                <Text type="secondary">换班原因：</Text>
-                <Text>{selectedItem.reason}</Text>
+                <span type="secondary">换班原因：</span>
+                <span>{selectedItem.reason}</span>
               </div>
             )}
 
             {selectedItem.approveRemark && (
               <div>
-                <Text type="secondary">审批备注：</Text>
-                <Text>{selectedItem.approveRemark}</Text>
+                <span type="secondary">审批备注：</span>
+                <span>{selectedItem.approveRemark}</span>
               </div>
             )}
           </Space>
         )}
       </Modal>
 
-      {/* 拒绝弹窗 */}
-      <Modal
+      <Modal focusLock
         title="拒绝换班申请"
         visible={rejectVisible}
         onOk={handleReject}
@@ -341,7 +328,7 @@ function SwapsPage() {
               value={rejectRemark}
               onChange={setRejectRemark}
               rows={3}
-              className="schedule-swaps__textarea"
+              className={styles['schedule-swaps__textarea']}
             />
           </FormItem>
         </Form>

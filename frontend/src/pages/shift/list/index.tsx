@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   Button,
   Card,
@@ -12,17 +12,14 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
-  Typography,
 } from '@arco-design/web-react'
-import { IconDelete, IconEdit, IconPlus, IconRefresh, IconSearch } from '@arco-design/web-react/icon'
+import { IconDelete, IconEdit, IconPlus } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { createShift, deleteShift, getShifts, updateShift } from '@/api/shift'
-import './style.css'
-
+import { PageHeader, FilterBar, DraggableTable } from '@/components'
+import styles from './style.module.css'
 const { Row, Col } = Grid
-const { Text } = Typography
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -132,6 +129,23 @@ function ShiftList() {
     loadData()
   }
 
+  const handleReorder = useCallback(async (items: Shift[], _oldIndex: number, newIndex: number) => {
+    setData(items)
+    try {
+      const updatedItems = items.map((item, index) => ({
+        ...item,
+        sortOrder: index,
+      }))
+      setData(updatedItems)
+
+      const movedItem = updatedItems[newIndex]
+      await updateShift(movedItem.id, { sortOrder: newIndex })
+      Message.success('排序已更新')
+    } catch {
+      loadData()
+    }
+  }, [loadData])
+
   const columns: TableProps<Shift>['columns'] = [
     { title: '班次名称', dataIndex: 'name', width: 140, fixed: 'left' },
     { title: '编码', dataIndex: 'code', width: 110, render: (value) => <Tag color="blue">{value}</Tag> },
@@ -180,51 +194,68 @@ function ShiftList() {
   ]
 
   return (
-    <div className="shift-list">
-      <Card bordered={false} className="shift-list__toolbar">
-        <Form layout="inline">
-          <FormItem label="班次">
-            <Input
-              className="shift-list__toolbar-input"
-              placeholder="名称/编码"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select className="shift-list__toolbar-select" placeholder="全部" value={searchStatus} onChange={setSearchStatus} allowClear>
-              <Option value="active">启用</Option>
-              <Option value="inactive">停用</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space>
-              <Button type="primary" icon={<IconSearch />} onClick={loadData}>搜索</Button>
-              <Button icon={<IconRefresh />} onClick={() => { setSearchText(''); setSearchStatus(undefined); setTimeout(loadData) }}>重置</Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['shift-list']}>
+      <Card bordered={false} className={styles['shift-list__card']}>
+        <PageHeader
+          title="班次列表"
+          description="配置班次上下班时间、弹性班、跨天班等参数。"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={openCreate}>新增班次</Button>}
+        />
+      </Card>
+
+      <Card bordered={false} className={styles['shift-list__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="班次">
+                <Input
+                  className={styles['shift-list__toolbar-input']}
+                  placeholder="名称/编码"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select className={styles['shift-list__toolbar-select']} placeholder="全部" value={searchStatus} onChange={setSearchStatus} allowClear>
+                  <Option value="active">启用</Option>
+                  <Option value="inactive">停用</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={loadData}
+          onReset={() => { setSearchText(''); setSearchStatus(undefined); loadData() }}
+          searchText="搜索"
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="shift-list__header">
+        <div className={styles['shift-list__header']}>
           <div>
-            <span className="shift-list__title">班次列表</span>
-            <Tag color="blue" className="shift-list__tag">共 {total} 个班次</Tag>
+            <span className={styles['shift-list__title']}>班次列表</span>
+            <Tag color="blue" className={styles['shift-list__tag']}>共 {total} 个班次</Tag>
           </div>
-          <Button type="primary" icon={<IconPlus />} onClick={openCreate}>新增班次</Button>
         </div>
 
-        <Table columns={columns} data={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} scroll={{ x: 1300 }} />
+        <DraggableTable
+          columns={columns}
+          data={data}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1300 }}
+          onReorder={handleReorder}
+          draggable={true}
+        />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editing ? '编辑班次' : '新增班次'}
         visible={visible}
         onOk={handleSubmit}
         onCancel={() => setVisible(false)}
-        className="shift-list__modal"
+        className={styles['shift-list__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -253,7 +284,7 @@ function ShiftList() {
             </Col>
             <Col span={8}>
               <FormItem label="工时" field="workHours" rules={[{ required: true, message: '请输入工时' }]}>
-                <InputNumber min={0} className="shift-list__input-full" />
+                <InputNumber min={0} className={styles['shift-list__input-full']} />
               </FormItem>
             </Col>
           </Row>
@@ -261,22 +292,22 @@ function ShiftList() {
           <Row gutter={16}>
             <Col span={6}>
               <FormItem label="提前打卡窗口" field="beginCheckinMinutes">
-                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
+                <InputNumber min={0} className={styles['shift-list__input-full']} suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="延后签退窗口" field="allowCheckoutMinutes">
-                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
+                <InputNumber min={0} className={styles['shift-list__input-full']} suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="迟到宽限" field="lateGraceMinutes">
-                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
+                <InputNumber min={0} className={styles['shift-list__input-full']} suffix="分钟" />
               </FormItem>
             </Col>
             <Col span={6}>
               <FormItem label="早退宽限" field="earlyGraceMinutes">
-                <InputNumber min={0} className="shift-list__input-full" suffix="分钟" />
+                <InputNumber min={0} className={styles['shift-list__input-full']} suffix="分钟" />
               </FormItem>
             </Col>
           </Row>
@@ -289,23 +320,19 @@ function ShiftList() {
               <Switch />
             </FormItem>
             <FormItem label="状态" field="status">
-              <Select className="shift-list__select">
+              <Select className={styles['shift-list__select']}>
                 <Option value="active">启用</Option>
                 <Option value="inactive">停用</Option>
               </Select>
             </FormItem>
             <FormItem label="排序" field="sortOrder">
-              <InputNumber min={0} className="shift-list__select" />
+              <InputNumber min={0} className={styles['shift-list__select']} />
             </FormItem>
           </Space>
 
           <FormItem label="说明" field="description">
             <Input.TextArea placeholder="可填写班次适用说明" autoSize={{ minRows: 2, maxRows: 4 }} />
           </FormItem>
-
-          <Text type="secondary">
-            实际取卡窗口 = 上班时间前提前打卡窗口 到 下班时间后延后签退窗口；跨天班会自动跨日计算。
-          </Text>
         </Form>
       </Modal>
     </div>

@@ -446,4 +446,501 @@ export default async function helpdeskRoutes(fastify: FastifyInstance) {
 
     return { code: 0, message: `成功关闭 ${successCount} 个工单`, data: { successCount, total: ids.length } }
   })
+
+  // ══════════════════════════════════════════════
+  // N5: 客户档案管理
+  // ══════════════════════════════════════════════
+
+  const customerBodySchema = z.object({
+    name: z.string().trim().min(1).max(200),
+    contactName: z.string().trim().max(100).optional().nullable(),
+    phone: z.string().trim().max(30).optional().nullable(),
+    email: z.string().trim().email().max(200).optional().nullable(),
+    address: z.string().trim().max(500).optional().nullable(),
+    slaId: z.coerce.number().int().positive().optional().nullable(),
+    tags: z.string().trim().max(500).optional().nullable(),
+    status: statusSchema,
+  })
+
+  const customerUpdateSchema = z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    contactName: z.string().trim().max(100).optional().nullable(),
+    phone: z.string().trim().max(30).optional().nullable(),
+    email: z.string().trim().email().max(200).optional().nullable(),
+    address: z.string().trim().max(500).optional().nullable(),
+    slaId: z.coerce.number().int().positive().optional().nullable(),
+    tags: z.string().trim().max(500).optional().nullable(),
+    status: statusSchema.optional(),
+  })
+
+  // GET /api/helpdesk/customers
+  fastify.get('/customers', async (request: FastifyRequest<{
+    Querystring: { page?: number; pageSize?: number; keyword?: string; status?: string }
+  }>) => {
+    const query = request.query as any
+    const { page, pageSize, skip, take } = normalizePagination(query)
+
+    const where: any = {}
+    if (query.keyword) {
+      where.OR = [
+        { name: { contains: query.keyword } },
+        { contactName: { contains: query.keyword } },
+        { phone: { contains: query.keyword } },
+        { email: { contains: query.keyword } },
+      ]
+    }
+    if (query.status) where.status = query.status
+
+    const [total, list] = await Promise.all([
+      prisma.customer.count({ where }),
+      prisma.customer.findMany({
+        where, skip, take,
+        include: { _count: { select: { tickets: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+
+    return { code: 0, data: { total, page, pageSize, list } }
+  })
+
+  // POST /api/helpdesk/customers
+  fastify.post('/customers', { preHandler: [requirePermission('helpdesk:manage')] }, async (request) => {
+    const body = validateData(customerBodySchema, request.body)
+    const data = await prisma.customer.create({ data: body })
+    return { code: 0, data }
+  })
+
+  // GET /api/helpdesk/customers/:id
+  fastify.get('/customers/:id', async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+      include: { tickets: { orderBy: { createdAt: 'desc' }, take: 20 } },
+    })
+    if (!customer) throw new HttpError(404, '客户不存在')
+    return { code: 0, data: customer }
+  })
+
+  // PUT /api/helpdesk/customers/:id
+  fastify.put('/customers/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(customerUpdateSchema, request.body)
+    const data = await prisma.customer.update({ where: { id: id }, data: body })
+    return { code: 0, data }
+  })
+
+  // DELETE /api/helpdesk/customers/:id
+  fastify.delete('/customers/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    await prisma.customer.delete({ where: { id: id } })
+    return { code: 0, message: '删除成功' }
+  })
+
+  // GET /api/helpdesk/customers/:id/tickets
+  fastify.get('/customers/:id/tickets', async (request: FastifyRequest<{ Params: { id: string }; Querystring: { page?: number; pageSize?: number } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const query = normalizePagination(request.query as any)
+    const [total, list] = await Promise.all([
+      prisma.helpdeskTicket.count({ where: { customerId: id } }),
+      prisma.helpdeskTicket.findMany({
+        where: { customerId: id },
+        skip: query.skip, take: query.take,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+    return { code: 0, data: { total, page: query.page, pageSize: query.pageSize, list } }
+  })
+
+  // ══════════════════════════════════════════════
+  // N8: 快捷回复模板
+  // ══════════════════════════════════════════════
+
+  const cannedResponseBodySchema = z.object({
+    title: z.string().trim().min(1).max(100),
+    content: z.string().trim().min(1),
+    category: z.string().trim().max(50).optional().nullable(),
+    isGlobal: z.coerce.boolean().optional().default(true),
+    departmentId: z.coerce.number().int().positive().optional().nullable(),
+    status: statusSchema,
+  })
+
+  const cannedResponseUpdateSchema = z.object({
+    title: z.string().trim().min(1).max(100).optional(),
+    content: z.string().trim().min(1).optional(),
+    category: z.string().trim().max(50).optional().nullable(),
+    isGlobal: z.coerce.boolean().optional(),
+    departmentId: z.coerce.number().int().positive().optional().nullable(),
+    status: statusSchema.optional(),
+  })
+
+  // GET /api/helpdesk/canned-responses
+  fastify.get('/canned-responses', async (request: FastifyRequest<{
+    Querystring: { keyword?: string; category?: string; status?: string }
+  }>) => {
+    const query = request.query as any
+    const { skip, take } = normalizePagination(query)
+    const where: any = {}
+    if (query.keyword) where.title = { contains: query.keyword }
+    if (query.category) where.category = query.category
+    if (query.status) where.status = query.status
+    else where.status = 'active'
+
+    const list = await prisma.cannedResponse.findMany({
+      where,
+      skip, take,
+      orderBy: [{ usageCount: 'desc' }, { title: 'asc' }],
+    })
+    return { code: 0, data: { list } }
+  })
+
+  // POST /api/helpdesk/canned-responses
+  fastify.post('/canned-responses', { preHandler: [requirePermission('helpdesk:manage')] }, async (request) => {
+    const body = validateData(cannedResponseBodySchema, request.body)
+    const userId = (request as any).user.id
+    const data = await prisma.cannedResponse.create({ data: { ...body, createdBy: userId } })
+    return { code: 0, data }
+  })
+
+  // PUT /api/helpdesk/canned-responses/:id
+  fastify.put('/canned-responses/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(cannedResponseUpdateSchema, request.body)
+    const data = await prisma.cannedResponse.update({ where: { id: id }, data: body })
+    return { code: 0, data }
+  })
+
+  // DELETE /api/helpdesk/canned-responses/:id
+  fastify.delete('/canned-responses/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    await prisma.cannedResponse.delete({ where: { id: id } })
+    return { code: 0, message: '删除成功' }
+  })
+
+  // GET /api/helpdesk/canned-responses/search
+  fastify.get('/canned-responses/search', async (request: FastifyRequest<{
+    Querystring: { q: string }
+  }>) => {
+    const q = (request.query as any).q
+    if (!q) return { code: 0, data: { list: [] } }
+    const list = await prisma.cannedResponse.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { title: { contains: q } },
+          { content: { contains: q } },
+        ],
+      },
+      orderBy: { usageCount: 'desc' },
+      take: 20,
+    })
+    return { code: 0, data: { list } }
+  })
+
+  // ══════════════════════════════════════════════
+  // N3: 满意度调查
+  // ══════════════════════════════════════════════
+
+  // POST /api/helpdesk/tickets/:id/satisfaction
+  fastify.post('/tickets/:id/satisfaction', async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = request.body as any
+
+    const rating = parseInt(body.rating)
+    if (!rating || rating < 1 || rating > 5) {
+      throw new HttpError(400, '评分必须在 1-5 之间')
+    }
+
+    const ticket = await prisma.helpdeskTicket.findUnique({ where: { id: id } })
+    if (!ticket) throw new HttpError(404, '工单不存在')
+    if (!['resolved', 'closed'].includes(ticket.status)) {
+      throw new HttpError(400, '只有已解决或已关闭的工单才能评价')
+    }
+
+    const updated = await prisma.helpdeskTicket.update({
+      where: { id: id },
+      data: {
+        satisfactionRating: rating,
+        satisfactionComment: body.comment || null,
+        satisfactionSubmittedAt: new Date(),
+      },
+    })
+
+    return { code: 0, data: updated, message: '感谢您的评价' }
+  })
+
+  // GET /api/helpdesk/satisfaction/stats
+  fastify.get('/satisfaction/stats', async (request: FastifyRequest<{
+    Querystring: { periodType?: string; startDate?: string; endDate?: string }
+  }>) => {
+    const query = request.query as any
+    const periodType = query.periodType || 'monthly'
+    const startDate = query.startDate ? new Date(query.startDate) : new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
+    const endDate = query.endDate ? new Date(query.endDate) : new Date()
+
+    const tickets = await prisma.helpdeskTicket.findMany({
+      where: {
+        satisfactionRating: { not: null },
+        satisfactionSubmittedAt: { gte: startDate, lte: endDate },
+      },
+      select: { satisfactionRating: true, assignedTo: true },
+    })
+
+    const total = tickets.length
+    const avgRating = total > 0 ? tickets.reduce((s, t) => s + (t.satisfactionRating || 0), 0) / total : 0
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    tickets.forEach(t => {
+      if (t.satisfactionRating) distribution[t.satisfactionRating]++
+    })
+
+    return {
+      code: 0,
+      data: { total, avgRating: Math.round(avgRating * 100) / 100, distribution, periodType, startDate, endDate },
+    }
+  })
+
+  // ══════════════════════════════════════════════
+  // G1: 工单分配引擎
+  // ══════════════════════════════════════════════
+
+  // GET /api/helpdesk/tickets/assignable-employees
+  fastify.get('/tickets/assignable-employees', async (request) => {
+    // 获取当前当班 + 已签到的员工
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const onDutyEmployees = await prisma.employee.findMany({
+      where: {
+        status: 'active',
+        isOnduty: true,
+      },
+      select: {
+        id: true,
+        userId: true,
+        maxTickets: true,
+        user: { select: { realName: true } },
+      },
+    })
+
+    // 获取每个员工的活跃工单数
+    const activeTickets = await prisma.helpdeskTicket.groupBy({
+      by: ['assignedTo'],
+      where: {
+        assignedTo: { not: null },
+        status: { in: ['open', 'processing'] },
+      },
+      _count: { id: true },
+    })
+
+    const ticketCountMap = new Map<number, number>()
+    activeTickets.forEach(t => {
+      if (t.assignedTo) ticketCountMap.set(t.assignedTo, t._count.id)
+    })
+
+    const defaultMax = 5
+    const result = onDutyEmployees
+      .map(e => {
+        const activeCount = ticketCountMap.get(e.userId) || 0
+        const maxTickets = e.maxTickets || defaultMax
+        return {
+          employeeId: e.id,
+          userId: e.userId,
+          realName: e.user.realName,
+          activeTickets: activeCount,
+          maxTickets,
+          available: activeCount < maxTickets,
+        }
+      })
+      .sort((a, b) => a.activeTickets - b.activeTickets)
+
+    return { code: 0, data: result }
+  })
+
+  // POST /api/helpdesk/tickets/:id/auto-assign
+  fastify.post('/tickets/:id/auto-assign', { preHandler: [requirePermission('helpdesk:assign')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const ticket = await prisma.helpdeskTicket.findUnique({
+      where: { id: id },
+      include: { customer: { select: { slaId: true } } },
+    })
+    if (!ticket) throw new HttpError(404, '工单不存在')
+
+    // 获取可分配坐席
+    const { data } = await (fastify as any).inject({
+      method: 'GET',
+      url: '/api/helpdesk/tickets/assignable-employees',
+      headers: request.headers,
+    })
+
+    const employees = JSON.parse(data.payload).data || []
+    const available = employees.filter((e: any) => e.available)
+
+    if (available.length === 0) {
+      // 进入排队队列
+      const priorityScore = calculatePriorityScore(ticket, null)
+      await prisma.ticketQueue.create({
+        data: {
+          ticketId: id,
+          priority: priorityScore,
+          status: 'waiting',
+        },
+      })
+      return { code: 0, message: '当前无可分配坐席，工单已加入排队队列', data: { queued: true, priorityScore } }
+    }
+
+    // 分配给活跃工单最少的坐席
+    const assignee = available[0]
+    const updated = await prisma.helpdeskTicket.update({
+      where: { id: id },
+      data: {
+        assignedTo: assignee.userId,
+        status: 'processing',
+      },
+    })
+
+    return { code: 0, message: `已分配给 ${assignee.realName}`, data: updated }
+  })
+
+  // GET /api/helpdesk/tickets/queue-status
+  fastify.get('/tickets/queue-status', async (request) => {
+    const queueItems = await prisma.ticketQueue.findMany({
+      where: { status: 'waiting' },
+      orderBy: { priority: 'desc' },
+    })
+
+    const queueLength = queueItems.length
+    const priorities = { high: 0, medium: 0, low: 0 }
+    const now = new Date()
+    let totalWaitMinutes = 0
+
+    queueItems.forEach(q => {
+      if (q.priority >= 80) priorities.high++
+      else if (q.priority >= 40) priorities.medium++
+      else priorities.low++
+      totalWaitMinutes += (now.getTime() - q.queueTime.getTime()) / 60000
+    })
+
+    return {
+      code: 0,
+      data: {
+        queueLength,
+        avgWaitMinutes: queueLength > 0 ? Math.round(totalWaitMinutes / queueLength) : 0,
+        priorities,
+      },
+    }
+  })
+
+  // ══════════════════════════════════════════════
+  // G2: SLA 策略管理
+  // ══════════════════════════════════════════════
+
+  const slaBodySchema = z.object({
+    name: z.string().trim().min(1).max(100),
+    description: z.string().trim().max(500).optional().nullable(),
+    categoryId: z.coerce.number().int().positive().optional().nullable(),
+    priority: z.string().optional().nullable(),
+    customerTier: z.string().optional().nullable(),
+    responseTime: z.coerce.number().int().min(1),
+    resolutionTime: z.coerce.number().int().min(1),
+    workdaysOnly: z.coerce.boolean().optional().default(true),
+    holidayListId: z.coerce.number().int().positive().optional().nullable(),
+    pauseOnStatus: z.string().optional().nullable(),
+    completeOnStatus: z.string().optional().nullable(),
+    escalationEnabled: z.coerce.boolean().optional().default(true),
+    escalationQueueThreshold: z.coerce.number().int().optional().default(5),
+    escalationBreachMinutes: z.coerce.number().int().optional().default(30),
+    status: statusSchema,
+  })
+
+  const slaUpdateSchema = z.object({
+    name: z.string().trim().min(1).max(100).optional(),
+    description: z.string().trim().max(500).optional().nullable(),
+    categoryId: z.coerce.number().int().positive().optional().nullable(),
+    priority: z.string().optional().nullable(),
+    customerTier: z.string().optional().nullable(),
+    responseTime: z.coerce.number().int().min(1).optional(),
+    resolutionTime: z.coerce.number().int().min(1).optional(),
+    workdaysOnly: z.coerce.boolean().optional(),
+    holidayListId: z.coerce.number().int().positive().optional().nullable(),
+    pauseOnStatus: z.string().optional().nullable(),
+    completeOnStatus: z.string().optional().nullable(),
+    escalationEnabled: z.coerce.boolean().optional(),
+    escalationQueueThreshold: z.coerce.number().int().optional(),
+    escalationBreachMinutes: z.coerce.number().int().optional(),
+    status: statusSchema.optional(),
+  })
+
+  // GET /api/helpdesk/slas
+  fastify.get('/slas', async (request) => {
+    const list = await prisma.helpdeskSLA.findMany({
+      where: { status: 'active' },
+      orderBy: { name: 'asc' },
+    })
+    return { code: 0, data: { list } }
+  })
+
+  // POST /api/helpdesk/slas
+  fastify.post('/slas', { preHandler: [requirePermission('helpdesk:manage')] }, async (request) => {
+    const body = validateData(slaBodySchema, request.body)
+    const data = await prisma.helpdeskSLA.create({ data: body })
+    return { code: 0, data }
+  })
+
+  // PUT /api/helpdesk/slas/:id
+  fastify.put('/slas/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(slaUpdateSchema, request.body)
+    const data = await prisma.helpdeskSLA.update({ where: { id: id }, data: body })
+    return { code: 0, data }
+  })
+
+  // DELETE /api/helpdesk/slas/:id
+  fastify.delete('/slas/:id', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    await prisma.helpdeskSLA.delete({ where: { id: id } })
+    return { code: 0, message: '删除成功' }
+  })
+
+  // GET /api/helpdesk/tickets/:id/sla-status
+  fastify.get('/tickets/:id/sla-status', async (request: FastifyRequest<{ Params: { id: string } }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const ticket = await prisma.helpdeskTicket.findUnique({
+      where: { id: id },
+      select: {
+        id: true, ticketNo: true, status: true,
+        slaId: true, slaStatus: true, firstResponseDue: true,
+        resolutionDue: true, firstRespondedAt: true, slaBreachAlertSent: true,
+        createdAt: true,
+      },
+    })
+    if (!ticket) throw new HttpError(404, '工单不存在')
+
+    const now = new Date()
+    let responseRemaining: number | null = null
+    let resolutionRemaining: number | null = null
+
+    if (ticket.firstResponseDue && !ticket.firstRespondedAt) {
+      responseRemaining = Math.max(0, (ticket.firstResponseDue.getTime() - now.getTime()) / 60000)
+    }
+    if (ticket.resolutionDue) {
+      resolutionRemaining = Math.max(0, (ticket.resolutionDue.getTime() - now.getTime()) / 60000)
+    }
+
+    return {
+      code: 0,
+      data: {
+        ...ticket,
+        responseRemaining: responseRemaining ? Math.round(responseRemaining) : null,
+        resolutionRemaining: resolutionRemaining ? Math.round(resolutionRemaining) : null,
+      },
+    }
+  })
+}
+
+// ─── Helper Functions ───
+
+function calculatePriorityScore(ticket: any, customer: any): number {
+  const urgencyWeight = { urgent: 100, high: 70, medium: 40, low: 10 }[ticket.priority as string] || 40
+  const vipWeight = customer?.slaId ? 100 : 50
+  const waitWeight = 0 // 初始入队，无等待时间
+  return vipWeight * 0.4 + urgencyWeight * 0.35 + waitWeight * 0.25
 }

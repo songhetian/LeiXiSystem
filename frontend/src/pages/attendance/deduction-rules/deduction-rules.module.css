@@ -1,0 +1,47 @@
+.deduction-rules {
+  padding-bottom: 20px;
+}
+
+.deduction-rules__filter {
+  margin-bottom: 16px;
+}
+
+.deduction-rules__text-bold {
+  font-weight: 500;
+}
+
+.deduction-rules__modal {
+  width: 680px;
+}
+
+.deduction-rules__input-full {
+  width: 100%;
+}
+
+.deduction-rules__select-small {
+  width: 150px;
+}
+
+.deduction-rules__calc-modal {
+  width: 560px;
+}
+
+.deduction-rules__calc-result {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+}
+
+.deduction-rules__calc-amount {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-danger-6);
+  margin-bottom: 8px;
+}
+
+.deduction-rules__calc-detail {
+  font-size: 13px;
+  color: var(--color-text-2);
+  line-height: 1.6;
+}

@@ -1,0 +1,24 @@
+.vacation-types__search-input {
+  width: 200px;
+}
+
+.vacation-types__modal {
+  width: 600px;
+}
+
+.vacation-types__modal--700 {
+  width: 700px;
+}
+
+.vacation-types__card {
+  margin-bottom: 12px;
+}
+
+.vacation-types__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}

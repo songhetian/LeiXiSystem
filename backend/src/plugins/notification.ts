@@ -25,7 +25,7 @@ async function notificationPlugin(fastify: FastifyInstance) {
 
 export default fp(notificationPlugin, {
   name: 'notification',
-  fastify: '4.x',
+  fastify: '5.x',
 })
 
 export function enqueueNotification(request: FastifyRequest, notification: SendNotificationInput) {

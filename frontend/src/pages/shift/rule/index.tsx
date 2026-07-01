@@ -9,23 +9,16 @@ import {
   Form,
   Message,
   Tag,
-  Popconfirm,
   Card,
   Grid,
   Switch,
 } from '@arco-design/web-react'
-import {
-  IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
-  IconSettings,
-} from '@arco-design/web-react/icon'
+import { IconPlus, IconSettings } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getDepartmentsList, type Department } from '@/api/organization'
-import './style.css'
-
+import { PageHeader, FilterBar, ActionButtons } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -61,8 +54,6 @@ function saveRules(rules: ShiftRule[]) {
 
 function Rule() {
   const [data, setData] = useState<ShiftRule[]>([])
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [filteredData, setFilteredData] = useState<ShiftRule[]>([])
@@ -79,18 +70,29 @@ function Rule() {
     })
   }, [])
 
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<ShiftRule>({
+    form,
+    initialValues: { isAutoAssign: false, status: 'active' },
+    onSubmit: async (values) => {
+      let newData: ShiftRule[]
+      if (editingId) {
+        newData = data.map((item) => (item.id === editingId ? { ...item, ...values } : item))
+        Message.success('修改成功')
+      } else {
+        const newId = data.length > 0 ? Math.max(...data.map((d) => d.id)) + 1 : 1
+        const newRecord: ShiftRule = { id: newId, createTime: new Date().toISOString().split('T')[0], ...values }
+        newData = [...data, newRecord]
+        Message.success('新增成功')
+      }
+      setData(newData)
+      setFilteredData(newData)
+      saveRules(newData)
+    },
+  })
+
   const columns: TableProps<ShiftRule>['columns'] = [
-    {
-      title: '规则名称',
-      dataIndex: 'name',
-      width: 180,
-    },
-    {
-      title: '规则编码',
-      dataIndex: 'code',
-      width: 140,
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
-    },
+    { title: '规则名称', dataIndex: 'name', width: 180 },
+    { title: '规则编码', dataIndex: 'code', width: 140, render: (value: string) => <Tag color="blue">{value}</Tag> },
     {
       title: '适用部门',
       dataIndex: 'applicableDept',
@@ -103,89 +105,33 @@ function Rule() {
         </Space>
       ),
     },
-    {
-      title: '工作日规则',
-      dataIndex: 'workDayRule',
-      width: 120,
-    },
-    {
-      title: '休息日规则',
-      dataIndex: 'restDayRule',
-      width: 120,
-    },
+    { title: '工作日规则', dataIndex: 'workDayRule', width: 120 },
+    { title: '休息日规则', dataIndex: 'restDayRule', width: 120 },
     {
       title: '自动分配',
       dataIndex: 'isAutoAssign',
       width: 90,
-      render: (value: boolean) => (
-        <Tag color={value ? 'green' : 'gray'}>{value ? '是' : '否'}</Tag>
-      ),
+      render: (value: boolean) => <Tag color={value ? 'green' : 'gray'}>{value ? '是' : '否'}</Tag>,
     },
-    {
-      title: '生效日期',
-      dataIndex: 'effectiveDate',
-      width: 110,
-    },
+    { title: '生效日期', dataIndex: 'effectiveDate', width: 110 },
     {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (value: string) => (
-        <Tag color={value === 'active' ? 'green' : 'gray'}>
-          {value === 'active' ? '启用' : '停用'}
-        </Tag>
-      ),
+      render: (value: string) => <Tag color={value === 'active' ? 'green' : 'gray'}>{value === 'active' ? '启用' : '停用'}</Tag>,
     },
     {
       title: '操作',
       width: 150,
       render: (_: unknown, record: ShiftRule) => (
-        <Space size="small">
-          <Button
-            type="text"
-            size="small"
-            icon={<IconSettings />}
-          >
-            配置
-          </Button>
-          <Button
-            type="text"
-            size="small"
-            icon={<IconEdit />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确认删除"
-            content="确定要删除该规则吗？"
-            onOk={() => handleDelete(record.id)}
-          >
-            <Button
-              type="text"
-              size="small"
-              status="danger"
-              icon={<IconDelete />}
-            >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        <ActionButtons
+          onEdit={() => openEdit(record)}
+          onDelete={() => handleDelete(record.id)}
+          extraBefore={<Button type="text" size="small" icon={<IconSettings />}>配置</Button>}
+        />
       ),
     },
   ]
-
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
-
-  const handleEdit = (record: ShiftRule) => {
-    setEditingId(record.id)
-    form.setFieldsValue(record)
-    setVisible(true)
-  }
 
   const handleDelete = (id: number) => {
     const newData = data.filter((item) => item.id !== id)
@@ -195,40 +141,10 @@ function Rule() {
     Message.success('删除成功')
   }
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      let newData: ShiftRule[]
-      if (editingId) {
-        newData = data.map((item) => (item.id === editingId ? { ...item, ...values } : item))
-        Message.success('修改成功')
-      } else {
-        const newId = data.length > 0 ? Math.max(...data.map((d) => d.id)) + 1 : 1
-        const newRecord: ShiftRule = {
-          id: newId,
-          createTime: new Date().toISOString().split('T')[0],
-          ...values,
-        }
-        newData = [...data, newRecord]
-        Message.success('新增成功')
-      }
-      setData(newData)
-      setFilteredData(newData)
-      saveRules(newData)
-      setVisible(false)
-    } catch {
-      // validation error
-    }
-  }
-
   const handleSearch = () => {
     let result = data
     if (searchText) {
-      result = result.filter(
-        (item) =>
-          item.name.includes(searchText) ||
-          item.code.includes(searchText),
-      )
+      result = result.filter((item) => item.name.includes(searchText) || item.code.includes(searchText))
     }
     setFilteredData(result)
   }
@@ -239,81 +155,62 @@ function Rule() {
   }
 
   return (
-    <div className="shift-rule">
-      <Card bordered={false} className="shift-rule__toolbar">
-        <Form layout="inline">
-          <FormItem label="规则名称">
-            <Input
-              className="shift-rule__toolbar-input"
-              placeholder="请输入名称/编码"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['shift-rule']}>
+      <Card bordered={false} className={styles['shift-rule__card']}>
+        <PageHeader
+          title="班次规则"
+          description="为部门配置工作日/休息日的排班规则，支持自动分配班次。"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={openCreate}>新增规则</Button>}
+        />
+      </Card>
+
+      <Card bordered={false} className={styles['shift-rule__card']}>
+        <FilterBar
+          filters={
+            <FormItem label="规则名称">
+              <Input
+                className={styles['shift-rule__toolbar-input']}
+                placeholder="请输入名称/编码"
+                value={searchText}
+                onChange={setSearchText}
+                allowClear
+              />
+            </FormItem>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="shift-rule__header">
-          <div>
-            <span className="shift-rule__title">班次规则</span>
-            <Tag color="blue" className="shift-rule__tag">
-              共 {filteredData.length} 条规则
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            新增规则
-          </Button>
-        </div>
-
         <Table columns={columns} data={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑规则' : '新增规则'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="shift-rule__modal"
+        onCancel={close}
+        className={styles['shift-rule__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={12}>
-              <FormItem
-                label="规则名称"
-                field="name"
-                rules={[{ required: true, message: '请输入规则名称' }]}
-              >
+              <FormItem label="规则名称" field="name" rules={[{ required: true, message: '请输入规则名称' }]}>
                 <Input placeholder="请输入规则名称" />
               </FormItem>
             </Col>
             <Col span={12}>
-              <FormItem
-                label="规则编码"
-                field="code"
-                rules={[{ required: true, message: '请输入规则编码' }]}
-              >
+              <FormItem label="规则编码" field="code" rules={[{ required: true, message: '请输入规则编码' }]}>
                 <Input placeholder="请输入规则编码" />
               </FormItem>
             </Col>
           </Row>
           <FormItem label="适用部门" field="applicableDept">
-            <Select mode="multiple" placeholder="请选择适用部门" className="shift-rule__select-full">
+            <Select mode="multiple" placeholder="请选择适用部门" className={styles['shift-rule__select-full']}>
               {departments.map((dept) => (
-                <Option key={dept.id} value={dept.name}>
-                  {dept.name}
-                </Option>
+                <Option key={dept.id} value={dept.name}>{dept.name}</Option>
               ))}
             </Select>
           </FormItem>

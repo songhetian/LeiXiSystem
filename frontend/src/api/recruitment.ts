@@ -1,5 +1,86 @@
 import { get, post, put, del } from './request'
 
+// ===== Local request type interfaces =====
+
+export interface RecruitmentRequestQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  departmentId?: number
+  keyword?: string
+}
+
+export interface CreateRecruitmentRequestParams {
+  title: string
+  departmentId: number
+  positionId?: number
+  headcount: number
+  reason?: string
+  priority?: string
+}
+
+export type UpdateRecruitmentRequestParams = Partial<CreateRecruitmentRequestParams> & {
+  status?: string
+}
+
+export interface CreateJobOpeningParams {
+  title: string
+  departmentId: number
+  positionId?: number
+  headcount: number
+  description?: string
+  requirements?: string
+  source?: string
+}
+
+export type UpdateJobOpeningParams = Partial<CreateJobOpeningParams> & {
+  status?: string
+}
+
+export interface CreateCandidateParams {
+  name: string
+  phone?: string
+  email?: string
+  jobOpeningId?: number
+  source?: string
+  resumeUrl?: string
+  note?: string
+}
+
+export type UpdateCandidateParams = Partial<CreateCandidateParams> & {
+  status?: string
+  rating?: number
+}
+
+export interface CreateInterviewParams {
+  candidateId: number
+  jobOpeningId: number
+  round: number
+  roundName?: string
+  interviewerId?: number
+  scheduledAt?: string
+  status?: string
+}
+
+export interface OfferQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  candidateId?: number
+  jobOpeningId?: number
+}
+
+export interface CreateOfferParams {
+  candidateId: number
+  jobOpeningId?: number
+  salary?: number
+  startDate?: string
+}
+
+export type UpdateOfferParams = Partial<CreateOfferParams> & {
+  status?: string
+}
+
 // ===== Recruitment Requests =====
 
 export interface RecruitmentRequest {
@@ -17,7 +98,7 @@ export interface RecruitmentRequest {
   createdAt?: string
 }
 
-export function getRecruitmentRequests(params?: any) {
+export function getRecruitmentRequests(params?: RecruitmentRequestQueryParams) {
   return get<{ code: 0; data: { list: RecruitmentRequest[]; total: number; page: number; pageSize: number } }>('/recruitment/requests', { params })
 }
 
@@ -25,11 +106,11 @@ export function getRecruitmentRequestDetail(id: number) {
   return get<{ code: 0; data: RecruitmentRequest }>(`/recruitment/requests/${id}`)
 }
 
-export function createRecruitmentRequest(data: any) {
+export function createRecruitmentRequest(data: CreateRecruitmentRequestParams) {
   return post('/recruitment/requests', data)
 }
 
-export function updateRecruitmentRequest(id: number, data: any) {
+export function updateRecruitmentRequest(id: number, data: UpdateRecruitmentRequestParams) {
   return put(`/recruitment/requests/${id}`, data)
 }
 
@@ -72,11 +153,11 @@ export function getJobOpeningDetail(id: number) {
   return get<{ code: 0; data: JobOpening }>(`/recruitment/openings/${id}`)
 }
 
-export function createJobOpening(data: any) {
+export function createJobOpening(data: CreateJobOpeningParams) {
   return post('/recruitment/openings', data)
 }
 
-export function updateJobOpening(id: number, data: any) {
+export function updateJobOpening(id: number, data: UpdateJobOpeningParams) {
   return put(`/recruitment/openings/${id}`, data)
 }
 
@@ -122,11 +203,11 @@ export function getCandidateDetail(id: number) {
   return get<{ code: 0; data: Candidate }>(`/recruitment/candidates/${id}`)
 }
 
-export function createCandidate(data: any) {
+export function createCandidate(data: CreateCandidateParams) {
   return post('/recruitment/candidates', data)
 }
 
-export function updateCandidate(id: number, data: any) {
+export function updateCandidate(id: number, data: UpdateCandidateParams) {
   return put(`/recruitment/candidates/${id}`, data)
 }
 
@@ -163,7 +244,7 @@ export function getInterviews(params?: {
   return get<{ code: 0; data: { list: InterviewRecord[]; total: number; page: number; pageSize: number } }>('/recruitment/interviews', { params })
 }
 
-export function createInterview(data: any) {
+export function createInterview(data: CreateInterviewParams) {
   return post('/recruitment/interviews', data)
 }
 
@@ -180,7 +261,7 @@ export interface OfferRecord {
   createdAt?: string
 }
 
-export function getOffers(params?: any) {
+export function getOffers(params?: OfferQueryParams) {
   return get<{ code: 0; data: { list: OfferRecord[]; total: number; page: number; pageSize: number } }>('/recruitment/offers', { params })
 }
 
@@ -188,14 +269,14 @@ export function getOfferDetail(id: number) {
   return get<{ code: 0; data: OfferRecord }>(`/recruitment/offers/${id}`)
 }
 
-export function createOffer(data: any) {
+export function createOffer(data: CreateOfferParams) {
   return post('/recruitment/offers', data)
 }
 
-export function updateOffer(id: number, data: any) {
+export function updateOffer(id: number, data: UpdateOfferParams) {
   return put(`/recruitment/offers/${id}`, data)
 }
 
-export function acceptOffer(id: number, data?: any) {
+export function acceptOffer(id: number, data?: { acceptedAt?: string; note?: string }) {
   return post(`/recruitment/offers/${id}/accept`, data)
 }

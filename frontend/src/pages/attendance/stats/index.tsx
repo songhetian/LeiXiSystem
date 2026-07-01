@@ -4,7 +4,6 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Form,
   Tag,
   Card,
@@ -13,14 +12,12 @@ import {
   Tabs,
 } from '@arco-design/web-react'
 import {
-  IconSearch,
-  IconRefresh,
   IconExport,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getAttendanceMonthly } from '@/api/attendance'
-import './stats.css'
-
+import { FilterBar } from '@/components'
+import styles from './stats.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -145,13 +142,13 @@ function Stats() {
       title: '应出勤(天)',
       dataIndex: 'workDays',
       width: 100,
-      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
+      render: (value: number) => <span className={styles['attendance-stats__tabular-nums']}>{value}</span>,
     },
     {
       title: '实出勤(天)',
       dataIndex: 'actualDays',
       width: 100,
-      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
+      render: (value: number) => <span className={styles['attendance-stats__tabular-nums']}>{value}</span>,
     },
     {
       title: '迟到(次)',
@@ -181,13 +178,13 @@ function Stats() {
       title: '请假(天)',
       dataIndex: 'leaveDays',
       width: 90,
-      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
+      render: (value: number) => <span className={styles['attendance-stats__tabular-nums']}>{value}</span>,
     },
     {
       title: '加班(h)',
       dataIndex: 'overtimeHours',
       width: 90,
-      render: (value: number) => <span className="attendance-stats__tabular-nums">{value}</span>,
+      render: (value: number) => <span className={styles['attendance-stats__tabular-nums']}>{value}</span>,
     },
     {
       title: '出勤率',
@@ -212,68 +209,64 @@ function Stats() {
   }
 
   return (
-    <div className="attendance-stats">
-      <Row gutter={16} className="attendance-stats__summary-row">
+    <div className={styles['attendance-stats']}>
+      <Row gutter={16} className={styles['attendance-stats__summary-row']}>
         {summaryStats.map((item, index) => (
           <Col span={6} key={index}>
-            <Card bordered={false} className="attendance-stats__stat-card">
-              <Statistic title={item.title} value={item.value} className="attendance-stats__stat-value" />
+            <Card bordered={false} className={styles['attendance-stats__stat-card']}>
+              <Statistic title={item.title} value={item.value} className={styles['attendance-stats__stat-value']} />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} className="attendance-stats__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="attendance-stats__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="部门">
-            <Select
-              className="attendance-stats__dept-select"
-              placeholder="请选择"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              {departments.map((dept) => (
-                <Option key={dept} value={dept}>{dept}</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="统计月份">
-            <Select
-              className="attendance-stats__month-select"
-              value={selectedMonth}
-              onChange={setSelectedMonth}
-            >
-              <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
-              <Option value="2024-06">2024年6月</Option>
-              <Option value="2024-05">2024年5月</Option>
-              <Option value="2024-04">2024年4月</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['attendance-stats__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['attendance-stats__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="部门">
+                <Select
+                  className={styles['attendance-stats__dept-select']}
+                  placeholder="请选择"
+                  value={searchDept}
+                  onChange={setSearchDept}
+                  allowClear
+                >
+                  {departments.map((dept) => (
+                    <Option key={dept} value={dept}>{dept}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+              <FormItem label="统计月份">
+                <Select
+                  className={styles['attendance-stats__month-select']}
+                  value={selectedMonth}
+                  onChange={setSelectedMonth}
+                >
+                  <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
+                  <Option value="2024-06">2024年6月</Option>
+                  <Option value="2024-05">2024年5月</Option>
+                  <Option value="2024-04">2024年4月</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="attendance-stats__table-header">
+        <div className={styles['attendance-stats__table-header']}>
           <Tabs defaultActiveTab="personal">
             <TabPane key="personal" title="个人统计" />
             <TabPane key="department" title="部门统计" />

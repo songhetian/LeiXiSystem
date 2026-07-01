@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react'
 import dayjs from 'dayjs'
 import {
   Table,
-  Button,
   Input,
   Select,
-  Space,
   DatePicker,
   Form,
   Tag,
@@ -15,8 +13,8 @@ import {
 import { IconSearch, IconRefresh } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getEmployeeChanges, EmployeeChange } from '@/api/personnel'
-import './changes.css'
-
+import { FilterBar } from '@/components'
+import styles from './changes.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const { RangePicker } = DatePicker
@@ -125,62 +123,58 @@ function Changes() {
   }
 
   return (
-    <div className="changes-page">
-      <Card bordered={false} className="changes-page__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="changes-page__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="变动类型">
-            <Select
-              className="changes-page__type-select"
-              placeholder="请选择类型"
-              value={searchType}
-              onChange={(val) => {
-                setSearchType(val)
-                loadData(1, pagination.pageSize)
-              }}
-              allowClear
-            >
-              <Option value="信息变更">信息变更</Option>
-              <Option value="删除员工">删除员工</Option>
-              <Option value="新增员工">新增员工</Option>
-            </Select>
-          </FormItem>
-          <FormItem label="变动时间">
-            <RangePicker
-              className="changes-page__date-range"
-              onChange={(v: ReturnType<typeof dayjs>[] | string[]) => {
-                setDateRange(v as ReturnType<typeof dayjs>[])
-                if (v && v.length === 2) {
-                  loadData(1, pagination.pageSize)
-                }
-              }}
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['changes-page']}>
+      <Card bordered={false} className={styles['changes-page__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['changes-page__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="变动类型">
+                <Select
+                  className={styles['changes-page__type-select']}
+                  placeholder="请选择类型"
+                  value={searchType}
+                  onChange={(val) => {
+                    setSearchType(val)
+                    loadData(1, pagination.pageSize)
+                  }}
+                  allowClear
+                >
+                  <Option value="信息变更">信息变更</Option>
+                  <Option value="删除员工">删除员工</Option>
+                  <Option value="新增员工">新增员工</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="变动时间">
+                <RangePicker
+                  className={styles['changes-page__date-range']}
+                  onChange={(v: ReturnType<typeof dayjs>[] | string[]) => {
+                    setDateRange(v as ReturnType<typeof dayjs>[])
+                    if (v && v.length === 2) {
+                      loadData(1, pagination.pageSize)
+                    }
+                  }}
+                />
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="changes-page__margin-bottom">
-          <span className="changes-page__title">变动记录</span>
-          <Tag color="blue" className="changes-page__tag-margin">
+        <div className={styles['changes-page__margin-bottom']}>
+          <span className={styles['changes-page__title']}>变动记录</span>
+          <Tag color="blue" className={styles['changes-page__tag-margin']}>
             共 {pagination.total} 条
           </Tag>
         </div>

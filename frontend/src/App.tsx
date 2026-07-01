@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Message } from '@arco-design/web-react'
 import { Spin } from '@arco-design/web-react'
-import { useUserStore } from './store/user'
+import { useAuthStore } from './store/auth'
 import Login from './pages/login'
 import AppRoutes from './router'
 import { getMe } from './api/auth'
 import { ErrorBoundary } from './components'
-import './App.css'
-
+import { useWebSocket } from './hooks/useWebSocket'
+import styles from './App.module.css'
 Message.config({
   duration: 3000,
   maxCount: 5,
@@ -16,10 +16,12 @@ Message.config({
 })
 
 function App() {
-  const isLoggedIn = useUserStore((state) => state.isLoggedIn)
-  const setUser = useUserStore((state) => state.setUser)
-  const logout = useUserStore((state) => state.logout)
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn)
+  const setUser = useAuthStore((state) => state.setUser)
+  const logout = useAuthStore((state) => state.logout)
   const [checking, setChecking] = useState(true)
+
+  useWebSocket()
 
   useEffect(() => {
     let mounted = true
@@ -50,7 +52,7 @@ function App() {
 
   if (checking) {
     return (
-      <div className="app-checking">
+      <div className={styles['app-checking']}>
         <Spin size={32} />
         <span>正在验证登录状态...</span>
       </div>

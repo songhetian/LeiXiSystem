@@ -8,6 +8,7 @@ import payslipsRoutes from './payslips'
 import adjustmentsRoutes from './adjustments'
 import disputesRoutes from './disputes'
 import myPayslipsRoutes from './my-payslips'
+import importRoutes from './import'
 
 export default async function payrollRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -19,4 +20,5 @@ export default async function payrollRoutes(fastify: FastifyInstance) {
   await fastify.register(adjustmentsRoutes)
   await fastify.register(disputesRoutes)
   await fastify.register(myPayslipsRoutes)
+  await fastify.register(importRoutes)
 }

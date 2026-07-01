@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
+import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
 import { getAuditLogDetail, getAuditLogs } from '@/api/security'
-import './audit-logs.css'
-
-const { Title, Text } = Typography
+import { PageHeader } from '@/components'
+import styles from './audit-logs.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -20,7 +19,7 @@ function AuditLogsPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState<Record<string, string>>( {})
+  const [filters, setFilters] = useState<Record<string, string>>({})
   const [detail, setDetail] = useState<{ id: number; createdAt: string; username?: string; module: string; action: string; ipAddress?: string; status: string; requestData?: Record<string, unknown>; responseData?: Record<string, unknown>; userAgent?: string } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -62,18 +61,18 @@ function AuditLogsPage() {
   }
 
   return (
-    <div className="security-audit-logs">
-      <Card bordered={false} className="security-audit-logs__header-card">
-        <Space direction="vertical" size={4}>
-          <Title heading={5} className="security-audit-logs__header-title">安全审计日志</Title>
-          <Text type="secondary">集中查看登录、打卡、薪资、工资条查看、权限变更等敏感操作，敏感字段已在后端脱敏。</Text>
-        </Space>
+    <div className={styles['security-audit-logs']}>
+      <Card bordered={false} className={styles['security-audit-logs__header-card']}>
+        <PageHeader
+          title="安全审计日志"
+          description="集中查看登录、打卡、薪资、工资条查看、权限变更等敏感操作，敏感字段已在后端脱敏。"
+        />
       </Card>
 
-      <Card bordered={false} className="security-audit-logs__header-card">
+      <Card bordered={false} className={styles['security-audit-logs__header-card']}>
         <Form form={form} layout="inline">
           <FormItem label="模块" field="module">
-            <Select className="security-audit-logs__search-select" allowClear placeholder="全部模块">
+            <Select className={styles['security-audit-logs__search-select']} allowClear placeholder="全部模块">
               <Option value="payroll">薪资</Option>
               <Option value="attendance">考勤</Option>
               <Option value="auth">认证</Option>
@@ -82,10 +81,10 @@ function AuditLogsPage() {
             </Select>
           </FormItem>
           <FormItem label="动作" field="action">
-            <Input className="security-audit-logs__search-input" placeholder="例如 payslip" allowClear />
+            <Input className={styles['security-audit-logs__search-input']} placeholder="例如 payslip" allowClear />
           </FormItem>
           <FormItem label="用户" field="username">
-            <Input className="security-audit-logs__search-input--sm" placeholder="用户名" allowClear />
+            <Input className={styles['security-audit-logs__search-input--sm']} placeholder="用户名" allowClear />
           </FormItem>
           <FormItem>
             <Space>
@@ -143,16 +142,16 @@ function AuditLogsPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="审计日志详情"
         visible={visible}
         footer={null}
         onCancel={() => setVisible(false)}
-        className="security-audit-logs__modal"
+        className={styles['security-audit-logs__modal']}
       >
-        {detailLoading && <Text type="secondary">正在加载详情...</Text>}
+        {detailLoading && <span type="secondary">正在加载详情...</span>}
         {detail && !detailLoading && (
-          <Space direction="vertical" className="security-audit-logs__modal-content">
+          <Space direction="vertical" className={styles['security-audit-logs__modal-content']}>
             <Descriptions
               column={2}
               data={[
@@ -164,19 +163,19 @@ function AuditLogsPage() {
                 { label: '状态', value: detail.status },
               ]}
             />
-            <Typography.Text className="security-audit-logs__section-title">请求数据</Typography.Text>
+            <span className={styles['security-audit-logs__section-title']}>请求数据</span>
             <Input.TextArea
               value={JSON.stringify(detail.requestData || {}, null, 2)}
               autoSize={{ minRows: 5, maxRows: 10 }}
               readOnly
             />
-            <Typography.Text className="security-audit-logs__section-title">响应数据</Typography.Text>
+            <span className={styles['security-audit-logs__section-title']}>响应数据</span>
             <Input.TextArea
               value={JSON.stringify(detail.responseData || {}, null, 2)}
               autoSize={{ minRows: 5, maxRows: 10 }}
               readOnly
             />
-            <Typography.Text className="security-audit-logs__section-title">User-Agent</Typography.Text>
+            <span className={styles['security-audit-logs__section-title']}>User-Agent</span>
             <Input.TextArea
               value={detail.userAgent || '-'}
               autoSize={{ minRows: 2, maxRows: 4 }}

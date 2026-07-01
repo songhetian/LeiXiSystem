@@ -18,8 +18,7 @@ import { IconSearch, IconRefresh, IconDownload, IconFilter } from '@arco-design/
 import dayjs, { Dayjs } from 'dayjs'
 import { getAttendanceDetail, ReportQuery } from '@/api/reports'
 import { getDepartmentTree, Department } from '@/api/organization'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const { RangePicker } = DatePicker
 const { Search } = Input
@@ -297,8 +296,8 @@ const AttendanceDetailReport: React.FC = () => {
   }
 
   const deptTreeContent = (
-    <div className="dept-tree-popover">
-      <Spin loading={treeLoading} className="tree-spin">
+    <div className={styles['dept-tree-popover']}>
+      <Spin loading={treeLoading} className={styles['tree-spin']}>
         <Tree
           checkable
           selectable={false}
@@ -306,26 +305,26 @@ const AttendanceDetailReport: React.FC = () => {
           checkedKeys={selectedDeptKeys}
           onCheck={handleTreeCheck}
           size="small"
-          className="dept-tree"
+          className={styles['dept-tree']}
         />
       </Spin>
     </div>
   )
 
   return (
-    <div className="attendance-detail-report">
-      <Card className="filter-card">
-        <div className="filter-bar">
+    <div className={styles['attendance-detail-report']}>
+      <Card className={styles['filter-card']}>
+        <div className={styles['filter-bar']}>
           <Space size="medium" wrap>
             <Popover
               triggerProps={{ position: 'bl' }}
               content={deptTreeContent}
               trigger="click"
             >
-              <Button icon={<IconFilter />} className="dept-filter-btn">
+              <Button icon={<IconFilter />} className={styles['dept-filter-btn']}>
                 部门筛选
                 {selectedDeptKeys.length > 0 && (
-                  <Tag color="blue" className="dept-filter-tag">
+                  <Tag color="blue" className={styles['dept-filter-tag']}>
                     {selectedDeptKeys.length}
                   </Tag>
                 )}
@@ -333,7 +332,7 @@ const AttendanceDetailReport: React.FC = () => {
             </Popover>
             <Search
               placeholder="搜索员工姓名/工号"
-              className="search-input"
+              className={styles['search-input']}
               value={keyword}
               onChange={setKeyword}
               onSearch={handleSearch}
@@ -341,12 +340,12 @@ const AttendanceDetailReport: React.FC = () => {
             <RangePicker
               value={dateRange}
               onChange={(_, date) => setDateRange(date)}
-              className="date-range-picker"
+              className={styles['date-range-picker']}
             />
             <Select
               mode="multiple"
               placeholder="考勤状态"
-              className="status-select"
+              className={styles['status-select']}
               value={statusList}
               onChange={setStatusList}
             >
@@ -366,12 +365,12 @@ const AttendanceDetailReport: React.FC = () => {
         </div>
       </Card>
 
-      <Spin loading={loading} className="page-spin">
+      <Spin loading={loading} className={styles['page-spin']}>
         {data && (
           <>
-            <Row gutter={16} className="stats-row">
+            <Row gutter={16} className={styles['stats-row']}>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="总记录数"
                     value={stats.totalRecords}
@@ -380,7 +379,7 @@ const AttendanceDetailReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="正常天数"
                     value={stats.normalDays}
@@ -389,7 +388,7 @@ const AttendanceDetailReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="迟到天数"
                     value={stats.lateDays}
@@ -398,7 +397,7 @@ const AttendanceDetailReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="缺勤天数"
                     value={stats.absentDays}
@@ -410,7 +409,7 @@ const AttendanceDetailReport: React.FC = () => {
 
             <Card
               title="考勤明细"
-              className="table-card"
+              className={styles['table-card']}
               extra={
                 <Button icon={<IconDownload />} onClick={handleExport}>
                   导出CSV

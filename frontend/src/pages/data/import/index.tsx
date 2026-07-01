@@ -22,8 +22,7 @@ import type { TableProps, UploadProps } from '@arco-design/web-react'
 import { downloadTemplate, uploadImportFile } from '@/api/data'
 import { saveBlob } from '@/utils/url'
 import { toast } from '@/utils/toast'
-import '../style.css'
-
+import styles from '../style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -110,7 +109,7 @@ function DataImport() {
       dataIndex: 'successCount',
       width: 80,
       render: (value: number) => (
-        <span className="data-import__success">{value}</span>
+        <span className={styles['data-import__success']}>{value}</span>
       ),
     },
     {
@@ -118,7 +117,7 @@ function DataImport() {
       dataIndex: 'failCount',
       width: 80,
       render: (value: number) => (
-        <span className="data-import__fail">{value}</span>
+        <span className={styles['data-import__fail']}>{value}</span>
       ),
     },
     {
@@ -223,18 +222,18 @@ function DataImport() {
   }
 
   return (
-    <div className="data-import">
+    <div className={styles['data-import']}>
       <Row gutter={16}>
         <Col span={8}>
           <Card bordered={false}>
-            <div className="data-import__form">
-              <h3 className="data-import__form-title">数据导入</h3>
-              <p className="data-import__form-desc">支持 Excel 格式文件导入</p>
+            <div className={styles['data-import__form']}>
+              <h3 className={styles['data-import__form-title']}>数据导入</h3>
+              <p className={styles['data-import__form-desc']}>支持 Excel 格式文件导入</p>
             </div>
 
             <Form layout="vertical">
               <FormItem label="导入类型">
-                <Select value={importType} onChange={setImportType} className="data-import__select-full">
+                <Select value={importType} onChange={setImportType} className={styles['data-import__select-full']}>
                   <Option value="employee">员工信息导入</Option>
                   <Option value="department">部门信息导入</Option>
                   <Option value="attendance">考勤数据导入</Option>
@@ -248,15 +247,15 @@ function DataImport() {
               accept=".xlsx,.xls,.csv"
               drag
               tip="仅支持 .xlsx / .xls / .csv，最大 10MB"
-              className="data-import__upload"
+              className={styles['data-import__upload']}
             >
-              <div className="data-import__upload-content">
-                <IconUpload className="data-import__upload-icon" />
+              <div className={styles['data-import__upload-content']}>
+                <IconUpload className={styles['data-import__upload-icon']} />
                 <div>点击或拖拽文件到此处上传</div>
               </div>
             </Upload>
 
-            <Space className="data-import__space-between">
+            <Space className={styles['data-import__space-between']}>
               <Button type="text" icon={<IconDownload />} onClick={handleDownloadTemplate}>
                 下载模板
               </Button>
@@ -280,7 +279,7 @@ function DataImport() {
               data={data}
               rowKey="id"
               pagination={{ pageSize: 10 }}
-              noDataElement={<div className="data-import__empty">暂无导入记录</div>}
+              noDataElement={<div className={styles['data-import__empty']}>暂无导入记录</div>}
             />
           </Card>
         </Col>

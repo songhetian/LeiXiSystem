@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { normalizePagination } from '../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, statusSchema, validateData } from '../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 import { parseSafeHttpUrl } from '../utils/security'
 
 const ssoListQuerySchema = z.object({
@@ -24,9 +24,7 @@ const ssoAppBodySchema = z.object({
   status: z.enum(['active', 'inactive']).optional().default('active'),
 })
 
-const ssoAppUpdateSchema = ssoAppBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const ssoAppUpdateSchema = partialUpdateSchema(ssoAppBodySchema)
 
 export default async function ssoRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -80,10 +78,11 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
   fastify.put('/apps/:id', { preHandler: [requirePermission('sso:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
     const body = validateData(ssoAppUpdateSchema, request.body)
+    requireAtLeastOneField(body)
     const data: any = { ...body }
 
-    if (body.appUrl) data.appUrl = parseSafeHttpUrl(body.appUrl)
-    if (body.logoUrl) data.logoUrl = parseSafeHttpUrl(body.logoUrl)
+    if (data.appUrl) data.appUrl = parseSafeHttpUrl(data.appUrl)
+    if (data.logoUrl) data.logoUrl = parseSafeHttpUrl(data.logoUrl)
 
     setAudit(request, { action: 'sso_app_update', module: 'sso', requestData: { id, ...data } })
     await captureBefore(request, { id })

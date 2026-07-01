@@ -1,0 +1,54 @@
+.schedule-weekly {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedule-weekly__card {
+  margin-bottom: 0;
+}
+
+.schedule-weekly__nav {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.schedule-weekly__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.schedule-weekly__title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-1);
+}
+
+.schedule-weekly__shift-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-weekly__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.schedule-weekly__legend-text {
+  font-size: 12px;
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+
+.schedule-weekly__select-dept {
+  width: 200px;
+}

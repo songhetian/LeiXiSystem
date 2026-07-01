@@ -31,8 +31,7 @@ import {
   type ScheduleAppealItem,
 } from '@/api/schedule'
 import { getShifts, type Shift } from '@/api/shift'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -60,7 +59,7 @@ function MySchedulePage() {
   const [confirmedPage, setConfirmedPage] = useState(1)
   const [appeals, setAppeals] = useState<ScheduleAppealItem[]>([])
 
-  const [loading, setLoading] = useState(false)
+  const [_loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<number[]>([])
   const [appealModalVisible, setAppealModalVisible] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<PendingItem | null>(null)
@@ -224,7 +223,7 @@ function MySchedulePage() {
           取消申诉
         </Button>
       ) : (
-        <span className="my-schedule__text-secondary">{record.handlerNote || '-'}</span>
+        <span className={styles['my-schedule__text-secondary']}>{record.handlerNote || '-'}</span>
       ),
     },
   ]
@@ -232,13 +231,13 @@ function MySchedulePage() {
   const totalPending = pendingGroups.reduce((sum, g) => sum + g.items.length, 0)
 
   return (
-    <div className="my-schedule">
-      <Row gutter={16} className="my-schedule__row">
+    <div className={styles['my-schedule']}>
+      <Row gutter={16} className={styles['my-schedule__row']}>
         <Col span={8}>
           <Card bordered={false}>
-            <div className="my-schedule__stat">
-              <div className="my-schedule__stat-value my-schedule__stat-value-orange">{totalPending}</div>
-              <div className="my-schedule__stat-label">待确认排班</div>
+            <div className={styles['my-schedule__stat']}>
+              <div className={styles['my-schedule__stat-value'] + ' ' + styles['my-schedule__stat-value-orange']}>{totalPending}</div>
+              <div className={styles['my-schedule__stat-label']}>待确认排班</div>
             </div>
           </Card>
         </Col>
@@ -261,10 +260,10 @@ function MySchedulePage() {
           <TabPane title={`待确认 (${totalPending})`} key="pending">
             <div>
               {pendingGroups.map((group) => (
-                <div key={`${group.periodStart}_${group.periodEnd}`} className="my-schedule__period">
-                  <div className="my-schedule__period-title">
+                <div key={`${group.periodStart}_${group.periodEnd}`} className={styles['my-schedule__period']}>
+                  <div className={styles['my-schedule__period-title']}>
                     {group.periodStart.split('T')[0]} ~ {group.periodEnd.split('T')[0]}
-                    <span className="my-schedule__period-count">({group.items.length}天)</span>
+                    <span className={styles['my-schedule__period-count']}>({group.items.length}天)</span>
                   </div>
                   <Table
                     rowKey="id"
@@ -309,7 +308,7 @@ function MySchedulePage() {
                 </div>
               ))}
               {pendingGroups.length === 0 && (
-                <div className="my-schedule__empty">
+                <div className={styles['my-schedule__empty']}>
                   暂无待确认的排班
                 </div>
               )}
@@ -340,7 +339,7 @@ function MySchedulePage() {
         </Tabs>
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="发起申诉"
         visible={appealModalVisible}
         onOk={handleAppealSubmit}
@@ -358,7 +357,7 @@ function MySchedulePage() {
             <Input.TextArea rows={3} placeholder="请详细说明申诉原因" maxLength={500} />
           </FormItem>
           <FormItem label="期望调整日期" field="expectedDate">
-            <DatePicker className="my-schedule__date-picker" />
+            <DatePicker className={styles['my-schedule__date-picker']} />
           </FormItem>
           <FormItem label="期望班次" field="expectedShiftId">
             <Select placeholder="选择期望班次" allowClear>

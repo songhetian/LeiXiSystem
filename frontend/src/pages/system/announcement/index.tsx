@@ -38,8 +38,7 @@ import {
   type Announcement,
   type AnnouncementStats,
 } from '@/api/announcement'
-import './index.css'
-
+import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -245,7 +244,7 @@ function AnnouncementPage() {
       title: '标题',
       dataIndex: 'title',
       ellipsis: true,
-      render: (val) => <span className="announcement__text-title">{val}</span>,
+      render: (val) => <span className={styles['announcement__text-title']}>{val}</span>,
     },
     {
       title: '类型',
@@ -321,8 +320,8 @@ function AnnouncementPage() {
   const targetType = Form.useWatch('targetType', form)
 
   return (
-    <div className="announcement">
-      <Card bordered={false} className="announcement__filter">
+    <div className={styles.announcement}>
+      <Card bordered={false} className={styles.announcement__filter}>
         <Row gutter={16} align="end">
           <Col span={6}>
             <FormItem label="关键字" field="keyword">
@@ -381,7 +380,7 @@ function AnnouncementPage() {
 
       <Card
         bordered={false}
-        className="announcement__table"
+        className={styles.announcement__table}
         title="公告列表"
         extra={
           <Button type="primary" icon={<IconPlus />} onClick={handleCreate}>
@@ -406,12 +405,12 @@ function AnnouncementPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingAnnouncement ? '编辑公告' : '新建公告'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="announcement__modal--lg"
+        className={styles['announcement__modal--lg']}
         okText="保存"
         cancelText="取消"
       >
@@ -445,7 +444,7 @@ function AnnouncementPage() {
             <Col span={8}>
               <FormItem label="过期时间" field="expiresAt">
                 <DatePicker
-                  className="announcement__input-full"
+                  className={styles['announcement__input-full']}
                   showTime
                   placeholder="选择过期时间"
                   format="YYYY-MM-DD HH:mm:ss"
@@ -481,12 +480,12 @@ function AnnouncementPage() {
         </Form>
       </Modal>
 
-      <Modal
+      <Modal focusLock
         title="阅读统计"
         visible={statsVisible}
         onCancel={() => setStatsVisible(false)}
         footer={null}
-        className="announcement__modal--md"
+        className={styles['announcement__modal--md']}
       >
         {currentAnnouncement && (
           <Descriptions
@@ -497,13 +496,13 @@ function AnnouncementPage() {
               { label: '优先级', value: getPriorityTag(currentAnnouncement.priority) },
               { label: '状态', value: getStatusTag(currentAnnouncement.status) },
             ]}
-            className="announcement__desc-margin"
+            className={styles['announcement__desc-margin']}
           />
         )}
         {statsLoading ? (
-          <div className="announcement__loading">加载中...</div>
+          <div className={styles.announcement__loading}>加载中...</div>
         ) : currentStats ? (
-          <div className="announcement__stats">
+          <div className={styles.announcement__stats}>
             <Row gutter={16}>
               <Col span={8}>
                 <Statistic title="总接收人数" value={currentStats.totalReceivers} />
@@ -515,10 +514,10 @@ function AnnouncementPage() {
                 <Statistic title="未读人数" value={currentStats.unreadCount} />
               </Col>
             </Row>
-            <div className="announcement__stats-progress">
-              <div className="announcement__stats-label">
+            <div className={styles['announcement__stats-progress']}>
+              <div className={styles['announcement__stats-label']}>
                 <span>阅读率</span>
-                <span className="announcement__text-weight">{(currentStats.readRate * 100).toFixed(1)}%</span>
+                <span className={styles['announcement__text-weight']}>{(currentStats.readRate * 100).toFixed(1)}%</span>
               </div>
               <Progress percent={currentStats.readRate * 100} status="success" />
             </div>

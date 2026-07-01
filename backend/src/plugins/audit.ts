@@ -46,7 +46,7 @@ async function auditPlugin(fastify: FastifyInstance) {
 
 export default fp(auditPlugin, {
   name: 'audit',
-  fastify: '4.x',
+  fastify: '5.x',
 })
 
 /**

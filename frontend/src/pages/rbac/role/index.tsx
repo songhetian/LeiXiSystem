@@ -4,40 +4,28 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Message,
   Tag,
-  Popconfirm,
   Card,
   Tree,
-  Grid,
   Spin,
 } from '@arco-design/web-react'
-import {
-  IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
-  IconUser,
-} from '@arco-design/web-react/icon'
+import { IconPlus, IconUser } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getRoles, createRole, updateRole, deleteRole, getPermissionsTree } from '@/api/rbac'
 import type { Role, Permission } from '@/api/rbac'
-import './style.css'
-
-const { Row, Col } = Grid
+import { PageHeader, FilterBar, ActionButtons } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
 function RolePage() {
   const [data, setData] = useState<Role[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
   const [permVisible, setPermVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [currentRole, setCurrentRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
@@ -48,17 +36,9 @@ function RolePage() {
   const fetchData = async (page = 1, pageSize = 10) => {
     setLoading(true)
     try {
-      const res = await getRoles({
-        page,
-        pageSize,
-        keyword: searchText || undefined,
-      })
+      const res = await getRoles({ page, pageSize, keyword: searchText || undefined })
       setData(res.data.list)
-      setPagination({
-        current: res.data.page,
-        pageSize: res.data.pageSize,
-        total: res.data.total,
-      })
+      setPagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total })
     } catch {
       // error handled by interceptor
     } finally {
@@ -78,110 +58,60 @@ function RolePage() {
   useEffect(() => {
     fetchData()
     fetchPermissionTree()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<Role>({
+    form,
+    initialValues: { level: 1, canViewAllDepts: 'false' },
+    mapRecordToForm: (record) => ({
+      name: record.name,
+      description: record.description,
+      level: record.level,
+      canViewAllDepts: record.canViewAllDepts ? 'true' : 'false',
+    }),
+    onSubmit: async (values, id) => {
+      const payload = { ...values, canViewAllDepts: values.canViewAllDepts === 'true' }
+      if (id) {
+        await updateRole(id, payload)
+        Message.success('修改成功')
+      } else {
+        await createRole(payload)
+        Message.success('新增成功')
+      }
+    },
+    onSuccess: () => fetchData(pagination.current, pagination.pageSize),
+  })
+
   const columns: TableProps<Role>['columns'] = [
-    {
-      title: '角色名称',
-      dataIndex: 'name',
-      width: 140,
-    },
-    {
-      title: '角色级别',
-      dataIndex: 'level',
-      width: 80,
-    },
-    {
-      title: '角色描述',
-      dataIndex: 'description',
-      ellipsis: true,
-    },
-    {
-      title: '用户数',
-      dataIndex: 'userCount',
-      width: 80,
-      render: (value: number) => (
-        <span className="role__bold">{value}</span>
-      ),
-    },
-    {
-      title: '权限数',
-      dataIndex: 'permissionCount',
-      width: 80,
-    },
+    { title: '角色名称', dataIndex: 'name', width: 140 },
+    { title: '角色级别', dataIndex: 'level', width: 80 },
+    { title: '角色描述', dataIndex: 'description', ellipsis: true },
+    { title: '用户数', dataIndex: 'userCount', width: 80, render: (value: number) => <span className={styles.role__bold}>{value}</span> },
+    { title: '权限数', dataIndex: 'permissionCount', width: 80 },
     {
       title: '系统角色',
       dataIndex: 'isSystem',
       width: 90,
-      render: (value: boolean) => (
-        <Tag color={value ? 'gold' : 'gray'}>{value ? '是' : '否'}</Tag>
-      ),
+      render: (value: boolean) => <Tag color={value ? 'gold' : 'gray'}>{value ? '是' : '否'}</Tag>,
     },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      width: 160,
-      render: (value: string) => (value ? new Date(value).toLocaleString() : '-'),
-    },
+    { title: '创建时间', dataIndex: 'createdAt', width: 160, render: (value: string) => (value ? new Date(value).toLocaleString() : '-') },
     {
       title: '操作',
       width: 200,
       render: (_: unknown, record: Role) => (
-        <Space size="small">
-          <Button
-            type="text"
-            size="small"
-            icon={<IconUser />}
-            onClick={() => handlePermission(record)}
-          >
-            权限
-          </Button>
-          <Button
-            type="text"
-            size="small"
-            icon={<IconEdit />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          {!record.isSystem && (
-            <Popconfirm
-              title="确认删除"
-              content="确定要删除该角色吗？"
-              onOk={() => handleDelete(record.id)}
-            >
-              <Button
-                type="text"
-                size="small"
-                status="danger"
-                icon={<IconDelete />}
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
+        <ActionButtons
+          onEdit={() => openEdit(record)}
+          onDelete={!record.isSystem ? () => handleDelete(record.id) : undefined}
+          deleteContent="确定要删除该角色吗？"
+          extraBefore={
+            <Button type="text" size="small" icon={<IconUser />} onClick={() => handlePermission(record)}>
+              权限
+            </Button>
+          }
+        />
       ),
     },
   ]
-
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
-
-  const handleEdit = (record: Role) => {
-    setEditingId(record.id)
-    form.setFieldsValue({
-      name: record.name,
-      description: record.description,
-      level: record.level,
-      canViewAllDepts: record.canViewAllDepts,
-    })
-    setVisible(true)
-  }
 
   const handlePermission = (record: Role) => {
     setCurrentRole(record)
@@ -199,33 +129,10 @@ function RolePage() {
     }
   }
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      const payload = {
-        ...values,
-        canViewAllDepts: values.canViewAllDepts === 'true',
-      }
-      if (editingId) {
-        await updateRole(editingId, payload)
-        Message.success('修改成功')
-      } else {
-        await createRole(payload)
-        Message.success('新增成功')
-      }
-      setVisible(false)
-      fetchData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    }
-  }
-
   const handlePermOk = async () => {
     if (!currentRole) return
     try {
-      await updateRole(currentRole.id, {
-        permissions: checkedKeys.map((k) => parseInt(k)),
-      })
+      await updateRole(currentRole.id, { permissions: checkedKeys.map((k) => parseInt(k)) })
       Message.success('权限保存成功')
       setPermVisible(false)
       fetchData(pagination.current, pagination.pageSize)
@@ -234,113 +141,46 @@ function RolePage() {
     }
   }
 
-  const handleSearch = () => {
-    fetchData(1, pagination.pageSize)
-  }
-
-  const handleReset = () => {
-    setSearchText('')
-    fetchData(1, pagination.pageSize)
-  }
-
-  const handlePageChange = (page: number, pageSize: number) => {
-    fetchData(page, pageSize)
-  }
-
   const treeData = permissionTree.map((p) => ({
     key: String(p.id),
     title: p.name,
     children: p.children?.map((c) => ({
       key: String(c.id),
       title: c.name,
-      children: c.children?.map((cc) => ({
-        key: String(cc.id),
-        title: cc.name,
-      })),
+      children: c.children?.map((cc) => ({ key: String(cc.id), title: cc.name })),
     })),
   }))
 
   return (
-    <div className="role">
-      <Card bordered={false} className="role__toolbar">
-        <Form layout="inline">
-          <FormItem label="角色名称">
-            <Input
-              className="role__toolbar-input"
-              placeholder="请输入角色名称"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles.role}>
+      <Card bordered={false} className={styles.role__card}>
+        <PageHeader title="角色列表" description="管理系统角色，每个角色可绑定多个权限，影响成员可访问的功能范围。" extra={<Button type="primary" icon={<IconPlus />} onClick={openCreate}>新增角色</Button>} />
       </Card>
 
-      <Card bordered={false}>
-        <div className="role__header">
-          <div>
-            <span className="role__title">角色列表</span>
-            <Tag color="blue" className="role__tag">
-              共 {pagination.total} 个角色
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            新增角色
-          </Button>
-        </div>
-
-        <Table
-          loading={loading}
-          columns={columns}
-          data={data}
-          rowKey="id"
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            onChange: handlePageChange,
-          }}
+      <Card bordered={false} className={styles.role__card}>
+        <FilterBar
+          filters={
+            <FormItem label="角色名称">
+              <Input className={styles['role__toolbar-input']} placeholder="请输入角色名称" value={searchText} onChange={setSearchText} allowClear />
+            </FormItem>
+          }
+          onSearch={() => fetchData(1, pagination.pageSize)}
+          onReset={() => { setSearchText(''); fetchData(1, pagination.pageSize) }}
         />
       </Card>
 
-      <Modal
-        title={editingId ? '编辑角色' : '新增角色'}
-        visible={visible}
-        onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="role__modal"
-      >
+      <Card bordered={false}>
+        <Table loading={loading} columns={columns} data={data} rowKey="id" pagination={{ current: pagination.current, pageSize: pagination.pageSize, total: pagination.total, onChange: (page, pageSize) => fetchData(page, pageSize) }} />
+      </Card>
+
+      <Modal focusLock title={editingId ? '编辑角色' : '新增角色'} visible={visible} onOk={handleOk} onCancel={close} className={styles.role__modal}>
         <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}>
-              <FormItem
-                label="角色名称"
-                field="name"
-                rules={[{ required: true, message: '请输入角色名称' }]}
-              >
-                <Input placeholder="请输入角色名称" />
-              </FormItem>
-            </Col>
-            <Col span={12}>
-              <FormItem
-                label="角色级别"
-                field="level"
-                initialValue={1}
-              >
-                <Input type="number" min={1} max={99} className="role__input-full" />
-              </FormItem>
-            </Col>
-          </Row>
+          <FormItem label="角色名称" field="name" rules={[{ required: true, message: '请输入角色名称' }]}>
+            <Input placeholder="请输入角色名称" />
+          </FormItem>
+          <FormItem label="角色级别" field="level" initialValue={1}>
+            <Input type="number" min={1} max={99} className={styles['role__input-full']} />
+          </FormItem>
           <FormItem label="角色描述" field="description">
             <Input.TextArea placeholder="请输入角色描述" rows={3} />
           </FormItem>
@@ -353,20 +193,9 @@ function RolePage() {
         </Form>
       </Modal>
 
-      <Modal
-        title={`配置权限 - ${currentRole?.name}`}
-        visible={permVisible}
-        onOk={handlePermOk}
-        onCancel={() => setPermVisible(false)}
-        className="role__modal"
-      >
+      <Modal focusLock title={`配置权限 - ${currentRole?.name}`} visible={permVisible} onOk={handlePermOk} onCancel={() => setPermVisible(false)} className={styles.role__modal}>
         <Spin loading={permissionTree.length === 0}>
-          <Tree
-            checkable
-            checkedKeys={checkedKeys}
-            onCheck={setCheckedKeys}
-            treeData={treeData}
-          />
+          <Tree checkable checkedKeys={checkedKeys} onCheck={setCheckedKeys} treeData={treeData} />
         </Spin>
       </Modal>
     </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import './index.css';
+import styles from './index.module.css'
 import { Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
 import { IconCheck, IconPlus, IconRefresh } from '@arco-design/web-react/icon'
@@ -165,12 +165,12 @@ function TrainingOverviewPage() {
   ]
 
   return (
-    <div className="training-overview">
+    <div className={styles['training-overview']}>
       <Card bordered={false}>
-        <div className="training-overview__header">
+        <div className={styles['training-overview__header']}>
           <div>
-            <span className="training-overview__title">培训管理</span>
-            <Tag color="blue" className="training-overview__tag">课程、班次、报名</Tag>
+            <span className={styles['training-overview__title']}>培训管理</span>
+            <Tag color="blue" className={styles['training-overview__tag']}>课程、班次、报名</Tag>
           </div>
           <Space>
             <Button icon={<IconRefresh />} onClick={loadData}>刷新</Button>
@@ -193,29 +193,29 @@ function TrainingOverviewPage() {
         </Tabs>
       </Card>
 
-      <Modal title="新增课程" visible={courseVisible} onOk={handleCreateCourse} onCancel={() => setCourseVisible(false)} className="training-overview__modal--md">
+      <Modal focusLock title="新增课程" visible={courseVisible} onOk={handleCreateCourse} onCancel={() => setCourseVisible(false)} className={styles['training-overview__modal--md']}>
         <Form form={courseForm} layout="vertical" initialValues={{ status: 'active' }}>
           <FormItem label="课程名称" field="title" rules={[{ required: true, message: '请输入课程名称' }]}><Input /></FormItem>
           <FormItem label="课程编码" field="code" rules={[{ required: true, message: '请输入课程编码' }]}><Input /></FormItem>
           <FormItem label="分类" field="category"><Input placeholder="例如：合规、技能、管理" /></FormItem>
-          <FormItem label="课时" field="durationHours"><InputNumber min={0} className="training-overview__input-full" /></FormItem>
+          <FormItem label="课时" field="durationHours"><InputNumber min={0} className={styles['training-overview__input-full']} /></FormItem>
           <FormItem label="说明" field="description"><Input.TextArea rows={3} /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="新增培训班次" visible={sessionVisible} onOk={handleCreateSession} onCancel={() => setSessionVisible(false)} className="training-overview__modal--lg">
+      <Modal focusLock title="新增培训班次" visible={sessionVisible} onOk={handleCreateSession} onCancel={() => setSessionVisible(false)} className={styles['training-overview__modal--lg']}>
         <Form form={sessionForm} layout="vertical" initialValues={{ status: 'planned' }}>
           <FormItem label="课程" field="courseId" rules={[{ required: true, message: '请选择课程' }]}>
             <Select>{courses.map((course) => <Option key={course.id} value={course.id}>{course.title}</Option>)}</Select>
           </FormItem>
           <FormItem label="班次名称" field="title" rules={[{ required: true, message: '请输入班次名称' }]}><Input /></FormItem>
-          <FormItem label="时间范围" field="timeRange" rules={[{ required: true, message: '请选择时间范围' }]}><RangePicker showTime className="training-overview__input-full" /></FormItem>
+          <FormItem label="时间范围" field="timeRange" rules={[{ required: true, message: '请选择时间范围' }]}><RangePicker showTime className={styles['training-overview__input-full']} /></FormItem>
           <FormItem label="地点" field="location"><Input /></FormItem>
-          <FormItem label="容量" field="capacity"><InputNumber min={1} className="training-overview__input-full" /></FormItem>
+          <FormItem label="容量" field="capacity"><InputNumber min={1} className={styles['training-overview__input-full']} /></FormItem>
         </Form>
       </Modal>
 
-      <Modal title="员工报名" visible={enrollVisible} onOk={handleEnroll} onCancel={() => setEnrollVisible(false)} className="training-overview__modal--sm">
+      <Modal focusLock title="员工报名" visible={enrollVisible} onOk={handleEnroll} onCancel={() => setEnrollVisible(false)} className={styles['training-overview__modal--sm']}>
         <Form form={enrollForm} layout="vertical">
           <FormItem label="培训班次" field="sessionId" rules={[{ required: true, message: '请选择班次' }]}>
             <Select>{sessions.map((session) => <Option key={session.id} value={session.id}>{session.title}</Option>)}</Select>

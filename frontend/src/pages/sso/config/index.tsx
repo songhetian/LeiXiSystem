@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   Card,
   Form,
@@ -10,8 +10,7 @@ import {
   Input,
   Select,
 } from '@arco-design/web-react'
-import './style.css'
-
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -100,11 +99,11 @@ function ConfigPage() {
   }
 
   return (
-    <div className="sso-config">
+    <div className={styles['sso-config']}>
       <Card bordered={false}>
         <Tabs defaultActiveTab="basic">
           <TabPane key="basic" title="基础配置">
-            <Form form={form} layout="vertical" className="sso-config__form">
+            <Form form={form} layout="vertical" className={styles['sso-config__form']}>
               <FormItem label="SSO 开关" field="ssoEnabled" initialValue={false}>
                 <Switch />
               </FormItem>
@@ -142,7 +141,7 @@ function ConfigPage() {
           </TabPane>
 
           <TabPane key="ldap" title="LDAP配置">
-            <Form form={form} layout="vertical" className="sso-config__form">
+            <Form form={form} layout="vertical" className={styles['sso-config__form']}>
               <FormItem label="LDAP 服务器地址" field="ldapUrl">
                 <Input placeholder="ldap://ldap.example.com:389" />
               </FormItem>
@@ -168,7 +167,7 @@ function ConfigPage() {
           </TabPane>
 
           <TabPane key="mapping" title="属性映射">
-            <Form form={form} layout="vertical" className="sso-config__form">
+            <Form form={form} layout="vertical" className={styles['sso-config__form']}>
               <FormItem label="用户名映射" field="usernameMapping">
                 <Input placeholder="username" />
               </FormItem>
@@ -188,7 +187,7 @@ function ConfigPage() {
           </TabPane>
         </Tabs>
 
-        <div className="sso-config__footer">
+        <div className={styles['sso-config__footer']}>
           <Space size="large">
             <Button onClick={handleTest}>测试连接</Button>
             <Button type="primary" onClick={handleSave}>保存配置</Button>

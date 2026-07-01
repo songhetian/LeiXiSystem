@@ -13,8 +13,7 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { downloadTemplate } from '@/api/data'
 import { saveBlob } from '@/utils/url'
-import './style.css'
-
+import styles from './style.module.css'
 interface Template {
   id: number
   code: string
@@ -102,11 +101,11 @@ function Template() {
   }
 
   return (
-    <div className="data-template">
+    <div className={styles['data-template']}>
       <Card bordered={false}>
-        <div className="data-template__header">
-          <span className="data-template__title">模板管理</span>
-          <Tag color="blue" className="data-template__tag">
+        <div className={styles['data-template__header']}>
+          <span className={styles['data-template__title']}>模板管理</span>
+          <Tag color="blue" className={styles['data-template__tag']}>
             共 {data.length} 个模板
           </Tag>
         </div>

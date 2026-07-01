@@ -5,7 +5,6 @@ import {
   Space,
   Modal,
   Form,
-  Input,
   Select,
   DatePicker,
   Table,
@@ -19,10 +18,8 @@ import {
 import {
   IconRefresh,
   IconCheck,
-  IconClose,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import dayjs from 'dayjs'
 import { toast } from '@/utils/toast'
 import {
   getScheduleRules,
@@ -34,8 +31,7 @@ import {
   type ConflictWarning,
 } from '@/api/schedule'
 import { getDepartmentsList, Department } from '@/api/organization'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 
 const { Text } = Typography
@@ -224,7 +220,7 @@ function RecommendPage() {
         val?.length > 0 ? (
           <Space wrap size="small">
             {val.map((c, i) => (
-              <Tag key={i} color="red" className="schedule-recommend__text-ellipsis">
+              <Tag key={i} color="red" className={styles['schedule-recommend__text-ellipsis']}>
                 {c}
               </Tag>
             ))}
@@ -246,12 +242,12 @@ function RecommendPage() {
   const softConflicts = result?.warnings.filter((w) => w.type === 'soft') || []
 
   return (
-    <div className="schedule-recommend">
-      <Card bordered={false} className="schedule-recommend__toolbar">
+    <div className={styles['schedule-recommend']}>
+      <Card bordered={false} className={styles['schedule-recommend__toolbar']}>
         <Form form={form} layout="inline">
           <FormItem label="部门" field="departmentId">
             <Select
-              className="schedule-recommend__select-dept"
+              className={styles['schedule-recommend__select-dept']}
               placeholder="全部部门"
               allowClear
             >
@@ -262,7 +258,7 @@ function RecommendPage() {
           </FormItem>
           <FormItem label="排班规则" field="ruleId">
             <Select
-              className="schedule-recommend__select-rule"
+              className={styles['schedule-recommend__select-rule']}
               placeholder="默认规则"
               allowClear
             >
@@ -272,7 +268,7 @@ function RecommendPage() {
             </Select>
           </FormItem>
           <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}>
-            <RangePicker className="schedule-recommend__range-picker" />
+            <RangePicker className={styles['schedule-recommend__range-picker']} />
           </FormItem>
           <FormItem>
             <Space size="small">
@@ -290,17 +286,17 @@ function RecommendPage() {
       {result && (
         <>
           {/* 统计卡片 */}
-          <Row gutter={16} className="schedule-recommend__row-margin">
+          <Row gutter={16} className={styles['schedule-recommend__row-margin']}>
             <Col span={6}>
               <Card bordered={false}>
                 <Text type="secondary">推荐总数</Text>
-                <div className="schedule-recommend__stat-value">{result.statistics.total}</div>
+                <div className={styles['schedule-recommend__stat-value']}>{result.statistics.total}</div>
               </Card>
             </Col>
             <Col span={6}>
               <Card bordered={false}>
                 <Text type="secondary">硬约束冲突</Text>
-                <div className={`schedule-recommend__stat-value ${hardConflicts.length > 0 ? 'schedule-recommend__stat-value-danger' : 'schedule-recommend__stat-value-success'}`}>
+                <div className={`${styles['schedule-recommend__stat-value']} ${hardConflicts.length > 0 ? styles['schedule-recommend__stat-value-danger'] : styles['schedule-recommend__stat-value-success']}`}>
                   {hardConflicts.length}
                 </div>
               </Card>
@@ -308,7 +304,7 @@ function RecommendPage() {
             <Col span={6}>
               <Card bordered={false}>
                 <Text type="secondary">软约束冲突</Text>
-                <div className={`schedule-recommend__stat-value ${softConflicts.length > 0 ? 'schedule-recommend__stat-value-warning' : 'schedule-recommend__stat-value-success'}`}>
+                <div className={`${styles['schedule-recommend__stat-value']} ${softConflicts.length > 0 ? styles['schedule-recommend__stat-value-warning'] : styles['schedule-recommend__stat-value-success']}`}>
                   {softConflicts.length}
                 </div>
               </Card>
@@ -316,7 +312,7 @@ function RecommendPage() {
             <Col span={6}>
               <Card bordered={false}>
                 <Text type="secondary">已选择</Text>
-                <div className="schedule-recommend__stat-value">
+                <div className={styles['schedule-recommend__stat-value']}>
                   {selectedKeys.length} / {result.statistics.total}
                 </div>
               </Card>
@@ -324,9 +320,9 @@ function RecommendPage() {
           </Row>
 
           {/* 班次分布 */}
-          <Card bordered={false} className="schedule-recommend__preview-margin">
+          <Card bordered={false} className={styles['schedule-recommend__preview-margin']}>
             <Text type="secondary">班次分布：</Text>
-            <Space wrap className="schedule-recommend__space-top">
+            <Space wrap className={styles['schedule-recommend__space-top']}>
               {Object.entries(result.statistics.byShift).map(([shift, count]) => (
                 <Tag key={shift} color="arcoblue">{shift}: {count}人</Tag>
               ))}
@@ -338,7 +334,7 @@ function RecommendPage() {
             <Alert
               type="error"
               title="硬约束冲突（这些员工将被跳过）"
-              className="schedule-recommend__alert-margin"
+              className={styles['schedule-recommend__alert-margin']}
               content={
                 <Space wrap>
                   {hardConflicts.slice(0, 10).map((c, i) => (
@@ -356,7 +352,7 @@ function RecommendPage() {
             <Alert
               type="warning"
               title="软约束冲突（仅供参考）"
-              className="schedule-recommend__alert-margin"
+              className={styles['schedule-recommend__alert-margin']}
               content={
                 <Space wrap>
                   {softConflicts.slice(0, 5).map((c, i) => (
@@ -372,7 +368,7 @@ function RecommendPage() {
 
           {/* 操作按钮 */}
           <Card bordered={false}>
-            <div className="schedule-recommend__actions">
+            <div className={styles['schedule-recommend__actions']}>
               <Space>
                 <Button
                   type="primary"
@@ -395,7 +391,7 @@ function RecommendPage() {
           </Card>
 
           {/* 推荐列表 */}
-          <Card bordered={false} className="schedule-recommend__table-margin">
+          <Card bordered={false} className={styles['schedule-recommend__table-margin']}>
             <Table
               columns={columns}
               data={result.recommendations}
@@ -410,14 +406,14 @@ function RecommendPage() {
 
       {!result && !loading && (
         <Card bordered={false}>
-          <div className="schedule-recommend__empty">
+          <div className={styles['schedule-recommend__empty']}>
             <Text type="secondary">请选择部门和日期范围，点击"生成推荐"开始智能排班</Text>
           </div>
         </Card>
       )}
 
       {/* 确认应用弹窗 */}
-      <Modal
+      <Modal focusLock
         title="确认应用"
         visible={applyVisible}
         onOk={handleApply}

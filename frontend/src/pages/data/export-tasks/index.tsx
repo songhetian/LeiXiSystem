@@ -26,8 +26,7 @@ import {
 } from '@/api/export'
 import { saveBlob } from '@/utils/url'
 import { toast } from '@/utils/toast'
-import './style.css'
-
+import styles from './style.module.css'
 const Option = Select.Option
 
 const statusMap: Record<ExportStatus, { text: string; color: string }> = {
@@ -244,10 +243,10 @@ function ExportTasks() {
   ]
 
   return (
-    <div className="export-tasks">
+    <div className={styles['export-tasks']}>
       <Card bordered={false}>
-        <div className="export-tasks__header">
-          <span className="export-tasks__title">导出任务管理</span>
+        <div className={styles['export-tasks__header']}>
+          <span className={styles['export-tasks__title']}>导出任务管理</span>
           <Button
             type="text"
             icon={<IconRefresh />}
@@ -257,12 +256,12 @@ function ExportTasks() {
           </Button>
         </div>
 
-        <div className="export-tasks__filters">
+        <div className={styles['export-tasks__filters']}>
           <Space size="medium">
-            <div className="export-tasks__filter-item">
-              <span className="export-tasks__filter-label">状态：</span>
+            <div className={styles['export-tasks__filter-item']}>
+              <span className={styles['export-tasks__filter-label']}>状态：</span>
               <Select
-                className="export-tasks__filter-select"
+                className={styles['export-tasks__filter-select']}
                 placeholder="全部状态"
                 allowClear
                 value={statusFilter}
@@ -274,10 +273,10 @@ function ExportTasks() {
                 <Option value="failed">失败</Option>
               </Select>
             </div>
-            <div className="export-tasks__filter-item">
-              <span className="export-tasks__filter-label">报表类型：</span>
+            <div className={styles['export-tasks__filter-item']}>
+              <span className={styles['export-tasks__filter-label']}>报表类型：</span>
               <Select
-                className="export-tasks__filter-select-wide"
+                className={styles['export-tasks__filter-select-wide']}
                 placeholder="全部类型"
                 allowClear
                 value={reportTypeFilter}
@@ -306,7 +305,7 @@ function ExportTasks() {
             onChange: handlePageChange,
           }}
           scroll={{ x: 1200 }}
-          noDataElement={<div className="export-tasks__empty">暂无导出任务</div>}
+          noDataElement={<div className={styles['export-tasks__empty']}>暂无导出任务</div>}
         />
       </Card>
     </div>

@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/auth'
 import { hasPermission, requireAnyPermission, requirePermission } from '../middleware/permission'
 import { setAudit, captureBefore, setAfter } from '../plugins/audit'
 import { normalizePagination } from '../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safePartial } from '../utils/validation'
 import { performanceReviewStatusSchema, performanceCycleStatusSchema, promotionRecommendationSchema, goalStatusSchema } from '../utils/schemas'
 
 const listQuerySchema = z.object({
@@ -62,9 +62,7 @@ const reviewSchema = z.object({
   items: z.array(reviewItemSchema).max(20).optional().default([]),
 })
 
-const reviewUpdateSchema = reviewSchema.omit({ cycleId: true, employeeId: true }).partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const reviewUpdateSchema = partialUpdateSchema(reviewSchema.omit({ cycleId: true, employeeId: true }))
 
 function calcRating(score?: number | null) {
   if (score == null) return undefined
@@ -191,28 +189,29 @@ export default async function performanceRoutes(fastify: FastifyInstance) {
 
   fastify.put('/reviews/:id', { preHandler: [requireAnyPermission(['performance:manage', 'performance:review'])] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(reviewUpdateSchema, request.body)
-    setAudit(request, { action: 'performance.review.update', module: 'performance', requestData: { id, ...body } })
+    const data = validateData(reviewUpdateSchema, request.body)
+    requireAtLeastOneField(data)
+    setAudit(request, { action: 'performance.review.update', module: 'performance', requestData: { id, ...data } })
     const review = await prisma.$transaction(async (tx) => {
-      if (body.items) {
+      if (data.items) {
         await tx.performanceReviewItem.deleteMany({ where: { reviewId: id } })
       }
       return tx.performanceReview.update({
         where: { id },
         data: {
-          reviewerId: body.reviewerId ?? undefined,
-          selfScore: body.selfScore ?? undefined,
-          managerScore: body.managerScore ?? undefined,
-          finalScore: body.finalScore ?? undefined,
-          rating: body.rating || calcRating(body.finalScore),
-          selfComment: body.selfComment,
-          managerComment: body.managerComment,
-          developmentPlan: body.developmentPlan,
-          promotionRecommendation: body.promotionRecommendation,
-          status: body.status,
-          submittedAt: body.status === 'self_submitted' ? new Date() : undefined,
-          reviewedAt: body.status === 'reviewed' ? new Date() : undefined,
-          items: body.items ? { create: body.items } : undefined,
+          reviewerId: data.reviewerId ?? undefined,
+          selfScore: data.selfScore ?? undefined,
+          managerScore: data.managerScore ?? undefined,
+          finalScore: data.finalScore ?? undefined,
+          rating: data.rating || calcRating(data.finalScore),
+          selfComment: data.selfComment,
+          managerComment: data.managerComment,
+          developmentPlan: data.developmentPlan,
+          promotionRecommendation: data.promotionRecommendation,
+          status: data.status,
+          submittedAt: data.status === 'self_submitted' ? new Date() : undefined,
+          reviewedAt: data.status === 'reviewed' ? new Date() : undefined,
+          items: data.items ? { create: data.items } : undefined,
         },
         include: { items: true },
       })
@@ -235,7 +234,7 @@ export default async function performanceRoutes(fastify: FastifyInstance) {
 
   fastify.put('/cycles/:id', { preHandler: [requirePermission('performance:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const updateSchema = cycleSchema.omit({}).partial()
+    const updateSchema = safePartial(cycleSchema)
     const body = validateData(updateSchema, request.body)
     setAudit(request, { action: 'performance_cycle_update', module: 'performance', requestData: body })
     const existing = await prisma.performanceCycle.findUnique({ where: { id } })

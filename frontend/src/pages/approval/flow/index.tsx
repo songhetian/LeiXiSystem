@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -10,9 +10,7 @@ import {
   Tag,
   Card,
   Grid,
-  Steps,
   Input,
-  Divider,
   Switch,
 } from '@arco-design/web-react'
 import {
@@ -22,10 +20,13 @@ import {
   IconSettings,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import { getApprovalFlows, createApprovalFlow } from '@/api/approval'
+import { getApprovalFlows, createApprovalFlow, updateApprovalFlow } from '@/api/approval'
 import type { ApprovalFlow } from '@/api/approval'
-import './flow.css'
-
+import { useCrudModal } from '@/hooks/useCrudModal'
+import { WorkflowDesigner } from '@/components'
+import type { WorkflowNode } from '@/components/WorkflowDesigner'
+import { catchError } from '@/utils/catchError'
+import styles from './flow.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -47,8 +48,6 @@ const typeNameMap: Record<string, string> = {
 function Flow() {
   const [data, setData] = useState<ApprovalFlow[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [detailVisible, setDetailVisible] = useState(false)
   const [currentFlow, setCurrentFlow] = useState<ApprovalFlow | null>(null)
@@ -68,6 +67,28 @@ function Flow() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<ApprovalFlow>({
+    form,
+    initialValues: { type: 'leave', status: 'active', isDefault: false },
+    mapRecordToForm: (record) => ({
+      name: record.name,
+      type: record.type,
+      description: record.description,
+      isDefault: record.isDefault,
+      status: record.status,
+    }),
+    onSubmit: async (_values, id) => {
+      if (id) {
+        Message.info('编辑功能开发中')
+      } else {
+        // 此处仅使用 values 但 lint 警告
+        await createApprovalFlow(_values)
+        Message.success('新增成功')
+        fetchData()
+      }
+    },
+  })
 
   const columns: TableProps<ApprovalFlow>['columns'] = [
     {
@@ -143,7 +164,7 @@ function Flow() {
             type="text"
             size="small"
             icon={<IconEdit />}
-            onClick={() => handleEdit(record)}
+            onClick={() => openEdit(record)}
           >
             编辑
           </Button>
@@ -160,60 +181,84 @@ function Flow() {
     },
   ]
 
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
-
-  const handleEdit = (record: ApprovalFlow) => {
-    setEditingId(record.id)
-    form.setFieldsValue({
-      name: record.name,
-      type: record.type,
-      description: record.description,
-      isDefault: record.isDefault,
-      status: record.status,
-    })
-    setVisible(true)
-  }
-
   const handleDetail = (record: ApprovalFlow) => {
     setCurrentFlow(record)
     setDetailVisible(true)
   }
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      if (editingId) {
-        Message.info('编辑功能开发中')
-      } else {
-        await createApprovalFlow(values)
-        Message.success('新增成功')
-        fetchData()
-      }
-      setVisible(false)
-    } catch {
-      // validation error
-    }
-  }
+  const [savingFlow, setSavingFlow] = useState(false)
 
-  const stepNodes = currentFlow?.nodes?.length
-    ? currentFlow.nodes.map((n) => n.nodeName)
-    : ['提交申请', '审批', '完成']
+  // Convert API ApprovalFlowNode[] to WorkflowNode[] for the designer
+  const flowToWorkflowNodes = useCallback((flow: ApprovalFlow): WorkflowNode[] => {
+    const startNode: WorkflowNode = { id: 'start', type: 'start', name: '开始' }
+    const endNode: WorkflowNode = { id: 'end', type: 'end', name: '结束' }
+
+    const middle: WorkflowNode[] = (flow.nodes ?? []).map((n) => ({
+      id: `api_node_${n.id}`,
+      type: n.nodeType === 'condition' ? 'condition' as const : 'approval' as const,
+      name: n.nodeName,
+      approverType: (n.approverType as WorkflowNode['approverType']) ?? undefined,
+    }))
+
+    // If no existing nodes, return default workflow
+    if (middle.length === 0) {
+      return [
+        startNode,
+        { id: 'default_1', type: 'approval', name: '直属上级审批', approverType: 'direct_superior' },
+        { id: 'default_2', type: 'approval', name: '部门负责人审批', approverType: 'dept_head' },
+        endNode,
+      ]
+    }
+
+    return [startNode, ...middle, endNode]
+  }, [])
+
+  const handleSaveWorkflow = useCallback(async (workflowNodes: WorkflowNode[]) => {
+    if (!currentFlow) return
+    setSavingFlow(true)
+    try {
+      // Convert WorkflowNode[] back to API format
+      const apiNodes = workflowNodes
+        .filter((n) => n.type !== 'start' && n.type !== 'end')
+        .map((n, index) => ({
+          nodeName: n.name,
+          nodeType: n.type,
+          nodeOrder: index,
+          approverType: n.approverType,
+          conditions: n.conditions ? JSON.stringify(n.conditions) : undefined,
+        }))
+
+      await updateApprovalFlow(currentFlow.id, { nodes: apiNodes })
+      Message.success('流程配置保存成功')
+      setDetailVisible(false)
+      fetchData()
+    } catch (e) {
+      catchError(e, {
+        component: 'ApprovalFlow',
+        operation: '保存流程配置',
+        silent: true,
+      })
+      Message.error('保存流程配置失败')
+    } finally {
+      setSavingFlow(false)
+    }
+  }, [currentFlow])
+
+  const handleCancelWorkflow = useCallback(() => {
+    setDetailVisible(false)
+  }, [])
 
   return (
-    <div className="approval-flow">
-      <Card bordered={false} className="approval-flow__card">
-        <div className="approval-flow__header">
+    <div className={styles['approval-flow']}>
+      <Card bordered={false} className={styles['approval-flow__card']}>
+        <div className={styles['approval-flow__header']}>
           <div>
-            <span className="approval-flow__title">审批流程配置</span>
-            <Tag color="blue" className="approval-flow__total-tag">
+            <span className={styles['approval-flow__title']}>审批流程配置</span>
+            <Tag color="blue" className={styles['approval-flow__total-tag']}>
               共 {data.length} 个流程
             </Tag>
           </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
+          <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
             新增流程
           </Button>
         </div>
@@ -227,12 +272,12 @@ function Flow() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑流程' : '新增流程'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="approval-flow__modal"
+        onCancel={close}
+        className={styles['approval-flow__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -286,61 +331,33 @@ function Flow() {
         title={`流程配置 - ${currentFlow?.name}`}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        className="approval-flow__detail-modal"
-        footer={[
-          <Button key="cancel" onClick={() => setDetailVisible(false)}>
-            关闭
-          </Button>,
-          <Button
-            key="ok"
-            type="primary"
-            onClick={() => {
-              Message.success('保存成功')
-              setDetailVisible(false)
-            }}
-          >
-            保存配置
-          </Button>,
-        ]}
+        className={styles['approval-flow__detail-modal']}
+        style={{ width: '80vw', maxWidth: 1200 }}
+        footer={null}
+        unmountOnExit
       >
         {currentFlow && (
-          <Space direction="vertical" size={20} className="approval-flow__space">
-            <div>
-              <div className="approval-flow__section-title">审批流程</div>
-              <Steps current={stepNodes.length - 1}>
-                {stepNodes.map((step: string, index: number) => (
-                  <Steps.Step key={index} title={step} />
-                ))}
-              </Steps>
-            </div>
-            <Divider />
-            <div>
-              <div className="approval-flow__section-title">节点配置</div>
-              <Table
-                size="small"
-                columns={[
-                  { title: '节点名称', dataIndex: 'name' },
-                  { title: '审批人', dataIndex: 'approver' },
-                  {
-                    title: '操作',
-                    width: 100,
-                    render: () => <Button type="text" size="small">配置</Button>,
-                  },
-                ]}
-                data={stepNodes.map((step: string, index: number) => ({
-                  key: index,
-                  name: step,
-                  approver:
-                    index === 0
-                      ? '申请人'
-                      : index === stepNodes.length - 1
-                      ? '系统'
-                      : '直属上级',
-                }))}
-                pagination={false}
-              />
-            </div>
-          </Space>
+          <div style={{ height: '70vh', minHeight: 500 }}>
+            <WorkflowDesigner
+              initialNodes={flowToWorkflowNodes(currentFlow)}
+              onSave={handleSaveWorkflow}
+              onCancel={handleCancelWorkflow}
+            />
+          </div>
+        )}
+        {savingFlow && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10,
+            borderRadius: 8,
+          }}>
+            保存中...
+          </div>
         )}
       </Modal>
     </div>

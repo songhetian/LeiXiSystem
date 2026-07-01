@@ -1,0 +1,37 @@
+.page-header {
+  margin-bottom: 0;
+}
+
+.page-header__space {
+  width: 100%;
+}
+
+.page-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header__title {
+  margin: 0 !important;
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-header__extra {
+  display: flex;
+  gap: 8px;
+}
+
+.page-header__refresh {
+  color: var(--color-text-2);
+}
+
+.page-header__refresh:hover {
+  color: var(--color-text-1);
+}

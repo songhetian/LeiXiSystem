@@ -1,7 +1,6 @@
 import { memo, useEffect } from 'react'
 import { Form, Input, Modal, Select } from '@arco-design/web-react'
-import './index.css'
-
+import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -51,7 +50,7 @@ function ApprovalActionModal({
   }
 
   return (
-    <Modal title={title} visible={visible} onOk={handleOk} onCancel={onCancel} className="approval-action-modal">
+    <Modal focusLock title={title} visible={visible} onOk={handleOk} onCancel={onCancel} className={styles['approval-action-modal']}>
       <Form form={form} layout="vertical">
         {actionOptions && actionOptions.length > 0 && (
           <FormItem label="处理结果" field="action" rules={[{ required: true, message: '请选择处理结果' }]}>

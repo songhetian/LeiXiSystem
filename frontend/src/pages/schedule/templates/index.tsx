@@ -21,7 +21,6 @@ import {
   IconEdit,
   IconDelete,
   IconEye,
-  IconCheck,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import {
@@ -38,8 +37,7 @@ import {
 import { getShifts, type Shift } from '@/api/shift'
 import { getDepartmentsList, type Department } from '@/api/organization'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -247,18 +245,18 @@ function TemplatesPage() {
     const days = repeatType === 'weekday' ? 7 : cycleDays
 
     return (
-      <div className="template-items">
+      <div className={styles['template-items']}>
         {Array.from({ length: days }, (_, i) => {
           const item = templateItems[i] || { dayIndex: i, shiftIds: '' }
           return (
-            <div key={i} className="template-item-row">
-              <span className="template-item-label">
+            <div key={i} className={styles['template-item-row']}>
+              <span className={styles['template-item-label']}>
                 {repeatType === 'weekday' ? WEEKDAYS[i] : `第${i + 1}天`}
               </span>
               <Select
                 mode="multiple"
                 placeholder="选择班次"
-                className="template-item-select"
+                className={styles['template-item-select']}
                 value={item.shiftIds ? item.shiftIds.split(',').map(Number).filter(Boolean) : []}
                 onChange={(val: number[]) => {
                   const newItems = [...templateItems]
@@ -285,7 +283,7 @@ function TemplatesPage() {
     {
       title: '模板名称',
       dataIndex: 'name',
-      render: (val) => <span className="schedule-templates__cell-name">{val}</span>,
+      render: (val) => <span className={styles['schedule-templates__cell-name']}>{val}</span>,
     },
     {
       title: '编码',
@@ -334,7 +332,7 @@ function TemplatesPage() {
   ]
 
   return (
-    <div className="schedule-templates">
+    <div className={styles['schedule-templates']}>
       <Card
         bordered={false}
         title="排班模板"
@@ -362,12 +360,12 @@ function TemplatesPage() {
       </Card>
 
       {/* 模板编辑弹窗 */}
-      <Modal
+      <Modal focusLock
         title={editingTemplate ? '编辑模板' : '新建模板'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="schedule-templates__modal-large"
+        className={styles['schedule-templates__modal-large']}
         okText="保存"
         cancelText="取消"
       >
@@ -406,12 +404,12 @@ function TemplatesPage() {
           <Row gutter={16}>
             <Col span={12}>
               <FormItem label="周期天数" field="cycleDays" rules={[{ required: true }]}>
-                <InputNumber min={1} max={30} className="schedule-templates__input-number" />
+                <InputNumber min={1} max={30} className={styles['schedule-templates__input-number']} />
               </FormItem>
             </Col>
             <Col span={12}>
               <FormItem label="状态" field="status">
-                <Select className="schedule-templates__select-status">
+                <Select className={styles['schedule-templates__select-status']}>
                   <Option value="active">启用</Option>
                   <Option value="inactive">停用</Option>
                 </Select>
@@ -428,12 +426,12 @@ function TemplatesPage() {
       </Modal>
 
       {/* 应用模板弹窗 */}
-      <Modal
+      <Modal focusLock
         title="应用排班模板"
         visible={applyVisible}
         onOk={handleApply}
         onCancel={() => { setApplyVisible(false); setPreviewData([]) }}
-        className="schedule-templates__modal-xlarge"
+        className={styles['schedule-templates__modal-xlarge']}
         okText="确认应用"
         cancelText="取消"
         confirmLoading={applying}
@@ -464,7 +462,7 @@ function TemplatesPage() {
               <Row gutter={16}>
                 <Col span={12}>
                   <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}>
-                    <DatePicker.RangePicker className="schedule-templates__range-picker" />
+                    <DatePicker.RangePicker className={styles['schedule-templates__range-picker']} />
                   </FormItem>
                 </Col>
                 <Col span={12}>
@@ -474,7 +472,7 @@ function TemplatesPage() {
                 </Col>
               </Row>
               <FormItem label="指定人员（可选，不选则应用到整个部门）" field="employeeIds">
-                <Select mode="multiple" placeholder="选择人员" allowClear className="schedule-templates__select-employees">
+                <Select mode="multiple" placeholder="选择人员" allowClear className={styles['schedule-templates__select-employees']}>
                   {employees.map((e) => (
                     <Option key={e.id} value={e.id}>{e.realName} ({e.employeeNo})</Option>
                   ))}
@@ -488,7 +486,7 @@ function TemplatesPage() {
           <TabPane title="预览结果" key="preview">
             {previewData.length > 0 ? (
               <>
-                <div className="schedule-templates__preview-stats">
+                <div className={styles['schedule-templates__preview-stats']}>
                   <Space>
                     <Tag color="blue">总计: {previewStats.total}</Tag>
                     <Tag color="green">新建: {previewStats.willCreate}</Tag>
@@ -518,7 +516,7 @@ function TemplatesPage() {
                 />
               </>
             ) : (
-              <div className="schedule-templates__preview-empty">
+              <div className={styles['schedule-templates__preview-empty']}>
                 请先配置参数并点击"生成预览"
               </div>
             )}

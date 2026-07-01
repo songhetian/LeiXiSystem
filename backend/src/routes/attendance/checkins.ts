@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { requireAnyPermission } from '../../middleware/permission'
 import { buildAttendanceDataScopeWhere } from '../../services/dataScope'
 import { normalizePagination } from '../../utils/pagination'
-import { dateStringSchema, optionalKeywordSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, optionalKeywordSchema, validateData, safePick } from '../../utils/validation'
 import { checkInStatusSchema } from '../../utils/schemas'
 
 const dateRangeBaseQuerySchema = z.object({
@@ -22,13 +22,7 @@ export default async function checkinsRoutes(fastify: FastifyInstance) {
   fastify.get('/checkins', { preHandler: [requireAnyPermission(['attendance:view', 'attendance:checkin:view'])] }, async (request: FastifyRequest<{
     Querystring: { employeeId?: number; startDate?: string; endDate?: string; page?: number; pageSize?: number }
   }>) => {
-    const query = validateData(dateRangeBaseQuerySchema.pick({
-      employeeId: true,
-      startDate: true,
-      endDate: true,
-      page: true,
-      pageSize: true,
-    }), request.query)
+    const query = validateData(safePick(dateRangeBaseQuerySchema, ['employeeId', 'startDate', 'endDate', 'page', 'pageSize']), request.query)
     const { page, pageSize, skip, take } = normalizePagination(query)
     const { employeeId, startDate, endDate } = query
     const scopeWhere = await buildAttendanceDataScopeWhere(request.user)

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
-  Table,
   Button,
   Space,
   Modal,
@@ -27,8 +26,8 @@ import {
   deleteOvertimeType,
   type OvertimeType as OvertimeTypeType,
 } from '@/api/attendance-overtime-type'
-import './overtime-types.css'
-
+import { DraggableTable } from '@/components'
+import styles from './overtime-types.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -120,11 +119,23 @@ function OvertimeTypesPage() {
     })
   }
 
+  const handleReorder = useCallback(async (items: OvertimeTypeType[], _oldIndex: number, newIndex: number) => {
+    setTypes(items)
+    try {
+      const movedItem = items[newIndex]
+      await updateOvertimeType(movedItem.id, { sortOrder: newIndex })
+      Message.success('排序已更新')
+      fetchTypes()
+    } catch {
+      fetchTypes()
+    }
+  }, [fetchTypes])
+
   const columns: TableProps<OvertimeTypeType>['columns'] = [
     {
       title: '类型名称',
       dataIndex: 'name',
-      render: (val) => <span className="overtime-types__text-bold">{val}</span>,
+      render: (val) => <span className={styles['overtime-types__text-bold']}>{val}</span>,
     },
     {
       title: '类型编码',
@@ -186,7 +197,7 @@ function OvertimeTypesPage() {
   ]
 
   return (
-    <div className="overtime-types">
+    <div className={styles['overtime-types']}>
       <Card
         bordered={false}
         title="加班类型配置"
@@ -196,7 +207,7 @@ function OvertimeTypesPage() {
           </Button>
         }
       >
-        <Table
+        <DraggableTable
           rowKey="id"
           loading={loading}
           columns={columns}
@@ -210,15 +221,17 @@ function OvertimeTypesPage() {
               setPageSize(ps)
             },
           }}
+          onReorder={handleReorder}
+          draggable={true}
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingType ? '编辑加班类型' : '新建加班类型'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="overtime-types__modal"
+        className={styles['overtime-types__modal']}
         okText="保存"
         cancelText="取消"
       >
@@ -252,12 +265,12 @@ function OvertimeTypesPage() {
             </Col>
             <Col span={8}>
               <FormItem label="最小时长(分钟)" field="minMinutes">
-                <InputNumber className="overtime-types__input-full" min={0} max={1440} />
+                <InputNumber className={styles['overtime-types__input-full']} min={0} max={1440} />
               </FormItem>
             </Col>
             <Col span={8}>
               <FormItem label="最大时长(分钟)" field="maxMinutes">
-                <InputNumber className="overtime-types__input-full" min={0} max={1440} placeholder="可选" />
+                <InputNumber className={styles['overtime-types__input-full']} min={0} max={1440} placeholder="可选" />
               </FormItem>
             </Col>
           </Row>
@@ -269,12 +282,12 @@ function OvertimeTypesPage() {
             </Col>
             <Col span={12}>
               <FormItem label="排序" field="sortOrder">
-                <InputNumber className="overtime-types__input-full" min={0} max={9999} defaultValue={0} />
+                <InputNumber className={styles['overtime-types__input-full']} min={0} max={9999} defaultValue={0} />
               </FormItem>
             </Col>
           </Row>
           <FormItem label="状态" field="status">
-            <Select className="overtime-types__select-small" defaultValue="active">
+            <Select className={styles['overtime-types__select-small']} defaultValue="active">
               <Option value="active">启用</Option>
               <Option value="inactive">停用</Option>
             </Select>

@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify'
 import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
+import { markAsConfirmed, getNotificationDetail } from '../services/notification'
 
 export default async function notificationRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -11,14 +12,23 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
       pageSize?: number
       type?: string
       isRead?: boolean
+      priority?: string
+      keyword?: string
     }
   }>) => {
-    const { page = 1, pageSize = 10, type, isRead } = request.query
+    const { page = 1, pageSize = 10, type, isRead, priority, keyword } = request.query
     const userId = request.user.id
 
     const where: any = { userId }
     if (type) where.type = type
     if (isRead !== undefined) where.isRead = isRead
+    if (priority) where.priority = priority
+    if (keyword) {
+      where.OR = [
+        { title: { contains: keyword } },
+        { content: { contains: keyword } },
+      ]
+    }
 
     const [total, list] = await Promise.all([
       prisma.notification.count({ where }),
@@ -26,7 +36,13 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { priority: 'desc' },
+          { createdAt: 'desc' },
+        ],
+        include: {
+          attachments: true,
+        },
       }),
     ])
 
@@ -34,10 +50,36 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
       where: { userId, isRead: false },
     })
 
+    const unconfirmedCount = await prisma.notification.count({
+      where: { userId, requiresConfirm: true, confirmedAt: null },
+    })
+
     return {
       code: 0,
-      data: { list, total, page, pageSize, unreadCount },
+      data: { list, total, page, pageSize, unreadCount, unconfirmedCount },
     }
+  })
+
+  fastify.get('/:id', async (request: FastifyRequest<{
+    Params: { id: string }
+  }>) => {
+    const notification = await getNotificationDetail(
+      request.user.id,
+      parseInt(request.params.id)
+    )
+
+    if (!notification) {
+      return { code: 404, message: '通知不存在' }
+    }
+
+    if (!notification.isRead) {
+      await prisma.notification.update({
+        where: { id: notification.id },
+        data: { isRead: true, readAt: new Date() },
+      })
+    }
+
+    return { code: 0, data: notification }
   })
 
   fastify.post('/:id/read', async (request: FastifyRequest<{
@@ -53,6 +95,13 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
     return { code: 0, message: '已读' }
   })
 
+  fastify.post('/:id/confirm', async (request: FastifyRequest<{
+    Params: { id: string }
+  }>) => {
+    await markAsConfirmed(request.user.id, parseInt(request.params.id))
+    return { code: 0, message: '确认成功' }
+  })
+
   fastify.post('/read-all', async (request) => {
     await prisma.notification.updateMany({
       where: { userId: request.user.id, isRead: false },
@@ -65,13 +114,16 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
   fastify.get('/stats', async (request) => {
     const userId = request.user.id
 
-    const [total, unread, typeStats] = await Promise.all([
+    const [total, unread, typeStats, unconfirmedCount] = await Promise.all([
       prisma.notification.count({ where: { userId } }),
       prisma.notification.count({ where: { userId, isRead: false } }),
       prisma.notification.groupBy({
         by: ['type'],
         where: { userId },
         _count: { type: true },
+      }),
+      prisma.notification.count({
+        where: { userId, requiresConfirm: true, confirmedAt: null },
       }),
     ])
 
@@ -97,6 +149,7 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
         total,
         unread,
         read: total - unread,
+        unconfirmed: unconfirmedCount,
         byType: typeStatsMap,
       },
     }

@@ -5,7 +5,6 @@ import {
   Statistic,
   Table,
   Tag,
-  Typography,
   Space,
   Form,
   DatePicker,
@@ -14,11 +13,9 @@ import {
 import type { TableColumnProps } from '@arco-design/web-react'
 import { IconUser, IconExclamation, IconCheck, IconClose } from '@arco-design/web-react/icon'
 import { get } from '@/api/request'
-import { EXCEPTION_TYPES } from '@/api/attendance-exception'
-import './stats.css'
-
+import { PageHeader } from '@/components'
+import styles from './stats.module.css'
 const { Row, Col } = Grid
-const { Title, Text } = Typography
 const FormItem = Form.Item
 const RangePicker = DatePicker.RangePicker
 
@@ -80,17 +77,13 @@ function AttendanceExceptionStats() {
     {
       title: '异常类型',
       dataIndex: 'label',
-      render: (val: string) => (
-        <Space>
-          <Tag color="orange">{val}</Tag>
-        </Space>
-      ),
+      render: (val: string) => <Tag color="orange">{val}</Tag>,
     },
     {
       title: '数量',
       dataIndex: 'count',
       width: 120,
-      render: (val: number) => <span className="exception-stats__bold">{val}</span>,
+      render: (val: number) => <span className={styles['exception-stats__bold']}>{val}</span>,
     },
     {
       title: '占比',
@@ -110,9 +103,9 @@ function AttendanceExceptionStats() {
       render: (_: unknown, __: unknown, index: number) => {
         const colors = ['#FF7D00', '#FFB400', '#00B42A']
         if (index < 3) {
-          return <Tag color={colors[index]} className="exception-stats__bold">#{index + 1}</Tag>
+          return <Tag color={colors[index]} className={styles['exception-stats__bold']}>#{index + 1}</Tag>
         }
-        return <span className="exception-stats__text-muted">#{index + 1}</span>
+        return <span className={styles['exception-stats__text-muted']}>#{index + 1}</span>
       },
     },
     {
@@ -135,27 +128,26 @@ function AttendanceExceptionStats() {
       dataIndex: 'count',
       width: 120,
       render: (val: number) => (
-        <Tag color="red" className="exception-stats__bold">{val} 次</Tag>
+        <Tag color="red" className={styles['exception-stats__bold']}>{val} 次</Tag>
       ),
     },
   ]
 
-  // 简易柱状图趋势
   const maxTrendCount = Math.max(...(stats?.trend?.map((t) => t.count) || [0]), 1)
 
   return (
-    <div className="exception-stats">
-      <Card bordered={false} className="exception-stats__card">
-        <Space direction="vertical" size={4}>
-          <Title heading={5} className="exception-stats__title">考勤异常统计</Title>
-          <Text type="secondary">查看异常分布、处理进度和重点关注人员</Text>
-        </Space>
+    <div className={styles['exception-stats']}>
+      <Card bordered={false} className={styles['exception-stats__card']}>
+        <PageHeader
+          title="考勤异常统计"
+          description="查看异常分布、处理进度和重点关注人员"
+        />
       </Card>
 
-      <Card bordered={false} className="exception-stats__card">
+      <Card bordered={false} className={styles['exception-stats__card']}>
         <Form form={form} layout="inline">
           <FormItem label="日期范围" field="dateRange">
-            <RangePicker className="exception-stats__picker" />
+            <RangePicker className={styles['exception-stats__picker']} />
           </FormItem>
           <FormItem>
             <Space>
@@ -166,14 +158,13 @@ function AttendanceExceptionStats() {
         </Form>
       </Card>
 
-      {/* 统计卡片 */}
-      <Row gutter={16} className="exception-stats__card">
+      <Row gutter={16} className={styles['exception-stats__card']}>
         <Col span={6}>
           <Card bordered={false} loading={loading}>
             <Statistic
-              title={<span className="exception-stats__stat-title">异常总数</span>}
+              title={<span className={styles['exception-stats__stat-title']}>异常总数</span>}
               value={stats?.summary.total || 0}
-              prefix={<IconExclamation className="exception-stats__stat-icon" style={{ color: "#F53F3F" }} />}
+              prefix={<IconExclamation className={styles['exception-stats__stat-icon']} style={{ color: "#F53F3F" }} />}
               styleValue={{ fontSize: 32, fontWeight: 600, color: '#F53F3F' }}
             />
           </Card>
@@ -181,9 +172,9 @@ function AttendanceExceptionStats() {
         <Col span={6}>
           <Card bordered={false} loading={loading}>
             <Statistic
-              title={<span className="exception-stats__stat-title">待处理</span>}
+              title={<span className={styles['exception-stats__stat-title']}>待处理</span>}
               value={stats?.summary.pending || 0}
-              prefix={<IconClose className="exception-stats__stat-icon" style={{ color: "#FF7D00" }} />}
+              prefix={<IconClose className={styles['exception-stats__stat-icon']} style={{ color: "#FF7D00" }} />}
               styleValue={{ fontSize: 32, fontWeight: 600, color: '#FF7D00' }}
             />
           </Card>
@@ -191,9 +182,9 @@ function AttendanceExceptionStats() {
         <Col span={6}>
           <Card bordered={false} loading={loading}>
             <Statistic
-              title={<span className="exception-stats__stat-title">已解决</span>}
+              title={<span className={styles['exception-stats__stat-title']}>已解决</span>}
               value={stats?.summary.resolved || 0}
-              prefix={<IconCheck className="exception-stats__stat-icon" style={{ color: "#00B42A" }} />}
+              prefix={<IconCheck className={styles['exception-stats__stat-icon']} style={{ color: "#00B42A" }} />}
               styleValue={{ fontSize: 32, fontWeight: 600, color: '#00B42A' }}
             />
           </Card>
@@ -201,10 +192,10 @@ function AttendanceExceptionStats() {
         <Col span={6}>
           <Card bordered={false} loading={loading}>
             <Statistic
-              title={<span className="exception-stats__stat-title">处理率</span>}
+              title={<span className={styles['exception-stats__stat-title']}>处理率</span>}
               value={stats?.summary.resolveRate || 0}
               suffix="%"
-              prefix={<IconUser className="exception-stats__stat-icon" style={{ color: "#165DFF" }} />}
+              prefix={<IconUser className={styles['exception-stats__stat-icon']} style={{ color: "#165DFF" }} />}
               styleValue={{ fontSize: 32, fontWeight: 600, color: '#165DFF' }}
             />
           </Card>
@@ -212,9 +203,8 @@ function AttendanceExceptionStats() {
       </Row>
 
       <Row gutter={16}>
-        {/* 异常类型分布 */}
         <Col span={12}>
-          <Card bordered={false} title="异常类型分布" className="exception-stats__card">
+          <Card bordered={false} title="异常类型分布" className={styles['exception-stats__card']}>
             <Table
               rowKey="type"
               loading={loading}
@@ -224,10 +214,8 @@ function AttendanceExceptionStats() {
             />
           </Card>
         </Col>
-
-        {/* Top 10 异常员工 */}
         <Col span={12}>
-          <Card bordered={false} title="异常次数 Top 10" className="exception-stats__card">
+          <Card bordered={false} title="异常次数 Top 10" className={styles['exception-stats__card']}>
             <Table
               rowKey="id"
               loading={loading}
@@ -240,25 +228,24 @@ function AttendanceExceptionStats() {
         </Col>
       </Row>
 
-      {/* 趋势图 */}
       <Card bordered={false} title="异常趋势">
         {stats?.trend?.length ? (
-          <div className="trend-chart">
+          <div className={styles['trend-chart']}>
             {stats.trend.map((item) => (
-              <div key={item.date} className="trend-item">
-                <div className="trend-bar-wrapper">
+              <div key={item.date} className={styles['trend-item']}>
+                <div className={styles['trend-bar-wrapper']}>
                   <div
-                    className="trend-bar"
+                    className={styles['trend-bar']}
                     style={{ height: `${(item.count / maxTrendCount) * 100}%` }}
                   />
                 </div>
-                <div className="trend-value">{item.count}</div>
-                <div className="trend-date">{item.date.slice(5)}</div>
+                <div className={styles['trend-value']}>{item.count}</div>
+                <div className={styles['trend-date']}>{item.date.slice(5)}</div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="exception-stats__empty">
+          <div className={styles['exception-stats__empty']}>
             {loading ? '加载中...' : '暂无数据'}
           </div>
         )}

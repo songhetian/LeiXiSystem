@@ -5,7 +5,7 @@ import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { buildEmployeeDataScopeWhere } from '../../services/dataScope'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { requirePermission } from '../../middleware/permission'
-import { idParamsSchema, positiveIntSchema, validateData } from '../../utils/validation'
+import { idParamsSchema, positiveIntSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 import { invalidatePayrollCache } from '../../services/cacheService'
 
 const salaryComponentSchema = z.object({
@@ -19,10 +19,7 @@ const salaryComponentSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
 })
 
-const salaryComponentUpdateSchema = salaryComponentSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  { message: '至少需要提交一个更新字段' }
-)
+const salaryComponentUpdateSchema = partialUpdateSchema(salaryComponentSchema)
 
 export default async function componentsRoutes(fastify: FastifyInstance) {
   fastify.get('/components', { preHandler: [requirePermission('payroll:manage')] }, async () => {
@@ -73,11 +70,12 @@ export default async function componentsRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>, reply) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(salaryComponentUpdateSchema, request.body)
+    const data = validateData(salaryComponentUpdateSchema, request.body)
+    requireAtLeastOneField(data)
     setAudit(request, {
       module: 'payroll',
       action: 'payroll.component.update',
-      requestData: body,
+      requestData: data,
     })
     const existing = await prisma.salaryComponent.findUnique({ where: { id } })
 
@@ -88,7 +86,7 @@ export default async function componentsRoutes(fastify: FastifyInstance) {
     captureBefore(request, existing)
     const component = await prisma.salaryComponent.update({
       where: { id },
-      data: body,
+      data: data,
     })
 
     setAfter(request, { id: component.id })

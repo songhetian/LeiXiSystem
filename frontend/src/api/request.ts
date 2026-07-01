@@ -1,6 +1,24 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { toast } from '@/utils/toast'
-import { useUserStore } from '@/store/user'
+import { useAuthStore } from '@/store/auth'
+import { addPendingRequest, removePendingRequest } from './requestCancel'
+import { getCache, setCache } from './requestCache'
+import { requestWithRetry } from './requestRetry'
+import { logger } from '@/utils/logger'
+
+interface ExtendedRequestConfig extends AxiosRequestConfig {
+  /** 是否启用请求取消（防重复提交），默认 true */
+  cancelDuplicate?: boolean
+  /** 是否启用缓存（仅 GET 请求），默认 false */
+  useCache?: boolean
+  /** 缓存时间（毫秒），默认 5 分钟 */
+  cacheTime?: number
+  /** 重试配置 */
+  retryConfig?: {
+    retries?: number
+    retryDelay?: number
+  }
+}
 
 const request: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -11,9 +29,58 @@ const request: AxiosInstance = axios.create({
   },
 })
 
+request.interceptors.request.use(
+  (config: ExtendedRequestConfig) => {
+    const { cancelDuplicate = true, useCache = false, method } = config
+
+    // Inject Authorization token
+    const token = useAuthStore.getState().token
+    if (token) {
+      config.headers.set('Authorization', `Bearer ${token}`)
+    }
+
+    if (cancelDuplicate) {
+      addPendingRequest(config)
+    }
+
+    if (useCache && method?.toLowerCase() === 'get') {
+      const cachedData = getCache(config)
+      if (cachedData) {
+        logger.debug('命中缓存', config.url)
+        return Promise.resolve({
+          data: cachedData,
+          config,
+          headers: {},
+          status: 200,
+          statusText: 'OK',
+          __fromCache: true,
+        } as any)
+      }
+    }
+
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  },
+)
+
 request.interceptors.response.use(
   (response) => {
+    const config = response.config as ExtendedRequestConfig
+
+    removePendingRequest(config)
+
     const data = response.data
+
+    if ((response as any).__fromCache) {
+      return response.data
+    }
+
+    if (config.useCache && config.method?.toLowerCase() === 'get') {
+      setCache(config, data, config.cacheTime)
+    }
+
     if (data && data.success === false) {
       toast.error(data.message || '请求失败')
       return Promise.reject(data)
@@ -25,13 +92,24 @@ request.interceptors.response.use(
     return data
   },
   (error) => {
+    const config = error.config as ExtendedRequestConfig
+
+    if (config) {
+      removePendingRequest(config)
+    }
+
+    if (error.code === 'ERR_CANCELED') {
+      logger.debug('请求已取消', config?.url)
+      return Promise.reject(error)
+    }
+
     const status = error.response?.status
     const message = error.response?.data?.message || error.message
 
     switch (status) {
       case 401:
         toast.error('登录已过期，请重新登录')
-        useUserStore.getState().logout()
+        useAuthStore.getState().logout()
         window.location.href = '/login'
         break
       case 403:
@@ -60,20 +138,36 @@ request.interceptors.response.use(
   },
 )
 
-export function get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+export function get<T = any>(url: string, config?: ExtendedRequestConfig): Promise<T> {
+  if (config?.retryConfig) {
+    return requestWithRetry((cfg) => request.get(url, cfg), {
+      ...config,
+      method: 'GET',
+      url,
+    } as any) as Promise<T>
+  }
   return request.get(url, config)
 }
 
-export function post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function post<T = any>(url: string, data?: any, config?: ExtendedRequestConfig): Promise<T> {
+  if (config?.retryConfig) {
+    return requestWithRetry((cfg) => request.post(url, data, cfg), {
+      ...config,
+      method: 'POST',
+      url,
+      data,
+    } as any) as Promise<T>
+  }
   return request.post(url, data, config)
 }
 
-export function put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function put<T = any>(url: string, data?: any, config?: ExtendedRequestConfig): Promise<T> {
   return request.put(url, data, config)
 }
 
-export function del<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+export function del<T = any>(url: string, config?: ExtendedRequestConfig): Promise<T> {
   return request.delete(url, config)
 }
 
 export default request
+export type { ExtendedRequestConfig }

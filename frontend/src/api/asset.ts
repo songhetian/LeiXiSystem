@@ -1,5 +1,59 @@
 import { get, post, put, del } from './request'
 
+// ===== Local request type interfaces =====
+
+export interface CreateAssetCategoryParams {
+  name: string
+  code: string
+  description?: string
+  status?: string
+  sortOrder?: number
+}
+
+export interface CreateAssetItemParams {
+  name: string
+  assetNo?: string
+  categoryId: number
+  brand?: string
+  model?: string
+  serialNo?: string
+  location?: string
+  purchaseDate?: string
+  purchaseAmount?: number
+  remark?: string
+}
+
+export type UpdateAssetItemParams = Partial<CreateAssetItemParams> & {
+  status?: string
+}
+
+export interface AssignAssetParams {
+  employeeId: number
+  note?: string
+}
+
+export interface ReturnAssetParams {
+  note?: string
+}
+
+export interface TransferAssetParams {
+  employeeId: number
+  note?: string
+}
+
+export interface RetireAssetParams {
+  reason?: string
+}
+
+export interface AssetAssignmentQueryParams {
+  page?: number
+  pageSize?: number
+  keyword?: string
+  employeeId?: number
+  assetId?: number
+  action?: string
+}
+
 // Categories
 export interface AssetCategory {
   id: number
@@ -14,7 +68,7 @@ export function getAssetCategories() {
   return get<{ code: 0; data: AssetCategory[] }>('/asset/categories')
 }
 
-export function createAssetCategory(data: any) {
+export function createAssetCategory(data: CreateAssetCategoryParams) {
   return post('/asset/categories', data)
 }
 
@@ -37,7 +91,7 @@ export interface AssetItem {
   remark?: string
   category?: { id: number; name: string; code: string }
   currentEmployee?: { id?: number; employeeNo: string; user?: { realName: string } }
-  assignments?: any[]
+  assignments?: AssignmentRecord[]
 }
 
 export interface AssignmentRecord {
@@ -65,27 +119,27 @@ export function getAssetItemDetail(id: number) {
   return get<{ code: 0; data: AssetItem }>(`/asset/items/${id}`)
 }
 
-export function createAssetItem(data: any) {
+export function createAssetItem(data: CreateAssetItemParams) {
   return post('/asset/items', data)
 }
 
-export function updateAssetItem(id: number, data: any) {
+export function updateAssetItem(id: number, data: UpdateAssetItemParams) {
   return put(`/asset/items/${id}`, data)
 }
 
-export function assignAsset(id: number, data: any) {
+export function assignAsset(id: number, data: AssignAssetParams) {
   return post(`/asset/items/${id}/assign`, data)
 }
 
-export function returnAsset(id: number, data?: any) {
+export function returnAsset(id: number, data?: ReturnAssetParams) {
   return post(`/asset/items/${id}/return`, data)
 }
 
-export function transferAsset(id: number, data: any) {
+export function transferAsset(id: number, data: TransferAssetParams) {
   return post(`/asset/items/${id}/transfer`, data)
 }
 
-export function retireAsset(id: number, data?: any) {
+export function retireAsset(id: number, data?: RetireAssetParams) {
   return post(`/asset/items/${id}/retire`, data)
 }
 
@@ -102,6 +156,6 @@ export function batchUpdateAssetStatus(ids: number[], status: string) {
 }
 
 // Assignments
-export function getAssetAssignments(params?: any) {
+export function getAssetAssignments(params?: AssetAssignmentQueryParams) {
   return get<{ code: 0; data: { list: AssignmentRecord[]; total: number; page: number; pageSize: number } }>('/asset/assignments', { params })
 }

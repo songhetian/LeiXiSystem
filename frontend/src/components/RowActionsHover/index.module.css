@@ -1,0 +1,92 @@
+.row-actions-hover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+
+.row-actions-hover__trigger {
+  display: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-text-3);
+  cursor: pointer;
+  border-radius: var(--border-radius-small);
+  transition: all 0.2s;
+}
+
+.row-actions-hover__trigger:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-2);
+}
+
+/* 悬停时显示操作 */
+.row-actions-hover--visible .row-actions-hover__trigger,
+.table-tr:hover .row-actions-hover .row-actions-hover__trigger {
+  display: block;
+}
+
+.table-tr:hover .row-actions-hover .row-actions-hover__actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 操作按钮 */
+.row-actions-hover__actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--color-bg-popup);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-small);
+  box-shadow: var(--shadow2);
+}
+
+.row-actions-hover__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--color-text-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.row-actions-hover__btn:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-2);
+}
+
+.row-actions-hover__btn--danger {
+  color: var(--color-red);
+}
+
+.row-actions-hover__btn--danger:hover {
+  color: #fff;
+  background: var(--color-red);
+}
+
+.row-actions-hover__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 深色模式 */
+[data-theme='dark'] .row-actions-hover__trigger:hover {
+  background: var(--color-fill-2-dark);
+}
+
+[data-theme='dark'] .row-actions-hover__actions {
+  background: var(--color-bg-popup-dark);
+  border-color: var(--color-border-dark);
+}
+
+[data-theme='dark'] .row-actions-hover__btn:hover {
+  background: var(--color-fill-2-dark);
+}

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
-  Table,
   Button,
   Space,
   Modal,
@@ -27,8 +26,8 @@ import {
   LOCATION_TYPE_OPTIONS,
   type AttendanceLocation,
 } from '@/api/attendance-location'
-import './locations.css'
-
+import { DraggableTable } from '@/components'
+import styles from './locations.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -119,11 +118,23 @@ function AttendanceLocationsPage() {
     })
   }
 
+  const handleReorder = useCallback(async (items: AttendanceLocation[], _oldIndex: number, newIndex: number) => {
+    setLocations(items)
+    try {
+      const movedItem = items[newIndex]
+      await updateAttendanceLocation(movedItem.id, { sortOrder: newIndex })
+      Message.success('排序已更新')
+      fetchLocations()
+    } catch {
+      fetchLocations()
+    }
+  }, [fetchLocations])
+
   const columns: TableProps<AttendanceLocation>['columns'] = [
     {
       title: '位置名称',
       dataIndex: 'name',
-      render: (val) => <span className="attendance-locations__text-bold">{val}</span>,
+      render: (val) => <span className={styles['attendance-locations__text-bold']}>{val}</span>,
     },
     {
       title: '打卡方式',
@@ -190,7 +201,7 @@ function AttendanceLocationsPage() {
   ]
 
   return (
-    <div className="attendance-locations">
+    <div className={styles['attendance-locations']}>
       <Card
         bordered={false}
         title="打卡位置配置"
@@ -200,7 +211,7 @@ function AttendanceLocationsPage() {
           </Button>
         }
       >
-        <Table
+        <DraggableTable
           rowKey="id"
           loading={loading}
           columns={columns}
@@ -214,15 +225,17 @@ function AttendanceLocationsPage() {
               setPageSize(ps)
             },
           }}
+          onReorder={handleReorder}
+          draggable={true}
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editing ? '编辑打卡位置' : '新增打卡位置'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="attendance-locations__modal"
+        className={styles['attendance-locations__modal']}
         okText="保存"
         cancelText="取消"
       >
@@ -254,17 +267,17 @@ function AttendanceLocationsPage() {
                     <Row gutter={16}>
                       <Col span={8}>
                         <FormItem label="纬度" field="latitude">
-                          <InputNumber className="attendance-locations__input-full" min={-90} max={90} precision={7} placeholder="例如：31.2304" />
+                          <InputNumber className={styles['attendance-locations__input-full']} min={-90} max={90} precision={7} placeholder="例如：31.2304" />
                         </FormItem>
                       </Col>
                       <Col span={8}>
                         <FormItem label="经度" field="longitude">
-                          <InputNumber className="attendance-locations__input-full" min={-180} max={180} precision={7} placeholder="例如：121.4737" />
+                          <InputNumber className={styles['attendance-locations__input-full']} min={-180} max={180} precision={7} placeholder="例如：121.4737" />
                         </FormItem>
                       </Col>
                       <Col span={8}>
                         <FormItem label="有效半径(米)" field="radiusMeters">
-                          <InputNumber className="attendance-locations__input-full" min={10} max={5000} defaultValue={100} />
+                          <InputNumber className={styles['attendance-locations__input-full']} min={10} max={5000} defaultValue={100} />
                         </FormItem>
                       </Col>
                     </Row>
@@ -303,7 +316,7 @@ function AttendanceLocationsPage() {
             </Col>
             <Col span={12}>
               <FormItem label="排序" field="sortOrder">
-                <InputNumber className="attendance-locations__input-full" min={0} max={9999} defaultValue={0} />
+                <InputNumber className={styles['attendance-locations__input-full']} min={0} max={9999} defaultValue={0} />
               </FormItem>
             </Col>
           </Row>

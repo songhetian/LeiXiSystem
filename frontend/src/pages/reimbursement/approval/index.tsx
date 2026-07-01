@@ -10,14 +10,11 @@ import {
   Message,
   Tag,
   Card,
-  Grid,
   Tabs,
   Steps,
   Descriptions,
 } from '@arco-design/web-react'
 import {
-  IconSearch,
-  IconRefresh,
   IconCheck,
   IconClose,
   IconEye,
@@ -30,9 +27,9 @@ import {
   getReimbursementDetail,
 } from '@/api/reimbursement'
 import type { PendingReimbursement } from '@/api/reimbursement'
+import { FilterBar, TableHeader } from '@/components'
 import { formatDate } from '@/utils/date'
-import './approval.css'
-
+import styles from './approval.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -127,7 +124,7 @@ function Approval() {
       dataIndex: 'amount',
       width: 120,
       render: (value: number) => (
-        <span className="reimbursement-approval__amount">¥{value}</span>
+        <span className={styles['reimbursement-approval__amount']}>¥{value}</span>
       ),
     },
     {
@@ -255,8 +252,8 @@ function Approval() {
   }
 
   return (
-    <div className="reimbursement-approval">
-      <Card bordered={false} className="reimbursement-approval__tabs-card">
+    <div className={styles['reimbursement-approval']}>
+      <Card bordered={false} className={styles['reimbursement-approval__tabs-card']}>
         <Tabs activeTab={activeTab} onChange={handleTabChange}>
           <TabPane key="all" title={`全部待审批 (${pagination.total})`} />
           {reimbursementTypes.map((type) => (
@@ -265,50 +262,47 @@ function Approval() {
         </Tabs>
       </Card>
 
-      <Card bordered={false} className="reimbursement-approval__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="reimbursement-approval__search-input"
-              placeholder="标题/申请人"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="类型">
-            <Select
-              className="reimbursement-approval__type-select"
-              placeholder="请选择"
-              value={searchType}
-              onChange={setSearchType}
-              allowClear
-            >
-              {reimbursementTypes.map((type) => (
-                <Option key={type.value} value={type.value}>{type.label}</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['reimbursement-approval__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['reimbursement-approval__search-input']}
+                  placeholder="标题/申请人"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="类型">
+                <Select
+                  className={styles['reimbursement-approval__type-select']}
+                  placeholder="请选择"
+                  value={searchType}
+                  onChange={setSearchType}
+                  allowClear
+                >
+                  {reimbursementTypes.map((type) => (
+                    <Option key={type.value} value={type.value}>{type.label}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
       </Card>
 
-      <Card bordered={false} className="reimbursement-approval__table-card">
-        <div className="reimbursement-approval__table-header">
-          <span className="reimbursement-approval__table-title">报销审批</span>
-          <Tag color="orange" className="reimbursement-approval__total-tag">
-            共 {filteredData.length} 条待处理
-          </Tag>
-        </div>
+      <Card bordered={false} className={styles['reimbursement-approval__table-card']}>
+        <TableHeader
+          title="报销审批"
+          total={filteredData.length}
+          totalTagColor="orange"
+          totalTagText={`共 ${filteredData.length} 条待处理`}
+        />
 
         <Table
           loading={loading}
@@ -324,15 +318,15 @@ function Approval() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="报销详情"
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        className="reimbursement-approval__modal"
+        className={styles['reimbursement-approval__modal']}
       >
         {currentDetail && (
-          <Space direction="vertical" size={20} className="reimbursement-approval__detail-space">
+          <Space direction="vertical" size={20} className={styles['reimbursement-approval__detail-space']}>
             <Steps current={currentDetail.currentStep || 0}>
               <Steps.Step title="提交申请" />
               <Steps.Step title="部门审批" />

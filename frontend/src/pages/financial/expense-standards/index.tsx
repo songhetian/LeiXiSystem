@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
-  Table,
   Button,
   Space,
   Modal,
@@ -16,14 +15,9 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
-import {
-  getExpenseStandards,
+import { getExpenseStandards,
   createExpenseStandard,
   updateExpenseStandard,
   deleteExpenseStandard,
@@ -31,8 +25,9 @@ import {
   type ExpenseStandard,
 } from '@/api/expense-standard'
 import { getDepartmentsList, type Department } from '@/api/organization'
-import './style.css'
-
+import { FilterBar, ActionButtons, DraggableTable } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './style.module.css'
 const { Text } = Typography
 const FormItem = Form.Item
 const Option = Select.Option
@@ -43,8 +38,6 @@ function ExpenseStandardsPage() {
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [departments, setDepartments] = useState<Department[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -89,49 +82,32 @@ function ExpenseStandardsPage() {
     loadData(1, pageSize)
   }, [searchKeyword, searchType, searchStatus])
 
-  const handleOpen = (record?: ExpenseStandard) => {
-    form.resetFields()
-    if (record) {
-      setEditingId(record.id)
-      form.setFieldsValue({
-        name: record.name,
-        type: record.type,
-        amountLimit: record.amountLimit,
-        dailyLimit: record.dailyLimit,
-        monthlyLimit: record.monthlyLimit,
-        departmentId: record.departmentId,
-        requireInvoice: record.requireInvoice,
-        description: record.description,
-        status: record.status,
-        sortOrder: record.sortOrder,
-      })
-    } else {
-      setEditingId(null)
-      form.setFieldsValue({
-        requireInvoice: true,
-        status: 'active',
-        sortOrder: 0,
-      })
-    }
-    setVisible(true)
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      if (editingId) {
-        await updateExpenseStandard(editingId, values)
+  const { visible, editingId, openCreate, openEdit, close, handleOk } = useCrudModal<ExpenseStandard>({
+    form,
+    initialValues: { requireInvoice: true, status: 'active', sortOrder: 0 },
+    mapRecordToForm: (record) => ({
+      name: record.name,
+      type: record.type,
+      amountLimit: record.amountLimit,
+      dailyLimit: record.dailyLimit,
+      monthlyLimit: record.monthlyLimit,
+      departmentId: record.departmentId,
+      requireInvoice: record.requireInvoice,
+      description: record.description,
+      status: record.status,
+      sortOrder: record.sortOrder,
+    }),
+    onSubmit: async (values, id) => {
+      if (id) {
+        await updateExpenseStandard(id, values)
         Message.success('更新成功')
       } else {
         await createExpenseStandard(values)
         Message.success('创建成功')
       }
-      setVisible(false)
-      loadData(page, pageSize)
-    } catch {
-      // error handled by interceptor
-    }
-  }
+    },
+    onSuccess: () => loadData(page, pageSize),
+  })
 
   const handleDelete = async (id: number) => {
     try {
@@ -142,6 +118,18 @@ function ExpenseStandardsPage() {
       // error handled by interceptor
     }
   }
+
+  const handleReorder = useCallback(async (items: ExpenseStandard[], _oldIndex: number, newIndex: number) => {
+    setData(items)
+    try {
+      const movedItem = items[newIndex]
+      await updateExpenseStandard(movedItem.id, { sortOrder: newIndex })
+      Message.success('排序已更新')
+      loadData(page, pageSize)
+    } catch {
+      loadData(page, pageSize)
+    }
+  }, [loadData, page, pageSize])
 
   const getTypeTag = (type: string) => {
     const colors: Record<string, string> = {
@@ -179,19 +167,19 @@ function ExpenseStandardsPage() {
       title: '单笔上限',
       dataIndex: 'amountLimit',
       width: 120,
-      render: (val) => <Text className="tabular-nums">¥{val?.toLocaleString()}</Text>,
+      render: (val) => <Text className={styles['tabular-nums']}>¥{val?.toLocaleString()}</Text>,
     },
     {
       title: '日上限',
       dataIndex: 'dailyLimit',
       width: 100,
-      render: (val) => val ? <Text className="tabular-nums">¥{val?.toLocaleString()}</Text> : '-',
+      render: (val) => val ? <Text className={styles['tabular-nums']}>¥{val?.toLocaleString()}</Text> : '-',
     },
     {
       title: '月上限',
       dataIndex: 'monthlyLimit',
       width: 100,
-      render: (val) => val ? <Text className="tabular-nums">¥{val?.toLocaleString()}</Text> : '-',
+      render: (val) => val ? <Text className={styles['tabular-nums']}>¥{val?.toLocaleString()}</Text> : '-',
     },
     {
       title: '必须发票',
@@ -209,84 +197,71 @@ function ExpenseStandardsPage() {
       title: '操作',
       width: 140,
       render: (_, record) => (
-        <Space size="small">
-          <Button type="text" size="small" icon={<IconEdit />} onClick={() => handleOpen(record)}>
-            编辑
-          </Button>
-          <Button
-            type="text"
-            size="small"
-            status="danger"
-            icon={<IconDelete />}
-            onClick={() => handleDelete(record.id)}
-          >
-            删除
-          </Button>
-        </Space>
+        <ActionButtons
+          onEdit={() => openEdit(record)}
+          onDelete={() => handleDelete(record.id)}
+          deleteConfirm={false}
+        />
       ),
     },
   ]
 
   return (
-    <div className="financial-expense-standards">
-      <Card bordered={false} className="financial-expense-standards__toolbar">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="financial-expense-standards__input-keyword"
-              placeholder="名称"
-              value={searchKeyword}
-              onChange={setSearchKeyword}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="类型">
-            <Select
-              className="financial-expense-standards__select-type"
-              placeholder="全部"
-              value={searchType}
-              onChange={setSearchType}
-              allowClear
-            >
-              {EXPENSE_TYPES.map((t) => (
-                <Option key={t.value} value={t.value}>{t.label}</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="financial-expense-standards__select-status"
-              placeholder="全部"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="active">启用</Option>
-              <Option value="inactive">禁用</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={() => loadData(1, pageSize)}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={() => loadData(page, pageSize)}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['financial-expense-standards']}>
+      <Card bordered={false} className={styles['financial-expense-standards__toolbar']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['financial-expense-standards__input-keyword']}
+                  placeholder="名称"
+                  value={searchKeyword}
+                  onChange={setSearchKeyword}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="类型">
+                <Select
+                  className={styles['financial-expense-standards__select-type']}
+                  placeholder="全部"
+                  value={searchType}
+                  onChange={setSearchType}
+                  allowClear
+                >
+                  {EXPENSE_TYPES.map((t) => (
+                    <Option key={t.value} value={t.value}>{t.label}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['financial-expense-standards__select-status']}
+                  placeholder="全部"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="active">启用</Option>
+                  <Option value="inactive">禁用</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={() => loadData(1, pageSize)}
+          onReset={() => { setSearchKeyword(''); setSearchType(undefined); setSearchStatus('active') }}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="financial-expense-standards__header">
-          <span className="financial-expense-standards__title">费用标准配置</span>
-          <Button type="primary" icon={<IconPlus />} onClick={() => handleOpen()}>
+        <div className={styles['expense-standards__header']}>
+          <span className={styles['expense-standards__title']}>费用标准管理</span>
+          <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
             新建标准
           </Button>
         </div>
 
-        <Table
+        <DraggableTable
           columns={columns}
           data={data}
           rowKey="id"
@@ -299,15 +274,17 @@ function ExpenseStandardsPage() {
             sizeCanChange: true,
             onChange: (p, ps) => loadData(p, ps),
           }}
+          onReorder={handleReorder}
+          draggable={true}
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑费用标准' : '新建费用标准'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="financial-expense-standards__modal"
+        onCancel={close}
+        className={styles['financial-expense-standards__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem label="标准名称" field="name" rules={[{ required: true, message: '请输入标准名称' }]}>
@@ -334,7 +311,7 @@ function ExpenseStandardsPage() {
                 min={0}
                 precision={2}
                 prefix="¥"
-                className="financial-expense-standards__input-number"
+                className={styles['financial-expense-standards__input-number']}
               />
             </FormItem>
             <FormItem label="日上限" field="dailyLimit">
@@ -343,7 +320,7 @@ function ExpenseStandardsPage() {
                 min={0}
                 precision={2}
                 prefix="¥"
-                className="financial-expense-standards__input-number"
+                className={styles['financial-expense-standards__input-number']}
               />
             </FormItem>
             <FormItem label="月上限" field="monthlyLimit">
@@ -352,7 +329,7 @@ function ExpenseStandardsPage() {
                 min={0}
                 precision={2}
                 prefix="¥"
-                className="financial-expense-standards__input-number"
+                className={styles['financial-expense-standards__input-number']}
               />
             </FormItem>
           </Space>
@@ -360,13 +337,13 @@ function ExpenseStandardsPage() {
             <Switch />
           </FormItem>
           <FormItem label="状态" field="status">
-            <Select placeholder="请选择状态" defaultValue="active" className="financial-expense-standards__select-type">
+            <Select placeholder="请选择状态" defaultValue="active" className={styles['financial-expense-standards__select-type']}>
               <Option value="active">启用</Option>
               <Option value="inactive">禁用</Option>
             </Select>
           </FormItem>
           <FormItem label="排序" field="sortOrder">
-            <InputNumber placeholder="数字越小越靠前" min={0} max={9999} defaultValue={0} className="financial-expense-standards__select-type" />
+            <InputNumber placeholder="数字越小越靠前" min={0} max={9999} defaultValue={0} className={styles['financial-expense-standards__select-type']} />
           </FormItem>
           <FormItem label="说明" field="description">
             <Input.TextArea placeholder="补充说明" rows={2} maxLength={500} />

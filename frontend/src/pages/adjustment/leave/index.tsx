@@ -16,8 +16,6 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
@@ -29,8 +27,9 @@ import {
 import type { LeaveAdjustment } from '@/api/adjustment'
 import { getVacationTypes } from '@/api/vacation'
 import type { VacationType } from '@/api/vacation'
-import './leave.css'
-
+import { FilterBar, TableHeader } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './leave.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -46,7 +45,6 @@ const statusMap: Record<string, { text: string; color: string }> = {
 function Leave() {
   const [data, setData] = useState<LeaveAdjustment[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
@@ -85,6 +83,26 @@ function Leave() {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const { visible, openCreate, close, handleOk } = useCrudModal<LeaveAdjustment>({
+    form,
+    onSubmit: async (values) => {
+      const startDate = values.dateRange[0]
+      const endDate = values.dateRange[1]
+      const days =
+        Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+      await applyAdjustmentLeave({
+        leaveType: values.leaveType,
+        startDate,
+        endDate,
+        days: values.days || days,
+        reason: values.reason,
+      })
+      Message.success('申请成功')
+    },
+    onSuccess: () => fetchData(pagination.current, pagination.pageSize),
+  })
 
   const columns: TableProps<LeaveAdjustment>['columns'] = [
     {
@@ -163,38 +181,10 @@ function Leave() {
     },
   ]
 
-  const handleAdd = () => {
-    form.resetFields()
-    setVisible(true)
-  }
-
   const handleCancel = async (id: number) => {
     try {
       await cancelAdjustmentLeave(id)
       Message.success('撤销成功')
-      fetchData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    }
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      const startDate = values.dateRange[0]
-      const endDate = values.dateRange[1]
-      const days =
-        Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
-
-      await applyAdjustmentLeave({
-        leaveType: values.leaveType,
-        startDate,
-        endDate,
-        days: values.days || days,
-        reason: values.reason,
-      })
-      Message.success('申请成功')
-      setVisible(false)
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
@@ -216,57 +206,52 @@ function Leave() {
   }
 
   return (
-    <div className="adjustment-leave">
-      <Card bordered={false} className="adjustment-leave__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="adjustment-leave__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="adjustment-leave__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="pending">审批中</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-              <Option value="cancelled">已撤销</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['adjustment-leave']}>
+      <Card bordered={false} className={styles['adjustment-leave__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['adjustment-leave__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['adjustment-leave__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="pending">审批中</Option>
+                  <Option value="approved">已通过</Option>
+                  <Option value="rejected">已驳回</Option>
+                  <Option value="cancelled">已撤销</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
-      <Card bordered={false} className="adjustment-leave__table-card">
-        <div className="adjustment-leave__table-header">
-          <div>
-            <span className="adjustment-leave__table-title">请假申请</span>
-            <Tag color="blue" className="adjustment-leave__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            申请请假
-          </Button>
-        </div>
+      <Card bordered={false} className={styles['adjustment-leave__table-card']}>
+        <TableHeader
+          title="请假申请"
+          total={pagination.total}
+          totalText="条"
+          extra={
+            <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
+              申请请假
+            </Button>
+          }
+        />
 
         <Table
           loading={loading}
@@ -282,12 +267,12 @@ function Leave() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="申请请假"
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="adjustment-leave__modal"
+        onCancel={close}
+        className={styles['adjustment-leave__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem
@@ -308,7 +293,7 @@ function Leave() {
             field="dateRange"
             rules={[{ required: true, message: '请选择请假时间' }]}
           >
-            <RangePicker className="adjustment-leave__range-picker" />
+            <RangePicker className={styles['adjustment-leave__range-picker']} />
           </FormItem>
           <Row gutter={16}>
             <Col span={12}>

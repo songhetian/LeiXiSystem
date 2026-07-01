@@ -5,6 +5,19 @@ export interface ApiResponse<T = any> {
   code?: number
 }
 
+export interface ApiListResponse<T = any> {
+  list: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ApiResult<T = any> {
+  code: number
+  message: string
+  data: T
+}
+
 export interface User {
   id: number
   username: string
@@ -19,6 +32,17 @@ export interface User {
   positionName?: string
   phone?: string
   email?: string
+  emergencyContactName?: string
+  emergencyContactPhone?: string
+  description?: string
+}
+
+export interface UpdateProfileParams {
+  phone?: string
+  email?: string
+  emergencyContactName?: string
+  emergencyContactPhone?: string
+  description?: string
 }
 
 export interface LoginParams {
@@ -34,6 +58,7 @@ export interface LoginResult {
 export interface PaginationParams {
   page: number
   pageSize: number
+  [key: string]: any
 }
 
 export interface PaginationResult<T> {
@@ -41,4 +66,16 @@ export interface PaginationResult<T> {
   total: number
   page: number
   pageSize: number
+}
+
+export interface IdParam {
+  id: number | string
+}
+
+export interface IdsParam {
+  ids: (number | string)[]
+}
+
+export interface StatusParam {
+  status: 'active' | 'inactive' | string
 }

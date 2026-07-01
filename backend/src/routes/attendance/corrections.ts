@@ -7,7 +7,7 @@ import { buildAttendanceDataScopeWhere } from '../../services/dataScope'
 import { recalculateAttendanceRange } from '../../services/attendanceCalculation'
 import { normalizePagination } from '../../utils/pagination'
 import { dateRangeBaseQuerySchema, opinionSchema, correctionLogTypeSchema } from '../../utils/schemas'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, safePick } from '../../utils/validation'
 
 const correctionCreateSchema = z.object({
   date: dateStringSchema,
@@ -20,12 +20,7 @@ export default async function correctionsRoutes(fastify: FastifyInstance) {
   fastify.get('/corrections', { preHandler: [requirePermission('attendance:view')] }, async (request: FastifyRequest<{
     Querystring: { status?: string; employeeId?: number; page?: number; pageSize?: number }
   }>) => {
-    const query = validateData(dateRangeBaseQuerySchema.pick({
-      status: true,
-      employeeId: true,
-      page: true,
-      pageSize: true,
-    }), request.query)
+    const query = validateData(safePick(dateRangeBaseQuerySchema, ['status', 'employeeId', 'page', 'pageSize']), request.query)
     const { page, pageSize, skip, take } = normalizePagination(query)
     const { status, employeeId } = query
     const scopeWhere = await buildAttendanceDataScopeWhere(request.user)

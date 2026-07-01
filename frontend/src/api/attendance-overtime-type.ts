@@ -68,7 +68,18 @@ export function createOvertimeType(data: {
   }>('/attendance/overtime-types', data)
 }
 
-export function updateOvertimeType(id: number, data: any) {
+export function updateOvertimeType(id: number, data: {
+  name?: string
+  code?: string
+  description?: string
+  payRate?: number
+  minMinutes?: number
+  maxMinutes?: number
+  requireApproval?: boolean
+  departmentId?: number
+  status?: string
+  sortOrder?: number
+}) {
   return put<{
     code: 0
     data: OvertimeType

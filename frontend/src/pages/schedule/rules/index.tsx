@@ -12,16 +12,9 @@ import {
   Switch,
   Message,
   Tag,
-  Typography,
   Divider,
 } from '@arco-design/web-react'
-import {
-  IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
-} from '@arco-design/web-react/icon'
+import { IconPlus } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import {
   getScheduleRules,
@@ -33,9 +26,9 @@ import {
 } from '@/api/schedule'
 import { getShifts, Shift } from '@/api/shift'
 import { getDepartmentsList, Department } from '@/api/organization'
-import './style.css'
-
-const { Text } = Typography
+import { PageHeader, FilterBar, ActionButtons } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -49,8 +42,6 @@ function RulesPage() {
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const [allShifts, setAllShifts] = useState<Shift[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -69,7 +60,6 @@ function RulesPage() {
       })
       const list = res.data?.list || []
 
-      // 获取每个规则的班次列表
       const rulesWithShifts = await Promise.all(
         list.map(async (rule: ScheduleRule) => {
           try {
@@ -119,56 +109,52 @@ function RulesPage() {
     loadData(1, pageSize)
   }, [searchKeyword, searchStatus])
 
-  const handleOpen = (record?: ScheduleRule) => {
-    form.resetFields()
-    setSelectedShifts([])
-    if (record) {
-      setEditingId(record.id)
-      form.setFieldsValue({
-        name: record.name,
-        code: record.code,
-        departmentId: record.departmentId,
-        maxWorkHoursPerWeek: record.maxWorkHoursPerWeek,
-        maxConsecutiveDays: record.maxConsecutiveDays,
-        minRestHoursBetween: record.minRestHoursBetween,
-        maxNightShiftsPerWeek: record.maxNightShiftsPerWeek,
-        priority: record.priority,
-        fairnessWeight: record.fairnessWeight,
-        preferenceEnabled: record.preferenceEnabled,
-        status: record.status,
-        sortOrder: record.sortOrder,
-      })
-      const shiftIds = record.shiftIds.split(',').map(Number).filter(Boolean)
-      setSelectedShifts(shiftIds)
-    } else {
-      setEditingId(null)
-    }
-    setVisible(true)
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
+  const { visible, editingId, saving, openCreate, openEdit, close, handleOk } = useCrudModal<ScheduleRule>({
+    form,
+    mapRecordToForm: (record) => ({
+      name: record.name,
+      code: record.code,
+      departmentId: record.departmentId,
+      maxWorkHoursPerWeek: record.maxWorkHoursPerWeek,
+      maxConsecutiveDays: record.maxConsecutiveDays,
+      minRestHoursBetween: record.minRestHoursBetween,
+      maxNightShiftsPerWeek: record.maxNightShiftsPerWeek,
+      priority: record.priority,
+      fairnessWeight: record.fairnessWeight,
+      preferenceEnabled: record.preferenceEnabled,
+      status: record.status,
+      sortOrder: record.sortOrder,
+    }),
+    onSubmit: async (values) => {
       if (selectedShifts.length === 0) {
         Message.error('请至少选择一个班次')
-        return
+        throw new Error('请至少选择一个班次')
       }
-      const data = {
+      const payload = {
         ...values,
         shiftIds: selectedShifts.join(','),
         preferenceEnabled: values.preferenceEnabled ?? true,
       }
       if (editingId) {
-        await updateScheduleRule(editingId, data)
+        await updateScheduleRule(editingId, payload)
         Message.success('更新成功')
       } else {
-        await createScheduleRule(data)
+        await createScheduleRule(payload)
         Message.success('创建成功')
       }
-      setVisible(false)
-      loadData(page, pageSize)
-    } catch {
-      // error handled by interceptor
+    },
+    onSuccess: () => loadData(page, pageSize),
+  })
+
+  // 自定义打开逻辑：需要同时设置 selectedShifts
+  const handleOpen = (record?: ScheduleRule) => {
+    setSelectedShifts([])
+    if (record) {
+      openEdit(record)
+      const shiftIds = record.shiftIds.split(',').map(Number).filter(Boolean)
+      setSelectedShifts(shiftIds)
+    } else {
+      openCreate()
     }
   }
 
@@ -187,22 +173,9 @@ function RulesPage() {
   }
 
   const columns: TableProps<RuleWithShifts>['columns'] = [
-    {
-      title: '规则名称',
-      dataIndex: 'name',
-      width: 150,
-    },
-    {
-      title: '编码',
-      dataIndex: 'code',
-      width: 120,
-    },
-    {
-      title: '适用部门',
-      dataIndex: 'department',
-      width: 120,
-      render: (val: any) => val?.name || <Text type="secondary">全部部门</Text>,
-    },
+    { title: '规则名称', dataIndex: 'name', width: 150 },
+    { title: '编码', dataIndex: 'code', width: 120, render: (value: string) => <Tag color="blue">{value}</Tag> },
+    { title: '适用部门', dataIndex: 'department', width: 120, render: (val: any) => val?.name || '全部部门' },
     {
       title: '关联班次',
       dataIndex: 'shiftList',
@@ -210,28 +183,14 @@ function RulesPage() {
       render: (shifts: any[]) => (
         <Space size="small" wrap>
           {shifts?.slice(0, 3).map((s) => (
-            <Tag key={s.id} color={s.color || 'arcoblue'}>
-              {s.name}
-            </Tag>
+            <Tag key={s.id} color={s.color || 'arcoblue'}>{s.name}</Tag>
           ))}
-          {shifts?.length > 3 && (
-            <Tag>+{shifts.length - 3}</Tag>
-          )}
+          {shifts?.length > 3 && <Tag>+{shifts.length - 3}</Tag>}
         </Space>
       ),
     },
-    {
-      title: '优先级',
-      dataIndex: 'priority',
-      width: 80,
-      render: (val) => val || 0,
-    },
-    {
-      title: '公平性权重',
-      dataIndex: 'fairnessWeight',
-      width: 100,
-      render: (val) => `${val || 0}%`,
-    },
+    { title: '优先级', dataIndex: 'priority', width: 80, render: (val) => val || 0 },
+    { title: '公平性权重', dataIndex: 'fairnessWeight', width: 100, render: (val) => `${val || 0}%` },
     {
       title: '启用偏好',
       dataIndex: 'preferenceEnabled',
@@ -248,167 +207,96 @@ function RulesPage() {
       title: '操作',
       width: 140,
       render: (_, record) => (
-        <Space size="small">
-          <Button type="text" size="small" icon={<IconEdit />} onClick={() => handleOpen(record)}>
-            编辑
-          </Button>
-          <Button
-            type="text"
-            size="small"
-            status="danger"
-            icon={<IconDelete />}
-            onClick={() => handleDelete(record.id)}
-          >
-            删除
-          </Button>
-        </Space>
+        <ActionButtons
+          onEdit={() => handleOpen(record)}
+          onDelete={() => handleDelete(record.id)}
+          deleteConfirm={false}
+        />
       ),
     },
   ]
 
   return (
-    <div className="schedule-rules">
-      <Card bordered={false} className="schedule-rules__toolbar">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="schedule-rules__input-keyword"
-              placeholder="名称/编码"
-              value={searchKeyword}
-              onChange={setSearchKeyword}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="schedule-rules__select-status"
-              placeholder="全部"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="active">启用</Option>
-              <Option value="inactive">禁用</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={() => loadData(1, pageSize)}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={() => loadData(page, pageSize)}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
-      </Card>
-
-      <Card bordered={false}>
-        <div className="schedule-rules__header">
-          <span className="schedule-rules__title">排班规则</span>
-          <Button type="primary" icon={<IconPlus />} onClick={() => handleOpen()}>
-            新建规则
-          </Button>
-        </div>
-
-        <Table
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showTotal: true,
-            sizeCanChange: true,
-            onChange: (p, ps) => loadData(p, ps),
-          }}
+    <div className={styles['schedule-rules']}>
+      <Card bordered={false} className={styles['schedule-rules__card']}>
+        <PageHeader
+          title="排班规则"
+          description="配置部门排班规则，包括周工时上限、连班天数、休息间隔等合规约束。"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={() => handleOpen()}>新建规则</Button>}
         />
       </Card>
 
-      <Modal
-        title={editingId ? '编辑规则' : '新建规则'}
-        visible={visible}
-        onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="schedule-rules__modal-large"
-      >
+      <Card bordered={false} className={styles['schedule-rules__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input className={styles['schedule-rules__input-keyword']} placeholder="名称/编码" value={searchKeyword} onChange={setSearchKeyword} allowClear />
+              </FormItem>
+              <FormItem label="状态">
+                <Select className={styles['schedule-rules__select-status']} placeholder="全部" value={searchStatus} onChange={setSearchStatus} allowClear>
+                  <Option value="active">启用</Option>
+                  <Option value="inactive">禁用</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={() => loadData(1, pageSize)}
+          onReset={() => { setSearchKeyword(''); setSearchStatus(undefined); loadData(1, pageSize) }}
+          searchText="搜索"
+        />
+      </Card>
+
+      <Card bordered={false}>
+        <Table columns={columns} data={data} rowKey="id" loading={loading} pagination={{ current: page, pageSize, total, showTotal: true, sizeCanChange: true, onChange: (p, ps) => loadData(p, ps) }} />
+      </Card>
+
+      <Modal focusLock title={editingId ? '编辑规则' : '新建规则'} visible={visible} onOk={handleOk} onCancel={close} confirmLoading={saving} className={styles['schedule-rules__modal-large']}>
         <Form form={form} layout="vertical">
           <Divider orientation="left">基本信息</Divider>
           <FormItem label="规则名称" field="name" rules={[{ required: true, message: '请输入规则名称' }]}>
             <Input placeholder="请输入规则名称" maxLength={100} />
           </FormItem>
           <FormItem label="规则编码" field="code" rules={[{ required: true, message: '请输入规则编码' }]}>
-            <Input placeholder="请输入规则编码，如 weekly_rotation" maxLength={50} disabled={!!editingId} />
+            <Input placeholder="如 weekly_rotation" maxLength={50} disabled={!!editingId} />
           </FormItem>
           <FormItem label="适用部门" field="departmentId">
-            <Select placeholder="留空表示适用于所有部门" allowClear className="schedule-rules__select-full">
+            <Select placeholder="留空表示适用于所有部门" allowClear className={styles['schedule-rules__select-full']}>
               {departments.map((d) => (
-                <Option key={d.id} value={d.id}>
-                  {d.name}
-                </Option>
+                <Option key={d.id} value={d.id}>{d.name}</Option>
               ))}
             </Select>
           </FormItem>
 
           <Divider orientation="left">关联班次</Divider>
           <FormItem label="选择班次" required>
-            <Select
-              mode="multiple"
-              placeholder="请选择该规则关联的班次"
-              value={selectedShifts}
-              onChange={handleShiftChange}
-              className="schedule-rules__select-full"
-            >
+            <Select mode="multiple" placeholder="请选择该规则关联的班次" value={selectedShifts} onChange={handleShiftChange} className={styles['schedule-rules__select-full']}>
               {allShifts.map((s) => (
-                <Option key={s.id} value={s.id}>
-                  <Space>
-                    <span className="schedule-rules__shift-dot" />
-                    {s.name} ({s.startTime} - {s.endTime})
-                  </Space>
-                </Option>
+                <Option key={s.id} value={s.id}><Space><span className={styles['schedule-rules__shift-dot']} />{s.name} ({s.startTime} - {s.endTime})</Space></Option>
               ))}
             </Select>
           </FormItem>
 
           <Divider orientation="left">合规规则</Divider>
           <Space wrap>
-            <FormItem label="周工时上限" field="maxWorkHoursPerWeek" className="schedule-rules__form-item">
-              <InputNumber placeholder="小时" min={1} max={168} suffix="小时" />
-            </FormItem>
-            <FormItem label="最大连班天数" field="maxConsecutiveDays" className="schedule-rules__form-item">
-              <InputNumber placeholder="天数" min={1} max={30} suffix="天" />
-            </FormItem>
-            <FormItem label="最短休息间隔" field="minRestHoursBetween" className="schedule-rules__form-item">
-              <InputNumber placeholder="小时" min={0} max={24} suffix="小时" />
-            </FormItem>
-            <FormItem label="周夜班上限" field="maxNightShiftsPerWeek" className="schedule-rules__form-item">
-              <InputNumber placeholder="次数" min={0} max={7} suffix="次" />
-            </FormItem>
+            <FormItem label="周工时上限" field="maxWorkHoursPerWeek" className={styles['schedule-rules__form-item']}><InputNumber placeholder="小时" min={1} max={168} suffix="小时" /></FormItem>
+            <FormItem label="最大连班天数" field="maxConsecutiveDays" className={styles['schedule-rules__form-item']}><InputNumber placeholder="天数" min={1} max={30} suffix="天" /></FormItem>
+            <FormItem label="最短休息间隔" field="minRestHoursBetween" className={styles['schedule-rules__form-item']}><InputNumber placeholder="小时" min={0} max={24} suffix="小时" /></FormItem>
+            <FormItem label="周夜班上限" field="maxNightShiftsPerWeek" className={styles['schedule-rules__form-item']}><InputNumber placeholder="次数" min={0} max={7} suffix="次" /></FormItem>
           </Space>
 
           <Divider orientation="left">智能参数</Divider>
           <Space wrap>
-            <FormItem label="优先级" field="priority" className="schedule-rules__form-item">
-              <InputNumber placeholder="0-100" min={0} max={100} defaultValue={0} />
-            </FormItem>
-            <FormItem label="公平性权重" field="fairnessWeight" className="schedule-rules__form-item">
-              <InputNumber placeholder="0-100" min={0} max={100} defaultValue={50} suffix="%" />
-            </FormItem>
-            <FormItem label="启用员工偏好" field="preferenceEnabled" className="schedule-rules__form-item">
-              <Switch defaultChecked />
-            </FormItem>
+            <FormItem label="优先级" field="priority" className={styles['schedule-rules__form-item']}><InputNumber placeholder="0-100" min={0} max={100} defaultValue={0} /></FormItem>
+            <FormItem label="公平性权重" field="fairnessWeight" className={styles['schedule-rules__form-item']}><InputNumber placeholder="0-100" min={0} max={100} defaultValue={50} suffix="%" /></FormItem>
+            <FormItem label="启用员工偏好" field="preferenceEnabled" className={styles['schedule-rules__form-item']}><Switch defaultChecked /></FormItem>
           </Space>
 
           <Divider orientation="left">其他设置</Divider>
           <Space wrap>
-            <FormItem label="排序" field="sortOrder" className="schedule-rules__form-item">
-              <InputNumber placeholder="数字越小越靠前" min={0} max={9999} defaultValue={0} />
-            </FormItem>
-            <FormItem label="状态" field="status" className="schedule-rules__form-item">
-              <Select defaultValue="active" className="schedule-rules__select-status-form">
+            <FormItem label="排序" field="sortOrder" className={styles['schedule-rules__form-item']}><InputNumber placeholder="数字越小越靠前" min={0} max={9999} defaultValue={0} /></FormItem>
+            <FormItem label="状态" field="status" className={styles['schedule-rules__form-item']}>
+              <Select defaultValue="active" className={styles['schedule-rules__select-status-form']}>
                 <Option value="active">启用</Option>
                 <Option value="inactive">禁用</Option>
               </Select>

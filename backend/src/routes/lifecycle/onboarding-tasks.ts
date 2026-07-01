@@ -5,7 +5,7 @@ import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
 import { taskListQuerySchema } from '../../utils/schemas'
-import { dateStringSchema, idParamsSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { dateStringSchema, idParamsSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeOmit } from '../../utils/validation'
 import { canAccessEmployee } from '../../services/objectAuthorization'
 import { handleOnboardingCompletion } from './helpers'
 
@@ -18,9 +18,7 @@ const taskSchema = z.object({
   status: z.enum(['pending', 'processing', 'completed', 'cancelled']).optional().default('pending'),
 })
 
-const taskUpdateSchema = taskSchema.omit({ employeeId: true }).partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const taskUpdateSchema = partialUpdateSchema(safeOmit(taskSchema, ['employeeId']))
 
 export default async function onboardingTasksRoutes(fastify: FastifyInstance) {
   fastify.get('/onboarding-tasks', { preHandler: [requireAnyPermission(['lifecycle:view', 'lifecycle:manage'])] }, async (request: FastifyRequest<{ Querystring: unknown }>) => {
@@ -106,12 +104,13 @@ export default async function onboardingTasksRoutes(fastify: FastifyInstance) {
 
   fastify.put('/onboarding-tasks/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(taskUpdateSchema, request.body)
+    const data = validateData(taskUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     setAudit(request, {
       action: 'lifecycle.onboarding.update',
       module: 'lifecycle',
-      requestData: body,
+      requestData: data,
     })
 
     const before = await prisma.onboardingTask.findUnique({ where: { id } })
@@ -122,14 +121,14 @@ export default async function onboardingTasksRoutes(fastify: FastifyInstance) {
     const task = await prisma.onboardingTask.update({
       where: { id },
       data: {
-        ...body,
-        dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
-        assignedTo: body.assignedTo ?? undefined,
-        completedAt: body.status === 'completed' ? new Date() : undefined,
+        ...data,
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        assignedTo: data.assignedTo ?? undefined,
+        completedAt: data.status === 'completed' ? new Date() : undefined,
       },
     })
 
-    if (body.status === 'completed' && before.status !== 'completed') {
+    if (data.status === 'completed' && before.status !== 'completed') {
       await handleOnboardingCompletion(request, before.employeeId)
     }
 

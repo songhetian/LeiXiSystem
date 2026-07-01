@@ -1,0 +1,19 @@
+.filter-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-bar__filters {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.filter-bar__actions {
+  margin: 0;
+  flex-shrink: 0;
+}

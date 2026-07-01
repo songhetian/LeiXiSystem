@@ -4,7 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { hasPermission, requireAnyPermission, requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 import { invalidateUserPermissionsCache } from '../utils/permissionCache'
 import { canAccessEmployee } from '../services/objectAuthorization'
 
@@ -33,9 +33,7 @@ const employeeBodySchema = z.object({
   remark: z.string().trim().max(1000).optional().nullable(),
 })
 
-const employeeUpdateSchema = employeeBodySchema.omit({ username: true, password: true }).partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const employeeUpdateSchema = partialUpdateSchema(employeeBodySchema.omit({ username: true, password: true }))
 
 const changeListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -276,7 +274,8 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(employeeUpdateSchema, request.body)
+    const data = validateData(employeeUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const employee = await prisma.employee.findUnique({
       where: { id },
@@ -290,29 +289,29 @@ export default async function personnelRoutes(fastify: FastifyInstance) {
     await prisma.user.update({
       where: { id: employee.userId },
       data: {
-        realName: body.realName,
-        email: body.email,
-        phone: body.phone,
-        departmentId: body.departmentId ?? undefined,
-        positionId: body.positionId ?? undefined,
-        status: body.status,
+        realName: data.realName,
+        email: data.email,
+        phone: data.phone,
+        departmentId: data.departmentId ?? undefined,
+        positionId: data.positionId ?? undefined,
+        status: data.status,
       },
     })
 
     await prisma.employee.update({
       where: { id },
       data: {
-        employeeNo: body.employeeNo,
-        hireDate: body.hireDate ? new Date(body.hireDate) : undefined,
-        salary: body.salary,
-        education: body.education,
-        skills: body.skills,
-        remark: body.remark,
+        employeeNo: data.employeeNo,
+        hireDate: data.hireDate ? new Date(data.hireDate) : undefined,
+        salary: data.salary,
+        education: data.education,
+        skills: data.skills,
+        remark: data.remark,
       },
     })
 
-    const deptChanged = body.departmentId !== undefined && body.departmentId !== employee.user.departmentId
-    const statusChanged = body.status !== undefined && body.status !== employee.user.status
+    const deptChanged = data.departmentId !== undefined && data.departmentId !== employee.user.departmentId
+    const statusChanged = data.status !== undefined && data.status !== employee.user.status
     if (deptChanged || statusChanged) {
       await invalidateUserPermissionsCache(employee.userId)
     }

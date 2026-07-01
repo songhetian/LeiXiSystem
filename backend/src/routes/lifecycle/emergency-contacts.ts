@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { setAudit, captureBefore, setAfter } from '../../plugins/audit'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { canAccessEmployee } from '../../services/objectAuthorization'
-import { idParamsSchema, positiveIntSchema, validateData } from '../../utils/validation'
+import { idParamsSchema, positiveIntSchema, validateData, partialUpdateSchema, requireAtLeastOneField, safeOmit } from '../../utils/validation'
 
 const emergencyContactSchema = z.object({
   employeeId: positiveIntSchema,
@@ -14,10 +14,7 @@ const emergencyContactSchema = z.object({
   isPrimary: z.boolean().optional().default(false),
 })
 
-const emergencyContactUpdateSchema = emergencyContactSchema.omit({ employeeId: true }).partial().refine(
-  (value) => Object.keys(value).length > 0,
-  { message: '至少需要提交一个更新字段' }
-)
+const emergencyContactUpdateSchema = partialUpdateSchema(safeOmit(emergencyContactSchema, ['employeeId']))
 
 export default async function emergencyContactsRoutes(fastify: FastifyInstance) {
   fastify.get('/emergency-contacts', { preHandler: [requireAnyPermission(['lifecycle:view', 'lifecycle:manage'])] }, async (request: FastifyRequest<{
@@ -77,7 +74,8 @@ export default async function emergencyContactsRoutes(fastify: FastifyInstance) 
 
   fastify.put('/emergency-contacts/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(emergencyContactUpdateSchema, request.body)
+    const data = validateData(emergencyContactUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     const existing = await prisma.employeeEmergencyContact.findUnique({ where: { id } })
     if (!existing) return { code: 404, message: '紧急联系人不存在' }
@@ -85,18 +83,18 @@ export default async function emergencyContactsRoutes(fastify: FastifyInstance) 
     setAudit(request, {
       action: 'contact.update',
       module: 'lifecycle',
-      requestData: { id, ...body },
+      requestData: { id, ...data },
     })
     captureBefore(request, existing)
 
     const updated = await prisma.$transaction(async (tx) => {
-      if (body.isPrimary) {
+      if (data.isPrimary) {
         await tx.employeeEmergencyContact.updateMany({
           where: { employeeId: existing.employeeId, isPrimary: true, id: { not: id } },
           data: { isPrimary: false },
         })
       }
-      return tx.employeeEmergencyContact.update({ where: { id }, data: body })
+      return tx.employeeEmergencyContact.update({ where: { id }, data: data })
     })
 
     setAfter(request, { id: updated.id })

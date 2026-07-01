@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Message, Modal,
+  Button, Card, Checkbox, Form, Input, InputNumber, Message, Modal,
   Popconfirm, Select, Space, Table, Tabs, Tag,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
-import { IconCheck, IconDelete, IconEdit, IconPlus } from '@arco-design/web-react/icon'
+import { IconDelete, IconPlus } from '@arco-design/web-react/icon'
 import {
   getHelpdeskCategories, createHelpdeskCategory, deleteHelpdeskCategory,
   getHelpdeskTickets, getHelpdeskTicketDetail, createHelpdeskTicket,
   updateHelpdeskTicket, createHelpdeskComment,
 } from '@/api/helpdesk'
 import { getEmployees, type Employee } from '@/api/personnel'
-import { useUserStore } from '@/store/user'
-import './tickets.css'
-
+import { useAuthStore } from '@/store/auth'
+import styles from './tickets.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -144,13 +143,13 @@ function CategoriesTab() {
 
   return (
     <>
-      <div className="helpdesk-tickets__categories-actions">
+      <div className={styles['helpdesk-tickets__categories-actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => { form.resetFields(); form.setFieldsValue({ status: 'active', sortOrder: 0 }); setModalVisible(true) }}>
           新增分类
         </Button>
       </div>
       <Table rowKey="id" loading={loading} columns={columns} data={data} pagination={false} />
-      <Modal title="新增工单分类" visible={modalVisible} onOk={handleSubmit}
+      <Modal focusLock title="新增工单分类" visible={modalVisible} onOk={handleSubmit}
         onCancel={() => setModalVisible(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">
           <FormItem label="分类编码" field="code" rules={[{ required: true, message: '请输入' }]}>
@@ -162,9 +161,9 @@ function CategoriesTab() {
           <FormItem label="描述" field="description">
             <Input.TextArea rows={2} />
           </FormItem>
-          <div className="helpdesk-tickets__form-grid">
+          <div className={styles['helpdesk-tickets__form-grid']}>
             <FormItem label="排序" field="sortOrder">
-              <InputNumber min={0} className="helpdesk-tickets__form-grid-item" />
+              <InputNumber min={0} className={styles['helpdesk-tickets__form-grid-item']} />
             </FormItem>
             <FormItem label="状态" field="status">
               <Select>
@@ -182,7 +181,7 @@ function CategoriesTab() {
 // ===== Tickets Tab =====
 
 function TicketsTab() {
-  const { permissions } = useUserStore()
+  const { permissions } = useAuthStore()
   const canHandle = permissions.includes('helpdesk:handle') || permissions.includes('*')
   const [data, setData] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(false)
@@ -195,7 +194,6 @@ function TicketsTab() {
   const [detailModal, setDetailModal] = useState(false)
   const [detailData, setDetailData] = useState<Ticket | null>(null)
   const [createForm] = Form.useForm()
-  const [editForm] = Form.useForm()
   const [commentForm] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
 
@@ -246,17 +244,6 @@ function TicketsTab() {
     setDetailModal(true)
   }
 
-  const handleUpdate = async () => {
-    if (!detailData) return
-    const values = await editForm.validate()
-    setSubmitting(true)
-    try {
-      await updateHelpdeskTicket(detailData.id, values)
-      Message.success('更新成功')
-      openDetail(detailData.id)
-    } finally { setSubmitting(false) }
-  }
-
   const handleComment = async () => {
     if (!detailData) return
     const values = await commentForm.validate()
@@ -294,23 +281,23 @@ function TicketsTab() {
 
   return (
     <>
-      <div className="helpdesk-tickets__categories-actions">
+      <div className={styles['helpdesk-tickets__categories-actions']}>
         <Space>
           {canHandle && (
-            <Select placeholder="处理人筛选" allowClear className="helpdesk-tickets__tickets-select"
+            <Select placeholder="处理人筛选" allowClear className={styles['helpdesk-tickets__tickets-select']}
               onChange={(v) => handleFilter('assignedTo', v)}>
               {employees.filter(e => e.realName).map((e) => <Option key={e.id} value={e.id}>{e.realName}</Option>)}
             </Select>
           )}
-          <Select placeholder="分类筛选" allowClear className="helpdesk-tickets__tickets-select"
+          <Select placeholder="分类筛选" allowClear className={styles['helpdesk-tickets__tickets-select']}
             onChange={(v) => handleFilter('categoryId', v)}>
             {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
           </Select>
-          <Select placeholder="状态筛选" allowClear className="helpdesk-tickets__tickets-select--sm"
+          <Select placeholder="状态筛选" allowClear className={styles['helpdesk-tickets__tickets-select--sm']}
             onChange={(v) => handleFilter('status', v)}>
             {Object.entries(statusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
-          <Select placeholder="优先级" allowClear className="helpdesk-tickets__tickets-select--xs"
+          <Select placeholder="优先级" allowClear className={styles['helpdesk-tickets__tickets-select--xs']}
             onChange={(v) => handleFilter('priority', v)}>
             {Object.entries(priorityMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -325,13 +312,13 @@ function TicketsTab() {
         pagination={{ total, current: page, pageSize: 10, onChange: (p) => setPage(p) }} />
 
       {/* Create Modal */}
-      <Modal title="提交工单" visible={createModal} onOk={handleCreate}
-        onCancel={() => setCreateModal(false)} confirmLoading={submitting} className="helpdesk-tickets__modal">
+      <Modal focusLock title="提交工单" visible={createModal} onOk={handleCreate}
+        onCancel={() => setCreateModal(false)} confirmLoading={submitting} className={styles['helpdesk-tickets__modal']}>
         <Form form={createForm} layout="vertical">
           <FormItem label="工单标题" field="title" rules={[{ required: true, message: '请输入' }]}>
             <Input placeholder="简要描述您的问题" />
           </FormItem>
-          <div className="helpdesk-tickets__form-grid">
+          <div className={styles['helpdesk-tickets__form-grid']}>
             <FormItem label="工单分类" field="categoryId" rules={[{ required: true, message: '请选择' }]}>
               <Select placeholder="选择分类">
                 {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
@@ -355,31 +342,31 @@ function TicketsTab() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal title="工单详情" visible={detailModal}
-        onCancel={() => setDetailModal(false)} footer={null} className="helpdesk-tickets__modal--wide">
+      <Modal focusLock title="工单详情" visible={detailModal}
+        onCancel={() => setDetailModal(false)} footer={null} className={styles['helpdesk-tickets__modal--wide']}>
         {detailData && (
           <div>
-            <div className="helpdesk-tickets__detail-grid">
-              <div><span className="helpdesk-tickets__detail-label">工单编号</span><div className="helpdesk-tickets__detail-value">{detailData.ticketNo}</div></div>
-              <div><span className="helpdesk-tickets__detail-label">状态</span><div><StatusTag value={detailData.status} /></div></div>
-              <div><span className="helpdesk-tickets__detail-label">分类</span><div>{detailData.category?.name}</div></div>
-              <div><span className="helpdesk-tickets__detail-label">优先级</span><div><PriorityTag value={detailData.priority} /></div></div>
-              <div><span className="helpdesk-tickets__detail-label">提交人</span><div>{detailData.creator?.realName}</div></div>
-              <div><span className="helpdesk-tickets__detail-label">处理人</span><div>{detailData.assignee?.realName || '-'}</div></div>
-              <div className="helpdesk-tickets__detail-grid-full"><span className="helpdesk-tickets__detail-label">标题</span><div className="helpdesk-tickets__detail-value helpdesk-tickets__detail-value--large">{detailData.title}</div></div>
-              <div className="helpdesk-tickets__detail-grid-full"><span className="helpdesk-tickets__detail-label">问题描述</span><div>{detailData.description || '-'}</div></div>
+            <div className={styles['helpdesk-tickets__detail-grid']}>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>工单编号</span><div className={styles['helpdesk-tickets__detail-value']}>{detailData.ticketNo}</div></div>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>状态</span><div><StatusTag value={detailData.status} /></div></div>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>分类</span><div>{detailData.category?.name}</div></div>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>优先级</span><div><PriorityTag value={detailData.priority} /></div></div>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>提交人</span><div>{detailData.creator?.realName}</div></div>
+              <div><span className={styles['helpdesk-tickets__detail-label']}>处理人</span><div>{detailData.assignee?.realName || '-'}</div></div>
+              <div className={styles['helpdesk-tickets__detail-grid-full']}><span className={styles['helpdesk-tickets__detail-label']}>标题</span><div className={styles['helpdesk-tickets__detail-value'] + ' ' + styles['helpdesk-tickets__detail-value--large']}>{detailData.title}</div></div>
+              <div className={styles['helpdesk-tickets__detail-grid-full']}><span className={styles['helpdesk-tickets__detail-label']}>问题描述</span><div>{detailData.description || '-'}</div></div>
             </div>
 
             {/* Quick Actions */}
-            <div className="helpdesk-tickets__quick-actions">
-              <Select size="mini" className="helpdesk-tickets__tickets-select--mini" placeholder="变更状态"
+            <div className={styles['helpdesk-tickets__quick-actions']}>
+              <Select size="mini" className={styles['helpdesk-tickets__tickets-select--mini']} placeholder="变更状态"
                 onChange={(v) => handleStatusChange(detailData.id, v as string)}>
                 {Object.entries(statusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
               </Select>
               {canHandle && (
                 <Select
                   size="mini"
-                  className="helpdesk-tickets__tickets-select--wide"
+                  className={styles['helpdesk-tickets__tickets-select--wide']}
                   placeholder="分配处理人"
                   allowClear
                   value={detailData.assignee?.id}
@@ -396,24 +383,24 @@ function TicketsTab() {
             </div>
 
             {/* Comments */}
-            <div className="helpdesk-tickets__comments">
-              <span className="helpdesk-tickets__comments-title">处理记录</span>
+            <div className={styles['helpdesk-tickets__comments']}>
+              <span className={styles['helpdesk-tickets__comments-title']}>处理记录</span>
               {(!detailData.comments || detailData.comments.length === 0) && (
-                <div className="helpdesk-tickets__comments-empty">暂无处理记录</div>
+                <div className={styles['helpdesk-tickets__comments-empty']}>暂无处理记录</div>
               )}
               {detailData.comments?.map((c) => (
                 <div key={c.id} className={c.isInternal ? "helpdesk-tickets__comment helpdesk-tickets__comment--internal" : "helpdesk-tickets__comment"}>
                   <Space>
-                    <span className="helpdesk-tickets__detail-value">{c.user?.realName}</span>
-                    {c.isInternal && <Tag color="orange" className="helpdesk-tickets__tag--internal">内部</Tag>}
-                    <span className="helpdesk-tickets__comment-time">{formatDate(c.createdAt)}</span>
+                    <span className={styles['helpdesk-tickets__detail-value']}>{c.user?.realName}</span>
+                    {c.isInternal && <Tag color="orange" className={styles['helpdesk-tickets__tag--internal']}>内部</Tag>}
+                    <span className={styles['helpdesk-tickets__comment-time']}>{formatDate(c.createdAt)}</span>
                   </Space>
-                  <div className="helpdesk-tickets__comment-content">{c.content}</div>
+                  <div className={styles['helpdesk-tickets__comment-content']}>{c.content}</div>
                 </div>
               ))}
 
-              <div className="helpdesk-tickets__comment-form">
-                <span className="helpdesk-tickets__comment-form-title">添加回复</span>
+              <div className={styles['helpdesk-tickets__comment-form']}>
+                <span className={styles['helpdesk-tickets__comment-form-title']}>添加回复</span>
                 <Form form={commentForm} layout="vertical">
                   <FormItem field="content" rules={[{ required: true, message: '请输入回复内容' }]}>
                     <Input.TextArea rows={3} placeholder="输入处理说明或回复" />
@@ -424,7 +411,7 @@ function TicketsTab() {
                     </FormItem>
                   )}
                 </Form>
-                <div className="helpdesk-tickets__comment-form-actions">
+                <div className={styles['helpdesk-tickets__comment-form-actions']}>
                   <Button type="primary" size="small" onClick={handleComment} loading={submitting}>
                     提交回复
                   </Button>
@@ -444,11 +431,11 @@ export default function HelpdeskTicketsPage() {
   const [activeTab, setActiveTab] = useState('tickets')
 
   return (
-    <div className="helpdesk-tickets">
+    <div className={styles['helpdesk-tickets']}>
       <Card bordered={false}>
-        <div className="helpdesk-tickets__header">
-          <span className="helpdesk-tickets__title">HR Help Desk</span>
-          <Tag color="arcoblue" className="helpdesk-tickets__tag">
+        <div className={styles['helpdesk-tickets__header']}>
+          <span className={styles['helpdesk-tickets__title']}>HR Help Desk</span>
+          <Tag color="arcoblue" className={styles['helpdesk-tickets__tag']}>
             工单中心 · 薪资/考勤/资产/入职/离职问题
           </Tag>
         </div>

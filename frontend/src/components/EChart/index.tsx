@@ -1,20 +1,24 @@
 import { useEffect, useRef } from 'react'
-import * as echarts from 'echarts'
-import './index.css'
-
+import { echarts } from '@/utils/echarts'
+import type { EChartsOption } from 'echarts'
+import styles from './index.module.css'
 interface EChartProps {
-  option: echarts.EChartsOption
+  option: EChartsOption
   style?: React.CSSProperties
   className?: string
+  /** 是否启用加载动画，默认 false */
+  loading?: boolean
+  /** 主题，默认跟随系统 */
+  theme?: 'light' | 'dark'
 }
 
-export default function EChart({ option, style, className }: EChartProps) {
+export default function EChart({ option, style, className, loading = false, theme }: EChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstance = useRef<echarts.ECharts | null>(null)
 
   useEffect(() => {
     if (!chartRef.current) return
-    chartInstance.current = echarts.init(chartRef.current)
+    chartInstance.current = echarts.init(chartRef.current, theme)
     const handleResize = () => {
       chartInstance.current?.resize()
     }
@@ -24,7 +28,7 @@ export default function EChart({ option, style, className }: EChartProps) {
       chartInstance.current?.dispose()
       chartInstance.current = null
     }
-  }, [])
+  }, [theme])
 
   useEffect(() => {
     if (chartInstance.current) {
@@ -32,10 +36,20 @@ export default function EChart({ option, style, className }: EChartProps) {
     }
   }, [option])
 
+  useEffect(() => {
+    if (chartInstance.current) {
+      if (loading) {
+        chartInstance.current.showLoading()
+      } else {
+        chartInstance.current.hideLoading()
+      }
+    }
+  }, [loading])
+
   return (
     <div
       ref={chartRef}
-      className={`echart ${className || ''}`}
+      className={`${styles.echart} ${className || ''}`}
       style={style}
     />
   )

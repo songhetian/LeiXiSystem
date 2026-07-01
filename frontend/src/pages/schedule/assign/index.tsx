@@ -4,7 +4,6 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Message,
@@ -13,18 +12,14 @@ import {
   Grid,
   DatePicker,
 } from '@arco-design/web-react'
-import {
-  IconPlus,
-  IconSearch,
-  IconRefresh,
-} from '@arco-design/web-react/icon'
+import { IconPlus } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { assignSchedule } from '@/api/schedule'
 import { getShifts, Shift } from '@/api/shift'
 import { getDepartmentsList, Department } from '@/api/organization'
 import { getEmployees } from '@/api/personnel'
-import './style.css'
-
+import { PageHeader, FilterBar } from '@/components'
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -119,6 +114,7 @@ function AssignPage() {
   const handleReset = () => {
     setSearchText('')
     setSearchDept(undefined)
+    loadData(1, pageSize)
   }
 
   const handleBatchAssign = () => {
@@ -134,9 +130,7 @@ function AssignPage() {
         Message.error('请选择日期范围')
         return
       }
-      const userIds = selectedKeys.length > 0
-        ? selectedKeys.map(Number)
-        : data.map((item) => item.userId)
+      const userIds = selectedKeys.length > 0 ? selectedKeys.map(Number) : data.map((item) => item.userId)
       if (userIds.length === 0) {
         Message.error('请选择人员')
         return
@@ -156,92 +150,58 @@ function AssignPage() {
   }
 
   const columns: TableProps<EmployeeShift>['columns'] = [
-    {
-      title: '工号',
-      dataIndex: 'employeeNo',
-      width: 120,
-    },
-    {
-      title: '姓名',
-      dataIndex: 'realName',
-      width: 100,
-    },
-    {
-      title: '部门',
-      dataIndex: 'departmentName',
-      width: 120,
-    },
-    {
-      title: '岗位',
-      dataIndex: 'positionName',
-      width: 120,
-    },
+    { title: '工号', dataIndex: 'employeeNo', width: 120 },
+    { title: '姓名', dataIndex: 'realName', width: 100 },
+    { title: '部门', dataIndex: 'departmentName', width: 120 },
+    { title: '岗位', dataIndex: 'positionName', width: 120 },
     {
       title: '当前班次',
       dataIndex: 'currentShift',
       width: 120,
       render: (value: string, record: EmployeeShift) => (
-        value ? (
-          <Tag color={record.currentShiftColor || 'blue'}>{value}</Tag>
-        ) : (
-          <Tag color="gray">未排班</Tag>
-        )
+        value ? <Tag color={record.currentShiftColor || 'blue'}>{value}</Tag> : <Tag color="gray">未排班</Tag>
       ),
     },
   ]
 
   return (
-    <div className="schedule-assign">
-      <Card bordered={false} className="schedule-assign__toolbar">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="schedule-assign__input-keyword"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="部门">
-            <Select
-              className="schedule-assign__select-dept"
-              placeholder="请选择"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              {departments.map((dept) => (
-                <Option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['schedule-assign']}>
+      <Card bordered={false} className={styles['schedule-assign__card']}>
+        <PageHeader
+          title="排班分配"
+          description="为员工批量分配班次，支持选择日期范围和指定班次。"
+          extra={<Button type="primary" icon={<IconPlus />} onClick={handleBatchAssign}>批量排班</Button>}
+        />
+      </Card>
+
+      <Card bordered={false} className={styles['schedule-assign__card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input className={styles['schedule-assign__input-keyword']} placeholder="姓名/工号" value={searchText} onChange={setSearchText} allowClear />
+              </FormItem>
+              <FormItem label="部门">
+                <Select className={styles['schedule-assign__select-dept']} placeholder="请选择" value={searchDept} onChange={setSearchDept} allowClear>
+                  {departments.map((dept) => (
+                    <Option key={dept.id} value={dept.id}>{dept.name}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="schedule-assign__header">
+        <div className={styles['schedule-assign__header']}>
           <div>
-            <span className="schedule-assign__title">排班分配</span>
-            <Tag color="blue" className="schedule-assign__tag-count">
-              共 {total} 人
-            </Tag>
+            <span className={styles['schedule-assign__title']}>排班分配</span>
+            <Tag color="blue" className={styles['schedule-assign__tag-count']}>共 {total} 人</Tag>
           </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleBatchAssign}>
-            批量排班
-          </Button>
         </div>
 
         <Table
@@ -249,47 +209,26 @@ function AssignPage() {
           data={data}
           rowKey="id"
           loading={loading}
-          rowSelection={{
-            type: 'checkbox',
-            selectedRowKeys: selectedKeys,
-            onChange: (keys) => setSelectedKeys(keys as string[]),
-          }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showTotal: true,
-            sizeCanChange: true,
-            onChange: (p, ps) => loadData(p, ps),
-          }}
+          rowSelection={{ type: 'checkbox', selectedRowKeys: selectedKeys, onChange: (keys) => setSelectedKeys(keys as string[]) }}
+          pagination={{ current: page, pageSize, total, showTotal: true, sizeCanChange: true, onChange: (p, ps) => loadData(p, ps) }}
         />
       </Card>
 
-      <Modal
-        title="批量排班"
-        visible={visible}
-        onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="schedule-assign__modal-medium"
-      >
+      <Modal focusLock title="批量排班" visible={visible} onOk={handleOk} onCancel={() => setVisible(false)} className={styles['schedule-assign__modal-medium']}>
         <Form form={form} layout="vertical">
           <FormItem label="日期范围" field="dateRange" rules={[{ required: true, message: '请选择日期范围' }]}>
-            <RangePicker className="schedule-assign__range-picker" />
+            <RangePicker className={styles['schedule-assign__range-picker']} />
           </FormItem>
           <FormItem label="班次" field="shiftId" rules={[{ required: true, message: '请选择班次' }]}>
-            <Select placeholder="请选择班次" className="schedule-assign__select-shift">
+            <Select placeholder="请选择班次" className={styles['schedule-assign__select-shift']}>
               {shifts.map((shift) => (
-                <Option key={shift.id} value={shift.id}>
-                  {shift.name} ({shift.startTime} - {shift.endTime})
-                </Option>
+                <Option key={shift.id} value={shift.id}>{shift.name} ({shift.startTime} - {shift.endTime})</Option>
               ))}
             </Select>
           </FormItem>
           <FormItem label="说明">
-            <div className="schedule-assign__hint">
-              {selectedKeys.length > 0
-                ? `已选择 ${selectedKeys.length} 人进行排班`
-                : '未选择人员时，将对当前列表所有人员排班'}
+            <div className={styles['schedule-assign__hint']}>
+              {selectedKeys.length > 0 ? `已选择 ${selectedKeys.length} 人进行排班` : '未选择人员时，将对当前列表所有人员排班'}
             </div>
           </FormItem>
         </Form>

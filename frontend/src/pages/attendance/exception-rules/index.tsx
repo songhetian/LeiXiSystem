@@ -29,8 +29,7 @@ import {
   AUTO_RESOLVE_TYPES,
   type AttendanceExceptionRule,
 } from '@/api/attendance-exception'
-import './exception-rules.css'
-
+import styles from './exception-rules.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -128,7 +127,7 @@ function ExceptionRulesPage() {
     {
       title: '规则名称',
       dataIndex: 'name',
-      render: (val) => <span className="exception-rules__text-bold">{val}</span>,
+      render: (val) => <span className={styles['exception-rules__text-bold']}>{val}</span>,
     },
     {
       title: '异常类型',
@@ -197,7 +196,7 @@ function ExceptionRulesPage() {
   ]
 
   return (
-    <div className="exception-rules">
+    <div className={styles['exception-rules']}>
       <Card
         bordered={false}
         title="异常规则配置"
@@ -224,12 +223,12 @@ function ExceptionRulesPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingRule ? '编辑规则' : '新建规则'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
-        className="exception-rules__modal"
+        className={styles['exception-rules__modal']}
         okText="保存"
         cancelText="取消"
       >
@@ -294,17 +293,17 @@ function ExceptionRulesPage() {
           <Row gutter={16}>
             <Col span={12}>
               <FormItem label="扣除时长(分钟)" field="deductMinutes">
-                <InputNumber className="exception-rules__input-full" min={0} max={1440} defaultValue={0} />
+                <InputNumber className={styles['exception-rules__input-full']} min={0} max={1440} defaultValue={0} />
               </FormItem>
             </Col>
             <Col span={12}>
               <FormItem label="排序" field="sortOrder">
-                <InputNumber className="exception-rules__input-full" min={0} max={9999} defaultValue={0} />
+                <InputNumber className={styles['exception-rules__input-full']} min={0} max={9999} defaultValue={0} />
               </FormItem>
             </Col>
           </Row>
           <FormItem label="状态" field="status">
-            <Select className="exception-rules__select-small" defaultValue="active">
+            <Select className={styles['exception-rules__select-small']} defaultValue="active">
               <Option value="active">启用</Option>
               <Option value="inactive">停用</Option>
             </Select>

@@ -11,8 +11,7 @@ import {
   getPerformanceReviews, createPerformanceReview, updatePerformanceReview,
 } from '@/api/performance'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './performance.css'
-
+import styles from './performance.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -93,7 +92,7 @@ function StatusTag({ value, map }: { value: string; map: Record<string, { text: 
 function ScoreBar({ score }: { score?: number | null }) {
   if (score == null) return <span>-</span>
   const color = score >= 80 ? 'green' : score >= 60 ? 'orange' : 'red'
-  return <Progress percent={score} showText={false} size="small" color={color} className="performance__score-bar" />
+  return <Progress percent={score} showText={false} size="small" color={color} className={styles['performance__score-bar']} />
 }
 
 // ===== Cycles Tab =====
@@ -180,17 +179,17 @@ function CyclesTab() {
 
   return (
     <>
-      <div className="performance__actions-bar">
+      <div className={styles['performance__actions-bar']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => openModal()}>新建周期</Button>
       </div>
       <Table rowKey="id" loading={loading} columns={columns} data={data} pagination={false} />
-      <Modal title={editing ? '编辑绩效周期' : '新建绩效周期'} visible={modalVisible}
+      <Modal focusLock title={editing ? '编辑绩效周期' : '新建绩效周期'} visible={modalVisible}
         onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">
           <FormItem label="周期名称" field="name" rules={[{ required: true, message: '请输入' }]}>
             <Input placeholder="如：2024年Q1绩效" />
           </FormItem>
-          <div className="performance__form-grid">
+          <div className={styles['performance__form-grid']}>
             <FormItem label="周期类型" field="cycleType">
               <Select>
                 {Object.entries(cycleTypeMap).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
@@ -202,12 +201,12 @@ function CyclesTab() {
               </Select>
             </FormItem>
           </div>
-          <div className="performance__form-grid">
+          <div className={styles['performance__form-grid']}>
             <FormItem label="开始日期" field="startDate" rules={[{ required: true, message: '请选择' }]}>
-              <DatePicker className="performance__form-item" />
+              <DatePicker className={styles['performance__form-item']} />
             </FormItem>
             <FormItem label="结束日期" field="endDate" rules={[{ required: true, message: '请选择' }]}>
-              <DatePicker className="performance__form-item" />
+              <DatePicker className={styles['performance__form-item']} />
             </FormItem>
           </div>
         </Form>
@@ -296,7 +295,7 @@ function GoalsTab() {
     { title: '权重(%)', dataIndex: 'weight', width: 90, render: (v: number) => `${v}%` },
     {
       title: '进度(%)', dataIndex: 'progress', width: 120,
-      render: (v: number) => <Progress percent={v} showText={false} size="small" className="performance__score-bar" />,
+      render: (v: number) => <Progress percent={v} showText={false} size="small" className={styles['performance__score-bar']} />,
     },
     { title: '状态', dataIndex: 'status', width: 90, render: (v) => <StatusTag value={v} map={goalStatusMap} /> },
     {
@@ -314,13 +313,13 @@ function GoalsTab() {
 
   return (
     <>
-      <div className="performance__actions-bar">
+      <div className={styles['performance__actions-bar']}>
         <Space>
-          <Select placeholder="绩效周期" allowClear className="performance__select"
+          <Select placeholder="绩效周期" allowClear className={styles.performance__select}
             onChange={(v) => handleFilter('cycleId', v)}>
             {cycles.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
           </Select>
-          <Select placeholder="状态" allowClear className="performance__select--sm"
+          <Select placeholder="状态" allowClear className={styles['performance__select--sm']}
             onChange={(v) => handleFilter('status', v)}>
             {Object.entries(goalStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -329,10 +328,10 @@ function GoalsTab() {
       </div>
       <Table rowKey="id" loading={loading} columns={columns} data={data}
         pagination={{ total, current: page, pageSize: 10, onChange: (p) => setPage(p) }} />
-      <Modal title={editing ? '编辑绩效目标' : '新建绩效目标'} visible={modalVisible}
+      <Modal focusLock title={editing ? '编辑绩效目标' : '新建绩效目标'} visible={modalVisible}
         onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">
-          <div className="performance__form-grid">
+          <div className={styles['performance__form-grid']}>
             <FormItem label="绩效周期" field="cycleId" rules={[{ required: true, message: '请选择' }]}>
               <Select placeholder="选择周期">
                 {cycles.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
@@ -353,15 +352,15 @@ function GoalsTab() {
           <FormItem label="衡量指标" field="metric">
             <Input placeholder="如：GMV、用户增长率" />
           </FormItem>
-          <div className="performance__form-grid--triple">
+          <div className={styles['performance__form-grid--triple']}>
             <FormItem label="目标值" field="targetValue">
-              <InputNumber min={0} className="performance__form-item" />
+              <InputNumber min={0} className={styles['performance__form-item']} />
             </FormItem>
             <FormItem label="权重(%)" field="weight">
-              <InputNumber min={0} max={100} className="performance__form-item" />
+              <InputNumber min={0} max={100} className={styles['performance__form-item']} />
             </FormItem>
             <FormItem label="当前进度(%)" field="progress">
-              <InputNumber min={0} max={100} className="performance__form-item" />
+              <InputNumber min={0} max={100} className={styles['performance__form-item']} />
             </FormItem>
           </div>
           <FormItem label="状态" field="status">
@@ -461,13 +460,13 @@ function ReviewsTab() {
 
   return (
     <>
-      <div className="performance__actions-bar">
+      <div className={styles['performance__actions-bar']}>
         <Space>
-          <Select placeholder="绩效周期" allowClear className="performance__select"
+          <Select placeholder="绩效周期" allowClear className={styles.performance__select}
             onChange={(v) => handleFilter('cycleId', v)}>
             {cycles.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
           </Select>
-          <Select placeholder="状态" allowClear className="performance__select--xs"
+          <Select placeholder="状态" allowClear className={styles['performance__select--xs']}
             onChange={(v) => handleFilter('status', v)}>
             {Object.entries(reviewStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
           </Select>
@@ -476,10 +475,10 @@ function ReviewsTab() {
       </div>
       <Table rowKey="id" loading={loading} columns={columns} data={data}
         pagination={{ total, current: page, pageSize: 10, onChange: (p) => setPage(p) }} />
-      <Modal title={editing ? '编辑绩效评审' : '新建绩效评审'} visible={modalVisible}
-        onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting} className="performance__modal">
+      <Modal focusLock title={editing ? '编辑绩效评审' : '新建绩效评审'} visible={modalVisible}
+        onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={submitting} className={styles.performance__modal}>
         <Form form={form} layout="vertical">
-          <div className="performance__form-grid">
+          <div className={styles['performance__form-grid']}>
             <FormItem label="绩效周期" field="cycleId" rules={[{ required: true, message: '请选择' }]}>
               <Select placeholder="选择周期">
                 {cycles.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
@@ -491,18 +490,18 @@ function ReviewsTab() {
               </Select>
             </FormItem>
           </div>
-          <div className="performance__form-grid--triple">
+          <div className={styles['performance__form-grid--triple']}>
             <FormItem label="自评分" field="selfScore">
-              <InputNumber min={0} max={100} className="performance__form-item" />
+              <InputNumber min={0} max={100} className={styles['performance__form-item']} />
             </FormItem>
             <FormItem label="上级评分" field="managerScore">
-              <InputNumber min={0} max={100} className="performance__form-item" />
+              <InputNumber min={0} max={100} className={styles['performance__form-item']} />
             </FormItem>
             <FormItem label="最终分" field="finalScore">
-              <InputNumber min={0} max={100} className="performance__form-item" />
+              <InputNumber min={0} max={100} className={styles['performance__form-item']} />
             </FormItem>
           </div>
-          <div className="performance__form-grid">
+          <div className={styles['performance__form-grid']}>
             <FormItem label="状态" field="status">
               <Select>
                 {Object.entries(reviewStatusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
@@ -527,11 +526,11 @@ export default function PerformancePage() {
   const [activeTab, setActiveTab] = useState('cycles')
 
   return (
-    <div className="performance">
+    <div className={styles.performance}>
       <Card bordered={false}>
-        <div className="performance__header">
-          <span className="performance__title">绩效管理</span>
-          <Tag color="arcoblue" className="performance__tag">
+        <div className={styles.performance__header}>
+          <span className={styles.performance__title}>绩效管理</span>
+          <Tag color="arcoblue" className={styles.performance__tag}>
             绩效周期 · 目标管理 · 绩效评审
           </Tag>
         </div>

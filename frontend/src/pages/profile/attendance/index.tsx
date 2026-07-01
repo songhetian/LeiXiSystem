@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import './index.css';
+import styles from './index.module.css'
 import {
   Card,
   Table,
   Tag,
-  Space,
   Grid,
   Statistic,
   Select,
@@ -154,8 +153,8 @@ function MyAttendance() {
   }
 
   return (
-    <div className="profile-attendance">
-      <Row gutter={16} className="profile-attendance__toolbar">
+    <div className={styles['profile-attendance']}>
+      <Row gutter={16} className={styles['profile-attendance__toolbar']}>
         {stats.map((item, index) => (
           <Col span={6} key={index}>
             <Card bordered={false}>
@@ -170,10 +169,10 @@ function MyAttendance() {
         ))}
       </Row>
 
-      <Card bordered={false} className="profile-attendance__toolbar">
+      <Card bordered={false} className={styles['profile-attendance__toolbar']}>
         <Form layout="inline">
           <FormItem label="月份">
-            <Select className="profile-attendance__select-month" value={currentMonth} onChange={setCurrentMonth}>
+            <Select className={styles['profile-attendance__select-month']} value={currentMonth} onChange={setCurrentMonth}>
               {monthOptions.map((m) => (
                 <Option key={m.value} value={m.value}>
                   {m.label}
@@ -203,7 +202,7 @@ function MyAttendance() {
               data={records}
               rowKey="id"
               pagination={{ pageSize: 10 }}
-              noDataElement={<div className="profile-attendance__empty">暂无考勤记录</div>}
+              noDataElement={<div className={styles['profile-attendance__empty']}>暂无考勤记录</div>}
             />
           )}
         </Spin>

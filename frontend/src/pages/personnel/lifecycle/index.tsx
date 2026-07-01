@@ -6,14 +6,13 @@ import { IconCheck, IconDelete, IconEdit, IconPlus } from '@arco-design/web-reac
 import {
   completeLifecycleEvent, createLifecycleEvent, updateLifecycleEvent, deleteLifecycleEvent,
   getLifecycleEvents, getLifecycleEventDetail,
-  getOnboardingTasks, createOnboardingTask, updateOnboardingTask, deleteOnboardingTask, getOnboardingTaskDetail,
+  getOnboardingTasks, createOnboardingTask, updateOnboardingTask, deleteOnboardingTask,
   getOffboardingTasks, createOffboardingTask, updateOffboardingTask, deleteOffboardingTask,
   getEmployeeDocuments, createEmployeeDocument, updateEmployeeDocument, deleteEmployeeDocument,
   getEmployeeContracts, createEmployeeContract, updateEmployeeContract, deleteEmployeeContract,
 } from '@/api/lifecycle'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './lifecycle.css'
-
+import styles from './lifecycle.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -180,13 +179,13 @@ function EventFormModal({
   }
 
   return (
-    <Modal
+    <Modal focusLock
       title={editing ? '编辑生命周期事件' : '新增生命周期事件'}
       visible={visible}
       onOk={handleSubmit}
       onCancel={onClose}
       confirmLoading={submitting}
-      className="lifecycle-page__modal--560"
+      className={styles['lifecycle-page__modal--560']}
     >
       <Form form={form} layout="vertical">
         {!editing && (
@@ -209,7 +208,7 @@ function EventFormModal({
           <Input placeholder="例如：张三入职流程" />
         </FormItem>
         <FormItem label="生效日期" field="effectiveDate" rules={[{ required: true, message: '请选择生效日期' }]}>
-          <DatePicker className="lifecycle-page__date-picker-full" />
+          <DatePicker className={styles['lifecycle-page__date-picker-full']} />
         </FormItem>
         <FormItem label="状态" field="status">
           <Select>
@@ -247,28 +246,28 @@ function EventDetailModal({
   }, [visible, eventId])
 
   return (
-    <Modal title="事件详情" visible={visible} onOk={onClose} onCancel={onClose} footer={null} className="lifecycle-page__modal--600">
+    <Modal focusLock title="事件详情" visible={visible} onOk={onClose} onCancel={onClose} footer={null} className={styles['lifecycle-page__modal--600']}>
       {loading ? (
-        <div className="lifecycle-page__text-center">加载中...</div>
+        <div className={styles['lifecycle-page__text-center']}>加载中...</div>
       ) : data ? (
-        <div className="lifecycle-page__detail-grid">
+        <div className={styles['lifecycle-page__detail-grid']}>
           <div><Text type="secondary">员工</Text><div>{data.employee?.user?.realName}({data.employee?.employeeNo})</div></div>
           <div><Text type="secondary">类型</Text><div><Tag color="blue">{eventTypeOptions.find((e) => e.value === data.eventType)?.label || data.eventType}</Tag></div></div>
-          <div className="lifecycle-page__detail-col-full"><Text type="secondary">标题</Text><div>{data.title}</div></div>
+          <div className={styles['lifecycle-page__detail-col-full']}><Text type="secondary">标题</Text><div>{data.title}</div></div>
           <div><Text type="secondary">生效日期</Text><div>{formatDate(data.effectiveDate)}</div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={data.status} /></div></div>
-          <div className="lifecycle-page__detail-col-full"><Text type="secondary">说明</Text><div>{data.description || '-'}</div></div>
+          <div className={styles['lifecycle-page__detail-col-full']}><Text type="secondary">说明</Text><div>{data.description || '-'}</div></div>
           <div><Text type="secondary">创建人</Text><div>{data.creator?.realName || '-'}</div></div>
           <div><Text type="secondary">创建时间</Text><div>{formatDate(data.createdAt)}</div></div>
         </div>
       ) : (
-        <div className="lifecycle-page__text-center">未找到数据</div>
+        <div className={styles['lifecycle-page__text-center']}>未找到数据</div>
       )}
     </Modal>
   )
 }
 
-function EventsTab({ employees, onRefresh }: { employees: Employee[]; onRefresh: () => void }) {
+function EventsTab({ employees, onRefresh: _onRefresh }: { employees: Employee[]; onRefresh: () => void }) {
   const [data, setData] = useState<LifecycleEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -314,7 +313,7 @@ function EventsTab({ employees, onRefresh }: { employees: Employee[]; onRefresh:
       title: '员工',
       render: (_: any, record) => <EmployeeCell record={record} />,
       filterHeader: (
-        <Select placeholder="筛选员工" allowClear className="lifecycle-page__filter-select--140"
+        <Select placeholder="筛选员工" allowClear className={styles['lifecycle-page__filter-select--140']}
           onChange={(v) => handleFilter('employeeId', v)}>
           {employees.map((e) => <Option key={e.id} value={e.id}>{e.realName}</Option>)}
         </Select>
@@ -326,7 +325,7 @@ function EventsTab({ employees, onRefresh }: { employees: Employee[]; onRefresh:
       width: 100,
       render: (v) => <Tag color="blue">{eventTypeOptions.find((e) => e.value === v)?.label || v}</Tag>,
       filterHeader: (
-        <Select placeholder="筛选类型" allowClear className="lifecycle-page__filter-select--120"
+        <Select placeholder="筛选类型" allowClear className={styles['lifecycle-page__filter-select--120']}
           onChange={(v) => handleFilter('eventType', v)}>
           {eventTypeOptions.map((e) => <Option key={e.value} value={e.value}>{e.label}</Option>)}
         </Select>
@@ -345,7 +344,7 @@ function EventsTab({ employees, onRefresh }: { employees: Employee[]; onRefresh:
       width: 100,
       render: (v) => <StatusTag value={v} />,
       filterHeader: (
-        <Select placeholder="筛选状态" allowClear className="lifecycle-page__filter-select--100"
+        <Select placeholder="筛选状态" allowClear className={styles['lifecycle-page__filter-select--100']}
           onChange={(v) => handleFilter('status', v)}>
           {Object.entries(statusMap).map(([k, v]) => <Option key={k} value={k}>{v.text}</Option>)}
         </Select>
@@ -376,7 +375,7 @@ function EventsTab({ employees, onRefresh }: { employees: Employee[]; onRefresh:
 
   return (
     <>
-      <div className="lifecycle-page__actions">
+      <div className={styles['lifecycle-page__actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => { setEditingEvent(null); setEventModal(true) }}>
           新增事件
         </Button>
@@ -451,13 +450,13 @@ function TaskFormModal({
   }
 
   return (
-    <Modal
+    <Modal focusLock
       title={editing ? `编辑${taskType === 'onboarding' ? '入职' : '离职'}任务` : `新增${taskType === 'onboarding' ? '入职' : '离职'}任务`}
       visible={visible}
       onOk={handleSubmit}
       onCancel={onClose}
       confirmLoading={submitting}
-      className="lifecycle-page__modal--560"
+      className={styles['lifecycle-page__modal--560']}
     >
       <Form form={form} layout="vertical">
         {!editing && (
@@ -474,7 +473,7 @@ function TaskFormModal({
           <Input.TextArea rows={2} placeholder="任务说明" />
         </FormItem>
         <FormItem label="截止日期" field="dueDate">
-          <DatePicker className="lifecycle-page__date-picker-full" />
+          <DatePicker className={styles['lifecycle-page__date-picker-full']} />
         </FormItem>
         <FormItem label="负责人" field="assignedTo">
           <Select placeholder="选择负责人（可选）" allowClear showSearch>
@@ -495,7 +494,7 @@ function TaskFormModal({
 }
 
 function TasksTab({
-  employees, getTasks, updateTask, deleteTask, createTask, taskType,
+  employees, getTasks, updateTask, deleteTask, createTask: _createTask, taskType,
 }: {
   employees: any[]
   getTasks: (params?: any) => Promise<any>
@@ -551,7 +550,7 @@ function TasksTab({
       width: 100,
       render: (v) => <StatusTag value={v} />,
       filterHeader: (
-        <Select placeholder="筛选状态" allowClear className="lifecycle-page__filter-select--100"
+        <Select placeholder="筛选状态" allowClear className={styles['lifecycle-page__filter-select--100']}
           onChange={(v) => { setStatusFilter(v); setPage(1) }}>
           {['pending', 'processing', 'completed', 'cancelled'].map((k) => (
             <Option key={k} value={k}>{statusMap[k]?.text}</Option>
@@ -567,7 +566,7 @@ function TasksTab({
           <Button size="small" type="text" icon={<IconEdit />}
             onClick={() => { setEditingTask(record); setTaskModal(true) }} />
           {record.status !== 'completed' && (
-            <Select size="mini" className="lifecycle-page__status-select--80" defaultValue={record.status}
+            <Select size="mini" className={styles['lifecycle-page__status-select--80']} defaultValue={record.status}
               onChange={(v) => handleStatusChange(record.id, v)} triggerProps={{ autoAlignPopupWidth: false }}>
               <Option value="pending">待处理</Option>
               <Option value="processing">处理中</Option>
@@ -586,7 +585,7 @@ function TasksTab({
 
   return (
     <>
-      <div className="lifecycle-page__actions">
+      <div className={styles['lifecycle-page__actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => { setEditingTask(null); setTaskModal(true) }}>
           新增{label}任务
         </Button>
@@ -657,8 +656,8 @@ function DocumentFormModal({
   }
 
   return (
-    <Modal title={editing ? '编辑员工文档' : '新增员工文档'} visible={visible}
-      onOk={handleSubmit} onCancel={onClose} confirmLoading={submitting} className="lifecycle-page__modal--560">
+    <Modal focusLock title={editing ? '编辑员工文档' : '新增员工文档'} visible={visible}
+      onOk={handleSubmit} onCancel={onClose} confirmLoading={submitting} className={styles['lifecycle-page__modal--560']}>
       <Form form={form} layout="vertical">
         {!editing && (
           <FormItem label="员工" field="employeeId" rules={[{ required: true, message: '请选择员工' }]}>
@@ -686,7 +685,7 @@ function DocumentFormModal({
           </Select>
         </FormItem>
         <FormItem label="到期日期" field="expiresAt">
-          <DatePicker className="lifecycle-page__date-picker-full" />
+          <DatePicker className={styles['lifecycle-page__date-picker-full']} />
         </FormItem>
       </Form>
     </Modal>
@@ -728,7 +727,7 @@ function DocumentsTab({ employees }: { employees: any[] }) {
       title: '状态', dataIndex: 'status', width: 80,
       render: (v) => <StatusTag value={v} />,
       filterHeader: (
-        <Select placeholder="筛选状态" allowClear className="lifecycle-page__filter-select--100"
+        <Select placeholder="筛选状态" allowClear className={styles['lifecycle-page__filter-select--100']}
           onChange={(v) => { setStatusFilter(v); setPage(1) }}>
           {['active', 'inactive', 'expired'].map((k) => <Option key={k} value={k}>{statusMap[k]?.text}</Option>)}
         </Select>
@@ -751,7 +750,7 @@ function DocumentsTab({ employees }: { employees: any[] }) {
 
   return (
     <>
-      <div className="lifecycle-page__actions">
+      <div className={styles['lifecycle-page__actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => { setEditingDoc(null); setDocModal(true) }}>
           新增文档
         </Button>
@@ -826,8 +825,8 @@ function ContractFormModal({
   }
 
   return (
-    <Modal title={editing ? '编辑劳动合同' : '新增劳动合同'} visible={visible}
-      onOk={handleSubmit} onCancel={onClose} confirmLoading={submitting} className="lifecycle-page__modal--600">
+    <Modal focusLock title={editing ? '编辑劳动合同' : '新增劳动合同'} visible={visible}
+      onOk={handleSubmit} onCancel={onClose} confirmLoading={submitting} className={styles['lifecycle-page__modal--600']}>
       <Form form={form} layout="vertical">
         {!editing && (
           <FormItem label="员工" field="employeeId" rules={[{ required: true, message: '请选择员工' }]}>
@@ -845,10 +844,10 @@ function ContractFormModal({
           </Select>
         </FormItem>
         <FormItem label="开始日期" field="startDate" rules={[{ required: true, message: '请选择开始日期' }]}>
-          <DatePicker className="lifecycle-page__date-picker-full" />
+          <DatePicker className={styles['lifecycle-page__date-picker-full']} />
         </FormItem>
         <FormItem label="结束日期" field="endDate">
-          <DatePicker className="lifecycle-page__date-picker-full" />
+          <DatePicker className={styles['lifecycle-page__date-picker-full']} />
         </FormItem>
         <FormItem label="状态" field="status">
           <Select>
@@ -902,7 +901,7 @@ function ContractsTab({ employees }: { employees: Employee[] }) {
       title: '状态', dataIndex: 'status', width: 80,
       render: (v) => <StatusTag value={v} />,
       filterHeader: (
-        <Select placeholder="筛选状态" allowClear className="lifecycle-page__filter-select--100"
+        <Select placeholder="筛选状态" allowClear className={styles['lifecycle-page__filter-select--100']}
           onChange={(v) => { setStatusFilter(v); setPage(1) }}>
           {['active', 'inactive', 'expired', 'terminated'].map((k) => <Option key={k} value={k}>{statusMap[k]?.text}</Option>)}
         </Select>
@@ -924,7 +923,7 @@ function ContractsTab({ employees }: { employees: Employee[] }) {
 
   return (
     <>
-      <div className="lifecycle-page__actions">
+      <div className={styles['lifecycle-page__actions']}>
         <Button type="primary" icon={<IconPlus />} onClick={() => { setEditingContract(null); setContractModal(true) }}>
           新增合同
         </Button>
@@ -952,12 +951,12 @@ export default function LifecyclePage() {
   }, [])
 
   return (
-    <div className="lifecycle-page">
+    <div className={styles['lifecycle-page']}>
       <Card bordered={false}>
-        <div className="lifecycle-page__header">
+        <div className={styles['lifecycle-page__header']}>
           <div>
-            <span className="lifecycle-page__title">员工生命周期</span>
-            <Tag color="arcoblue" className="lifecycle-page__tab-tag">
+            <span className={styles['lifecycle-page__title']}>员工生命周期</span>
+            <Tag color="arcoblue" className={styles['lifecycle-page__tab-tag']}>
               入职 · 转正 · 调岗 · 晋升 · 离职 · 文档 · 合同
             </Tag>
           </div>

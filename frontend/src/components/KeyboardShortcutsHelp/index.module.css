@@ -1,0 +1,81 @@
+.shortcuts-help {
+  min-width: 240px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.shortcuts-help__category {
+  padding: 8px 16px;
+}
+
+.shortcuts-help__category:first-child {
+  padding-top: 4px;
+}
+
+.shortcuts-help__category:last-child {
+  padding-bottom: 4px;
+}
+
+.shortcuts-help__title {
+  font-weight: 600;
+  color: var(--color-text-1);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.shortcuts-help__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  color: var(--color-text-2);
+}
+
+.shortcuts-help__desc {
+  flex: 1;
+}
+
+.shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--color-fill-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-1);
+  white-space: nowrap;
+  min-width: 24px;
+  text-align: center;
+}
+
+.shortcut-badge__key {
+  display: inline-block;
+}
+
+.shortcut-badge__plus {
+  color: var(--color-text-3);
+  margin: 0 1px;
+}
+
+/* 快捷键提示触发器 */
+.shortcuts-help-trigger .arco-tooltip-trigger {
+  display: block;
+}
+
+/* 深色模式适配 */
+[data-theme='dark'] .shortcut-badge {
+  background: var(--color-fill-2-dark);
+  border-color: var(--color-border-dark);
+  color: var(--color-text-1-dark);
+}
+
+[data-theme='dark'] .shortcuts-help__title {
+  color: var(--color-text-1-dark);
+}
+
+[data-theme='dark'] .shortcuts-help__item {
+  color: var(--color-text-2-dark);
+}

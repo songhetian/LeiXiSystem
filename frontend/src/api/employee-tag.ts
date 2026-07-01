@@ -49,7 +49,13 @@ export function createEmployeeTag(data: {
   return post('/employee-tags', data)
 }
 
-export function updateEmployeeTag(id: number, data: any) {
+export function updateEmployeeTag(id: number, data: {
+  name?: string
+  color?: string
+  description?: string
+  sortOrder?: number
+  status?: string
+}) {
   return put(`/employee-tags/${id}`, data)
 }
 

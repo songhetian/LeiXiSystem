@@ -5,7 +5,10 @@ import { authMiddleware } from '../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../middleware/permission'
 import { getAccessibleReimbursement } from '../services/objectAuthorization'
 import { normalizePagination } from '../utils/pagination'
-import { dateStringSchema, idParamsSchema, optionalKeywordSchema, statusSchema, validateData } from '../utils/validation'
+import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { setAudit } from '../plugins/audit'
+import { enqueueNotifications } from '../plugins/notification'
+import type { SendNotificationInput } from '../services/notification'
 
 const reimbursementListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -302,5 +305,129 @@ export default async function reimbursementRoutes(fastify: FastifyInstance) {
     })
 
     return { code: 0, message: '草稿已保存', data: draft }
+  })
+
+  fastify.post('/batch-approve', { preHandler: [requirePermission('reimbursement:approve')] }, async (request: FastifyRequest<{
+    Body: { ids: number[]; opinion?: string }
+  }>) => {
+    const { ids, opinion } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个报销申请'),
+      opinion: z.string().trim().max(1000).optional(),
+    }), request.body)
+    const opinionValue: string | null = (opinion as string | undefined) ?? null
+
+    setAudit(request, {
+      action: 'reimbursement.batch_approve',
+      module: 'reimbursement',
+      requestData: { ids, opinion: opinionValue },
+    })
+
+    const reimbursements = await prisma.reimbursement.findMany({
+      where: { id: { in: ids }, status: 'pending' },
+      include: { employee: { include: { user: true } } },
+    })
+
+    let successCount = 0
+    const notifications: SendNotificationInput[] = []
+
+    for (const reimbursement of reimbursements) {
+      try {
+        await prisma.reimbursement.update({
+          where: { id: reimbursement.id },
+          data: { status: 'approved', currentStep: 100 },
+        })
+
+        await prisma.reimbursementApproval.create({
+          data: {
+            reimbursementId: reimbursement.id,
+            approverId: request.user.id,
+            action: 'approve',
+            opinion: opinionValue,
+            nodeOrder: 1,
+          },
+        })
+
+        notifications.push({
+          userId: reimbursement.userId,
+          title: '报销申请已通过',
+          content: `您的 ${reimbursement.title} 报销申请已审批通过${opinionValue ? `：${opinionValue}` : ''}`,
+          type: 'approval',
+          relatedId: reimbursement.id,
+          relatedType: 'reimbursement',
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    if (notifications.length > 0) {
+      enqueueNotifications(request, notifications)
+    }
+
+    return { code: 0, message: `成功批准 ${successCount} 个报销申请`, data: { successCount, total: ids.length } }
+  })
+
+  fastify.post('/batch-reject', { preHandler: [requirePermission('reimbursement:approve')] }, async (request: FastifyRequest<{
+    Body: { ids: number[]; opinion?: string }
+  }>) => {
+    const { ids, opinion } = validateData(z.object({
+      ids: z.array(positiveIntSchema).min(1, '至少选择一个报销申请'),
+      opinion: z.string().trim().max(1000).optional(),
+    }), request.body)
+    const opinionValue: string | null = (opinion as string | undefined) ?? null
+
+    setAudit(request, {
+      action: 'reimbursement.batch_reject',
+      module: 'reimbursement',
+      requestData: { ids, opinion: opinionValue },
+    })
+
+    const reimbursements = await prisma.reimbursement.findMany({
+      where: { id: { in: ids }, status: 'pending' },
+      select: { id: true, userId: true, title: true },
+    })
+
+    let successCount = 0
+    const notifications: SendNotificationInput[] = []
+
+    for (const reimbursement of reimbursements) {
+      try {
+        await prisma.reimbursement.update({
+          where: { id: reimbursement.id },
+          data: { status: 'rejected' },
+        })
+
+        await prisma.reimbursementApproval.create({
+          data: {
+            reimbursementId: reimbursement.id,
+            approverId: request.user.id,
+            action: 'reject',
+            opinion: opinionValue,
+            nodeOrder: 1,
+          },
+        })
+
+        notifications.push({
+          userId: reimbursement.userId,
+          title: '报销申请已驳回',
+          content: `您的 ${reimbursement.title} 报销申请已被驳回${opinionValue ? `：${opinionValue}` : ''}`,
+          type: 'approval',
+          relatedId: reimbursement.id,
+          relatedType: 'reimbursement',
+        })
+
+        successCount++
+      } catch (e) {
+        // 忽略单个失败
+      }
+    }
+
+    if (notifications.length > 0) {
+      enqueueNotifications(request, notifications)
+    }
+
+    return { code: 0, message: `成功驳回 ${successCount} 个报销申请`, data: { successCount, total: ids.length } }
   })
 }

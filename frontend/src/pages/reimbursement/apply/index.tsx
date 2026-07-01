@@ -9,7 +9,6 @@ import {
   Button,
   Space,
   Message,
-  Tag,
   Grid,
   Upload,
   Steps,
@@ -18,7 +17,6 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconUpload,
 } from '@arco-design/web-react/icon'
 import {
   applyReimbursement,
@@ -28,9 +26,8 @@ import {
   getReimbursementDraft,
 } from '@/api/reimbursement'
 import { useNavigate } from 'react-router-dom'
-import { useUserStore } from '@/store/user'
-import './apply.css'
-
+import { useAuthStore } from '@/store/auth'
+import styles from './apply.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -50,7 +47,7 @@ function Apply() {
   const [warnings, setWarnings] = useState<ValidationWarning[]>([])
   const [checking, setChecking] = useState(false)
   const navigate = useNavigate()
-  const { user } = useUserStore()
+  const { user } = useAuthStore()
 
   const expenseTypes = [
     { value: '差旅费', label: '差旅费' },
@@ -121,7 +118,7 @@ function Apply() {
         })
 
         if (budgetRes.code === 0) {
-          const { status, message } = budgetRes.data
+          const { status, Message } = budgetRes.data
           if (status === 'overdraft') {
             newWarnings.push({
               type: 'budget',
@@ -220,16 +217,16 @@ function Apply() {
   }
 
   return (
-    <div className="reimbursement-apply">
+    <div className={styles['reimbursement-apply']}>
       <Row justify="center">
         <Col span={18}>
-          <Card bordered={false} className="reimbursement-apply__card">
-            <div className="reimbursement-apply__header">
-              <h2 className="reimbursement-apply__title">费用报销申请</h2>
-              <p className="reimbursement-apply__subtitle">填写报销信息并上传凭证</p>
+          <Card bordered={false} className={styles['reimbursement-apply__card']}>
+            <div className={styles['reimbursement-apply__header']}>
+              <h2 className={styles['reimbursement-apply__title']}>费用报销申请</h2>
+              <p className={styles['reimbursement-apply__subtitle']}>填写报销信息并上传凭证</p>
             </div>
 
-            <Steps current={0} className="reimbursement-apply__steps">
+            <Steps current={0} className={styles['reimbursement-apply__steps']}>
               <Steps.Step title="填写信息" />
               <Steps.Step title="提交审批" />
               <Steps.Step title="财务审核" />
@@ -237,13 +234,13 @@ function Apply() {
             </Steps>
 
             {warnings.length > 0 && (
-              <div className="reimbursement-apply__warnings">
+              <div className={styles['reimbursement-apply__warnings']}>
                 {warnings.map((w, i) => (
                   <Alert
                     key={i}
                     type={w.level === 'error' ? 'error' : 'warning'}
                     content={w.message}
-                    className="reimbursement-apply__form-item-gap"
+                    className={styles['reimbursement-apply__form-item-gap']}
                   />
                 ))}
               </div>
@@ -286,7 +283,7 @@ function Apply() {
                         rules={[{ required: true, message: '请输入报销金额' }]}
                       >
                         <InputNumber
-                          className="reimbursement-apply__form-item-full"
+                          className={styles['reimbursement-apply__form-item-full']}
                           placeholder="请输入金额"
                           prefix="¥"
                           min={0}
@@ -302,7 +299,7 @@ function Apply() {
                         field="expenseDate"
                         rules={[{ required: true, message: '请选择日期' }]}
                       >
-                        <DatePicker className="reimbursement-apply__form-item-full" />
+                        <DatePicker className={styles['reimbursement-apply__form-item-full']} />
                       </FormItem>
                     </Col>
                     <Col span={12}>
@@ -328,12 +325,12 @@ function Apply() {
               <TabPane key="detail" title="费用明细">
                 <Form form={form} layout="vertical">
                   <FormItem label="费用明细">
-                    <div className="reimbursement-apply__expense-detail-box">
-                      <div className="reimbursement-apply__expense-detail-header">
-                        <span className="reimbursement-apply__expense-detail-title">明细列表</span>
+                    <div className={styles['reimbursement-apply__expense-detail-box']}>
+                      <div className={styles['reimbursement-apply__expense-detail-header']}>
+                        <span className={styles['reimbursement-apply__expense-detail-title']}>明细列表</span>
                         <Button type="text" size="small" icon={<IconPlus />}>添加明细</Button>
                       </div>
-                      <div className="reimbursement-apply__expense-detail-empty">
+                      <div className={styles['reimbursement-apply__expense-detail-empty']}>
                         暂无明细，点击上方按钮添加
                       </div>
                     </div>
@@ -356,7 +353,7 @@ function Apply() {
               </TabPane>
             </Tabs>
 
-            <div className="reimbursement-apply__form-footer">
+            <div className={styles['reimbursement-apply__form-footer']}>
               <Space size="large">
                 <Button onClick={handleSaveDraft}>保存草稿</Button>
                 <Button

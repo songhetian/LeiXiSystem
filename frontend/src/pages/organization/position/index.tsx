@@ -4,21 +4,15 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Message,
   Tag,
-  Popconfirm,
   Card,
   Spin,
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import {
@@ -29,8 +23,9 @@ import {
   getDepartmentTree,
 } from '@/api/organization'
 import type { Position, Department } from '@/api/organization'
-import './position.css'
-
+import { FilterBar, TableHeader, ActionButtons } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './position.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -38,9 +33,6 @@ function PositionPage() {
   const [data, setData] = useState<Position[]>([])
   const [deptOptions, setDeptOptions] = useState<Department[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchDept, setSearchDept] = useState<string | undefined>()
@@ -73,6 +65,38 @@ function PositionPage() {
     loadData(pagination.current, pagination.pageSize)
     loadDeptOptions()
   }, [])
+
+  const { visible, editingId, saving, openCreate, openEdit, close, handleOk } = useCrudModal<Position>({
+    form,
+    initialValues: { status: 'active', sortOrder: 0 },
+    mapRecordToForm: (record) => ({
+      name: record.name,
+      departmentId: record.departmentId,
+      description: record.description,
+      requirements: record.requirements,
+      responsibilities: record.responsibilities,
+      salaryMin: record.salaryMin,
+      salaryMax: record.salaryMax,
+      sortOrder: record.sortOrder ?? 0,
+      status: record.status,
+    }),
+    onSubmit: async (values, id) => {
+      if (id) {
+        await updatePosition(id, values)
+        Message.success('修改成功')
+      } else {
+        await createPosition(values)
+        Message.success('新增成功')
+      }
+    },
+    onSuccess: () => loadData(pagination.current, pagination.pageSize),
+  })
+
+  // 表格快捷键
+  useTableHotkeys({
+    onNew: openCreate,
+    onRefresh: () => loadData(pagination.current, pagination.pageSize),
+  })
 
   const flattenDepts = (depts: Department[], depth = 0): Array<{ id: number; name: string; depth: number }> => {
     const result: Array<{ id: number; name: string; depth: number }> = []
@@ -118,35 +142,14 @@ function PositionPage() {
       title: '操作',
       width: 150,
       render: (_: unknown, record: Position) => (
-        <Space size="small">
-          <Button type="text" size="small" icon={<IconEdit />} onClick={() => handleEdit(record)}>
-            编辑
-          </Button>
-          <Popconfirm title="确认删除" content="确定要删除该岗位吗？" onOk={() => handleDelete(record.id)}>
-            <Button type="text" size="small" status="danger" icon={<IconDelete />}>
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        <ActionButtons
+          onEdit={() => openEdit(record)}
+          onDelete={() => handleDelete(record.id)}
+          deleteContent="确定要删除该岗位吗？"
+        />
       ),
     },
   ]
-
-  const handleEdit = (record: Position) => {
-    setEditingId(record.id)
-    form.setFieldsValue({
-      name: record.name,
-      departmentId: record.departmentId,
-      description: record.description,
-      requirements: record.requirements,
-      responsibilities: record.responsibilities,
-      salaryMin: record.salaryMin,
-      salaryMax: record.salaryMax,
-      sortOrder: record.sortOrder ?? 0,
-      status: record.status,
-    })
-    setVisible(true)
-  }
 
   const handleDelete = async (id: number) => {
     try {
@@ -155,26 +158,6 @@ function PositionPage() {
       loadData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
-    }
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      setSaving(true)
-      if (editingId) {
-        await updatePosition(editingId, values)
-        Message.success('修改成功')
-      } else {
-        await createPosition(values)
-        Message.success('新增成功')
-      }
-      setVisible(false)
-      loadData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -189,54 +172,55 @@ function PositionPage() {
   const handlePageChange = (current: number, pageSize: number) => loadData(current, pageSize)
 
   return (
-    <div className="org-position-page">
-      <Card bordered={false} className="org-position-page__search-card">
-        <Form layout="inline">
-          <FormItem label="岗位名称">
-            <Input
-              className="org-position-page__search-input"
-              placeholder="请输入岗位名称"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="部门">
-            <Select
-              className="org-position-page__dept-select"
-              placeholder="请选择部门"
-              value={searchDept}
-              onChange={(val) => { setSearchDept(val); loadData(1, pagination.pageSize) }}
-              allowClear
-            >
-              {flatDepts.map((d) => (
-                <Option key={d.id} value={d.id}>{'　'.repeat(d.depth)}{d.name}</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>搜索</Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>重置</Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['org-position-page']}>
+      <Card bordered={false} className={styles['org-position-page__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="岗位名称">
+                <Input
+                  className={styles['org-position-page__search-input']}
+                  placeholder="请输入岗位名称"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="部门">
+                <Select
+                  className={styles['org-position-page__dept-select']}
+                  placeholder="请选择部门"
+                  value={searchDept}
+                  onChange={(val) => { setSearchDept(val); loadData(1, pagination.pageSize) }}
+                  allowClear
+                >
+                  {flatDepts.map((d) => (
+                    <Option key={d.id} value={d.id}>{'　'.repeat(d.depth)}{d.name}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="org-position-page__table-header">
-          <div>
-            <span className="org-position-page__table-title">岗位列表</span>
-            <Tag color="blue" className="org-position-page__total-tag">共 {pagination.total} 个岗位</Tag>
-          </div>
-          <Button
-            type="primary"
-            icon={<IconPlus />}
-            onClick={() => { setEditingId(null); form.resetFields(); form.setFieldsValue({ status: 'active', sortOrder: 0 }); setVisible(true) }}
-          >
-            新增岗位
-          </Button>
-        </div>
+        <TableHeader
+          title="岗位列表"
+          total={pagination.total}
+          totalText="个岗位"
+          extra={
+            <Button
+              type="primary"
+              icon={<IconPlus />}
+              onClick={openCreate}
+            >
+              新增岗位
+            </Button>
+          }
+        />
 
         <Spin loading={loading}>
           <Table
@@ -248,13 +232,13 @@ function PositionPage() {
         </Spin>
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingId ? '编辑岗位' : '新增岗位'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
+        onCancel={close}
         confirmLoading={saving}
-        className="org-position-page__modal"
+        className={styles['org-position-page__modal']}
       >
         <Form form={form} layout="vertical">
           <FormItem label="岗位名称" field="name" rules={[{ required: true, message: '请输入岗位名称' }]}>

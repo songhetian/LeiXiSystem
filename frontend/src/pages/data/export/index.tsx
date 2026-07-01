@@ -18,8 +18,7 @@ import type { TableProps } from '@arco-design/web-react'
 import { createExportTask, downloadExportFile } from '@/api/data'
 import { saveBlob } from '@/utils/url'
 import { toast } from '@/utils/toast'
-import '../style.css'
-
+import styles from '../style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -157,7 +156,7 @@ function DataExport() {
     try {
       const values = await form.validate()
       const [startDate, endDate] = values.dateRange || []
-      const res = await createExportTask({
+      await createExportTask({
         type: values.type,
         format: values.format,
         departmentIds: values.departmentIds || [],
@@ -181,18 +180,18 @@ function DataExport() {
   }
 
   return (
-    <div className="data-export">
+    <div className={styles['data-export']}>
       <Row gutter={16}>
         <Col span={8}>
           <Card bordered={false}>
-            <div className="data-export__form">
-              <h3 className="data-export__form-title">数据导出</h3>
-              <p className="data-export__form-desc">选择导出类型和条件</p>
+            <div className={styles['data-export__form']}>
+              <h3 className={styles['data-export__form-title']}>数据导出</h3>
+              <p className={styles['data-export__form-desc']}>选择导出类型和条件</p>
             </div>
 
             <Form form={form} layout="vertical" initialValues={{ type: 'employee', format: 'xlsx' }}>
               <FormItem label="导出类型" field="type" rules={[{ required: true, message: '请选择导出类型' }]}>
-                <Select className="data-export__select-full">
+                <Select className={styles['data-export__select-full']}>
                   <Option value="employee">员工信息导出</Option>
                   <Option value="department">部门信息导出</Option>
                   <Option value="attendance">考勤数据导出</Option>
@@ -202,11 +201,11 @@ function DataExport() {
               </FormItem>
 
               <FormItem label="时间范围" field="dateRange">
-                <RangePicker className="data-export__select-full" />
+                <RangePicker className={styles['data-export__select-full']} />
               </FormItem>
 
               <FormItem label="部门范围" field="departmentIds">
-                <Select mode="multiple" className="data-export__select-full" placeholder="不选则全部">
+                <Select mode="multiple" className={styles['data-export__select-full']} placeholder="不选则全部">
                   <Option value={1}>技术部</Option>
                   <Option value={2}>产品部</Option>
                   <Option value={3}>市场部</Option>
@@ -215,7 +214,7 @@ function DataExport() {
               </FormItem>
 
               <FormItem label="文件格式" field="format" rules={[{ required: true, message: '请选择文件格式' }]}>
-                <Select className="data-export__select-full">
+                <Select className={styles['data-export__select-full']}>
                   <Option value="xlsx">Excel (.xlsx)</Option>
                   <Option value="xls">Excel (.xls)</Option>
                   <Option value="csv">CSV (.csv)</Option>
@@ -236,8 +235,8 @@ function DataExport() {
 
         <Col span={16}>
           <Card bordered={false}>
-            <div className="data-export__header">
-              <span className="data-export__title">导出记录</span>
+            <div className={styles['data-export__header']}>
+              <span className={styles['data-export__title']}>导出记录</span>
             </div>
 
             <Table
@@ -245,7 +244,7 @@ function DataExport() {
               data={data}
               rowKey="id"
               pagination={{ pageSize: 10 }}
-              noDataElement={<div className="data-export__empty">暂无导出记录</div>}
+              noDataElement={<div className={styles['data-export__empty']}>暂无导出记录</div>}
             />
           </Card>
         </Col>

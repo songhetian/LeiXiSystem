@@ -20,7 +20,13 @@ export function uploadImportFile(type: string, file: File) {
   })
 }
 
-export function createExportTask(data: any) {
+export interface CreateExportTaskParams {
+  type: string
+  format?: 'csv' | 'xlsx'
+  filters?: Record<string, unknown>
+}
+
+export function createExportTask(data: CreateExportTaskParams) {
   return post<{ code: 0; data: ExportTask }>('/data/export', data)
 }
 

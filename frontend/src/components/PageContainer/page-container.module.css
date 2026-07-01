@@ -1,0 +1,58 @@
+/* Page Container — Arco Design Pro pattern */
+.lx-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Header */
+.lx-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.lx-page__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lx-page__title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text-1);
+  line-height: 1.4;
+}
+
+.lx-page__desc {
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.lx-page__extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lx-page__refresh {
+  color: var(--color-text-3) !important;
+}
+
+/* Body */
+.lx-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .lx-page__header {
+    flex-direction: column;
+  }
+}

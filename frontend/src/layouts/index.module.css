@@ -1,0 +1,120 @@
+/* ==================== 左侧菜单 ==================== */
+.sider-logo {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border-1);
+  background: linear-gradient(135deg, rgba(var(--primary-6), 0.02) 0%, transparent 100%);
+}
+
+.sider-logo__icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, rgb(var(--primary-6)) 0%, rgb(var(--primary-5)) 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(var(--primary-6), 0.25);
+}
+
+.sider-logo__text {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  letter-spacing: 0.5px;
+}
+
+/* ==================== 布局整体 ==================== */
+.layout-wrapper {
+  height: 100vh;
+  background-color: var(--color-fill-2);
+}
+
+/* ==================== 头部 ==================== */
+.layout-header {
+  background: var(--color-bg-2);
+  padding: 0 24px;
+  border-bottom: 1px solid var(--color-border-1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.layout-header__content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+}
+
+.layout-header__menu-toggle {
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--color-text-2);
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.layout-header__menu-toggle:hover {
+  background-color: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+
+.layout-header__icon {
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--color-text-2);
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.layout-header__icon:hover {
+  background-color: var(--color-fill-2);
+  color: rgb(var(--primary-6));
+}
+
+.layout-header__user-menu {
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.layout-header__user-menu:hover {
+  background-color: var(--color-fill-2);
+}
+
+/* ==================== 内容区 ==================== */
+.layout-content {
+  padding: 16px 24px 24px;
+  background-color: var(--color-fill-2);
+  overflow: auto;
+  /* 内容居中，但最大宽度限制 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 内容区内的页面容器 - 居中布局 */
+.layout-content > * {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* 大屏幕时增加间距 */
+@media (min-width: 1600px) {
+  .layout-content {
+    padding: 20px 32px 32px;
+  }
+  
+  .layout-content > * {
+    max-width: 1600px;
+  }
+}

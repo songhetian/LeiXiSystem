@@ -1,7 +1,6 @@
 import { Component, ReactNode } from 'react'
 import { Result, Button, Typography } from '@arco-design/web-react'
-import './index.css'
-
+import styles from './index.module.css'
 const { Text } = Typography
 
 interface Props {
@@ -24,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] 捕获到错误:', error, errorInfo)
   }
 
@@ -38,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.href = '/dashboard'
   }
 
-  render() {
+  override render() {
     const { hasError, error } = this.state
     const { children, fallback } = this.props
 
@@ -48,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="error-boundary">
+        <div className={styles['error-boundary']}>
           <Result
             status="error"
             title="页面加载失败"
@@ -103,7 +102,7 @@ export class AsyncErrorBoundary extends Component<AsyncErrorBoundaryProps, Async
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[AsyncErrorBoundary] 捕获到错误:', error, errorInfo)
     this.props.onError?.(error)
   }
@@ -112,14 +111,14 @@ export class AsyncErrorBoundary extends Component<AsyncErrorBoundaryProps, Async
     this.setState({ hasError: false, error: null })
   }
 
-  render() {
+  override render() {
     const { hasError, error } = this.state
     const { children } = this.props
 
     if (hasError) {
       return (
-        <div className="async-error-boundary">
-          <Text type="error" className="async-error-boundary__message">
+        <div className={styles['async-error-boundary']}>
+          <Text type="error" className={styles['async-error-boundary__message']}>
             操作失败：{error?.message || '未知错误'}
           </Text>
           <Button size="small" onClick={this.handleReset}>

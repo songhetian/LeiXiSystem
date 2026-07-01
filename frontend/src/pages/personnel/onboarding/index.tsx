@@ -10,7 +10,6 @@ import {
   DatePicker,
   Message,
   Tag,
-  Steps,
   Progress,
   Grid,
   Typography,
@@ -28,8 +27,7 @@ import {
   type OnboardingFlow,
 } from '@/api/onboarding'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './onboarding.css'
-
+import styles from './onboarding.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -193,7 +191,7 @@ function OnboardingPage() {
   ]
 
   return (
-    <div className="onboarding-page">
+    <div className={styles['onboarding-page']}>
       <Card
         bordered={false}
         title="入职办理"
@@ -220,12 +218,12 @@ function OnboardingPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="启动入职流程"
         visible={startModalVisible}
         onOk={handleStartSubmit}
         onCancel={() => setStartModalVisible(false)}
-        className="onboarding-page__modal--500"
+        className={styles['onboarding-page__modal--500']}
         okText="启动"
         cancelText="取消"
       >
@@ -240,16 +238,16 @@ function OnboardingPage() {
             </Select>
           </FormItem>
           <FormItem label="开始日期" field="startDate">
-            <DatePicker className="onboarding-page__date-picker-full" />
+            <DatePicker className={styles['onboarding-page__date-picker-full']} />
           </FormItem>
         </Form>
       </Modal>
 
-      <Modal
+      <Modal focusLock
         title="入职进度"
         visible={progressModalVisible}
         onCancel={() => setProgressModalVisible(false)}
-        className="onboarding-page__modal--600"
+        className={styles['onboarding-page__modal--600']}
         footer={
           <Space>
             <Button onClick={() => setProgressModalVisible(false)}>关闭</Button>
@@ -262,15 +260,15 @@ function OnboardingPage() {
         }
       >
         {progressLoading ? (
-          <div className="onboarding-page__text-center">加载中...</div>
+          <div className={styles['onboarding-page__text-center']}>加载中...</div>
         ) : progress ? (
           <div>
-            <div className="onboarding-page__progress-header">
+            <div className={styles['onboarding-page__progress-header']}>
               <div>
-                <div className="onboarding-page__title">
+                <div className={styles['onboarding-page__title']}>
                   {currentEmployee?.user?.realName}
                 </div>
-                <div className="onboarding-page__text-small">
+                <div className={styles['onboarding-page__text-small']}>
                   {currentEmployee?.employeeNo}
                 </div>
               </div>
@@ -279,18 +277,18 @@ function OnboardingPage() {
               </Tag>
             </div>
 
-            <div className="onboarding-page__progress-bar">
+            <div className={styles['onboarding-page__progress-bar']}>
               <Progress percent={progress.progress} status={progress.status === 'completed' ? 'success' : 'normal'} />
-              <div className="onboarding-page__text-small--muted-margin">
+              <div className={styles['onboarding-page__text-small--muted-margin']}>
                 已完成 {progress.completedTasks} / {progress.totalTasks} 个任务
               </div>
             </div>
 
-            <div className="onboarding-page__tasks">
-              <div className="onboarding-page__subtitle">任务列表</div>
+            <div className={styles['onboarding-page__tasks']}>
+              <div className={styles['onboarding-page__subtitle']}>任务列表</div>
               {progress.tasks?.length ? (
                 progress.tasks.map((task: any) => (
-                  <div key={task.id} className="onboarding-page__task-item">
+                  <div key={task.id} className={styles['onboarding-page__task-item']}>
                     <Tag color={
                       task.status === 'completed' ? 'green' :
                       task.status === 'processing' ? 'blue' :
@@ -300,21 +298,21 @@ function OnboardingPage() {
                        task.status === 'processing' ? '进行中' :
                        task.status === 'cancelled' ? '已取消' : '待处理'}
                     </Tag>
-                    <span className="onboarding-page__flex-item">{task.title}</span>
-                    <span className="onboarding-page__text-small--muted">
+                    <span className={styles['onboarding-page__flex-item']}>{task.title}</span>
+                    <span className={styles['onboarding-page__text-small--muted']}>
                       截止: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}
                     </span>
                   </div>
                 ))
               ) : (
-                <div className="onboarding-page__text-center--muted">
+                <div className={styles['onboarding-page__text-center--muted']}>
                   暂无任务
                 </div>
               )}
             </div>
           </div>
         ) : (
-          <div className="onboarding-page__text-center">
+          <div className={styles['onboarding-page__text-center']}>
             该员工尚未启动入职流程
           </div>
         )}

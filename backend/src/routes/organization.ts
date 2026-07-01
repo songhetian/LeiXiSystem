@@ -4,7 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 import { getDepartmentTree, invalidateDepartmentCache } from '../services/cacheService'
 
 const orgListQuerySchema = z.object({
@@ -28,9 +28,7 @@ const departmentBodySchema = z.object({
   status: statusSchema,
 })
 
-const departmentUpdateSchema = departmentBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const departmentUpdateSchema = partialUpdateSchema(departmentBodySchema)
 
 const positionBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -46,9 +44,7 @@ const positionBodySchema = z.object({
   message: '最低薪资不能大于最高薪资',
 })
 
-const positionUpdateSchema = positionBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const positionUpdateSchema = partialUpdateSchema(positionBodySchema)
 
 export default async function organizationRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -149,17 +145,18 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(departmentUpdateSchema, request.body)
+    const data = validateData(departmentUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     await prisma.department.update({
       where: { id },
       data: {
-        name: body.name,
-        parentId: body.parentId ?? undefined,
-        description: body.description,
-        managerId: body.managerId ?? undefined,
-        sortOrder: body.sortOrder,
-        status: body.status,
+        name: data.name,
+        parentId: data.parentId ?? undefined,
+        description: data.description,
+        managerId: data.managerId ?? undefined,
+        sortOrder: data.sortOrder,
+        status: data.status,
       },
     })
 
@@ -307,20 +304,21 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     Body: unknown
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(positionUpdateSchema, request.body)
+    const data = validateData(positionUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     await prisma.position.update({
       where: { id },
       data: {
-        name: body.name,
-        departmentId: body.departmentId,
-        description: body.description,
-        requirements: body.requirements,
-        responsibilities: body.responsibilities,
-        salaryMin: body.salaryMin,
-        salaryMax: body.salaryMax,
-        sortOrder: body.sortOrder,
-        status: body.status,
+        name: data.name,
+        departmentId: data.departmentId,
+        description: data.description,
+        requirements: data.requirements,
+        responsibilities: data.responsibilities,
+        salaryMin: data.salaryMin,
+        salaryMax: data.salaryMax,
+        sortOrder: data.sortOrder,
+        status: data.status,
       },
     })
 

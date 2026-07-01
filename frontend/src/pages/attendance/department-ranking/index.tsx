@@ -19,8 +19,7 @@ import { getAttendanceRanking, ReportQuery } from '@/api/reports'
 import { getDepartmentTree, Department } from '@/api/organization'
 import EChart from '@/components/EChart'
 import type { EChartsOption } from 'echarts'
-import './style.css'
-
+import styles from './style.module.css'
 const { Row, Col } = Grid
 const { RangePicker } = DatePicker
 
@@ -221,7 +220,7 @@ const DepartmentRankingReport: React.FC = () => {
         else if (rank === 2) color = '#86909C'
         else if (rank === 3) color = '#FF7D00'
         return (
-          <span className="department-ranking__rank" style={{ color, fontWeight: rank <= 3 ? 600 : 400 }}>
+          <span className={styles['department-ranking__rank']} style={{ color, fontWeight: rank <= 3 ? 600 : 400 }}>
             {rank}
           </span>
         )
@@ -239,7 +238,7 @@ const DepartmentRankingReport: React.FC = () => {
       dataIndex: 'attendanceRate',
       width: 160,
       render: (v: number) => (
-        <Progress percent={v} size="small" className="attendance-progress" />
+        <Progress percent={v} size="small" className={styles['attendance-progress']} />
       ),
     },
   ]
@@ -291,8 +290,8 @@ const DepartmentRankingReport: React.FC = () => {
   }
 
   const deptTreeContent = (
-    <div className="dept-tree-popover">
-      <Spin loading={treeLoading} className="tree-spin">
+    <div className={styles['dept-tree-popover']}>
+      <Spin loading={treeLoading} className={styles['tree-spin']}>
         <Tree
           checkable
           selectable={false}
@@ -300,26 +299,26 @@ const DepartmentRankingReport: React.FC = () => {
           checkedKeys={selectedDeptKeys}
           onCheck={handleTreeCheck}
           size="small"
-          className="dept-tree"
+          className={styles['dept-tree']}
         />
       </Spin>
     </div>
   )
 
   return (
-    <div className="department-ranking-report">
-      <Card className="filter-card">
-        <div className="filter-bar">
+    <div className={styles['department-ranking-report']}>
+      <Card className={styles['filter-card']}>
+        <div className={styles['filter-bar']}>
           <Space size="medium" wrap>
             <Popover
               triggerProps={{ position: 'bl' }}
               content={deptTreeContent}
               trigger="click"
             >
-              <Button icon={<IconFilter />} className="dept-filter-btn">
+              <Button icon={<IconFilter />} className={styles['dept-filter-btn']}>
                 部门筛选
                 {selectedDeptKeys.length > 0 && (
-                  <Tag color="blue" className="dept-filter-tag">
+                  <Tag color="blue" className={styles['dept-filter-tag']}>
                     {selectedDeptKeys.length}
                   </Tag>
                 )}
@@ -328,7 +327,7 @@ const DepartmentRankingReport: React.FC = () => {
             <RangePicker
               value={dateRange}
               onChange={(_, date) => setDateRange(date)}
-              className="date-range-picker"
+              className={styles['date-range-picker']}
             />
             <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
               搜索
@@ -340,12 +339,12 @@ const DepartmentRankingReport: React.FC = () => {
         </div>
       </Card>
 
-      <Spin loading={loading} className="page-spin">
+      <Spin loading={loading} className={styles['page-spin']}>
         {data && (
           <>
-            <Row gutter={16} className="stats-row">
+            <Row gutter={16} className={styles['stats-row']}>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="部门总数"
                     value={stats.totalDepartments}
@@ -354,7 +353,7 @@ const DepartmentRankingReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="平均出勤率"
                     value={stats.avgAttendanceRate}
@@ -363,7 +362,7 @@ const DepartmentRankingReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="最高出勤率"
                     value={stats.maxAttendanceRate}
@@ -372,7 +371,7 @@ const DepartmentRankingReport: React.FC = () => {
                 </Card>
               </Col>
               <Col span={6}>
-                <Card className="stat-card">
+                <Card className={styles['stat-card']}>
                   <Statistic
                     title="最低出勤率"
                     value={stats.minAttendanceRate}
@@ -382,13 +381,13 @@ const DepartmentRankingReport: React.FC = () => {
               </Col>
             </Row>
 
-            <Card title="部门出勤率排名" className="chart-card">
-              <EChart option={rankingChartOption} className="chart-container" />
+            <Card title="部门出勤率排名" className={styles['chart-card']}>
+              <EChart option={rankingChartOption} className={styles['chart-container']} />
             </Card>
 
             <Card
               title="排名明细"
-              className="table-card"
+              className={styles['table-card']}
               extra={
                 <Button icon={<IconDownload />} onClick={handleExport}>
                   导出CSV

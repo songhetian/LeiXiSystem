@@ -64,7 +64,7 @@ interface StatusTagProps {
 function StatusTag({ value, preset, fallbackColor = 'gray' }: StatusTagProps) {
   const status = value || '-'
   const info = presetMaps[preset][status] || { text: status, color: fallbackColor }
-  return <Tag color={info.color}>{info.text}</Tag>
+  return <Tag color={info.color} role="status">{info.text}</Tag>
 }
 
 export default memo(StatusTag)

@@ -4,7 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, timeSchema, validateData } from '../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, timeSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 
 const shiftListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -33,9 +33,7 @@ const shiftBodySchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
 })
 
-const shiftUpdateSchema = shiftBodySchema.partial().refine((value) => Object.keys(value).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const shiftUpdateSchema = partialUpdateSchema(shiftBodySchema)
 
 export default async function shiftRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -130,27 +128,28 @@ export default async function shiftRoutes(fastify: FastifyInstance) {
     Body: any
   }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(shiftUpdateSchema, request.body)
+    const data = validateData(shiftUpdateSchema, request.body)
+    requireAtLeastOneField(data)
 
     await prisma.shift.update({
       where: { id },
       data: {
-        name: body.name,
-        code: body.code,
-        departmentId: body.departmentId ?? undefined,
-        startTime: body.startTime,
-        endTime: body.endTime,
-        workHours: body.workHours,
-        isFlexible: body.isFlexible,
-        isCrossDay: body.isCrossDay,
-        beginCheckinMinutes: body.beginCheckinMinutes === undefined ? undefined : Number(body.beginCheckinMinutes),
-        allowCheckoutMinutes: body.allowCheckoutMinutes === undefined ? undefined : Number(body.allowCheckoutMinutes),
-        lateGraceMinutes: body.lateGraceMinutes === undefined ? undefined : Number(body.lateGraceMinutes),
-        earlyGraceMinutes: body.earlyGraceMinutes === undefined ? undefined : Number(body.earlyGraceMinutes),
-        color: body.color,
-        description: body.description,
-        status: body.status,
-        sortOrder: body.sortOrder,
+        name: data.name,
+        code: data.code,
+        departmentId: data.departmentId ?? undefined,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        workHours: data.workHours,
+        isFlexible: data.isFlexible,
+        isCrossDay: data.isCrossDay,
+        beginCheckinMinutes: data.beginCheckinMinutes === undefined ? undefined : Number(data.beginCheckinMinutes),
+        allowCheckoutMinutes: data.allowCheckoutMinutes === undefined ? undefined : Number(data.allowCheckoutMinutes),
+        lateGraceMinutes: data.lateGraceMinutes === undefined ? undefined : Number(data.lateGraceMinutes),
+        earlyGraceMinutes: data.earlyGraceMinutes === undefined ? undefined : Number(data.earlyGraceMinutes),
+        color: data.color,
+        description: data.description,
+        status: data.status,
+        sortOrder: data.sortOrder,
       },
     })
 

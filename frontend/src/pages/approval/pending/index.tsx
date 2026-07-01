@@ -14,8 +14,6 @@ import {
   Descriptions,
 } from '@arco-design/web-react'
 import {
-  IconSearch,
-  IconRefresh,
   IconCheck,
   IconClose,
   IconEye,
@@ -23,10 +21,11 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { getPendingApproval } from '@/api/approval'
 import type { PendingApproval } from '@/api/approval'
-import { approveLeave, rejectLeave } from '@/api/attendance'
-import { approveReimbursement, rejectReimbursement } from '@/api/reimbursement'
-import './pending.css'
-
+import { approveLeave, rejectLeave, batchApproveLeave, batchRejectLeave, approveOvertime, rejectOvertime, batchApproveOvertime, batchRejectOvertime } from '@/api/attendance'
+import { approveReimbursement, rejectReimbursement, batchApproveReimbursement, batchRejectReimbursement } from '@/api/reimbursement'
+import { FilterBar, TableHeader, BatchActions } from '@/components'
+import { useBatchSelection } from '@/hooks/useBatchSelection'
+import styles from './pending.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
@@ -53,6 +52,12 @@ function Pending() {
   const [activeTab, setActiveTab] = useState('all')
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
   const [opinionForm] = Form.useForm()
+  const [batchRejectVisible, setBatchRejectVisible] = useState(false)
+  const [batchSubmitting, setBatchSubmitting] = useState(false)
+
+  const batch = useBatchSelection<PendingApproval>({
+    keyField: 'id',
+  })
 
   const fetchData = async (page = 1, pageSize = 10) => {
     setLoading(true)
@@ -178,6 +183,8 @@ function Pending() {
         try {
           if (record.type === 'leave') {
             await approveLeave(record.id)
+          } else if (record.type === 'overtime') {
+            await approveOvertime(record.id)
           } else if (record.type === 'reimbursement') {
             await approveReimbursement(record.id)
           }
@@ -208,6 +215,8 @@ function Pending() {
           const values = await opinionForm.validate()
           if (record.type === 'leave') {
             await rejectLeave(record.id, { opinion: values.opinion })
+          } else if (record.type === 'overtime') {
+            await rejectOvertime(record.id, { opinion: values.opinion })
           } else if (record.type === 'reimbursement') {
             await rejectReimbursement(record.id, { opinion: values.opinion })
           }
@@ -219,6 +228,81 @@ function Pending() {
         }
       },
     })
+  }
+
+  const handleBatchApprove = () => {
+    Modal.confirm({
+      title: '批量通过确认',
+      content: `确定要通过选中的 ${batch.selectedCount} 条申请吗？`,
+      okText: '确认通过',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          setBatchSubmitting(true)
+          const leaveIds = batch.selectedRows.filter(r => r.type === 'leave').map(r => r.id)
+          const overtimeIds = batch.selectedRows.filter(r => r.type === 'overtime').map(r => r.id)
+          const reimbursementIds = batch.selectedRows.filter(r => r.type === 'reimbursement').map(r => r.id)
+
+          const promises = []
+          if (leaveIds.length > 0) {
+            promises.push(batchApproveLeave(leaveIds))
+          }
+          if (overtimeIds.length > 0) {
+            promises.push(batchApproveOvertime(overtimeIds))
+          }
+          if (reimbursementIds.length > 0) {
+            promises.push(batchApproveReimbursement(reimbursementIds))
+          }
+
+          await Promise.all(promises)
+          Message.success(`成功通过 ${batch.selectedCount} 条申请`)
+          batch.clearSelection()
+          fetchData(pagination.current, pagination.pageSize)
+        } catch {
+          // error handled by interceptor
+        } finally {
+          setBatchSubmitting(false)
+        }
+      },
+    })
+  }
+
+  const handleBatchReject = () => {
+    opinionForm.resetFields()
+    setBatchRejectVisible(true)
+  }
+
+  const handleBatchRejectOk = async () => {
+    try {
+      const values = await opinionForm.validate()
+      setBatchSubmitting(true)
+
+      const leaveIds = batch.selectedRows.filter(r => r.type === 'leave').map(r => r.id)
+      const overtimeIds = batch.selectedRows.filter(r => r.type === 'overtime').map(r => r.id)
+      const reimbursementIds = batch.selectedRows.filter(r => r.type === 'reimbursement').map(r => r.id)
+
+      const promises = []
+      if (leaveIds.length > 0) {
+        promises.push(batchRejectLeave(leaveIds, values.opinion))
+      }
+      if (overtimeIds.length > 0) {
+        promises.push(batchRejectOvertime(overtimeIds, values.opinion))
+      }
+      if (reimbursementIds.length > 0) {
+        promises.push(batchRejectReimbursement(reimbursementIds, values.opinion))
+      }
+
+      await Promise.all(promises)
+      Message.success(`成功驳回 ${batch.selectedCount} 条申请`)
+      setBatchRejectVisible(false)
+      batch.clearSelection()
+      fetchData(pagination.current, pagination.pageSize)
+    } catch {
+      // error handled by interceptor
+      return false
+    } finally {
+      setBatchSubmitting(false)
+    }
   }
 
   const handleSearch = () => {
@@ -233,15 +317,38 @@ function Pending() {
 
   const handleTabChange = (key: string) => {
     setActiveTab(key)
+    batch.clearSelection()
   }
 
   const handlePageChange = (page: number, pageSize: number) => {
     fetchData(page, pageSize)
   }
 
+  const batchActions = (
+    <>
+      <Button
+        type="primary"
+        status="success"
+        icon={<IconCheck />}
+        onClick={handleBatchApprove}
+        loading={batchSubmitting}
+      >
+        批量通过
+      </Button>
+      <Button
+        status="danger"
+        icon={<IconClose />}
+        onClick={handleBatchReject}
+        loading={batchSubmitting}
+      >
+        批量驳回
+      </Button>
+    </>
+  )
+
   return (
-    <div className="approval-pending">
-      <Card bordered={false} className="approval-pending__tabs-card">
+    <div className={styles['approval-pending']}>
+      <Card bordered={false} className={styles['approval-pending__tabs-card']}>
         <Tabs activeTab={activeTab} onChange={handleTabChange}>
           <TabPane key="all" title={`全部 (${pagination.total})`} />
           <TabPane key="leave" title="请假" />
@@ -250,56 +357,60 @@ function Pending() {
         </Tabs>
       </Card>
 
-      <Card bordered={false} className="approval-pending__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="approval-pending__search-input"
-              placeholder="标题/申请人"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="类型">
-            <Select
-              className="approval-pending__type-select"
-              placeholder="请选择"
-              value={searchType}
-              onChange={setSearchType}
-              allowClear
-            >
-              <Option value="leave">请假</Option>
-              <Option value="overtime">加班</Option>
-              <Option value="reimbursement">报销</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['approval-pending__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['approval-pending__search-input']}
+                  placeholder="标题/申请人"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="类型">
+                <Select
+                  className={styles['approval-pending__type-select']}
+                  placeholder="请选择"
+                  value={searchType}
+                  onChange={setSearchType}
+                  allowClear
+                >
+                  <Option value="leave">请假</Option>
+                  <Option value="overtime">加班</Option>
+                  <Option value="reimbursement">报销</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+          searchText="搜索"
+        />
       </Card>
 
-      <Card bordered={false} className="approval-pending__table-card">
-        <div className="approval-pending__table-header">
-          <span className="approval-pending__table-title">待审批列表</span>
-          <Tag color="orange" className="approval-pending__total-tag">
-            共 {data.length} 条待处理
-          </Tag>
-        </div>
+      <Card bordered={false} className={styles['approval-pending__table-card']}>
+        <TableHeader
+          title="待审批列表"
+          total={data.length}
+          totalTagColor="orange"
+          totalTagText={`共 ${data.length} 条待处理`}
+        />
+
+        <BatchActions
+          selectedCount={batch.selectedCount}
+          onClear={batch.clearSelection}
+          actions={batchActions}
+        />
 
         <Table
           loading={loading}
           columns={columns}
           data={data}
           rowKey={(record) => `${record.type}-${record.id}`}
+          rowSelection={batch.getRowSelection(data)}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -309,12 +420,12 @@ function Pending() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="审批详情"
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={null}
-        className="approval-pending__modal"
+        className={styles['approval-pending__modal']}
       >
         {currentRecord && (
           <Descriptions
@@ -330,6 +441,29 @@ function Pending() {
             ]}
           />
         )}
+      </Modal>
+
+      <Modal focusLock
+        title="批量驳回"
+        visible={batchRejectVisible}
+        onOk={handleBatchRejectOk}
+        onCancel={() => setBatchRejectVisible(false)}
+        confirmLoading={batchSubmitting}
+        okText="确认驳回"
+        cancelText="取消"
+      >
+        <Form form={opinionForm} layout="vertical">
+          <FormItem
+            label="驳回原因"
+            field="opinion"
+            rules={[{ required: true, message: '请输入驳回原因' }]}
+          >
+            <Input.TextArea
+              placeholder={`请输入驳回原因（将应用于选中的 ${batch.selectedCount} 条申请）`}
+              rows={4}
+            />
+          </FormItem>
+        </Form>
       </Modal>
     </div>
   )

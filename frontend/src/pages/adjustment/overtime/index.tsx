@@ -16,8 +16,6 @@ import {
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
@@ -28,8 +26,9 @@ import {
 } from '@/api/adjustment'
 import type { OvertimeAdjustment } from '@/api/adjustment'
 import { getAllOvertimeTypes, type OvertimeType } from '@/api/attendance-overtime-type'
-import './overtime.css'
-
+import { FilterBar, TableHeader } from '@/components'
+import { useCrudModal } from '@/hooks/useCrudModal'
+import styles from './overtime.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -44,7 +43,6 @@ const statusMap: Record<string, { text: string; color: string }> = {
 function Overtime() {
   const [data, setData] = useState<OvertimeAdjustment[]>([])
   const [loading, setLoading] = useState(false)
-  const [visible, setVisible] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
@@ -88,6 +86,29 @@ function Overtime() {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const { visible, openCreate, close, handleOk } = useCrudModal<OvertimeAdjustment>({
+    form,
+    onSubmit: async (values) => {
+      let hours = values.hours
+      if (!hours && values.startTime && values.endTime) {
+        const [startH, startM] = values.startTime.split(':').map(Number)
+        const [endH, endM] = values.endTime.split(':').map(Number)
+        hours = ((endH * 60 + endM) - (startH * 60 + startM)) / 60
+      }
+
+      await applyAdjustmentOvertime({
+        overtimeType: values.overtimeType,
+        date: values.date,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        hours: hours || 0,
+        reason: values.reason,
+      })
+      Message.success('申请成功')
+    },
+    onSuccess: () => fetchData(pagination.current, pagination.pageSize),
+  })
 
   const columns: TableProps<OvertimeAdjustment>['columns'] = [
     {
@@ -173,41 +194,10 @@ function Overtime() {
     },
   ]
 
-  const handleAdd = () => {
-    form.resetFields()
-    setVisible(true)
-  }
-
   const handleCancel = async (id: number) => {
     try {
       await cancelAdjustmentOvertime(id)
       Message.success('撤销成功')
-      fetchData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    }
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      let hours = values.hours
-      if (!hours && values.startTime && values.endTime) {
-        const [startH, startM] = values.startTime.split(':').map(Number)
-        const [endH, endM] = values.endTime.split(':').map(Number)
-        hours = ((endH * 60 + endM) - (startH * 60 + startM)) / 60
-      }
-
-      await applyAdjustmentOvertime({
-        overtimeType: values.overtimeType,
-        date: values.date,
-        startTime: values.startTime,
-        endTime: values.endTime,
-        hours: hours || 0,
-        reason: values.reason,
-      })
-      Message.success('申请成功')
-      setVisible(false)
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
@@ -229,57 +219,52 @@ function Overtime() {
   }
 
   return (
-    <div className="adjustment-overtime">
-      <Card bordered={false} className="adjustment-overtime__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="adjustment-overtime__search-input"
-              placeholder="姓名/工号"
-              value={searchText}
-              onChange={setSearchText}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="adjustment-overtime__status-select"
-              placeholder="请选择"
-              value={searchStatus}
-              onChange={setSearchStatus}
-              allowClear
-            >
-              <Option value="pending">审批中</Option>
-              <Option value="approved">已通过</Option>
-              <Option value="rejected">已驳回</Option>
-              <Option value="cancelled">已撤销</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['adjustment-overtime']}>
+      <Card bordered={false} className={styles['adjustment-overtime__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['adjustment-overtime__search-input']}
+                  placeholder="姓名/工号"
+                  value={searchText}
+                  onChange={setSearchText}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['adjustment-overtime__status-select']}
+                  placeholder="请选择"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  <Option value="pending">审批中</Option>
+                  <Option value="approved">已通过</Option>
+                  <Option value="rejected">已驳回</Option>
+                  <Option value="cancelled">已撤销</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
-      <Card bordered={false} className="adjustment-overtime__table-card">
-        <div className="adjustment-overtime__table-header">
-          <div>
-            <span className="adjustment-overtime__table-title">加班申请</span>
-            <Tag color="blue" className="adjustment-overtime__total-tag">
-              共 {pagination.total} 条
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleAdd}>
-            申请加班
-          </Button>
-        </div>
+      <Card bordered={false} className={styles['adjustment-overtime__table-card']}>
+        <TableHeader
+          title="加班申请"
+          total={pagination.total}
+          totalText="条"
+          extra={
+            <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
+              申请加班
+            </Button>
+          }
+        />
 
         <Table
           loading={loading}
@@ -295,12 +280,12 @@ function Overtime() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title="申请加班"
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
-        className="adjustment-overtime__modal"
+        onCancel={close}
+        className={styles['adjustment-overtime__modal']}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
@@ -325,7 +310,7 @@ function Overtime() {
                 field="date"
                 rules={[{ required: true, message: '请选择日期' }]}
               >
-                <DatePicker className="adjustment-overtime__date-picker" />
+                <DatePicker className={styles['adjustment-overtime__date-picker']} />
               </FormItem>
             </Col>
           </Row>

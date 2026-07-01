@@ -11,15 +11,13 @@ import {
   Statistic,
   Table,
   Tag,
-  Typography,
 } from '@arco-design/web-react'
-import { IconCheck, IconCommon, IconRefresh } from '@arco-design/web-react/icon'
+import { IconCheck, IconCommon } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { calculateAttendance, getAttendanceMonthly, lockAttendanceMonthly } from '@/api/attendance'
-import './calculation.css'
-
+import { PageHeader, FilterBar } from '@/components'
+import styles from './calculation.module.css'
 const { Row, Col } = Grid
-const { Text, Title } = Typography
 const FormItem = Form.Item
 const Option = Select.Option
 
@@ -190,8 +188,8 @@ function AttendanceCalculationPage() {
   ], [])
 
   return (
-    <div className="attendance-calc">
-      <Row gutter={16} className="attendance-calc__stats-row">
+    <div className={styles['attendance-calc']}>
+      <Row gutter={16} className={styles['attendance-calc__stats-row']}>
         {stats.map((item) => (
           <Col span={6} key={item.title}>
             <Card bordered={false}>
@@ -199,61 +197,57 @@ function AttendanceCalculationPage() {
                 title={item.title}
                 value={item.value}
                 suffix={item.suffix}
-                className="attendance-calc__stat-value"
+                className={styles['attendance-calc__stat-value']}
               />
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card bordered={false} className="attendance-calc__intro-card">
-        <Space direction="vertical" size={4}>
-          <Title heading={5} className="attendance-calc__intro-title">考勤核算</Title>
-          <Text type="secondary">读取真实月考勤数据，核算后可锁定，薪资批次会基于锁定后的月考勤生成工资条。</Text>
-        </Space>
+      <Card bordered={false} className={styles['attendance-calc__intro-card']}>
+        <PageHeader
+          title="考勤核算"
+          description="读取真实月考勤数据，核算后可锁定，薪资批次会基于锁定后的月考勤生成工资条。"
+        />
       </Card>
 
-      <Card bordered={false} className="attendance-calc__intro-card">
-        <Form layout="inline">
-          <FormItem label="部门">
-            <Select
-              className="attendance-calc__dept-select"
-              placeholder="全部部门"
-              value={searchDept}
-              onChange={setSearchDept}
-              allowClear
-            >
-              {departments.map((department) => (
-                <Option key={department} value={department}>{department}</Option>
-              ))}
-            </Select>
-          </FormItem>
-          <FormItem label="月份">
-            <Select className="attendance-calc__month-select" value={selectedMonth} onChange={setSelectedMonth}>
-              <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
-              <Option value="2024-06">2024-06</Option>
-              <Option value="2024-05">2024-05</Option>
-              <Option value="2024-04">2024-04</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconRefresh />} onClick={loadData}>
-                查询
-              </Button>
-              <Button onClick={() => setSearchDept(undefined)}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+      <Card bordered={false} className={styles['attendance-calc__intro-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="部门">
+                <Select
+                  className={styles['attendance-calc__dept-select']}
+                  placeholder="全部部门"
+                  value={searchDept}
+                  onChange={setSearchDept}
+                  allowClear
+                >
+                  {departments.map((department) => (
+                    <Option key={department} value={department}>{department}</Option>
+                  ))}
+                </Select>
+              </FormItem>
+              <FormItem label="月份">
+                <Select className={styles['attendance-calc__month-select']} value={selectedMonth} onChange={setSelectedMonth}>
+                  <Option value={getDefaultMonth()}>{getDefaultMonth()}</Option>
+                  <Option value="2024-06">2024-06</Option>
+                  <Option value="2024-05">2024-05</Option>
+                  <Option value="2024-04">2024-04</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={loadData}
+          onReset={() => setSearchDept(undefined)}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="attendance-calc__result-header">
+        <div className={styles['attendance-calc__result-header']}>
           <div>
-            <span className="attendance-calc__result-title">月考勤结果</span>
-            <Tag color="blue" className="attendance-calc__result-tag">
+            <span className={styles['attendance-calc__result-title']}>月考勤结果</span>
+            <Tag color="blue" className={styles['attendance-calc__result-tag']}>
               共 {filteredData.length} 条
             </Tag>
           </div>

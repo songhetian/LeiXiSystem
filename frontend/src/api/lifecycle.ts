@@ -1,5 +1,88 @@
 import { get, post, put, del } from './request'
 
+// ===== Local request type interfaces =====
+
+export interface CreateLifecycleEventParams {
+  eventType: string
+  title: string
+  description?: string
+  effectiveDate: string
+  employeeId?: number
+  status?: string
+}
+
+export type UpdateLifecycleEventParams = Partial<CreateLifecycleEventParams>
+
+export interface OnboardingTaskQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  employeeId?: number
+  keyword?: string
+}
+
+export interface CreateOnboardingTaskParams {
+  title: string
+  description?: string
+  employeeId?: number
+  dueDate?: string
+  assigneeId?: number
+  status?: string
+}
+
+export type UpdateOnboardingTaskParams = Partial<CreateOnboardingTaskParams>
+
+export interface OffboardingTaskQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  employeeId?: number
+  keyword?: string
+}
+
+export interface CreateOffboardingTaskParams {
+  title: string
+  description?: string
+  employeeId?: number
+  dueDate?: string
+  assigneeId?: number
+  status?: string
+}
+
+export type UpdateOffboardingTaskParams = Partial<CreateOffboardingTaskParams>
+
+export interface CreateEmployeeDocumentParams {
+  title: string
+  name: string
+  documentType: string
+  fileUrl?: string
+  employeeId?: number
+  status?: string
+}
+
+export type UpdateEmployeeDocumentParams = Partial<CreateEmployeeDocumentParams>
+
+export interface ContractQueryParams {
+  page?: number
+  pageSize?: number
+  status?: string
+  employeeId?: number
+  keyword?: string
+  contractType?: string
+}
+
+export interface CreateEmployeeContractParams {
+  contractNo: string
+  contractType: string
+  startDate: string
+  endDate?: string
+  employeeId?: number
+  fileUrl?: string
+  status?: string
+}
+
+export type UpdateEmployeeContractParams = Partial<CreateEmployeeContractParams>
+
 // ===== Lifecycle Events =====
 
 export interface LifecycleEvent {
@@ -28,11 +111,11 @@ export function getLifecycleEventDetail(id: number) {
   return get<{ code: 0; data: LifecycleEvent }>(`/lifecycle/events/${id}`)
 }
 
-export function createLifecycleEvent(data: any) {
+export function createLifecycleEvent(data: CreateLifecycleEventParams) {
   return post('/lifecycle/events', data)
 }
 
-export function updateLifecycleEvent(id: number, data: any) {
+export function updateLifecycleEvent(id: number, data: UpdateLifecycleEventParams) {
   return put(`/lifecycle/events/${id}`, data)
 }
 
@@ -46,7 +129,7 @@ export function completeLifecycleEvent(id: number) {
 
 // ===== Onboarding Tasks =====
 
-export function getOnboardingTasks(params?: any) {
+export function getOnboardingTasks(params?: OnboardingTaskQueryParams) {
   return get('/lifecycle/onboarding-tasks', { params })
 }
 
@@ -54,11 +137,11 @@ export function getOnboardingTaskDetail(id: number) {
   return get(`/lifecycle/onboarding-tasks/${id}`)
 }
 
-export function createOnboardingTask(data: any) {
+export function createOnboardingTask(data: CreateOnboardingTaskParams) {
   return post('/lifecycle/onboarding-tasks', data)
 }
 
-export function updateOnboardingTask(id: number, data: any) {
+export function updateOnboardingTask(id: number, data: UpdateOnboardingTaskParams) {
   return put(`/lifecycle/onboarding-tasks/${id}`, data)
 }
 
@@ -68,7 +151,7 @@ export function deleteOnboardingTask(id: number) {
 
 // ===== Offboarding Tasks =====
 
-export function getOffboardingTasks(params?: any) {
+export function getOffboardingTasks(params?: OffboardingTaskQueryParams) {
   return get('/lifecycle/offboarding-tasks', { params })
 }
 
@@ -76,11 +159,11 @@ export function getOffboardingTaskDetail(id: number) {
   return get(`/lifecycle/offboarding-tasks/${id}`)
 }
 
-export function createOffboardingTask(data: any) {
+export function createOffboardingTask(data: CreateOffboardingTaskParams) {
   return post('/lifecycle/offboarding-tasks', data)
 }
 
-export function updateOffboardingTask(id: number, data: any) {
+export function updateOffboardingTask(id: number, data: UpdateOffboardingTaskParams) {
   return put(`/lifecycle/offboarding-tasks/${id}`, data)
 }
 
@@ -110,11 +193,11 @@ export function getEmployeeDocuments(params?: {
   return get<{ code: 0; data: { list: EmployeeDocument[]; total: number; page: number; pageSize: number } }>('/lifecycle/documents', { params })
 }
 
-export function createEmployeeDocument(data: any) {
+export function createEmployeeDocument(data: CreateEmployeeDocumentParams) {
   return post('/lifecycle/documents', data)
 }
 
-export function updateEmployeeDocument(id: number, data: any) {
+export function updateEmployeeDocument(id: number, data: UpdateEmployeeDocumentParams) {
   return put(`/lifecycle/documents/${id}`, data)
 }
 
@@ -137,15 +220,15 @@ export interface EmployeeContract {
   updatedAt?: string
 }
 
-export function getEmployeeContracts(params?: any) {
+export function getEmployeeContracts(params?: ContractQueryParams) {
   return get<{ code: 0; data: { list: EmployeeContract[]; total: number; page: number; pageSize: number } }>('/lifecycle/contracts', { params })
 }
 
-export function createEmployeeContract(data: any) {
+export function createEmployeeContract(data: CreateEmployeeContractParams) {
   return post('/lifecycle/contracts', data)
 }
 
-export function updateEmployeeContract(id: number, data: any) {
+export function updateEmployeeContract(id: number, data: UpdateEmployeeContractParams) {
   return put(`/lifecycle/contracts/${id}`, data)
 }
 

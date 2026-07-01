@@ -11,17 +11,12 @@ import {
   InputNumber,
   Message,
   Tag,
-  Popconfirm,
   Grid,
   Drawer,
   Transfer,
 } from '@arco-design/web-react'
 import {
   IconPlus,
-  IconSearch,
-  IconRefresh,
-  IconEdit,
-  IconDelete,
   IconUser,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
@@ -37,8 +32,8 @@ import {
   type EmployeeTagAssignment,
 } from '@/api/employee-tag'
 import { getEmployees, type Employee } from '@/api/personnel'
-import './index.css'
-
+import { FilterBar, TableHeader, ActionButtons } from '@/components'
+import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
@@ -77,7 +72,7 @@ function EmployeeTagPage() {
   const [tagEmployees, setTagEmployees] = useState<EmployeeTagAssignment[]>([])
   const [tagEmployeesLoading, setTagEmployeesLoading] = useState(false)
   const [allEmployees, setAllEmployees] = useState<Employee[]>([])
-  const [allEmployeesLoading, setAllEmployeesLoading] = useState(false)
+  const [_allEmployeesLoading, setAllEmployeesLoading] = useState(false)
   const [employeeKeyword, setEmployeeKeyword] = useState('')
 
   const fetchTags = useCallback(async () => {
@@ -255,7 +250,7 @@ function EmployeeTagPage() {
               backgroundColor: val || '#ccc',
             }}
           />
-          <span className="employee-tag__text-small-muted">{val || '-'}</span>
+          <span className={styles['employee-tag__text-small-muted']}>{val || '-'}</span>
         </Space>
       ),
     },
@@ -304,30 +299,11 @@ function EmployeeTagPage() {
       title: '操作',
       width: 160,
       render: (_: any, record) => (
-        <Space size="small">
-          <Button
-            type="text"
-            size="small"
-            icon={<IconEdit />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确认删除"
-            content={`确定要删除标签「${record.name}」吗？`}
-            onOk={() => handleDelete(record)}
-          >
-            <Button
-              type="text"
-              size="small"
-              status="danger"
-              icon={<IconDelete />}
-            >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        <ActionButtons
+          onEdit={() => handleEdit(record)}
+          onDelete={() => handleDelete(record)}
+          deleteContent={`确定要删除标签「${record.name}」吗？`}
+        />
       ),
     },
   ]
@@ -372,58 +348,53 @@ function EmployeeTagPage() {
   ]
 
   return (
-    <div className="employee-tag">
-      <Card bordered={false} className="employee-tag__search-card">
-        <Form layout="inline">
-          <FormItem label="关键字">
-            <Input
-              className="employee-tag__search-input"
-              placeholder="请输入标签名称"
-              value={keyword}
-              onChange={setKeyword}
-              allowClear
-            />
-          </FormItem>
-          <FormItem label="状态">
-            <Select
-              className="employee-tag__status-select"
-              placeholder="请选择状态"
-              value={statusFilter}
-              onChange={(val) => {
-                setStatusFilter(val)
-                setPage(1)
-              }}
-              allowClear
-            >
-              <Option value="active">启用</Option>
-              <Option value="inactive">停用</Option>
-            </Select>
-          </FormItem>
-          <FormItem>
-            <Space size="small">
-              <Button type="primary" icon={<IconSearch />} onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button icon={<IconRefresh />} onClick={handleReset}>
-                重置
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
+    <div className={styles['employee-tag']}>
+      <Card bordered={false} className={styles['employee-tag__search-card']}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="关键字">
+                <Input
+                  className={styles['employee-tag__search-input']}
+                  placeholder="请输入标签名称"
+                  value={keyword}
+                  onChange={setKeyword}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="状态">
+                <Select
+                  className={styles['employee-tag__status-select']}
+                  placeholder="请选择状态"
+                  value={statusFilter}
+                  onChange={(val) => {
+                    setStatusFilter(val)
+                    setPage(1)
+                  }}
+                  allowClear
+                >
+                  <Option value="active">启用</Option>
+                  <Option value="inactive">停用</Option>
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
       </Card>
 
       <Card bordered={false}>
-        <div className="employee-tag__table-header">
-          <div>
-            <span className="employee-tag__table-title">标签列表</span>
-            <Tag color="blue" className="employee-tag__total-tag">
-              共 {total} 个标签
-            </Tag>
-          </div>
-          <Button type="primary" icon={<IconPlus />} onClick={handleCreate}>
-            新建标签
-          </Button>
-        </div>
+        <TableHeader
+          title="标签列表"
+          total={total}
+          totalText="个标签"
+          extra={
+            <Button type="primary" icon={<IconPlus />} onClick={handleCreate}>
+              新建标签
+            </Button>
+          }
+        />
 
         <Table
           rowKey="id"
@@ -443,13 +414,13 @@ function EmployeeTagPage() {
         />
       </Card>
 
-      <Modal
+      <Modal focusLock
         title={editingTag ? '编辑标签' : '新建标签'}
         visible={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
         confirmLoading={saving}
-        className="employee-tag__modal--520"
+        className={styles['employee-tag__modal--520']}
         okText="保存"
         cancelText="取消"
       >
@@ -466,14 +437,14 @@ function EmployeeTagPage() {
             </Col>
             <Col span={12}>
               <FormItem label="排序" field="sortOrder" initialValue={0}>
-                <InputNumber className="employee-tag__date-picker-full" min={0} max={9999} />
+                <InputNumber className={styles['employee-tag__date-picker-full']} min={0} max={9999} />
               </FormItem>
             </Col>
           </Row>
           <FormItem label="标签颜色" field="color">
-            <div className="employee-tag__color-picker">
+            <div className={styles['employee-tag__color-picker']}>
               {COLOR_OPTIONS.map((color) => (
-                <div className={`employee-tag__color-swatch ${form.getFieldsValue().color === color ? 'employee-tag__color-option--active' : ''}`}
+                <div className={`${styles['employee-tag__color-swatch']} ${form.getFieldsValue().color === color ? styles['employee-tag__color-option--active'] : ''}`}
                   onClick={() => form.setFieldsValue({ color })}
                 />
               ))}
@@ -483,7 +454,7 @@ function EmployeeTagPage() {
             <TextArea placeholder="请输入标签描述" rows={3} maxLength={200} />
           </FormItem>
           <FormItem label="状态" field="status" initialValue="active">
-            <Select className="employee-tag__select--150">
+            <Select className={styles['employee-tag__select--150']}>
               <Option value="active">启用</Option>
               <Option value="inactive">停用</Option>
             </Select>
@@ -498,10 +469,10 @@ function EmployeeTagPage() {
         width={900}
         footer={null}
       >
-        <div className="employee-tag__employee-section">
-          <div className="employee-tag__section-title">添加员工</div>
+        <div className={styles['employee-tag__employee-section']}>
+          <div className={styles['employee-tag__section-title']}>添加员工</div>
           <Input
-            className="employee-tag__employee-search"
+            className={styles['employee-tag__employee-search']}
             placeholder="搜索员工姓名或工号"
             value={employeeKeyword}
             onChange={setEmployeeKeyword}
@@ -518,8 +489,8 @@ function EmployeeTagPage() {
           />
         </div>
 
-        <div className="employee-tag__employee-section">
-          <div className="employee-tag__section-title">
+        <div className={styles['employee-tag__employee-section']}>
+          <div className={styles['employee-tag__section-title']}>
             已添加员工 ({tagEmployees.length})
           </div>
           <Table

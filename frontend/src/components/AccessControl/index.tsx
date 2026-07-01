@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
-import { useUserStore } from '@/store/user'
-import './index.css'
-
+import { useAuthStore } from '@/store/auth'
+import styles from './index.module.css'
 type AccessControlProps = {
   permission?: string
   anyOf?: string[]
@@ -26,8 +25,8 @@ export function hasClientPermission(input: {
 }
 
 function AccessControl({ permission, anyOf, fallback = null, children }: AccessControlProps) {
-  const permissions = useUserStore((state) => state.permissions)
-  const user = useUserStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
+  const user = useAuthStore((state) => state.user)
 
   const allowed = hasClientPermission({
     roles: user?.roles,
@@ -40,7 +39,7 @@ function AccessControl({ permission, anyOf, fallback = null, children }: AccessC
 }
 
 export function Forbidden() {
-  return <div className="forbidden"><h3>403 没有权限访问该页面</h3></div>
+  return <div className={styles.forbidden} role="alert"><h3>403 没有权限访问该页面</h3></div>
 }
 
 export function RouteGuard({ permission, anyOf, children }: AccessControlProps) {

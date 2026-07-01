@@ -4,7 +4,7 @@ import prisma from '../../prisma'
 import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
-import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../../utils/validation'
+import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 
 const overtimeTypeListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -27,9 +27,7 @@ const createOvertimeTypeSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
 })
 
-const updateOvertimeTypeSchema = createOvertimeTypeSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: '至少需要提交一个更新字段',
-})
+const updateOvertimeTypeSchema = partialUpdateSchema(createOvertimeTypeSchema)
 
 export default async function overtimeTypesRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware)
@@ -137,14 +135,15 @@ export default async function overtimeTypesRoutes(fastify: FastifyInstance) {
 
   fastify.put('/overtime-types/:id', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
     const { id } = validateData(idParamsSchema, request.params)
-    const body = validateData(updateOvertimeTypeSchema, request.body)
+    const data = validateData(updateOvertimeTypeSchema, request.body)
+    requireAtLeastOneField(data)
 
     const existing = await prisma.overtimeType.findUnique({ where: { id } })
     if (!existing) return { code: 404, message: '加班类型不存在' }
 
-    if (body.code && body.code !== existing.code) {
+    if (data.code && data.code !== existing.code) {
       const codeExists = await prisma.overtimeType.findUnique({
-        where: { code: body.code },
+        where: { code: data.code },
       })
       if (codeExists) {
         return { code: 400, message: '类型编码已存在' }
@@ -153,7 +152,7 @@ export default async function overtimeTypesRoutes(fastify: FastifyInstance) {
 
     const updated = await prisma.overtimeType.update({
       where: { id },
-      data: body,
+      data: data,
     })
 
     return {

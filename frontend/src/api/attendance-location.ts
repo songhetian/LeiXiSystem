@@ -49,12 +49,36 @@ export function getAttendanceLocation(id: number) {
 }
 
 // 创建打卡位置
-export function createAttendanceLocation(data: any) {
+export function createAttendanceLocation(data: {
+  name: string
+  type: string
+  latitude?: number
+  longitude?: number
+  radiusMeters?: number
+  wifiSsid?: string
+  wifiBssid?: string
+  address?: string
+  departmentId?: number
+  status?: string
+  sortOrder?: number
+}) {
   return post<{ code: 0; data: AttendanceLocation }>('/attendance/locations', data)
 }
 
 // 更新打卡位置
-export function updateAttendanceLocation(id: number, data: any) {
+export function updateAttendanceLocation(id: number, data: {
+  name?: string
+  type?: string
+  latitude?: number
+  longitude?: number
+  radiusMeters?: number
+  wifiSsid?: string
+  wifiBssid?: string
+  address?: string
+  departmentId?: number
+  status?: string
+  sortOrder?: number
+}) {
   return put<{ code: 0; data: AttendanceLocation }>(`/attendance/locations/${id}`, data)
 }
 
