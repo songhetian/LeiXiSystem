@@ -502,35 +502,47 @@ function Dashboard() {
             </div>
           </div>
           <div className={styles['clockin-card__right']}>
-            <Button
-              type="primary"
-              size="large"
-              icon={<IconUp />}
-              loading={clockInLoading}
-              disabled={!todayClockIn.schedule ? false : !todayClockIn.canCheckIn}
-              onClick={() => handleQuickCheckIn('in')}
-              className={styles['clockin-card__btn']}
-            >
-              {!todayClockIn.schedule ? '选择班次' : todayClockIn.firstIn ? '已上班' : '上班打卡'}
-            </Button>
-            <Button
-              type="outline"
-              size="large"
-              icon={<IconDown />}
-              loading={clockInLoading}
-              disabled={!todayClockIn.schedule || !todayClockIn.canCheckOut}
-              onClick={() => handleQuickCheckIn('out')}
-              className={styles['clockin-card__btn']}
-            >
-              {todayClockIn.lastOut ? '已下班' : '下班打卡'}
-            </Button>
-            <Button
-              type="text"
-              size="small"
-              onClick={() => navigate('/attendance/clock-in')}
-            >
-              查看详情 →
-            </Button>
+            {!todayClockIn.firstIn ? (
+              <button
+                className={styles['clockin-card__big-btn']}
+                onClick={() => navigate('/attendance/clock-in')}
+              >
+                <IconUp style={{ fontSize: 28, marginBottom: 4 }} />
+                <span style={{ fontSize: 18, fontWeight: 600 }}>立即打卡</span>
+                <span style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>点击前往打卡页面</span>
+              </button>
+            ) : (
+              <>
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<IconUp />}
+                  loading={clockInLoading}
+                  disabled
+                  className={styles['clockin-card__btn']}
+                >
+                  已上班
+                </Button>
+                <Button
+                  type="outline"
+                  size="large"
+                  icon={<IconDown />}
+                  loading={clockInLoading}
+                  disabled={!todayClockIn.canCheckOut}
+                  onClick={() => handleQuickCheckIn('out')}
+                  className={styles['clockin-card__btn']}
+                >
+                  {todayClockIn.lastOut ? '已下班' : '下班打卡'}
+                </Button>
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => navigate('/attendance/clock-in')}
+                >
+                  查看详情 →
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

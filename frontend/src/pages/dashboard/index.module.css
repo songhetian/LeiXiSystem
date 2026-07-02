@@ -141,6 +141,56 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.clockin-card__big-btn {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: #165dff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.clockin-card__big-btn::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  animation: bigPulse 2s ease-in-out infinite;
+}
+
+@keyframes bigPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+}
+
+.clockin-card__big-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.clockin-card__big-btn:active {
+  transform: scale(0.96);
+}
+
 /* ---------- Header ---------- */
 .dashboard-header {
   margin-bottom: 24px;

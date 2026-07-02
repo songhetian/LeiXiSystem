@@ -92,14 +92,27 @@
 .clock-in-buttons {
   display: flex;
   justify-content: center;
-  gap: 60px;
-  padding: 40px 0;
+  align-items: center;
+  gap: 80px;
+  padding: 50px 0 40px 0;
   margin-bottom: 20px;
+  position: relative;
+}
+
+.clock-in-buttons::before {
+  content: '点击按钮完成打卡';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: #86909c;
+  font-weight: 500;
 }
 
 .clock-in-btn {
-  width: 160px;
-  height: 160px;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
   display: flex;
   flex-direction: column;
@@ -108,89 +121,97 @@
   cursor: pointer;
   border: none;
   outline: none;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  box-shadow: 0 8px 24px rgba(22, 93, 255, 0.25);
+  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.3);
 }
 
 .clock-in-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.35);
+  transform: scale(1.08);
+  box-shadow: 0 20px 48px rgba(22, 93, 255, 0.4);
 }
 
 .clock-in-btn:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .clock-in-btn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+  transform: none !important;
 }
 
 .clock-in-btn--in {
   background: linear-gradient(135deg, #00b42a 0%, #0fc6c2 100%);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(0, 180, 42, 0.25);
+  box-shadow: 0 12px 32px rgba(0, 180, 42, 0.35);
 }
 
 .clock-in-btn--in:hover:not(:disabled) {
-  box-shadow: 0 12px 32px rgba(0, 180, 42, 0.35);
+  box-shadow: 0 20px 48px rgba(0, 180, 42, 0.45);
 }
 
 .clock-in-btn--out {
   background: linear-gradient(135deg, #165dff 0%, #4080ff 100%);
   color: #fff;
+  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.35);
+}
+
+.clock-in-btn--out:hover:not(:disabled) {
+  box-shadow: 0 20px 48px rgba(22, 93, 255, 0.45);
 }
 
 .clock-in-btn--field {
   background: linear-gradient(135deg, #ff7d00 0%, #ff9a2e 100%);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(255, 125, 0, 0.25);
-}
-
-.clock-in-btn--field:hover:not(:disabled) {
   box-shadow: 0 12px 32px rgba(255, 125, 0, 0.35);
 }
 
+.clock-in-btn--field:hover:not(:disabled) {
+  box-shadow: 0 20px 48px rgba(255, 125, 0, 0.45);
+}
+
 .clock-in-btn--disabled {
-  background: linear-gradient(135deg, #86909c 0%, #c9cdd4 100%);
-  box-shadow: 0 4px 12px rgba(134, 144, 156, 0.2);
+  background: linear-gradient(135deg, #86909c 0%, #c9cdd4 100%) !important;
+  box-shadow: 0 6px 16px rgba(134, 144, 156, 0.25) !important;
 }
 
 .clock-in-btn__icon {
-  font-size: 36px;
-  margin-bottom: 8px;
+  font-size: 48px;
+  margin-bottom: 10px;
 }
 
 .clock-in-btn__text {
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 2px;
 }
 
 .clock-in-btn__time {
-  font-size: 12px;
-  opacity: 0.9;
-  margin-top: 4px;
+  font-size: 14px;
+  opacity: 0.95;
+  margin-top: 6px;
+  font-weight: 500;
 }
 
 .clock-in-btn__pulse {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 3px solid rgba(255, 255, 255, 0.5);
   animation: pulse 2s ease-in-out infinite;
 }
 
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
-    opacity: 0.5;
+    opacity: 0.6;
   }
   50% {
-    transform: scale(1.08);
+    transform: scale(1.12);
     opacity: 0;
   }
 }

@@ -69,13 +69,14 @@ function UserRolePage() {
 
   const columns: TableProps<EmployeeItem>['columns'] = [
     { title: '工号', dataIndex: 'employeeNo', width: 120 },
-    { title: '姓名', dataIndex: 'realName', width: 100 },
+    { title: '姓名', dataIndex: 'realName' },
     { title: '部门', dataIndex: 'departmentName', width: 120 },
     { title: '岗位', dataIndex: 'positionName', width: 120 },
     {
       title: '状态',
       dataIndex: 'status',
       width: 90,
+      align: 'center' as const,
       render: (value: string) => {
         const statusMap: Record<string, { text: string; color: string }> = {
           active: { text: '在职', color: 'green' },
@@ -90,6 +91,7 @@ function UserRolePage() {
     {
       title: '操作',
       width: 120,
+      align: 'center' as const,
       render: (_: unknown, record: EmployeeItem) => (
         <Button type="text" size="small" icon={<IconUser />} onClick={() => handleAssign(record)}>
           分配角色

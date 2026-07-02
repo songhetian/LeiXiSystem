@@ -162,6 +162,7 @@ function Records() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
+      align: 'center',
       render: (value: string) => {
         const info = statusMap[value] || { text: value, color: 'gray' }
         return <Tag color={info.color}>{info.text}</Tag>

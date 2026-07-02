@@ -445,15 +445,15 @@ function ReviewsTab() {
 
   const columns: TableProps<Review>['columns'] = useMemo(() => [
     { title: '周期', width: 120, render: (_: any, r) => r.cycle?.name || '-' },
-    { title: '员工', width: 100, render: (_: any, r) => r.employee?.user?.realName || '-' },
-    { title: '自评', dataIndex: 'selfScore', width: 90, render: (v: number) => v != null ? `${v}分` : '-' },
-    { title: '上级评分', dataIndex: 'managerScore', width: 100, render: (v: number) => v != null ? `${v}分` : '-' },
-    { title: '最终分', dataIndex: 'finalScore', width: 100, render: (v: number) => v != null ? <ScoreBar score={v} /> : '-' },
-    { title: '等级', dataIndex: 'rating', width: 90, render: (v) => v ? <StatusTag value={v} map={ratingMap} /> : '-' },
-    { title: '评审人', width: 90, render: (_: any, r) => r.reviewer?.realName || '-' },
-    { title: '状态', dataIndex: 'status', width: 100, render: (v) => <StatusTag value={v} map={reviewStatusMap} /> },
+    { title: '员工', render: (_: any, r) => r.employee?.user?.realName || '-' },
+    { title: '自评', dataIndex: 'selfScore', width: 90, align: 'center', render: (v: number) => v != null ? `${v}分` : '-' },
+    { title: '上级评分', dataIndex: 'managerScore', width: 100, align: 'center', render: (v: number) => v != null ? `${v}分` : '-' },
+    { title: '最终分', dataIndex: 'finalScore', width: 100, align: 'center', render: (v: number) => v != null ? <ScoreBar score={v} /> : '-' },
+    { title: '等级', dataIndex: 'rating', width: 90, align: 'center', render: (v) => v ? <StatusTag value={v} map={ratingMap} /> : '-' },
+    { title: '评审人', width: 90, align: 'center', render: (_: any, r) => r.reviewer?.realName || '-' },
+    { title: '状态', dataIndex: 'status', width: 100, align: 'center', render: (v) => <StatusTag value={v} map={reviewStatusMap} /> },
     {
-      title: '操作', width: 90,
+      title: '操作', width: 90, align: 'center',
       render: (_: any, r) => (
         <Button size="small" type="text" icon={<IconEdit />} onClick={() => openModal(r)} />
       ),
