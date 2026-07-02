@@ -131,7 +131,6 @@ function Records() {
     {
       title: '姓名',
       dataIndex: 'employeeName',
-      width: 100,
     },
     {
       title: '部门',
@@ -154,6 +153,7 @@ function Records() {
       title: '工时(h)',
       dataIndex: 'workHours',
       width: 90,
+      align: 'center',
       render: (value: number | null | undefined) => (
         <span className={styles['attendance-records__work-hours']}>{value ?? 0}</span>
       ),

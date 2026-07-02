@@ -99,18 +99,19 @@ function Employee() {
   })
 
   const columns: TableProps<Employee>['columns'] = [
-    { title: '工号', dataIndex: 'employeeNo', width: 100, sorter: (a: Employee, b: Employee) => a.employeeNo.localeCompare(b.employeeNo) },
-    { title: '姓名', dataIndex: 'name', width: 100, sorter: (a: Employee, b: Employee) => (a.realName || '').localeCompare(b.realName || '') },
+    { title: '工号', dataIndex: 'employeeNo', width: 100, align: 'center' as const, sorter: (a: Employee, b: Employee) => a.employeeNo.localeCompare(b.employeeNo) },
+    { title: '姓名', dataIndex: 'name', sorter: (a: Employee, b: Employee) => (a.realName || '').localeCompare(b.realName || '') },
     { title: '部门', dataIndex: 'department', width: 120 },
     { title: '岗位', dataIndex: 'position', width: 120 },
     { title: '直属上级', dataIndex: 'supervisorName', width: 110, render: (v: string) => v || '-' },
-    { title: '手机号', dataIndex: 'phone', width: 130 },
+    { title: '手机号', dataIndex: 'phone', width: 130, align: 'center' as const },
     { title: '邮箱', dataIndex: 'email', width: 200 },
-    { title: '入职日期', dataIndex: 'hireDate', width: 120, sorter: (a: Employee, b: Employee) => (a.hireDate || '').localeCompare(b.hireDate || '') },
+    { title: '入职日期', dataIndex: 'hireDate', width: 120, align: 'center' as const, sorter: (a: Employee, b: Employee) => (a.hireDate || '').localeCompare(b.hireDate || '') },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
+      align: 'center' as const,
       sorter: (a: Employee, b: Employee) => (a.status || '').localeCompare(b.status || ''),
       render: (value: string) => {
         const info = statusMap[value]
@@ -120,6 +121,7 @@ function Employee() {
     {
       title: '操作',
       width: 180,
+      align: 'center' as const,
       fixed: 'right' as const,
       render: (_: unknown, record: Employee) => (
         <ActionButtons

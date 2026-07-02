@@ -185,6 +185,7 @@ function AppRoutes() {
 
           {/* 考勤打卡核算 */}
           <Route path="attendance">
+            <Route path="clock-in" element={<AttendanceClockIn />} />
             <Route path="records" element={protect(<AttendanceRecords />, 'attendance:view')} />
             <Route path="calculation" element={protect(<AttendanceCalculation />, 'attendance:calculate')} />
             <Route path="exceptions" element={protect(<AttendanceExceptions />, 'attendance:view')} />
