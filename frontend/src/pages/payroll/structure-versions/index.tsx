@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Button,
   Card,
   DatePicker,
   Form,
   Input,
-  Message,
   Modal,
   Select,
   Space,
@@ -26,6 +25,8 @@ import {
   getSalaryComponents,
 } from '@/api/payroll'
 import { PageHeader } from '@/components'
+import { getToday } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Text, Paragraph } = Typography
 const FormItem = Form.Item
@@ -102,7 +103,7 @@ function StructureVersionsPage() {
   const openCreate = () => {
     form.resetFields()
     form.setFieldsValue({
-      effectiveFrom: new Date().toISOString().slice(0, 10),
+      effectiveFrom: getToday(),
     })
     setCreateVisible(true)
   }
@@ -121,7 +122,7 @@ function StructureVersionsPage() {
         items,
         baseOnVersionId: currentVersion?.id,
       })
-      Message.success('版本创建成功')
+      toast.success('版本创建成功')
       setCreateVisible(false)
       loadVersions()
     } catch (err) {
@@ -148,7 +149,7 @@ function StructureVersionsPage() {
       onOk: async () => {
         try {
           await activateStructureVersion(record.id)
-          Message.success('版本激活成功')
+          toast.success('版本激活成功')
           loadVersions()
         } catch (err) {
           console.error('激活版本失败', err)
@@ -179,7 +180,7 @@ function StructureVersionsPage() {
               <Text className={styles['structure-versions__selector-label']}>薪资结构：</Text>
               <Select
                 style={{ width: 280 }}
-                value={selectedStructureId}
+                value={selectedStructureId ?? undefined}
                 onChange={(value) => setSelectedStructureId(value as number)}
                 placeholder="请选择薪资结构"
               >
@@ -212,7 +213,7 @@ function StructureVersionsPage() {
               dataIndex: 'versionName',
               render: (value, record) => (
                 <Space size="small" direction="vertical" className={styles['structure-versions__name-cell']}>
-                  <Text strong>{value}</Text>
+                  <b>{value}</b>
                   {record.status === 'active' && (
                     <Tag color="green" size="small">
                       当前版本
@@ -348,7 +349,7 @@ function StructureVersionsPage() {
               <Space size="large" wrap>
                 <div>
                   <Text type="secondary">版本号：</Text>
-                  <Text strong>v{detailVersion.version}</Text>
+                  <b>v{detailVersion.version}</b>
                 </div>
                 <div>
                   <Text type="secondary">状态：</Text>
@@ -382,11 +383,11 @@ function StructureVersionsPage() {
             </div>
 
             <div className={styles['structure-versions__detail-section']}>
-              <Text strong className={styles['structure-versions__detail-section-title']}>
+              <b className={styles['structure-versions__detail-section-title']}>
                 组件配置快照
-              </Text>
+              </b>
               <Table
-                rowKey={(_record, index) => String(index)}
+                rowKey={(record: SalaryStructureItem) => `${record.componentId}-${record.sortOrder}`}
                 pagination={false}
                 size="small"
                 data={detailVersion.items || []}

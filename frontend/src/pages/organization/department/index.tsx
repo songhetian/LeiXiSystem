@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Button,
   Input,
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Spin,
@@ -22,8 +21,9 @@ import {
   getDepartmentTree,
 } from '@/api/organization'
 import type { Department } from '@/api/organization'
-import { FilterBar, TableHeader, ActionButtons, DraggableTable } from '@/components'
+import { FilterBar, TableHeader, ActionButtons, DraggableTable, EmployeeSelect } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './department.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -77,10 +77,10 @@ function DepartmentPage() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateDepartment(id, values)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         await createDepartment(values)
-        Message.success('新增成功')
+        toast.success('新增成功')
       }
     },
     onSuccess: () => {
@@ -90,7 +90,7 @@ function DepartmentPage() {
   })
 
   const columns: TableProps<Department>['columns'] = [
-    { title: '部门名称', dataIndex: 'name', width: 150 },
+    { title: '部门名称', dataIndex: 'name' },
     {
       title: '上级部门',
       dataIndex: 'parentName',
@@ -143,7 +143,7 @@ function DepartmentPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteDepartment(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData()
     } catch {
       // error handled by interceptor
@@ -163,7 +163,7 @@ function DepartmentPage() {
     try {
       const movedItem = items[newIndex]
       await updateDepartment(movedItem.id, { sortOrder: newIndex })
-      Message.success('排序已更新')
+      toast.success('排序已更新')
       loadData()
     } catch {
       loadData()
@@ -178,7 +178,6 @@ function DepartmentPage() {
             <>
               <FormItem label="部门名称">
                 <Input
-                  className={styles['org-department-page__search-input']}
                   placeholder="请输入部门名称"
                   value={searchText}
                   onChange={setSearchText}
@@ -187,7 +186,6 @@ function DepartmentPage() {
               </FormItem>
               <FormItem label="状态">
                 <Select
-                  className={styles['org-department-page__status-select']}
                   placeholder="请选择状态"
                   value={searchStatus}
                   onChange={(val) => { setSearchStatus(val); loadData() }}
@@ -232,7 +230,7 @@ function DepartmentPage() {
         </Spin>
       </Card>
 
-      <Modal focusLock
+      <Modal
         title={editingId ? '编辑部门' : '新增部门'}
         visible={visible}
         onOk={handleOk}
@@ -252,7 +250,7 @@ function DepartmentPage() {
             </Select>
           </FormItem>
           <FormItem label="部门负责人" field="managerId">
-            <Input type="number" placeholder="负责人用户ID" />
+            <EmployeeSelect placeholder="请选择部门负责人" allowClear />
           </FormItem>
           <FormItem label="排序" field="sortOrder" initialValue={0}>
             <Input type="number" placeholder="数值越小越靠前" />

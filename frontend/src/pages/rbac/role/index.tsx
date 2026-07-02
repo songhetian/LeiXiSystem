@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Tree,
@@ -18,6 +17,7 @@ import { getRoles, createRole, updateRole, deleteRole, getPermissionsTree } from
 import type { Role, Permission } from '@/api/rbac'
 import { PageHeader, FilterBar, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -72,11 +72,11 @@ function RolePage() {
     onSubmit: async (values, id) => {
       const payload = { ...values, canViewAllDepts: values.canViewAllDepts === 'true' }
       if (id) {
-        await updateRole(id, payload)
-        Message.success('修改成功')
+        await updateRole(id, payload as any)
+        toast.success('修改成功')
       } else {
-        await createRole(payload)
-        Message.success('新增成功')
+        await createRole(payload as any)
+        toast.success('新增成功')
       }
     },
     onSuccess: () => fetchData(pagination.current, pagination.pageSize),
@@ -122,7 +122,7 @@ function RolePage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteRole(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
@@ -133,7 +133,7 @@ function RolePage() {
     if (!currentRole) return
     try {
       await updateRole(currentRole.id, { permissions: checkedKeys.map((k) => parseInt(k)) })
-      Message.success('权限保存成功')
+      toast.success('权限保存成功')
       setPermVisible(false)
       fetchData(pagination.current, pagination.pageSize)
     } catch {

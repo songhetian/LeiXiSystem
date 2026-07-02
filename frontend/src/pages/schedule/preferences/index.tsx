@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Form,
@@ -6,7 +6,6 @@ import {
   Input,
   Button,
   Space,
-  Message,
   Typography,
   Divider,
   Alert,
@@ -21,6 +20,7 @@ import {
 } from '@/api/schedule'
 import { getShifts, Shift } from '@/api/shift'
 import { getEmployees, Employee } from '@/api/personnel'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const { Text } = Typography
 const FormItem = Form.Item
@@ -96,7 +96,7 @@ function PreferencesPage() {
         notes: values.notes,
       }
       await updateMySchedulePreference(data)
-      Message.success('保存成功')
+      toast.success('保存成功')
       loadPreference()
     } catch {
       // error handled by interceptor

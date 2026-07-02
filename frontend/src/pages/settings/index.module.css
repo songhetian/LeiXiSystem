@@ -68,11 +68,27 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #00b42a;
+  background-color: var(--lx-primary-6);
 }
 
 .settings-page__links {
   margin-top: 20px;
   display: flex;
   gap: 16px;
+}
+
+.settings-page__tab-icon {
+  margin-right: 6px;
+}
+
+.settings-page__input-full {
+  width: 100%;
+}
+
+.settings-page__upload-center {
+  text-align: center;
+}
+
+.settings-page__mt-16 {
+  margin-top: 16px;
 }

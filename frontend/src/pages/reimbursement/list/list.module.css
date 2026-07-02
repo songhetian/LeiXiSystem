@@ -44,7 +44,7 @@
 
 .reimbursement-list__amount {
   font-weight: 600;
-  color: #FF7D00;
+  color: #F59E0B;
   font-family: 'tabular-nums', monospace;
 }
 
@@ -64,7 +64,7 @@
 .reimbursement-list__upload-text {
   margin-top: 4px;
   font-size: 12px;
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 
 .reimbursement-list__detail-space {

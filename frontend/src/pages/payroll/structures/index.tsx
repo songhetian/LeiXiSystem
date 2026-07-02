@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
+﻿import { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
 import { createSalaryStructure, getSalaryComponents, getSalaryStructures, updateSalaryStructure, SalaryComponent, SalaryStructure, SalaryStructureItem } from '@/api/payroll'
 import { PageHeader } from '@/components'
+import { formatDate, getToday } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Text } = Typography
 const FormItem = Form.Item
@@ -41,7 +43,7 @@ function SalaryStructuresPage() {
     form.setFieldsValue({
       payrollFrequency: 'monthly',
       status: 'active',
-      effectiveFrom: new Date().toISOString().slice(0, 10),
+      effectiveFrom: getToday(),
     })
     setVisible(true)
   }
@@ -59,8 +61,8 @@ function SalaryStructuresPage() {
       name: record.name,
       payrollFrequency: record.payrollFrequency,
       status: record.status,
-      effectiveFrom: record.effectiveFrom?.slice(0, 10),
-      effectiveTo: record.effectiveTo?.slice(0, 10),
+      effectiveFrom: record.effectiveFrom ? formatDate(record.effectiveFrom) : '',
+      effectiveTo: record.effectiveTo ? formatDate(record.effectiveTo) : '',
     })
     setVisible(true)
   }
@@ -91,10 +93,10 @@ function SalaryStructuresPage() {
 
     if (editing) {
       await updateSalaryStructure(editing.id, payload)
-      Message.success('薪资结构更新成功')
+      toast.success('薪资结构更新成功')
     } else {
       await createSalaryStructure(payload)
-      Message.success('薪资结构创建成功')
+      toast.success('薪资结构创建成功')
     }
 
     setVisible(false)
@@ -126,7 +128,16 @@ function SalaryStructuresPage() {
             {
               title: '状态',
               dataIndex: 'status',
-              render: (value) => <Tag color={value === 'active' ? 'green' : 'gray'}>{value === 'active' ? '启用' : value}</Tag>,
+              render: (value: string) => {
+                const statusMap: Record<string, { text: string; color: string }> = {
+                  active: { text: '启用', color: 'green' },
+                  inactive: { text: '停用', color: 'gray' },
+                  draft: { text: '草稿', color: 'orange' },
+                  archived: { text: '已归档', color: 'red' },
+                }
+                const info = statusMap[value]
+                return info ? <Tag color={info.color}>{info.text}</Tag> : <Tag>{value}</Tag>
+              },
             },
             { title: '生效日期', dataIndex: 'effectiveFrom' },
             {

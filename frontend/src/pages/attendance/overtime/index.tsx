@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Popconfirm,
   Card,
@@ -28,6 +27,8 @@ import {
   cancelOvertime,
 } from '@/api/attendance'
 import type { OvertimeRequest } from '@/api/attendance'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 import { getAllOvertimeTypes, type OvertimeType } from '@/api/attendance-overtime-type'
 import { FilterBar, PageHeader, flatEmployeeNameColumn, flatEmployeeNoColumn, flatDepartmentNameColumn } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
@@ -94,7 +95,7 @@ function Overtime() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const { visible, editingId, saving, openCreate: _openCreate, openEdit: _openEdit, close, handleOk } = useCrudModal<OvertimeRequest>({
+  const { visible, editingId, saving, openCreate, openEdit, close, handleOk } = useCrudModal<OvertimeRequest>({
     form,
     mapRecordToForm: (record) => ({
       ...record,
@@ -103,14 +104,14 @@ function Overtime() {
     onSubmit: async (values, id) => {
       const submitData = {
         ...values,
-        date: values.date ? new Date(values.date).toISOString().split('T')[0] : undefined,
+        date: values.date ? formatDate(values.date) : undefined,
       }
       if (id) {
-        await updateOvertime(id, submitData)
-        Message.success('修改成功')
+        await updateOvertime(id, submitData as any)
+        toast.success('修改成功')
       } else {
-        await createOvertime(submitData)
-        Message.success('申请成功')
+        await createOvertime(submitData as any)
+        toast.success('申请成功')
       }
     },
     onSuccess: () => fetchData(pagination.current, pagination.pageSize),
@@ -188,54 +189,17 @@ function Overtime() {
     },
   ]
 
-  const handleAdd = () => {
-    setEditingId(null)
-    form.resetFields()
-    setVisible(true)
-  }
-
   const handleEdit = (record: OvertimeRequest) => {
-    setEditingId(record.id)
-    form.setFieldsValue({
-      ...record,
-      date: new Date(record.date),
-    })
-    setVisible(true)
+    openEdit(record)
   }
 
   const handleCancel = async (id: number) => {
     try {
       await cancelOvertime(id)
-      Message.success('撤销成功')
+      toast.success('撤销成功')
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
-    }
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      setSaving(true)
-
-      const submitData = {
-        ...values,
-        date: values.date ? new Date(values.date).toISOString().split('T')[0] : undefined,
-      }
-
-      if (editingId) {
-        await updateOvertime(editingId, submitData)
-        Message.success('修改成功')
-      } else {
-        await createOvertime(submitData)
-        Message.success('申请成功')
-      }
-      setVisible(false)
-      fetchData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -259,7 +223,7 @@ function Overtime() {
       <Card bordered={false} className={styles['attendance-overtime__card']}>
         <PageHeader
           title="加班记录"
-          extra={<Button type="primary" icon={<IconPlus />} onClick={handleAdd}>申请加班</Button>}
+          extra={<Button type="primary" icon={<IconPlus />} onClick={openCreate}>申请加班</Button>}
         />
       </Card>
 

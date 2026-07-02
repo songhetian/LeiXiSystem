@@ -4,7 +4,6 @@ import {
   Card,
   Form,
   Grid,
-  Message,
   Modal,
   Select,
   Space,
@@ -16,6 +15,7 @@ import { IconCheck, IconCommon } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { calculateAttendance, getAttendanceMonthly, lockAttendanceMonthly } from '@/api/attendance'
 import { PageHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './calculation.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -111,7 +111,7 @@ function AttendanceCalculationPage() {
     setCalculating(true)
     try {
       await calculateAttendance(getSelectedYearMonth())
-      Message.success('月考勤核算完成')
+      toast.success('月考勤核算完成')
       await loadData()
     } finally {
       setCalculating(false)
@@ -124,14 +124,14 @@ function AttendanceCalculationPage() {
       content: '锁定后薪资批次将读取该月考勤结果，确认锁定？',
       onOk: async () => {
         await lockAttendanceMonthly(getSelectedYearMonth())
-        Message.success('月考勤已锁定')
+        toast.success('月考勤已锁定')
         await loadData()
       },
     })
   }, [getSelectedYearMonth, loadData])
 
   const stats = useMemo(() => [
-    { title: '应出勤总天数', value: data.reduce((sum, item) => sum + item.expectedWorkDays, 0), suffix: '天', color: '#165DFF' },
+    { title: '应出勤总天数', value: data.reduce((sum, item) => sum + item.expectedWorkDays, 0), suffix: '天', color: '#10B981' },
     { title: '实际出勤', value: data.reduce((sum, item) => sum + item.actualWorkDays, 0), suffix: '天', color: '#00B42A' },
     { title: '异常缺卡', value: data.reduce((sum, item) => sum + item.missingCheckinCount, 0), suffix: '次', color: '#FF7D00' },
     { title: '已锁定人数', value: data.filter((item) => item.status === 'locked').length, suffix: '人', color: '#722ED1' },

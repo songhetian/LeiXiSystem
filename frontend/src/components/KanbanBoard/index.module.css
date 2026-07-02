@@ -72,7 +72,7 @@
 
 .kanban-board__card:hover {
   border-color: var(--color-primary-4);
-  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
 }
 
 .kanban-board__card:active {

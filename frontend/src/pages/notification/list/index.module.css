@@ -21,13 +21,13 @@
 }
 
 .notification-list__time {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 
 .notification-list__empty {
   text-align: center;
   padding: 40px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }
 .notification-list__space-full { width: 100%; }

@@ -16,7 +16,7 @@
 }
 
 .reimbursement-apply__subtitle {
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 
 .reimbursement-apply__steps {
@@ -55,6 +55,6 @@
 
 .reimbursement-apply__expense-detail-empty {
   text-align: center;
-  color: #86909C;
+  color: var(--text-color-tertiary);
   padding: 40px 0;
 }

@@ -7,15 +7,15 @@ function PageSkeleton() {
       <Skeleton
         loading
         animation
-        text={{ rows: 2, widths: [240, 160] }}
+        text={{ rows: 2, width: [240, 160] }}
         style={{ marginBottom: 24 }}
       />
 
       {/* Toolbar area: button placeholders */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-        <Skeleton loading animation text={{ rows: 1, widths: [88] }} />
-        <Skeleton loading animation text={{ rows: 1, widths: [88] }} />
-        <Skeleton loading animation text={{ rows: 1, widths: [88] }} />
+        <Skeleton loading animation text={{ rows: 1, width: [88] }} />
+        <Skeleton loading animation text={{ rows: 1, width: [88] }} />
+        <Skeleton loading animation text={{ rows: 1, width: [88] }} />
       </div>
 
       {/* Table area: multiple row skeletons */}
@@ -24,7 +24,7 @@ function PageSkeleton() {
           key={i}
           loading
           animation
-          text={{ rows: 1, widths: ['100%'] }}
+          text={{ rows: 1, width: ['100%'] }}
           style={{ marginBottom: 16 }}
         />
       ))}

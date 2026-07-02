@@ -115,7 +115,7 @@ function Stats() {
     return [
       { title: '平均出勤率', value: `${avgRate}%`, color: '#00B42A' },
       { title: '总迟到次数', value: totalLate, color: '#FF7D00' },
-      { title: '总加班时长', value: `${totalOvertime}h`, color: '#165DFF' },
+      { title: '总加班时长', value: `${totalOvertime}h`, color: '#10B981' },
       { title: '总请假天数', value: totalLeave, color: '#86909C' },
     ]
   }, [filteredData])

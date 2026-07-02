@@ -24,14 +24,14 @@ const typeTagMap: Record<string, { text: string; color: string }> = {
 // 时间线图标颜色
 const timelineDotColor: Record<string, string> = {
   onboarding: '#00b42a',
-  probation: '#165dff',
+  probation: '#10B981',
   transfer: '#ff7d00',
   promotion: '#f53f3f',
   salary_adjustment: '#722ed1',
   offboarding: '#86909c',
   rehire: '#00b42a',
   current: '#00b42a',
-  default: '#165dff',
+  default: '#10B981',
 }
 
 interface CareerTimelineProps {

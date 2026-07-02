@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal,
+  Button, Card, DatePicker, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tabs, Tag, Typography,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
@@ -13,6 +13,8 @@ import {
   getAssetAssignments,
 } from '@/api/asset'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './items.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -80,11 +82,6 @@ function ActionTag({ value }: { value: string }) {
   return <Tag color={info.color}>{info.text}</Tag>
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString()
-}
-
 // ===== Categories Tab =====
 
 function CategoriesTab() {
@@ -121,11 +118,11 @@ function CategoriesTab() {
     setSubmitting(true)
     try {
       if (editing) {
-        Message.info('分类不支持编辑，请删除后重新创建')
+        toast.info('分类不支持编辑，请删除后重新创建')
         setModalVisible(false)
       } else {
         await createAssetCategory(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
         setModalVisible(false)
         load()
       }
@@ -135,10 +132,10 @@ function CategoriesTab() {
   const handleDelete = async (id: number) => {
     try {
       await deleteAssetCategory(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       load()
     } catch (e: any) {
-      Message.error(e?.response?.data?.message || '删除失败')
+      toast.error(e?.response?.data?.message || '删除失败')
     }
   }
 
@@ -270,18 +267,16 @@ function AssetsTab() {
     const values = await form.validate()
     const data = {
       ...values,
-      purchaseDate: values.purchaseDate instanceof Date
-        ? values.purchaseDate.toISOString().split('T')[0]
-        : values.purchaseDate,
+      purchaseDate: values.purchaseDate ? formatDate(values.purchaseDate) : values.purchaseDate,
     }
     setSubmitting(true)
     try {
       if (editing) {
         await updateAssetItem(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createAssetItem(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setAssetModal(false)
       load()
@@ -291,10 +286,10 @@ function AssetsTab() {
   const handleDelete = async (id: number) => {
     try {
       await deleteAssetItem(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       load()
     } catch (e: any) {
-      Message.error(e?.response?.data?.message || '删除失败')
+      toast.error(e?.response?.data?.message || '删除失败')
     }
   }
 
@@ -309,7 +304,7 @@ function AssetsTab() {
     setSubmitting(true)
     try {
       await assignAsset(selectedAsset!.id, values)
-      Message.success('领用成功')
+      toast.success('领用成功')
       setAssignModal(false)
       load()
     } finally { setSubmitting(false) }
@@ -326,7 +321,7 @@ function AssetsTab() {
     setSubmitting(true)
     try {
       await transferAsset(selectedAsset!.id, values)
-      Message.success('转移成功')
+      toast.success('转移成功')
       setTransferModal(false)
       load()
     } finally { setSubmitting(false) }
@@ -334,13 +329,13 @@ function AssetsTab() {
 
   const handleReturn = async (id: number) => {
     await returnAsset(id)
-    Message.success('归还成功')
+    toast.success('归还成功')
     load()
   }
 
   const handleRetire = async (id: number) => {
     await retireAsset(id)
-    Message.success('报废成功')
+    toast.success('报废成功')
     load()
   }
 
@@ -348,11 +343,11 @@ function AssetsTab() {
     try {
       const ids = selectedRowKeys.map(Number)
       await batchDeleteAssetItems(ids)
-      Message.success(`批量删除成功（${ids.length} 条）`)
+      toast.success(`批量删除成功（${ids.length} 条）`)
       setSelectedRowKeys([])
       load()
     } catch (e: any) {
-      Message.error(e?.response?.data?.message || '批量删除失败')
+      toast.error(e?.response?.data?.message || '批量删除失败')
     }
   }
 
@@ -360,11 +355,11 @@ function AssetsTab() {
     try {
       const ids = selectedRowKeys.map(Number)
       await batchUpdateAssetStatus(ids, status)
-      Message.success(`状态更新成功（${ids.length} 条）`)
+      toast.success(`状态更新成功（${ids.length} 条）`)
       setSelectedRowKeys([])
       load()
     } catch (e: any) {
-      Message.error(e?.response?.data?.message || '批量更新失败')
+      toast.error(e?.response?.data?.message || '批量更新失败')
     }
   }
 
@@ -512,7 +507,7 @@ function AssetsTab() {
             <div><Text type="secondary">状态</Text><div><StatusTag value={detailData.status} /></div></div>
             <div><Text type="secondary">使用人</Text><div>{detailData.currentEmployee?.user?.realName || '-'}</div></div>
             <div><Text type="secondary">存放地点</Text><div>{detailData.location || '-'}</div></div>
-            <div><Text type="secondary">购买日期</Text><div>{formatDate(detailData.purchaseDate)}</div></div>
+            <div><Text type="secondary">购买日期</Text><div>{detailData.purchaseDate ? formatDate(detailData.purchaseDate) : '-'}</div></div>
             <div><Text type="secondary">购买金额</Text><div>{detailData.purchaseAmount ? `¥${detailData.purchaseAmount.toLocaleString()}` : '-'}</div></div>
             {detailData.assignments && detailData.assignments.length > 0 && (
               <div className={styles['asset-items__detail-grid-full']}>
@@ -522,7 +517,7 @@ function AssetsTab() {
                     <Space>
                       <ActionTag value={a.action} />
                       <Text type="secondary">{a.employee?.user?.realName || '-'}</Text>
-                      <Text type="secondary">{formatDate(a.assignedAt)}</Text>
+                      <Text type="secondary">{a.assignedAt ? formatDate(a.assignedAt) : '-'}</Text>
                       {a.returnedAt && <Text type="secondary">归还：{formatDate(a.returnedAt)}</Text>}
                     </Space>
                     {a.note && <div className={styles['asset-items__history-note']}>{a.note}</div>}
@@ -592,7 +587,7 @@ function AssignmentsTab() {
   const load = useCallback(async (p = page, e = employeeFilter) => {
     setLoading(true)
     try {
-      const res = await getAssetAssignments({ page: p, pageSize: 10, ...(e ? { employeeId: e } : {}) })
+      const res = await getAssetAssignments({ page: p, pageSize: 10, ...(e ? { employeeId: Number(e) } : {}) })
       setData(res?.data?.list || [])
       setTotal(res?.data?.total || 0)
     } finally { setLoading(false) }
@@ -611,8 +606,8 @@ function AssignmentsTab() {
     { title: '员工', width: 110, render: (_: any, r) => r.employee?.user?.realName || '-' },
     { title: '操作类型', dataIndex: 'action', width: 90, render: (v) => <ActionTag value={v} /> },
     { title: '操作人', dataIndex: 'operator', width: 90, render: (_: any, r) => r.operator?.realName || '-' },
-    { title: '领用时间', dataIndex: 'assignedAt', width: 120, render: formatDate },
-    { title: '归还时间', dataIndex: 'returnedAt', width: 120, render: formatDate },
+    { title: '领用时间', dataIndex: 'assignedAt', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
+    { title: '归还时间', dataIndex: 'returnedAt', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     { title: '备注', dataIndex: 'note', ellipsis: true },
   ], [])
 

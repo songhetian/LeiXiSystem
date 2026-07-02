@@ -22,13 +22,13 @@ const FormItem = Form.Item
 const Option = Select.Option
 
 const colorMap: Record<string, string> = {
-  ANNUAL: '#165DFF',
-  PERSONAL: '#FF7D00',
-  SICK: '#00B42A',
-  MARRIAGE: '#722ED1',
-  MATERNITY: '#F53F3F',
-  BEREAVEMENT: '#86909C',
-  COMPENSATORY: '#14C9C9',
+  ANNUAL: '#10B981',
+  PERSONAL: '#F59E0B',
+  SICK: '#3B82F6',
+  MARRIAGE: '#8B5CF6',
+  MATERNITY: '#EC4899',
+  BEREAVEMENT: '#6B7280',
+  COMPENSATORY: '#06B6D4',
 }
 
 function Balance() {
@@ -68,7 +68,7 @@ function Balance() {
   }
 
   const getColor = (typeCode: string) => {
-    return colorMap[typeCode] || '#165DFF'
+    return colorMap[typeCode] || '#10B981'
   }
 
   const columns: TableProps<VacationBalance>['columns'] = [

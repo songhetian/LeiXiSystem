@@ -6,7 +6,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Grid,
@@ -26,6 +25,7 @@ import { useCrudModal } from '@/hooks/useCrudModal'
 import { WorkflowDesigner } from '@/components'
 import type { WorkflowNode } from '@/components/WorkflowDesigner'
 import { catchError } from '@/utils/catchError'
+import { toast } from '@/utils/toast'
 import styles from './flow.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -80,11 +80,11 @@ function Flow() {
     }),
     onSubmit: async (_values, id) => {
       if (id) {
-        Message.info('编辑功能开发中')
+        toast.info('编辑功能开发中')
       } else {
         // 此处仅使用 values 但 lint 警告
-        await createApprovalFlow(_values)
-        Message.success('新增成功')
+        await createApprovalFlow(_values as any)
+        toast.success('新增成功')
         fetchData()
       }
     },
@@ -229,7 +229,7 @@ function Flow() {
         }))
 
       await updateApprovalFlow(currentFlow.id, { nodes: apiNodes })
-      Message.success('流程配置保存成功')
+      toast.success('流程配置保存成功')
       setDetailVisible(false)
       fetchData()
     } catch (e) {
@@ -238,7 +238,7 @@ function Flow() {
         operation: '保存流程配置',
         silent: true,
       })
-      Message.error('保存流程配置失败')
+      toast.error('保存流程配置失败')
     } finally {
       setSavingFlow(false)
     }

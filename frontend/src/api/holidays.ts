@@ -64,9 +64,9 @@ export function deleteHolidayDate(dateId: number) {
 
 // Query
 export function checkIsHoliday(date: string, listId?: number) {
-  return get<{ code: number; data: { date: string; isHoliday: boolean; isWorkingDay: boolean; isWeekend: boolean; holiday: any } }>('/holidays/is-holiday', { date, listId })
+  return get<{ code: number; data: { date: string; isHoliday: boolean; isWorkingDay: boolean; isWeekend: boolean; holiday: any } }>('/holidays/is-holiday', { params: { date, listId } })
 }
 
 export function getHolidayCalendar(year: number, listId?: number) {
-  return get<{ code: number; data: HolidayCalendar }>('/holidays/calendar', { year, listId })
+  return get<{ code: number; data: HolidayCalendar }>('/holidays/calendar', { params: { year, listId } })
 }

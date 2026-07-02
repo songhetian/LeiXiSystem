@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Message, Space } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Space } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { get, post, put, del } from '@/api/request'
+import { toast } from '@/utils/toast'
 
 export default function RotationsPage() {
   const [items, setItems] = useState<any[]>([])
@@ -23,8 +24,8 @@ export default function RotationsPage() {
     try {
       const v = await form.validate()
       editing ? await put(`/schedule/rotations/${editing.id}`, v) : await post('/schedule/rotations', v)
-      Message.success('保存成功'); setVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   return (

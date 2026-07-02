@@ -30,7 +30,7 @@
 
 .vacation-balance__employee-no {
   margin-top: 8px;
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 
 .vacation-balance__table-card {
@@ -64,7 +64,7 @@
 }
 
 .vacation-balance__stat-label {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Tabs,
@@ -29,6 +28,7 @@ import {
 import type { PendingReimbursement } from '@/api/reimbursement'
 import { FilterBar, TableHeader } from '@/components'
 import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './approval.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -197,7 +197,7 @@ function Approval() {
       onOk: async () => {
         try {
           await approveReimbursement(id)
-          Message.success('审批通过')
+          toast.success('审批通过')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor
@@ -223,7 +223,7 @@ function Approval() {
         try {
           const values = await opinionForm.validate()
           await rejectReimbursement(id, { opinion: values.opinion })
-          Message.success('已驳回')
+          toast.success('已驳回')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor

@@ -4,6 +4,7 @@ import Row from '@arco-design/web-react/es/Grid/row'
 import Col from '@arco-design/web-react/es/Grid/col'
 import PageContainer from '@/components/PageContainer'
 import { get } from '@/api/request'
+import { formatDate } from '@/utils/date'
 
 export default function ScheduleComparisonPage() {
   const [versions, setVersions] = useState<any[]>([])
@@ -24,7 +25,7 @@ export default function ScheduleComparisonPage() {
   }
   useEffect(() => { compare() }, [v1, v2])
 
-  const vOpts = versions.map((v: any) => ({ label: `${v.name || v.id} (${v.createdAt?.split('T')[0] || ''})`, value: String(v.id) }))
+  const vOpts = versions.map((v: any) => ({ label: `${v.name || v.id} (${v.createdAt ? formatDate(v.createdAt) : ''})`, value: String(v.id) }))
 
   return (
     <PageContainer title="排班版本对比" description="对比不同版本排班的差异"

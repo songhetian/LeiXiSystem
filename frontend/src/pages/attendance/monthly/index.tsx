@@ -4,7 +4,6 @@ import {
   Card,
   Form,
   Input,
-  Message,
   Modal,
   Select,
   Space,
@@ -22,6 +21,7 @@ import {
 } from '@/api/attendance'
 import { PageHeader, FilterBar, BatchActions, employeeColumn, departmentColumn } from '@/components'
 import { useBatchSelection } from '@/hooks/useBatchSelection'
+import { toast } from '@/utils/toast'
 import './index.css'
 
 const FormItem = Form.Item
@@ -67,7 +67,7 @@ function AttendanceMonthlyPage() {
         total: res.data.total || 0,
       })
     } catch (e: any) {
-      Message.error(e?.message || '加载失败')
+      toast.error(e?.message || '加载失败')
     } finally {
       setLoading(false)
     }
@@ -111,12 +111,12 @@ function AttendanceMonthlyPage() {
 
     try {
       const res = await batchCalculateMonthly({ year, month, employeeIds })
-      Message.success(res.message || `成功计算`)
+      toast.success(res.message || `成功计算`)
       setCalculateVisible(false)
       batch.clearSelection()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '计算失败')
+      toast.error(e?.message || '计算失败')
     }
   }
 
@@ -128,12 +128,12 @@ function AttendanceMonthlyPage() {
 
     try {
       const res = await batchLockMonthly({ year, month, employeeIds })
-      Message.success(res.message || `成功锁定`)
+      toast.success(res.message || `成功锁定`)
       setLockVisible(false)
       batch.clearSelection()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '锁定失败')
+      toast.error(e?.message || '锁定失败')
     }
   }
 
@@ -145,11 +145,11 @@ function AttendanceMonthlyPage() {
 
     try {
       const res = await batchUnlockMonthly({ year, month, employeeIds })
-      Message.success(res.message || `成功解锁`)
+      toast.success(res.message || `成功解锁`)
       batch.clearSelection()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '解锁失败')
+      toast.error(e?.message || '解锁失败')
     }
   }
 

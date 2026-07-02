@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -10,7 +10,6 @@ import {
   InputNumber,
   Select,
   Switch,
-  Message,
   Tag,
   Divider,
 } from '@arco-design/web-react'
@@ -28,6 +27,7 @@ import { getShifts, Shift } from '@/api/shift'
 import { getDepartmentsList, Department } from '@/api/organization'
 import { PageHeader, FilterBar, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -127,7 +127,7 @@ function RulesPage() {
     }),
     onSubmit: async (values) => {
       if (selectedShifts.length === 0) {
-        Message.error('请至少选择一个班次')
+        toast.error('请至少选择一个班次')
         throw new Error('请至少选择一个班次')
       }
       const payload = {
@@ -137,10 +137,10 @@ function RulesPage() {
       }
       if (editingId) {
         await updateScheduleRule(editingId, payload)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createScheduleRule(payload)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
     },
     onSuccess: () => loadData(page, pageSize),
@@ -161,7 +161,7 @@ function RulesPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteScheduleRule(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData(page, pageSize)
     } catch {
       // error handled by interceptor

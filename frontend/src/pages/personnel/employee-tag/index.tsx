@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+﻿import { useState, useCallback, useEffect } from 'react'
 import {
   Card,
   Table,
@@ -9,7 +9,6 @@ import {
   Modal,
   Form,
   InputNumber,
-  Message,
   Tag,
   Grid,
   Drawer,
@@ -33,6 +32,7 @@ import {
 } from '@/api/employee-tag'
 import { getEmployees, type Employee } from '@/api/personnel'
 import { FilterBar, TableHeader, ActionButtons } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -40,16 +40,16 @@ const Option = Select.Option
 const TextArea = Input.TextArea
 
 const COLOR_OPTIONS = [
-  '#165DFF',
-  '#0FC6C2',
-  '#14C9C9',
-  '#00B42A',
-  '#722ED1',
-  '#F77234',
-  '#FF7D00',
-  '#F53F3F',
-  '#F7BA1E',
-  '#86909C',
+  '#10B981',
+  '#06B6D4',
+  '#3B82F6',
+  '#8B5CF6',
+  '#EC4899',
+  '#F59E0B',
+  '#EF4444',
+  '#6B7280',
+  '#059669',
+  '#D97706',
 ]
 
 function EmployeeTagPage() {
@@ -126,10 +126,10 @@ function EmployeeTagPage() {
       setSaving(true)
       if (editingTag) {
         await updateEmployeeTag(editingTag.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createEmployeeTag(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchTags()
@@ -142,7 +142,7 @@ function EmployeeTagPage() {
   const handleDelete = async (tag: EmployeeTag) => {
     try {
       await deleteEmployeeTag(tag.id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       fetchTags()
     } catch {
     }
@@ -195,7 +195,7 @@ function EmployeeTagPage() {
     if (!currentTag) return
     try {
       await removeEmployeeFromTag(currentTag.id, employeeId)
-      Message.success('移除成功')
+      toast.success('移除成功')
       loadTagEmployees(currentTag.id)
       fetchTags()
     } catch {
@@ -210,7 +210,7 @@ function EmployeeTagPage() {
     const employeeIds = newKeys.map(Number)
     addEmployeesToTag(currentTag.id, employeeIds)
       .then(() => {
-        Message.success('添加成功')
+        toast.success('添加成功')
         loadTagEmployees(currentTag.id)
         fetchTags()
       })
@@ -247,7 +247,7 @@ function EmployeeTagPage() {
               width: 16,
               height: 16,
               borderRadius: 2,
-              backgroundColor: val || '#ccc',
+              backgroundColor: val || 'var(--lx-gray-300)',
             }}
           />
           <span className={styles['employee-tag__text-small-muted']}>{val || '-'}</span>

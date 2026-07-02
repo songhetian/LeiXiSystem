@@ -13,21 +13,21 @@
 
 .my-schedule__stat-label {
   font-size: 14px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
   margin-top: 4px;
 }
 
 .my-schedule__period {
   margin-bottom: 24px;
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
 .my-schedule__period-title {
   font-weight: 500;
   margin-bottom: 12px;
-  color: #1d2129;
+  color: var(--lx-gray-900);
 }
 
 .my-schedule__row {
@@ -35,18 +35,18 @@
 }
 
 .my-schedule__stat-value-orange {
-  color: #ff7d00;
+  color: #F59E0B;
 }
 
 .my-schedule__period-count {
   margin-left: 8px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }
 
 .my-schedule__empty {
   text-align: center;
   padding: 40px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }
 
 .my-schedule__date-picker {
@@ -54,5 +54,5 @@
 }
 
 .my-schedule__text-secondary {
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }

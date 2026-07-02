@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -8,11 +8,12 @@ import {
   Form,
   Input,
   Select,
-  Message,
   Tag,
   Tabs,
   Popconfirm,
+  Typography,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconCheck,
   IconClose,
@@ -76,7 +77,7 @@ function SwapsPage() {
   const handleApprove = async (id: number) => {
     try {
       await approveShiftSwap(id)
-      Message.success('已批准换班申请')
+      toast.success('已批准换班申请')
       setDetailVisible(false)
       loadData(page, pageSize)
     } catch {
@@ -88,7 +89,7 @@ function SwapsPage() {
     if (!selectedItem) return
     try {
       await rejectShiftSwap(selectedItem.id, rejectRemark)
-      Message.success('已拒绝换班申请')
+      toast.success('已拒绝换班申请')
       setRejectVisible(false)
       setRejectRemark('')
       setDetailVisible(false)
@@ -101,7 +102,7 @@ function SwapsPage() {
   const handleCancel = async (id: number) => {
     try {
       await cancelShiftSwap(id)
-      Message.success('已取消换班申请')
+      toast.success('已取消换班申请')
       loadData(page, pageSize)
     } catch {
       // error handled by interceptor
@@ -259,11 +260,11 @@ function SwapsPage() {
         {selectedItem && (
           <Space direction="vertical" className={styles['schedule-swaps__modal-space']} size="large">
             <div>
-              <span type="secondary">单号：</span>
+              <Typography.Text type="secondary">单号：</Typography.Text>
               <span className={styles['schedule-swaps__modal-text']}>{selectedItem.requestNo}</span>
             </div>
             <div>
-              <span type="secondary">状态：</span>
+              <Typography.Text type="secondary">状态：</Typography.Text>
               {getStatusTag(selectedItem.status)}
             </div>
 
@@ -271,13 +272,13 @@ function SwapsPage() {
               <Card size="small" title="申请人">
                 <Space direction="vertical">
                   <span>{selectedItem.requester?.realName}</span>
-                  <span type="secondary">{selectedItem.requester?.department?.name}</span>
+                  <Typography.Text type="secondary">{selectedItem.requester?.department?.name}</Typography.Text>
                 </Space>
               </Card>
               <Card size="small" title="被申请人">
                 <Space direction="vertical">
                   <span>{selectedItem.target?.realName}</span>
-                  <span type="secondary">{selectedItem.target?.department?.name}</span>
+                  <Typography.Text type="secondary">{selectedItem.target?.department?.name}</Typography.Text>
                 </Space>
               </Card>
             </div>
@@ -297,14 +298,14 @@ function SwapsPage() {
 
             {selectedItem.reason && (
               <div>
-                <span type="secondary">换班原因：</span>
+                <Typography.Text type="secondary">换班原因：</Typography.Text>
                 <span>{selectedItem.reason}</span>
               </div>
             )}
 
             {selectedItem.approveRemark && (
               <div>
-                <span type="secondary">审批备注：</span>
+                <Typography.Text type="secondary">审批备注：</Typography.Text>
                 <span>{selectedItem.approveRemark}</span>
               </div>
             )}

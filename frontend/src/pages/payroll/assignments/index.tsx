@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Button, Card, Form, InputNumber, Message, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
+﻿import { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
 import { getEmployees, Employee } from '@/api/personnel'
 import { createSalaryAssignment, getSalaryAssignments, getSalaryStructures, updateSalaryAssignment, SalaryAssignment, SalaryStructure } from '@/api/payroll'
 import { PageHeader, employeeColumn, departmentColumn } from '@/components'
+import { formatDate, getToday } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -41,7 +43,7 @@ function SalaryAssignmentsPage() {
     form.resetFields()
     form.setFieldsValue({
       status: 'active',
-      effectiveFrom: new Date().toISOString().slice(0, 10),
+      effectiveFrom: getToday(),
     })
     setVisible(true)
   }
@@ -52,8 +54,8 @@ function SalaryAssignmentsPage() {
       employeeId: record.employeeId,
       salaryStructureId: record.salaryStructureId,
       baseSalary: Number(record.baseSalary || 0),
-      effectiveFrom: record.effectiveFrom?.slice(0, 10),
-      effectiveTo: record.effectiveTo?.slice(0, 10),
+      effectiveFrom: record.effectiveFrom ? formatDate(record.effectiveFrom) : '',
+      effectiveTo: record.effectiveTo ? formatDate(record.effectiveTo) : '',
       status: record.status,
     })
     setVisible(true)
@@ -70,10 +72,10 @@ function SalaryAssignmentsPage() {
 
     if (editing) {
       await updateSalaryAssignment(editing.id, payload)
-      Message.success('薪资分配更新成功')
+      toast.success('薪资分配更新成功')
     } else {
       await createSalaryAssignment(payload)
-      Message.success('薪资分配创建成功')
+      toast.success('薪资分配创建成功')
     }
 
     setVisible(false)
@@ -107,7 +109,17 @@ function SalaryAssignmentsPage() {
             {
               title: '状态',
               dataIndex: 'status',
-              render: (value) => <Tag color={value === 'active' ? 'green' : 'gray'}>{value === 'active' ? '有效' : value}</Tag>,
+              render: (value: string) => {
+                const statusMap: Record<string, { text: string; color: string }> = {
+                  active: { text: '有效', color: 'green' },
+                  inactive: { text: '无效', color: 'gray' },
+                  ended: { text: '已结束', color: 'red' },
+                  draft: { text: '草稿', color: 'orange' },
+                  pending: { text: '待生效', color: 'blue' },
+                }
+                const info = statusMap[value]
+                return info ? <Tag color={info.color}>{info.text}</Tag> : <Tag>{value}</Tag>
+              },
             },
             {
               title: '操作',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Button,
@@ -9,7 +9,6 @@ import {
   InputNumber,
   Select,
   Switch,
-  Message,
   Tag,
   Typography,
 } from '@arco-design/web-react'
@@ -27,6 +26,7 @@ import { getExpenseStandards,
 import { getDepartmentsList, type Department } from '@/api/organization'
 import { FilterBar, ActionButtons, DraggableTable } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const { Text } = Typography
 const FormItem = Form.Item
@@ -100,10 +100,10 @@ function ExpenseStandardsPage() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateExpenseStandard(id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createExpenseStandard(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
     },
     onSuccess: () => loadData(page, pageSize),
@@ -112,7 +112,7 @@ function ExpenseStandardsPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteExpenseStandard(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData(page, pageSize)
     } catch {
       // error handled by interceptor
@@ -124,7 +124,7 @@ function ExpenseStandardsPage() {
     try {
       const movedItem = items[newIndex]
       await updateExpenseStandard(movedItem.id, { sortOrder: newIndex })
-      Message.success('排序已更新')
+      toast.success('排序已更新')
       loadData(page, pageSize)
     } catch {
       loadData(page, pageSize)

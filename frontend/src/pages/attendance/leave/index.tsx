@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Popconfirm,
   Card,
@@ -31,6 +30,7 @@ import type { LeaveRequest } from '@/api/attendance'
 import { formatDate } from '@/utils/date'
 import { FilterBar, PageHeader, flatEmployeeNameColumn, flatEmployeeNoColumn, flatDepartmentNameColumn } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './leave.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -80,7 +80,7 @@ function Leave() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const { visible, editingId, saving, openCreate, openEdit: _openEdit, close: _close, handleOk } = useCrudModal<LeaveRequest>({
+  const { visible, editingId, saving, openCreate, openEdit, close, handleOk } = useCrudModal<LeaveRequest>({
     form,
     mapRecordToForm: (record) => ({
       ...record,
@@ -88,10 +88,10 @@ function Leave() {
     }),
     onSubmit: async (values, id) => {
       const startDate = values.dateRange?.[0]
-        ? new Date(values.dateRange[0]).toISOString().split('T')[0]
+        ? formatDate(values.dateRange[0])
         : undefined
       const endDate = values.dateRange?.[1]
-        ? new Date(values.dateRange[1]).toISOString().split('T')[0]
+        ? formatDate(values.dateRange[1])
         : undefined
 
       const submitData = {
@@ -104,10 +104,10 @@ function Leave() {
 
       if (id) {
         await updateLeave(id, submitData)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         await createLeave(submitData as { leaveType: string; startDate: string; endDate: string; days: number; reason: string })
-        Message.success('申请成功')
+        toast.success('申请成功')
       }
     },
     onSuccess: () => fetchData(pagination.current, pagination.pageSize),
@@ -193,57 +193,16 @@ function Leave() {
   ]
 
   const handleEdit = (record: LeaveRequest) => {
-    setEditingId(record.id)
-    form.setFieldsValue({
-      ...record,
-      dateRange: [new Date(record.startDate), new Date(record.endDate)],
-    })
-    setVisible(true)
+    openEdit(record)
   }
 
   const handleCancel = async (id: number) => {
     try {
       await cancelLeave(id)
-      Message.success('撤销成功')
+      toast.success('撤销成功')
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor
-    }
-  }
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validate()
-      setSaving(true)
-
-      const startDate = values.dateRange?.[0]
-        ? new Date(values.dateRange[0]).toISOString().split('T')[0]
-        : undefined
-      const endDate = values.dateRange?.[1]
-        ? new Date(values.dateRange[1]).toISOString().split('T')[0]
-        : undefined
-
-      const submitData = {
-        leaveType: values.leaveType,
-        startDate,
-        endDate,
-        days: values.days,
-        reason: values.reason,
-      }
-
-      if (editingId) {
-        await updateLeave(editingId, submitData)
-        Message.success('修改成功')
-      } else {
-        await createLeave(submitData as { leaveType: string; startDate: string; endDate: string; days: number; reason: string })
-        Message.success('申请成功')
-      }
-      setVisible(false)
-      fetchData(pagination.current, pagination.pageSize)
-    } catch {
-      // error handled by interceptor
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -333,7 +292,7 @@ function Leave() {
         title={editingId ? '编辑请假' : '申请请假'}
         visible={visible}
         onOk={handleOk}
-        onCancel={() => setVisible(false)}
+        onCancel={close}
         confirmLoading={saving}
         className={styles['attendance-leave__modal']}
       >

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Card, Form, Input, Message, Modal, Select, Table, Tag } from '@arco-design/web-react'
+import { Button, Card, Form, Input, Modal, Select, Table, Tag } from '@arco-design/web-react'
 import {
   approveAttendanceCorrection,
   createAttendanceCorrection,
@@ -8,6 +8,7 @@ import {
 } from '@/api/attendance'
 import { PageHeader, FilterBar, ApprovalActionModal, StatusTag, ApproveRejectButtons, employeeColumn, departmentColumn } from '@/components'
 import { useTableData } from '@/hooks/useTableData'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -31,7 +32,7 @@ function AttendanceCorrectionsPage() {
   const handleCreate = useCallback(async () => {
     const values = await form.validate()
     await createAttendanceCorrection(values)
-    Message.success('补卡申请已提交')
+    toast.success('补卡申请已提交')
     setVisible(false)
     loadData(1)
   }, [form, loadData])
@@ -48,10 +49,10 @@ function AttendanceCorrectionsPage() {
     if (!actionState.record || !actionState.action) return
     if (actionState.action === 'approve') {
       await approveAttendanceCorrection(actionState.record.id, { opinion: values.comment })
-      Message.success('补卡已通过并重算考勤')
+      toast.success('补卡已通过并重算考勤')
     } else {
       await rejectAttendanceCorrection(actionState.record.id, { opinion: values.comment })
-      Message.success('补卡已驳回')
+      toast.success('补卡已驳回')
     }
     closeAction()
     loadData(page)

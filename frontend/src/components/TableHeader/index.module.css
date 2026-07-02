@@ -1,20 +1,21 @@
+/* TableHeader - 表格上方标题行 */
 .table-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .table-header__left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .table-header__title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-1);
 }

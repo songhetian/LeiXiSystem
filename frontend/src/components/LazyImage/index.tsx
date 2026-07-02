@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Skeleton } from '@arco-design/web-react'
+import { SkeletonImage } from '@/components/Skeleton'
 import styles from './index.module.css'
 interface LazyImageProps {
   src: string
@@ -94,7 +94,7 @@ export default function LazyImage({
     >
       {!isLoaded && (
         <div className={styles['lazy-image__placeholder']}>
-          <Skeleton.Image style={{ width: '100%', height: '100%' }} />
+          <SkeletonImage style={{ width: '100%', height: '100%' }} />
         </div>
       )}
       {(shouldLoad || !lazy) && (

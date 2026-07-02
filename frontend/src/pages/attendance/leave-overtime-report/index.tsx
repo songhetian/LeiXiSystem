@@ -255,7 +255,7 @@ const LeaveOvertimeReport: React.FC = () => {
           type: 'bar',
           yAxisIndex: 0,
           data: list.map((item: any) => item.leaveDays ?? item.days ?? 0),
-          itemStyle: { color: '#F53F3F' },
+          itemStyle: { color: '#EF4444' },
           barWidth: '35%',
         },
         {
@@ -263,7 +263,7 @@ const LeaveOvertimeReport: React.FC = () => {
           type: 'bar',
           yAxisIndex: 1,
           data: list.map((item: any) => item.overtimeHours ?? item.hours ?? 0),
-          itemStyle: { color: '#165DFF' },
+          itemStyle: { color: '#10B981' },
           barWidth: '35%',
         },
       ],
@@ -287,7 +287,7 @@ const LeaveOvertimeReport: React.FC = () => {
     const leaveTypes = Object.keys(list[0] || {}).filter(
       (key) => key !== 'month' && key !== 'name' && key !== 'total',
     )
-    const colorPalette = ['#F53F3F', '#FF7D00', '#FF9A2E', '#F7BA1E', '#00B42A', '#14C9C9', '#165DFF', '#722ED1']
+    const colorPalette = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#EF4444', '#6B7280']
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { data: leaveTypes, top: 0 },

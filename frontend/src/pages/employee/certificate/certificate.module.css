@@ -49,3 +49,41 @@
   align-items: center;
   gap: 8px;
 }
+
+.certificate__detail-modal {
+  width: 600px;
+}
+
+.certificate__loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.certificate__detail-title {
+  margin: 0;
+}
+
+.certificate__detail-subtitle {
+  font-size: 12px;
+}
+
+.certificate__detail-tag-right {
+  margin-left: auto;
+}
+
+.certificate__detail-divider {
+  margin: 16px 0;
+}
+
+.certificate__detail-text-bold {
+  font-weight: 500;
+}
+
+.certificate__detail-reject-text {
+  margin-top: 8px;
+  color: var(--color-text-2);
+}
+
+.certificate__detail-file-btn {
+  padding: 4px 8px;
+}

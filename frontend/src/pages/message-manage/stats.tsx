@@ -36,7 +36,7 @@ export default function MessageStats() {
   const [senderPage, setSenderPage] = useState(1)
   const [senderPageSize, setSenderPageSize] = useState(10)
 
-  const [timeData] = useState<any[]>([])
+  const [timeData, setTimeRange] = useState<any[]>([])
   const [_timeLoading] = useState(false)
 
   const fetchOverview = async () => {

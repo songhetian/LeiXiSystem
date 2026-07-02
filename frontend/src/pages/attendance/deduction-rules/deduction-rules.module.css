@@ -6,6 +6,10 @@
   margin-bottom: 16px;
 }
 
+.deduction-rules__filter-select {
+  width: 140px;
+}
+
 .deduction-rules__text-bold {
   font-weight: 500;
 }

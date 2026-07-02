@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, DatePicker, Form, Input, Message, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from '@arco-design/web-react'
 const { Text } = Typography
 import type { TableProps } from '@arco-design/web-react'
 import { IconCheck, IconDelete, IconEdit, IconPlus } from '@arco-design/web-react/icon'
@@ -12,6 +12,8 @@ import {
   getEmployeeContracts, createEmployeeContract, updateEmployeeContract, deleteEmployeeContract,
 } from '@/api/lifecycle'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './lifecycle.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -114,11 +116,6 @@ function StatusTag({ value }: { value: string }) {
   return <Tag color={info.color}>{info.text}</Tag>
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString()
-}
-
 function EmployeeCell({ record }: { record: any }) {
   return `${record.employee?.user?.realName || '-'}(${record.employee?.employeeNo || '-'})`
 }
@@ -161,16 +158,14 @@ function EventFormModal({
     try {
       const data = {
         ...values,
-        effectiveDate: values.effectiveDate instanceof Date
-          ? values.effectiveDate.toISOString().split('T')[0]
-          : values.effectiveDate,
+        effectiveDate: values.effectiveDate ? formatDate(values.effectiveDate) : values.effectiveDate,
       }
       if (editing) {
         await updateLifecycleEvent(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createLifecycleEvent(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       onSuccess()
     } finally {
@@ -254,11 +249,11 @@ function EventDetailModal({
           <div><Text type="secondary">员工</Text><div>{data.employee?.user?.realName}({data.employee?.employeeNo})</div></div>
           <div><Text type="secondary">类型</Text><div><Tag color="blue">{eventTypeOptions.find((e) => e.value === data.eventType)?.label || data.eventType}</Tag></div></div>
           <div className={styles['lifecycle-page__detail-col-full']}><Text type="secondary">标题</Text><div>{data.title}</div></div>
-          <div><Text type="secondary">生效日期</Text><div>{formatDate(data.effectiveDate)}</div></div>
+          <div><Text type="secondary">生效日期</Text><div>{data.effectiveDate ? formatDate(data.effectiveDate) : '-'}</div></div>
           <div><Text type="secondary">状态</Text><div><StatusTag value={data.status} /></div></div>
           <div className={styles['lifecycle-page__detail-col-full']}><Text type="secondary">说明</Text><div>{data.description || '-'}</div></div>
           <div><Text type="secondary">创建人</Text><div>{data.creator?.realName || '-'}</div></div>
-          <div><Text type="secondary">创建时间</Text><div>{formatDate(data.createdAt)}</div></div>
+          <div><Text type="secondary">创建时间</Text><div>{data.createdAt ? formatDate(data.createdAt) : '-'}</div></div>
         </div>
       ) : (
         <div className={styles['lifecycle-page__text-center']}>未找到数据</div>
@@ -298,13 +293,13 @@ function EventsTab({ employees, onRefresh: _onRefresh }: { employees: Employee[]
 
   const handleDelete = async (id: number) => {
     await deleteLifecycleEvent(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     loadData()
   }
 
   const handleComplete = async (id: number) => {
     await completeLifecycleEvent(id)
-    Message.success('已完成')
+    toast.success('已完成')
     loadData()
   }
 
@@ -336,7 +331,7 @@ function EventsTab({ employees, onRefresh: _onRefresh }: { employees: Employee[]
       title: '生效日期',
       dataIndex: 'effectiveDate',
       width: 120,
-      render: formatDate,
+      render: (v: string) => v ? formatDate(v) : '-',
     },
     {
       title: '状态',
@@ -430,18 +425,16 @@ function TaskFormModal({
     try {
       const data = {
         ...values,
-        dueDate: values.dueDate instanceof Date
-          ? values.dueDate.toISOString().split('T')[0]
-          : values.dueDate,
+        dueDate: values.dueDate ? formatDate(values.dueDate) : values.dueDate,
       }
       if (editing) {
         if (taskType === 'onboarding') await updateOnboardingTask(editing.id, data)
         else await updateOffboardingTask(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         if (taskType === 'onboarding') await createOnboardingTask(data)
         else await createOffboardingTask(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       onSuccess()
     } finally {
@@ -526,13 +519,13 @@ function TasksTab({
 
   const handleDelete = async (id: number) => {
     await deleteTask(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     loadData()
   }
 
   const handleStatusChange = async (id: number, status: string) => {
     await updateTask(id, { status })
-    Message.success('状态已更新')
+    toast.success('状态已更新')
     loadData()
   }
 
@@ -543,7 +536,7 @@ function TasksTab({
     },
     { title: '任务', dataIndex: 'title', ellipsis: true },
     { title: '负责人', dataIndex: 'assignee', render: (_: any, r) => r.assignee?.realName || '-' },
-    { title: '截止日期', dataIndex: 'dueDate', width: 120, render: formatDate },
+    { title: '截止日期', dataIndex: 'dueDate', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     {
       title: '状态',
       dataIndex: 'status',
@@ -638,16 +631,14 @@ function DocumentFormModal({
     try {
       const data = {
         ...values,
-        expiresAt: values.expiresAt instanceof Date
-          ? values.expiresAt.toISOString().split('T')[0]
-          : values.expiresAt,
+        expiresAt: values.expiresAt ? formatDate(values.expiresAt) : values.expiresAt,
       }
       if (editing) {
         await updateEmployeeDocument(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createEmployeeDocument(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       onSuccess()
     } finally {
@@ -714,7 +705,7 @@ function DocumentsTab({ employees }: { employees: any[] }) {
 
   const handleDelete = async (id: number) => {
     await deleteEmployeeDocument(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     loadData()
   }
 
@@ -733,7 +724,7 @@ function DocumentsTab({ employees }: { employees: any[] }) {
         </Select>
       ),
     },
-    { title: '到期日期', dataIndex: 'expiresAt', width: 120, render: formatDate },
+    { title: '到期日期', dataIndex: 'expiresAt', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     {
       title: '操作', width: 120,
       render: (_: any, record) => (
@@ -804,19 +795,15 @@ function ContractFormModal({
     try {
       const data = {
         ...values,
-        startDate: values.startDate instanceof Date
-          ? values.startDate.toISOString().split('T')[0]
-          : values.startDate,
-        endDate: values.endDate instanceof Date
-          ? values.endDate.toISOString().split('T')[0]
-          : values.endDate,
+        startDate: values.startDate ? formatDate(values.startDate) : values.startDate,
+        endDate: values.endDate ? formatDate(values.endDate) : values.endDate,
       }
       if (editing) {
         await updateEmployeeContract(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createEmployeeContract(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       onSuccess()
     } finally {
@@ -887,7 +874,7 @@ function ContractsTab({ employees }: { employees: Employee[] }) {
 
   const handleDelete = async (id: number) => {
     await deleteEmployeeContract(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     loadData()
   }
 
@@ -895,8 +882,8 @@ function ContractsTab({ employees }: { employees: Employee[] }) {
     { title: '员工', render: (_: any, r) => <EmployeeCell record={r} /> },
     { title: '合同编号', dataIndex: 'contractNo', width: 160, ellipsis: true },
     { title: '类型', dataIndex: 'contractType', width: 100 },
-    { title: '开始日期', dataIndex: 'startDate', width: 120, render: formatDate },
-    { title: '结束日期', dataIndex: 'endDate', width: 120, render: formatDate },
+    { title: '开始日期', dataIndex: 'startDate', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
+    { title: '结束日期', dataIndex: 'endDate', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     {
       title: '状态', dataIndex: 'status', width: 80,
       render: (v) => <StatusTag value={v} />,

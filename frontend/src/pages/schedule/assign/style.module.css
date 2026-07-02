@@ -39,7 +39,7 @@
 }
 
 .schedule-assign__hint {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 

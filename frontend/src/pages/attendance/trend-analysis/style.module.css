@@ -48,12 +48,12 @@
 }
 
 .trend-analysis-report .stat-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .trend-analysis-report .stat-card .arco-statistic {
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
@@ -62,7 +62,7 @@
 }
 
 .trend-analysis-report .chart-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .trend-analysis-report .chart-container {
@@ -71,25 +71,25 @@
 }
 
 .trend-analysis-report .table-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .trend-analysis-report .arco-table-wrapper {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .trend-analysis-report .icon-up {
-  color: #00B42A;
+  color: var(--lx-primary-6);
 }
 
 .trend-analysis-report .icon-down {
-  color: #F53F3F;
+  color: #EF4444;
 }
 
 .trend-analysis-report .stat-positive {
-  color: #00B42A;
+  color: var(--lx-primary-6);
 }
 
 .trend-analysis-report .stat-negative {
-  color: #F53F3F;
+  color: #EF4444;
 }

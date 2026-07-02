@@ -19,7 +19,7 @@
 }
 
 .notification-config__channel-desc {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 
@@ -35,7 +35,7 @@
 }
 
 .notification-config__type-desc {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 
@@ -49,13 +49,13 @@
 }
 
 .notification-config__icon--notification {
-  color: #165DFF;
+  color: #10B981;
 }
 
 .notification-config__icon--email {
-  color: #00B42A;
+  color: var(--lx-primary-6);
 }
 
 .notification-config__icon--phone {
-  color: #FF7D00;
+  color: #F59E0B;
 }

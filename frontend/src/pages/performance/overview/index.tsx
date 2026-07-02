@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useState } from 'react'
+import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
 import { IconPlus, IconRefresh } from '@arco-design/web-react/icon'
 import { createPerformanceCycle, createPerformanceGoal, createPerformanceReview, getPerformanceCycles, getPerformanceGoals, getPerformanceReviews } from '@/api/performance'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { toast } from '@/utils/toast'
 import styles from './overview.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -95,7 +96,7 @@ function PerformanceOverviewPage() {
     const values = await cycleForm.validate()
     const [startDate, endDate] = values.dateRange || []
     await createPerformanceCycle({ ...values, startDate, endDate })
-    Message.success('绩效周期已创建')
+    toast.success('绩效周期已创建')
     setCycleVisible(false)
     cycleForm.resetFields()
     loadData()
@@ -104,7 +105,7 @@ function PerformanceOverviewPage() {
   const handleCreateGoal = async () => {
     const values = await goalForm.validate()
     await createPerformanceGoal(values)
-    Message.success('绩效目标已创建')
+    toast.success('绩效目标已创建')
     setGoalVisible(false)
     goalForm.resetFields()
     loadData()
@@ -113,7 +114,7 @@ function PerformanceOverviewPage() {
   const handleCreateReview = async () => {
     const values = await reviewForm.validate()
     await createPerformanceReview(values)
-    Message.success('绩效评估已创建')
+    toast.success('绩效评估已创建')
     setReviewVisible(false)
     reviewForm.resetFields()
     loadData()

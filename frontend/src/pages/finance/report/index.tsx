@@ -198,7 +198,7 @@ const FinanceReport: React.FC = () => {
             name: item.name || item.type || '',
             value: item.value ?? item.amount ?? 0,
           })),
-          color: ['#165DFF', '#00B42A'],
+          color: ['#10B981', '#00B42A'],
         },
       ],
     }
@@ -226,7 +226,7 @@ const FinanceReport: React.FC = () => {
           type: 'bar',
           stack: 'total',
           data: list.map((item: any) => item.totalSalary ?? item.salary ?? 0),
-          itemStyle: { color: '#165DFF' },
+          itemStyle: { color: '#10B981' },
           barWidth: '50%',
         },
         {
@@ -263,7 +263,7 @@ const FinanceReport: React.FC = () => {
           type: 'line',
           smooth: true,
           data: list.map((item: any) => item.totalSalary ?? item.salary ?? 0),
-          itemStyle: { color: '#165DFF' },
+          itemStyle: { color: '#10B981' },
         },
         {
           name: '报销',

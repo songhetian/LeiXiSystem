@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -9,7 +9,6 @@ import {
   Input,
   Select,
   DatePicker,
-  Message,
   Tag,
   Grid,
   InputTag,
@@ -17,6 +16,7 @@ import {
   Statistic,
   Descriptions,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconPlus,
   IconEdit,
@@ -169,10 +169,10 @@ function AnnouncementPage() {
       const values = await form.validate()
       if (editingAnnouncement) {
         await updateAnnouncement(editingAnnouncement.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createAnnouncement(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchAnnouncements()
@@ -187,7 +187,7 @@ function AnnouncementPage() {
       content: `确定要删除公告「${announcement.title}」吗？`,
       onOk: async () => {
         await deleteAnnouncement(announcement.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchAnnouncements()
       },
     })
@@ -199,7 +199,7 @@ function AnnouncementPage() {
       content: `确定要发布公告「${announcement.title}」吗？发布后将通知接收人。`,
       onOk: async () => {
         await publishAnnouncement(announcement.id)
-        Message.success('发布成功')
+        toast.success('发布成功')
         fetchAnnouncements()
       },
     })

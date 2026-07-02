@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Table,
   Button,
   Space,
-  Message,
   Tag,
   Grid,
   Tabs,
@@ -13,6 +12,7 @@ import {
   Select,
   DatePicker,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconCheck,
   IconClose,
@@ -27,6 +27,7 @@ import {
   type ScheduleConfirmationItem,
   type ScheduleAppealItem,
 } from '@/api/schedule'
+import { formatDate } from '@/utils/date'
 import styles from './style.module.css'
 const { Row, Col } = Grid
 const Option = Select.Option
@@ -102,18 +103,18 @@ function PublishPage() {
 
   const handleBatchConfirm = async () => {
     if (selectedRowKeys.length === 0) {
-      Message.warning('请先选择要确认的排班')
+      toast.warning('请先选择要确认的排班')
       return
     }
     await confirmBatch(selectedRowKeys as number[])
-    Message.success('批量确认成功')
+    toast.success('批量确认成功')
     setSelectedRowKeys([])
     fetchConfirmations()
   }
 
   const handleAppealAction = async (id: number, status: 'approved' | 'rejected') => {
     await handleAppeal(id, { status })
-    Message.success(status === 'approved' ? '已批准申诉' : '已驳回申诉')
+    toast.success(status === 'approved' ? '已批准申诉' : '已驳回申诉')
     fetchAppeals()
   }
 
@@ -133,7 +134,7 @@ function PublishPage() {
       title: '日期',
       dataIndex: 'schedule',
       width: 110,
-      render: (_: any, record: ScheduleConfirmationItem) => record.schedule?.scheduleDate?.split('T')[0],
+      render: (_: any, record: ScheduleConfirmationItem) => record.schedule?.scheduleDate ? formatDate(record.schedule.scheduleDate) : '',
     },
     {
       title: '班次',
@@ -188,7 +189,7 @@ function PublishPage() {
       width: 200,
       render: (_: any, record: ScheduleAppealItem) => (
         <div>
-          <div>{record.schedule?.scheduleDate?.split('T')[0]}</div>
+          <div>{record.schedule?.scheduleDate ? formatDate(record.schedule.scheduleDate) : ''}</div>
           <Tag color={record.schedule?.shift?.color}>{record.schedule?.shift?.name}</Tag>
         </div>
       ),
@@ -231,7 +232,7 @@ function PublishPage() {
           </Button>
         </Space>
       ) : (
-        <span className={styles['schedule-publish__text-secondary']}>{record.handler?.realName} {record.handledAt?.split('T')[0]}</span>
+        <span className={styles['schedule-publish__text-secondary']}>{record.handler?.realName} {record.handledAt ? formatDate(record.handledAt) : ''}</span>
       ),
     },
   ]

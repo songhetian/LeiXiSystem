@@ -1,7 +1,7 @@
 .header {
   margin-bottom: 16px;
   padding: 12px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
@@ -14,7 +14,7 @@
 .empty {
   text-align: center;
   padding: 40px 0;
-  color: #86909c;
+  color: var(--text-color-tertiary);
   font-size: 14px;
 }
 
@@ -35,7 +35,7 @@
 .itemDesc {
   margin-top: 4px;
   font-size: 13px;
-  color: #4e5969;
+  color: var(--lx-gray-600);
   line-height: 1.5;
 }
 
@@ -51,5 +51,5 @@
 
 .detailValue {
   margin: 0 !important;
-  color: #1d2129;
+  color: var(--lx-gray-900);
 }

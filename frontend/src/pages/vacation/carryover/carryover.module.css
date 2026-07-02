@@ -11,7 +11,7 @@
 }
 
 .carryover__employee-no {
-  color: #86909c;
+  color: var(--text-color-tertiary);
   font-size: 12px;
   margin-left: 4px;
 }
@@ -19,7 +19,7 @@
 .carryover__filter-bar {
   margin-bottom: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--lx-border-color);
 }
 
 .carryover__modal {
@@ -27,16 +27,16 @@
 }
 
 .carryover__modal-tip {
-  background-color: #f7f8fa;
+  background-color: var(--lx-gray-50);
   border-radius: 4px;
   padding: 12px 16px;
   margin-top: 8px;
   font-size: 13px;
-  color: #4e5969;
+  color: var(--lx-gray-600);
   line-height: 1.6;
 }
 
 .carryover__tip-title {
   font-weight: 500;
-  color: #1d2129;
+  color: var(--lx-gray-900);
 }

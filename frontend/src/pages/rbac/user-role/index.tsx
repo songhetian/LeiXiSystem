@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Spin,
@@ -17,6 +16,7 @@ import { getEmployees } from '@/api/personnel'
 import { getRoles, getUserRoles, assignUserRoles } from '@/api/rbac'
 import type { Role } from '@/api/rbac'
 import { PageHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -76,11 +76,16 @@ function UserRolePage() {
       title: '状态',
       dataIndex: 'status',
       width: 90,
-      render: (value: string) => (
-        <Tag color={value === 'active' ? 'green' : 'gray'}>
-          {value === 'active' ? '在职' : value === 'probation' ? '试用期' : value === 'deleted' ? '已删除' : value}
-        </Tag>
-      ),
+      render: (value: string) => {
+        const statusMap: Record<string, { text: string; color: string }> = {
+          active: { text: '在职', color: 'green' },
+          probation: { text: '试用期', color: 'orange' },
+          resigned: { text: '已离职', color: 'red' },
+          suspended: { text: '停职', color: 'gray' },
+        }
+        const info = statusMap[value]
+        return info ? <Tag color={info.color}>{info.text}</Tag> : <Tag>{value}</Tag>
+      },
     },
     {
       title: '操作',
@@ -108,7 +113,7 @@ function UserRolePage() {
     if (!currentUser) return
     try {
       await assignUserRoles(currentUser.id, selectedRoles)
-      Message.success('角色分配成功')
+      toast.success('角色分配成功')
       setVisible(false)
     } catch {
       // error handled by interceptor

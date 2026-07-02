@@ -1,15 +1,15 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import {
   Card,
   Form,
   Switch,
   Button,
   Space,
-  Message,
   Divider,
   Tabs,
   Input,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconNotification,
   IconEmail,
@@ -74,7 +74,7 @@ function Config() {
     try {
       const values = await form.validate()
       saveConfig(values)
-      Message.success('保存成功')
+      toast.success('保存成功')
     } catch {
       // validation error
     }

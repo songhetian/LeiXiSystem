@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Button,
   Card,
   Descriptions,
   Form,
   Input,
-  Message,
   Modal,
   Select,
   Space,
@@ -23,6 +22,7 @@ import {
 } from '@/api/employee-change'
 import { PageHeader, BatchActions } from '@/components'
 import { useBatchSelection } from '@/hooks/useBatchSelection'
+import { toast } from '@/utils/toast'
 import './index.css'
 
 const FormItem = Form.Item
@@ -71,7 +71,7 @@ function InfoChangeApprovalPage() {
         total: res.data.total || 0,
       })
     } catch (e: any) {
-      Message.error(e?.message || '加载失败')
+      toast.error(e?.message || '加载失败')
     } finally {
       setLoading(false)
     }
@@ -96,18 +96,18 @@ function InfoChangeApprovalPage() {
       setCurrentRecord(res.data)
       setDetailVisible(true)
     } catch (e: any) {
-      Message.error(e?.message || '加载详情失败')
+      toast.error(e?.message || '加载详情失败')
     }
   }
 
   const handleApprove = async (record: EmployeeInfoChangeRequest) => {
     try {
       await approveInfoChange(record.id)
-      Message.success('已通过申请')
+      toast.success('已通过申请')
       setDetailVisible(false)
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '审批失败')
+      toast.error(e?.message || '审批失败')
     }
   }
 
@@ -116,13 +116,13 @@ function InfoChangeApprovalPage() {
       const values = await form.validate()
       if (!currentRecord) return
       await rejectInfoChange(currentRecord.id, { approvalComment: values.comment })
-      Message.success('已驳回申请')
+      toast.success('已驳回申请')
       setRejectVisible(false)
       setDetailVisible(false)
       form.resetFields()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '驳回失败')
+      toast.error(e?.message || '驳回失败')
     }
   }
 
@@ -132,7 +132,7 @@ function InfoChangeApprovalPage() {
       (item) => item.status === 'pending' && batch.selectedIds.includes(item.id)
     )
     if (pendingItems.length === 0) {
-      Message.warning('请选择待审批的申请')
+      toast.warning('请选择待审批的申请')
       return
     }
 
@@ -140,11 +140,11 @@ function InfoChangeApprovalPage() {
       for (const item of pendingItems) {
         await approveInfoChange(item.id)
       }
-      Message.success(`成功通过 ${pendingItems.length} 个申请`)
+      toast.success(`成功通过 ${pendingItems.length} 个申请`)
       batch.clearSelection()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '批量审批失败')
+      toast.error(e?.message || '批量审批失败')
     }
   }
 
@@ -281,7 +281,7 @@ function InfoChangeApprovalPage() {
         {currentRecord && (
           <Descriptions
             column={2}
-            bordered
+            border
             data={[
               { label: '申请人', value: currentRecord.employee?.user?.realName || '-' },
               { label: '工号', value: currentRecord.employee?.employeeNo || '-' },
@@ -320,7 +320,7 @@ function InfoChangeApprovalPage() {
                 span: 2,
               },
               { label: '审批意见', value: currentRecord.approvalComment || '-', span: 2 },
-            ]}
+            ] as any}
           />
         )}
       </Modal>

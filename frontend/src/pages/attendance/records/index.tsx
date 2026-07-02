@@ -14,12 +14,13 @@ import {
 } from '@arco-design/web-react'
 import {
   IconExport,
+  IconDownload,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import type { Dayjs } from 'dayjs'
 import { getAttendanceRecords, getAttendanceStats } from '@/api/attendance'
 import type { AttendanceRecord } from '@/api/attendance'
-import { FilterBar, TableHeader } from '@/components'
+import { FilterBar, TableHeader, DepartmentSelect } from '@/components'
 import styles from './records.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -42,6 +43,7 @@ function Records() {
   const [searchText, setSearchText] = useState('')
   const [searchDept, setSearchDept] = useState<number | undefined>()
   const [searchStatus, setSearchStatus] = useState<string | undefined>()
+  const [searchAttendanceType, setSearchAttendanceType] = useState<string | undefined>()
   const [dateRange, setDateRange] = useState<Dayjs[]>([])
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
   const [stats, setStats] = useState({
@@ -104,6 +106,7 @@ function Records() {
     setSearchText('')
     setSearchDept(undefined)
     setSearchStatus(undefined)
+    setSearchAttendanceType(undefined)
     setDateRange([])
     fetchData(1, pagination.pageSize)
     fetchStats()
@@ -167,7 +170,7 @@ function Records() {
   ]
 
   const statsData = [
-    { title: '今日出勤', value: stats.normal, color: '#165DFF' },
+    { title: '今日出勤', value: stats.normal, color: '#10B981' },
     { title: '迟到', value: stats.late, color: '#FF7D00' },
     { title: '早退', value: stats.early, color: '#FF7D00' },
     { title: '请假', value: stats.leave, color: '#14C9C9' },
@@ -200,7 +203,14 @@ function Records() {
                   allowClear
                 />
               </FormItem>
-              <FormItem label="状态">
+              <FormItem label="部门">
+                <DepartmentSelect
+                  value={searchDept}
+                  onChange={(val) => setSearchDept(val as number | undefined)}
+                  placeholder="请选择部门"
+                />
+              </FormItem>
+              <FormItem label="考勤状态">
                 <Select
                   className={styles['attendance-records__status-select']}
                   placeholder="请选择"
@@ -212,6 +222,19 @@ function Records() {
                   <Option value="late">迟到</Option>
                   <Option value="early">早退</Option>
                   <Option value="absent">旷工</Option>
+                  <Option value="leave">请假</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="考勤类型">
+                <Select
+                  placeholder="请选择考勤类型"
+                  value={searchAttendanceType}
+                  onChange={setSearchAttendanceType}
+                  allowClear
+                >
+                  <Option value="daily">日常</Option>
+                  <Option value="overtime">加班</Option>
+                  <Option value="business">出差</Option>
                   <Option value="leave">请假</Option>
                 </Select>
               </FormItem>
@@ -234,7 +257,7 @@ function Records() {
           title="打卡记录"
           total={pagination.total}
           totalText="条"
-          extra={<Button icon={<IconExport />}>导出</Button>}
+          extra={<Button type="secondary" icon={<IconDownload />}>导出</Button>}
         />
 
         <Table

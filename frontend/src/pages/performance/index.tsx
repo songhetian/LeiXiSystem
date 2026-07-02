@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal,
+  Button, Card, DatePicker, Form, Input, InputNumber, Modal,
   Popconfirm, Progress, Select, Space, Table, Tabs, Tag,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
@@ -11,6 +11,8 @@ import {
   getPerformanceReviews, createPerformanceReview, updatePerformanceReview,
 } from '@/api/performance'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './performance.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -133,17 +135,17 @@ function CyclesTab() {
     const values = await form.validate()
     const data = {
       ...values,
-      startDate: values.startDate instanceof Date ? values.startDate.toISOString().split('T')[0] : values.startDate,
-      endDate: values.endDate instanceof Date ? values.endDate.toISOString().split('T')[0] : values.endDate,
+      startDate: values.startDate ? formatDate(values.startDate) : values.startDate,
+      endDate: values.endDate ? formatDate(values.endDate) : values.endDate,
     }
     setSubmitting(true)
     try {
       if (editing) {
         await updatePerformanceCycle(editing.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createPerformanceCycle(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()
@@ -152,7 +154,7 @@ function CyclesTab() {
 
   const handleDelete = async (id: number) => {
     await deletePerformanceCycle(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     load()
   }
 
@@ -272,10 +274,10 @@ function GoalsTab() {
     try {
       if (editing) {
         await updatePerformanceGoal(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createPerformanceGoal(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()
@@ -284,7 +286,7 @@ function GoalsTab() {
 
   const handleDelete = async (id: number) => {
     await deletePerformanceGoal(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     load()
   }
 
@@ -431,10 +433,10 @@ function ReviewsTab() {
     try {
       if (editing) {
         await updatePerformanceReview(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createPerformanceReview(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()

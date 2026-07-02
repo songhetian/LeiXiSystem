@@ -33,24 +33,26 @@ interface UseTableSettingsOptions<T = any> {
   /** 本地存储 key */
   storageKey?: string
   /** 默认密度 */
-  defaultSize?: 'mini' | 'small' | 'medium'
+  defaultSize?: 'mini' | 'small' | 'default'
 }
 
 interface UseTableSettingsResult<T = any> {
   /** 当前列配置 */
-  columnSettings: ColumnSetting<T>[]
+  columnSettings: ColumnSetting[]
   /** 可见列 */
   visibleColumns: TableProps<T>['columns']
   /** 当前密度 */
-  size: 'mini' | 'small' | 'medium'
+  size: 'mini' | 'small' | 'default'
   /** 设置密度 */
-  setSize: (size: 'mini' | 'small' | 'medium') => void
+  setSize: (size: 'mini' | 'small' | 'default') => void
   /** 切换列显示 */
   toggleColumn: (key: string) => void
   /** 重置列配置 */
   resetColumns: () => void
   /** 设置列宽度 */
   setColumnWidth: (key: string, width: number) => void
+  /** 移动列顺序 */
+  moveColumn: (oldIndex: number, newIndex: number) => void
   /** 设置面板 */
   settingsMenu: React.ReactNode
 }
@@ -70,7 +72,7 @@ interface UseTableSettingsResult<T = any> {
 export function useTableSettings<T = any>({
   columns,
   storageKey,
-  defaultSize = 'medium',
+  defaultSize = 'default',
 }: UseTableSettingsOptions<T>): UseTableSettingsResult<T> {
   // 从 localStorage 读取保存的列配置
   const loadFromStorage = useCallback(() => {
@@ -84,8 +86,8 @@ export function useTableSettings<T = any>({
   }, [storageKey])
 
   // 从列定义初始化
-  const initColumns = useMemo((): ColumnSetting<T>[] => {
-    return columns.map((col: any) => ({
+  const initColumns = useMemo((): ColumnSetting[] => {
+    return (columns || []).map((col: any) => ({
       key: col.key || col.dataIndex,
       title: typeof col.title === 'string' ? col.title : String(col.dataIndex),
       visible: col.visible !== false,
@@ -95,20 +97,20 @@ export function useTableSettings<T = any>({
     }))
   }, [columns])
 
-  const [columnSettings, setColumnSettings] = useState<ColumnSetting<T>[]>(() => {
+  const [columnSettings, setColumnSettings] = useState<ColumnSetting[]>(() => {
     const saved = loadFromStorage()
     if (saved) return saved
     return initColumns
   })
 
-  const [size, setSizeState] = useState<'mini' | 'small' | 'medium'>(() => {
+  const [size, setSizeState] = useState<'mini' | 'small' | 'default'>(() => {
     if (!storageKey) return defaultSize
     const savedSize = localStorage.getItem(`${storageKey}-size`)
     return (savedSize as any) || defaultSize
   })
 
   // 保存到 localStorage
-  const saveToStorage = useCallback((settings: ColumnSetting<T>[], tableSize: string) => {
+  const saveToStorage = useCallback((settings: ColumnSetting[], tableSize: string) => {
     if (!storageKey) return
     try {
       localStorage.setItem(storageKey, JSON.stringify(settings))
@@ -137,7 +139,7 @@ export function useTableSettings<T = any>({
   }, [initColumns, saveToStorage, size])
 
   // 设置密度
-  const setSize = useCallback((newSize: 'mini' | 'small' | 'medium') => {
+  const setSize = useCallback((newSize: 'mini' | 'small' | 'default') => {
     setSizeState(newSize)
     saveToStorage(columnSettings, newSize)
   }, [columnSettings, saveToStorage])
@@ -167,7 +169,7 @@ export function useTableSettings<T = any>({
     const visibleSettings = columnSettings.filter((col) => col.visible !== false)
     return visibleSettings
       .map((setting) => {
-        const col = (columns as any[]).find((c: any) => (c.key || c.dataIndex) === setting.key)
+        const col = ((columns || []) as any[]).find((c: any) => (c.key || c.dataIndex) === setting.key)
         if (col) {
           return { ...col, width: setting.width || col.width }
         }
@@ -233,16 +235,16 @@ function SortableColumnItem({ column, onToggle }: SortableColumnItemProps) {
   )
 }
 
-interface TableSettingsPanelProps<T = any> {
-  columnSettings: ColumnSetting<T>[]
-  size: 'mini' | 'small' | 'medium'
+interface TableSettingsPanelProps {
+  columnSettings: ColumnSetting[]
+  size: 'mini' | 'small' | 'default'
   onToggleColumn: (key: string) => void
   onMoveColumn: (oldIndex: number, newIndex: number) => void
-  onSetSize: (size: 'mini' | 'small' | 'medium') => void
+  onSetSize: (size: 'mini' | 'small' | 'default') => void
   onReset: () => void
 }
 
-function TableSettingsPanel<T = any>(props: TableSettingsPanelProps<T>) {
+function TableSettingsPanel(props: TableSettingsPanelProps) {
   const { columnSettings, size, onToggleColumn, onMoveColumn, onSetSize, onReset } = props
 
   const sensors = useSensors(
@@ -311,9 +313,9 @@ function TableSettingsPanel<T = any>(props: TableSettingsPanelProps<T>) {
             默认
           </Button>
           <Button
-            type={size === 'medium' ? 'primary' : 'secondary'}
-            size="medium"
-            onClick={() => onSetSize('medium')}
+            type={size === 'default' ? 'primary' : 'secondary'}
+            size="default"
+            onClick={() => onSetSize('default')}
           >
             舒适
           </Button>
@@ -342,16 +344,17 @@ interface TableSettingsButtonProps {
 
 export function TableSettingsButton({ settingsMenu, className = '' }: TableSettingsButtonProps) {
   return (
-    <Dropdown
-      trigger="click"
-      position="bl"
-      popup={() => settingsMenu}
-      className={`${styles['table-settings-dropdown']} ${className}`}
-    >
-      <Button icon={<IconSettings />} type="text" size="small">
-        设置
-      </Button>
-    </Dropdown>
+    <div className={className}>
+      <Dropdown
+        trigger="click"
+        position="bl"
+        droplist={settingsMenu}
+      >
+        <Button icon={<IconSettings />} type="text" size="small">
+          设置
+        </Button>
+      </Dropdown>
+    </div>
   )
 }
 

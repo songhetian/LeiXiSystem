@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Message, Modal, Space, Table } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, Descriptions, Form, Input, Modal, Space, Table } from '@arco-design/web-react'
 import { confirmMyPayslip, disputeMyPayslip, getMyPayslipDetail, getMyPayslips, setPayslipPassword, verifyPayslipPassword, Payslip } from '@/api/payroll'
 import { PageHeader, StatusTag } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 
@@ -59,13 +60,13 @@ function MyPayslipsPage() {
     setDetail(detailRes.data)
     setVerifyVisible(false)
     setDetailVisible(true)
-    Message.success('二级密码验证成功')
+    toast.success('二级密码验证成功')
   }, [form, selectedId])
 
   const handleConfirm = useCallback(async () => {
     if (!detail?.id) return
     await confirmMyPayslip(detail.id)
-    Message.success('工资条已确认')
+    toast.success('工资条已确认')
     setDetailVisible(false)
     loadData()
   }, [detail, loadData])
@@ -79,7 +80,7 @@ function MyPayslipsPage() {
     if (!detail?.id) return
     const values = await disputeForm.validate()
     await disputeMyPayslip(detail.id, values)
-    Message.success('工资条申诉已提交')
+    toast.success('工资条申诉已提交')
     setDisputeVisible(false)
     setDetailVisible(false)
     loadData()

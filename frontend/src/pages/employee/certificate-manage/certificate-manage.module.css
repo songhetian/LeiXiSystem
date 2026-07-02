@@ -65,3 +65,41 @@
   align-items: center;
   gap: 8px;
 }
+
+.certificate-manage__detail-modal {
+  width: 600px;
+}
+
+.certificate-manage__loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.certificate-manage__detail-title {
+  margin: 0;
+}
+
+.certificate-manage__detail-subtitle {
+  font-size: 12px;
+}
+
+.certificate-manage__detail-tag-right {
+  margin-left: auto;
+}
+
+.certificate-manage__detail-divider {
+  margin: 16px 0;
+}
+
+.certificate-manage__detail-text-bold {
+  font-weight: 500;
+}
+
+.certificate-manage__detail-reject-text {
+  margin-top: 8px;
+  color: var(--color-text-2);
+}
+
+.certificate-manage__detail-file-btn {
+  padding: 4px 8px;
+}

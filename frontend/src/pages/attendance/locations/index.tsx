@@ -8,7 +8,6 @@ import {
   Input,
   Select,
   InputNumber,
-  Message,
   Tag,
   Grid,
 } from '@arco-design/web-react'
@@ -27,6 +26,7 @@ import {
   type AttendanceLocation,
 } from '@/api/attendance-location'
 import { DraggableTable } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './locations.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -94,10 +94,10 @@ function AttendanceLocationsPage() {
       const values = await form.validate()
       if (editing) {
         await updateAttendanceLocation(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createAttendanceLocation(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchLocations()
@@ -112,7 +112,7 @@ function AttendanceLocationsPage() {
       content: `确定要删除「${record.name}」吗？`,
       onOk: async () => {
         await deleteAttendanceLocation(record.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchLocations()
       },
     })
@@ -123,7 +123,7 @@ function AttendanceLocationsPage() {
     try {
       const movedItem = items[newIndex]
       await updateAttendanceLocation(movedItem.id, { sortOrder: newIndex })
-      Message.success('排序已更新')
+      toast.success('排序已更新')
       fetchLocations()
     } catch {
       fetchLocations()

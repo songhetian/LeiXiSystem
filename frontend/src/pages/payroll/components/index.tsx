@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Switch, Table, Tag } from '@arco-design/web-react'
+﻿import { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag } from '@arco-design/web-react'
 import { createSalaryComponent, getSalaryComponents, updateSalaryComponent, SalaryComponent } from '@/api/payroll'
 import { PageHeader } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -43,10 +44,10 @@ function PayrollComponentsPage() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateSalaryComponent(id, values)
-        Message.success('薪资组件更新成功')
+        toast.success('薪资组件更新成功')
       } else {
-        await createSalaryComponent(values)
-        Message.success('薪资组件创建成功')
+        await createSalaryComponent(values as any)
+        toast.success('薪资组件创建成功')
       }
     },
     onSuccess: () => loadData(),

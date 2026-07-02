@@ -79,12 +79,12 @@
   gap: 8px 24px;
   margin-bottom: 16px;
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 8px;
 }
 
 .helpdesk-tickets__detail-label {
-  color: #666;
+  color: var(--text-color-tertiary);
 }
 
 .helpdesk-tickets__detail-value {
@@ -107,7 +107,7 @@
 }
 
 .helpdesk-tickets__comments {
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--lx-gray-100);
   padding-top: 16px;
 }
 
@@ -119,14 +119,14 @@
 
 .helpdesk-tickets__comments-empty {
   text-align: center;
-  color: #999;
+  color: var(--text-color-tertiary);
   padding: 20px;
 }
 
 .helpdesk-tickets__comment {
   margin-bottom: 12px;
   padding: 12px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 6px;
 }
 
@@ -139,7 +139,7 @@
 }
 
 .helpdesk-tickets__comment-time {
-  color: #666;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 

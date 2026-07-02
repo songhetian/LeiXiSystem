@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Grid,
@@ -19,6 +18,7 @@ import { getShifts, Shift } from '@/api/shift'
 import { getDepartmentsList, Department } from '@/api/organization'
 import { getEmployees } from '@/api/personnel'
 import { PageHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -127,12 +127,12 @@ function AssignPage() {
       const values = await form.validate()
       const dateRange = values.dateRange
       if (!dateRange || dateRange.length !== 2) {
-        Message.error('请选择日期范围')
+        toast.error('请选择日期范围')
         return
       }
       const userIds = selectedKeys.length > 0 ? selectedKeys.map(Number) : data.map((item) => item.userId)
       if (userIds.length === 0) {
-        Message.error('请选择人员')
+        toast.error('请选择人员')
         return
       }
       await assignSchedule({
@@ -141,7 +141,7 @@ function AssignPage() {
         startDate: dateRange[0],
         endDate: dateRange[1],
       })
-      Message.success('批量排班成功')
+      toast.success('批量排班成功')
       setVisible(false)
       setSelectedKeys([])
     } catch {

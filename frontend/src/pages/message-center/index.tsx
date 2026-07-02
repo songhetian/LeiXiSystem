@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Input,
   Button,
@@ -7,7 +7,6 @@ import {
   Tag,
   Pagination,
   Spin,
-  Message,
   Modal,
 } from '@arco-design/web-react'
 import {
@@ -31,6 +30,7 @@ import {
 } from '@/api/notification'
 import { wsClient } from '@/utils/websocket'
 import type { Notification } from '@/api/notification'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const Search = Input.Search
 
@@ -244,7 +244,7 @@ export default function MessageCenter() {
         setUnreadCount(prev => prev + 1)
       }
 
-      Message.info({
+      toast.info({
         content: (
           <div>
             <div style={{ fontWeight: 500 }}>{newNotification.title}</div>
@@ -303,7 +303,7 @@ export default function MessageCenter() {
     if (!confirmingId) return
     try {
       await markNotificationConfirmed(confirmingId)
-      Message.success('确认成功')
+      toast.success('确认成功')
       setNotifications(prev =>
         prev.map(n => (n.id === confirmingId ? { ...n, confirmedAt: new Date().toISOString() } : n))
       )
@@ -320,7 +320,7 @@ export default function MessageCenter() {
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead()
-      Message.success('已全部标记为已读')
+      toast.success('已全部标记为已读')
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
       // 清除所有缓存，强制下次刷新
@@ -398,7 +398,7 @@ export default function MessageCenter() {
         <div className={styles['message-center__toolbar']}>
           <Search
             placeholder="搜索消息标题或内容"
-            style={{ width: 280 }}
+            className={styles['message-center__search']}
             allowClear
             onSearch={handleSearch}
           />
@@ -417,14 +417,14 @@ export default function MessageCenter() {
           </Button>
         </div>
 
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <div className={styles['message-center__list']} style={{ width: 420, borderRight: '1px solid var(--color-border-2)' }}>
+        <div className={styles['message-center__content-wrapper']}>
+          <div className={`${styles['message-center__list']} ${styles['message-center__list-panel']}`}>
             <Spin loading={loading} style={{ display: 'block' }}>
               {notifications.length === 0 ? (
                 <div className={styles['message-center__empty']}>
                   <div className={styles['message-center__empty-icon']}><IconEmpty /></div>
                   <div>暂无消息</div>
-                  <Button size="small" onClick={handleRefresh} style={{ marginTop: 12 }}>
+                  <Button size="small" onClick={handleRefresh} className={styles['message-center__empty-btn']}>
                     刷新试试
                   </Button>
                 </div>
@@ -488,7 +488,7 @@ export default function MessageCenter() {
 
           <div className={styles['message-center__detail']}>
             {detailLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+              <div className={styles['message-center__detail-loading']}>
                 <Spin />
               </div>
             ) : detail ? (
@@ -517,28 +517,19 @@ export default function MessageCenter() {
                       <div className={styles['message-center__detail-attachments-title']}>
                         附件 ({detail.attachments.length})
                       </div>
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Space direction="vertical" size="small" className={styles['message-center__attachment-space']}>
                         {detail.attachments.map(att => (
                           <a
                             key={att.id}
                             href={att.fileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '8px 12px',
-                              background: 'var(--color-fill-2)',
-                              borderRadius: 4,
-                              textDecoration: 'none',
-                              color: 'var(--color-text-1)',
-                            }}
+                            className={styles['message-center__attachment-link']}
                           >
                             <IconFile />
                             <span>{att.fileName}</span>
                             {att.fileSize && (
-                              <span style={{ color: 'var(--color-text-3)', marginLeft: 'auto', fontSize: 12 }}>
+                              <span className={styles['message-center__attachment-size']}>
                                 {(att.fileSize / 1024).toFixed(1)} KB
                               </span>
                             )}
@@ -564,7 +555,7 @@ export default function MessageCenter() {
                 )}
               </>
             ) : (
-              <div className={styles['message-center__empty']} style={{ height: '100%' }}>
+              <div className={`${styles['message-center__empty']} ${styles['message-center__detail-empty']}`}>
                 <div className={styles['message-center__empty-icon']}><IconNotification /></div>
                 <div>请选择一条消息查看详情</div>
               </div>

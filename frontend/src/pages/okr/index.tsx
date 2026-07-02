@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, InputNumber, Tag, Space, Message, Popconfirm, Slider } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, InputNumber, Tag, Space, Popconfirm, Slider } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { get } from '@/api/request'
 import { post, put } from '@/api/request'
+import { toast } from '@/utils/toast'
 
 export default function OkrPage() {
   const [objectives, setObjectives] = useState<any[]>([])
@@ -31,8 +32,8 @@ export default function OkrPage() {
     try {
       const v = await form.validate()
       editingObj ? await put(`/okr/objectives/${editingObj.id}`, v) : await post('/okr/objectives', v)
-      Message.success('保存成功'); setModalVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const openKrManager = async (obj: any) => {
@@ -43,17 +44,17 @@ export default function OkrPage() {
     try {
       const v = await krForm.validate()
       await post(`/okr/objectives/${selectedObj.id}/key-results`, v)
-      Message.success('添加成功')
+      toast.success('添加成功')
       const r = await get(`/okr/objectives/${selectedObj.id}`); setKeyResults(r.data?.keyResults || [])
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const openProgress = (kr: any) => { setSelectedKr(kr); setProgressValue(kr.currentValue || 0); setProgressModal(true) }
   const handleProgress = async () => {
     try {
       await put(`/okr/key-results/${selectedKr.id}/progress`, { currentValue: progressValue })
-      Message.success('更新成功'); setProgressModal(false); fetchAll()
-    } catch (e: any) { Message.error(e.message) }
+      toast.success('更新成功'); setProgressModal(false); fetchAll()
+    } catch (e: any) { toast.error(e.message) }
   }
 
   return (
@@ -67,7 +68,7 @@ export default function OkrPage() {
           { title: '目标', dataIndex: 'title', width: 240 },
           { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag size="small">{v}</Tag> },
           { title: '周期', dataIndex: 'period', width: 80 },
-          { title: '进度', width: 200, render: (_: any, r: any) => <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ flex: 1, height: 8, background: '#e5e6eb', borderRadius: 4, overflow: 'hidden' }}><div style={{ height: '100%', background: '#165dff', borderRadius: 4, width: `${r.progress ?? 0}%`, transition: 'width .3s' }} /></div><span style={{ fontSize: 13, minWidth: 36 }}>{r.progress ?? 0}%</span></div> },
+          { title: '进度', width: 200, render: (_: any, r: any) => <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ flex: 1, height: 8, background: '#e5e6eb', borderRadius: 4, overflow: 'hidden' }}><div style={{ height: '100%', background: '#10B981', borderRadius: 4, width: `${r.progress ?? 0}%`, transition: 'width .3s' }} /></div><span style={{ fontSize: 13, minWidth: 36 }}>{r.progress ?? 0}%</span></div> },
           { title: '操作', width: 120,
             render: (_: any, r: any) => (
               <Space><Button size="small" type="text" onClick={() => openKrManager(r)}>KR</Button>
@@ -77,7 +78,7 @@ export default function OkrPage() {
         ]} data={objectives} rowKey="id" pagination={false} />
       </Card>
 
-      <Modal focusLock title={editingObj ? '编辑目标' : '新建目标'} visible={modalVisible} onOk={handleObjSubmit} onCancel={() => setModalVisible(false)}>
+      <Modal title={editingObj ? '编辑目标' : '新建目标'} visible={modalVisible} onOk={handleObjSubmit} onCancel={() => setModalVisible(false)}>
         <Form form={form} layout="vertical">
           <Form.Item field="title" label="目标" rules={[{ required: true }]}><Input /></Form.Item>
           <Space><Form.Item field="type" label="类型"><Select options={[{ label: '公司', value: 'company' }, { label: '部门', value: 'department' }, { label: '个人', value: 'personal' }]} /></Form.Item>
@@ -99,7 +100,7 @@ export default function OkrPage() {
 
       <Modal title="更新进度" visible={progressModal} onOk={handleProgress} onCancel={() => setProgressModal(false)}>
         <div style={{ padding: '24px 0' }}>
-          <Slider value={progressValue} onChange={setProgressValue} max={selectedKr?.targetValue || 100} showTicks />
+          <Slider value={progressValue} onChange={(setProgressValue as any)} max={selectedKr?.targetValue || 100} showTicks />
         </div>
       </Modal>
     </PageContainer>

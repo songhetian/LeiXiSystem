@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Button,
   Card,
   Form,
   Input,
-  Message,
   Modal,
   Select,
   Space,
@@ -17,6 +16,7 @@ import { IconPlus, IconEdit, IconDelete, IconExport } from '@arco-design/web-rea
 import type { TableProps } from '@arco-design/web-react'
 import { get, post } from '@/api/request'
 import { PageHeader, TableHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import './index.css'
 
 const FormItem = Form.Item
@@ -94,7 +94,7 @@ function ReportTemplatePage() {
         total: res.data?.total || 0,
       })
     } catch (e: any) {
-      Message.error(e?.message || '加载失败')
+      toast.error(e?.message || '加载失败')
     } finally {
       setLoading(false)
     }
@@ -112,12 +112,12 @@ function ReportTemplatePage() {
     try {
       const values = await form.validate()
       await post('/report-templates', values)
-      Message.success('创建成功')
+      toast.success('创建成功')
       setCreateVisible(false)
       form.resetFields()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '创建失败')
+      toast.error(e?.message || '创建失败')
     }
   }
 
@@ -139,21 +139,21 @@ function ReportTemplatePage() {
     try {
       const values = await editForm.validate()
       await post(`/report-templates/${currentRecord.id}`, values)
-      Message.success('更新成功')
+      toast.success('更新成功')
       setEditVisible(false)
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '更新失败')
+      toast.error(e?.message || '更新失败')
     }
   }
 
   const handleDelete = async (id: number) => {
     try {
       await post(`/report-templates/${id}`, {}, { method: 'DELETE' })
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '删除失败')
+      toast.error(e?.message || '删除失败')
     }
   }
 
@@ -169,7 +169,7 @@ function ReportTemplatePage() {
       link.click()
       window.URL.revokeObjectURL(url)
     } catch (e: any) {
-      Message.error(e?.message || '导出失败')
+      toast.error(e?.message || '导出失败')
     }
   }
 

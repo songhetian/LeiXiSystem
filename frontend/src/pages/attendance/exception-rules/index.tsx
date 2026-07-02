@@ -10,7 +10,6 @@ import {
   Select,
   InputNumber,
   Switch,
-  Message,
   Tag,
   Grid,
 } from '@arco-design/web-react'
@@ -29,6 +28,7 @@ import {
   AUTO_RESOLVE_TYPES,
   type AttendanceExceptionRule,
 } from '@/api/attendance-exception'
+import { toast } from '@/utils/toast'
 import styles from './exception-rules.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -99,10 +99,10 @@ function ExceptionRulesPage() {
       const values = await form.validate()
       if (editingRule) {
         await updateExceptionRule(editingRule.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createExceptionRule(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchRules()
@@ -117,7 +117,7 @@ function ExceptionRulesPage() {
       content: `确定要删除规则「${rule.name}」吗？`,
       onOk: async () => {
         await deleteExceptionRule(rule.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchRules()
       },
     })

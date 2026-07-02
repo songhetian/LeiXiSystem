@@ -159,9 +159,7 @@ function DataExport() {
       await createExportTask({
         type: values.type,
         format: values.format,
-        departmentIds: values.departmentIds || [],
-        startDate,
-        endDate,
+        filters: { departmentIds: values.departmentIds || [], startDate, endDate },
       })
       handleAddRecord({
         fileName: `${typeLabels[values.type]}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.${values.format}`,

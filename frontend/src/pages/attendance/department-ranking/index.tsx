@@ -190,7 +190,7 @@ const DepartmentRankingReport: React.FC = () => {
               x2: 1,
               y2: 0,
               colorStops: [
-                { offset: 0, color: '#165DFF' },
+                { offset: 0, color: '#10B981' },
                 { offset: 1, color: '#4080FF' },
               ],
             },

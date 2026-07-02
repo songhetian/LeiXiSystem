@@ -31,6 +31,8 @@ export interface Employee {
   education?: string
   skills?: string
   remark?: string
+  supervisorId?: number
+  supervisorName?: string
   emergencyContacts?: EmergencyContact[]
 }
 

@@ -56,12 +56,11 @@ function VirtualTable<T extends Record<string, any> = any>(props: VirtualTablePr
   }
 
   return (
-    <div className={styles['virtual-table']} style={{ height }} ref={tableRef}>
+    <div className={styles['virtual-table']} style={{ height }} ref={tableRef} onScroll={handleScroll}>
       <Table
         {...tableProps}
         data={visibleData as T[]}
         columns={columns}
-        onScroll={handleScroll}
         scroll={{ y: typeof height === 'number' ? height : parseInt(String(height)) }}
         pagination={false}
       />

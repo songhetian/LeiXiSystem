@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Card, Form, Message, Select, Space, Table, Tag } from '@arco-design/web-react'
+import { Button, Card, Form, Select, Space, Table, Tag } from '@arco-design/web-react'
 import { IconCheckCircle, IconCloseCircle } from '@arco-design/web-react/icon'
 import { getAttendanceExceptions, resolveAttendanceException } from '@/api/attendance'
 import { batchResolveExceptions } from '@/api/attendance-exception'
@@ -7,6 +7,7 @@ import { PageHeader, FilterBar, ApprovalActionModal, StatusTag, employeeColumn, 
 import { useTableData } from '@/hooks/useTableData'
 import { useExport } from '@/hooks/useExport'
 import { useBatchSelection } from '@/hooks/useBatchSelection'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -60,7 +61,7 @@ function AttendanceExceptionsPage() {
       status: (values.action || 'resolved') as 'resolved' | 'rejected',
       reason: values.comment,
     })
-    Message.success('考勤异常已处理')
+    toast.success('考勤异常已处理')
     setVisible(false)
     await loadData(page)
   }, [detail, loadData, page])
@@ -77,7 +78,7 @@ function AttendanceExceptionsPage() {
       status: (values.action || batchAction) as 'resolved' | 'rejected',
       reason: values.comment,
     })
-    Message.success(`成功处理 ${batch.selectedIds.length} 条考勤异常`)
+    toast.success(`成功处理 ${batch.selectedIds.length} 条考勤异常`)
     setBatchVisible(false)
     batch.clearSelection()
     await loadData(page)
@@ -176,7 +177,7 @@ function AttendanceExceptionsPage() {
           loading={loading}
           data={data}
           columns={columns}
-          rowSelection={batch.getRowSelection(data)}
+          rowSelection={batch.getRowSelection(data) as any}
           pagination={{
             total,
             current: page,

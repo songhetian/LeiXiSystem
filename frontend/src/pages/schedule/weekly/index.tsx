@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, Button, Select, Space, Message, Form, DatePicker } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Card, Button, Select, Space, Form, DatePicker } from '@arco-design/web-react'
 import { IconLeft, IconRight, IconRefresh, IconSave } from '@arco-design/web-react/icon'
 import { getScheduleCalendar, assignSchedule, updateSchedule, deleteSchedule, Schedule } from '@/api/schedule'
 import { getShifts, Shift } from '@/api/shift'
@@ -8,6 +8,8 @@ import { getEmployees } from '@/api/personnel'
 import dayjs from 'dayjs'
 import { PageHeader, FilterBar, ScheduleDrag } from '@/components'
 import type { ScheduleCell, ScheduleShift } from '@/components/ScheduleDrag'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -21,7 +23,7 @@ function getWeekDates(date: Date): string[] {
   for (let i = 0; i < 7; i++) {
     const current = new Date(monday)
     current.setDate(monday.getDate() + i)
-    dates.push(current.toISOString().split('T')[0])
+    dates.push(formatDate(current))
   }
   return dates
 }
@@ -153,7 +155,7 @@ function WeeklyPage() {
   }
 
   const handleScheduleChange = useCallback((_data: ScheduleCell[]) => {
-    Message.info('排班已更新，点击保存按钮提交更改')
+    toast.info('排班已更新，点击保存按钮提交更改')
   }, [])
 
   const handleMoveShift = useCallback(
@@ -179,7 +181,7 @@ function WeeklyPage() {
         )
 
         if (existingShift) {
-          Message.warning('目标位置已有相同班次')
+          toast.warning('目标位置已有相同班次')
           return
         }
 
@@ -196,7 +198,7 @@ function WeeklyPage() {
           return [...updated, { ...newSchedule, id: Date.now() }]
         })
 
-        Message.success('排班已移动')
+        toast.success('排班已移动')
       } catch {
         loadSchedules()
       }
@@ -213,7 +215,7 @@ function WeeklyPage() {
           startDate: date,
           endDate: date,
         })
-        Message.success('排班已添加')
+        toast.success('排班已添加')
         loadSchedules()
       } catch {
         // error handled by interceptor
@@ -226,7 +228,7 @@ function WeeklyPage() {
     async (_employeeId: string | number, _date: string, shiftId: string | number) => {
       try {
         await deleteSchedule(Number(shiftId))
-        Message.success('排班已删除')
+        toast.success('排班已删除')
         loadSchedules()
       } catch {
         // error handled by interceptor
@@ -236,7 +238,7 @@ function WeeklyPage() {
   )
 
   const handleSave = () => {
-    Message.success('排班已保存')
+    toast.success('排班已保存')
     loadSchedules()
   }
 
@@ -297,7 +299,7 @@ function WeeklyPage() {
             <DatePicker
               style={{ width: 160 }}
               value={dayjs(currentWeek)}
-              onChange={(v) => v && setCurrentWeek(v.toDate())}
+              onChange={(_dateString, date) => date && setCurrentWeek(date.toDate())}
             />
             <Button icon={<IconRight />} onClick={handleNextWeek} />
           </Space>

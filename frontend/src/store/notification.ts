@@ -48,7 +48,7 @@ export const useNotificationStore = create<NotificationState>()(
         set({ loading: true })
         try {
           const res = await getNotificationList({ page: 1, pageSize: 50 })
-          if (res.code === 0 || res.success) {
+          if (res.code === 0 || (res as any).success) {
             set({
               notifications: res.data.list,
               unreadCount: res.data.unreadCount,

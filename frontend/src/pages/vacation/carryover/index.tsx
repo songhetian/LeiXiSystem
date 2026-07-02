@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -8,7 +8,6 @@ import {
   Form,
   Input,
   Select,
-  Message,
   Tag,
   Grid,
 } from '@arco-design/web-react'
@@ -28,6 +27,7 @@ import {
   type VacationType,
 } from '@/api/vacation'
 import { DepartmentSelect } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './carryover.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -132,7 +132,7 @@ function CarryoverPage() {
         departmentId: values.departmentId,
       })
       if (res.code === 0) {
-        Message.success(
+        toast.success(
           `结转成功：处理 ${res.data.processedEmployees}/${res.data.totalEmployees} 人，共结转 ${res.data.totalCarryoverDays} 天`
         )
         setCarryoverModalVisible(false)
@@ -159,7 +159,7 @@ function CarryoverPage() {
         vacationTypeId: values.vacationTypeId,
       })
       if (res.code === 0) {
-        Message.success(
+        toast.success(
           `处理完成：共 ${res.data.totalRecords} 条记录，过期 ${res.data.expiredRecords} 条，过期天数 ${res.data.expiredDays} 天`
         )
         setExpireModalVisible(false)

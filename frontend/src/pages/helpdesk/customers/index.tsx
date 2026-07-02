@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Message, Popconfirm } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer, getCustomer } from '@/api/helpdesk'
 import type { Customer } from '@/api/helpdesk'
+import { toast } from '@/utils/toast'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -29,8 +30,8 @@ export default function CustomersPage() {
     try {
       const v = await form.validate()
       editing ? await updateCustomer(editing.id, v) : await createCustomer(v)
-      Message.success('保存成功'); setModalVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const cols = [
@@ -60,7 +61,7 @@ export default function CustomersPage() {
       <Card className="lx-fade-in">
         <Table columns={cols} data={customers} loading={loading} rowKey="id" pagination={{ current: page, total, pageSize: 20, onChange: setPage }} />
       </Card>
-      <Modal focusLock title={editing ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)}>
+      <Modal title={editing ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)}>
         <Form form={form} layout="vertical">
           <Form.Item field="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item field="contactName" label="联系人"><Input /></Form.Item>
@@ -71,7 +72,7 @@ export default function CustomersPage() {
           <Form.Item field="status" label="状态"><Select options={[{ label: '正常', value: 'active' }, { label: '停用', value: 'inactive' }]} /></Form.Item>
         </Form>
       </Modal>
-      <Modal focusLock title={`${detail?.name} 详情`} visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={600}>
+      <Modal title={`${detail?.name} 详情`} visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={600}>
         <div>联系人: {detail?.contactName || '-'} | 电话: {detail?.phone || '-'} | 邮箱: {detail?.email || '-'}</div>
         <div>地址: {detail?.address || '-'} | 标签: {detail?.tags || '-'}</div>
       </Modal>

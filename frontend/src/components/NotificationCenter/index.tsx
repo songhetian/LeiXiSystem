@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Popover, List, Button, Badge, Empty, Tag, Space, Typography, Spin } from '@arco-design/web-react'
+import { Popover, List, Button, Badge, Empty, Typography, Spin } from '@arco-design/web-react'
 import { IconNotification, IconEmpty, IconRight } from '@arco-design/web-react/icon'
 import { useNavigate } from 'react-router-dom'
 import { useNotificationStore } from '@/store/notification'
@@ -8,21 +8,21 @@ import styles from './notification-center.module.css'
 const { Text } = Typography
 
 interface NotificationCenterProps {
-  placement?: 'top' | 'bottom' | 'left' | 'right' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight'
+  placement?: 'top' | 'bottom' | 'left' | 'right' | 'tl' | 'tr' | 'bl' | 'br' | 'lt' | 'lb' | 'rt' | 'rb'
 }
 
-function getTypeColor(type: string): string {
-  const colorMap: Record<string, string> = {
-    success: 'green',
-    warning: 'orange',
-    error: 'red',
-    info: 'blue',
-    system: 'arcoblue',
-    announcement: 'purple',
-    approval: 'orange',
-    attendance: 'green',
+function getTypeClass(type: string): string {
+  const classMap: Record<string, string> = {
+    success: styles['notification-center__item-type--success'],
+    warning: styles['notification-center__item-type--warning'],
+    error: styles['notification-center__item-type--error'],
+    info: styles['notification-center__item-type--info'],
+    system: styles['notification-center__item-type--system'],
+    announcement: styles['notification-center__item-type--announcement'],
+    approval: styles['notification-center__item-type--approval'],
+    attendance: styles['notification-center__item-type--attendance'],
   }
-  return colorMap[type] || 'blue'
+  return classMap[type] || styles['notification-center__item-type--info']
 }
 
 function getTypeLabel(type: string): string {
@@ -54,7 +54,7 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString()
 }
 
-export function NotificationCenter({ placement = 'bottomRight' }: NotificationCenterProps) {
+export function NotificationCenter({ placement = 'br' }: NotificationCenterProps) {
   const navigate = useNavigate()
   const { notifications, unreadCount, loading, loaded, markAsRead, markAllAsRead, fetchNotifications } = useNotificationStore()
   const [visible, setVisible] = useState(false)
@@ -84,26 +84,42 @@ export function NotificationCenter({ placement = 'bottomRight' }: NotificationCe
   const content = (
     <div className={styles['notification-center']}>
       <div className={styles['notification-center__header']}>
-        <span className={styles['notification-center__title']}>消息通知</span>
-        <Space>
-          <Button type="text" size="small" onClick={handleMarkAllRead} disabled={unreadCount === 0}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span className={styles['notification-center__title']}>消息通知</span>
+          {unreadCount > 0 && (
+            <span className={styles['notification-center__badge-count']}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </div>
+        <div className={styles['notification-center__actions']}>
+          <Button
+            type="text"
+            size="mini"
+            onClick={handleMarkAllRead}
+            disabled={unreadCount === 0}
+            className={styles['notification-center__mark-all']}
+          >
             全部已读
           </Button>
-        </Space>
+        </div>
       </div>
       <div className={styles['notification-center__list']} ref={listRef}>
         {loading && notifications.length === 0 ? (
           <div className={styles['notification-center__loading']}>
-            <Spin size={20} />
+            <Spin size={24} />
           </div>
         ) : notifications.length === 0 ? (
-          <Empty
-            icon={<IconEmpty style={{ fontSize: 48 }} />}
-            description="暂无通知消息"
-            style={{ padding: '40px 0' }}
-          />
+          <div className={styles['notification-center__empty']}>
+            <Empty
+              icon={<IconEmpty style={{ fontSize: 56, color: 'var(--text-color-disabled)' }} />}
+              description={
+                <Text type="secondary" style={{ fontSize: 13 }}>暂无通知消息</Text>
+              }
+            />
+          </div>
         ) : (
-          <List size="small" bordered={false}>
+          <List size="small" bordered={false} split={false}>
             {notifications.slice(0, 10).map((item) => (
               <List.Item
                 key={item.id}
@@ -112,9 +128,9 @@ export function NotificationCenter({ placement = 'bottomRight' }: NotificationCe
               >
                 <div className={styles['notification-center__item-content']}>
                   <div className={styles['notification-center__item-header']}>
-                    <Tag color={getTypeColor(item.type)} size="small">
+                    <span className={`${styles['notification-center__item-type']} ${getTypeClass(item.type)}`}>
                       {getTypeLabel(item.type)}
-                    </Tag>
+                    </span>
                     <Text type="secondary" className={styles['notification-center__item-time']}>
                       {formatTime(item.createdAt)}
                     </Text>
@@ -130,8 +146,13 @@ export function NotificationCenter({ placement = 'bottomRight' }: NotificationCe
       </div>
       {notifications.length > 0 && (
         <div className={styles['notification-center__footer']}>
-          <Button type="text" size="small" onClick={handleViewAll}>
-            查看全部 <IconRight style={{ fontSize: 12 }} />
+          <Button
+            type="text"
+            size="small"
+            onClick={handleViewAll}
+            className={styles['notification-center__footer-btn']}
+          >
+            查看全部通知 <IconRight style={{ fontSize: 12 }} />
           </Button>
         </div>
       )}
@@ -147,7 +168,12 @@ export function NotificationCenter({ placement = 'bottomRight' }: NotificationCe
       onVisibleChange={setVisible}
     >
       <Badge count={unreadCount} dot={unreadCount > 99}>
-        <span className={styles['layout-header__icon']} role="status" aria-live="polite" aria-label={`消息通知${unreadCount > 0 ? `，${unreadCount}条未读` : ''}`}>
+        <span
+          className={styles['layout-header__icon']}
+          role="status"
+          aria-live="polite"
+          aria-label={`消息通知${unreadCount > 0 ? `，${unreadCount}条未读` : ''}`}
+        >
           <IconNotification />
         </span>
       </Badge>

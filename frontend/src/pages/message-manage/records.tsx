@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+﻿import { useState, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -20,6 +20,7 @@ import {
   deleteMessageTask,
 } from '@/api/message'
 import { PageHeader, TableHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './records.module.css'
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: '待发送', color: 'gray' },
@@ -133,7 +134,7 @@ export default function MessageRecords() {
       onOk: async () => {
         try {
           await cancelMessageTask(item.id)
-          Message.success('取消成功')
+          toast.success('取消成功')
           fetchData()
         } catch {
           // ignore
@@ -146,11 +147,10 @@ export default function MessageRecords() {
     Modal.confirm({
       title: '删除任务',
       content: `确定要删除任务「${item.title}」吗？此操作不可恢复。`,
-      status: 'warning',
       onOk: async () => {
         try {
           await deleteMessageTask(item.id)
-          Message.success('删除成功')
+          toast.success('删除成功')
           fetchData()
         } catch {
           // ignore
@@ -313,8 +313,6 @@ export default function MessageRecords() {
       <PageHeader title="发送记录" description="查看所有消息发送任务的状态和详情。" />
 
       <FilterBar
-        keyword={keyword}
-        onKeywordChange={setKeyword}
         onSearch={handleSearch}
         onReset={handleReset}
         filters={[
@@ -334,7 +332,7 @@ export default function MessageRecords() {
             onChange: setFilterStatus,
             options: STATUS_OPTIONS,
           },
-        ]}
+        ] as any}
       />
 
       <TableHeader title="任务列表" total={total} />

@@ -1,48 +1,149 @@
-/* ==================== 左侧菜单 ==================== */
+/* ═══════════════════════════════════════════════════════════
+   雷犀系统 v5 — 企业级高端商务布局
+   Jade Green Enterprise Layout — Deep Optimized
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Layout wrapper ── */
+.layout-wrapper {
+  height: 100vh;
+  background-color: var(--lx-bg-page, #F9FAFB);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Sidebar (Arco Design Pro — White Light Theme)
+   ══════════════════════════════════════════════════════════ */
+.layout-sider {
+  background: #FFFFFF !important;
+  position: relative;
+  z-index: var(--lx-z-sidebar, 100);
+  border-right: 1px solid var(--lx-gray-200, #E5E7EB);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Logo area */
 .sider-logo {
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  padding: 0 20px;
   gap: 12px;
-  border-bottom: 1px solid var(--color-border-1);
-  background: linear-gradient(135deg, rgba(var(--primary-6), 0.02) 0%, transparent 100%);
+  border-bottom: 1px solid var(--lx-gray-200, #E5E7EB);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: padding 0.25s;
+}
+
+.sider-logo:hover .sider-logo__icon {
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  transform: scale(1.04);
 }
 
 .sider-logo__icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, rgb(var(--primary-6)) 0%, rgb(var(--primary-5)) 100%);
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #10B981, #059669);
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 18px;
-  font-weight: 700;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(var(--primary-6), 0.25);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  letter-spacing: 0.02em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sider-logo__text {
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lx-gray-900, #111827);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Sidebar version label */
+.sider-version {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--lx-gray-400, #9CA3AF);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 0.04em;
+}
+
+/* Menu — Arco Design Pro light style */
+.sider-menu {
+  border-right: none !important;
+  background: transparent !important;
+}
+
+/* Selected item: jade green text + light green background */
+.sider-menu :global(.arco-menu-selected) {
+  color: #059669 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
   font-weight: 600;
-  color: var(--color-text-1);
-  letter-spacing: 0.5px;
 }
 
-/* ==================== 布局整体 ==================== */
-.layout-wrapper {
-  height: 100vh;
-  background-color: var(--color-fill-2);
+.sider-menu :global(.arco-menu-selected .arco-menu-icon) {
+  color: #059669 !important;
 }
 
-/* ==================== 头部 ==================== */
+/* Hover state */
+.sider-menu :global(.arco-menu-item:hover),
+.sider-menu :global(.arco-menu-inline-header:hover) {
+  background: var(--lx-gray-50, #F9FAFB) !important;
+}
+
+/* SubMenu expanded header */
+.sider-menu :global(.arco-menu-inline-header) {
+  font-weight: 500;
+}
+
+/* Scrollbar inside sidebar menu */
+.sider-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sider-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sider-menu::-webkit-scrollbar-thumb {
+  background: var(--lx-gray-300, #D1D5DB);
+  border-radius: 4px;
+}
+
+.sider-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--lx-gray-400, #9CA3AF);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Header (Refined Premium)
+   ══════════════════════════════════════════════════════════ */
 .layout-header {
-  background: var(--color-bg-2);
+  background: var(--lx-header-bg, #FFFFFF);
   padding: 0 24px;
-  border-bottom: 1px solid var(--color-border-1);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--lx-header-border, #E5E7EB);
+  height: var(--lx-header-height, 60px);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  position: relative;
+  z-index: var(--lx-z-header, 90);
 }
 
 .layout-header__content {
@@ -52,69 +153,302 @@
   height: 100%;
 }
 
+/* ── Left section: toggle + breadcrumb ── */
+.layout-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* ── Right section: icons + user ── */
+.layout-header__right {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Menu toggle button ── */
 .layout-header__menu-toggle {
   cursor: pointer;
-  font-size: 20px;
-  color: var(--color-text-2);
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  font-size: 18px;
+  color: var(--lx-gray-500, #6B7280);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .layout-header__menu-toggle:hover {
-  background-color: var(--color-fill-2);
-  color: var(--color-text-1);
+  background-color: rgba(16, 185, 129, 0.06);
+  color: var(--lx-primary-6, #10B981);
 }
 
+.layout-header__menu-toggle:active {
+  transform: scale(0.92);
+}
+
+/* ── Breadcrumb ── */
+.layout-header__breadcrumb {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-header__breadcrumb-link {
+  color: var(--lx-gray-400, #9CA3AF);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.2s;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.layout-header__breadcrumb-link:hover {
+  color: var(--lx-primary-6, #10B981);
+}
+
+.layout-header__breadcrumb-current {
+  color: var(--lx-gray-700, #374151);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+/* Override Arco breadcrumb separator to be lighter */
+:global(.layout-header__breadcrumb) :global(.arco-breadcrumb-item-separator) {
+  color: var(--lx-gray-300, #D1D5DB);
+}
+
+/* ── Header separator (vertical line before user menu) ── */
+.layout-header__separator {
+  width: 1px;
+  height: 20px;
+  background: var(--lx-gray-200, #E5E7EB);
+  margin: 0 4px;
+}
+
+/* ── Header icons (generic) ── */
 .layout-header__icon {
   cursor: pointer;
-  font-size: 20px;
-  color: var(--color-text-2);
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font-size: 18px;
+  color: var(--lx-gray-500, #6B7280);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .layout-header__icon:hover {
-  background-color: var(--color-fill-2);
-  color: rgb(var(--primary-6));
+  background-color: rgba(16, 185, 129, 0.06);
+  color: var(--lx-primary-6, #10B981);
 }
 
+/* ── Theme toggle icon with rotation ── */
+.layout-header__icon--theme {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.layout-header__icon--theme:hover {
+  transform: rotate(15deg);
+}
+
+.layout-header__icon--theme:active {
+  transform: rotate(30deg) scale(0.92);
+}
+
+/* ── User menu area ── */
 .layout-header__user-menu {
   cursor: pointer;
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
   border-radius: 8px;
-  transition: background-color 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .layout-header__user-menu:hover {
-  background-color: var(--color-fill-2);
+  background-color: var(--lx-gray-100, #F3F4F6);
 }
 
-/* ==================== 内容区 ==================== */
-.layout-content {
-  padding: 16px 24px 24px;
-  background-color: var(--color-fill-2);
-  overflow: auto;
-  /* 内容居中，但最大宽度限制 */
+/* ── User name text ── */
+.layout-header__user-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--lx-gray-700, #374151);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════
+   User Dropdown — Premium Card
+   ══════════════════════════════════════════════════════════ */
+.user-dropdown {
+  width: 220px;
+  background: var(--bg-color-container, #fff);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14), 0 6px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-color-light, #F3F4F6);
+  overflow: hidden;
+}
+
+.user-dropdown__header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
 }
 
-/* 内容区内的页面容器 - 居中布局 */
-.layout-content > * {
-  width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
+.user-dropdown__info {
+  flex: 1;
+  min-width: 0;
 }
 
-/* 大屏幕时增加间距 */
+.user-dropdown__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-color-primary, #111827);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-dropdown__role {
+  font-size: 12px;
+  color: var(--text-color-tertiary, #9CA3AF);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.user-dropdown__divider {
+  height: 1px;
+  background: var(--border-color-light, #F3F4F6);
+  margin: 0 12px;
+}
+
+/* Override Arco menu inside dropdown */
+.user-dropdown :global(.arco-menu) {
+  padding: 4px 0 !important;
+}
+
+.user-dropdown :global(.arco-menu-item) {
+  margin: 1px 6px !important;
+  border-radius: 6px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 13px !important;
+  padding: 0 12px !important;
+  transition: all 0.15s;
+}
+
+.user-dropdown :global(.arco-menu-item:hover) {
+  background: rgba(16, 185, 129, 0.06) !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Content Area
+   ══════════════════════════════════════════════════════════ */
+.layout-content {
+  padding: 20px 24px;
+  background-color: var(--lx-bg-page, #F9FAFB);
+  overflow: auto;
+  flex: 1;
+  border-radius: 16px 16px 0 0;
+}
+
+/* Large screens: more generous padding */
 @media (min-width: 1600px) {
   .layout-content {
-    padding: 20px 32px 32px;
+    padding: 24px 32px;
   }
-  
-  .layout-content > * {
-    max-width: 1600px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Dark Mode Overrides
+   ══════════════════════════════════════════════════════════ */
+
+/* Sidebar in dark mode */
+:global(body.arco-theme-dark) .layout-sider {
+  background: #1A2332 !important;
+  border-right-color: var(--lx-gray-700, #374151);
+}
+
+:global(body.arco-theme-dark) .sider-logo {
+  border-bottom-color: var(--lx-gray-700, #374151);
+}
+
+:global(body.arco-theme-dark) .sider-logo__text {
+  color: var(--lx-gray-100, #F3F4F6);
+}
+
+:global(body.arco-theme-dark) .sider-menu :global(.arco-menu-selected) {
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+
+:global(body.arco-theme-dark) .sider-menu :global(.arco-menu-item:hover),
+:global(body.arco-theme-dark) .sider-menu :global(.arco-menu-inline-header:hover) {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+:global(body.arco-theme-dark) .sider-menu::-webkit-scrollbar-thumb {
+  background: var(--lx-gray-600, #4B5563);
+}
+
+/* Header in dark mode */
+:global(body.arco-theme-dark) .layout-header {
+  background: var(--lx-header-bg);
+  border-bottom-color: var(--lx-header-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+:global(body.arco-theme-dark) .layout-header__separator {
+  background: var(--lx-gray-700);
+}
+
+:global(body.arco-theme-dark) .layout-header__user-menu:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+:global(body.arco-theme-dark) .layout-header__user-name {
+  color: var(--lx-gray-300);
+}
+
+:global(body.arco-theme-dark) .layout-header__breadcrumb-current {
+  color: var(--lx-gray-200);
+}
+
+:global(body.arco-theme-dark) .user-dropdown {
+  background: var(--bg-color-container);
+  border-color: var(--border-color);
+}
+
+:global(body.arco-theme-dark) .user-dropdown__divider {
+  background: var(--border-color);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Responsive
+   ══════════════════════════════════════════════════════════ */
+
+/* Hide username on small screens to save space */
+@media (max-width: 1200px) {
+  .layout-header__user-name {
+    display: none;
+  }
+
+  .layout-header {
+    padding: 0 16px;
   }
 }

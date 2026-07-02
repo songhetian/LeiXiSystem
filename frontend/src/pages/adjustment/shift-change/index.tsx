@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Popconfirm,
   Card,
@@ -23,6 +22,7 @@ import type { TableProps } from '@arco-design/web-react'
 import { getShiftChangeList } from '@/api/adjustment'
 import type { ShiftChange } from '@/api/adjustment'
 import { FilterBar, TableHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './shift-change.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -154,13 +154,13 @@ function ShiftChangePage() {
   }
 
   const handleCancel = (_id: number) => {
-    Message.info('功能开发中')
+    toast.info('功能开发中')
   }
 
   const handleOk = async () => {
     try {
       await form.validate()
-      Message.info('调班功能开发中')
+      toast.info('调班功能开发中')
       setVisible(false)
     } catch {
       // error handled by interceptor

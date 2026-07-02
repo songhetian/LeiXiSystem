@@ -33,7 +33,7 @@ describe('toast 工具', () => {
     it('应该使用默认 duration', () => {
       toast.success('test')
       expect(Message.success).toHaveBeenCalledWith(
-        expect.objectContaining({ duration: 3000 })
+        expect.objectContaining({ duration: 2500 })
       )
     })
 

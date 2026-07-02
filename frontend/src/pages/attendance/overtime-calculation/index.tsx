@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Card, Table, Button, Tag, Space, Message, Select } from '@arco-design/web-react'
+import { Card, Table, Button, Tag, Space, Select } from '@arco-design/web-react'
 import PageContainer from '@/components/PageContainer'
 import { get, post } from '@/api/request'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 
 export default function OvertimeCalculationPage() {
   const [items, setItems] = useState<any[]>([])
@@ -16,8 +18,8 @@ export default function OvertimeCalculationPage() {
   const handleSettle = async (id: number, hourSource: string) => {
     try {
       await post(`/overtime-payroll/settle/${id}`, { hourSource })
-      Message.success('核算成功'); fetchAll()
-    } catch (e: any) { Message.error(e.message || '核算失败') }
+      toast.success('核算成功'); fetchAll()
+    } catch (e: any) { toast.error(e.message || '核算失败') }
   }
 
   return (
@@ -28,7 +30,7 @@ export default function OvertimeCalculationPage() {
       <Card className="lx-fade-in">
         <Table columns={[
           { title: '员工', dataIndex: 'employeeName', width: 100 },
-          { title: '日期', dataIndex: 'date', width: 120, render: (v: string) => v?.split('T')[0] },
+          { title: '日期', dataIndex: 'date', width: 120, render: (v: string) => v ? formatDate(v) : '' },
           { title: '类型', dataIndex: 'overtimeType', width: 80, render: (v: string) => <Tag size="small">{v}</Tag> },
           { title: '申请时长', dataIndex: 'appliedHours', width: 90, render: (v: number) => `${v}h` },
           { title: '实际打卡', dataIndex: 'actualHours', width: 90, render: (v: number) => v ? `${v}h` : <span style={{ color: '#999' }}>未匹配</span> },

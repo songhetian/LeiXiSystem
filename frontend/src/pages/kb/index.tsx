@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Message, Popconfirm, Tabs } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm, Tabs } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { getKbArticles, createKbArticle, updateKbArticle, deleteKbArticle, getKbCategories, getKbArticle } from '@/api/kb'
 import type { KbArticle } from '@/api/kb'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 
 export default function KbPage() {
   const [articles, setArticles] = useState<KbArticle[]>([])
@@ -33,8 +35,8 @@ export default function KbPage() {
     try {
       const v = await form.validate()
       editing ? await updateKbArticle(editing.id, v) : await createKbArticle(v)
-      Message.success('保存成功'); setModalVisible(false); fetchArticles()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchArticles()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const cols = [
@@ -43,7 +45,7 @@ export default function KbPage() {
     { title: '阅读', dataIndex: 'viewCount', width: 80 },
     { title: '有帮助', dataIndex: 'helpfulCount', width: 90 },
     { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag size="small" color={v === 'published' ? 'green' : 'gray'}>{v}</Tag> },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 120, render: (v: string) => v?.split('T')[0] },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 120, render: (v: string) => v ? formatDate(v) : '' },
     { title: '操作', width: 120,
       render: (_: any, r: KbArticle) => (
         <Space><Button size="small" type="text" onClick={() => openEdit(r)}>编辑</Button>
@@ -74,7 +76,7 @@ export default function KbPage() {
         <Table columns={cols} data={articles} rowKey="id" pagination={false} />
       </Card>
 
-      <Modal focusLock title={editing ? '编辑' : '新建'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={700}>
+      <Modal title={editing ? '编辑' : '新建'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={700}>
         <Form form={form} layout="vertical">
           <Form.Item field="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item field="categoryId" label="分类"><Select options={categories.map((c: any) => ({ label: c.name, value: c.id }))} allowClear /></Form.Item>
@@ -84,7 +86,7 @@ export default function KbPage() {
         </Form>
       </Modal>
 
-      <Modal focusLock title={detail?.title} visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={600}>
+      <Modal title={detail?.title} visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={600}>
         <div style={{ whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto' }}>{detail?.content}</div>
         <Space style={{ marginTop: 12 }}><Tag>阅读 {detail?.viewCount || 0}</Tag><Tag color="green">有帮助 {detail?.helpfulCount || 0}</Tag></Space>
       </Modal>

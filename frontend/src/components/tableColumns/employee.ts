@@ -1,10 +1,10 @@
-import { TableColumn } from '@arco-design/web-react'
+import type { ColumnProps } from '@arco-design/web-react/es/Table/interface'
 import { RecordWithEmployee } from '@/types/common'
 
 /**
  * 员工姓名列
  */
-export function employeeColumn(): TableColumn<RecordWithEmployee> {
+export function employeeColumn(): ColumnProps<RecordWithEmployee> {
   return {
     title: '员工',
     render: (_: unknown, record: RecordWithEmployee) => record.employee?.user?.realName || '-',
@@ -14,7 +14,7 @@ export function employeeColumn(): TableColumn<RecordWithEmployee> {
 /**
  * 部门列
  */
-export function departmentColumn(): TableColumn<RecordWithEmployee> {
+export function departmentColumn(): ColumnProps<RecordWithEmployee> {
   return {
     title: '部门',
     render: (_: unknown, record: RecordWithEmployee) => record.employee?.user?.department?.name || '-',
@@ -24,7 +24,7 @@ export function departmentColumn(): TableColumn<RecordWithEmployee> {
 /**
  * 员工姓名列（带工号）
  */
-export function employeeWithNoColumn(): TableColumn<RecordWithEmployee & { employee?: { employeeNo?: string } }> {
+export function employeeWithNoColumn(): ColumnProps<RecordWithEmployee & { employee?: { employeeNo?: string } }> {
   return {
     title: '员工',
     render: (_: unknown, record: any) => {
@@ -38,7 +38,7 @@ export function employeeWithNoColumn(): TableColumn<RecordWithEmployee & { emplo
 /**
  * 扁平数据结构 - 员工姓名列
  */
-export function flatEmployeeNameColumn(): TableColumn<{ employeeName?: string }> {
+export function flatEmployeeNameColumn(): ColumnProps<{ employeeName?: string }> {
   return {
     title: '申请人',
     dataIndex: 'employeeName',
@@ -49,7 +49,7 @@ export function flatEmployeeNameColumn(): TableColumn<{ employeeName?: string }>
 /**
  * 扁平数据结构 - 工号列
  */
-export function flatEmployeeNoColumn(): TableColumn<{ employeeNo?: string }> {
+export function flatEmployeeNoColumn(): ColumnProps<{ employeeNo?: string }> {
   return {
     title: '工号',
     dataIndex: 'employeeNo',
@@ -60,7 +60,7 @@ export function flatEmployeeNoColumn(): TableColumn<{ employeeNo?: string }> {
 /**
  * 扁平数据结构 - 部门列
  */
-export function flatDepartmentNameColumn(): TableColumn<{ departmentName?: string }> {
+export function flatDepartmentNameColumn(): ColumnProps<{ departmentName?: string }> {
   return {
     title: '部门',
     dataIndex: 'departmentName',

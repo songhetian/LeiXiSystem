@@ -6,19 +6,20 @@ import { getCache, setCache } from './requestCache'
 import { requestWithRetry } from './requestRetry'
 import { logger } from '@/utils/logger'
 
-interface ExtendedRequestConfig extends AxiosRequestConfig {
-  /** 是否启用请求取消（防重复提交），默认 true */
-  cancelDuplicate?: boolean
-  /** 是否启用缓存（仅 GET 请求），默认 false */
-  useCache?: boolean
-  /** 缓存时间（毫秒），默认 5 分钟 */
-  cacheTime?: number
-  /** 重试配置 */
-  retryConfig?: {
-    retries?: number
-    retryDelay?: number
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    cancelDuplicate?: boolean
+    useCache?: boolean
+    cacheTime?: number
+    silent?: boolean
+    retryConfig?: {
+      retries?: number
+      retryDelay?: number
+    }
   }
 }
+
+type ExtendedRequestConfig = AxiosRequestConfig
 
 const request: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -30,7 +31,7 @@ const request: AxiosInstance = axios.create({
 })
 
 request.interceptors.request.use(
-  (config: ExtendedRequestConfig) => {
+  (config) => {
     const { cancelDuplicate = true, useCache = false, method } = config
 
     // Inject Authorization token
@@ -82,11 +83,15 @@ request.interceptors.response.use(
     }
 
     if (data && data.success === false) {
-      toast.error(data.message || '请求失败')
+      if (!config.silent) {
+        toast.error(data.message || '请求失败')
+      }
       return Promise.reject(data)
     }
     if (data && typeof data === 'object' && 'code' in data && data.code !== 0) {
-      toast.error(data.message || '请求失败')
+      if (!config.silent) {
+        toast.error(data.message || '请求失败')
+      }
       return Promise.reject(data)
     }
     return data
@@ -100,6 +105,11 @@ request.interceptors.response.use(
 
     if (error.code === 'ERR_CANCELED') {
       logger.debug('请求已取消', config?.url)
+      return Promise.reject(error)
+    }
+
+    // Silent mode: suppress toast & redirect, let caller handle errors
+    if (config?.silent) {
       return Promise.reject(error)
     }
 

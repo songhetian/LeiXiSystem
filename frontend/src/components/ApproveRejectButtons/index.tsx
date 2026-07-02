@@ -4,7 +4,7 @@ interface ApproveRejectButtonsProps {
   onApprove: () => void
   onReject: () => void
   disabled?: boolean
-  size?: 'small' | 'mini' | 'medium' | 'large'
+  size?: 'small' | 'mini' | 'default' | 'large'
 }
 
 function ApproveRejectButtons({ onApprove, onReject, disabled = false, size = 'small' }: ApproveRejectButtonsProps) {

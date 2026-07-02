@@ -1,6 +1,6 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useMemo, useState, useEffect, useCallback } from 'react'
 import type { ComponentType } from 'react'
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Space, Divider, Tooltip } from '@arco-design/web-react'
+import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Space, Tooltip } from '@arco-design/web-react'
 import {
   IconDashboard,
   IconUserGroup,
@@ -24,6 +24,10 @@ import {
   IconNotification,
   IconSun,
   IconMoon,
+  IconHome,
+  IconRight,
+  IconPoweroff,
+  IconLock,
 } from '@arco-design/web-react/icon'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -216,6 +220,7 @@ const menuList: MenuConfig[] = [
     icon: IconCalendar,
     label: '考勤打卡核算',
     children: [
+      { key: '/attendance/clock-in', label: '打卡' },
       { key: '/attendance/records', label: '打卡记录' },
       { key: '/attendance/calculation', label: '考勤核算' },
       { key: '/attendance/exceptions', label: '考勤异常' },
@@ -437,9 +442,8 @@ const pathPermissionMap: Record<string, string | undefined> = {
 function PageLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [collapsed, setCollapsed] = useState(false)
   const { user, permissions, logoutRemote } = useAuthStore()
-  const { theme, toggleTheme } = useAppStore()
+  const { theme, toggleTheme, sidebarCollapsed, setSidebarCollapsed } = useAppStore()
 
   const canAccessPath = (path: string) => hasClientPermission({
     roles: user?.roles,
@@ -458,6 +462,61 @@ function PageLayout() {
     })
     .filter(Boolean) as MenuConfig[]
 
+  // Track which submenus are open — merge auto-detected + user-toggled
+  const autoOpenKeys = useMemo(() => {
+    const keys: string[] = []
+    for (const item of visibleMenuList) {
+      if (item.children) {
+        const match = item.children.some((c) => c.key === location.pathname)
+        if (match) keys.push(item.key)
+      }
+    }
+    return keys
+  }, [visibleMenuList, location.pathname])
+
+  const [openKeys, setOpenKeys] = useState<string[]>(autoOpenKeys)
+
+  // When route changes, auto-open the relevant submenu (keep user's other opens)
+  useEffect(() => {
+    setOpenKeys((prev) => {
+      const merged = new Set([...prev, ...autoOpenKeys])
+      return Array.from(merged)
+    })
+  }, [autoOpenKeys])
+
+  // Handle user clicking a submenu header
+  const handleClickSubMenu = useCallback((_key: string, newOpenKeys: string[]) => {
+    setOpenKeys(newOpenKeys)
+  }, [])
+
+  // Auto-build breadcrumb from menuList — no more hardcoded pathMap
+  const breadcrumbItems = useMemo(() => {
+    const currentPath = location.pathname
+    let parentLabel = ''
+    let currentLabel = ''
+
+    for (const item of visibleMenuList) {
+      if (item.key === currentPath) {
+        currentLabel = item.label
+        break
+      }
+      if (item.children) {
+        const child = item.children.find((c) => c.key === currentPath)
+        if (child) {
+          parentLabel = item.label
+          currentLabel = child.label
+          break
+        }
+      }
+    }
+
+    const items = [{ label: '首页', path: '/dashboard' }]
+    if (parentLabel) items.push({ label: parentLabel, path: '' })
+    if (currentLabel) items.push({ label: currentLabel, path: '' })
+
+    return items
+  }, [visibleMenuList, location.pathname])
+
   const handleLogout = async () => {
     await logoutRemote()
     navigate('/login')
@@ -467,91 +526,73 @@ function PageLayout() {
     navigate(key)
   }
 
-  const getBreadcrumbItems = () => {
-    const pathMap: Record<string, string> = {
-      '/dashboard': '仪表盘',
-      '/personnel/employee': '员工管理',
-      '/personnel/lifecycle': '员工生命周期',
-      '/personnel/department': '部门管理',
-      '/personnel/position': '岗位管理',
-      '/personnel/changes': '变动记录',
-      '/attendance/home': '考勤首页',
-      '/attendance/records': '打卡记录',
-      '/attendance/schedule': '排班管理',
-      '/attendance/shift': '班次管理',
-      '/attendance/leave': '请假管理',
-      '/attendance/overtime': '加班管理',
-      '/attendance/stats': '考勤统计',
-      '/attendance/settings': '考勤设置',
-      '/attendance/calculation': '考勤核算',
-      '/attendance/exceptions': '考勤异常',
-      '/attendance/corrections': '补卡申请',
-      '/payroll/components': '薪资组件',
-      '/payroll/structures': '薪资结构',
-      '/payroll/assignments': '薪资分配',
-      '/payroll/runs': '薪资批次',
-      '/payroll/payslips': '工资条管理',
-      '/payroll/adjustments': '薪资调整项',
-      '/payroll/disputes': '工资条申诉',
-      '/payroll/my-payslips': '我的工资条',
-      '/security/audit-logs': '审计日志',
-      '/asset/items': '资产台账',
-      '/helpdesk/tickets': '服务工单',
-      '/recruitment/overview': '招聘总览',
-      '/performance/overview': '绩效总览',
-      '/training/overview': '培训总览',
-      '/schedule/calendar': '排班日历',
-      '/schedule/assign': '排班分配',
-      '/schedule/rules': '排班规则',
-      '/schedule/recommend': '智能排班',
-      '/schedule/swaps': '换班申请',
-      '/schedule/secondments': '借调管理',
-      '/schedule/templates': '排班模板',
-      '/schedule/publish': '发布确认',
-      '/my/schedule': '我的排班',
-      '/system/announcement': '公告管理',
-      '/system/config': '配置导出导入',
-      '/system/report-template': '报表模板',
-      '/personnel/employee-tag': '员工标签',
-      '/personnel/certificate': '证明管理',
-      '/profile/certificate': '证明申请',
-      '/attendance/deduction-rules': '扣款规则',
-      '/vacation/carryover': '结转记录',
-      '/payroll/structure-versions': '结构版本',
-      '/settings': '系统设置',
-    }
-    return ['首页', pathMap[location.pathname] || '页面']
-  }
-
+  // Premium user dropdown with info header
   const userDropdownMenu = (
-    <Menu>
-      <MenuItem key="profile">个人信息</MenuItem>
-      <MenuItem key="settings" onClick={() => navigate('/settings')}>账号设置</MenuItem>
-      <Divider style={{ margin: '4px 0' }} />
-      <MenuItem key="logout" onClick={handleLogout}>
-        退出登录
-      </MenuItem>
-    </Menu>
+    <div className={styles['user-dropdown']}>
+      <div className={styles['user-dropdown__header']}>
+        <Avatar size={40} style={{ backgroundColor: '#10B981', fontSize: 16 }}>
+          {user?.realName?.[0] || <IconUser />}
+        </Avatar>
+        <div className={styles['user-dropdown__info']}>
+          <div className={styles['user-dropdown__name']}>{user?.realName || '用户'}</div>
+          <div className={styles['user-dropdown__role']}>
+            {user?.roles?.[0] || '管理员'}
+          </div>
+        </div>
+      </div>
+      <div className={styles['user-dropdown__divider']} />
+      <Menu
+        selectedKeys={[]}
+        onClickMenuItem={(key: string) => {
+          if (key === 'logout') handleLogout()
+          else if (key === 'profile') navigate('/profile/info')
+          else if (key === 'password') navigate('/profile/password')
+          else if (key === 'attendance') navigate('/profile/attendance')
+        }}
+        style={{ border: 'none', background: 'transparent' }}
+      >
+        <MenuItem key="profile">
+          <IconUser style={{ marginRight: 8 }} />个人信息
+        </MenuItem>
+        <MenuItem key="password">
+          <IconLock style={{ marginRight: 8 }} />修改密码
+        </MenuItem>
+        <MenuItem key="attendance">
+          <IconCalendar style={{ marginRight: 8 }} />我的考勤
+        </MenuItem>
+        <div className={styles['user-dropdown__divider']} />
+        <MenuItem key="logout">
+          <span style={{ color: '#EF4444', display: 'flex', alignItems: 'center' }}>
+            <IconPoweroff style={{ marginRight: 8 }} />退出登录
+          </span>
+        </MenuItem>
+      </Menu>
+    </div>
   )
 
   return (
     <Layout className={styles['layout-wrapper']}>
       <Sider
+        className={styles['layout-sider']}
         collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
+        collapsed={sidebarCollapsed}
+        onCollapse={setSidebarCollapsed}
         trigger={null}
         breakpoint="xl"
+        width={240}
+        collapsedWidth={64}
       >
         <div className={styles['sider-logo']}>
           <div className={styles['sider-logo__icon']}>雷</div>
-          {!collapsed && <span className={styles['sider-logo__text']}>雷犀系统</span>}
+          {!sidebarCollapsed && <span className={styles['sider-logo__text']}>雷犀系统</span>}
         </div>
         <Menu
           selectedKeys={[location.pathname]}
-          defaultOpenKeys={['personnel', 'attendance']}
+          openKeys={openKeys}
           onClickMenuItem={handleMenuClick}
-          style={{ width: '100%' }}
+          onClickSubMenu={handleClickSubMenu}
+          style={{ width: '100%', flex: 1, overflow: 'auto' }}
+          className={styles['sider-menu']}
         >
           {visibleMenuList.map((item) => {
             const IconComp = item.icon
@@ -560,7 +601,7 @@ function PageLayout() {
                 key={item.key}
                 title={
                   <span>
-                    {IconComp ? <IconComp style={{ marginRight: 8 }} /> : null}
+                    {IconComp ? <IconComp style={{ marginRight: 10, fontSize: 17 }} /> : null}
                     {item.label}
                   </span>
                 }
@@ -571,34 +612,55 @@ function PageLayout() {
               </SubMenu>
             ) : (
               <MenuItem key={item.key}>
-                {IconComp ? <IconComp style={{ marginRight: 8 }} /> : null}
+                {IconComp ? <IconComp style={{ marginRight: 10, fontSize: 17 }} /> : null}
                 {item.label}
               </MenuItem>
             )
           })}
         </Menu>
+        <div className={styles['sider-version']}>
+          {sidebarCollapsed ? 'v5' : 'v5.0 · 雷犀'}
+        </div>
       </Sider>
       <Layout>
         <Header className={styles['layout-header']}>
           <div className={styles['layout-header__content']}>
-            <Space size="medium">
+            <div className={styles['layout-header__left']}>
               <div
                 className={styles['layout-header__menu-toggle']}
-                onClick={() => setCollapsed(!collapsed)}
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               >
-                {collapsed ? <IconMenuUnfold /> : <IconMenuFold />}
+                {sidebarCollapsed ? <IconMenuUnfold /> : <IconMenuFold />}
               </div>
-              <Breadcrumb>
-                {getBreadcrumbItems().map((item, index) => (
-                  <Breadcrumb.Item key={index}>{item}</Breadcrumb.Item>
-                ))}
+              <Breadcrumb className={styles['layout-header__breadcrumb']}>
+                {breadcrumbItems.map((item, index) => {
+                  const isLast = index === breadcrumbItems.length - 1
+                  return (
+                    <Breadcrumb.Item key={index}>
+                      {item.path && !isLast ? (
+                        <a
+                          onClick={(e) => { e.preventDefault(); navigate(item.path!) }}
+                          className={styles['layout-header__breadcrumb-link']}
+                        >
+                          {index === 0 && <IconHome style={{ marginRight: 4, fontSize: 13 }} />}
+                          {item.label}
+                        </a>
+                      ) : (
+                        <span className={isLast ? styles['layout-header__breadcrumb-current'] : undefined}>
+                          {index === 0 && <IconHome style={{ marginRight: 4, fontSize: 13 }} />}
+                          {item.label}
+                        </span>
+                      )}
+                    </Breadcrumb.Item>
+                  )
+                })}
               </Breadcrumb>
-            </Space>
-            <Space size="small">
-              <NotificationCenter placement="bottomRight" />
+            </div>
+            <Space size={4} className={styles['layout-header__right']}>
+              <NotificationCenter placement="br" />
               <Tooltip content={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'}>
                 <span
-                  className={styles['layout-header__icon']}
+                  className={`${styles['layout-header__icon']} ${styles['layout-header__icon--theme']}`}
                   onClick={toggleTheme}
                   style={{ cursor: 'pointer' }}
                   role="button"
@@ -607,16 +669,20 @@ function PageLayout() {
                   {theme === 'dark' ? <IconSun /> : <IconMoon />}
                 </span>
               </Tooltip>
-              <span className={styles['layout-header__icon']}>
-                <IconQuestionCircle />
-              </span>
-              <Dropdown droplist={userDropdownMenu} position="br">
-                <Space size="small" className={styles['layout-header__user-menu']}>
-                  <Avatar size={32} style={{ backgroundColor: '#165DFF' }}>
-                    <IconUser />
+              <Tooltip content="帮助中心">
+                <span className={styles['layout-header__icon']}>
+                  <IconQuestionCircle />
+                </span>
+              </Tooltip>
+              <div className={styles['layout-header__separator']} />
+              <Dropdown droplist={userDropdownMenu} position="br" trigger="click">
+                <div className={styles['layout-header__user-menu']}>
+                  <Avatar size={30} style={{ backgroundColor: '#10B981', fontSize: 13 }}>
+                    {user?.realName?.[0] || <IconUser />}
                   </Avatar>
-                  {!collapsed && <span>{user?.realName || '用户'}</span>}
-                </Space>
+                  <span className={styles['layout-header__user-name']}>{user?.realName || '用户'}</span>
+                  <IconRight style={{ fontSize: 12, color: 'var(--lx-gray-400, #9CA3AF)' }} />
+                </div>
               </Dropdown>
             </Space>
           </div>

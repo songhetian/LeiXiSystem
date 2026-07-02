@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Tag, Message, Space, DatePicker } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Tag, Space, DatePicker } from '@arco-design/web-react'
 import PageContainer from '@/components/PageContainer'
 import { get, post } from '@/api/request'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 
 export default function PendingSettlementsPage() {
   const [settlements, setSettlements] = useState<any>(null)
@@ -20,8 +22,8 @@ export default function PendingSettlementsPage() {
   const createBatch = async () => {
     try {
       await post('/overtime-payroll/settlement-batches', { type: 'monthly' })
-      Message.success('批次创建成功'); fetchAll()
-    } catch (e: any) { Message.error(e.message || '创建失败') }
+      toast.success('批次创建成功'); fetchAll()
+    } catch (e: any) { toast.error(e.message || '创建失败') }
   }
 
   return (
@@ -36,7 +38,7 @@ export default function PendingSettlementsPage() {
           <div style={{ color: 'var(--color-text-3)', fontSize: 13, marginTop: 4 }}>待结算记录</div>
         </Card>
         <Card className="lx-stat-card">
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#f53f3f' }}>¥{settlements?.totalPendingPay?.toFixed(2) ?? '0.00'}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#EF4444' }}>¥{settlements?.totalPendingPay?.toFixed(2) ?? '0.00'}</div>
           <div style={{ color: 'var(--color-text-3)', fontSize: 13, marginTop: 4 }}>待付款总额</div>
         </Card>
         <Card className="lx-stat-card">
@@ -53,7 +55,7 @@ export default function PendingSettlementsPage() {
         <Table columns={[
           { title: '批次号', dataIndex: 'batchNo', width: 160 },
           { title: '结算类型', dataIndex: 'settlementType', width: 100, render: (v: string) => <Tag size="small">{v === 'monthly' ? '月度' : '临时'}</Tag> },
-          { title: '期间', width: 200, render: (_: any, r: any) => `${r.periodStart?.split('T')[0] || ''} ~ ${r.periodEnd?.split('T')[0] || ''}` },
+          { title: '期间', width: 200, render: (_: any, r: any) => `${r.periodStart ? formatDate(r.periodStart) : ''} ~ ${r.periodEnd ? formatDate(r.periodEnd) : ''}` },
           { title: '总金额', dataIndex: 'totalPay', width: 120, render: (v: number) => v ? `¥${v.toFixed(2)}` : '-' },
           { title: '创建时间', dataIndex: 'createdAt', width: 160 },
         ]} data={batches} rowKey="id" pagination={false} loading={loading} />

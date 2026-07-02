@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -9,7 +9,6 @@ import {
   Input,
   InputNumber,
   Select,
-  Message,
   Tag,
   Typography,
   Progress,
@@ -31,6 +30,7 @@ import { getDepartmentsList, type Department } from '@/api/organization'
 import { EXPENSE_TYPES } from '@/api/expense-standard'
 import { FilterBar, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const { Text } = Typography
 const FormItem = Form.Item
@@ -102,7 +102,7 @@ function BudgetsPage() {
           totalBudget: values.totalBudget,
           description: values.description,
         })
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createBudget({
           year: values.year,
@@ -114,7 +114,7 @@ function BudgetsPage() {
             budgetAmount: Math.round(values.totalBudget / 4),
           })),
         })
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
     },
     onSuccess: () => loadData(page, pageSize),
@@ -123,7 +123,7 @@ function BudgetsPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteBudget(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData(page, pageSize)
     } catch {
       // error handled by interceptor

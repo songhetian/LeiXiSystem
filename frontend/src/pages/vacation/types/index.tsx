@@ -1,11 +1,10 @@
-import { useState, useCallback } from 'react'
+﻿import { useState, useCallback } from 'react'
 import {
   Table,
   Button,
   Input,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Grid,
@@ -29,6 +28,7 @@ import { useBatchSelection } from '@/hooks/useBatchSelection'
 import { useTableSettings } from '@/hooks/useTableSettings'
 import { useCommandPalette } from '@/hooks/useCommandPalette'
 import { useServerPagination } from '@/hooks/useServerPagination'
+import { toast } from '@/utils/toast'
 import styles from './types.module.css'
 const { Row, Col } = Grid
 const Option = Select.Option
@@ -91,10 +91,10 @@ function Types() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateVacationType(id, values)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         await createVacationType(values)
-        Message.success('新增成功')
+        toast.success('新增成功')
       }
     },
     onSuccess: () => {
@@ -143,7 +143,7 @@ function Types() {
   const handleDelete = async (id: number) => {
     try {
       await deleteVacationType(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       reload()
     } catch {
       // error handled by interceptor

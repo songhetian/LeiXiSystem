@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -10,11 +10,11 @@ import {
   Select,
   InputNumber,
   Switch,
-  Message,
   Tag,
   Steps,
   Empty,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconPlus,
   IconEdit,
@@ -97,10 +97,10 @@ function OnboardingFlowPage() {
       const values = await form.validate()
       if (editingFlow) {
         await updateOnboardingFlow(editingFlow.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createOnboardingFlow(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchFlows()
@@ -115,7 +115,7 @@ function OnboardingFlowPage() {
       content: `确定要删除流程「${flow.name}」吗？`,
       onOk: async () => {
         await deleteOnboardingFlow(flow.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchFlows()
       },
     })
@@ -152,10 +152,10 @@ function OnboardingFlowPage() {
       const values = await stepForm.validate()
       if (editingStep) {
         await updateFlowStep(editingStep.id, values)
-        Message.success('更新步骤成功')
+        toast.success('更新步骤成功')
       } else if (currentFlow) {
         await addFlowStep(currentFlow.id, values)
-        Message.success('添加步骤成功')
+        toast.success('添加步骤成功')
       }
       setStepModalVisible(false)
       // 刷新当前流程
@@ -180,7 +180,7 @@ function OnboardingFlowPage() {
       content: `确定要删除步骤「${step.title}」吗？`,
       onOk: async () => {
         await deleteFlowStep(step.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         if (currentFlow) {
           const res = await getOnboardingFlows({ page, pageSize })
           if (res.code === 0) {

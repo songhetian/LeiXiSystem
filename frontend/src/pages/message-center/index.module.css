@@ -295,3 +295,54 @@
   margin-bottom: 16px;
   opacity: 0.5;
 }
+
+.message-center__search {
+  width: 280px;
+}
+
+.message-center__content-wrapper {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.message-center__list-panel {
+  width: 420px;
+  border-right: 1px solid var(--color-border-2);
+}
+
+.message-center__empty-btn {
+  margin-top: 12px;
+}
+
+.message-center__detail-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.message-center__detail-empty {
+  height: 100%;
+}
+
+.message-center__attachment-space {
+  width: 100%;
+}
+
+.message-center__attachment-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-fill-2);
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--color-text-1);
+}
+
+.message-center__attachment-size {
+  color: var(--color-text-3);
+  margin-left: auto;
+  font-size: 12px;
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   DatePicker,
@@ -29,6 +28,7 @@ import type { Reimbursement } from '@/api/reimbursement'
 import { formatDate } from '@/utils/date'
 import { PageHeader, FilterBar } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './list.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -84,9 +84,9 @@ function ListPage() {
     onSubmit: async (values) => {
       await applyReimbursement({
         ...values,
-        expenseDate: values.expenseDate ? new Date(values.expenseDate).toISOString().split('T')[0] : undefined,
-      })
-      Message.success('申请成功')
+        expenseDate: values.expenseDate ? formatDate(values.expenseDate) : '',
+      } as any)
+      toast.success('申请成功')
     },
     onSuccess: () => fetchData(1, pagination.pageSize),
   })
@@ -137,7 +137,7 @@ function ListPage() {
       onOk: async () => {
         try {
           await cancelReimbursement(id)
-          Message.success('撤销成功')
+          toast.success('撤销成功')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor

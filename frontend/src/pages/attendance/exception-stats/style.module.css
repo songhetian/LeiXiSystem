@@ -15,7 +15,7 @@
 }
 
 .exception-stats__stat-title {
-  color: #86909c;
+  color: var(--text-color-tertiary);
   font-size: 14px;
 }
 
@@ -28,11 +28,11 @@
 }
 
 .exception-stats__text-muted {
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }
 
 .exception-stats__empty {
   text-align: center;
   padding: 40px 0;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }

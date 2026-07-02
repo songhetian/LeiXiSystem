@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Message, Popconfirm } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { getHolidayLists, createHolidayList, updateHolidayList, deleteHolidayList, getHolidayDates, addHolidayDate, deleteHolidayDate, getHolidayCalendar } from '@/api/holidays'
 import type { HolidayList } from '@/api/holidays'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 
 export default function HolidaysPage() {
   const [lists, setLists] = useState<HolidayList[]>([])
@@ -32,8 +34,8 @@ export default function HolidaysPage() {
     try {
       const v = await form.validate()
       editingList ? await updateHolidayList(editingList.id, v) : await createHolidayList(v)
-      Message.success('保存成功'); setModalVisible(false); fetchLists()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchLists()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const openDateManager = async (list: HolidayList) => {
@@ -44,9 +46,9 @@ export default function HolidaysPage() {
     try {
       const v = await dateForm.validate()
       await addHolidayDate(selectedList!.id, v)
-      Message.success('添加成功'); setDateModalVisible(false)
+      toast.success('添加成功'); setDateModalVisible(false)
       const r = await getHolidayDates(selectedList!.id); setDates(r.data || [])
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
   const openCalendar = async (list: HolidayList) => {
     const r = await getHolidayCalendar(list.id)
@@ -95,7 +97,7 @@ export default function HolidaysPage() {
             </div>
           </div>
           <Table columns={[
-            { title: '日期', dataIndex: 'date', width: 130, render: (v: string) => v?.split('T')[0] },
+            { title: '日期', dataIndex: 'date', width: 130, render: (v: string) => v ? formatDate(v) : '' },
             { title: '名称', dataIndex: 'name' },
             { title: '类型', dataIndex: 'isWorkingDay', width: 120, render: (v: boolean) => <Tag size="small" color={v ? 'blue' : 'red'}>{v ? '调休上班' : '休息日'}</Tag> },
             { title: '描述', dataIndex: 'description' },
@@ -111,7 +113,7 @@ export default function HolidaysPage() {
         </Card>
       )}
 
-      <Modal focusLock title={editingList ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)}>
+      <Modal title={editingList ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)}>
         <Form form={form} layout="vertical">
           <Form.Item field="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item field="year" label="年份" rules={[{ required: true }]}><Input type="number" /></Form.Item>
@@ -120,7 +122,7 @@ export default function HolidaysPage() {
         </Form>
       </Modal>
 
-      <Modal focusLock title="添加日期" visible={dateModalVisible} onOk={handleAddDate} onCancel={() => setDateModalVisible(false)}>
+      <Modal title="添加日期" visible={dateModalVisible} onOk={handleAddDate} onCancel={() => setDateModalVisible(false)}>
         <Form form={dateForm} layout="vertical">
           <Form.Item field="date" label="日期" rules={[{ required: true }]}><Input placeholder="YYYY-MM-DD" /></Form.Item>
           <Form.Item field="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>
@@ -139,7 +141,7 @@ export default function HolidaysPage() {
                     <Tag size="small" color={d.isWorkingDay ? 'blue' : 'red'}>{d.date?.split('-')[2]}</Tag> {d.name}
                   </div>
                 ))}
-                {(!calendarData.byMonth[m] || calendarData.byMonth[m].length === 0) && <div style={{ color: '#999', fontSize: 12 }}>无节假日</div>}
+                {(!calendarData.byMonth[m] || calendarData.byMonth[m].length === 0) && <div style={{ color: 'var(--text-color-tertiary)', fontSize: 12 }}>无节假日</div>}
               </Card>
             ))}
           </div>

@@ -32,5 +32,5 @@
 
 .schedule-secondments__cell-secondary {
   font-size: 12px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }

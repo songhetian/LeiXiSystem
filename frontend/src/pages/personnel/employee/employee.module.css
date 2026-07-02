@@ -1,37 +1,5 @@
 .employee-page {
-  padding-bottom: 20px;
-}
-
-.employee-page__search-card {
-  margin-bottom: 16px;
-}
-
-.employee-page__search-input {
-  width: 200px;
-}
-
-.employee-page__status-select {
-  width: 120px;
-}
-
-.employee-page__table-card {
-  /* default */
-}
-
-.employee-page__table-header {
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.employee-page__table-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.employee-page__total-tag {
-  margin-left: 8px;
+  padding-bottom: 16px;
 }
 
 .employee-page__modal--700 {

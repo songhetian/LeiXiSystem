@@ -37,13 +37,18 @@ function SortableRow({ id, children }: SortableRowProps) {
     transition,
     opacity: isDragging ? 0.5 : 1,
     backgroundColor: isDragging ? 'var(--color-fill-2)' : undefined,
+    cursor: 'grab',
   }
 
   return (
-    <tr ref={setNodeRef} style={style} className={styles['draggable-table__row']} aria-grabbed={isDragging}>
-      <td className={styles['draggable-table__drag-handle']} {...attributes} {...listeners} role="button" aria-label="拖拽排序">
-        <IconDragDotVertical style={{ cursor: 'grab', color: 'var(--color-text-3)' }} />
-      </td>
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={styles['draggable-table__row']}
+      aria-grabbed={isDragging}
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </tr>
   )
@@ -127,7 +132,7 @@ function DraggableTable<T extends Record<string, any> = any>(props: DraggableTab
         key: 'drag-handle',
         width: 40,
         align: 'center' as const,
-        render: () => null,
+        render: () => <IconDragDotVertical style={{ cursor: 'grab', color: 'var(--color-text-3)' }} />,
       },
       ...columns,
     ]

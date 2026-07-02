@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, Button, Select, Space, Modal, Form, Message, Tag, Calendar, Badge, Input, DatePicker, Table } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Card, Button, Select, Space, Modal, Form, Tag, Calendar, Badge, Input, DatePicker, Table } from '@arco-design/web-react'
 import { IconLeft, IconRight, IconPlus } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getScheduleCalendar, assignSchedule, updateSchedule, deleteSchedule } from '@/api/schedule'
@@ -8,6 +8,8 @@ import { getDepartmentsList, Department } from '@/api/organization'
 import { getEmployees, Employee } from '@/api/personnel'
 import dayjs, { Dayjs } from 'dayjs'
 import { PageHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -71,7 +73,7 @@ function CalendarPage() {
   const calendarData = useMemo(() => {
     const map: Record<string, { shifts: { name: string; color: string; count: number }[] }> = {}
     schedules.forEach((s) => {
-      const dateStr = new Date(s.scheduleDate).toISOString().split('T')[0]
+      const dateStr = formatDate(s.scheduleDate)
       if (!map[dateStr]) map[dateStr] = { shifts: [] }
       const existing = map[dateStr].shifts.find((sh) => sh.name === s.shiftName)
       if (existing) existing.count++
@@ -99,7 +101,7 @@ function CalendarPage() {
   const handleDateSelect = (date: Dayjs) => {
     const dateStr = date.format('YYYY-MM-DD')
     setSelectedDate(dateStr)
-    setDaySchedules(schedules.filter((s) => new Date(s.scheduleDate).toISOString().split('T')[0] === dateStr))
+    setDaySchedules(schedules.filter((s) => formatDate(s.scheduleDate) === dateStr))
     setVisible(true)
   }
 
@@ -108,10 +110,10 @@ function CalendarPage() {
   const handleBatchOk = async () => {
     try {
       const values = await batchForm.validate()
-      if (!values.dateRange?.length) { Message.error('请选择日期范围'); return }
-      if (!selectedEmployees.length) { Message.error('请选择人员'); return }
+      if (!values.dateRange?.length) { toast.error('请选择日期范围'); return }
+      if (!selectedEmployees.length) { toast.error('请选择人员'); return }
       await assignSchedule({ userIds: selectedEmployees.map(Number), shiftId: values.shiftId, startDate: values.dateRange[0], endDate: values.dateRange[1] })
-      Message.success('批量排班成功')
+      toast.success('批量排班成功')
       setBatchVisible(false); loadSchedules()
     } catch { /* error handled by interceptor */ }
   }
@@ -124,11 +126,11 @@ function CalendarPage() {
 
   const handleEditOk = async () => {
     if (!editingRecord) return
-    try { await updateSchedule(editingRecord.id, await editForm.validate()); Message.success('更新成功'); setEditVisible(false); loadSchedules() } catch { /* error handled by interceptor */ }
+    try { await updateSchedule(editingRecord.id, await editForm.validate()); toast.success('更新成功'); setEditVisible(false); loadSchedules() } catch { /* error handled by interceptor */ }
   }
 
   const handleDelete = async (id: number) => {
-    try { await deleteSchedule(id); Message.success('删除成功'); loadSchedules() } catch { /* error handled by interceptor */ }
+    try { await deleteSchedule(id); toast.success('删除成功'); loadSchedules() } catch { /* error handled by interceptor */ }
   }
 
   const columns: TableProps<ScheduleDetail>['columns'] = [

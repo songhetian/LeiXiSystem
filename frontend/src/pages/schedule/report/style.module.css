@@ -56,12 +56,12 @@
 }
 
 .schedule-report .stat-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .schedule-report .stat-card .arco-statistic {
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .schedule-report .chart-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .schedule-report .chart-container {
@@ -79,9 +79,9 @@
 }
 
 .schedule-report .table-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .schedule-report .arco-table-wrapper {
-  background: #fff;
+  background: var(--lx-surface);
 }

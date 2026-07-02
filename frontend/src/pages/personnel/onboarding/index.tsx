@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -8,7 +8,6 @@ import {
   Form,
   Select,
   DatePicker,
-  Message,
   Tag,
   Progress,
   Grid,
@@ -27,6 +26,8 @@ import {
   type OnboardingFlow,
 } from '@/api/onboarding'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './onboarding.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -91,10 +92,10 @@ function OnboardingPage() {
         employeeId: currentEmployee.id,
         flowId: values.flowId,
         startDate: values.startDate
-          ? new Date(values.startDate).toISOString().split('T')[0]
+          ? formatDate(values.startDate)
           : undefined,
       })
-      Message.success('入职流程已启动')
+      toast.success('入职流程已启动')
       setStartModalVisible(false)
       fetchEmployees()
     } catch {
@@ -123,7 +124,7 @@ function OnboardingPage() {
       content: '确定要完成该员工的入职流程吗？完成后将无法撤销。',
       onOk: async () => {
         await completeOnboarding(currentEmployee.id)
-        Message.success('入职流程已完成')
+        toast.success('入职流程已完成')
         handleViewProgress(currentEmployee)
       },
     })

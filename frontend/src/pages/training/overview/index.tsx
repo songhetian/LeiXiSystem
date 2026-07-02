@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import styles from './index.module.css'
-import { Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
+import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
 import { IconCheck, IconPlus, IconRefresh } from '@arco-design/web-react/icon'
 import { createTrainingCourse, createTrainingEnrollment, createTrainingSession, getTrainingCourses, getTrainingEnrollments, getTrainingSessions, completeTrainingEnrollment } from '@/api/training'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { toast } from '@/utils/toast'
 
 const FormItem = Form.Item
 const Option = Select.Option
@@ -94,7 +95,7 @@ function TrainingOverviewPage() {
   const handleCreateCourse = async () => {
     const values = await courseForm.validate()
     await createTrainingCourse(values)
-    Message.success('课程已创建')
+    toast.success('课程已创建')
     setCourseVisible(false)
     courseForm.resetFields()
     loadData()
@@ -104,7 +105,7 @@ function TrainingOverviewPage() {
     const values = await sessionForm.validate()
     const [startTime, endTime] = values.timeRange || []
     await createTrainingSession({ ...values, startTime, endTime })
-    Message.success('培训班次已创建')
+    toast.success('培训班次已创建')
     setSessionVisible(false)
     sessionForm.resetFields()
     loadData()
@@ -113,7 +114,7 @@ function TrainingOverviewPage() {
   const handleEnroll = async () => {
     const values = await enrollForm.validate()
     await createTrainingEnrollment(values)
-    Message.success('报名成功')
+    toast.success('报名成功')
     setEnrollVisible(false)
     enrollForm.resetFields()
     loadData()
@@ -154,7 +155,7 @@ function TrainingOverviewPage() {
           icon={<IconCheck />}
           onClick={async () => {
             await completeTrainingEnrollment(record.id)
-            Message.success('已完成培训')
+            toast.success('已完成培训')
             loadData()
           }}
         >

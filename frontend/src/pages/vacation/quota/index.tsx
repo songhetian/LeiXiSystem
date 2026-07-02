@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Input,
@@ -10,13 +10,13 @@ import {
   Grid,
   Progress,
   Spin,
-  Message,
 } from '@arco-design/web-react'
 import { IconSearch, IconRefresh } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getVacationBalance, getVacationTypes } from '@/api/vacation'
 import type { VacationBalance, VacationType } from '@/api/vacation'
 import { PageHeader, FilterBar, TableHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './quota.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -77,7 +77,7 @@ function Quota() {
 
   const handleSearch = () => {
     if (!employeeId) {
-      Message.warning('请先选择员工')
+      toast.warning('请先选择员工')
       return
     }
     fetchData()
@@ -140,10 +140,10 @@ function Quota() {
   ]
 
   const summary = [
-    { title: '总额度', value: `${totalAll} 天`, color: '#165DFF' },
-    { title: '已使用', value: `${usedAll} 天`, color: '#FF7D00' },
-    { title: '剩余', value: `${balanceAll} 天`, color: '#00B42A' },
-    { title: '使用率', value: `${usageRate}%`, color: '#86909C' },
+    { title: '总额度', value: `${totalAll} 天`, color: '#10B981' },
+    { title: '已使用', value: `${usedAll} 天`, color: '#F59E0B' },
+    { title: '剩余', value: `${balanceAll} 天`, color: '#3B82F6' },
+    { title: '使用率', value: `${usageRate}%`, color: '#6B7280' },
   ]
 
   const currentYear = new Date().getFullYear()

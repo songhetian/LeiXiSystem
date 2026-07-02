@@ -16,7 +16,7 @@
 
 .profile-info__dept {
   margin-top: 16px;
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 
 .profile-info__btn-edit {
@@ -52,7 +52,7 @@
   display: flex;
   align-items: center;
   margin: 16px 0;
-  color: #86909c;
+  color: var(--text-color-tertiary);
   font-size: 13px;
 }
 
@@ -61,7 +61,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: #e5e6eb;
+  background: var(--lx-border-color);
 }
 
 .profile-info__editable-divider span {
@@ -111,12 +111,12 @@
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 4px;
-  color: #1d2129;
+  color: var(--lx-gray-900);
 }
 
 .self-service__card-desc {
   font-size: 12px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
   line-height: 1.4;
 }
 

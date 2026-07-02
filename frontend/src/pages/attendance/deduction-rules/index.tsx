@@ -10,7 +10,6 @@ import {
   Select,
   InputNumber,
   Switch,
-  Message,
   Tag,
   Grid,
 } from '@arco-design/web-react'
@@ -30,6 +29,7 @@ import {
   type DeductionRule,
   type DeductionCalculateResult,
 } from '@/api/attendance'
+import { toast } from '@/utils/toast'
 import styles from './deduction-rules.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -133,10 +133,10 @@ function DeductionRulesPage() {
       const values = await form.validate()
       if (editingRule) {
         await updateDeductionRule(editingRule.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createDeductionRule(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchRules()
@@ -151,7 +151,7 @@ function DeductionRulesPage() {
       content: `确定要删除规则「${rule.name}」吗？`,
       onOk: async () => {
         await deleteDeductionRule(rule.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchRules()
       },
     })
@@ -302,7 +302,7 @@ function DeductionRulesPage() {
             <span>类型：</span>
             <Select
               placeholder="全部类型"
-              style={{ width: 140 }}
+              className={styles['deduction-rules__filter-select']}
               allowClear
               value={filterType}
               onChange={(v) => {
@@ -317,7 +317,7 @@ function DeductionRulesPage() {
             <span>状态：</span>
             <Select
               placeholder="全部状态"
-              style={{ width: 140 }}
+              className={styles['deduction-rules__filter-select']}
               allowClear
               value={filterStatus}
               onChange={(v) => {
@@ -378,7 +378,7 @@ function DeductionRulesPage() {
             <Col span={12}>
               <FormItem label="起始分钟数" field="minMinutes" rules={[{ required: true, message: '请输入起始分钟数' }]}>
                 <InputNumber
-                  style={{ width: '100%' }}
+                  className={styles['deduction-rules__input-full']}
                   min={0}
                   max={1440}
                   placeholder="从多少分钟开始"
@@ -388,7 +388,7 @@ function DeductionRulesPage() {
             <Col span={12}>
               <FormItem label="结束分钟数" field="maxMinutes">
                 <InputNumber
-                  style={{ width: '100%' }}
+                  className={styles['deduction-rules__input-full']}
                   min={0}
                   max={1440}
                   placeholder="为空表示无限大"
@@ -418,7 +418,7 @@ function DeductionRulesPage() {
                 rules={[{ required: true, message: '请输入扣款值' }]}
               >
                 <InputNumber
-                  style={{ width: '100%' }}
+                  className={styles['deduction-rules__input-full']}
                   min={0}
                   placeholder="请输入"
                 />
@@ -430,7 +430,7 @@ function DeductionRulesPage() {
               <Col span={12}>
                 <FormItem label="日薪倍数" field="salaryMultiplier">
                   <InputNumber
-                    style={{ width: '100%' }}
+                    className={styles['deduction-rules__input-full']}
                     min={0}
                     step={0.5}
                     placeholder="请输入日薪倍数"
@@ -500,7 +500,7 @@ function DeductionRulesPage() {
             <Col span={12}>
               <FormItem label="分钟数" field="minutes" rules={[{ required: true, message: '请输入分钟数' }]}>
                 <InputNumber
-                  style={{ width: '100%' }}
+                  className={styles['deduction-rules__input-full']}
                   min={0}
                   max={1440}
                   placeholder="请输入分钟数"
@@ -510,7 +510,7 @@ function DeductionRulesPage() {
           </Row>
           <FormItem label="日薪(元)" field="dailySalary" rules={[{ required: true, message: '请输入日薪' }]}>
             <InputNumber
-              style={{ width: '100%' }}
+              className={styles['deduction-rules__input-full']}
               min={0}
               step={0.01}
               placeholder="请输入日薪"

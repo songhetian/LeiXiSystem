@@ -88,7 +88,7 @@ async function ensureAttendanceException(input: {
   })
 }
 
-export async function calculateDailyAttendance(employeeId: number, date: Date, operatorId?: number) {
+export async function calculateDailyAttendance(employeeId: number, date: Date, operatorId?: number, manualShiftId?: number) {
   const day = startOfDay(date)
   const nextDay = new Date(day)
   nextDay.setDate(day.getDate() + 1)
@@ -107,10 +107,46 @@ export async function calculateDailyAttendance(employeeId: number, date: Date, o
     include: { shift: true },
   })
 
-  const fallbackShift = schedule?.shift || await prisma.shift.findFirst({
-    where: { status: 'active' },
-    orderBy: { sortOrder: 'asc' },
-  })
+  let fallbackShift = schedule?.shift
+
+  if (manualShiftId) {
+    const manualShift = await prisma.shift.findUnique({
+      where: { id: manualShiftId },
+    })
+    if (manualShift) {
+      fallbackShift = manualShift
+    }
+  }
+
+  if (!fallbackShift) {
+    const dayCheckins = await prisma.attendanceCheckin.findMany({
+      where: {
+        employeeId,
+        checkTime: {
+          gte: day,
+          lt: nextDay,
+        },
+        shiftId: { not: null },
+      },
+      orderBy: { checkTime: 'asc' },
+      take: 1,
+    })
+    if (dayCheckins[0]?.shiftId) {
+      const shiftFromCheckin = await prisma.shift.findUnique({
+        where: { id: dayCheckins[0].shiftId! },
+      })
+      if (shiftFromCheckin) {
+        fallbackShift = shiftFromCheckin
+      }
+    }
+  }
+
+  if (!fallbackShift) {
+    fallbackShift = await prisma.shift.findFirst({
+      where: { status: 'active' },
+      orderBy: { sortOrder: 'asc' },
+    }) || undefined
+  }
 
   const windowStart = fallbackShift
     ? addMinutes(parseShiftDateTime(day, fallbackShift.startTime), -fallbackShift.beginCheckinMinutes)

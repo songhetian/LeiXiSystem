@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -9,7 +9,6 @@ import {
   Input,
   Select,
   InputNumber,
-  Message,
   Tag,
   Grid,
   Tabs,
@@ -37,6 +36,7 @@ import {
 import { getShifts, type Shift } from '@/api/shift'
 import { getDepartmentsList, type Department } from '@/api/organization'
 import { getEmployees, type Employee } from '@/api/personnel'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -145,7 +145,7 @@ function TemplatesPage() {
       content: `确定要删除模板「${template.name}」吗？`,
       onOk: async () => {
         await deleteScheduleTemplate(template.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchTemplates()
       },
     })
@@ -156,16 +156,16 @@ function TemplatesPage() {
       const values = await form.validate()
       const items = templateItems.filter((i) => i.shiftIds.trim() !== '')
       if (items.length === 0) {
-        Message.error('请至少配置一天的班次')
+        toast.error('请至少配置一天的班次')
         return
       }
       const data = { ...values, items }
       if (editingTemplate) {
         await updateScheduleTemplate(editingTemplate.id, data)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createScheduleTemplate(data)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchTemplates()
@@ -179,7 +179,7 @@ function TemplatesPage() {
       const values = await applyForm.validate()
       const [startDate, endDate] = values.dateRange || []
       if (!startDate || !endDate) {
-        Message.error('请选择日期范围')
+        toast.error('请选择日期范围')
         return
       }
       setPreviewLoading(true)
@@ -219,7 +219,7 @@ function TemplatesPage() {
         overwrite: values.overwrite,
       })
       if (res.code === 0) {
-        Message.success(res.message)
+        toast.success(res.message)
         setApplyVisible(false)
         setPreviewData([])
         applyForm.resetFields()

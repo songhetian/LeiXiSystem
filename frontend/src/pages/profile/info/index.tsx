@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import styles from './index.module.css'
 import {
   Card,
   Button,
   Input,
   Form,
-  Message,
   Tag,
   Grid,
   Avatar,
@@ -27,6 +26,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { getMe, updateProfile } from '@/api/auth'
 import type { User } from '@/types'
+import { toast } from '@/utils/toast'
 
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -132,13 +132,13 @@ function Info() {
         emergencyContactPhone: values.emergencyContactPhone,
         description: values.description,
       })
-      Message.success('个人资料已更新')
+      toast.success('个人资料已更新')
       setEditing(false)
       fetchUserInfo()
     } catch (err: any) {
       // Only show error if it's not a validation error
       if (err?.errors) return
-      Message.error(err?.message || '保存失败，请稍后再试')
+      toast.error(err?.message || '保存失败，请稍后再试')
     } finally {
       setSaving(false)
     }

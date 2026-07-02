@@ -1,15 +1,15 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import {
   Card,
   Form,
   Switch,
   Button,
   Space,
-  Message,
   Tabs,
   Input,
   Select,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -88,14 +88,14 @@ function ConfigPage() {
     try {
       const values = await form.validate()
       saveConfig(values)
-      Message.success('保存成功')
+      toast.success('保存成功')
     } catch {
       // validation error
     }
   }
 
   const handleTest = () => {
-    Message.success('SSO 连接测试成功')
+    toast.success('SSO 连接测试成功')
   }
 
   return (

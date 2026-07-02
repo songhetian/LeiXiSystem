@@ -179,7 +179,7 @@ export function deleteCannedResponse(id: number) {
 }
 
 export function searchCannedResponses(q: string) {
-  return get<{ code: number; data: { list: CannedResponse[] } }>('/helpdesk/canned-responses/search', { q })
+  return get<{ code: number; data: { list: CannedResponse[] } }>('/helpdesk/canned-responses/search', { params: { q } })
 }
 
 // ─── Satisfaction (N3) ───

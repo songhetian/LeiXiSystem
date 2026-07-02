@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Message, Popconfirm } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm } from '@arco-design/web-react'
 import { IconPlus, IconCopy } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { getCannedResponses, createCannedResponse, updateCannedResponse, deleteCannedResponse, searchCannedResponses } from '@/api/helpdesk'
 import type { CannedResponse } from '@/api/helpdesk'
+import { toast } from '@/utils/toast'
 
 export default function CannedResponsesPage() {
   const [items, setItems] = useState<CannedResponse[]>([])
@@ -20,7 +21,7 @@ export default function CannedResponsesPage() {
   }
   useEffect(() => { fetchAll() }, [])
 
-  const handleCopy = (text: string) => { navigator.clipboard.writeText(text); Message.success('已复制') }
+  const handleCopy = (text: string) => { navigator.clipboard.writeText(text); toast.success('已复制') }
   const openCreate = () => { setEditing(null); form.resetFields(); form.setFieldsValue({ isGlobal: true, status: 'active' }); setModalVisible(true) }
   const openEdit = (r: CannedResponse) => { setEditing(r); form.setFieldsValue(r); setModalVisible(true) }
 
@@ -28,8 +29,8 @@ export default function CannedResponsesPage() {
     try {
       const v = await form.validate()
       editing ? await updateCannedResponse(editing.id, v) : await createCannedResponse(v)
-      Message.success('保存成功'); setModalVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   return (
@@ -58,7 +59,7 @@ export default function CannedResponsesPage() {
           },
         ]} data={items} rowKey="id" pagination={false} />
       </Card>
-      <Modal focusLock title={editing ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={600}>
+      <Modal title={editing ? '编辑' : '新增'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={600}>
         <Form form={form} layout="vertical">
           <Form.Item field="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item field="category" label="分类"><Input placeholder="账号问题 / 退款 / 通用" /></Form.Item>

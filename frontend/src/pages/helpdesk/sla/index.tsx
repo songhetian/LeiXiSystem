@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, InputNumber, Switch, Tag, Space, Message, Popconfirm } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, InputNumber, Switch, Tag, Space, Popconfirm } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { getSLAs, createSLA, updateSLA, deleteSLA } from '@/api/helpdesk'
 import { getHolidayLists } from '@/api/holidays'
 import type { HelpdeskSLA } from '@/api/helpdesk'
+import { toast } from '@/utils/toast'
 
 export default function SlaConfigPage() {
   const [slas, setSlas] = useState<HelpdeskSLA[]>([])
@@ -35,8 +36,8 @@ export default function SlaConfigPage() {
     try {
       const v = await form.validate()
       editing ? await updateSLA(editing.id, v) : await createSLA(v)
-      Message.success('保存成功'); setModalVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setModalVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   const columns = [
@@ -71,7 +72,7 @@ export default function SlaConfigPage() {
         <Table columns={columns} data={slas} rowKey="id" pagination={false} />
       </Card>
 
-      <Modal focusLock title={editing ? '编辑策略' : '新增策略'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={540}>
+      <Modal title={editing ? '编辑策略' : '新增策略'} visible={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={540}>
         <Form form={form} layout="vertical">
           <Form.Item field="name" label="策略名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Space><Form.Item field="priority" label="优先级"><Select options={[{ label: '紧急', value: 'urgent' }, { label: '高', value: 'high' }, { label: '中', value: 'medium' }, { label: '低', value: 'low' }]} allowClear /></Form.Item>

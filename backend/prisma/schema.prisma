@@ -144,10 +144,13 @@ model Employee {
   rating              Int       @default(1)
   maxTickets          Int       @default(5) @map("max_tickets")
   isOnduty            Boolean   @default(false) @map("is_onduty")
+  supervisorId        Int?      @map("supervisor_id")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supervisor          Employee? @relation("SupervisorSubordinate", fields: [supervisorId], references: [id], onDelete: SetNull)
+  subordinates        Employee[] @relation("SupervisorSubordinate")
   emergencyContacts   EmployeeEmergencyContact[]
   changes             EmployeeChange[]
   leaveRequests       LeaveRequest[]
@@ -649,6 +652,7 @@ model AttendanceCheckin {
   id          Int      @id @default(autoincrement())
   userId      Int?     @map("user_id")
   employeeId  Int      @map("employee_id")
+  shiftId     Int?     @map("shift_id")
   deviceId    String?  @map("device_id") @db.VarChar(100)
   source      String   @default("web") @db.VarChar(30)
   logType     String   @default("unknown") @map("log_type") @db.VarChar(20)
@@ -664,8 +668,10 @@ model AttendanceCheckin {
 
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift       Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, checkTime])
+  @@index([shiftId])
   @@map("attendance_checkins")
 }
 

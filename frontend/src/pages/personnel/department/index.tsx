@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Spin,
@@ -25,6 +24,7 @@ import {
 import type { Department } from '@/api/organization'
 import { FilterBar, TableHeader, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './department.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -78,10 +78,10 @@ function DepartmentPage() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateDepartment(id, values)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         await createDepartment(values)
-        Message.success('新增成功')
+        toast.success('新增成功')
       }
     },
     onSuccess: () => {
@@ -140,7 +140,7 @@ function DepartmentPage() {
   const handleDelete = async (id: number) => {
     try {
       await deleteDepartment(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData()
     } catch {
       // error handled by interceptor

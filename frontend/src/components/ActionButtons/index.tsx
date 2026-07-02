@@ -12,7 +12,7 @@ interface ActionButtonsProps {
   deleteConfirm?: boolean
   extraBefore?: ReactNode
   extraAfter?: ReactNode
-  size?: 'mini' | 'small' | 'medium' | 'large'
+  size?: 'mini' | 'small' | 'default' | 'large'
   /** 是否显示快捷键提示 */
   showShortcutHint?: boolean
 }

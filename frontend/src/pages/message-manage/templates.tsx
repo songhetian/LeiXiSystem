@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+﻿import { useState, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Form,
   Input,
   Select,
-  Message,
   Space,
   Tag,
   Drawer,
@@ -25,6 +24,7 @@ import {
   previewMessageTemplate,
 } from '@/api/messageTemplate'
 import { PageHeader, TableHeader, FilterBar } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './templates.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -119,7 +119,7 @@ export default function MessageTemplates() {
       onOk: async () => {
         try {
           await deleteMessageTemplate(item.id)
-          Message.success('删除成功')
+          toast.success('删除成功')
           fetchData()
         } catch {
           // ignore
@@ -153,10 +153,10 @@ export default function MessageTemplates() {
       const values = await form.validate()
       if (editingItem) {
         await updateMessageTemplate(editingItem.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createMessageTemplate(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchData()
@@ -244,8 +244,6 @@ export default function MessageTemplates() {
       <PageHeader title="消息模板" description="管理消息通知模板，支持变量替换，按权限维护。" />
 
       <FilterBar
-        keyword={keyword}
-        onKeywordChange={setKeyword}
         onSearch={handleSearch}
         onReset={handleReset}
         filters={[
@@ -265,7 +263,7 @@ export default function MessageTemplates() {
             onChange: setFilterStatus,
             options: STATUS_OPTIONS,
           },
-        ]}
+        ] as any}
       />
 
       <TableHeader

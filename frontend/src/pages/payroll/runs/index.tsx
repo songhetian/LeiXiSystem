@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Card,
@@ -7,7 +7,6 @@ import {
   Form,
   Grid,
   Input,
-  Message,
   Modal,
   Popconfirm,
   Select,
@@ -15,16 +14,38 @@ import {
   Statistic,
   Table,
   Tabs,
+  DatePicker,
 } from '@arco-design/web-react'
+import {
+  IconThunderbolt,
+  IconSend,
+} from '@arco-design/web-react/icon'
+import type { Dayjs } from 'dayjs'
 import { calculatePayrollRun, createPayrollRun, getPayrollRunDetail, getPayrollRuns, publishPayrollRun, PayrollRun, PayrollRunDetail } from '@/api/payroll'
 import { getEmployees, Employee } from '@/api/personnel'
 import { getDepartmentsList, Department } from '@/api/organization'
-import { PageHeader, StatusTag, employeeColumn, departmentColumn } from '@/components'
+import { PageHeader, StatusTag, FilterBar, employeeColumn, departmentColumn } from '@/components'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
+const { RangePicker } = DatePicker
+
+const payrollStatusOptions = [
+  { value: 'draft', label: '草稿' },
+  { value: 'calculated', label: '已计算' },
+  { value: 'approved', label: '已审核' },
+  { value: 'published', label: '已发放' },
+]
+
+const payrollStructureOptions = [
+  { value: 'standard', label: '标准薪资结构' },
+  { value: 'executive', label: '高管薪资结构' },
+  { value: 'commission', label: '提成薪资结构' },
+]
 
 function getDefaultPeriod() {
   const now = new Date()
@@ -34,7 +55,7 @@ function getDefaultPeriod() {
     year,
     month,
     startDate: `${year}-${String(month).padStart(2, '0')}-01`,
-    endDate: new Date(year, month, 0).toISOString().slice(0, 10),
+    endDate: formatDate(new Date(year, month, 0)),
   }
 }
 
@@ -49,16 +70,35 @@ function PayrollRunsPage() {
   const [detailVisible, setDetailVisible] = useState(false)
   const [scopeType, setScopeType] = useState('all')
   const [form] = Form.useForm()
+  const [searchStatus, setSearchStatus] = useState<string | undefined>()
+  const [searchDateRange, setSearchDateRange] = useState<Dayjs[]>([])
+  const [searchStructure, setSearchStructure] = useState<string | undefined>()
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const res = await getPayrollRuns()
-      setData(res.data || [])
+      let list = res.data || []
+      // Client-side filtering fallback if API doesn't support these params
+      if (searchStatus) {
+        list = list.filter((item: PayrollRun) => item.status === searchStatus)
+      }
+      if (searchDateRange.length === 2) {
+        const start = searchDateRange[0].startOf('day').valueOf()
+        const end = searchDateRange[1].endOf('day').valueOf()
+        list = list.filter((item: PayrollRun) => {
+          const t = new Date((item as any).createdAt).getTime()
+          return t >= start && t <= end
+        })
+      }
+      if (searchStructure) {
+        list = list.filter((item: PayrollRun) => (item as any).structure === searchStructure)
+      }
+      setData(list)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [searchStatus, searchDateRange, searchStructure])
 
   const loadInitialData = useCallback(async () => {
     setLoading(true)
@@ -80,15 +120,25 @@ function PayrollRunsPage() {
     loadInitialData()
   }, [loadInitialData])
 
+  const handleSearch = () => {
+    loadData()
+  }
+
+  const handleReset = () => {
+    setSearchStatus(undefined)
+    setSearchDateRange([])
+    setSearchStructure(undefined)
+  }
+
   const handleCalculate = useCallback(async (id: number) => {
     await calculatePayrollRun(id)
-    Message.success('薪资批次计算完成')
+    toast.success('薪资批次计算完成')
     loadData()
   }, [loadData])
 
   const handlePublish = useCallback(async (id: number) => {
     await publishPayrollRun(id)
-    Message.success('工资条发布成功')
+    toast.success('工资条发布成功')
     loadData()
   }, [loadData])
 
@@ -107,7 +157,7 @@ function PayrollRunsPage() {
       month: Number(values.month),
       scopeValue: values.scopeType === 'all' ? undefined : values.scopeValue,
     })
-    Message.success('薪资批次创建成功')
+    toast.success('薪资批次创建成功')
     setVisible(false)
     loadData()
   }, [form, loadData])
@@ -161,16 +211,17 @@ function PayrollRunsPage() {
             详情
           </Button>
           <Button
-            type="text"
+            type="secondary"
             size="small"
+            icon={<IconThunderbolt />}
             disabled={!['draft', 'calculated'].includes(record.status)}
             onClick={() => handleCalculate(record.id)}
           >
             计算
           </Button>
           <Popconfirm title="发布后员工可以查看工资条，确认发布？" onOk={() => handlePublish(record.id)}>
-            <Button type="text" size="small" disabled={!['calculated', 'approved'].includes(record.status)}>
-              发布
+            <Button type="primary" size="small" status="success" icon={<IconSend />} disabled={!['calculated', 'approved'].includes(record.status)}>
+              发放
             </Button>
           </Popconfirm>
         </Space>
@@ -212,6 +263,43 @@ function PayrollRunsPage() {
           title="薪资批次"
           description="参考 ERPNext Payroll Entry：先生成批次，再计算工资条，最后复核、审批、发布。"
           extra={<Button type="primary" onClick={openCreate}>创建批次</Button>}
+        />
+      </Card>
+
+      <Card bordered={false}>
+        <FilterBar
+          filters={
+            <>
+              <FormItem label="状态">
+                <Select
+                  placeholder="请选择状态"
+                  value={searchStatus}
+                  onChange={setSearchStatus}
+                  allowClear
+                >
+                  {payrollStatusOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
+                </Select>
+              </FormItem>
+              <FormItem label="创建时间">
+                <RangePicker
+                  value={searchDateRange}
+                  onChange={(_, date) => setSearchDateRange(date)}
+                />
+              </FormItem>
+              <FormItem label="薪资结构">
+                <Select
+                  placeholder="请选择薪资结构"
+                  value={searchStructure}
+                  onChange={setSearchStructure}
+                  allowClear
+                >
+                  {payrollStructureOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
+                </Select>
+              </FormItem>
+            </>
+          }
+          onSearch={handleSearch}
+          onReset={handleReset}
         />
       </Card>
 

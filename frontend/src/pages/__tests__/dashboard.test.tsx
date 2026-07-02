@@ -118,7 +118,7 @@ describe('Dashboard 页面', () => {
     it('应该渲染考勤概览卡片', async () => {
       render(<Dashboard />)
 
-      expect(screen.getByText('今日考勤概览')).toBeInTheDocument()
+      expect(screen.getByText('今日考勤')).toBeInTheDocument()
       expect(screen.getByText('查看全部')).toBeInTheDocument()
     })
 
@@ -189,7 +189,7 @@ describe('Dashboard 页面', () => {
       })
 
       // 页面应该仍然渲染，不会崩溃
-      expect(screen.getByText('今日考勤概览')).toBeInTheDocument()
+      expect(screen.getByText('今日考勤')).toBeInTheDocument()
       expect(screen.getByText('待办事项')).toBeInTheDocument()
     })
   })
@@ -203,7 +203,7 @@ describe('Dashboard 页面', () => {
       render(<Dashboard />)
 
       await waitFor(() => {
-        expect(screen.getByText('今日考勤概览')).toBeInTheDocument()
+        expect(screen.getByText('今日考勤')).toBeInTheDocument()
       })
     })
 

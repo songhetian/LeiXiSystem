@@ -1,19 +1,33 @@
-.container { padding: 24px; max-width: 1200px; margin: 0 auto; }
+.container { padding: 24px; max-width: none; margin: 0 auto; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-.empNo { font-size: 14px; color: #999; }
+.empNo { font-size: 14px; color: var(--text-color-tertiary); }
 .row { margin-bottom: 16px; }
 .statSpacer { margin-top: 12px; }
 .scheduleInfo { margin-bottom: 8px; }
-.shiftName { font-size: 18px; font-weight: 600; color: #1d2129; }
-.shiftTime { font-size: 14px; color: #86909c; margin-top: 2px; }
-.noSchedule { color: #999; font-size: 14px; }
-.noData { color: #999; font-size: 13px; padding: 8px 0; }
+.shiftName { font-size: 18px; font-weight: 700; color: var(--lx-gray-900); }
+.shiftTime { font-size: 13px; color: var(--text-color-tertiary); margin-top: 4px; }
+.noSchedule { color: var(--text-color-tertiary); font-size: 14px; }
+.noData { color: var(--text-color-tertiary); font-size: 13px; padding: 8px 0; }
 .tags { margin-top: 8px; }
-.vacationItem { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+.vacationItem { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--lx-gray-100); }
 .vacationItem:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 .vacationName { font-size: 14px; }
-.vacationDetail { font-size: 12px; color: #999; }
+.vacationDetail { font-size: 12px; color: var(--text-color-tertiary); }
 .ticketItem { font-size: 13px; margin: 6px 0; padding: 2px 0; }
 .todoItem { margin: 4px 0; }
 .emptyCard { text-align: center; padding: 60px 0; }
+
+/* Inline style replacements */
+.mb8 { margin-bottom: 8px; }
+.mt6 { margin-top: 6px; }
+.tagMr { margin-right: 6px; }
+.payslipTable { width: 100%; border-collapse: collapse; }
+.payslipTable th { padding: 8px 12px; font-size: 13px; font-weight: 600; }
+.payslipTable td { padding: 8px 12px; font-size: 13px; }
+.payslipTable thead tr { border-bottom: 1px solid var(--lx-border-color); }
+.payslipTable tbody tr { border-bottom: 1px solid var(--lx-border-color); }
+.payslipThLeft { text-align: left; }
+.payslipThRight { text-align: right; }
+.payslipAmount { font-size: 14px; font-weight: 600; text-align: right; }
+.payslipDate { font-size: 12px; color: var(--text-color-tertiary); }

@@ -14,13 +14,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       locale={zhCN}
       componentConfig={{
         Card: { bordered: false },
-        Table: { border: { wrapper: true, cell: true }, hover: true, stripe: false },
-        Button: { type: 'default', shape: 'square' },
+        Table: { border: { wrapper: true, cell: false }, hover: true, stripe: false },
+        Button: { type: 'default', shape: 'round' },
         Tag: { bordered: true },
         Modal: { alignCenter: true },
+        Input: { size: 'default' },
+        Select: { size: 'default' },
       }}
       theme={{
-        primaryColor: '#165dff',
+        primaryColor: '#10B981',
       }}
     >
       <BrowserRouter>

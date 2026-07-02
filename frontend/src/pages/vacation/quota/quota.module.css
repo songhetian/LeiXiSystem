@@ -49,7 +49,7 @@
 
 .vacation-quota__progress-text {
   font-size: 12px;
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 .vacation-quota__statistic-value {
   color: var(--statistic-value-color);

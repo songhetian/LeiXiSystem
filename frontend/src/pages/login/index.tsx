@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Checkbox, Message, Card, Space, Typography, Divider } from '@arco-design/web-react'
+import { Form, Input, Button, Checkbox, Card, Space, Typography, Divider } from '@arco-design/web-react'
 import {
   IconDashboard,
   IconClockCircle,
@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { login } from '@/api/auth'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Title, Text } = Typography
 
@@ -20,7 +21,7 @@ function Login() {
 
   const handleSubmit = async (values: { username: string; password: string }) => {
     if (!values.username || !values.password) {
-      Message.warning('请输入用户名和密码')
+      toast.warning('请输入用户名和密码')
       return
     }
 
@@ -31,46 +32,51 @@ function Login() {
         if (res.data) {
           setAuth(res.data.token, res.data.user)
         }
-        Message.success('登录成功')
+        toast.success('登录成功')
         navigate('/dashboard')
       }
     } catch (error) {
       console.error('登录失败:', error)
-      Message.error('登录失败，请检查用户名和密码')
+      toast.error('登录失败，请检查用户名和密码')
     } finally {
       setLoading(false)
     }
   }
 
   const features = [
-    { icon: IconDashboard, title: '数据可视化', desc: '多维度数据分析，助力企业决策' },
-    { icon: IconClockCircle, title: '高效审批', desc: '灵活的审批流程，提升办公效率' },
-    { icon: IconSafe, title: '安全可靠', desc: '企业级安全保障，数据加密存储' },
+    { icon: IconClockCircle, title: '智能考勤', desc: 'AI驱动的智能考勤管理，多维度数据分析' },
+    { icon: IconDashboard, title: '数据驾驶舱', desc: '实时数据可视化，一站式企业决策看板' },
+    { icon: IconSafe, title: '安全合规', desc: '企业级安全防护，全链路数据加密存储' },
   ]
 
   return (
     <div className={styles['login-page']}>
       <div className={styles['login-wrapper']}>
+        {/* Left Panel - Brand Identity */}
         <div className={styles['login-left']}>
-          <div className={styles.brand}>
-            <div className={styles['brand-logo']}>雷</div>
+          <div className={styles['geometric-overlay']} />
+
+          <div className={styles['brand']}>
+            <div className={styles['brand-logo']}>
+              <span className={styles['brand-logo-text']}>雷</span>
+            </div>
             <div>
               <div className={styles['brand-name']}>雷犀系统</div>
               <div className={styles['brand-slogan']}>企业级人事考勤一体化管理平台</div>
             </div>
           </div>
-          
-          <div className={styles['login-illustration']}>
+
+          <div className={styles['features-section']}>
             {features.map((item, index) => {
               const IconComp = item.icon
               return (
-                <div className={styles['illustration-card']} key={index}>
-                  <div className={styles['illustration-icon']}>
-                    <IconComp className={styles['login-illustration-icon']} />
+                <div className={styles['feature-card']} key={index}>
+                  <div className={styles['feature-icon']}>
+                    <IconComp className={styles['feature-icon-svg']} />
                   </div>
                   <div>
-                    <div className={styles['illustration-title']}>{item.title}</div>
-                    <div className={styles['illustration-desc']}>{item.desc}</div>
+                    <div className={styles['feature-title']}>{item.title}</div>
+                    <div className={styles['feature-desc']}>{item.desc}</div>
                   </div>
                 </div>
               )
@@ -78,27 +84,31 @@ function Login() {
           </div>
         </div>
 
+        {/* Right Panel - Login Form */}
         <div className={styles['login-right']}>
           <Card className={styles['login-card']} bordered={false}>
-            <Space direction="vertical" size={32} className={styles['login-form__space']}>
-              <div>
-                <Title heading={4} className={styles['login-form__title']}>
-                  账号登录
+            <Space direction="vertical" size={28} className={styles['login-form-space']}>
+              <div className={styles['form-header']}>
+                <Title heading={4} className={styles['form-title']}>
+                  欢迎回来
                 </Title>
-                <Text type="secondary">请输入您的账号信息登录系统</Text>
+                <Text type="secondary" className={styles['form-subtitle']}>
+                  登录您的雷犀系统账号
+                </Text>
               </div>
 
               <Form
                 onSubmit={handleSubmit}
                 layout="vertical"
-
+                className={styles['login-form']}
               >
                 <Form.Item field="username" label="用户名">
                   <Input
                     size="large"
                     placeholder="请输入用户名"
                     allowClear
-                    prefix={<IconUser className={styles['login-form__icon-prefix']} />}
+                    prefix={<IconUser className={styles['input-icon-prefix']} />}
+                    className={styles['login-input']}
                   />
                 </Form.Item>
 
@@ -106,17 +116,18 @@ function Login() {
                   <Input.Password
                     size="large"
                     placeholder="请输入密码"
-                    prefix={<IconLock className={styles['login-form__icon-prefix']} />}
+                    prefix={<IconLock className={styles['input-icon-prefix']} />}
+                    className={styles['login-input']}
                   />
                 </Form.Item>
 
                 <Form.Item>
                   <Space
                     direction="horizontal"
-                    className={styles['login-form__actions']}
+                    className={styles['form-actions']}
                   >
                     <Checkbox>记住密码</Checkbox>
-                    <a className={styles['login-form__link']}>忘记密码？</a>
+                    <a className={styles['forgot-link']}>忘记密码？</a>
                   </Space>
                 </Form.Item>
 
@@ -127,17 +138,18 @@ function Login() {
                     long
                     size="large"
                     loading={loading}
+                    className={styles['submit-btn']}
                   >
                     登录
                   </Button>
                 </Form.Item>
               </Form>
 
-              <Divider className={styles['login-form__divider']} />
+              <Divider className={styles['form-divider']} />
 
-              <div className={styles['login-form__footer']}>
-                <Text type="secondary" className={styles['login-form__footer-text']}>
-                  © 2024 雷犀系统 版权所有
+              <div className={styles['form-footer']}>
+                <Text type="secondary" className={styles['footer-text']}>
+                  &copy; 2024 雷犀系统 All rights reserved.
                 </Text>
               </div>
             </Space>

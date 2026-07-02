@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Select, Space, Table } from '@arco-design/web-react'
 import { getPayslips, getPayrollRuns, recalculatePayslip, withdrawPayslip, batchPublishPayslips, batchWithdrawPayslips, Payslip, PayrollRun } from '@/api/payroll'
 import { PageHeader, FilterBar, StatusTag, employeeColumn, departmentColumn, EmployeeSelect, BatchActions } from '@/components'
 import { useBatchSelection } from '@/hooks/useBatchSelection'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -66,20 +67,20 @@ function PayslipsPage() {
   const handleRecalculate = useCallback(async (record: any) => {
     try {
       await recalculatePayslip(record.id)
-      Message.success('工资条重算完成')
+      toast.success('工资条重算完成')
       await loadData(form.getFieldsValue())
     } catch (e: any) {
-      Message.error(e?.message || '重算失败')
+      toast.error(e?.message || '重算失败')
     }
   }, [form, loadData])
 
   const handleWithdraw = useCallback(async (record: any) => {
     try {
       await withdrawPayslip(record.id)
-      Message.success('工资条已撤回')
+      toast.success('工资条已撤回')
       await loadData(form.getFieldsValue())
     } catch (e: any) {
-      Message.error(e?.message || '撤回失败')
+      toast.error(e?.message || '撤回失败')
     }
   }, [form, loadData])
 
@@ -90,37 +91,37 @@ function PayslipsPage() {
 
   // 批量发布
   const handleBatchPublish = useCallback(async () => {
-    const draftItems = data.filter((item) => item.status === 'draft' && batch.isSelected(item.id))
+    const draftItems = data.filter((item) => item.status === 'draft' && batch.selectedIds.includes(item.id))
     if (draftItems.length === 0) {
-      Message.warning('请选择草稿状态的工资条')
+      toast.warning('请选择草稿状态的工资条')
       return
     }
     try {
       await batchPublishPayslips(draftItems.map((item) => item.id))
-      Message.success(`成功发布 ${draftItems.length} 个工资条`)
+      toast.success(`成功发布 ${draftItems.length} 个工资条`)
       batch.clearSelection()
       await loadData(form.getFieldsValue())
     } catch (e: any) {
-      Message.error(e?.message || '发布失败')
+      toast.error(e?.message || '发布失败')
     }
   }, [data, batch, form, loadData])
 
   // 批量撤回
   const handleBatchWithdraw = useCallback(async () => {
     const publishableItems = data.filter(
-      (item) => ['published', 'viewed'].includes(item.status) && batch.isSelected(item.id)
+      (item) => ['published', 'viewed'].includes(item.status) && batch.selectedIds.includes(item.id)
     )
     if (publishableItems.length === 0) {
-      Message.warning('请选择已发布或已查看状态的工资条')
+      toast.warning('请选择已发布或已查看状态的工资条')
       return
     }
     try {
       await batchWithdrawPayslips(publishableItems.map((item) => item.id))
-      Message.success(`成功撤回 ${publishableItems.length} 个工资条`)
+      toast.success(`成功撤回 ${publishableItems.length} 个工资条`)
       batch.clearSelection()
       await loadData(form.getFieldsValue())
     } catch (e: any) {
-      Message.error(e?.message || '撤回失败')
+      toast.error(e?.message || '撤回失败')
     }
   }, [data, batch, form, loadData])
 

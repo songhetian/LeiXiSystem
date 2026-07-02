@@ -9,7 +9,6 @@ import {
   Select,
   InputNumber,
   Switch,
-  Message,
   Tag,
   Grid,
 } from '@arco-design/web-react'
@@ -27,6 +26,7 @@ import {
   type OvertimeType as OvertimeTypeType,
 } from '@/api/attendance-overtime-type'
 import { DraggableTable } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './overtime-types.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -95,10 +95,10 @@ function OvertimeTypesPage() {
       const values = await form.validate()
       if (editingType) {
         await updateOvertimeType(editingType.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createOvertimeType(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       fetchTypes()
@@ -113,7 +113,7 @@ function OvertimeTypesPage() {
       content: `确定要删除加班类型「${item.name}」吗？`,
       onOk: async () => {
         await deleteOvertimeType(item.id)
-        Message.success('删除成功')
+        toast.success('删除成功')
         fetchTypes()
       },
     })
@@ -124,7 +124,7 @@ function OvertimeTypesPage() {
     try {
       const movedItem = items[newIndex]
       await updateOvertimeType(movedItem.id, { sortOrder: newIndex })
-      Message.success('排序已更新')
+      toast.success('排序已更新')
       fetchTypes()
     } catch {
       fetchTypes()

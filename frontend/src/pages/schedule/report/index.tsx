@@ -257,7 +257,7 @@ const ScheduleReport: React.FC = () => {
           smooth: true,
           data: list.map((item: any) => item.total ?? item.count ?? 0),
           areaStyle: { opacity: 0.2 },
-          itemStyle: { color: '#165DFF' },
+          itemStyle: { color: '#10B981' },
         },
       ],
     }

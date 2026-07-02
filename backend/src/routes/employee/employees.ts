@@ -99,6 +99,13 @@ export default async function employeeRoutes(fastify: FastifyInstance) {
           education: true,
           skills: true,
           remark: true,
+          supervisorId: true,
+          supervisor: {
+            select: {
+              id: true,
+              user: { select: { realName: true } },
+            },
+          },
           user: {
             select: {
               id: true,
@@ -148,6 +155,8 @@ export default async function employeeRoutes(fastify: FastifyInstance) {
       education: emp.education,
       skills: emp.skills,
       remark: emp.remark,
+      supervisorId: emp.supervisorId,
+      supervisorName: emp.supervisor?.user?.realName || '',
       emergencyContacts: emp.emergencyContacts,
     }))
 
@@ -185,6 +194,13 @@ export default async function employeeRoutes(fastify: FastifyInstance) {
         education: true,
         skills: true,
         remark: true,
+        supervisorId: true,
+        supervisor: {
+          select: {
+            id: true,
+            user: { select: { realName: true } },
+          },
+        },
         user: {
           select: {
             id: true,

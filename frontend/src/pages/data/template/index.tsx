@@ -4,7 +4,6 @@ import {
   Button,
   Tag,
   Space,
-  Message,
 } from '@arco-design/web-react'
 import {
   IconDownload,
@@ -13,6 +12,7 @@ import {
 import type { TableProps } from '@arco-design/web-react'
 import { downloadTemplate } from '@/api/data'
 import { saveBlob } from '@/utils/url'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 interface Template {
   id: number
@@ -94,7 +94,7 @@ function Template() {
     try {
       const blob = await downloadTemplate(record.code)
       saveBlob(blob as unknown as Blob, `${record.code}_template.csv`)
-      Message.success('下载成功')
+      toast.success('下载成功')
     } catch {
       // error handled by interceptor
     }

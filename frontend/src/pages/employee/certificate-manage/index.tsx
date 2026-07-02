@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   DatePicker,
@@ -36,6 +35,7 @@ import {
 import type { Certificate } from '@/api/certificate'
 import { formatDate } from '@/utils/date'
 import { FilterBar, PageHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './certificate-manage.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -248,7 +248,7 @@ function CertificateManage() {
         try {
           setActionLoading(true)
           await approveCertificate(id)
-          Message.success('已通过')
+          toast.success('已通过')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor
@@ -274,7 +274,7 @@ function CertificateManage() {
 
       setActionLoading(true)
       await rejectCertificate(currentId, { reason: values.reason })
-      Message.success('已驳回')
+      toast.success('已驳回')
       setRejectVisible(false)
       fetchData(pagination.current, pagination.pageSize)
     } catch {
@@ -299,7 +299,7 @@ function CertificateManage() {
       await generateCertificate(currentId, {
         content: values.content,
       })
-      Message.success('证明已生成')
+      toast.success('证明已生成')
       setGenerateVisible(false)
       fetchData(pagination.current, pagination.pageSize)
     } catch {
@@ -419,32 +419,31 @@ function CertificateManage() {
         onCancel={() => setDetailVisible(false)}
         footer={null}
         className={styles['certificate-manage__detail-modal']}
-        style={{ width: 600 }}
       >
         {detailLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>加载中...</div>
+          <div className={styles['certificate-manage__loading']}>加载中...</div>
         ) : detailData ? (
           <div className={styles['certificate-manage__detail']}>
             <div className={styles['certificate-manage__detail-header']}>
               <Space size="large" align="center">
                 <div>
-                  <Title heading={6} style={{ margin: 0 }}>
+                  <Title heading={6} className={styles['certificate-manage__detail-title']}>
                     {typeMap[detailData.type] || detailData.type}
                   </Title>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
+                  <Text type="secondary" className={styles['certificate-manage__detail-subtitle']}>
                     申请编号：{detailData.id}
                   </Text>
                 </div>
                 <Tag
                   color={statusMap[detailData.status]?.color}
-                  style={{ marginLeft: 'auto' }}
+                  className={styles['certificate-manage__detail-tag-right']}
                 >
                   {statusMap[detailData.status]?.text}
                 </Tag>
               </Space>
             </div>
 
-            <Divider style={{ margin: '16px 0' }} />
+            <Divider className={styles['certificate-manage__detail-divider']} />
 
             <Descriptions
               column={2}
@@ -498,12 +497,12 @@ function CertificateManage() {
 
             {detailData.rejectReason && (
               <>
-                <Divider style={{ margin: '16px 0' }} />
+                <Divider className={styles['certificate-manage__detail-divider']} />
                 <div className={styles['certificate-manage__detail-reject']}>
-                  <Text type="error" style={{ fontWeight: 500 }}>
+                  <Text type="error" className={styles['certificate-manage__detail-text-bold']}>
                     驳回原因：
                   </Text>
-                  <p style={{ marginTop: 8, color: 'var(--color-text-2)' }}>
+                  <p className={styles['certificate-manage__detail-reject-text']}>
                     {detailData.rejectReason}
                   </p>
                 </div>
@@ -512,14 +511,14 @@ function CertificateManage() {
 
             {detailData.fileUrl && (
               <>
-                <Divider style={{ margin: '16px 0' }} />
+                <Divider className={styles['certificate-manage__detail-divider']} />
                 <div className={styles['certificate-manage__detail-file']}>
-                  <Text style={{ fontWeight: 500 }}>证明文件：</Text>
+                  <Text className={styles['certificate-manage__detail-text-bold']}>证明文件：</Text>
                   <Button
                     type="text"
                     icon={<IconFile />}
                     onClick={() => window.open(detailData.fileUrl, '_blank')}
-                    style={{ padding: '4px 8px' }}
+                    className={styles['certificate-manage__detail-file-btn']}
                   >
                     查看/下载
                   </Button>

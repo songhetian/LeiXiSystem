@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import {
   Button,
   Card,
@@ -6,7 +6,6 @@ import {
   Descriptions,
   Form,
   Input,
-  Message,
   Modal,
   Space,
   Steps,
@@ -17,6 +16,8 @@ import {
 import { IconUpload, IconDownload, IconSettings } from '@arco-design/web-react/icon'
 import { post, get } from '@/api/request'
 import { PageHeader } from '@/components'
+import { getToday } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import './index.css'
 
 const FormItem = Form.Item
@@ -57,7 +58,7 @@ function ConfigExportImportPage() {
 
   const handleExport = async () => {
     if (selectedModules.length === 0) {
-      Message.warning('请至少选择一个模块')
+      toast.warning('请至少选择一个模块')
       return
     }
 
@@ -76,13 +77,13 @@ function ConfigExportImportPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `leixi_config_${new Date().toISOString().split('T')[0]}.json`
+      link.download = `leixi_config_${getToday()}.json`
       link.click()
       window.URL.revokeObjectURL(url)
 
-      Message.success(`配置导出成功，共导出 ${selectedModules.length} 个模块`)
+      toast.success(`配置导出成功，共导出 ${selectedModules.length} 个模块`)
     } catch (e: any) {
-      Message.error(e?.message || '导出失败')
+      toast.error(e?.message || '导出失败')
     } finally {
       setExportLoading(false)
     }
@@ -99,7 +100,7 @@ function ConfigExportImportPage() {
         const config = JSON.parse(content)
 
         if (!config.modules) {
-          Message.error('无效的配置文件')
+          toast.error('无效的配置文件')
           return
         }
 
@@ -111,9 +112,9 @@ function ConfigExportImportPage() {
         // 显示预览信息
         const moduleCount = Object.keys(config.modules).length
         const exportTime = config.exportTime ? new Date(config.exportTime).toLocaleString() : '未知'
-        Message.info(`配置文件版本: ${config.version || '1.0'}, 导出时间: ${exportTime}, 包含 ${moduleCount} 个模块`)
+        toast.info(`配置文件版本: ${config.version || '1.0'}, 导出时间: ${exportTime}, 包含 ${moduleCount} 个模块`)
       } catch (err) {
-        Message.error('配置文件解析失败')
+        toast.error('配置文件解析失败')
       }
     }
     reader.readAsText(file)
@@ -121,7 +122,7 @@ function ConfigExportImportPage() {
 
   const handleImport = async () => {
     if (!importConfig) {
-      Message.error('请先选择配置文件')
+      toast.error('请先选择配置文件')
       return
     }
 
@@ -136,9 +137,9 @@ function ConfigExportImportPage() {
       setCurrentStep(2)
 
       const successCount = res.data?.filter((r: any) => r.success)?.length || 0
-      Message.success(`导入完成，成功 ${successCount} 个模块`)
+      toast.success(`导入完成，成功 ${successCount} 个模块`)
     } catch (e: any) {
-      Message.error(e?.message || '导入失败')
+      toast.error(e?.message || '导入失败')
     } finally {
       setImportLoading(false)
     }
@@ -169,10 +170,10 @@ function ConfigExportImportPage() {
       </Card>
 
       <Card bordered={false}>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Space direction="vertical" size="large" className="config-export-import__space-full">
           <div>
-            <Text bold style={{ fontSize: 16 }}>导出配置</Text>
-            <Text type="secondary" style={{ marginLeft: 8 }}>选择要导出的系统模块</Text>
+            <Text bold className="config-export-import__section-title">导出配置</Text>
+            <Text type="secondary" className="config-export-import__section-subtitle">选择要导出的系统模块</Text>
           </div>
 
           <Checkbox.Group value={selectedModules} onChange={handleModuleChange as any}>
@@ -229,10 +230,10 @@ function ConfigExportImportPage() {
       </Card>
 
       <Card bordered={false}>
-        <Text bold style={{ fontSize: 16 }}>配置说明</Text>
+        <Text bold className="config-export-import__section-title">配置说明</Text>
         <Descriptions
           column={2}
-          style={{ marginTop: 16 }}
+          className="config-export-import__descriptions-mt"
           data={[
             { label: '导出格式', value: 'JSON 文件' },
             { label: '配置文件版本', value: '1.0' },
@@ -259,14 +260,14 @@ function ConfigExportImportPage() {
         )}
         width={700}
       >
-        <Steps current={currentStep} style={{ marginBottom: 24 }}>
+        <Steps current={currentStep} className="config-export-import__steps-mb">
           <Steps.Step title="选择文件" />
           <Steps.Step title="确认预览" />
           <Steps.Step title="导入结果" />
         </Steps>
 
         {currentStep === 1 && importConfig && (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className="config-export-import__space-full">
             <Descriptions
               column={2}
               data={[

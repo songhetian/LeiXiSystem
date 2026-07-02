@@ -171,6 +171,8 @@ export default function FormBuilder(props: FormBuilderProps) {
         ...template,
         id: `${template.type}-${Date.now()}`,
         field: `field_${Date.now()}`,
+        type: template.type,
+        label: template.label,
       }
       onFieldsChange?.([...fields, newField])
     },
@@ -195,7 +197,7 @@ export default function FormBuilder(props: FormBuilderProps) {
                     className={styles['form-builder__template-item']}
                     onClick={() => editable && handleAddField(template)}
                   >
-                    <IconPlus size={14} />
+                    <IconPlus style={{ fontSize: 14 }} />
                     <span>{template.label}</span>
                     <Tag size="small" color={typeTagColors[template.type] || 'gray'}>
                       {template.type}

@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Button,
   Card,
   Descriptions,
   Form,
   Input,
-  Message,
   Modal,
   Select,
   Space,
@@ -20,10 +19,12 @@ import {
   EmployeeInfoChangeRequest,
 } from '@/api/employee-change'
 import { PageHeader, TableHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import './index.css'
 
 const FormItem = Form.Item
 const TabPane = Tabs.TabPane
+const Option = Select.Option
 
 const typeMap: Record<string, { text: string; color: string }> = {
   basic_info: { text: '基本信息', color: 'blue' },
@@ -86,7 +87,7 @@ function MyInfoChangePage() {
         total: res.data.total || 0,
       })
     } catch (e: any) {
-      Message.error(e?.message || '加载失败')
+      toast.error(e?.message || '加载失败')
     } finally {
       setLoading(false)
     }
@@ -108,10 +109,10 @@ function MyInfoChangePage() {
   const handleCancel = async (id: number) => {
     try {
       await cancelInfoChange(id)
-      Message.success('已撤销申请')
+      toast.success('已撤销申请')
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '撤销失败')
+      toast.error(e?.message || '撤销失败')
     }
   }
 
@@ -124,12 +125,12 @@ function MyInfoChangePage() {
         changeData: values.changeData,
         reason: values.reason,
       })
-      Message.success('申请已提交')
+      toast.success('申请已提交')
       setCreateVisible(false)
       form.resetFields()
       loadData(pagination.current, pagination.pageSize)
     } catch (e: any) {
-      Message.error(e?.message || '提交失败')
+      toast.error(e?.message || '提交失败')
     }
   }
 
@@ -279,7 +280,7 @@ function MyInfoChangePage() {
         {currentRecord && (
           <Descriptions
             column={2}
-            bordered
+            border
             data={[
               { label: '变更类型', value: typeMap[currentRecord.type]?.text || currentRecord.type },
               {
@@ -293,7 +294,7 @@ function MyInfoChangePage() {
               { label: '申请原因', value: currentRecord.reason || '-', span: 2 },
               { label: '审批意见', value: currentRecord.approvalComment || '-', span: 2 },
               { label: '申请时间', value: new Date(currentRecord.createdAt).toLocaleString(), span: 2 },
-            ]}
+            ] as any}
           />
         )}
       </Modal>

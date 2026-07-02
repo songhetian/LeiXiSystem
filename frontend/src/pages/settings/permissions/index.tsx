@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, Select, Switch, Tag, Space, Message, Popconfirm } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, Select, Switch, Tag, Space, Popconfirm } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { get, post, put, del } from '@/api/request'
+import { toast } from '@/utils/toast'
 
 export default function PermissionsPage() {
   const [items, setItems] = useState<any[]>([])
@@ -27,8 +28,8 @@ export default function PermissionsPage() {
     try {
       const v = await form.validate()
       edit ? await put(`/rbac/data-permissions/${edit.id}`, v) : await post('/rbac/data-permissions', v)
-      Message.success('保存成功'); setVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   return (

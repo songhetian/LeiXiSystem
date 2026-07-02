@@ -52,12 +52,12 @@
 }
 
 .leave-overtime-report .stat-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .leave-overtime-report .stat-card .arco-statistic {
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
@@ -66,7 +66,7 @@
 }
 
 .leave-overtime-report .chart-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .leave-overtime-report .chart-container {
@@ -75,9 +75,9 @@
 }
 
 .leave-overtime-report .table-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .leave-overtime-report .arco-table-wrapper {
-  background: #fff;
+  background: var(--lx-surface);
 }

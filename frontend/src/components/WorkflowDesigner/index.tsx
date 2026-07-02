@@ -259,6 +259,9 @@ function SortableNodeRow({
           <div className={styles['condition-branches']}>
             {node.conditions.map((branch, idx) => (
               <div key={branch.id} className={styles['condition-branch']}>
+                <div className={styles['branch-label']}>
+                  分支 {idx + 1}
+                </div>
                 <div
                   className={styles['branch-card']}
                   onClick={() => onBranchSelect(node.id, idx)}
@@ -515,7 +518,7 @@ function NodeConfigDrawer({
       }
       visible={visible}
       onCancel={onClose}
-      width={420}
+      width={480}
       unmountOnExit
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -967,11 +970,22 @@ function WorkflowDesigner({
         {/* Toolbar */}
         <div className={styles['canvas-toolbar']}>
           <span className={styles['canvas-toolbar__info']}>
-            共 {middleNodes.length} 个节点
+            <span className={styles['canvas-toolbar__node-count']}>
+              {middleNodes.length}
+            </span>
+            个流程节点
+            <span className={styles['canvas-toolbar__zoom']}>100%</span>
           </span>
           <Space>
             <Button size="small" onClick={handleCancel}>
               取消
+            </Button>
+            <Button
+              size="small"
+              type="secondary"
+              onClick={() => Message.info('预览功能开发中')}
+            >
+              预览
             </Button>
             <Button size="small" type="primary" onClick={handleSave}>
               保存
@@ -1042,11 +1056,22 @@ function WorkflowDesigner({
           <DragOverlay dropAnimation={null}>
             {activeNode ? (
               <div className={styles['drag-overlay']}>
-                {activeNode.type === 'condition' ? (
-                  <IconSwap />
-                ) : (
-                  <IconUser />
-                )}
+                <span
+                  className={[
+                    styles['drag-overlay__icon'],
+                    activeNode.type === 'condition'
+                      ? styles['drag-overlay__icon--condition']
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {activeNode.type === 'condition' ? (
+                    <IconSwap />
+                  ) : (
+                    <IconUser />
+                  )}
+                </span>
                 {activeNode.name}
               </div>
             ) : null}

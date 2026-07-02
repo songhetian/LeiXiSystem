@@ -1,16 +1,16 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import {
   Card,
   Button,
   Input,
   Form,
-  Message,
   Grid,
 } from '@arco-design/web-react'
 import {
   IconLock,
 } from '@arco-design/web-react/icon'
 import { post } from '@/api/request'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -23,7 +23,7 @@ function Password() {
     try {
       const values = await form.validate()
       if (values.newPassword !== values.confirmPassword) {
-        Message.error('两次输入的密码不一致')
+        toast.error('两次输入的密码不一致')
         return
       }
       setLoading(true)
@@ -32,7 +32,7 @@ function Password() {
         newPassword: values.newPassword,
       })
       if (res.code === 0) {
-        Message.success('密码修改成功')
+        toast.success('密码修改成功')
         form.resetFields()
       }
     } catch {

@@ -1,8 +1,16 @@
+/* PageHeader — Enterprise Jade Green Design */
 .page-header {
-  margin-bottom: 0;
+  margin-bottom: 20px;
+  animation: lx-fade-in 0.35s var(--lx-ease-out, cubic-bezier(0, 0, 0.2, 1)) both;
 }
 
 .page-header__space {
+  width: 100%;
+  display: flex !important;
+}
+
+/* Force arco-space-item children to fill width */
+.page-header__space :global(.arco-space-item) {
   width: 100%;
 }
 
@@ -11,16 +19,30 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
 }
 
 .page-header__title {
   margin: 0 !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: var(--lx-gray-900, #111827);
+  letter-spacing: var(--lx-tracking-tight, -0.025em);
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body:global(.arco-theme-dark) .page-header__title {
+  color: var(--lx-gray-100, #F1F5F9);
 }
 
 .page-header__actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .page-header__extra {
@@ -29,9 +51,12 @@
 }
 
 .page-header__refresh {
-  color: var(--color-text-2);
+  color: var(--lx-gray-500, #6B7280);
+  border-radius: 8px;
+  transition: all 0.2s;
 }
 
 .page-header__refresh:hover {
-  color: var(--color-text-1);
+  color: rgb(var(--primary-6));
+  background: rgba(16, 185, 129, 0.06);
 }

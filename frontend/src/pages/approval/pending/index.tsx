@@ -7,11 +7,11 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Tabs,
   Descriptions,
+  DatePicker,
 } from '@arco-design/web-react'
 import {
   IconCheck,
@@ -19,16 +19,24 @@ import {
   IconEye,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
+import type { Dayjs } from 'dayjs'
 import { getPendingApproval } from '@/api/approval'
 import type { PendingApproval } from '@/api/approval'
 import { approveLeave, rejectLeave, batchApproveLeave, batchRejectLeave, approveOvertime, rejectOvertime, batchApproveOvertime, batchRejectOvertime } from '@/api/attendance'
 import { approveReimbursement, rejectReimbursement, batchApproveReimbursement, batchRejectReimbursement } from '@/api/reimbursement'
 import { FilterBar, TableHeader, BatchActions } from '@/components'
 import { useBatchSelection } from '@/hooks/useBatchSelection'
+import { toast } from '@/utils/toast'
 import styles from './pending.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
 const TabPane = Tabs.TabPane
+const { RangePicker } = DatePicker
+
+const priorityOptions = [
+  { value: 'urgent', label: '紧急' },
+  { value: 'normal', label: '普通' },
+]
 
 const typeMap: Record<string, { text: string; color: string }> = {
   leave: { text: '请假', color: 'blue' },
@@ -49,6 +57,9 @@ function Pending() {
   const [currentRecord, setCurrentRecord] = useState<PendingApproval | null>(null)
   const [searchText, setSearchText] = useState('')
   const [searchType, setSearchType] = useState<string | undefined>()
+  const [searchApplicant, setSearchApplicant] = useState('')
+  const [searchDateRange, setSearchDateRange] = useState<Dayjs[]>([])
+  const [searchPriority, setSearchPriority] = useState<string | undefined>()
   const [activeTab, setActiveTab] = useState('all')
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
   const [opinionForm] = Form.useForm()
@@ -77,6 +88,24 @@ function Pending() {
       }
       if (searchType) {
         list = list.filter((item: PendingApproval) => item.type === searchType)
+      }
+      if (searchApplicant) {
+        list = list.filter((item: PendingApproval) =>
+          item.applicant.includes(searchApplicant),
+        )
+      }
+      if (searchDateRange.length === 2) {
+        const start = searchDateRange[0].startOf('day').valueOf()
+        const end = searchDateRange[1].endOf('day').valueOf()
+        list = list.filter((item: PendingApproval) => {
+          const t = new Date(item.createdAt).getTime()
+          return t >= start && t <= end
+        })
+      }
+      if (searchPriority) {
+        list = list.filter((item: PendingApproval) =>
+          (item as any).priority === searchPriority,
+        )
       }
       setData(list)
       setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
@@ -188,7 +217,7 @@ function Pending() {
           } else if (record.type === 'reimbursement') {
             await approveReimbursement(record.id)
           }
-          Message.success('审批通过')
+          toast.success('审批通过')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor
@@ -220,7 +249,7 @@ function Pending() {
           } else if (record.type === 'reimbursement') {
             await rejectReimbursement(record.id, { opinion: values.opinion })
           }
-          Message.success('已驳回')
+          toast.success('已驳回')
           fetchData(pagination.current, pagination.pageSize)
         } catch {
           // error handled by interceptor
@@ -255,7 +284,7 @@ function Pending() {
           }
 
           await Promise.all(promises)
-          Message.success(`成功通过 ${batch.selectedCount} 条申请`)
+          toast.success(`成功通过 ${batch.selectedCount} 条申请`)
           batch.clearSelection()
           fetchData(pagination.current, pagination.pageSize)
         } catch {
@@ -293,7 +322,7 @@ function Pending() {
       }
 
       await Promise.all(promises)
-      Message.success(`成功驳回 ${batch.selectedCount} 条申请`)
+      toast.success(`成功驳回 ${batch.selectedCount} 条申请`)
       setBatchRejectVisible(false)
       batch.clearSelection()
       fetchData(pagination.current, pagination.pageSize)
@@ -312,6 +341,9 @@ function Pending() {
   const handleReset = () => {
     setSearchText('')
     setSearchType(undefined)
+    setSearchApplicant('')
+    setSearchDateRange([])
+    setSearchPriority(undefined)
     fetchData(1, pagination.pageSize)
   }
 
@@ -381,6 +413,30 @@ function Pending() {
                   <Option value="leave">请假</Option>
                   <Option value="overtime">加班</Option>
                   <Option value="reimbursement">报销</Option>
+                </Select>
+              </FormItem>
+              <FormItem label="申请人">
+                <Input
+                  placeholder="请输入申请人姓名"
+                  value={searchApplicant}
+                  onChange={setSearchApplicant}
+                  allowClear
+                />
+              </FormItem>
+              <FormItem label="申请时间">
+                <RangePicker
+                  value={searchDateRange}
+                  onChange={(_, date) => setSearchDateRange(date)}
+                />
+              </FormItem>
+              <FormItem label="优先级">
+                <Select
+                  placeholder="请选择优先级"
+                  value={searchPriority}
+                  onChange={setSearchPriority}
+                  allowClear
+                >
+                  {priorityOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
                 </Select>
               </FormItem>
             </>

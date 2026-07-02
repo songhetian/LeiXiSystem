@@ -52,8 +52,8 @@
 }
 
 .employee-tag__color-option--active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px #165DFF;
+  border-color: var(--lx-surface);
+  box-shadow: 0 0 0 2px var(--lx-primary-6);
 }
 
 .employee-tag__employee-section {
@@ -64,7 +64,7 @@
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #1D2129;
+  color: var(--lx-gray-900);
 }
 
 .employee-tag__employee-search {
@@ -81,7 +81,7 @@
 
 .employee-tag__text-small-muted {
   font-size: 12px;
-  color: #86909C;
+  color: var(--text-color-tertiary);
 }
 
 .employee-tag__date-picker-full {

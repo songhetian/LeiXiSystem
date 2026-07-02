@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import styles from './index.module.css'
 import {
-  Button, Card, DatePicker, Form, Input, InputNumber, Message, Modal,
+  Button, Card, DatePicker, Form, Input, InputNumber, Modal,
   Popconfirm, Rate, Select, Space, Table, Tabs, Tag, Typography,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
@@ -17,6 +17,8 @@ import {
   getOffers, getOfferDetail, createOffer, acceptOffer,
 } from '@/api/recruitment'
 import { getDepartmentsList, getPositions, type Department, type Position } from '@/api/organization'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 
 const FormItem = Form.Item
 const Option = Select.Option
@@ -148,11 +150,6 @@ function StatusTag({ value, map }: { value: string; map: Record<string, { text: 
   return <Tag color={info.color}>{info.text}</Tag>
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString()
-}
-
 // ===== Shared Components =====
 
 function DetailModal({ title, visible, data, onClose, renderContent }: {
@@ -232,10 +229,10 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
     try {
       if (editing) {
         await updateRecruitmentRequest(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createRecruitmentRequest(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()
@@ -244,7 +241,7 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
 
   const handleDelete = async (id: number) => {
     await deleteRecruitmentRequest(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     load()
   }
 
@@ -335,7 +332,7 @@ function RequestsTab({ departments, positions }: { departments: any[]; positions
           <div><Text type="secondary">状态</Text><div><StatusTag value={d.status} map={requestStatusMap} /></div></div>
           <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">申请原因</Text><div>{d.reason || '-'}</div></div>
           <div><Text type="secondary">申请人</Text><div>{d.creator?.realName || '-'}</div></div>
-          <div><Text type="secondary">创建时间</Text><div>{formatDate(d.createdAt)}</div></div>
+          <div><Text type="secondary">创建时间</Text><div>{d.createdAt ? formatDate(d.createdAt) : '-'}</div></div>
         </div>
       )} />
     </>
@@ -388,10 +385,10 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
     try {
       if (editing) {
         await updateJobOpening(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createJobOpening(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()
@@ -400,7 +397,7 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
 
   const handleDelete = async (id: number) => {
     await deleteJobOpening(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     load()
   }
 
@@ -488,7 +485,7 @@ function OpeningsTab({ departments, positions }: { departments: any[]; positions
           <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">职位描述</Text><div>{d.description || '-'}</div></div>
           <div className={styles['recruitment-overview__form-grid-full']}><Text type="secondary">任职要求</Text><div>{d.requirements || '-'}</div></div>
           <div><Text type="secondary">发布人</Text><div>{d.creator?.realName || '-'}</div></div>
-          <div><Text type="secondary">发布时间</Text><div>{formatDate(d.publishedAt)}</div></div>
+          <div><Text type="secondary">发布时间</Text><div>{d.publishedAt ? formatDate(d.publishedAt) : '-'}</div></div>
         </div>
       )} />
     </>
@@ -542,10 +539,10 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
     try {
       if (editing) {
         await updateCandidate(editing.id, values)
-        Message.success('更新成功')
+        toast.success('更新成功')
       } else {
         await createCandidate(values)
-        Message.success('创建成功')
+        toast.success('创建成功')
       }
       setModalVisible(false)
       load()
@@ -554,7 +551,7 @@ function CandidatesTab({ openings }: { openings: JobOpening[] }) {
 
   const handleDelete = async (id: number) => {
     await deleteCandidate(id)
-    Message.success('删除成功')
+    toast.success('删除成功')
     load()
   }
 
@@ -705,7 +702,7 @@ function InterviewsTab({ openings }: { openings: JobOpening[] }) {
     setSubmitting(true)
     try {
       await createInterview(values)
-      Message.success('创建成功')
+      toast.success('创建成功')
       setModalVisible(false)
       form.resetFields()
       load()
@@ -716,7 +713,7 @@ function InterviewsTab({ openings }: { openings: JobOpening[] }) {
     { title: '候选人', width: 110, render: (_: any, r) => r.candidate?.name || '-' },
     { title: '应聘职位', render: (_: any, r) => r.candidate?.jobOpening?.title || '-' },
     { title: '面试轮次', dataIndex: 'roundName', width: 110 },
-    { title: '面试时间', dataIndex: 'interviewAt', width: 120, render: formatDate },
+    { title: '面试时间', dataIndex: 'interviewAt', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     { title: '面试官', dataIndex: 'interviewer', width: 90, render: (_: any, r) => r.interviewer?.realName || '-' },
     { title: '结果', dataIndex: 'result', width: 90, render: (v) => <StatusTag value={v} map={interviewResultMap} /> },
     { title: '反馈', dataIndex: 'feedback', ellipsis: true },
@@ -790,7 +787,7 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
   const load = useCallback(async (p = page, s = statusFilter, o = openingFilter) => {
     setLoading(true)
     try {
-      const res = await getOffers({ page: p, pageSize: 10, ...(s ? { status: s } : {}), ...(o ? { jobOpeningId: o } : {}) })
+      const res = await getOffers({ page: p, pageSize: 10, ...(s ? { status: s } : {}), ...(o ? { jobOpeningId: Number(o) } : {}) })
       setData(res?.data?.list || [])
       setTotal(res?.data?.total || 0)
     } finally { setLoading(false) }
@@ -808,12 +805,12 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
     const values = await form.validate()
     const data = {
       ...values,
-      startDate: values.startDate instanceof Date ? values.startDate.toISOString().split('T')[0] : values.startDate,
+      startDate: values.startDate ? formatDate(values.startDate) : values.startDate,
     }
     setSubmitting(true)
     try {
       await createOffer(data)
-      Message.success('创建成功')
+      toast.success('创建成功')
       setModalVisible(false)
       form.resetFields()
       load()
@@ -822,7 +819,7 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
 
   const handleAccept = async (id: number) => {
     await acceptOffer(id)
-    Message.success('Offer 已接受')
+    toast.success('Offer 已接受')
     load()
   }
 
@@ -837,7 +834,7 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
     { title: '候选人', width: 110, render: (_: any, r) => r.candidate?.name || '-' },
     { title: '应聘职位', render: (_: any, r) => r.candidate?.jobOpening?.title || '-' },
     { title: '薪资', dataIndex: 'salary', width: 110, render: (v: number) => v ? `¥${v.toLocaleString()}` : '-' },
-    { title: '入职日期', dataIndex: 'startDate', width: 120, render: formatDate },
+    { title: '入职日期', dataIndex: 'startDate', width: 120, render: (v: string) => v ? formatDate(v) : '-' },
     { title: '状态', dataIndex: 'status', width: 90, render: (v) => <StatusTag value={v} map={offerStatusMap} /> },
     {
       title: '操作', width: 160,
@@ -897,8 +894,8 @@ function OffersTab({ openings }: { openings: JobOpening[] }) {
           <div><Text type="secondary">候选人</Text><div>{d.candidate?.name}</div></div>
           <div><Text type="secondary">应聘职位</Text><div>{d.candidate?.jobOpening?.title}</div></div>
           <div><Text type="secondary">薪资</Text><div>{d.salary ? `¥${d.salary.toLocaleString()}` : '-'}</div></div>
-          <div><Text type="secondary">入职日期</Text><div>{formatDate(d.startDate)}</div></div>
-          <div><Text type="secondary">接受时间</Text><div>{formatDate(d.acceptedAt)}</div></div>
+          <div><Text type="secondary">入职日期</Text><div>{d.startDate ? formatDate(d.startDate) : '-'}</div></div>
+          <div><Text type="secondary">接受时间</Text><div>{d.acceptedAt ? formatDate(d.acceptedAt) : '-'}</div></div>
         </div>
       )} />
     </>

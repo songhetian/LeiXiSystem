@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Select, Message, Space, Tag } from '@arco-design/web-react'
+﻿import { useState, useEffect } from 'react'
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Tag } from '@arco-design/web-react'
 import { IconPlus } from '@arco-design/web-react/icon'
 import PageContainer from '@/components/PageContainer'
 import { get, post, put, del } from '@/api/request'
+import { toast } from '@/utils/toast'
 
 export default function PoliciesPage() {
   const [items, setItems] = useState<any[]>([])
@@ -22,8 +23,8 @@ export default function PoliciesPage() {
     try {
       const v = await form.validate()
       edit ? await put(`/vacation/policies/${edit.id}`, v) : await post('/vacation/policies', v)
-      Message.success('保存成功'); setVisible(false); fetchAll()
-    } catch (e: any) { if (e.message) Message.error(e.message) }
+      toast.success('保存成功'); setVisible(false); fetchAll()
+    } catch (e: any) { if (e.message) toast.error(e.message) }
   }
 
   return (

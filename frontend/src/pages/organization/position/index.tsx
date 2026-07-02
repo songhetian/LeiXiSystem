@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -6,7 +6,6 @@ import {
   Select,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Spin,
@@ -25,6 +24,8 @@ import {
 import type { Position, Department } from '@/api/organization'
 import { FilterBar, TableHeader, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { useTableHotkeys } from '@/hooks/useTableHotkeys'
+import { toast } from '@/utils/toast'
 import styles from './position.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -83,10 +84,10 @@ function PositionPage() {
     onSubmit: async (values, id) => {
       if (id) {
         await updatePosition(id, values)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         await createPosition(values)
-        Message.success('新增成功')
+        toast.success('新增成功')
       }
     },
     onSuccess: () => loadData(pagination.current, pagination.pageSize),
@@ -154,7 +155,7 @@ function PositionPage() {
   const handleDelete = async (id: number) => {
     try {
       await deletePosition(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor

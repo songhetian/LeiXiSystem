@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Card, Form, Message, Select, Table } from '@arco-design/web-react'
+﻿import { useCallback, useMemo, useState } from 'react'
+import { Card, Form, Select, Table } from '@arco-design/web-react'
 import { getPayslipDisputes, handlePayslipDispute, PayslipDispute } from '@/api/payroll'
 import { PageHeader, FilterBar, ApprovalActionModal, StatusTag, ApproveRejectButtons, employeeColumn, departmentColumn } from '@/components'
 import { useTableData } from '@/hooks/useTableData'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -27,7 +28,7 @@ function PayslipDisputesPage() {
   const submitHandle = useCallback(async (values: { comment?: string }) => {
     if (!current?.id) return
     await handlePayslipDispute(current.id, { status: targetStatus, handlerReply: values.comment })
-    Message.success('工资条申诉已处理')
+    toast.success('工资条申诉已处理')
     setVisible(false)
     loadData()
   }, [current, loadData, targetStatus])

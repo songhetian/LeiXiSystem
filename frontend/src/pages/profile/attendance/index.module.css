@@ -13,5 +13,5 @@
 .profile-attendance__empty {
   text-align: center;
   padding: 40px;
-  color: #86909c;
+  color: var(--text-color-tertiary);
 }

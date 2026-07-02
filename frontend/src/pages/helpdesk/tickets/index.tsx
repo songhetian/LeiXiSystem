@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Button, Card, Checkbox, Form, Input, InputNumber, Message, Modal,
+  Button, Card, Checkbox, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tabs, Tag,
 } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
@@ -12,6 +12,7 @@ import {
 } from '@/api/helpdesk'
 import { getEmployees, type Employee } from '@/api/personnel'
 import { useAuthStore } from '@/store/auth'
+import { toast } from '@/utils/toast'
 import styles from './tickets.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -105,7 +106,7 @@ function CategoriesTab() {
     setSubmitting(true)
     try {
       await createHelpdeskCategory(values)
-      Message.success('创建成功')
+      toast.success('创建成功')
       setModalVisible(false)
       form.resetFields()
       load()
@@ -115,10 +116,10 @@ function CategoriesTab() {
   const handleDelete = async (id: number) => {
     try {
       await deleteHelpdeskCategory(id)
-      Message.success('删除成功')
+      toast.success('删除成功')
       load()
     } catch (e: any) {
-      Message.error(e?.response?.data?.message || '删除失败')
+      toast.error(e?.response?.data?.message || '删除失败')
     }
   }
 
@@ -231,7 +232,7 @@ function TicketsTab() {
     setSubmitting(true)
     try {
       await createHelpdeskTicket(values)
-      Message.success('提交成功')
+      toast.success('提交成功')
       setCreateModal(false)
       load()
     } finally { setSubmitting(false) }
@@ -250,7 +251,7 @@ function TicketsTab() {
     setSubmitting(true)
     try {
       await createHelpdeskComment(detailData.id, values)
-      Message.success('回复成功')
+      toast.success('回复成功')
       commentForm.resetFields()
       openDetail(detailData.id)
     } finally { setSubmitting(false) }
@@ -258,7 +259,7 @@ function TicketsTab() {
 
   const handleStatusChange = async (id: number, status: string) => {
     await updateHelpdeskTicket(id, { status })
-    Message.success('状态已更新')
+    toast.success('状态已更新')
     load()
   }
 
@@ -371,9 +372,9 @@ function TicketsTab() {
                   allowClear
                   value={detailData.assignee?.id}
                   onChange={(v) => {
-                    updateHelpdeskTicket(detailData.id, { assignedTo: v ?? null })
-                      .then(() => { Message.success('分配成功'); openDetail(detailData.id) })
-                      .catch((e: any) => Message.error(e?.response?.data?.message || '分配失败'))
+                    updateHelpdeskTicket(detailData.id, { assigneeId: v ?? null })
+                      .then(() => { toast.success('分配成功'); openDetail(detailData.id) })
+                      .catch((e: any) => toast.error(e?.response?.data?.message || '分配失败'))
                   }}>
                   {employees.filter((e: any) => e.realName).map((e: any) => (
                     <Option key={e.id} value={e.id}>{e.realName}</Option>

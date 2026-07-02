@@ -165,7 +165,7 @@ export function useAdvancedTable<T = any>({
 
   // 处理列配置
   const processedColumns = useMemo(() => {
-    return columns.map((col: any) => {
+    return (columns || []).map((col: any) => {
       const key = col.key || col.dataIndex
 
       // 添加排序
@@ -173,10 +173,10 @@ export function useAdvancedTable<T = any>({
       if (isSortable) {
         return {
           ...col,
-          sortOrder: sortConfig?.field === key ? sortConfig.order : null,
+          sortOrder: sortConfig?.field === key ? sortConfig!.order : null,
           onSort: (_a: any, _b: any) => {
             const newOrder: SortOrder = sortConfig?.field === key
-              ? sortConfig.order === 'asc' ? 'desc' : 'asc'
+              ? sortConfig!.order === 'asc' ? 'desc' : 'asc'
               : 'asc'
             setSort(key, newOrder)
             return 0
@@ -200,9 +200,9 @@ export function useAdvancedTable<T = any>({
           case 'eq':
             return value === filter.value
           case 'gt':
-            return value > filter.value
+            return value > (filter.value ?? '')
           case 'lt':
-            return value < filter.value
+            return value < (filter.value ?? '')
           case 'contains':
             return String(value).includes(String(filter.value))
           default:
@@ -233,7 +233,7 @@ export function useAdvancedTable<T = any>({
   // 活跃筛选信息
   const activeFiltersInfo = useMemo(() => {
     return filters.map((filter) => {
-      const col = columns.find((c: any) => (c.key || c.dataIndex) === filter.field)
+      const col = columns?.find((c: any) => (c.key || c.dataIndex) === filter.field)
       return {
         field: filter.field,
         label: typeof col?.title === 'string' ? col.title : filter.field,
@@ -312,7 +312,7 @@ export function AdvancedTableSettingsButton({
     <Dropdown
       trigger="click"
       position="bl"
-      popup={() => settingsMenu}
+      droplist={settingsMenu}
     >
       <Button icon={<IconSettings />} type="text" size="small" className={className}>
         设置

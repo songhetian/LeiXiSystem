@@ -1,10 +1,9 @@
 import { ReactNode } from 'react'
 import { Table as ArcoTable, TableProps as ArcoTableProps } from '@arco-design/web-react'
-import { ActiveFiltersBar, AdvancedTableSettingsButton } from '../RowActionsHover'
 import styles from './index.module.css'
 export interface EnhancedTableProps<T = any> extends Omit<ArcoTableProps<T>, 'size'> {
   /** 表格密度 */
-  size?: 'mini' | 'small' | 'medium'
+  size?: 'mini' | 'small' | 'default'
   /** 是否显示斑马纹 */
   stripe?: boolean
   /** 表头固定 */
@@ -18,7 +17,7 @@ export interface EnhancedTableProps<T = any> extends Omit<ArcoTableProps<T>, 'si
 }
 
 function EnhancedTable<T = any>({
-  size = 'medium',
+  size = 'default',
   stripe = false,
   stickyHeader = false,
   toolbar,

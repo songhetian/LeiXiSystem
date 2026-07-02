@@ -14,6 +14,7 @@ import type { TableColumnProps } from '@arco-design/web-react'
 import { IconUser, IconExclamation, IconCheck, IconClose } from '@arco-design/web-react/icon'
 import { get } from '@/api/request'
 import { PageHeader } from '@/components'
+import { formatDate } from '@/utils/date'
 import styles from './stats.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -47,8 +48,8 @@ function AttendanceExceptionStats() {
     try {
       const params: any = {}
       if (values?.dateRange?.length === 2) {
-        params.startDate = values.dateRange[0].toISOString().split('T')[0]
-        params.endDate = values.dateRange[1].toISOString().split('T')[0]
+        params.startDate = formatDate(values.dateRange[0])
+        params.endDate = formatDate(values.dateRange[1])
       }
       const res = await get<any>('/attendance/exceptions/stats/summary', { params })
       if (res.code === 0) {
@@ -101,7 +102,7 @@ function AttendanceExceptionStats() {
       dataIndex: 'index',
       width: 60,
       render: (_: unknown, __: unknown, index: number) => {
-        const colors = ['#FF7D00', '#FFB400', '#00B42A']
+        const colors = ['#F59E0B', '#F59E0B', 'var(--lx-primary-6)']
         if (index < 3) {
           return <Tag color={colors[index]} className={styles['exception-stats__bold']}>#{index + 1}</Tag>
         }
@@ -164,8 +165,8 @@ function AttendanceExceptionStats() {
             <Statistic
               title={<span className={styles['exception-stats__stat-title']}>异常总数</span>}
               value={stats?.summary.total || 0}
-              prefix={<IconExclamation className={styles['exception-stats__stat-icon']} style={{ color: "#F53F3F" }} />}
-              styleValue={{ fontSize: 32, fontWeight: 600, color: '#F53F3F' }}
+              prefix={<IconExclamation className={`${styles['exception-stats__stat-icon']} ${styles['exception-stats__stat-danger']}`} />}
+              styleValue={{ fontSize: 32, fontWeight: 600, color: '#EF4444' }}
             />
           </Card>
         </Col>
@@ -174,8 +175,8 @@ function AttendanceExceptionStats() {
             <Statistic
               title={<span className={styles['exception-stats__stat-title']}>待处理</span>}
               value={stats?.summary.pending || 0}
-              prefix={<IconClose className={styles['exception-stats__stat-icon']} style={{ color: "#FF7D00" }} />}
-              styleValue={{ fontSize: 32, fontWeight: 600, color: '#FF7D00' }}
+              prefix={<IconClose className={`${styles['exception-stats__stat-icon']} ${styles['exception-stats__stat-warning']}`} />}
+              styleValue={{ fontSize: 32, fontWeight: 600, color: '#F59E0B' }}
             />
           </Card>
         </Col>
@@ -184,8 +185,8 @@ function AttendanceExceptionStats() {
             <Statistic
               title={<span className={styles['exception-stats__stat-title']}>已解决</span>}
               value={stats?.summary.resolved || 0}
-              prefix={<IconCheck className={styles['exception-stats__stat-icon']} style={{ color: "#00B42A" }} />}
-              styleValue={{ fontSize: 32, fontWeight: 600, color: '#00B42A' }}
+              prefix={<IconCheck className={`${styles['exception-stats__stat-icon']} ${styles['exception-stats__stat-success']}`} />}
+              styleValue={{ fontSize: 32, fontWeight: 600, color: 'var(--lx-primary-6)' }}
             />
           </Card>
         </Col>
@@ -195,8 +196,8 @@ function AttendanceExceptionStats() {
               title={<span className={styles['exception-stats__stat-title']}>处理率</span>}
               value={stats?.summary.resolveRate || 0}
               suffix="%"
-              prefix={<IconUser className={styles['exception-stats__stat-icon']} style={{ color: "#165DFF" }} />}
-              styleValue={{ fontSize: 32, fontWeight: 600, color: '#165DFF' }}
+              prefix={<IconUser className={`${styles['exception-stats__stat-icon']} ${styles['exception-stats__stat-primary']}`} />}
+              styleValue={{ fontSize: 32, fontWeight: 600, color: 'var(--lx-primary-6)' }}
             />
           </Card>
         </Col>

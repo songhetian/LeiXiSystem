@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Card, List, Button, Tag, Space, Input, Message, Tabs, Badge, Avatar, Spin } from '@arco-design/web-react'
-import { IconNotification, IconMessage, IconCalendar, IconFile, IconCheck } from '@arco-design/web-react/icon'
+﻿import { useState, useEffect } from 'react'
+import { Card, List, Button, Tag, Space, Input, Tabs, Badge, Avatar, Spin } from '@arco-design/web-react'
+import { IconNotification, IconCalendar, IconFile, IconCheck, IconEmail } from '@arco-design/web-react/icon'
 import { getNotificationList, markNotificationRead, markAllNotificationsRead } from '@/api/notification'
 import type { Notification } from '@/api/notification'
 import { PageHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const TabPane = Tabs.TabPane
 
@@ -11,7 +12,7 @@ const typeConfig: Record<string, { text: string; color: string; icon: any }> = {
   system: { text: '系统', color: 'blue', icon: IconNotification },
   approval: { text: '审批', color: 'orange', icon: IconFile },
   attendance: { text: '考勤', color: 'green', icon: IconCalendar },
-  announcement: { text: '公告', color: 'purple', icon: IconMessage },
+  announcement: { text: '公告', color: 'purple', icon: IconEmail },
 }
 
 function ListPage() {
@@ -54,7 +55,7 @@ function ListPage() {
       await markAllNotificationsRead()
       setData(data.map((item) => ({ ...item, isRead: true })))
       setUnreadCount(0)
-      Message.success('已全部标记为已读')
+      toast.success('已全部标记为已读')
     } catch { /* error handled by interceptor */ }
   }
 

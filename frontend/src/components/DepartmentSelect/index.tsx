@@ -8,7 +8,7 @@ interface DepartmentSelectProps {
   onChange?: (value: number | number[]) => void
   placeholder?: string
   allowClear?: boolean
-  multiple?: boolean
+  mode?: 'multiple' | 'tags'
   className?: string
 }
 
@@ -17,7 +17,7 @@ function DepartmentSelect({
   onChange,
   placeholder = '选择部门',
   allowClear = true,
-  multiple = false,
+  mode,
   className = '',
 }: DepartmentSelectProps) {
   const [data, setData] = useState<Department[]>([])
@@ -43,7 +43,7 @@ function DepartmentSelect({
       onChange={onChange}
       placeholder={placeholder}
       allowClear={allowClear}
-      multiple={multiple}
+      mode={mode}
       className={className}
       loading={loading}
     >

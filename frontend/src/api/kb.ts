@@ -30,7 +30,7 @@ export interface KbArticle {
 
 // Categories
 export function getKbCategories(categoryType?: string) {
-  return get<{ code: number; data: KbCategory[] }>('/kb/categories', { categoryType })
+  return get<{ code: number; data: KbCategory[] }>('/kb/categories', { params: { categoryType } })
 }
 
 export function createKbCategory(data: any) {
@@ -68,7 +68,7 @@ export function deleteKbArticle(id: number) {
 
 // Search
 export function searchKb(params: { q: string; page?: number; categoryId?: number; categoryType?: string }) {
-  return get<{ code: number; data: { total: number; list: KbArticle[]; keyword: string } }>('/kb/search', params)
+  return get<{ code: number; data: { total: number; list: KbArticle[]; keyword: string } }>('/kb/search', { params })
 }
 
 // Feedback

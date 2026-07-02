@@ -56,19 +56,19 @@
 }
 
 .attendance-detail-report .stat-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .attendance-detail-report .stat-card .arco-statistic {
   padding: 16px;
-  background: #f7f8fa;
+  background: var(--lx-gray-50);
   border-radius: 4px;
 }
 
 .attendance-detail-report .table-card {
-  background: #fff;
+  background: var(--lx-surface);
 }
 
 .attendance-detail-report .arco-table-wrapper {
-  background: #fff;
+  background: var(--lx-surface);
 }

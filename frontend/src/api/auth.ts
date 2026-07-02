@@ -10,7 +10,7 @@ export function logout() {
 }
 
 export function getMe() {
-  return get<ApiResponse<User>>('/auth/me')
+  return get<ApiResponse<User>>('/auth/me', { silent: true, cancelDuplicate: false })
 }
 
 export function getPermissions() {

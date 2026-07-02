@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Button,
@@ -9,7 +9,6 @@ import {
   Input,
   Select,
   DatePicker,
-  Message,
   Tag,
   Tabs,
   Grid,
@@ -31,6 +30,8 @@ import {
   type ScheduleAppealItem,
 } from '@/api/schedule'
 import { getShifts, type Shift } from '@/api/shift'
+import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -104,19 +105,19 @@ function MySchedulePage() {
   const handleConfirmWeek = async () => {
     const res = await confirmWeekSchedules()
     if (res.code === 0) {
-      Message.success(res.message)
+      toast.success(res.message)
       fetchPending()
     }
   }
 
   const handleConfirmSelected = async () => {
     if (selectedKeys.length === 0) {
-      Message.warning('请选择要确认的排班')
+      toast.warning('请选择要确认的排班')
       return
     }
     const res = await confirmSchedules(selectedKeys)
     if (res.code === 0) {
-      Message.success(`成功确认 ${res.data.count} 条排班`)
+      toast.success(`成功确认 ${res.data.count} 条排班`)
       setSelectedKeys([])
       fetchPending()
     }
@@ -137,7 +138,7 @@ function MySchedulePage() {
         expectedDate: values.expectedDate?.format('YYYY-MM-DD'),
         expectedShiftId: values.expectedShiftId,
       })
-      Message.success('申诉已提交')
+      toast.success('申诉已提交')
       setAppealModalVisible(false)
       fetchPending()
       fetchAppeals()
@@ -148,7 +149,7 @@ function MySchedulePage() {
 
   const handleCancelAppeal = async (id: number) => {
     await cancelAppeal(id)
-    Message.success('申诉已取消')
+    toast.success('申诉已取消')
     fetchPending()
     fetchAppeals()
   }
@@ -158,7 +159,7 @@ function MySchedulePage() {
       title: '日期',
       dataIndex: 'schedule',
       width: 110,
-      render: (_: any, record: ScheduleConfirmationItem) => record.schedule?.scheduleDate?.split('T')[0],
+      render: (_: any, record: ScheduleConfirmationItem) => record.schedule?.scheduleDate ? formatDate(record.schedule.scheduleDate) : '',
     },
     {
       title: '班次',
@@ -193,7 +194,7 @@ function MySchedulePage() {
       title: '排班日期',
       dataIndex: 'schedule',
       width: 110,
-      render: (_: any, record: ScheduleAppealItem) => record.schedule?.scheduleDate?.split('T')[0],
+      render: (_: any, record: ScheduleAppealItem) => record.schedule?.scheduleDate ? formatDate(record.schedule.scheduleDate) : '',
     },
     {
       title: '原班次',
@@ -262,7 +263,7 @@ function MySchedulePage() {
               {pendingGroups.map((group) => (
                 <div key={`${group.periodStart}_${group.periodEnd}`} className={styles['my-schedule__period']}>
                   <div className={styles['my-schedule__period-title']}>
-                    {group.periodStart.split('T')[0]} ~ {group.periodEnd.split('T')[0]}
+                    {formatDate(group.periodStart)} ~ {formatDate(group.periodEnd)}
                     <span className={styles['my-schedule__period-count']}>({group.items.length}天)</span>
                   </div>
                   <Table
@@ -278,7 +279,7 @@ function MySchedulePage() {
                       {
                         title: '日期',
                         dataIndex: 'schedule',
-                        render: (_: any, record: any) => record.schedule?.scheduleDate?.split('T')[0],
+                        render: (_: any, record: any) => record.schedule?.scheduleDate ? formatDate(record.schedule.scheduleDate) : '',
                       },
                       {
                         title: '班次',
@@ -348,7 +349,7 @@ function MySchedulePage() {
       >
         <Form form={appealForm} layout="vertical">
           <FormItem label="排班日期">
-            <Input disabled value={editingSchedule?.schedule?.scheduleDate?.split('T')[0]} />
+            <Input disabled value={editingSchedule?.schedule?.scheduleDate ? formatDate(editingSchedule.schedule.scheduleDate) : ''} />
           </FormItem>
           <FormItem label="原班次">
             <Input disabled value={editingSchedule?.schedule?.shift?.name} />

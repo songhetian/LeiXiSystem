@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Popconfirm,
   Card,
@@ -29,6 +28,7 @@ import { getVacationTypes } from '@/api/vacation'
 import type { VacationType } from '@/api/vacation'
 import { FilterBar, TableHeader } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './leave.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -99,7 +99,7 @@ function Leave() {
         days: values.days || days,
         reason: values.reason,
       })
-      Message.success('申请成功')
+      toast.success('申请成功')
     },
     onSuccess: () => fetchData(pagination.current, pagination.pageSize),
   })
@@ -184,7 +184,7 @@ function Leave() {
   const handleCancel = async (id: number) => {
     try {
       await cancelAdjustmentLeave(id)
-      Message.success('撤销成功')
+      toast.success('撤销成功')
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor

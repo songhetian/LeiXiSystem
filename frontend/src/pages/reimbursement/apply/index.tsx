@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Form,
@@ -8,7 +8,6 @@ import {
   DatePicker,
   Button,
   Space,
-  Message,
   Grid,
   Upload,
   Steps,
@@ -27,6 +26,8 @@ import {
 } from '@/api/reimbursement'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
+import { formatDate } from '@/utils/date'
+import { toast } from '@/utils/toast'
 import styles from './apply.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -72,7 +73,7 @@ function Apply() {
             expenseDate: draft.expenseDate ? new Date(draft.expenseDate) : undefined,
             description: draft.description,
           })
-          Message.info('已自动恢复草稿')
+          toast.info('已自动恢复草稿')
         }
       } catch {
         // ignore
@@ -118,18 +119,18 @@ function Apply() {
         })
 
         if (budgetRes.code === 0) {
-          const { status, Message } = budgetRes.data
+          const { status } = budgetRes.data
           if (status === 'overdraft') {
             newWarnings.push({
               type: 'budget',
               level: 'error',
-              message,
+              message: '预算已超支',
             })
           } else if (status === 'warning') {
             newWarnings.push({
               type: 'budget',
               level: 'warning',
-              message,
+              message: '预算即将超支',
             })
           }
         }
@@ -162,7 +163,7 @@ function Apply() {
       // 如果有错误级别的警告，阻止提交
       const hasError = warnings.some((w) => w.level === 'error')
       if (hasError) {
-        Message.error('存在校验失败的項目，请修正后再提交')
+        toast.error('存在校验失败的項目，请修正后再提交')
         return
       }
 
@@ -172,7 +173,7 @@ function Apply() {
       await validateAll(values.expenseType, values.amount)
       const currentWarnings = warnings.filter((w) => w.level === 'error')
       if (currentWarnings.length > 0) {
-        Message.error('存在校验失败的項目，请修正后再提交')
+        toast.error('存在校验失败的項目，请修正后再提交')
         setSubmitting(false)
         return
       }
@@ -182,14 +183,14 @@ function Apply() {
         type: values.expenseType,
         amount: values.amount,
         expenseDate: values.expenseDate
-          ? new Date(values.expenseDate).toISOString().split('T')[0]
+          ? formatDate(values.expenseDate)
           : '',
         description: values.description,
       })
 
       // 提交成功后清除草稿
       await saveReimbursementDraft({})
-      Message.success('报销申请提交成功')
+      toast.success('报销申请提交成功')
       navigate('/reimbursement/list')
     } catch {
       // error handled by interceptor
@@ -206,13 +207,13 @@ function Apply() {
         type: values.expenseType,
         amount: values.amount,
         expenseDate: values.expenseDate
-          ? new Date(values.expenseDate).toISOString().split('T')[0]
+          ? formatDate(values.expenseDate)
           : '',
         description: values.description,
       })
-      Message.success('草稿已保存')
+      toast.success('草稿已保存')
     } catch {
-      Message.error('保存草稿失败')
+      toast.error('保存草稿失败')
     }
   }
 

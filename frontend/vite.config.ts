@@ -41,7 +41,7 @@ export default defineConfig({
       less: {
         javascriptEnabled: true,
         modifyVars: {
-          'arcoblue-6': '#165DFF',
+          'arcoblue-6': '#10B981',
         },
       },
     },

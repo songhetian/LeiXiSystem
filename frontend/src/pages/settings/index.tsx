@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import {
   Tabs,
   Card,
@@ -10,12 +10,12 @@ import {
   Upload,
   Button,
   Space,
-  Message,
   Checkbox,
   TimePicker,
   Link,
   Spin,
 } from '@arco-design/web-react'
+import { toast } from '@/utils/toast'
 import {
   IconHome,
   IconLock,
@@ -91,7 +91,7 @@ function Settings() {
         maxUploadSizeMB: data.parameters.maxUploadSizeMB,
       })
     } catch {
-      Message.error('加载设置失败')
+      toast.error('加载设置失败')
     } finally {
       setLoading(false)
     }
@@ -108,12 +108,12 @@ function Settings() {
       const values = formCompany.getFieldsValue()
       const updated = await updateSystemSettings({
         company: { ...values, logo: logoUrl },
-      })
+      } as Partial<SystemSettings>)
       setSettings(updated)
-      Message.success('企业信息已保存')
+      toast.success('企业信息已保存')
     } catch (err: any) {
       if (err?.errors) return
-      Message.error(err?.message || '保存失败')
+      toast.error(err?.message || '保存失败')
     } finally {
       setSaving(null)
     }
@@ -124,12 +124,12 @@ function Settings() {
       await formSecurity.validate()
       setSaving('security')
       const values = formSecurity.getFieldsValue()
-      const updated = await updateSystemSettings({ security: values })
+      const updated = await updateSystemSettings({ security: values } as Partial<SystemSettings>)
       setSettings(updated)
-      Message.success('安全设置已保存')
+      toast.success('安全设置已保存')
     } catch (err: any) {
       if (err?.errors) return
-      Message.error(err?.message || '保存失败')
+      toast.error(err?.message || '保存失败')
     } finally {
       setSaving(null)
     }
@@ -139,11 +139,11 @@ function Settings() {
     try {
       setSaving('notification')
       const values = formNotification.getFieldsValue()
-      const updated = await updateSystemSettings({ notification: values })
+      const updated = await updateSystemSettings({ notification: values } as Partial<SystemSettings>)
       setSettings(updated)
-      Message.success('通知设置已保存')
+      toast.success('通知设置已保存')
     } catch (err: any) {
-      Message.error(err?.message || '保存失败')
+      toast.error(err?.message || '保存失败')
     } finally {
       setSaving(null)
     }
@@ -154,12 +154,12 @@ function Settings() {
       await formParameters.validate()
       setSaving('parameters')
       const values = formParameters.getFieldsValue()
-      const updated = await updateSystemSettings({ parameters: values })
+      const updated = await updateSystemSettings({ parameters: values } as Partial<SystemSettings>)
       setSettings(updated)
-      Message.success('系统参数已保存')
+      toast.success('系统参数已保存')
     } catch (err: any) {
       if (err?.errors) return
-      Message.error(err?.message || '保存失败')
+      toast.error(err?.message || '保存失败')
     } finally {
       setSaving(null)
     }
@@ -201,7 +201,7 @@ function Settings() {
             key="company"
             title={
               <span>
-                <IconHome style={{ marginRight: 6 }} />
+                <IconHome className={styles['settings-page__tab-icon']} />
                 企业信息
               </span>
             }
@@ -221,7 +221,7 @@ function Settings() {
                     onChange={handleLogoChange}
                     fileList={logoUrl ? [{ uid: '-1', url: logoUrl, name: 'logo' }] : []}
                   >
-                    <div style={{ textAlign: 'center' }}>
+                    <div className={styles['settings-page__upload-center']}>
                       <IconUpload />
                       <div>上传Logo</div>
                     </div>
@@ -283,7 +283,7 @@ function Settings() {
             key="security"
             title={
               <span>
-                <IconLock style={{ marginRight: 6 }} />
+                <IconLock className={styles['settings-page__tab-icon']} />
                 账号安全
               </span>
             }
@@ -291,7 +291,7 @@ function Settings() {
             <Card bordered={false} className={styles['settings-page__card']}>
               <Form form={formSecurity} layout="vertical" className={styles['settings-page__form']}>
                 <FormItem label="密码最小长度" field="passwordMinLength">
-                  <InputNumber min={6} max={20} placeholder="6-20" style={{ width: '100%' }} />
+                  <InputNumber min={6} max={20} placeholder="6-20" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="密码复杂度要求" field="passwordComplexity">
@@ -304,19 +304,19 @@ function Settings() {
                 </FormItem>
 
                 <FormItem label="密码过期天数" field="passwordExpiryDays">
-                  <InputNumber min={30} max={365} placeholder="30-365" style={{ width: '100%' }} />
+                  <InputNumber min={30} max={365} placeholder="30-365" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="登录失败锁定次数" field="loginFailureLockoutThreshold">
-                  <InputNumber min={3} max={10} placeholder="3-10" style={{ width: '100%' }} />
+                  <InputNumber min={3} max={10} placeholder="3-10" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="锁定时长（分钟）" field="lockoutDurationMinutes">
-                  <InputNumber min={5} max={60} placeholder="5-60" style={{ width: '100%' }} />
+                  <InputNumber min={5} max={60} placeholder="5-60" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="会话超时时间（分钟）" field="sessionTimeoutMinutes">
-                  <InputNumber min={15} max={480} placeholder="15-480" style={{ width: '100%' }} />
+                  <InputNumber min={15} max={480} placeholder="15-480" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <Button type="primary" onClick={handleSaveSecurity} loading={saving === 'security'}>
@@ -331,7 +331,7 @@ function Settings() {
             key="notification"
             title={
               <span>
-                <IconNotification style={{ marginRight: 6 }} />
+                <IconNotification className={styles['settings-page__tab-icon']} />
                 通知设置
               </span>
             }
@@ -372,7 +372,7 @@ function Settings() {
                   }
                 </FormItem>
 
-                <FormItem label="通知类型" style={{ marginTop: 16 }}>
+                <FormItem label="通知类型" className={styles['settings-page__mt-16']}>
                   <Space direction="vertical" size="small">
                     <FormItem field="approvalEnabled" triggerPropName="checked" noStyle>
                       <Switch checkedText="开" uncheckedText="关" />
@@ -396,7 +396,7 @@ function Settings() {
                   </Space>
                 </FormItem>
 
-                <Button type="primary" onClick={handleSaveNotification} loading={saving === 'notification'} style={{ marginTop: 16 }}>
+                <Button type="primary" onClick={handleSaveNotification} loading={saving === 'notification'} className={styles['settings-page__mt-16']}>
                   保存
                 </Button>
               </Form>
@@ -408,7 +408,7 @@ function Settings() {
             key="parameters"
             title={
               <span>
-                <IconSettings style={{ marginRight: 6 }} />
+                <IconSettings className={styles['settings-page__tab-icon']} />
                 系统参数
               </span>
             }
@@ -416,11 +416,11 @@ function Settings() {
             <Card bordered={false} className={styles['settings-page__card']}>
               <Form form={formParameters} layout="vertical" className={styles['settings-page__form']}>
                 <FormItem label="数据保留天数" field="dataRetentionDays">
-                  <InputNumber min={30} max={3650} placeholder="30-3650" style={{ width: '100%' }} />
+                  <InputNumber min={30} max={3650} placeholder="30-3650" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="审计日志保留天数" field="auditLogRetentionDays">
-                  <InputNumber min={30} max={3650} placeholder="30-3650" style={{ width: '100%' }} />
+                  <InputNumber min={30} max={3650} placeholder="30-3650" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <FormItem label="默认分页大小" field="defaultPageSize">
@@ -433,7 +433,7 @@ function Settings() {
                 </FormItem>
 
                 <FormItem label="最大上传文件大小 (MB)" field="maxUploadSizeMB">
-                  <InputNumber min={1} max={100} placeholder="1-100" style={{ width: '100%' }} />
+                  <InputNumber min={1} max={100} placeholder="1-100" className={styles['settings-page__input-full']} />
                 </FormItem>
 
                 <Button type="primary" onClick={handleSaveParameters} loading={saving === 'parameters'}>
@@ -448,7 +448,7 @@ function Settings() {
             key="about"
             title={
               <span>
-                <IconInfoCircle style={{ marginRight: 6 }} />
+                <IconInfoCircle className={styles['settings-page__tab-icon']} />
                 关于系统
               </span>
             }

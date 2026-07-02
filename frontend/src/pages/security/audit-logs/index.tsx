@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
+import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react'
 import { getAuditLogDetail, getAuditLogs } from '@/api/security'
 import { PageHeader } from '@/components'
 import styles from './audit-logs.module.css'
@@ -56,7 +56,7 @@ function AuditLogsPage() {
     setVisible(true)
     setDetailLoading(true)
     const res = await getAuditLogDetail(record.id)
-    setDetail(res.data)
+    setDetail(res.data as any)
     setDetailLoading(false)
   }
 
@@ -149,7 +149,7 @@ function AuditLogsPage() {
         onCancel={() => setVisible(false)}
         className={styles['security-audit-logs__modal']}
       >
-        {detailLoading && <span type="secondary">正在加载详情...</span>}
+        {detailLoading && <Typography.Text type="secondary">正在加载详情...</Typography.Text>}
         {detail && !detailLoading && (
           <Space direction="vertical" className={styles['security-audit-logs__modal-content']}>
             <Descriptions

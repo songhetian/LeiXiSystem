@@ -61,7 +61,7 @@ describe('Login 页面', () => {
   describe('渲染', () => {
     it('应该正常渲染登录页面', () => {
       render(<Login />)
-      expect(screen.getByText('账号登录')).toBeInTheDocument()
+      expect(screen.getByText('欢迎回来')).toBeInTheDocument()
     })
 
     it('应该渲染用户名和密码输入框', () => {
@@ -83,9 +83,9 @@ describe('Login 页面', () => {
 
     it('应该渲染功能介绍卡片', () => {
       render(<Login />)
-      expect(screen.getByText('数据可视化')).toBeInTheDocument()
-      expect(screen.getByText('高效审批')).toBeInTheDocument()
-      expect(screen.getByText('安全可靠')).toBeInTheDocument()
+      expect(screen.getByText('智能考勤')).toBeInTheDocument()
+      expect(screen.getByText('数据驾驶舱')).toBeInTheDocument()
+      expect(screen.getByText('安全合规')).toBeInTheDocument()
     })
 
     it('应该渲染"记住密码"和"忘记密码"选项', () => {

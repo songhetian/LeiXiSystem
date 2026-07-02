@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Popconfirm,
   Card,
@@ -28,6 +27,7 @@ import type { OvertimeAdjustment } from '@/api/adjustment'
 import { getAllOvertimeTypes, type OvertimeType } from '@/api/attendance-overtime-type'
 import { FilterBar, TableHeader } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './overtime.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -105,7 +105,7 @@ function Overtime() {
         hours: hours || 0,
         reason: values.reason,
       })
-      Message.success('申请成功')
+      toast.success('申请成功')
     },
     onSuccess: () => fetchData(pagination.current, pagination.pageSize),
   })
@@ -197,7 +197,7 @@ function Overtime() {
   const handleCancel = async (id: number) => {
     try {
       await cancelAdjustmentOvertime(id)
-      Message.success('撤销成功')
+      toast.success('撤销成功')
       fetchData(pagination.current, pagination.pageSize)
     } catch {
       // error handled by interceptor

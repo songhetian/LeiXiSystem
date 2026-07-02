@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Table,
   Button,
@@ -7,7 +7,6 @@ import {
   Space,
   Modal,
   Form,
-  Message,
   Tag,
   Card,
   Grid,
@@ -18,6 +17,8 @@ import type { TableProps } from '@arco-design/web-react'
 import { getDepartmentsList, type Department } from '@/api/organization'
 import { PageHeader, FilterBar, ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
+import { getToday } from '@/utils/date'
 import styles from './style.module.css'
 const { Row, Col } = Grid
 const FormItem = Form.Item
@@ -77,12 +78,12 @@ function Rule() {
       let newData: ShiftRule[]
       if (editingId) {
         newData = data.map((item) => (item.id === editingId ? { ...item, ...values } : item))
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
         const newId = data.length > 0 ? Math.max(...data.map((d) => d.id)) + 1 : 1
-        const newRecord: ShiftRule = { id: newId, createTime: new Date().toISOString().split('T')[0], ...values }
+        const newRecord: ShiftRule = { ...values, id: newId, createTime: getToday() } as ShiftRule
         newData = [...data, newRecord]
-        Message.success('新增成功')
+        toast.success('新增成功')
       }
       setData(newData)
       setFilteredData(newData)
@@ -138,7 +139,7 @@ function Rule() {
     setData(newData)
     setFilteredData(newData)
     saveRules(newData)
-    Message.success('删除成功')
+    toast.success('删除成功')
   }
 
   const handleSearch = () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Table,
@@ -6,7 +6,6 @@ import {
   Tag,
   Modal,
   Form,
-  Message,
   Input,
   Select,
 } from '@arco-design/web-react'
@@ -19,6 +18,7 @@ import { isSafeHttpUrl, openSafeExternalUrl } from '@/utils/url'
 import { createSsoApp, deleteSsoApp, getSsoApps, updateSsoApp } from '@/api/sso'
 import { ActionButtons } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -69,10 +69,10 @@ function Apps() {
     onSubmit: async (values, id) => {
       if (id) {
         await updateSsoApp(id, values)
-        Message.success('修改成功')
+        toast.success('修改成功')
       } else {
-        await createSsoApp(values)
-        Message.success('新增成功')
+        await createSsoApp(values as any)
+        toast.success('新增成功')
       }
       await loadData()
     },
@@ -130,7 +130,7 @@ function Apps() {
               icon={<IconLink />}
               onClick={() => {
                 if (!openSafeExternalUrl(record.appUrl)) {
-                  Message.error('应用地址不安全或格式不正确')
+                  toast.error('应用地址不安全或格式不正确')
                 }
               }}
             >
@@ -144,7 +144,7 @@ function Apps() {
 
   const handleDelete = (id: number) => {
     deleteSsoApp(id).then(() => {
-      Message.success('删除成功')
+      toast.success('删除成功')
       loadData()
     })
   }

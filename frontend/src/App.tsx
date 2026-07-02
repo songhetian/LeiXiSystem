@@ -11,8 +11,9 @@ import { useWebSocket } from './hooks/useWebSocket'
 import styles from './App.module.css'
 Message.config({
   duration: 3000,
-  maxCount: 5,
+  maxCount: 4,
   closable: false,
+  prefixCls: 'arco-message',
 })
 
 function App() {

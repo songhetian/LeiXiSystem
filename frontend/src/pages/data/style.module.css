@@ -1,7 +1,7 @@
 .data-template {
   padding: 20px;
   min-height: calc(100vh - 120px);
-  background: #F2F3F5;
+  background: var(--lx-gray-100);
 }
 
 .data-template__header {
@@ -18,7 +18,7 @@
 .data-import {
   padding: 20px;
   min-height: calc(100vh - 120px);
-  background: #F2F3F5;
+  background: var(--lx-gray-100);
 }
 
 .data-import__header {
@@ -40,7 +40,7 @@
 .data-export {
   padding: 20px;
   min-height: calc(100vh - 120px);
-  background: #F2F3F5;
+  background: var(--lx-gray-100);
 }
 
 .data-export__header {
@@ -64,7 +64,7 @@
 }
 
 .data-export__form-desc {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 
@@ -79,7 +79,7 @@
 
 .data-export__empty {
   text-align: center;
-  color: #86909C;
+  color: var(--text-color-tertiary);
   padding: 40px 0;
 }
 
@@ -92,13 +92,13 @@
 }
 
 .data-import__form-desc {
-  color: #86909C;
+  color: var(--text-color-tertiary);
   font-size: 12px;
 }
 
 .data-import__empty {
   text-align: center;
-  color: #86909C;
+  color: var(--text-color-tertiary);
   padding: 40px 0;
 }
 
@@ -107,11 +107,11 @@
 }
 
 .data-import__success {
-  color: #00B42A;
+  color: var(--lx-primary-6);
 }
 
 .data-import__fail {
-  color: #F53F3F;
+  color: #EF4444;
 }
 
 .data-import__select-full {

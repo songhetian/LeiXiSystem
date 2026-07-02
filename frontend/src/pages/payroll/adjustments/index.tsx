@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Message, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from '@arco-design/web-react'
 import { approvePayrollAdjustment, createPayrollAdjustment, getPayrollAdjustments, getSalaryComponents, rejectPayrollAdjustment, SalaryComponent, PayrollAdjustment } from '@/api/payroll'
 import { PageHeader, FilterBar, ApprovalActionModal, StatusTag, ApproveRejectButtons, EmployeeSelect, employeeColumn, departmentColumn } from '@/components'
 import { useTableData } from '@/hooks/useTableData'
 import { useCrudModal } from '@/hooks/useCrudModal'
+import { toast } from '@/utils/toast'
 import styles from './index.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -54,8 +55,8 @@ function PayrollAdjustmentsPage() {
         year: Number(values.year),
         month: Number(values.month),
         amount: Number(values.amount),
-      })
-      Message.success('薪资调整项创建成功')
+      } as any)
+      toast.success('薪资调整项创建成功')
     },
     onSuccess: () => loadData(),
   })
@@ -72,10 +73,10 @@ function PayrollAdjustmentsPage() {
     if (!actionState.record || !actionState.action) return
     if (actionState.action === 'approve') {
       await approvePayrollAdjustment(actionState.record.id, { opinion: values.comment })
-      Message.success('薪资调整项已通过')
+      toast.success('薪资调整项已通过')
     } else {
       await rejectPayrollAdjustment(actionState.record.id, { opinion: values.comment })
-      Message.success('薪资调整项已驳回')
+      toast.success('薪资调整项已驳回')
     }
     closeAction()
     loadData()

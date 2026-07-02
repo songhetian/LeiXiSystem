@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+﻿import { useState, useRef, useCallback } from 'react'
 import {
   Form,
   Input,
@@ -8,7 +8,6 @@ import {
   DatePicker,
   Upload,
   Switch,
-  Message,
   Modal,
   Space,
   Tag,
@@ -30,8 +29,9 @@ import {
   IconAlignCenter,
   IconAlignRight,
 } from '@arco-design/web-react/icon'
-import { sendMessage, previewRecipients } from '@/api/message'
+import { previewRecipients, sendMessage } from '@/api/message'
 import { PageHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './send.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
@@ -170,7 +170,7 @@ export default function MessageSend() {
     try {
       const values = await form.validate()
       if (!editorContent || editorContent === '<br>') {
-        Message.error('请输入消息内容')
+        toast.error('请输入消息内容')
         return
       }
 
@@ -209,9 +209,9 @@ export default function MessageSend() {
 
       if (res.code === 0) {
         if (sendMode === 'immediate') {
-          Message.success(`发送成功，共发送 ${res.data.sentCount} 人`)
+          toast.success(`发送成功，共发送 ${res.data.sentCount} 人`)
         } else {
-          Message.success('定时任务创建成功')
+          toast.success('定时任务创建成功')
         }
         form.resetFields()
         setEditorContent('')
@@ -222,7 +222,7 @@ export default function MessageSend() {
       }
     } catch (err: any) {
       if (err?.errorFields) {
-        Message.error('请检查表单填写是否完整')
+        toast.error('请检查表单填写是否完整')
       }
     } finally {
       setSubmitting(false)
@@ -285,7 +285,7 @@ export default function MessageSend() {
             </FormItem>
 
             <FormItem label="需确认已读" field="requiresConfirm" style={{ flex: 0, width: 120 }}>
-              <Switch defaultValue={false} />
+              <Switch defaultChecked={false} />
             </FormItem>
           </div>
 
@@ -392,7 +392,7 @@ export default function MessageSend() {
             <Upload
               multiple
               fileList={attachments.map(a => ({ uid: a.uid, name: a.name, url: a.url, size: a.size }))}
-              onChange={(_, fileList) => handleUploadChange(fileList)}
+              onChange={(fileList) => handleUploadChange(fileList)}
               customRequest={() => {}}
             >
               <Button icon={<IconUpload />}>上传附件</Button>
@@ -411,7 +411,7 @@ export default function MessageSend() {
               </div>
               {targetType !== 'all' && (
                 <div className={styles['message-send__range-config']} style={{ flex: 1 }}>
-                  <FormItem field={['targetConfig', getTargetConfigField()]}>
+                  <FormItem field={`targetConfig.${getTargetConfigField()}`}>
                     <InputTag
                       placeholder={getTargetConfigLabel()}
                       style={{ width: '100%' }}

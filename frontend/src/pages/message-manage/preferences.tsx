@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   Card,
   Form,
   Switch,
   TimePicker,
   Button,
-  Message,
   Space,
   Divider,
   Tag,
@@ -15,6 +14,7 @@ import {
 } from '@arco-design/web-react/icon'
 import { getMessagePreferences, updateMessagePreferences } from '@/api/messagePreference'
 import { PageHeader } from '@/components'
+import { toast } from '@/utils/toast'
 import styles from './preferences.module.css'
 const FormItem = Form.Item
 
@@ -65,7 +65,7 @@ export default function MessagePreferences() {
         doNotDisturbStart: values.dndStart,
         doNotDisturbEnd: values.dndEnd,
       })
-      Message.success('保存成功')
+      toast.success('保存成功')
     } finally {
       setSaving(false)
     }
