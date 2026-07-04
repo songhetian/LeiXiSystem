@@ -1,0 +1,70 @@
+.schedule-recommend__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-recommend__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schedule-recommend__empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 0;
+}
+
+.schedule-recommend__select-dept {
+  width: 180px;
+}
+
+.schedule-recommend__select-rule {
+  width: 200px;
+}
+
+.schedule-recommend__range-picker {
+  width: 260px;
+}
+
+.schedule-recommend__stat-value {
+  font-size: 24px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.schedule-recommend__stat-value-danger {
+  color: #EF4444;
+}
+
+.schedule-recommend__stat-value-warning {
+  color: #F59E0B;
+}
+
+.schedule-recommend__stat-value-success {
+  color: #0fbf60;
+}
+
+.schedule-recommend__preview-margin {
+  margin-bottom: 16px;
+}
+
+.schedule-recommend__alert-margin {
+  margin-bottom: 16px;
+}
+
+.schedule-recommend__table-margin {
+  margin-top: 16px;
+}
+
+.schedule-recommend__text-ellipsis {
+  max-width: 180px;
+}
+
+.schedule-recommend__row-margin {
+  margin-bottom: 16px;
+}
+
+.schedule-recommend__space-top {
+  margin-top: 8px;
+}

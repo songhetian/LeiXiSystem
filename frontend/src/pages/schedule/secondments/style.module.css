@@ -1,0 +1,36 @@
+.schedule-secondments__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-secondments__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.schedule-secondments__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.schedule-secondments__input-keyword {
+  width: 180px;
+}
+
+.schedule-secondments__select-status {
+  width: 120px;
+}
+
+.schedule-secondments__modal-medium {
+  width: 560px;
+}
+
+.schedule-secondments__date-picker {
+  width: 180px;
+}
+
+.schedule-secondments__cell-secondary {
+  font-size: 12px;
+  color: var(--text-color-tertiary);
+}

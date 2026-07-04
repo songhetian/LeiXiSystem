@@ -1,0 +1,60 @@
+.draggable-table {
+  width: 100%;
+}
+
+.draggable-table__drag-handle {
+  width: 40px;
+  text-align: center;
+  user-select: none;
+  cursor: grab;
+  color: var(--lx-gray-400, #9CA3AF);
+  transition: color 0.15s ease;
+}
+
+.draggable-table__drag-handle:hover {
+  color: var(--lx-gray-600, #4B5563);
+}
+
+.draggable-table__drag-handle:active {
+  cursor: grabbing;
+  color: var(--lx-primary, #10B981);
+}
+
+.draggable-table__row {
+  transition: background-color 0.15s ease;
+}
+
+.draggable-table__row:hover {
+  background-color: var(--lx-gray-50, #F9FAFB);
+}
+
+.draggable-table__drag-overlay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--lx-surface, #FFFFFF);
+  border: 1px solid var(--lx-gray-200, #E5E7EB);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-gray-900, #111827);
+}
+
+.draggable-table__drag-overlay-text {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.arco-theme-dark .draggable-table__row:hover {
+  background-color: var(--lx-gray-800, #1F2937);
+}
+
+body.arco-theme-dark .draggable-table__drag-overlay {
+  background: var(--lx-gray-800, #1F2937);
+  border-color: var(--lx-gray-700, #374151);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}

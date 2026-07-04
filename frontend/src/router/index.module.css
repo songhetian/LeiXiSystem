@@ -1,0 +1,9 @@
+.router-loading {
+  padding: 20px;
+  text-align: center;
+}
+
+.router-not-found {
+  padding: 40px;
+  text-align: center;
+}

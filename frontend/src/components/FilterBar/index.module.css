@@ -1,0 +1,152 @@
+/* FilterBar — 筛选栏（支持高级搜索展开/收起） */
+
+/* ─── Container ─── */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: transparent;
+  border-radius: var(--lx-card-radius, 12px);
+  padding: 16px 20px;
+  border: none;
+}
+
+/* ─── Basic filters grid ─── */
+.filter-bar__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+/* Consistent border-radius for all form controls inside the grid */
+.filter-bar__filters :global(.arco-input-wrapper),
+.filter-bar__filters :global(.arco-select-view),
+.filter-bar__filters :global(.arco-picker),
+.filter-bar__filters :global(.arco-btn),
+.filter-bar__filters :global(.arco-form-item) {
+  border-radius: var(--lx-radius, 8px);
+}
+
+/* Remove default Form.Item margin when used inside grid */
+.filter-bar__filters :global(.arco-form-item) {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+/* Prevent label text from wrapping vertically — target both container and inner <label> */
+.filter-bar__filters :global(.arco-form-item-label),
+.filter-bar__filters :global(.arco-form-item-label label) {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+/* Ensure all form controls fill their cell width */
+.filter-bar__filters :global(.arco-form-item-control),
+.filter-bar__filters :global(.arco-input-wrapper),
+.filter-bar__filters :global(.arco-select-view),
+.filter-bar__filters :global(.arco-picker) {
+  width: 100%;
+}
+
+/* ─── Advanced filters — smooth slide-down ─── */
+.filter-bar__advanced-wrapper {
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-bar__advanced {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+  padding-top: 12px;
+}
+
+/* Same form-control styling for advanced grid */
+.filter-bar__advanced :global(.arco-input-wrapper),
+.filter-bar__advanced :global(.arco-select-view),
+.filter-bar__advanced :global(.arco-picker),
+.filter-bar__advanced :global(.arco-btn),
+.filter-bar__advanced :global(.arco-form-item) {
+  border-radius: var(--lx-radius, 8px);
+}
+
+.filter-bar__advanced :global(.arco-form-item) {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.filter-bar__advanced :global(.arco-form-item-label),
+.filter-bar__advanced :global(.arco-form-item-label label) {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.filter-bar__advanced :global(.arco-form-item-control),
+.filter-bar__advanced :global(.arco-input-wrapper),
+.filter-bar__advanced :global(.arco-select-view),
+.filter-bar__advanced :global(.arco-picker) {
+  width: 100%;
+}
+
+/* ─── Actions row (pinned to the right) ─── */
+.filter-bar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  padding-top: 12px;
+}
+
+.filter-bar__actions :global(.arco-btn) {
+  border-radius: var(--lx-radius, 8px);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.filter-bar__actions :global(.arco-btn-primary) {
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.2);
+}
+
+.filter-bar__actions :global(.arco-btn-primary:hover) {
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25);
+}
+
+/* ─── Expand / Collapse toggle link ─── */
+.filter-bar__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgb(var(--primary-6));
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.filter-bar__toggle:hover {
+  color: rgb(var(--primary-5));
+}
+
+.filter-bar__toggle:active {
+  color: rgb(var(--primary-7));
+}
+
+/* ─── Dark mode ─── */
+:global(body.arco-theme-dark) .filter-bar__toggle {
+  color: rgb(var(--primary-5));
+}
+
+:global(body.arco-theme-dark) .filter-bar__toggle:hover {
+  color: rgb(var(--primary-4));
+}

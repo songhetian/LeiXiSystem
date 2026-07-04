@@ -1,0 +1,5 @@
+.container { padding: 24px; max-width: none; margin: 0 auto; }
+.row { margin-bottom: 16px; }
+.subtext { color: var(--text-color-tertiary); font-size: 12px; }
+.refreshCard { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.autoRefresh { font-size: 11px; color: var(--lx-gray-300); }

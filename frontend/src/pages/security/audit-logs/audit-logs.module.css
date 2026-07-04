@@ -1,0 +1,39 @@
+.security-audit-logs {
+  padding-bottom: 20px;
+}
+
+.security-audit-logs__header-card {
+  margin-bottom: 16px;
+}
+
+.security-audit-logs__header-title {
+  margin: 0;
+}
+
+.security-audit-logs__search-card {
+  margin-bottom: 16px;
+}
+
+.security-audit-logs__search-select {
+  width: 140px;
+}
+
+.security-audit-logs__search-input {
+  width: 180px;
+}
+
+.security-audit-logs__search-input--sm {
+  width: 160px;
+}
+
+.security-audit-logs__modal {
+  width: 860px;
+}
+
+.security-audit-logs__modal-content {
+  width: 100%;
+}
+
+.security-audit-logs__section-title {
+  font-weight: 600;
+}

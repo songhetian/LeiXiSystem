@@ -1,0 +1,58 @@
+.attendance-records {
+  padding-bottom: 20px;
+}
+
+.attendance-records__stats-row {
+  margin-bottom: 16px;
+}
+
+.attendance-records__search-card {
+  margin-bottom: 16px;
+}
+
+.attendance-records__search-input {
+  width: 180px;
+}
+
+.attendance-records__dept-select {
+  width: 130px;
+}
+
+.attendance-records__status-select {
+  width: 110px;
+}
+
+.attendance-records__date-picker {
+  width: 220px;
+}
+
+.attendance-records__table-card {
+  /* default */
+}
+
+.attendance-records__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-records__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.attendance-records__total-tag {
+  margin-left: 8px;
+}
+
+.attendance-records__work-hours {
+  font-family: 'tabular-nums', monospace;
+}
+
+.attendance-records__statistic-value {
+  /* color set by JS */
+}
+.attendance-records__statistic-value {
+  color: var(--statistic-value-color);
+}

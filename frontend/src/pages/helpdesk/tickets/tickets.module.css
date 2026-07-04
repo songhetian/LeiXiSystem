@@ -1,0 +1,167 @@
+.helpdesk-tickets {
+  padding-bottom: 20px;
+}
+
+.helpdesk-tickets__header {
+  margin-bottom: 16px;
+}
+
+.helpdesk-tickets__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.helpdesk-tickets__tag {
+  margin-left: 8px;
+}
+
+/* Categories Tab */
+.helpdesk-tickets__categories-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.helpdesk-tickets__categories-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.helpdesk-tickets__categories-grid-item {
+  width: 100%;
+}
+
+/* Tickets Tab */
+.helpdesk-tickets__tickets-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.helpdesk-tickets__tickets-select {
+  width: 130px;
+}
+
+.helpdesk-tickets__tickets-select--sm {
+  width: 110px;
+}
+
+.helpdesk-tickets__tickets-select--xs {
+  width: 100px;
+}
+
+.helpdesk-tickets__tickets-select--mini {
+  width: 120px;
+}
+
+.helpdesk-tickets__tickets-select--wide {
+  width: 150px;
+}
+
+.helpdesk-tickets__modal {
+  width: 640px;
+}
+
+.helpdesk-tickets__modal--wide {
+  width: 760px;
+}
+
+.helpdesk-tickets__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.helpdesk-tickets__detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--lx-gray-50);
+  border-radius: 8px;
+}
+
+.helpdesk-tickets__detail-label {
+  color: var(--text-color-tertiary);
+}
+
+.helpdesk-tickets__detail-value {
+  font-weight: 600;
+}
+
+.helpdesk-tickets__detail-value--large {
+  font-size: 15px;
+}
+
+.helpdesk-tickets__detail-grid-full {
+  grid-column: 1 / -1;
+}
+
+.helpdesk-tickets__quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.helpdesk-tickets__comments {
+  border-top: 1px solid var(--lx-gray-100);
+  padding-top: 16px;
+}
+
+.helpdesk-tickets__comments-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.helpdesk-tickets__comments-empty {
+  text-align: center;
+  color: var(--text-color-tertiary);
+  padding: 20px;
+}
+
+.helpdesk-tickets__comment {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--lx-gray-50);
+  border-radius: 6px;
+}
+
+.helpdesk-tickets__comment--internal {
+  background: #fff8e1;
+}
+
+.helpdesk-tickets__comment-author {
+  font-weight: 600;
+}
+
+.helpdesk-tickets__comment-time {
+  color: var(--text-color-tertiary);
+  font-size: 12px;
+}
+
+.helpdesk-tickets__comment-content {
+  margin-top: 6px;
+}
+
+.helpdesk-tickets__comment-form {
+  margin-top: 16px;
+}
+
+.helpdesk-tickets__comment-form-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.helpdesk-tickets__comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.helpdesk-tickets__tag--internal {
+  font-size: 11px;
+}

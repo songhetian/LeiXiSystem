@@ -1,0 +1,39 @@
+.schedule-preferences__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.schedule-preferences__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.schedule-preferences__alert {
+  margin-bottom: 24px;
+}
+
+.schedule-preferences__select-shift {
+  width: 300px;
+}
+
+.schedule-preferences__select-days {
+  width: 400px;
+}
+
+.schedule-preferences__textarea-narrow {
+  width: 500px;
+}
+
+.schedule-preferences__shift-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #10B981;
+}
+
+.schedule-preferences__card-note {
+  margin-top: 16px;
+}

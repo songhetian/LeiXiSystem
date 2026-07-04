@@ -1,0 +1,201 @@
+.role {
+  padding-bottom: 20px;
+}
+
+.role__toolbar {
+  margin-bottom: 16px;
+}
+
+.role__toolbar-input {
+  width: 200px;
+}
+
+.role__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.role__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.role__tag {
+  margin-left: 8px;
+}
+
+.role__bold {
+  font-weight: 600;
+}
+
+.role__modal {
+  width: 520px;
+}
+
+.role__input-full {
+  width: 100%;
+}
+
+/* 权限配置弹窗 - 现代卡片设计 */
+.matrixModal {
+  width: 900px !important;
+  max-width: 95vw;
+}
+
+.matrix {
+  padding: 0;
+}
+
+.matrixTip {
+  font-size: 13px;
+  color: #4e5969;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #e8f3ff 0%, #f0f7ff 100%);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 3px solid #165DFF;
+}
+
+.matrixWrapper {
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+/* 分组卡片 */
+.group {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e6eb;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.group:hover {
+  border-color: #165DFF;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.08);
+}
+
+.group:last-child {
+  margin-bottom: 0;
+}
+
+/* 分组头部 */
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f7f8fa 0%, #fafbfc 100%);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+  border-bottom: 1px solid #e5e6eb;
+}
+
+.groupHeader:hover {
+  background: linear-gradient(135deg, #f0f1f3 0%, #f5f6f8 100%);
+}
+
+.groupLabel {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1d2129;
+  flex: 1;
+}
+
+.groupCount {
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* 分组内容 - 响应式网格布局 */
+.groupBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 16px 18px;
+}
+
+/* 权限项 */
+.permItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  font-size: 13px;
+}
+
+.permItem:hover {
+  background: #f7f8fa;
+  border-color: #e5e6eb;
+}
+
+.permItem--checked {
+  background: #e8f3ff;
+  border-color: #165DFF;
+}
+
+.permItem--checked:hover {
+  background: #d6e8ff;
+}
+
+.permName {
+  font-size: 13px;
+  color: #4e5969;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.permItem--checked .permName {
+  color: #165DFF;
+  font-weight: 500;
+}
+
+.permAction {
+  font-size: 11px;
+  color: #86909c;
+  background: #f2f3f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.permItem--checked .permAction {
+  background: #165DFF;
+  color: #fff;
+}
+
+/* 滚动条美化 */
+.matrixWrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.matrixWrapper::-webkit-scrollbar-track {
+  background: #f7f8fa;
+  border-radius: 3px;
+}
+
+.matrixWrapper::-webkit-scrollbar-thumb {
+  background: #c9cdd4;
+  border-radius: 3px;
+}
+
+.matrixWrapper::-webkit-scrollbar-thumb:hover {
+  background: #86909c;
+}

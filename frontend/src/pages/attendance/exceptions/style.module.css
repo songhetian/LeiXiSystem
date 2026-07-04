@@ -1,0 +1,17 @@
+.attendance-exceptions {
+  padding-bottom: 20px;
+}
+
+.attendance-exceptions__card {
+  margin-bottom: 16px;
+}
+
+.attendance-exceptions__select {
+  width: 140px;
+}
+
+.attendance-exceptions__export {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}

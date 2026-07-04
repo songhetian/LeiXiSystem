@@ -1,0 +1,126 @@
+/* 高级表格设置面板 */
+.advanced-table-settings {
+  width: 200px;
+  padding: 12px;
+  background: var(--color-bg-popup);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-medium);
+  box-shadow: var(--shadow2);
+}
+
+.advanced-table-settings__section {
+  padding: 8px 0;
+}
+
+.advanced-table-settings__section:first-child {
+  padding-top: 0;
+}
+
+.advanced-table-settings__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.advanced-table-settings__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.advanced-table-settings__item input {
+  cursor: pointer;
+}
+
+.advanced-table-settings__sizes {
+  display: flex;
+  gap: 6px;
+}
+
+.advanced-table-settings__sizes .arco-btn {
+  flex: 1;
+}
+
+/* 排序指示器 */
+.sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.sort-indicator:hover {
+  color: var(--color-text-2);
+}
+
+.sort-indicator--asc,
+.sort-indicator--desc {
+  color: var(--color-primary);
+}
+
+.sort-indicator--none {
+  opacity: 0.4;
+}
+
+/* 活跃筛选栏 */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--color-primary-1);
+  border: 1px solid var(--color-primary-3);
+  border-radius: var(--border-radius-medium);
+}
+
+.active-filters-bar__label {
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.active-filters-bar__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: var(--color-bg-popup);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-small);
+}
+
+.active-filters-bar__close {
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.active-filters-bar__close:hover {
+  opacity: 1;
+}
+
+/* 深色模式 - 使用 Arco Design 方案 */
+body.arco-theme-dark .advanced-table-settings {
+  background: var(--color-bg-popup);
+  border-color: var(--color-border);
+}
+
+body.arco-theme-dark .active-filters-bar {
+  background: rgba(var(--primary-6), 0.15);
+  border-color: rgba(var(--primary-6), 0.3);
+}
+
+body.arco-theme-dark .active-filters-bar__tag {
+  background: var(--color-fill-2);
+  border-color: var(--color-border);
+}

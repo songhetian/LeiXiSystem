@@ -1,0 +1,105 @@
+.certificate-manage {
+  padding: 16px;
+  background: var(--color-fill-2);
+  min-height: 100%;
+}
+
+.certificate-manage__card {
+  margin-bottom: 16px;
+}
+
+.certificate-manage__employee {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.certificate-manage__employee-name {
+  font-weight: 500;
+  color: var(--color-text-1);
+}
+
+.certificate-manage__employee-no {
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.certificate-manage__type-tag {
+  font-weight: 500;
+}
+
+.certificate-manage__search-input {
+  width: 180px;
+}
+
+.certificate-manage__filter-select {
+  width: 140px;
+}
+
+.certificate-manage__date-picker {
+  width: 260px;
+}
+
+.certificate-manage__detail {
+  padding: 8px 0;
+}
+
+.certificate-manage__detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.certificate-manage__detail-reject {
+  background: var(--color-danger-light-1);
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+.certificate-manage__detail-reject p {
+  margin: 0;
+}
+
+.certificate-manage__detail-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.certificate-manage__detail-modal {
+  width: 600px;
+}
+
+.certificate-manage__loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.certificate-manage__detail-title {
+  margin: 0;
+}
+
+.certificate-manage__detail-subtitle {
+  font-size: 12px;
+}
+
+.certificate-manage__detail-tag-right {
+  margin-left: auto;
+}
+
+.certificate-manage__detail-divider {
+  margin: 16px 0;
+}
+
+.certificate-manage__detail-text-bold {
+  font-weight: 500;
+}
+
+.certificate-manage__detail-reject-text {
+  margin-top: 8px;
+  color: var(--color-text-2);
+}
+
+.certificate-manage__detail-file-btn {
+  padding: 4px 8px;
+}

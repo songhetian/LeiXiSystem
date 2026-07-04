@@ -1,0 +1,592 @@
+.clock-in-page {
+  padding: 20px;
+  min-height: calc(100vh - 120px);
+}
+
+.clock-in-hero {
+  background: linear-gradient(135deg, #165dff 0%, #4080ff 100%);
+  border-radius: 12px;
+  padding: 32px;
+  color: #fff;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.clock-in-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+
+.clock-in-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: 10%;
+  width: 200px;
+  height: 200px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+}
+
+.clock-in-hero__header {
+  position: relative;
+  z-index: 1;
+}
+
+.clock-in-hero__date {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.clock-in-hero__time {
+  font-size: 48px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+
+.clock-in-hero__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.clock-in-hero__shift {
+  position: relative;
+  z-index: 1;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  gap: 32px;
+}
+
+.clock-in-hero__shift-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clock-in-hero__shift-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.clock-in-hero__shift-value {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.clock-in-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 80px;
+  padding: 50px 0 40px 0;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.clock-in-buttons::before {
+  content: '点击按钮完成打卡';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: #86909c;
+  font-weight: 500;
+}
+
+.clock-in-btn {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.3);
+}
+
+.clock-in-btn:hover:not(:disabled) {
+  transform: scale(1.08);
+  box-shadow: 0 20px 48px rgba(22, 93, 255, 0.4);
+}
+
+.clock-in-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.clock-in-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none !important;
+}
+
+.clock-in-btn--in {
+  background: linear-gradient(135deg, #00b42a 0%, #0fc6c2 100%);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(0, 180, 42, 0.35);
+}
+
+.clock-in-btn--in:hover:not(:disabled) {
+  box-shadow: 0 20px 48px rgba(0, 180, 42, 0.45);
+}
+
+.clock-in-btn--out {
+  background: linear-gradient(135deg, #165dff 0%, #4080ff 100%);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.35);
+}
+
+.clock-in-btn--out:hover:not(:disabled) {
+  box-shadow: 0 20px 48px rgba(22, 93, 255, 0.45);
+}
+
+.clock-in-btn--field {
+  background: linear-gradient(135deg, #ff7d00 0%, #ff9a2e 100%);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(255, 125, 0, 0.35);
+}
+
+.clock-in-btn--field:hover:not(:disabled) {
+  box-shadow: 0 20px 48px rgba(255, 125, 0, 0.45);
+}
+
+.clock-in-btn--disabled {
+  background: linear-gradient(135deg, #86909c 0%, #c9cdd4 100%) !important;
+  box-shadow: 0 6px 16px rgba(134, 144, 156, 0.25) !important;
+}
+
+.clock-in-btn__icon {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.clock-in-btn__text {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.clock-in-btn__time {
+  font-size: 14px;
+  opacity: 0.95;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.clock-in-btn__pulse {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+.clock-in-today {
+  margin-bottom: 20px;
+}
+
+.clock-in-today__title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: #1d2129;
+}
+
+.clock-in-today__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.clock-in-today__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f7f8fa;
+  border-radius: 8px;
+}
+
+.clock-in-today__item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #fff;
+  background: #165dff;
+}
+
+.clock-in-today__item-icon--in {
+  background: #00b42a;
+}
+
+.clock-in-today__item-icon--out {
+  background: #165dff;
+}
+
+.clock-in-today__item-icon--field {
+  background: #ff7d00;
+}
+
+.clock-in-today__item-content {
+  flex: 1;
+}
+
+.clock-in-today__item-type {
+  font-size: 14px;
+  color: #1d2129;
+  font-weight: 500;
+}
+
+.clock-in-today__item-time {
+  font-size: 12px;
+  color: #86909c;
+  margin-top: 2px;
+}
+
+.clock-in-today__item-status {
+  font-size: 12px;
+}
+
+.clock-in-stats {
+  margin-bottom: 20px;
+}
+
+.clock-in-stats__title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: #1d2129;
+}
+
+.clock-in-stats__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.clock-in-stats__item {
+  text-align: center;
+  padding: 20px;
+  background: #f7f8fa;
+  border-radius: 8px;
+}
+
+.clock-in-stats__value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.clock-in-stats__value--normal {
+  color: #00b42a;
+}
+
+.clock-in-stats__value--late {
+  color: #ff7d00;
+}
+
+.clock-in-stats__value--absent {
+  color: #f53f3f;
+}
+
+.clock-in-hero__shift-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.clock-in-hero__shift-select {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.clock-in-hero__shift-select:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.shift-selector__tip {
+  font-size: 13px;
+  color: #4e5969;
+  margin: 0 0 16px 0;
+  padding: 10px 12px;
+  background: #f2f3f5;
+  border-radius: 6px;
+}
+
+.shift-selector__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.shift-selector__item {
+  padding: 14px 16px;
+  border: 1.5px solid #e5e6eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shift-selector__item:hover {
+  border-color: #165dff;
+  background: #f2f3f5;
+}
+
+.shift-selector__item--active {
+  border-color: #165dff;
+  background: #e8f3ff;
+}
+
+.shift-selector__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.shift-selector__item-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.shift-selector__item-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+  flex: 1;
+}
+
+.shift-selector__item-time {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #4e5969;
+  padding-left: 18px;
+}
+
+.shift-selector__item-desc {
+  margin-top: 6px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #86909c;
+}
+
+.clock-in-stats__value--leave {
+  color: #165dff;
+}
+
+.clock-in-stats__label {
+  font-size: 13px;
+  color: #86909c;
+  margin-top: 8px;
+}
+
+.clock-in-calendar {
+  margin-top: 20px;
+}
+
+.clock-in-calendar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.clock-in-calendar__title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1d2129;
+}
+
+.clock-in-calendar__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clock-in-calendar__nav-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e6eb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4e5969;
+  transition: all 0.2s;
+}
+
+.clock-in-calendar__nav-btn:hover {
+  border-color: #165dff;
+  color: #165dff;
+}
+
+.clock-in-calendar__month {
+  font-size: 14px;
+  color: #4e5969;
+  min-width: 100px;
+  text-align: center;
+}
+
+.clock-in-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.clock-in-calendar__weekday {
+  text-align: center;
+  font-size: 12px;
+  color: #86909c;
+  padding: 8px 0;
+}
+
+.clock-in-calendar__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.clock-in-calendar__day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f7f8fa;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.clock-in-calendar__day:hover {
+  background: #e8f3ff;
+}
+
+.clock-in-calendar__day--today {
+  border: 2px solid #165dff;
+}
+
+.clock-in-calendar__day--other-month {
+  opacity: 0.3;
+}
+
+.clock-in-calendar__day-number {
+  font-size: 14px;
+  color: #1d2129;
+  font-weight: 500;
+}
+
+.clock-in-calendar__day-status {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.clock-in-calendar__day--normal .clock-in-calendar__day-status {
+  color: #00b42a;
+}
+
+.clock-in-calendar__day--late .clock-in-calendar__day-status,
+.clock-in-calendar__day--early .clock-in-calendar__day-status,
+.clock-in-calendar__day--late_early .clock-in-calendar__day-status {
+  color: #ff7d00;
+}
+
+.clock-in-calendar__day--absent .clock-in-calendar__day-status,
+.clock-in-calendar__day--exception .clock-in-calendar__day-status {
+  color: #f53f3f;
+}
+
+.clock-in-calendar__day--leave .clock-in-calendar__day-status {
+  color: #165dff;
+}
+
+.clock-in-calendar__day--rest .clock-in-calendar__day-status,
+.clock-in-calendar__day--weekend .clock-in-calendar__day-status {
+  color: #86909c;
+}
+
+.clock-in-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 13px;
+  position: relative;
+  z-index: 1;
+}
+
+.clock-in-location__icon {
+  font-size: 16px;
+}
+
+.clock-in-location__text {
+  flex: 1;
+}
+
+.clock-in-location__status {
+  font-size: 12px;
+  opacity: 0.9;
+}

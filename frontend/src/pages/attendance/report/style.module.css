@@ -1,0 +1,91 @@
+.attendance-report {
+  padding: 16px;
+}
+
+.attendance-report .filter-card {
+  margin-bottom: 16px;
+}
+
+.attendance-report .filter-bar {
+  display: flex;
+  align-items: center;
+}
+
+.attendance-report .search-input {
+  width: 200px;
+}
+
+.attendance-report .date-range-picker {
+  width: 260px;
+}
+
+.attendance-report .status-select {
+  width: 200px;
+}
+
+.attendance-report .dept-filter-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.attendance-report .dept-filter-tag {
+  margin-left: 8px;
+}
+
+.attendance-report .dept-tree-popover {
+  min-width: 280px;
+}
+
+.attendance-report .tree-spin {
+  display: block;
+  padding: 20px;
+}
+
+.attendance-report .dept-tree {
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.attendance-report .page-spin {
+  width: 100%;
+}
+
+.attendance-report .stats-row {
+  margin-bottom: 16px;
+}
+
+.attendance-report .stat-card {
+  background: var(--lx-surface);
+}
+
+.attendance-report .stat-card .arco-statistic {
+  padding: 16px;
+  background: var(--lx-gray-50);
+  border-radius: 4px;
+}
+
+.attendance-report .charts-row {
+  margin-bottom: 16px;
+}
+
+.attendance-report .chart-card {
+  background: var(--lx-surface);
+}
+
+.attendance-report .chart-container {
+  width: 100%;
+  height: 320px;
+}
+
+.attendance-report .table-card {
+  background: var(--lx-surface);
+}
+
+.attendance-report .attendance-progress {
+  width: 80px;
+}
+
+.attendance-report .arco-table-wrapper {
+  background: var(--lx-surface);
+}

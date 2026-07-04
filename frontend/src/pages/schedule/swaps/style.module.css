@@ -1,0 +1,28 @@
+.schedule-swaps__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-swaps__select-status {
+  width: 120px;
+}
+
+.schedule-swaps__modal-cards {
+  display: flex;
+  gap: 24px;
+}
+
+.schedule-swaps__textarea {
+  width: 100%;
+}
+
+.schedule-swaps__cell-secondary {
+  font-size: 12px;
+}
+
+.schedule-swaps__modal-space {
+  width: 100%;
+}
+
+.schedule-swaps__modal-text {
+  font-weight: 500;
+}

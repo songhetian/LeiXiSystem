@@ -1,0 +1,105 @@
+.onboarding-flow {
+  padding-bottom: 20px;
+}
+
+.onboarding-flow__form-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.onboarding-flow__form-row .arco-form-item {
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.onboarding-flow__steps-section {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+  background-color: var(--color-fill-1);
+}
+
+.onboarding-flow__steps-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.onboarding-flow__steps-popover {
+  max-width: 280px;
+}
+
+.onboarding-flow__step-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.onboarding-flow__text-medium {
+  font-weight: 500;
+}
+
+.onboarding-flow__text-bold {
+  font-weight: 600;
+}
+
+.onboarding-flow__input--100 {
+  width: 100px;
+}
+
+.onboarding-flow__input--120 {
+  width: 120px;
+}
+
+.onboarding-flow__input--180 {
+  width: 180px;
+}
+
+.onboarding-flow__select--150 {
+  width: 150px;
+}
+
+.onboarding-flow__modal--500 {
+  width: 500px;
+}
+
+.onboarding-flow__modal--700 {
+  width: 700px;
+}
+
+.onboarding-flow__modal--800 {
+  width: 800px;
+}
+
+.onboarding-flow__modal--fullscreen {
+  width: 90vw;
+  max-width: 1600px;
+  top: 40px;
+}
+
+.onboarding-flow__modal--fullscreen .arco-modal-body {
+  padding: 0;
+}
+
+.onboarding-flow__canvas-wrapper {
+  height: 78vh;
+  min-height: 480px;
+  width: 100%;
+}
+
+.onboarding-flow__step-type-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.onboarding-flow__color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

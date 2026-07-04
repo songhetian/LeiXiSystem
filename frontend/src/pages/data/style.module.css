@@ -1,0 +1,137 @@
+.data-template {
+  padding: 20px;
+  min-height: calc(100vh - 120px);
+  background: var(--lx-gray-100);
+}
+
+.data-template__header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.data-template__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.data-import {
+  padding: 20px;
+  min-height: calc(100vh - 120px);
+  background: var(--lx-gray-100);
+}
+
+.data-import__header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.data-import__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.data-import__form {
+  margin-bottom: 16px;
+}
+
+.data-export {
+  padding: 20px;
+  min-height: calc(100vh - 120px);
+  background: var(--lx-gray-100);
+}
+
+.data-export__header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.data-export__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.data-export__form {
+  margin-bottom: 20px;
+}
+
+.data-export__form-title {
+  margin-bottom: 4px;
+}
+
+.data-export__form-desc {
+  color: var(--text-color-tertiary);
+  font-size: 12px;
+}
+
+.data-export__header {
+  margin-bottom: 16px;
+}
+
+.data-export__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.data-export__empty {
+  text-align: center;
+  color: var(--text-color-tertiary);
+  padding: 40px 0;
+}
+
+.data-import__form {
+  margin-bottom: 20px;
+}
+
+.data-import__form-title {
+  margin-bottom: 4px;
+}
+
+.data-import__form-desc {
+  color: var(--text-color-tertiary);
+  font-size: 12px;
+}
+
+.data-import__empty {
+  text-align: center;
+  color: var(--text-color-tertiary);
+  padding: 40px 0;
+}
+
+.data-export__select-full {
+  width: 100%;
+}
+
+.data-import__success {
+  color: var(--lx-primary-6);
+}
+
+.data-import__fail {
+  color: #EF4444;
+}
+
+.data-import__select-full {
+  width: 100%;
+}
+
+.data-import__upload {
+  margin-bottom: 16px;
+}
+
+.data-import__upload-content {
+  padding: 30px 0;
+}
+
+.data-import__upload-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.data-import__space-between {
+  width: 100%;
+  justify-content: space-between;
+}

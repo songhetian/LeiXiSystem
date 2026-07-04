@@ -1,0 +1,39 @@
+.financial-expense-standards__toolbar {
+  margin-bottom: 16px;
+}
+
+.financial-expense-standards__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.financial-expense-standards__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.financial-expense-standards__input-keyword {
+  width: 160px;
+}
+
+.financial-expense-standards__select-type {
+  width: 120px;
+}
+
+.financial-expense-standards__select-status {
+  width: 100px;
+}
+
+.financial-expense-standards__modal {
+  width: 600px;
+}
+
+.financial-expense-standards__input-number {
+  width: 150px;
+}
+
+.financial-expense-standards__input-number--sm {
+  width: 120px;
+}

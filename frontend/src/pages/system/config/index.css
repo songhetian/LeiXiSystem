@@ -1,0 +1,19 @@
+.config-export-import__space-full {
+  width: 100%;
+}
+
+.config-export-import__section-title {
+  font-size: 16px;
+}
+
+.config-export-import__section-subtitle {
+  margin-left: 8px;
+}
+
+.config-export-import__descriptions-mt {
+  margin-top: 16px;
+}
+
+.config-export-import__steps-mb {
+  margin-bottom: 24px;
+}

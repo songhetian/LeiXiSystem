@@ -1,0 +1,56 @@
+.schedule-calendar {
+  padding-bottom: 20px;
+}
+
+.schedule-calendar__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-calendar__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schedule-calendar__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.schedule-calendar__cell {
+  font-size: 12px;
+}
+
+.schedule-calendar__badge {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.schedule-calendar__select-dept {
+  width: 180px;
+}
+
+.schedule-calendar__calendar {
+  width: 100%;
+}
+
+.schedule-calendar__modal-small {
+  width: 480px;
+}
+
+.schedule-calendar__modal-medium {
+  width: 600px;
+}
+
+.schedule-calendar__modal-large {
+  width: 700px;
+}
+
+.schedule-calendar__range-picker {
+  width: 100%;
+}
+
+.schedule-calendar__select-employees {
+  width: 100%;
+}

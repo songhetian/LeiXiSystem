@@ -1,0 +1,52 @@
+.salary-structures {
+  padding-bottom: 20px;
+}
+
+.salary-structures__card {
+  margin-bottom: 16px;
+}
+
+.salary-structures__space {
+  width: 100%;
+}
+
+.salary-structures__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.salary-structures__title {
+  margin: 0;
+}
+
+.salary-structures__modal {
+  width: 860px;
+}
+
+.salary-structures__select {
+  width: 180px;
+}
+
+.salary-structures__select--narrow {
+  width: 160px;
+}
+
+.salary-structures__input {
+  width: 160px;
+}
+
+.salary-structures__table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.salary-structures__component-select {
+  width: 220px;
+}
+
+.salary-structures__table-header-text {
+  font-weight: 600;
+}

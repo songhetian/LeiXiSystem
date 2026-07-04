@@ -1,0 +1,59 @@
+.table-settings-panel {
+  width: 240px;
+  padding: 12px;
+  background: var(--color-bg-popup);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-medium);
+  box-shadow: var(--shadow2);
+}
+
+.table-settings-panel__section {
+  padding: 4px 0;
+}
+
+.table-settings-panel__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.table-settings-panel__item {
+  padding: 4px 0;
+}
+
+.table-settings-panel__item .arco-checkbox {
+  font-size: 13px;
+}
+
+.table-settings-panel__sizes {
+  display: flex;
+  gap: 8px;
+}
+
+.table-settings-panel__sizes .arco-btn {
+  flex: 1;
+}
+
+.table-settings-panel__reset {
+  width: 100%;
+  margin-top: 8px;
+  color: var(--color-text-2);
+}
+
+.table-settings-panel__reset:hover {
+  color: var(--color-primary);
+}
+
+/* 下拉菜单样式 */
+.table-settings-dropdown .arco-dropdown-popup {
+  padding: 0;
+}
+
+/* 深色模式 */
+[data-theme='dark'] .table-settings-panel {
+  background: var(--color-bg-popup-dark);
+  border-color: var(--color-border-dark);
+}

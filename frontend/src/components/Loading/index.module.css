@@ -1,0 +1,96 @@
+/* Loading - 加载状态 */
+.loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: 12px;
+}
+
+.loading-overlay--fullscreen {
+  min-height: 100vh;
+}
+
+.loading-overlay__tip {
+  margin-top: 8px;
+  color: var(--lx-gray-500, #6B7280);
+  font-size: 13px;
+}
+
+.loading-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  z-index: 9999;
+}
+
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 骨架屏 */
+.skeleton {
+  padding: 16px 0;
+}
+
+.skeleton-row {
+  height: 40px;
+  margin-bottom: 12px;
+  background: var(--lx-gray-100, #F3F4F6);
+  border-radius: var(--lx-radius, 8px);
+}
+
+.skeleton-row:last-child {
+  margin-bottom: 0;
+}
+
+.skeleton-row--active {
+  background: linear-gradient(
+    90deg,
+    var(--lx-gray-100, #F3F4F6) 25%,
+    rgba(16, 185, 129, 0.06) 37%,
+    var(--lx-gray-100, #F3F4F6) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s var(--lx-ease, cubic-bezier(0.4, 0, 0.2, 1)) infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 深色模式 */
+:global(body.arco-theme-dark) .loading-fullscreen {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+
+:global(body.arco-theme-dark) .skeleton-row {
+  background: var(--lx-gray-800, #1F2937);
+}
+
+:global(body.arco-theme-dark) .skeleton-row--active {
+  background: linear-gradient(
+    90deg,
+    var(--lx-gray-800, #1F2937) 25%,
+    rgba(16, 185, 129, 0.08) 37%,
+    var(--lx-gray-800, #1F2937) 63%
+  );
+  background-size: 400% 100%;
+}
+
+:global(body.arco-theme-dark) .loading-overlay__tip {
+  color: var(--lx-gray-400, #9CA3AF);
+}

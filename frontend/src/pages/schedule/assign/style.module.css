@@ -1,0 +1,48 @@
+.schedule-assign {
+  padding-bottom: 20px;
+}
+
+.schedule-assign__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-assign__header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schedule-assign__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.schedule-assign__input-keyword {
+  width: 180px;
+}
+
+.schedule-assign__select-dept {
+  width: 150px;
+}
+
+.schedule-assign__modal-medium {
+  width: 560px;
+}
+
+.schedule-assign__range-picker {
+  width: 100%;
+}
+
+.schedule-assign__select-shift {
+  width: 100%;
+}
+
+.schedule-assign__hint {
+  color: var(--text-color-tertiary);
+  font-size: 12px;
+}
+
+.schedule-assign__tag-count {
+  margin-left: 8px;
+}

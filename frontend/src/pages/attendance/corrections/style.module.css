@@ -1,0 +1,29 @@
+.attendance-corrections {
+  padding-bottom: 20px;
+}
+
+.attendance-corrections__card {
+  margin-bottom: 16px;
+}
+
+.attendance-corrections__space-full {
+  width: 100%;
+}
+
+.attendance-corrections__title {
+  margin: 0;
+}
+
+.attendance-corrections__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-corrections__select {
+  width: 140px;
+}
+
+.attendance-corrections__modal {
+  width: 520px;
+}

@@ -1,0 +1,63 @@
+.financial-budgets__toolbar {
+  margin-bottom: 16px;
+}
+
+.financial-budgets__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.financial-budgets__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.financial-expense-standards__toolbar {
+  margin-bottom: 16px;
+}
+
+.financial-expense-standards__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.financial-expense-standards__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.financial-budgets__input-year {
+  width: 100px;
+}
+
+.financial-budgets__input-dept {
+  width: 160px;
+}
+
+.financial-budgets__modal {
+  width: 500px;
+}
+
+.financial-budgets__input-full {
+  width: 100%;
+}
+
+.financial-budgets__text-year {
+  font-weight: 600;
+}
+
+.financial-budgets__text-note {
+  font-size: 12px;
+}
+
+.financial-budgets__text-usage {
+  width: 45px;
+}
+
+.financial-budgets__text-amount {
+  color: var(--amount-color);
+}

@@ -1,0 +1,39 @@
+/* TableHeader - 表格上方标题行 */
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-header__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.table-header__total {
+  margin: 0;
+}
+
+.table-header__right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.table-header__refresh {
+  color: var(--color-text-2);
+}
+
+.table-header__refresh:hover {
+  color: var(--color-text-1);
+}

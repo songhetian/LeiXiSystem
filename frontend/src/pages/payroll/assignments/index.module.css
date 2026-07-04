@@ -1,0 +1,37 @@
+.salary-assignments {
+  padding-bottom: 20px;
+}
+
+.salary-assignments__card {
+  margin-bottom: 16px;
+}
+
+.salary-assignments__space {
+  width: 100%;
+}
+
+.salary-assignments__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.salary-assignments__title {
+  margin: 0;
+}
+
+.salary-assignments__modal {
+  width: 560px;
+}
+
+.salary-assignments__input {
+  width: 160px;
+}
+
+.salary-assignments__input--narrow {
+  width: 120px;
+}
+
+.salary-assignments__input-number {
+  width: 100%;
+}

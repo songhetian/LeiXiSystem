@@ -1,0 +1,50 @@
+.export-tasks {
+  padding: 20px;
+  min-height: calc(100vh - 120px);
+  background: var(--lx-gray-100);
+}
+
+.export-tasks__header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.export-tasks__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.export-tasks__filters {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--lx-gray-50);
+  border-radius: 4px;
+}
+
+.export-tasks__filter-item {
+  display: flex;
+  align-items: center;
+}
+
+.export-tasks__filter-label {
+  color: var(--lx-gray-600);
+  font-size: 14px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.export-tasks__empty {
+  text-align: center;
+  color: var(--text-color-tertiary);
+  padding: 40px 0;
+}
+
+.export-tasks__filter-select {
+  width: 140px;
+}
+
+.export-tasks__filter-select-wide {
+  width: 160px;
+}

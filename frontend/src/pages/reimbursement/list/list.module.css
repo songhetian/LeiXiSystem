@@ -1,0 +1,76 @@
+.reimbursement-list {
+  padding-bottom: 20px;
+}
+
+.reimbursement-list__search-card {
+  margin-bottom: 16px;
+}
+
+.reimbursement-list__search-input {
+  width: 180px;
+}
+
+.reimbursement-list__status-select {
+  width: 130px;
+}
+
+.reimbursement-list__date-picker {
+  width: 220px;
+}
+
+.reimbursement-list__table-card {
+  /* default */
+}
+
+.reimbursement-list__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reimbursement-list__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.reimbursement-list__total-tag {
+  margin-left: 8px;
+}
+
+.reimbursement-list__type-tag {
+  /* default */
+}
+
+.reimbursement-list__amount {
+  font-weight: 600;
+  color: #F59E0B;
+  font-family: 'tabular-nums', monospace;
+}
+
+.reimbursement-list__modal {
+  width: 600px;
+}
+
+/* Additional styles for inline styles */
+.reimbursement-list__upload-wrapper {
+  padding: 10px 0;
+}
+
+.reimbursement-list__upload-icon {
+  font-size: 20px;
+}
+
+.reimbursement-list__upload-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-color-tertiary);
+}
+
+.reimbursement-list__detail-space {
+  width: 100%;
+}
+
+.reimbursement-list__steps {
+  margin-bottom: 20px;
+}

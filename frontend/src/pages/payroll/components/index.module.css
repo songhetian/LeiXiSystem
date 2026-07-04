@@ -1,0 +1,29 @@
+.payroll-components {
+  padding-bottom: 20px;
+}
+
+.payroll-components__card {
+  margin-bottom: 16px;
+}
+
+.payroll-components__space {
+  width: 100%;
+}
+
+.payroll-components__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payroll-components__title {
+  margin: 0;
+}
+
+.payroll-components__modal {
+  width: 560px;
+}
+
+.payroll-components__select {
+  width: 120px;
+}

@@ -1,0 +1,36 @@
+/* Operations Dashboard — Screen Mode */
+.lx-screen-mode {
+  background: #0f172a;
+  min-height: 100vh;
+  padding: 32px;
+  color: #fff;
+  animation: lxFadeIn 0.3s ease-out;
+}
+.lx-screen-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 32px;
+}
+.lx-screen-header h1 { color: #fff; font-size: 28px; margin: 0; font-weight: 700; }
+.lx-screen-card { background: #1e293b !important; border: 1px solid #334155 !important; border-radius: 12px !important; }
+.lx-screen-card .arco-statistic-title { color: #94a3b8 !important; }
+.lx-screen-card .arco-statistic-value { color: #f1f5f9 !important; }
+
+/* Detail items (label-value pairs) */
+.lx-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+}
+.lx-detail-item:last-child { border-bottom: none; }
+.lx-detail-label { font-size: 14px; color: var(--color-text-3, #86909c); }
+.lx-detail-value { font-size: 16px; font-weight: 600; color: var(--color-text-1, #1d2129); }
+
+/* All OK indicator */
+.lx-all-ok { color: #22c55e; font-size: 16px; padding: 16px 0; text-align: center; }
+
+/* Update timestamp footer */
+.lx-update-time { text-align: center; color: #bbb; font-size: 12px; margin-top: 8px; padding: 8px 0; }

@@ -1,0 +1,47 @@
+.schedule-rules__toolbar {
+  margin-bottom: 16px;
+}
+
+.schedule-rules__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.schedule-rules__title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.schedule-rules__input-keyword {
+  width: 180px;
+}
+
+.schedule-rules__select-status {
+  width: 120px;
+}
+
+.schedule-rules__modal-large {
+  width: 700px;
+}
+
+.schedule-rules__select-full {
+  width: 100%;
+}
+
+.schedule-rules__form-item {
+  margin-bottom: 12px;
+}
+
+.schedule-rules__select-status-form {
+  width: 120px;
+}
+
+.schedule-rules__shift-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #10B981;
+}

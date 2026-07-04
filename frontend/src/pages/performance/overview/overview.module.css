@@ -1,0 +1,30 @@
+.performance-overview {
+  padding-bottom: 20px;
+}
+
+.performance-overview__header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.performance-overview__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.performance-overview__tag {
+  margin-left: 8px;
+}
+
+.performance-overview__modal {
+  width: 560px;
+}
+
+.performance-overview__modal--wide {
+  width: 620px;
+}
+
+.performance-overview__form-item {
+  width: 100%;
+}

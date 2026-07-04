@@ -1,0 +1,33 @@
+.notification-list {
+  padding-bottom: 20px;
+}
+
+.notification-list__toolbar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.notification-list__card {
+  margin-bottom: 16px;
+}
+
+.notification-list__search {
+  width: 250px;
+}
+
+.notification-list__input-full {
+  width: 100%;
+}
+
+.notification-list__time {
+  color: var(--text-color-tertiary);
+  font-size: 12px;
+}
+
+.notification-list__empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-color-tertiary);
+}
+.notification-list__space-full { width: 100%; }

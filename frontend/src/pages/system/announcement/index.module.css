@@ -1,0 +1,61 @@
+.announcement {
+  padding-bottom: 20px;
+}
+
+.announcement__filter {
+  margin-bottom: 16px;
+}
+
+.announcement__filter .arco-form-item {
+  margin-bottom: 0;
+}
+
+.announcement__table {
+  margin-bottom: 16px;
+}
+
+.announcement__stats {
+  padding: 8px 0;
+}
+
+.announcement__stats-progress {
+  margin-top: 24px;
+}
+
+.announcement__stats-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--color-text-2);
+}
+
+.announcement__modal--lg {
+  width: 700px;
+}
+
+.announcement__modal--md {
+  width: 560px;
+}
+
+.announcement__input-full {
+  width: 100%;
+}
+
+.announcement__loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.announcement__desc-margin {
+  margin-bottom: 20px;
+}
+
+.announcement__text-weight {
+  font-weight: 600;
+}
+
+.announcement__text-title {
+  font-weight: 500;
+}

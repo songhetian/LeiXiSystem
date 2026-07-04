@@ -1,0 +1,41 @@
+.payroll-adjustments {
+  padding-bottom: 20px;
+}
+
+.payroll-adjustments__card {
+  margin-bottom: 16px;
+}
+
+.payroll-adjustments__space {
+  width: 100%;
+}
+
+.payroll-adjustments__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payroll-adjustments__title {
+  margin: 0;
+}
+
+.payroll-adjustments__modal {
+  width: 620px;
+}
+
+.payroll-adjustments__select {
+  width: 140px;
+}
+
+.payroll-adjustments__input-number {
+  width: 120px;
+}
+
+.payroll-adjustments__input-number--wide {
+  width: 160px;
+}
+
+.payroll-adjustments__input-number--full {
+  width: 100%;
+}

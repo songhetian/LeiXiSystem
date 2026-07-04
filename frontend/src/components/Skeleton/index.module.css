@@ -1,0 +1,171 @@
+/* 骨架屏动画 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--color-fill-2) 25%,
+    var(--color-fill-1) 50%,
+    var(--color-fill-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  height: 16px;
+  width: 100%;
+}
+
+.skeleton-image {
+  background: linear-gradient(
+    90deg,
+    var(--color-fill-2) 25%,
+    var(--color-fill-1) 50%,
+    var(--color-fill-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+/* 表格骨架屏 */
+.table-skeleton {
+  width: 100%;
+  background: var(--color-bg-1);
+  border-radius: var(--border-radius-medium);
+  overflow: hidden;
+}
+
+.table-skeleton__header {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  background: var(--color-fill-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table-skeleton__body {
+  padding: 8px 16px;
+}
+
+.table-skeleton__row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border-1);
+}
+
+.table-skeleton__row:last-child {
+  border-bottom: none;
+}
+
+.table-skeleton__cell {
+  flex: 1;
+  min-width: 0;
+}
+
+.table-skeleton__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 筛选栏骨架屏 */
+.filter-bar-skeleton {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.filter-bar-skeleton__filters {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.filter-bar-skeleton__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-bar-skeleton__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 卡片骨架屏 */
+.card-skeleton {
+  padding: 16px;
+  background: var(--color-bg-1);
+  border-radius: var(--border-radius-medium);
+}
+
+.card-skeleton__header {
+  margin-bottom: 16px;
+}
+
+.card-skeleton__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-skeleton__stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.card-skeleton__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 页面头部骨架屏 */
+.page-header-skeleton {
+  padding: 16px 0;
+}
+
+.page-header-skeleton__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header-skeleton__title {
+  flex-shrink: 0;
+}
+
+.page-header-skeleton__extra {
+  display: flex;
+  gap: 8px;
+}
+
+/* 深色模式 */
+body.arco-theme-dark .table-skeleton {
+  background: var(--color-bg-2);
+}
+
+body.arco-theme-dark .table-skeleton__header {
+  background: var(--color-fill-2);
+}
+
+body.arco-theme-dark .card-skeleton {
+  background: var(--color-bg-2);
+}

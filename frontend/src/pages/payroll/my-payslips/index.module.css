@@ -1,0 +1,27 @@
+.my-payslips {
+  padding-bottom: 20px;
+}
+
+.my-payslips__card {
+  margin-bottom: 16px;
+}
+
+.my-payslips__title {
+  margin: 0;
+}
+
+.my-payslips__modal--verify {
+  width: 420px;
+}
+
+.my-payslips__modal--detail {
+  width: 720px;
+}
+
+.my-payslips__modal--dispute {
+  width: 520px;
+}
+
+.my-payslips__space {
+  width: 100%;
+}

@@ -1,0 +1,94 @@
+/* EnhancedTable - 增强表格 */
+.enhanced-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--lx-card-radius, 12px);
+  overflow: hidden;
+}
+
+.enhanced-table__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.enhanced-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lx-gray-200, #E5E7EB);
+}
+
+/* 表头样式 */
+.enhanced-table :global(.arco-table-header) {
+  background: #FAFAFA;
+  border-bottom: 1px solid var(--lx-gray-200, #E5E7EB);
+}
+
+.enhanced-table :global(.arco-table-th) {
+  font-weight: 600;
+  color: var(--lx-gray-800, #1F2937);
+  font-size: 13px;
+  padding: 12px 16px;
+}
+
+/* 斑马纹 */
+.enhanced-table--stripe .table-tr:nth-child(even) {
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.enhanced-table--stripe .table-tr:nth-child(even):hover {
+  background: rgba(16, 185, 129, 0.03);
+}
+
+/* 表头固定 */
+.enhanced-table--sticky .arco-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #F8FAFC;
+}
+
+/* 行悬停效果 */
+.enhanced-table .table-tr:hover {
+  background: rgba(16, 185, 129, 0.03);
+  cursor: pointer;
+  transition: background var(--lx-fast, 150ms) var(--lx-ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+/* 选中行 */
+.enhanced-table .table-tr--selected {
+  background: rgba(16, 185, 129, 0.06) !important;
+}
+
+/* 深色模式 */
+:global(body.arco-theme-dark) .enhanced-table :global(.arco-table-header) {
+  background: var(--lx-gray-800, #1F2937);
+}
+
+:global(body.arco-theme-dark) .enhanced-table :global(.arco-table-th) {
+  color: var(--lx-gray-300, #D1D5DB);
+}
+
+:global(body.arco-theme-dark) .enhanced-table__footer {
+  border-top-color: var(--lx-gray-700, #374151);
+}
+
+:global(body.arco-theme-dark) .enhanced-table--stripe .table-tr:nth-child(even) {
+  background: rgba(16, 185, 129, 0.03);
+}
+
+:global(body.arco-theme-dark) .enhanced-table--sticky .arco-table-header {
+  background: var(--lx-gray-800, #1F2937);
+}
+
+:global(body.arco-theme-dark) .enhanced-table .table-tr:hover {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+:global(body.arco-theme-dark) .enhanced-table .table-tr--selected {
+  background: rgba(16, 185, 129, 0.1) !important;
+}

@@ -1,0 +1,60 @@
+.reimbursement-apply {
+  padding-bottom: 20px;
+}
+
+.reimbursement-apply__card {
+  /* default */
+}
+
+.reimbursement-apply__header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.reimbursement-apply__title {
+  margin-bottom: 4px;
+}
+
+.reimbursement-apply__subtitle {
+  color: var(--text-color-tertiary);
+}
+
+.reimbursement-apply__steps {
+  margin-bottom: 32px;
+}
+
+.reimbursement-apply__form-footer {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.reimbursement-apply__warnings {
+  margin-bottom: 16px;
+}
+
+/* Additional styles for inline styles */
+.reimbursement-apply__form-item-gap {
+  margin-bottom: 8px;
+}
+
+.reimbursement-apply__expense-detail-box {
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.reimbursement-apply__expense-detail-header {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.reimbursement-apply__expense-detail-title {
+  font-weight: 600;
+}
+
+.reimbursement-apply__expense-detail-empty {
+  text-align: center;
+  color: var(--text-color-tertiary);
+  padding: 40px 0;
+}

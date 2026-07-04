@@ -1,0 +1,89 @@
+.certificate {
+  padding: 16px;
+  background: var(--color-fill-2);
+  min-height: 100%;
+}
+
+.certificate__card {
+  margin-bottom: 16px;
+}
+
+.certificate__type-tag {
+  font-weight: 500;
+}
+
+.certificate__filter-select {
+  width: 160px;
+}
+
+.certificate__date-picker {
+  width: 260px;
+}
+
+.certificate__modal .arco-modal-body {
+  padding-top: 8px;
+}
+
+.certificate__detail {
+  padding: 8px 0;
+}
+
+.certificate__detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.certificate__detail-reject {
+  background: var(--color-danger-light-1);
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+.certificate__detail-reject p {
+  margin: 0;
+}
+
+.certificate__detail-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.certificate__detail-modal {
+  width: 600px;
+}
+
+.certificate__loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.certificate__detail-title {
+  margin: 0;
+}
+
+.certificate__detail-subtitle {
+  font-size: 12px;
+}
+
+.certificate__detail-tag-right {
+  margin-left: auto;
+}
+
+.certificate__detail-divider {
+  margin: 16px 0;
+}
+
+.certificate__detail-text-bold {
+  font-weight: 500;
+}
+
+.certificate__detail-reject-text {
+  margin-top: 8px;
+  color: var(--color-text-2);
+}
+
+.certificate__detail-file-btn {
+  padding: 4px 8px;
+}

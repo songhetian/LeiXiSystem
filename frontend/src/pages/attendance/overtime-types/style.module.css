@@ -1,0 +1,27 @@
+.overtime-types {
+  padding-bottom: 20px;
+}
+
+.overtime-types__card {
+  margin-bottom: 16px;
+}
+
+.overtime-types__title {
+  margin: 0;
+}
+
+.overtime-types__text-bold {
+  font-weight: 500;
+}
+
+.overtime-types__modal {
+  width: 600px;
+}
+
+.overtime-types__input-full {
+  width: 100%;
+}
+
+.overtime-types__select-small {
+  width: 150px;
+}

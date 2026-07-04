@@ -1,0 +1,54 @@
+.attendance-overtime {
+  padding-bottom: 20px;
+}
+
+.attendance-overtime__search-card {
+  margin-bottom: 16px;
+}
+
+.attendance-overtime__search-input {
+  width: 180px;
+}
+
+.attendance-overtime__status-select {
+  width: 130px;
+}
+
+.attendance-overtime__date-picker {
+  width: 220px;
+}
+
+.attendance-overtime__table-card {
+  /* default */
+}
+
+.attendance-overtime__table-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attendance-overtime__table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.attendance-overtime__total-tag {
+  margin-left: 8px;
+}
+
+.attendance-overtime__type-tag {
+  /* default */
+}
+
+.attendance-overtime__hours {
+  font-family: 'tabular-nums', monospace;
+}
+
+.attendance-overtime__modal {
+  width: 560px;
+}
+.attendance-overtime__date-picker {
+  width: 100%;
+}

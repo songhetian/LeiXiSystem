@@ -1,0 +1,55 @@
+.header {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--lx-gray-50);
+  border-radius: 4px;
+}
+
+.timelineWrap {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text-color-tertiary);
+  font-size: 14px;
+}
+
+.item {
+  padding: 4px 0;
+}
+
+.itemClickable {
+  cursor: pointer;
+}
+
+.itemTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.itemDesc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--lx-gray-600);
+  line-height: 1.5;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detailRow {
+  line-height: 1.8;
+}
+
+.detailValue {
+  margin: 0 !important;
+  color: var(--lx-gray-900);
+}

@@ -1,0 +1,20 @@
+.lx-screen {
+  background: #0f172a;
+  min-height: 100vh;
+  padding: 32px;
+  color: #fff;
+}
+.lx-screen__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 32px;
+}
+.lx-screen__head h1 { font-size: 24px; font-weight: 700; margin: 0; }
+.lx-screen__meta { font-size: 13px; color: #64748b; }
+.lx-screen__alerts {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}

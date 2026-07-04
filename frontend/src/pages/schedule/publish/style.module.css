@@ -1,0 +1,32 @@
+.schedule-publish {
+  padding: 16px;
+}
+
+.schedule-publish__search {
+  width: 200px;
+}
+
+.schedule-publish__select-status {
+  width: 120px;
+}
+
+.schedule-publish__cell-name {
+  font-weight: 500;
+}
+
+.schedule-publish__cell-dept {
+  font-size: 12px;
+  color: var(--text-color-tertiary);
+}
+
+.schedule-publish__text-secondary {
+  color: var(--text-color-tertiary);
+}
+
+.schedule-publish__row-margin {
+  margin-bottom: 16px;
+}
+
+.schedule-publish__space-margin {
+  margin-bottom: 16px;
+}
