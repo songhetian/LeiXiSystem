@@ -17,6 +17,7 @@ const clockInSchema = z.object({
   isFieldWork: z.coerce.boolean().optional(),
   fieldWorkReason: z.string().trim().max(500).optional(),
   shiftId: z.coerce.number().int().positive().optional(),
+  skipLocationCheck: z.coerce.boolean().optional(),
 })
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -80,7 +81,7 @@ export default async function clockInRoutes(fastify: FastifyInstance) {
     }
   }>) => {
     const userId = request.user.id
-    const { location, type, latitude, longitude, source, deviceId, photoUrl, isFieldWork, fieldWorkReason, shiftId } = validateData(clockInSchema, request.body)
+    const { location, type, latitude, longitude, source, deviceId, photoUrl, isFieldWork, fieldWorkReason, shiftId, skipLocationCheck } = validateData(clockInSchema, request.body)
 
     const employee = await prisma.employee.findUnique({
       where: { userId },
@@ -111,6 +112,24 @@ export default async function clockInRoutes(fastify: FastifyInstance) {
       }
       shift = manualShift
       isManualShift = true
+
+      // 如果今天没有排班记录，创建一条（持久化用户选择的班次）
+      if (!schedule) {
+        await prisma.schedule.upsert({
+          where: {
+            employeeId_scheduleDate: {
+              employeeId: employee.id,
+              scheduleDate: today,
+            },
+          },
+          update: { shiftId: shiftId },
+          create: {
+            employeeId: employee.id,
+            scheduleDate: today,
+            shiftId: shiftId,
+          },
+        })
+      }
     }
 
     if (!shift) {
@@ -136,7 +155,11 @@ export default async function clockInRoutes(fastify: FastifyInstance) {
       return { code: 400, message: '今天已打过上班卡，每人每天只能打一次上班卡' }
     }
 
-    const locationResult = await verifyLocation(latitude, longitude)
+    // 检查是否跳过位置校验（系统设置关闭位置打卡）
+    let locationResult = { valid: true }
+    if (!skipLocationCheck) {
+      locationResult = await verifyLocation(latitude, longitude)
+    }
 
     const now = new Date()
     let verified = true
@@ -566,6 +589,65 @@ export default async function clockInRoutes(fastify: FastifyInstance) {
         color: s.color,
         description: s.description,
       })),
+    }
+  })
+
+  // 选择班次（未排班时手动选择）
+  fastify.post('/clock-in/select-shift', async (request: FastifyRequest<{
+    Body: { shiftId: number }
+  }>) => {
+    const userId = request.user.id
+    const { shiftId } = validateData(z.object({
+      shiftId: z.coerce.number().int().positive(),
+    }), request.body)
+
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+    })
+
+    if (!employee) {
+      return { code: 400, message: '员工信息不存在' }
+    }
+
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId, status: 'active' },
+    })
+
+    if (!shift) {
+      return { code: 400, message: '所选班次不存在或已停用' }
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // 检查今天是否已有排班
+    const existingSchedule = await prisma.schedule.findFirst({
+      where: { employeeId: employee.id, scheduleDate: today },
+    })
+
+    if (existingSchedule) {
+      // 更新现有排班
+      await prisma.schedule.update({
+        where: { id: existingSchedule.id },
+        data: { shiftId, source: 'manual' },
+      })
+    } else {
+      // 创建新排班
+      await prisma.schedule.create({
+        data: {
+          userId,
+          employeeId: employee.id,
+          shiftId,
+          scheduleDate: today,
+          source: 'manual',
+        },
+      })
+    }
+
+    return {
+      code: 0,
+      message: '班次选择成功',
+      data: { shiftId, shiftName: shift.name },
     }
   })
 }

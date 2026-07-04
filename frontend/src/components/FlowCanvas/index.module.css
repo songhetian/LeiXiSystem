@@ -1,0 +1,514 @@
+/* ============================================================
+   主容器布局
+   ============================================================ */
+
+.flow-canvas {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  background: #f7f8fa;
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   左侧节点选择面板
+   ============================================================ */
+
+.flow-canvas__sidebar {
+  flex: 0 0 240px;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-right: 1px solid #e5e6eb;
+  overflow: hidden;
+}
+
+.flow-canvas__sidebar-title {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d2129;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+
+.flow-canvas__sidebar-list {
+  flex: 1 1 auto;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flow-canvas__sidebar-tip {
+  flex: 0 0 auto;
+  padding: 8px 16px 12px;
+  font-size: 12px;
+  color: #f53f3f;
+  text-align: center;
+}
+
+/* 节点项（可拖拽） */
+
+.node-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e6eb;
+  border-left: 3px solid var(--node-color, #165dff);
+  border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.node-item:hover {
+  border-color: #c9cdd4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.node-item:active {
+  cursor: grabbing;
+}
+
+.node-item--disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #f7f8fa;
+}
+
+.node-item--disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #e5e6eb;
+}
+
+.node-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 16px;
+  color: #fff;
+  background: var(--node-color, #165dff);
+  flex-shrink: 0;
+}
+
+.node-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.node-item__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-item__type {
+  font-size: 11px;
+  color: #86909c;
+  line-height: 1.2;
+}
+
+/* ============================================================
+   中间画布区域
+   ============================================================ */
+
+.flow-canvas__main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.flow-canvas__toolbar {
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e6eb;
+}
+
+.flow-canvas__toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.flow-canvas__toolbar-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #86909c;
+  padding: 2px 8px;
+  background: #f2f3f5;
+  border-radius: 10px;
+}
+
+.flow-canvas__toolbar-actions {
+  display: flex;
+  align-items: center;
+}
+
+.flow-canvas__canvas {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+}
+
+/* ============================================================
+   右侧属性面板
+   ============================================================ */
+
+.flow-canvas__panel {
+  flex: 0 0 320px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #e5e6eb;
+  overflow: hidden;
+}
+
+.flow-canvas__panel-title {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d2129;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+
+.flow-canvas__panel-body {
+  flex: 1 1 auto;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.flow-canvas__panel-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-size: 13px;
+  color: #c9cdd4;
+  text-align: center;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #e5e6eb;
+}
+
+.panel-header__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.panel-header__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.panel-footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e6eb;
+}
+
+.panel-footer__id {
+  font-size: 11px;
+  color: #c9cdd4;
+  word-break: break-all;
+}
+
+/* 表单字段 */
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-field__label {
+  font-size: 12px;
+  color: #4e5969;
+  line-height: 1.4;
+}
+
+.form-field__required {
+  color: #f53f3f;
+  margin-right: 2px;
+}
+
+/* ============================================================
+   自定义节点（圆角矩形）
+   ============================================================ */
+
+.custom-node {
+  position: relative;
+  min-width: 160px;
+  max-width: 240px;
+  background: #fff;
+  border: 1px solid #e5e6eb;
+  border-left: 4px solid var(--node-color, #165dff);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.custom-node:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.custom-node--selected {
+  outline: 2px solid var(--node-color, #165dff);
+  outline-offset: 2px;
+  box-shadow: 0 4px 16px rgba(22, 93, 255, 0.2);
+}
+
+.custom-node__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 8px;
+}
+
+.custom-node__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--node-color, #165dff);
+  flex-shrink: 0;
+}
+
+.custom-node__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d2129;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-node__body {
+  padding: 0 14px 10px;
+  font-size: 12px;
+  color: #86909c;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* ============================================================
+   终端节点（开始/结束，圆形）
+   ============================================================ */
+
+.terminal-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--node-color, #165dff);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.terminal-node--selected {
+  outline: 3px solid var(--node-color, #165dff);
+  outline-offset: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.terminal-node__text {
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 4px;
+}
+
+/* ============================================================
+   分支 Handle
+   ============================================================ */
+
+.branch-handles {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0;
+}
+
+.branch-handle {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+}
+
+.branch-handle__label {
+  position: absolute;
+  right: 14px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #4e5969;
+  background: #f2f3f5;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* ============================================================
+   React Flow 全局样式覆盖
+   ============================================================ */
+
+:global(.react-flow) {
+  background: #f7f8fa;
+}
+
+:global(.react-flow__node) {
+  font-family: inherit;
+}
+
+:global(.react-flow__handle) {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  background: var(--node-color, #165dff);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: transform 0.1s ease;
+}
+
+:global(.react-flow__handle:hover) {
+  transform: scale(1.25);
+}
+
+:global(.react-flow__handle-connecting) {
+  background: #f53f3f;
+}
+
+:global(.react-flow__handle-valid) {
+  background: #00b42a;
+}
+
+.terminal-handle {
+  width: 12px;
+  height: 12px;
+}
+
+.custom-handle {
+  width: 10px;
+  height: 10px;
+}
+
+/* 连线样式 */
+
+:global(.react-flow__edge-path) {
+  stroke: #a9aeb8;
+  stroke-width: 1.5;
+}
+
+:global(.react-flow__edge.selected .react-flow__edge-path),
+:global(.react-flow__edge:hover .react-flow__edge-path) {
+  stroke: #165dff;
+  stroke-width: 2;
+}
+
+:global(.react-flow__edge.animated .react-flow__edge-path) {
+  stroke-dasharray: 6 4;
+  animation: dashdraw 0.6s linear infinite;
+}
+
+@keyframes dashdraw {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* 控制按钮 */
+
+:global(.react-flow__controls) {
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+:global(.react-flow__controls-button) {
+  border-bottom: 1px solid #f0f2f5;
+  background: #fff;
+  color: #4e5969;
+  width: 28px;
+  height: 28px;
+}
+
+:global(.react-flow__controls-button:hover) {
+  background: #f2f3f5;
+}
+
+:global(.react-flow__controls-button svg) {
+  fill: #4e5969;
+}
+
+/* 小地图 */
+
+:global(.react-flow__minimap) {
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #fff;
+}
+
+/* 选择框 */
+
+:global(.react-flow__selection) {
+  border: 1px solid #165dff;
+  background: rgba(22, 93, 255, 0.08);
+}

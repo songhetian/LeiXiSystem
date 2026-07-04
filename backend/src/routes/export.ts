@@ -15,7 +15,7 @@ import {
 import { buildAttendanceDataScopeWhere } from '../services/dataScope'
 import fs from 'fs'
 
-const reportTypeEnum = z.enum(['schedule', 'attendance', 'leave-overtime', 'finance'])
+const reportTypeEnum = z.enum(['schedule', 'attendance', 'leave-overtime', 'finance', 'employee', 'department', 'shift'])
 const formatEnum = z.enum(['xlsx', 'csv'])
 const statusEnum = z.enum(['pending', 'processing', 'completed', 'failed'])
 
@@ -52,6 +52,9 @@ const REPORT_PERMISSIONS: Record<string, string> = {
   attendance: 'attendance:view',
   'leave-overtime': 'attendance:view',
   finance: 'finance:view',
+  employee: 'personnel:view',
+  department: 'organization:view',
+  shift: 'shift:view',
 }
 
 const DEFAULT_FIELDS: Record<string, ExcelColumn[]> = {
@@ -92,6 +95,36 @@ const DEFAULT_FIELDS: Record<string, ExcelColumn[]> = {
     { key: 'totalSalary', header: '工资总额', width: 15 },
     { key: 'totalReimbursement', header: '报销总额', width: 15 },
     { key: 'totalExpense', header: '总支出', width: 15 },
+  ],
+  employee: [
+    { key: 'employeeNo', header: '工号', width: 12 },
+    { key: 'name', header: '姓名', width: 12 },
+    { key: 'gender', header: '性别', width: 8 },
+    { key: 'departmentName', header: '部门', width: 15 },
+    { key: 'positionName', header: '职位', width: 15 },
+    { key: 'phone', header: '手机号', width: 15 },
+    { key: 'email', header: '邮箱', width: 22 },
+    { key: 'status', header: '状态', width: 10 },
+    { key: 'hireDate', header: '入职日期', width: 14 },
+    { key: 'employmentType', header: '用工类型', width: 12 },
+  ],
+  department: [
+    { key: 'name', header: '部门名称', width: 20 },
+    { key: 'code', header: '部门编码', width: 15 },
+    { key: 'parentName', header: '上级部门', width: 20 },
+    { key: 'managerName', header: '负责人', width: 12 },
+    { key: 'employeeCount', header: '人数', width: 10 },
+    { key: 'status', header: '状态', width: 10 },
+  ],
+  shift: [
+    { key: 'name', header: '班次名称', width: 15 },
+    { key: 'code', header: '班次编码', width: 12 },
+    { key: 'startTime', header: '上班时间', width: 12 },
+    { key: 'endTime', header: '下班时间', width: 12 },
+    { key: 'workHours', header: '工时', width: 10 },
+    { key: 'lateGraceMinutes', header: '迟到宽限(分)', width: 14 },
+    { key: 'earlyGraceMinutes', header: '早退宽限(分)', width: 14 },
+    { key: 'status', header: '状态', width: 10 },
   ],
 }
 
@@ -464,6 +497,119 @@ async function getFinanceReportData(params: any, user: any): Promise<ExcelSheet[
   return [{ name: '财务报表', columns: DEFAULT_FIELDS.finance, data }]
 }
 
+async function getEmployeeReportData(params: any, user: any): Promise<ExcelSheet[]> {
+  const where: any = {}
+
+  if (params.departmentId) {
+    where.user = { departmentId: params.departmentId }
+  }
+  if (params.status) {
+    where.status = params.status
+  }
+  if (params.employmentType) {
+    where.employmentType = params.employmentType
+  }
+  if (params.keyword) {
+    where.OR = [
+      { employeeNo: { contains: params.keyword } },
+      { user: { realName: { contains: params.keyword } } },
+    ]
+  }
+
+  const employees = await prisma.employee.findMany({
+    where,
+    include: {
+      user: {
+        select: {
+          realName: true,
+          gender: true,
+          phone: true,
+          email: true,
+          department: { select: { name: true } },
+        },
+      },
+      position: { select: { name: true } },
+    },
+    orderBy: [{ employeeNo: 'asc' }],
+  })
+
+  const genderMap: Record<string, string> = { male: '男', female: '女', other: '其他' }
+  const statusMap: Record<string, string> = { active: '在职', probation: '试用期', leave: '休假', resigned: '离职' }
+
+  const data = employees.map(e => ({
+    employeeNo: e.employeeNo || '',
+    name: e.user?.realName || '',
+    gender: genderMap[e.user?.gender || ''] || e.user?.gender || '',
+    departmentName: e.user?.department?.name || '',
+    positionName: e.position?.name || '',
+    phone: e.user?.phone || '',
+    email: e.user?.email || '',
+    status: statusMap[e.status] || e.status || '',
+    hireDate: e.hireDate ? e.hireDate.toISOString().split('T')[0] : '',
+    employmentType: e.employmentType || '',
+  }))
+
+  return [{ name: '员工列表', columns: DEFAULT_FIELDS.employee, data }]
+}
+
+async function getDepartmentReportData(params: any, user: any): Promise<ExcelSheet[]> {
+  const departments = await prisma.department.findMany({
+    where: params.status ? { status: params.status } : undefined,
+    include: {
+      parent: { select: { name: true } },
+      manager: { select: { realName: true } },
+      _count: { select: { users: true } },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+  })
+
+  const statusMap: Record<string, string> = { active: '启用', inactive: '停用' }
+
+  const data = departments.map(d => ({
+    name: d.name || '',
+    code: d.code || '',
+    parentName: d.parent?.name || '',
+    managerName: d.manager?.realName || '',
+    employeeCount: d._count?.users || 0,
+    status: statusMap[d.status] || d.status || '',
+  }))
+
+  return [{ name: '部门列表', columns: DEFAULT_FIELDS.department, data }]
+}
+
+async function getShiftReportData(params: any, user: any): Promise<ExcelSheet[]> {
+  const where: any = {}
+  if (params.status) {
+    where.status = params.status
+  }
+  if (params.departmentId) {
+    where.OR = [
+      { departmentId: params.departmentId },
+      { departmentId: null },
+    ]
+  }
+
+  const shifts = await prisma.shift.findMany({
+    where,
+    orderBy: [{ sortOrder: 'asc' }, { startTime: 'asc' }],
+  })
+
+  const statusMap: Record<string, string> = { active: '启用', inactive: '停用' }
+
+  const data = shifts.map(s => ({
+    name: s.name || '',
+    code: s.code || '',
+    startTime: s.startTime || '',
+    endTime: s.endTime || '',
+    workHours: s.workHours?.toString() || '',
+    lateGraceMinutes: s.lateGraceMinutes?.toString() || '',
+    earlyGraceMinutes: s.earlyGraceMinutes?.toString() || '',
+    status: statusMap[s.status] || s.status || '',
+  }))
+
+  return [{ name: '班次列表', columns: DEFAULT_FIELDS.shift, data }]
+}
+
 async function getReportData(reportType: string, params: any, user: any): Promise<ExcelSheet[]> {
   switch (reportType) {
     case 'schedule':
@@ -474,6 +620,12 @@ async function getReportData(reportType: string, params: any, user: any): Promis
       return getLeaveOvertimeReportData(params, user)
     case 'finance':
       return getFinanceReportData(params, user)
+    case 'employee':
+      return getEmployeeReportData(params, user)
+    case 'department':
+      return getDepartmentReportData(params, user)
+    case 'shift':
+      return getShiftReportData(params, user)
     default:
       throw new Error(`不支持的报表类型: ${reportType}`)
   }

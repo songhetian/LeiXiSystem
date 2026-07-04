@@ -4,11 +4,12 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { idParamsSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
+import { generateCode } from '../utils/codeGenerator'
 import { carryoverVacation, getCarryoverRecords, expireCarryoverRecords } from '../services/vacationCarryover'
 
 const vacationTypeBodySchema = z.object({
   name: z.string().trim().min(1).max(50),
-  code: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/, '假期编码只能包含字母、数字、下划线和横线'),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/, '假期编码只能包含字母、数字、下划线和横线').optional(),
   totalDays: z.coerce.number().min(0).max(366).optional().default(0),
   unit: z.enum(['day', 'hour']).optional().default('day'),
   isCarryOver: z.coerce.boolean().optional().default(false),
@@ -56,10 +57,11 @@ export default async function vacationRoutes(fastify: FastifyInstance) {
   fastify.post('/types', { preHandler: [requirePermission('vacation:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(vacationTypeBodySchema, request.body)
 
+    const code = body.code || await generateCode('vacationType', prisma.vacationType)
     const type = await prisma.vacationType.create({
       data: {
         name: body.name,
-        code: body.code,
+        code,
         totalDays: body.totalDays,
         unit: body.unit,
         isCarryOver: body.isCarryOver,

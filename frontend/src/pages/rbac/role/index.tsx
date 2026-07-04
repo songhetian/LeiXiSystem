@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -10,6 +10,7 @@ import {
   Card,
   Tree,
   Spin,
+  Checkbox,
 } from '@arco-design/web-react'
 import { IconPlus, IconUser } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
@@ -21,6 +22,130 @@ import { toast } from '@/utils/toast'
 import styles from './style.module.css'
 const FormItem = Form.Item
 const Option = Select.Option
+
+// 权限矩阵组件
+interface PermissionMatrixProps {
+  permissions: Permission[]
+  checkedKeys: string[]
+  onCheck: (keys: string[]) => void
+}
+
+interface PermissionRow {
+  module: string
+  page: string
+  actions: { id: number; name: string; action: string }[]
+}
+
+function PermissionMatrix({ permissions, checkedKeys, onCheck }: PermissionMatrixProps) {
+  // 操作类型中文映射
+  const actionLabels: Record<string, string> = {
+    view: '查看', create: '新增', edit: '编辑', delete: '删除',
+    export: '导出', import: '导入', manage: '管理', assign: '分配',
+    approve: '审批', handle: '处理', review: '评审', calculate: '核算',
+    view_all: '全量查看', view_self: '个人查看',
+  }
+
+  const moduleLabels: Record<string, string> = {
+    personnel: '组织人事', organization: '组织人事',
+    attendance: '考勤管理', vacation: '假期管理',
+    payroll: '薪资中心', reimbursement: '报销管理',
+    approval: '审批中心', dashboard: '工作台',
+    rbac: '权限与安全', role: '权限与安全', security: '权限与安全',
+    sso: '系统设置', data: '系统设置',
+    asset: '资产管理', helpdesk: 'HR服务台',
+    recruitment: '招聘管理', performance: '绩效管理',
+    training: '培训管理', other: '其他',
+  }
+
+  // 按 module 分组
+  const groups = useMemo(() => {
+    const map = new Map<string, Permission[]>()
+    permissions.forEach((p) => {
+      const mod = p.module || 'other'
+      if (!map.has(mod)) map.set(mod, [])
+      map.get(mod)!.push(p)
+    })
+    return Array.from(map.entries()).map(([mod, perms]) => ({
+      key: mod,
+      label: moduleLabels[mod] || mod,
+      permissions: perms,
+    }))
+  }, [permissions])
+
+  const toggle = (id: number) => {
+    const key = String(id)
+    if (checkedKeys.includes(key)) {
+      onCheck(checkedKeys.filter((k) => k !== key))
+    } else {
+      onCheck([...checkedKeys, key])
+    }
+  }
+
+  const toggleGroup = (perms: Permission[], checked: boolean) => {
+    const ids = perms.map((p) => String(p.id))
+    if (checked) {
+      const newKeys = new Set([...checkedKeys, ...ids])
+      onCheck(Array.from(newKeys))
+    } else {
+      onCheck(checkedKeys.filter((k) => !ids.includes(k)))
+    }
+  }
+
+  const isGroupAllChecked = (perms: Permission[]) =>
+    perms.every((p) => checkedKeys.includes(String(p.id)))
+
+  const isGroupPartial = (perms: Permission[]) =>
+    perms.some((p) => checkedKeys.includes(String(p.id))) && !isGroupAllChecked(perms)
+
+  const getActionLabel = (p: Permission) => {
+    const action = p.action || ''
+    return actionLabels[action] || p.name
+  }
+
+  return (
+    <div className={styles.matrix}>
+      <div className={styles.matrixTip}>
+        点击权限项可快速授权，点击分组标题可全选/取消全选该分组
+      </div>
+      <div className={styles.matrixWrapper}>
+        {groups.map((group) => {
+          const allChecked = isGroupAllChecked(group.permissions)
+          const partial = isGroupPartial(group.permissions)
+          return (
+            <div key={group.key} className={styles.group}>
+              <div className={styles.groupHeader}>
+                <Checkbox
+                  checked={allChecked}
+                  indeterminate={partial}
+                  onChange={(checked) => toggleGroup(group.permissions, checked)}
+                />
+                <span className={styles.groupLabel}>{group.label}</span>
+                <span className={styles.groupCount}>
+                  {group.permissions.filter((p) => checkedKeys.includes(String(p.id))).length}/{group.permissions.length}
+                </span>
+              </div>
+              <div className={styles.groupBody}>
+                {group.permissions.map((p) => {
+                  const isChecked = checkedKeys.includes(String(p.id))
+                  return (
+                    <label key={p.id} className={`${styles.permItem} ${isChecked ? styles['permItem--checked'] : ''}`}>
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(checked) => toggle(p.id)}
+                      />
+                      <span className={styles.permName}>{p.name}</span>
+                      <span className={styles.permAction}>{getActionLabel(p)}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function RolePage() {
   const [data, setData] = useState<Role[]>([])
@@ -193,9 +318,9 @@ function RolePage() {
         </Form>
       </Modal>
 
-      <Modal focusLock title={`配置权限 - ${currentRole?.name}`} visible={permVisible} onOk={handlePermOk} onCancel={() => setPermVisible(false)} className={styles.role__modal}>
+      <Modal focusLock title={`配置权限 - ${currentRole?.name}`} visible={permVisible} onOk={handlePermOk} onCancel={() => setPermVisible(false)} className={styles.matrixModal} footer={<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><Button onClick={() => setPermVisible(false)}>取消</Button><Button type="primary" onClick={handlePermOk}>保存</Button></div>}>
         <Spin loading={permissionTree.length === 0}>
-          <Tree checkable checkedKeys={checkedKeys} onCheck={setCheckedKeys} treeData={treeData} />
+          <PermissionMatrix permissions={permissionTree} checkedKeys={checkedKeys} onCheck={setCheckedKeys} />
         </Spin>
       </Modal>
     </div>

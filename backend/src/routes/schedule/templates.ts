@@ -111,14 +111,18 @@ export default async function scheduleTemplateRoutes(fastify: FastifyInstance) {
   fastify.post('/templates', { preHandler: [requirePermission('schedule:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(templateCreateSchema, request.body)
 
-    const existing = await prisma.scheduleTemplate.findUnique({ where: { code: body.code } })
-    if (existing) return { code: 400, message: '模板编码已存在' }
+    if (body.code) {
+      const existing = await prisma.scheduleTemplate.findUnique({ where: { code: body.code } })
+      if (existing) return { code: 400, message: '模板编码已存在' }
+    }
 
     const { items, ...templateData } = body
+    const code = body.code || await generateCode('scheduleTemplate', prisma.scheduleTemplate)
 
     const template = await prisma.scheduleTemplate.create({
       data: {
         ...templateData,
+        code,
         createdBy: request.user.id,
         items: {
           create: items.map((item) => ({

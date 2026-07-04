@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Tabs,
   Card,
@@ -89,6 +89,7 @@ function Settings() {
         auditLogRetentionDays: data.parameters.auditLogRetentionDays,
         defaultPageSize: data.parameters.defaultPageSize,
         maxUploadSizeMB: data.parameters.maxUploadSizeMB,
+        locationCheckinEnabled: data.parameters.locationCheckinEnabled,
       })
     } catch {
       toast.error('加载设置失败')
@@ -434,6 +435,13 @@ function Settings() {
 
                 <FormItem label="最大上传文件大小 (MB)" field="maxUploadSizeMB">
                   <InputNumber min={1} max={100} placeholder="1-100" className={styles['settings-page__input-full']} />
+                </FormItem>
+
+                <FormItem label="位置打卡" field="locationCheckinEnabled" triggerPropName="checked">
+                  <Switch checkedText="开" uncheckedText="关" />
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
+                    关闭后打卡将不校验地理位置，员工可直接打卡
+                  </div>
                 </FormItem>
 
                 <Button type="primary" onClick={handleSaveParameters} loading={saving === 'parameters'}>

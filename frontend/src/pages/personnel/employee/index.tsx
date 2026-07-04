@@ -1,275 +1,196 @@
-import { useState, useEffect } from 'react'
-import { Table, Input, Select, Modal, Form, Tag, Card, Grid, Spin, Button, DatePicker } from '@arco-design/web-react'
-
-const { Row, Col } = Grid
+import { useState, useEffect, useCallback } from 'react'
+import { Table, Input, Select, Modal, Form, Tag, Card, Button } from '@arco-design/web-react'
 import type { TableProps } from '@arco-design/web-react'
-import type { Dayjs } from 'dayjs'
+import { IconSearch, IconPlus, IconRefresh } from '@arco-design/web-react/icon'
 import { getEmployees, updateEmployee, deleteEmployee } from '@/api/personnel'
 import type { Employee } from '@/api/personnel'
-import { PageHeader, FilterBar, TableHeader, ActionButtons, DepartmentSelect, EmployeeSelect } from '@/components'
+import { ActionButtons, DepartmentSelect, EmployeeSelect } from '@/components'
 import { useCrudModal } from '@/hooks/useCrudModal'
-import { useTableHotkeys } from '@/hooks/useTableHotkeys'
 import { toast } from '@/utils/toast'
+import { formatDate } from '@/utils/date'
 import CareerTimeline from './CareerTimeline'
-import styles from './employee.module.css'
+import styles from './index.module.less'
+
 const FormItem = Form.Item
 const Option = Select.Option
-const { RangePicker } = DatePicker
-
-const positionTypeOptions = [
-  { value: 'formal', label: '正式' },
-  { value: 'probation', label: '试用' },
-  { value: 'intern', label: '实习' },
-]
 
 const statusMap: Record<string, { text: string; color: string }> = {
-  probation: { text: '试用期', color: 'orange' },
+  active: { text: '在职', color: 'green' },
+  probation: { text: '试用', color: 'orangered' },
   formal: { text: '正式', color: 'green' },
   contract: { text: '合同工', color: 'arcoblue' },
   terminated: { text: '已离职', color: 'red' },
+  inactive: { text: '停用', color: 'gray' },
+  onLeave: { text: '休假', color: 'purple' },
 }
 
-const statusOptions = [
-  { value: 'probation', label: '试用期' },
-  { value: 'formal', label: '正式' },
-  { value: 'contract', label: '合同工' },
-  { value: 'terminated', label: '已离职' },
-]
+const statusOptions = ['active', 'formal', 'probation', 'contract', 'terminated', 'inactive', 'onLeave']
 
 function Employee() {
   const [data, setData] = useState<Employee[]>([])
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
   const [searchText, setSearchText] = useState('')
-  const [searchStatus, setSearchStatus] = useState<string | undefined>()
-  const [searchDept, setSearchDept] = useState<number | undefined>()
-  const [searchPositionType, setSearchPositionType] = useState<string | undefined>()
-  const [hireDateRange, setHireDateRange] = useState<Dayjs[]>([])
+  const [searchStatus, setSearchStatus] = useState<string>()
+  const [searchDept, setSearchDept] = useState<number>()
+  const [searchGender, setSearchGender] = useState<string>()
+  const [searchPositionType, setSearchPositionType] = useState<string>()
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 })
   const [careerVisible, setCareerVisible] = useState(false)
-  const [careerEmployeeId, setCareerEmployeeId] = useState<number>(0)
+  const [careerEmployeeId, setCareerEmployeeId] = useState(0)
 
-  const fetchData = async (page = 1, pageSize = 10) => {
+  const fetchData = useCallback(async (page = 1, pageSize = pagination.pageSize) => {
     setLoading(true)
     try {
-      const res = await getEmployees({
-        page,
-        pageSize,
-        keyword: searchText || undefined,
-        status: searchStatus,
-        departmentId: searchDept,
-      })
+      const res = await getEmployees({ page, pageSize, keyword: searchText || undefined, status: searchStatus, departmentId: searchDept })
       setData(res.data.list)
       setPagination((prev) => ({ ...prev, current: page, pageSize, total: res.data.total }))
-    } catch {
-      // error handled by interceptor
-    } finally {
-      setLoading(false)
-    }
-  }
+    } finally { setLoading(false) }
+  }, [searchText, searchStatus, searchDept, pagination.pageSize])
 
   useEffect(() => { fetchData() }, [])
 
   const { visible, editingId, saving, openEdit, close, handleOk } = useCrudModal<Employee>({
     form,
-    mapRecordToForm: (record) => ({
-      status: record.status, gender: record.gender, birthDate: record.birthDate,
-      idCardNo: record.idCardNo, nationality: record.nationality, maritalStatus: record.maritalStatus,
-      phone: record.phone, bankName: record.bankName, bankAccountNo: record.bankAccountNo,
-      probationEndDate: record.probationEndDate, contractSignDate: record.contractSignDate,
-      terminationDate: record.terminationDate, terminationType: record.terminationType,
-      terminationReason: record.terminationReason, emergencyContact: record.emergencyContact,
-      emergencyPhone: record.emergencyPhone, address: record.address, education: record.education,
-      skills: record.skills, remark: record.remark, salary: record.salary, rating: record.rating,
+    mapRecordToForm: (r) => ({
+      status: r.status, gender: r.gender, birthDate: r.birthDate, idCardNo: r.idCardNo,
+      nationality: r.nationality, maritalStatus: r.maritalStatus, phone: r.phone,
+      bankName: r.bankName, bankAccountNo: r.bankAccountNo, probationEndDate: r.probationEndDate,
+      contractSignDate: r.contractSignDate, terminationDate: r.terminationDate,
+      terminationType: r.terminationType, terminationReason: r.terminationReason,
+      emergencyContact: r.emergencyContact, emergencyPhone: r.emergencyPhone, address: r.address,
+      education: r.education, skills: r.skills, remark: r.remark, salary: r.salary, rating: r.rating,
     }),
     onSubmit: async (values, id) => {
-      if (id) {
-        await updateEmployee(id, values)
-        toast.success('修改成功')
-      } else {
-        toast.info('新增员工请通过入职流程办理')
-      }
+      if (id) { await updateEmployee(id, values); toast.success('修改成功') }
+      else toast.info('新增员工请通过入职流程办理')
     },
     onSuccess: () => fetchData(),
   })
 
-  // 表格快捷键
-  useTableHotkeys({
-    onRefresh: () => fetchData(),
-  })
+  const handleDelete = async (id: number) => {
+    try { await deleteEmployee(id); toast.success('删除成功'); fetchData() } catch {}
+  }
 
   const columns: TableProps<Employee>['columns'] = [
-    { title: '工号', dataIndex: 'employeeNo', width: 100, align: 'center' as const, sorter: (a: Employee, b: Employee) => a.employeeNo.localeCompare(b.employeeNo) },
-    { title: '姓名', dataIndex: 'name', sorter: (a: Employee, b: Employee) => (a.realName || '').localeCompare(b.realName || '') },
-    { title: '部门', dataIndex: 'department', width: 120 },
-    { title: '岗位', dataIndex: 'position', width: 120 },
-    { title: '直属上级', dataIndex: 'supervisorName', width: 110, render: (v: string) => v || '-' },
-    { title: '手机号', dataIndex: 'phone', width: 130, align: 'center' as const },
-    { title: '邮箱', dataIndex: 'email', width: 200 },
-    { title: '入职日期', dataIndex: 'hireDate', width: 120, align: 'center' as const, sorter: (a: Employee, b: Employee) => (a.hireDate || '').localeCompare(b.hireDate || '') },
+    { title: '工号', dataIndex: 'employeeNo', width: 100, align: 'center' },
+    { title: '姓名', dataIndex: 'realName', width: 90, align: 'center' },
+    { title: '部门', dataIndex: 'department', width: 120, align: 'center' },
+    { title: '岗位', dataIndex: 'position', width: 120, align: 'center' },
+    { title: '手机号', dataIndex: 'phone', width: 130, align: 'center' },
+    { title: '邮箱', dataIndex: 'email', width: 180, align: 'center' },
+    { title: '入职日期', dataIndex: 'hireDate', width: 120, align: 'center', render: (v) => v ? formatDate(v) : '-' },
+    { title: '状态', dataIndex: 'status', width: 90, align: 'center', render: (v: string) => { const m = statusMap[v]; return m ? <Tag color={m.color}>{m.text}</Tag> : <Tag>{v}</Tag> } },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      align: 'center' as const,
-      sorter: (a: Employee, b: Employee) => (a.status || '').localeCompare(b.status || ''),
-      render: (value: string) => {
-        const info = statusMap[value]
-        return info ? <Tag color={info.color}>{info.text}</Tag> : <Tag>{value}</Tag>
-      },
-    },
-    {
-      title: '操作',
-      width: 180,
-      align: 'center' as const,
-      fixed: 'right' as const,
-      render: (_: unknown, record: Employee) => (
+      title: '操作', width: 160, align: 'center', fixed: 'right' as const,
+      render: (_, record) => (
         <ActionButtons
           onEdit={() => openEdit(record)}
           onDelete={() => handleDelete(record.id)}
-          deleteContent="确定要删除该员工吗？"
-          extraBefore={
-            <Button
-              type="text"
-              size="small"
-              onClick={() => {
-                setCareerEmployeeId(record.id)
-                setCareerVisible(true)
-              }}
-            >
-              履历
-            </Button>
-          }
+          deleteContent="确定删除该员工?"
+          extraBefore={<Button type="text" size="small" onClick={() => { setCareerEmployeeId(record.id); setCareerVisible(true) }}>履历</Button>}
+          size="small"
         />
       ),
     },
   ]
 
-  const handleDelete = async (id: number) => {
-    try { await deleteEmployee(id); toast.success('删除成功'); fetchData() } catch { /* error handled by interceptor */ }
-  }
-
   return (
-    <div className={styles['employee-page']}>
-      <PageHeader title="员工管理" description="管理员工基本信息、状态、合同等信息。" />
-
+    <div className={styles.page}>
       <Card bordered={false}>
-        <FilterBar
-          filters={
-            <>
-              <FormItem label="关键字">
-                <Input placeholder="姓名/工号/手机号" value={searchText} onChange={setSearchText} allowClear />
-              </FormItem>
-              <FormItem label="状态">
-                <Select placeholder="请选择状态" value={searchStatus} onChange={setSearchStatus} allowClear>
-                  {statusOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
-                </Select>
-              </FormItem>
-              <FormItem label="部门">
-                <DepartmentSelect
-                  value={searchDept}
-                  onChange={(val) => setSearchDept(val as number | undefined)}
-                  placeholder="请选择部门"
-                />
-              </FormItem>
-              <FormItem label="岗位类型">
-                <Select placeholder="请选择岗位类型" value={searchPositionType} onChange={setSearchPositionType} allowClear>
-                  {positionTypeOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
-                </Select>
-              </FormItem>
-              <FormItem label="入职时间">
-                <RangePicker
-                  value={hireDateRange}
-                  onChange={(_, date) => setHireDateRange(date)}
-                />
-              </FormItem>
-            </>
-          }
-          onSearch={() => fetchData(1, pagination.pageSize)}
-          onReset={() => {
-            setSearchText('')
-            setSearchStatus(undefined)
-            setSearchDept(undefined)
-            setSearchPositionType(undefined)
-            setHireDateRange([])
-            fetchData(1, pagination.pageSize)
-          }}
+        {/* Toolbar */}
+        <div className={styles.toolbar}>
+          <div className={styles['toolbar-left']}>
+            <Input prefix={<IconSearch />} placeholder="姓名/工号/手机号" value={searchText} onChange={setSearchText} allowClear style={{ width: 150 }} onPressEnter={() => fetchData(1)} />
+            <Select placeholder="状态" value={searchStatus} onChange={setSearchStatus} allowClear style={{ width: 75 }}>
+              {statusOptions.map((v) => <Option key={v} value={v}>{statusMap[v]?.text || v}</Option>)}
+            </Select>
+            <DepartmentSelect value={searchDept} onChange={(v) => setSearchDept(v as number)} placeholder="部门" style={{ width: 110 }} />
+            <Select placeholder="性别" value={searchGender} onChange={setSearchGender} allowClear style={{ width: 65 }}>
+              <Option value="男">男</Option>
+              <Option value="女">女</Option>
+            </Select>
+            <Select placeholder="岗位类型" value={searchPositionType} onChange={setSearchPositionType} allowClear style={{ width: 85 }}>
+              <Option value="formal">正式</Option>
+              <Option value="probation">试用</Option>
+              <Option value="intern">实习</Option>
+            </Select>
+            <Button type="primary" onClick={() => fetchData(1)}>查询</Button>
+            <Button onClick={() => { setSearchText(''); setSearchStatus(undefined); setSearchDept(undefined); setSearchGender(undefined); setSearchPositionType(undefined); fetchData(1) }}>重置</Button>
+          </div>
+          <div className={styles['toolbar-right']}>
+            <Button icon={<IconRefresh />} onClick={() => fetchData()}>刷新</Button>
+            <Button type="primary" icon={<IconPlus />} onClick={() => toast.info('新增员工请通过入职流程办理')}>新增</Button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <Table
+          columns={columns}
+          data={data}
+          rowKey="id"
+          loading={loading}
+          pagination={{ ...pagination, sizeOptions: [10, 20, 50], showTotal: true, onChange: (p, ps) => fetchData(p, ps) }}
+          scroll={{ x: 'max-content' }}
+          stripe
+          hover
         />
       </Card>
 
-      <Card bordered={false}>
-        <TableHeader title="员工列表" total={pagination.total} totalText="人" />
-        <Spin loading={loading}>
-          <Table columns={columns} data={data} rowKey="id" pagination={{ ...pagination, sizeOptions: [10, 20, 50], sizeCanChange: true, showTotal: true, onChange: (c, ps) => fetchData(c, ps) }} scroll={{ x: 1100 }} />
-        </Spin>
-      </Card>
-
-      <Modal focusLock title={editingId ? '编辑员工' : '新增员工'} visible={visible} onOk={handleOk} onCancel={close} confirmLoading={saving} className={styles['employee-page__modal--700']}>
+      {/* Edit Modal */}
+      <Modal title={editingId ? '编辑员工' : '新增员工'} visible={visible} onOk={handleOk} onCancel={close} confirmLoading={saving} style={{ width: 700 }}>
         <Form form={form} layout="vertical">
           {editingId && (
-            <Row gutter={16}>
-              <Col span={12}><FormItem label="工号"><Input disabled /></FormItem></Col>
-              <Col span={12}><FormItem label="姓名"><Input disabled /></FormItem></Col>
-            </Row>
+            <div className={styles['form-row']}>
+              <FormItem label="工号"><Input disabled /></FormItem>
+              <FormItem label="姓名"><Input disabled /></FormItem>
+            </div>
           )}
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="手机号" field="phone"><Input placeholder="请输入手机号" /></FormItem></Col>
-            <Col span={12}><FormItem label="状态" field="status"><Select>{statusOptions.map((opt) => <Option key={opt.value} value={opt.value}>{opt.label}</Option>)}</Select></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <FormItem label="直属上级" field="supervisorId">
-                <EmployeeSelect
-                  placeholder="请选择直属上级"
-                  allowClear
-                />
-              </FormItem>
-            </Col>
-            <Col span={12}><FormItem label="性别" field="gender"><Select allowClear><Option value="男">男</Option><Option value="女">女</Option></Select></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="出生日期" field="birthDate"><Input placeholder="YYYY-MM-DD" /></FormItem></Col>
-            <Col span={12}><FormItem label="身份证号" field="idCardNo"><Input placeholder="请输入身份证号" /></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="国籍" field="nationality"><Input placeholder="请输入国籍" /></FormItem></Col>
-            <Col span={12}><FormItem label="婚姻状况" field="maritalStatus"><Select allowClear><Option value="未婚">未婚</Option><Option value="已婚">已婚</Option><Option value="离异">离异</Option><Option value="丧偶">丧偶</Option></Select></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="学历" field="education"><Input placeholder="请输入学历" /></FormItem></Col>
-            <Col span={12}><FormItem label="开户银行" field="bankName"><Input placeholder="请输入开户银行" /></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="银行账号" field="bankAccountNo"><Input placeholder="请输入银行账号" /></FormItem></Col>
-            <Col span={12}><FormItem label="试用期结束日期" field="probationEndDate"><Input placeholder="YYYY-MM-DD" /></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="合同签订日期" field="contractSignDate"><Input placeholder="YYYY-MM-DD" /></FormItem></Col>
-            <Col span={12}><FormItem label="离职类型" field="terminationType"><Select allowClear><Option value="主动离职">主动离职</Option><Option value="被动离职">被动离职</Option><Option value="合同到期">合同到期</Option><Option value="退休">退休</Option></Select></FormItem></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="离职日期" field="terminationDate"><Input placeholder="YYYY-MM-DD" /></FormItem></Col>
-          </Row>
-          <Row gutter={16}><Col span={24}><FormItem label="离职原因" field="terminationReason"><Input placeholder="请输入离职原因" /></FormItem></Col></Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="紧急联系人" field="emergencyContact"><Input placeholder="请输入紧急联系人姓名" /></FormItem></Col>
-            <Col span={12}><FormItem label="紧急联系电话" field="emergencyPhone"><Input placeholder="请输入紧急联系电话" /></FormItem></Col>
-          </Row>
-          <Row gutter={16}><Col span={24}><FormItem label="家庭住址" field="address"><Input placeholder="请输入家庭住址" /></FormItem></Col></Row>
-          <Row gutter={16}><Col span={24}><FormItem label="技能" field="skills"><Input placeholder="请输入技能特长" /></FormItem></Col></Row>
-          <Row gutter={16}>
-            <Col span={12}><FormItem label="薪资" field="salary"><Input type="number" placeholder="请输入薪资" /></FormItem></Col>
-            <Col span={12}><FormItem label="评级" field="rating"><Input type="number" placeholder="1-5" min={1} max={5} /></FormItem></Col>
-          </Row>
-          <Row gutter={16}><Col span={24}><FormItem label="备注" field="remark"><Input placeholder="请输入备注" /></FormItem></Col></Row>
+          <div className={styles['form-row']}>
+            <FormItem label="手机号" field="phone"><Input placeholder="请输入" /></FormItem>
+            <FormItem label="状态" field="status"><Select>{statusOptions.map((v) => <Option key={v} value={v}>{statusMap[v]?.text || v}</Option>)}</Select></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="直属上级" field="supervisorId"><EmployeeSelect placeholder="请选择" allowClear /></FormItem>
+            <FormItem label="性别" field="gender"><Select allowClear><Option value="男">男</Option><Option value="女">女</Option></Select></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="出生日期" field="birthDate"><Input placeholder="YYYY-MM-DD" /></FormItem>
+            <FormItem label="身份证号" field="idCardNo"><Input placeholder="请输入" /></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="国籍" field="nationality"><Input placeholder="请输入" /></FormItem>
+            <FormItem label="婚姻状况" field="maritalStatus"><Select allowClear><Option value="未婚">未婚</Option><Option value="已婚">已婚</Option></Select></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="学历" field="education"><Input placeholder="请输入" /></FormItem>
+            <FormItem label="开户银行" field="bankName"><Input placeholder="请输入" /></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="银行账号" field="bankAccountNo"><Input placeholder="请输入" /></FormItem>
+            <FormItem label="试用期到期" field="probationEndDate"><Input placeholder="YYYY-MM-DD" /></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="合同签订" field="contractSignDate"><Input placeholder="YYYY-MM-DD" /></FormItem>
+            <FormItem label="离职类型" field="terminationType"><Select allowClear><Option value="主动离职">主动离职</Option><Option value="被动离职">被动离职</Option></Select></FormItem>
+          </div>
+          <div className={styles['form-row']}>
+            <FormItem label="离职日期" field="terminationDate"><Input placeholder="YYYY-MM-DD" /></FormItem>
+            <FormItem label="薪资" field="salary"><Input type="number" placeholder="请输入" /></FormItem>
+          </div>
+          <FormItem label="离职原因" field="terminationReason"><Input placeholder="请输入" /></FormItem>
+          <div className={styles['form-row']}>
+            <FormItem label="紧急联系人" field="emergencyContact"><Input placeholder="请输入" /></FormItem>
+            <FormItem label="紧急电话" field="emergencyPhone"><Input placeholder="请输入" /></FormItem>
+          </div>
+          <FormItem label="住址" field="address"><Input placeholder="请输入" /></FormItem>
+          <FormItem label="技能" field="skills"><Input placeholder="请输入" /></FormItem>
+          <FormItem label="备注" field="remark"><Input placeholder="请输入" /></FormItem>
         </Form>
       </Modal>
-      {/* 履历弹窗 */}
-      <CareerTimeline
-        employeeId={careerEmployeeId}
-        visible={careerVisible}
-        onClose={() => setCareerVisible(false)}
-      />
+
+      {/* Career Timeline Modal */}
+      <CareerTimeline employeeId={careerEmployeeId} visible={careerVisible} onClose={() => setCareerVisible(false)} />
     </div>
   )
 }

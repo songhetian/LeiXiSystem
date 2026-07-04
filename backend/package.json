@@ -12,6 +12,7 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed-v3": "ts-node --transpile-only prisma/seed-v3.ts",
+    "prisma:seed-step-types": "ts-node --transpile-only prisma/seed-step-types.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:verbose": "vitest run --reporter verbose"

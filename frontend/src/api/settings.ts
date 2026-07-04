@@ -38,6 +38,7 @@ export interface SystemSettings {
     auditLogRetentionDays: number
     defaultPageSize: number
     maxUploadSizeMB: number
+    locationCheckinEnabled: boolean
   }
 }
 
@@ -75,6 +76,7 @@ const defaultSettings: SystemSettings = {
     auditLogRetentionDays: 180,
     defaultPageSize: 20,
     maxUploadSizeMB: 10,
+    locationCheckinEnabled: true,
   },
 }
 

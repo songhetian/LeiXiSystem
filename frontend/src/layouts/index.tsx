@@ -1,6 +1,7 @@
 import { Suspense, useMemo, useState, useEffect, useCallback } from 'react'
 import type { ComponentType } from 'react'
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Space, Tooltip } from '@arco-design/web-react'
+import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Space, Input } from '@arco-design/web-react'
+import { IconSearch } from '@arco-design/web-react/icon'
 import {
   IconDashboard,
   IconUserGroup,
@@ -35,7 +36,8 @@ import { useAppStore } from '@/store/app'
 import { hasClientPermission } from '@/components/AccessControl'
 import { NotificationCenter } from '@/components'
 import PageSkeleton from '@/components/PageSkeleton'
-import styles from './index.module.css'
+import { useCommandPalette } from '@/hooks/useCommandPalette'
+import styles from './index.module.less'
 const { Header, Sider, Content } = Layout
 const MenuItem = Menu.Item
 const SubMenu = Menu.SubMenu
@@ -52,26 +54,22 @@ type MenuConfig = {
 
 const menuList: MenuConfig[] = [
   {
-    key: '/dashboard',
+    key: 'workplace',
     icon: IconDashboard,
-    label: '仪表盘',
+    label: '工作台',
+    children: [
+      { key: '/dashboard', label: '仪表盘' },
+      { key: '/dashboard/operations', label: '运营大屏' },
+    ],
   },
   {
-    key: '/dashboard/operations',
-    icon: IconDashboard,
-    label: '运营大屏',
-  },
-  {
-    key: '/message-center',
-    icon: IconMessage,
-    label: '消息中心',
-  },
-  {
-    key: 'personnel',
+    key: 'org-personnel',
     icon: IconUserGroup,
-    label: '人员管理',
+    label: '组织人事',
     children: [
       { key: '/personnel/employee', label: '员工管理' },
+      { key: '/organization/department', label: '部门管理' },
+      { key: '/organization/position', label: '岗位管理' },
       { key: '/personnel/changes', label: '人员变动' },
       { key: '/personnel/lifecycle', label: '员工生命周期' },
       { key: '/personnel/onboarding', label: '入职办理' },
@@ -81,85 +79,100 @@ const menuList: MenuConfig[] = [
     ],
   },
   {
-    key: 'organization',
-    icon: IconUser,
-    label: '公司架构',
+    key: 'schedule',
+    icon: IconCalendar,
+    label: '排班管理',
     children: [
-      { key: '/organization/department', label: '部门管理' },
-      { key: '/organization/position', label: '岗位管理' },
+      { key: '/shift/list', label: '班次列表' },
+      { key: '/shift/rule', label: '班次规则' },
+      { key: '/schedule/calendar', label: '排班日历' },
+      { key: '/schedule/weekly', label: '周排班（拖拽）' },
+      { key: '/schedule/assign', label: '排班分配' },
+      { key: '/schedule/rules', label: '排班规则' },
+      { key: '/schedule/recommend', label: '智能排班' },
+      { key: '/schedule/swaps', label: '换班申请' },
+      { key: '/schedule/secondments', label: '借调管理' },
+      { key: '/schedule/templates', label: '排班模板' },
+      { key: '/schedule/publish', label: '发布确认' },
+      { key: '/schedule/rotations', label: '轮转规则' },
+      { key: '/schedule/comparison', label: '版本对比' },
+      { key: '/schedule/report', label: '排班报表' },
+      { key: '/my/schedule', label: '我的排班' },
     ],
   },
   {
-    key: 'rbac',
-    icon: IconSafe,
-    label: 'RBAC权限',
+    key: 'attendance',
+    icon: IconClockCircle,
+    label: '考勤管理',
     children: [
-      { key: '/rbac/role', label: '角色管理' },
-      { key: '/rbac/permission', label: '权限管理' },
-      { key: '/rbac/user-role', label: '用户授权' },
+      { key: '/attendance/clock-in', label: '打卡' },
+      { key: '/attendance/records', label: '打卡记录' },
+      { key: '/attendance/calculation', label: '考勤核算' },
+      { key: '/attendance/exceptions', label: '考勤异常' },
+      { key: '/attendance/exception-rules', label: '异常规则' },
+      { key: '/attendance/deduction-rules', label: '扣款规则' },
+      { key: '/attendance/exception-stats', label: '异常统计' },
+      { key: '/attendance/locations', label: '打卡位置' },
+      { key: '/attendance/overtime-types', label: '加班类型' },
+      { key: '/attendance/overtime-calculation', label: '加班核算' },
+      { key: '/adjustment/overtime', label: '加班申请' },
+      { key: '/attendance/corrections', label: '补卡申请' },
+      { key: '/attendance/stats', label: '考勤统计' },
+      { key: '/attendance/report', label: '考勤报表' },
+      { key: '/attendance/leave-overtime-report', label: '加班请假报表' },
+      { key: '/attendance/attendance-detail', label: '考勤明细报表' },
+      { key: '/attendance/department-ranking', label: '部门排名报表' },
+      { key: '/attendance/trend-analysis', label: '同比环比分析' },
     ],
   },
   {
-    key: 'security',
-    icon: IconSafe,
-    label: '安全中心',
+    key: 'vacation',
+    icon: IconFile,
+    label: '假期管理',
     children: [
-      { key: '/security/audit-logs', label: '审计日志' },
+      { key: '/vacation/types', label: '假期类型' },
+      { key: '/vacation/quota', label: '假期额度' },
+      { key: '/vacation/balance', label: '余额查询' },
+      { key: '/vacation/carryover', label: '结转记录' },
+      { key: '/vacation/policies', label: '请假策略' },
+      { key: '/adjustment/leave', label: '请假申请' },
     ],
   },
   {
-    key: 'system',
-    icon: IconSettings,
-    label: '系统管理',
-    children: [
-      { key: '/system/announcement', label: '公告管理' },
-      { key: '/system/config', label: '配置导出导入' },
-      { key: '/system/report-template', label: '报表模板' },
-      { key: '/message-manage/send', label: '发送消息' },
-      { key: '/message-manage/templates', label: '消息模板' },
-      { key: '/message-manage/records', label: '发送记录' },
-      { key: '/message-manage/stats', label: '消息统计' },
-      { key: '/settings/holidays', label: '节假日日历' },
-      { key: '/settings/permissions', label: '数据权限' },
-    ],
-  },
-  {
-    key: 'asset',
-    icon: IconStorage,
-    label: '资产管理',
-    children: [
-      { key: '/asset/items', label: '资产台账' },
-      { key: '/asset/components', label: '配件管理' },
-    ],
-  },
-  {
-    key: 'helpdesk',
-    icon: IconQuestionCircle,
-    label: 'HR服务台',
-    children: [
-      { key: '/helpdesk/tickets', label: '服务工单' },
-      { key: '/helpdesk/queue', label: '队列监控' },
-      { key: '/helpdesk/sla', label: 'SLA策略' },
-      { key: '/helpdesk/customers', label: '客户管理' },
-      { key: '/helpdesk/canned', label: '快捷回复' },
-    ],
-  },
-  {
-    key: '/kb',
+    key: 'payroll',
     icon: IconBook,
-    label: '知识库',
-  },
-  {
-    key: '/okr/dashboard',
-    icon: IconTrophy,
-    label: 'OKR',
-  },
-  {
-    key: 'employee',
-    icon: IconUser,
-    label: '员工自助',
+    label: '薪资中心',
     children: [
-      { key: '/employee/dashboard', label: '我的首页' },
+      { key: '/payroll/components', label: '薪资组件' },
+      { key: '/payroll/structures', label: '薪资结构' },
+      { key: '/payroll/structure-versions', label: '结构版本' },
+      { key: '/payroll/assignments', label: '薪资分配' },
+      { key: '/payroll/runs', label: '薪资批次' },
+      { key: '/payroll/payslips', label: '工资条管理' },
+      { key: '/payroll/adjustments', label: '薪资调整项' },
+      { key: '/payroll/disputes', label: '工资条申诉' },
+      { key: '/payroll/pending-settlements', label: '加班结算' },
+      { key: '/payroll/my-payslips', label: '我的工资条' },
+    ],
+  },
+  {
+    key: 'reimbursement',
+    icon: IconFile,
+    label: '报销管理',
+    children: [
+      { key: '/reimbursement/apply', label: '申请报销' },
+      { key: '/reimbursement/list', label: '我的报销' },
+      { key: '/reimbursement/approval', label: '报销审批' },
+    ],
+  },
+  {
+    key: 'financial',
+    icon: IconBook,
+    label: '财务管理',
+    children: [
+      { key: '/financial/budgets', label: '预算管理' },
+      { key: '/financial/expense-standards', label: '费用标准' },
+      { key: '/financial/report', label: '财务报表' },
     ],
   },
   {
@@ -187,115 +200,48 @@ const menuList: MenuConfig[] = [
     ],
   },
   {
-    key: 'shift',
-    icon: IconClockCircle,
-    label: '班次管理',
+    key: 'asset',
+    icon: IconStorage,
+    label: '资产管理',
     children: [
-      { key: '/shift/list', label: '班次列表' },
-      { key: '/shift/rule', label: '班次规则' },
+      { key: '/asset/items', label: '资产台账' },
+      { key: '/asset/components', label: '配件管理' },
     ],
   },
   {
-    key: 'schedule',
-    icon: IconCalendar,
-    label: '排班管理',
+    key: 'helpdesk',
+    icon: IconQuestionCircle,
+    label: 'HR服务台',
     children: [
-      { key: '/schedule/calendar', label: '排班日历' },
-      { key: '/schedule/weekly', label: '周排班（拖拽）' },
-      { key: '/schedule/assign', label: '排班分配' },
-      { key: '/schedule/rules', label: '排班规则' },
-      { key: '/schedule/recommend', label: '智能排班' },
-      { key: '/schedule/swaps', label: '换班申请' },
-      { key: '/schedule/secondments', label: '借调管理' },
-      { key: '/schedule/templates', label: '排班模板' },
-      { key: '/schedule/publish', label: '发布确认' },
-      { key: '/schedule/rotations', label: '轮转规则' },
-      { key: '/schedule/comparison', label: '版本对比' },
-      { key: '/schedule/report', label: '排班报表' },
-      { key: '/my/schedule', label: '我的排班' },
+      { key: '/helpdesk/tickets', label: '服务工单' },
+      { key: '/helpdesk/queue', label: '队列监控' },
+      { key: '/helpdesk/sla', label: 'SLA策略' },
+      { key: '/helpdesk/customers', label: '客户管理' },
+      { key: '/helpdesk/canned', label: '快捷回复' },
     ],
   },
   {
-    key: 'attendance',
-    icon: IconCalendar,
-    label: '考勤打卡核算',
+    key: 'approval',
+    icon: IconSafe,
+    label: '审批中心',
     children: [
-      { key: '/attendance/clock-in', label: '打卡' },
-      { key: '/attendance/records', label: '打卡记录' },
-      { key: '/attendance/calculation', label: '考勤核算' },
-      { key: '/attendance/exceptions', label: '考勤异常' },
-      { key: '/attendance/exception-rules', label: '异常规则' },
-      { key: '/attendance/deduction-rules', label: '扣款规则' },
-      { key: '/attendance/exception-stats', label: '异常统计' },
-      { key: '/attendance/locations', label: '打卡位置' },
-      { key: '/attendance/overtime-types', label: '加班类型' },
-      { key: '/attendance/overtime-calculation', label: '加班核算' },
-      { key: '/attendance/corrections', label: '补卡申请' },
-      { key: '/attendance/stats', label: '考勤统计' },
-      { key: '/attendance/report', label: '考勤报表' },
-      { key: '/attendance/leave-overtime-report', label: '加班请假报表' },
-      { key: '/attendance/attendance-detail', label: '考勤明细报表' },
-      { key: '/attendance/department-ranking', label: '部门排名报表' },
-      { key: '/attendance/trend-analysis', label: '同比环比分析' },
+      { key: '/approval/pending', label: '待审批' },
+      { key: '/approval/history', label: '审批历史' },
+      { key: '/approval/flow', label: '审批流程配置' },
     ],
   },
   {
-    key: 'payroll',
-    icon: IconBook,
-    label: '薪资中心',
+    key: 'message',
+    icon: IconMessage,
+    label: '消息管理',
     children: [
-      { key: '/payroll/components', label: '薪资组件' },
-      { key: '/payroll/structures', label: '薪资结构' },
-      { key: '/payroll/structure-versions', label: '结构版本' },
-      { key: '/payroll/assignments', label: '薪资分配' },
-      { key: '/payroll/runs', label: '薪资批次' },
-      { key: '/payroll/payslips', label: '工资条管理' },
-      { key: '/payroll/adjustments', label: '薪资调整项' },
-      { key: '/payroll/disputes', label: '工资条申诉' },
-      { key: '/payroll/pending-settlements', label: '加班结算' },
-      { key: '/payroll/my-payslips', label: '我的工资条' },
-    ],
-  },
-  {
-    key: 'vacation',
-    icon: IconFile,
-    label: '假期管理',
-    children: [
-      { key: '/vacation/types', label: '假期类型' },
-      { key: '/vacation/quota', label: '假期额度' },
-      { key: '/vacation/balance', label: '余额查询' },
-      { key: '/vacation/carryover', label: '结转记录' },
-      { key: '/vacation/policies', label: '请假策略' },
-    ],
-  },
-  {
-    key: 'reimbursement',
-    icon: IconFile,
-    label: '报销管理',
-    children: [
-      { key: '/reimbursement/apply', label: '申请报销' },
-      { key: '/reimbursement/list', label: '我的报销' },
-      { key: '/reimbursement/approval', label: '报销审批' },
-    ],
-  },
-  {
-    key: 'financial',
-    icon: IconBook,
-    label: '财务管理',
-    children: [
-      { key: '/financial/budgets', label: '预算管理' },
-      { key: '/financial/expense-standards', label: '费用标准' },
-      { key: '/financial/report', label: '财务报表' },
-    ],
-  },
-  {
-    key: 'adjustment',
-    icon: IconClockCircle,
-    label: '调班/加班申请',
-    children: [
-      { key: '/adjustment/shift-change', label: '调班申请' },
-      { key: '/adjustment/overtime', label: '加班申请' },
-      { key: '/adjustment/leave', label: '请假申请' },
+      { key: '/message-center', label: '消息中心' },
+      { key: '/message-manage/send', label: '发送消息' },
+      { key: '/message-manage/templates', label: '消息模板' },
+      { key: '/message-manage/records', label: '发送记录' },
+      { key: '/message-manage/stats', label: '消息统计' },
+      { key: '/notification/list', label: '消息列表' },
+      { key: '/notification/config', label: '通知配置' },
     ],
   },
   {
@@ -310,47 +256,31 @@ const menuList: MenuConfig[] = [
     ],
   },
   {
-    key: 'approval',
-    icon: IconFile,
-    label: '审批流转',
+    key: 'system',
+    icon: IconSettings,
+    label: '系统设置',
     children: [
-      { key: '/approval/pending', label: '待审批' },
-      { key: '/approval/history', label: '审批历史' },
-      { key: '/approval/flow', label: '审批流程配置' },
-    ],
-  },
-  {
-    key: '/visualization',
-    icon: IconDashboard,
-    label: '数据可视化大屏',
-  },
-  {
-    key: 'sso',
-    icon: IconLink,
-    label: '单点登录',
-    children: [
+      { key: '/system/announcement', label: '公告管理' },
+      { key: '/settings/holidays', label: '节假日日历' },
+      { key: '/settings/permissions', label: '数据权限' },
+      { key: '/system/config', label: '配置导出导入' },
+      { key: '/system/report-template', label: '报表模板' },
       { key: '/sso/config', label: 'SSO配置' },
       { key: '/sso/apps', label: '应用管理' },
-    ],
-  },
-  {
-    key: 'data',
-    icon: IconDownload,
-    label: 'Excel批量导入导出',
-    children: [
       { key: '/data/import', label: '数据导入' },
-      { key: '/data/export', label: '数据导出' },
       { key: '/data/export-tasks', label: '导出任务' },
       { key: '/data/template', label: '模板管理' },
     ],
   },
   {
-    key: 'notification',
-    icon: IconNotification,
-    label: '实时消息通知',
+    key: 'rbac',
+    icon: IconLock,
+    label: '权限与安全',
     children: [
-      { key: '/notification/list', label: '消息列表' },
-      { key: '/notification/config', label: '通知配置' },
+      { key: '/rbac/role', label: '角色管理' },
+      { key: '/rbac/permission', label: '权限管理' },
+      { key: '/rbac/user-role', label: '用户授权' },
+      { key: '/security/audit-logs', label: '审计日志' },
     ],
   },
 ]
@@ -443,7 +373,8 @@ function PageLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, permissions, logoutRemote } = useAuthStore()
-  const { theme, toggleTheme, sidebarCollapsed, setSidebarCollapsed } = useAppStore()
+  const { sidebarCollapsed, setSidebarCollapsed } = useAppStore()
+  const { open: openSearch, CommandPalette } = useCommandPalette()
 
   const canAccessPath = (path: string) => hasClientPermission({
     roles: user?.roles,
@@ -579,8 +510,8 @@ function PageLayout() {
         onCollapse={setSidebarCollapsed}
         trigger={null}
         breakpoint="xl"
-        width={240}
-        collapsedWidth={64}
+        width={220}
+        collapsedWidth={56}
       >
         <div className={styles['sider-logo']}>
           <div className={styles['sider-logo__icon']}>雷</div>
@@ -618,20 +549,21 @@ function PageLayout() {
             )
           })}
         </Menu>
+        <div
+          className={styles['sider-collapse-btn']}
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        >
+          {sidebarCollapsed ? <IconMenuUnfold /> : <IconMenuFold />}
+          {!sidebarCollapsed && <span style={{ marginLeft: 8, fontSize: 13 }}>收起菜单</span>}
+        </div>
         <div className={styles['sider-version']}>
-          {sidebarCollapsed ? 'v5' : 'v5.0 · 雷犀'}
+          {sidebarCollapsed ? 'v5' : 'LeiXi v5.0'}
         </div>
       </Sider>
       <Layout>
         <Header className={styles['layout-header']}>
           <div className={styles['layout-header__content']}>
             <div className={styles['layout-header__left']}>
-              <div
-                className={styles['layout-header__menu-toggle']}
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              >
-                {sidebarCollapsed ? <IconMenuUnfold /> : <IconMenuFold />}
-              </div>
               <Breadcrumb className={styles['layout-header__breadcrumb']}>
                 {breadcrumbItems.map((item, index) => {
                   const isLast = index === breadcrumbItems.length - 1
@@ -656,35 +588,19 @@ function PageLayout() {
                 })}
               </Breadcrumb>
             </div>
-            <Space size={4} className={styles['layout-header__right']}>
-              <NotificationCenter placement="br" />
-              <Tooltip content={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'}>
-                <span
-                  className={`${styles['layout-header__icon']} ${styles['layout-header__icon--theme']}`}
-                  onClick={toggleTheme}
-                  style={{ cursor: 'pointer' }}
-                  role="button"
-                  aria-label={theme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
-                >
-                  {theme === 'dark' ? <IconSun /> : <IconMoon />}
-                </span>
-              </Tooltip>
-              <Tooltip content="帮助中心">
-                <span className={styles['layout-header__icon']}>
-                  <IconQuestionCircle />
-                </span>
-              </Tooltip>
-              <div className={styles['layout-header__separator']} />
-              <Dropdown droplist={userDropdownMenu} position="br" trigger="click">
-                <div className={styles['layout-header__user-menu']}>
-                  <Avatar size={30} style={{ backgroundColor: '#10B981', fontSize: 13 }}>
+            <ul className={styles['layout-header__right']}>
+              <li>
+                <Input.Search className={styles['layout-header__search']} placeholder="搜索页面..." onFocus={() => openSearch()} onClick={() => openSearch()} readOnly />
+              </li>
+              <li><NotificationCenter placement="br" /></li>
+              <li>
+                <Dropdown droplist={userDropdownMenu} position="br" trigger="click">
+                  <Avatar size={32} style={{ backgroundColor: 'rgb(var(--primary-6))', cursor: 'pointer', flexShrink: 0 }}>
                     {user?.realName?.[0] || <IconUser />}
                   </Avatar>
-                  <span className={styles['layout-header__user-name']}>{user?.realName || '用户'}</span>
-                  <IconRight style={{ fontSize: 12, color: 'var(--lx-gray-400, #9CA3AF)' }} />
-                </div>
-              </Dropdown>
-            </Space>
+                </Dropdown>
+              </li>
+            </ul>
           </div>
         </Header>
         <Content className={styles['layout-content']}>
@@ -693,6 +609,7 @@ function PageLayout() {
           </Suspense>
         </Content>
       </Layout>
+      {CommandPalette}
     </Layout>
   )
 }

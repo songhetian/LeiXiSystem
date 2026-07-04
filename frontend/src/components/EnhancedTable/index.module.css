@@ -24,13 +24,15 @@
 
 /* 表头样式 */
 .enhanced-table :global(.arco-table-header) {
-  background: #F8FAFC;
+  background: #FAFAFA;
+  border-bottom: 1px solid var(--lx-gray-200, #E5E7EB);
 }
 
 .enhanced-table :global(.arco-table-th) {
   font-weight: 600;
-  color: var(--lx-gray-700, #374151);
+  color: var(--lx-gray-800, #1F2937);
   font-size: 13px;
+  padding: 12px 16px;
 }
 
 /* 斑马纹 */

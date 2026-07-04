@@ -1,4 +1,9 @@
-export { default as AccessControl, RouteGuard, Forbidden, hasClientPermission } from './AccessControl'
+export {
+  default as AccessControl,
+  RouteGuard,
+  Forbidden,
+  hasClientPermission,
+} from './AccessControl'
 export { default as PermissionGate } from './PermissionGate'
 export { default as StatusTag } from './StatusTag'
 export { ErrorBoundary, AsyncErrorBoundary, withErrorBoundary } from './ErrorBoundary'
@@ -13,8 +18,18 @@ export { default as EmployeeSelect } from './EmployeeSelect'
 export { default as DepartmentSelect } from './DepartmentSelect'
 export { default as TableHeader } from './TableHeader'
 export { default as ActionButtons } from './ActionButtons'
-export { employeeColumn, departmentColumn, employeeWithNoColumn, flatEmployeeNameColumn, flatEmployeeNoColumn, flatDepartmentNameColumn } from './tableColumns/employee'
-export { default as KeyboardShortcutsHelp, KeyboardShortcutsHelp as ShortcutBadge } from './KeyboardShortcutsHelp'
+export {
+  employeeColumn,
+  departmentColumn,
+  employeeWithNoColumn,
+  flatEmployeeNameColumn,
+  flatEmployeeNoColumn,
+  flatDepartmentNameColumn,
+} from './tableColumns/employee'
+export {
+  default as KeyboardShortcutsHelp,
+  KeyboardShortcutsHelp as ShortcutBadge,
+} from './KeyboardShortcutsHelp'
 export { default as BatchActions } from './BatchActions'
 export { default as PaginationJumper } from './PaginationJumper'
 export { default as RowActionsHover } from './RowActionsHover'
@@ -32,3 +47,4 @@ export { default as TreeDrag } from './TreeDrag'
 export { default as FormBuilder } from './FormBuilder'
 export { default as NotificationCenter } from './NotificationCenter'
 export { default as WorkflowDesigner } from './WorkflowDesigner'
+export { default as FlowCanvas } from './FlowCanvas'

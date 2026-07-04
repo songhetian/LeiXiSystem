@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Table,
   Button,
@@ -17,13 +17,19 @@ import {
   IconEdit,
   IconDelete,
   IconSettings,
+  IconPlayArrowFill,
+  IconStop,
+  IconUser,
+  IconSwap,
+  IconTool,
+  IconNotification,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import { getApprovalFlows, createApprovalFlow, updateApprovalFlow } from '@/api/approval'
 import type { ApprovalFlow } from '@/api/approval'
 import { useCrudModal } from '@/hooks/useCrudModal'
-import { WorkflowDesigner } from '@/components'
-import type { WorkflowNode } from '@/components/WorkflowDesigner'
+import { FlowCanvas } from '@/components'
+import type { NodeTypeConfig, FlowNodeData, FlowEdgeData } from '@/components/FlowCanvas'
 import { catchError } from '@/utils/catchError'
 import { toast } from '@/utils/toast'
 import styles from './flow.module.css'
@@ -45,12 +51,196 @@ const typeNameMap: Record<string, string> = {
   shift: '调班',
 }
 
+// 默认的开始→结束节点（用于没有 nodes/edges 的旧数据或新建流程）
+const defaultFlowNodes: FlowNodeData[] = [
+  {
+    id: 'start',
+    type: 'customNode',
+    position: { x: 120, y: 240 },
+    data: { nodeType: 'start', label: '发起申请' },
+  },
+  {
+    id: 'end',
+    type: 'customNode',
+    position: { x: 480, y: 240 },
+    data: { nodeType: 'end', label: '流程结束' },
+  },
+]
+
+const defaultFlowEdges: FlowEdgeData[] = [
+  { id: 'e-start-end', source: 'start', target: 'end', type: 'smoothstep', animated: true },
+]
+
+// 节点类型配置
+const nodeTypes: NodeTypeConfig[] = [
+  {
+    type: 'start',
+    label: '开始',
+    icon: <IconPlayArrowFill />,
+    color: '#00b42a',
+    defaultData: { label: '发起申请' },
+    fields: [],
+  },
+  {
+    type: 'end',
+    label: '结束',
+    icon: <IconStop />,
+    color: '#f53f3f',
+    defaultData: { label: '流程结束' },
+    fields: [],
+  },
+  {
+    type: 'approval',
+    label: '审批节点',
+    icon: <IconUser />,
+    color: '#165dff',
+    defaultData: {
+      label: '审批节点',
+      approverType: 'direct_superior',
+      approvalMode: 'serial',
+      canSkip: false,
+    },
+    fields: [
+      { key: 'label', label: '节点名称', type: 'text', required: true, placeholder: '如：直属上级审批' },
+      {
+        key: 'approverType',
+        label: '审批人类型',
+        type: 'select',
+        options: [
+          { label: '直属上级', value: 'direct_superior' },
+          { label: '指定角色', value: 'role' },
+          { label: '指定人员', value: 'person' },
+          { label: '部门负责人', value: 'dept_head' },
+          { label: '申请人本人', value: 'applicant' },
+        ],
+      },
+      {
+        key: 'approverValue',
+        label: '审批人',
+        type: 'text',
+        placeholder: '选择角色或人员ID',
+        showWhen: (data) => data.approverType === 'role' || data.approverType === 'person',
+      },
+      {
+        key: 'approvalMode',
+        label: '审批模式',
+        type: 'select',
+        options: [
+          { label: '依次审批', value: 'serial' },
+          { label: '会签（全部同意）', value: 'all' },
+          { label: '或签（任一同意）', value: 'any_one' },
+        ],
+      },
+      { key: 'canSkip', label: '允许跳过', type: 'switch' },
+    ],
+  },
+  {
+    type: 'condition',
+    label: '条件分支',
+    icon: <IconSwap />,
+    color: '#ff7d00',
+    defaultData: {
+      label: '条件判断',
+      branches: [
+        { id: 'b1', label: '条件1' },
+        { id: 'b2', label: '默认' },
+      ],
+    },
+    fields: [
+      { key: 'label', label: '节点名称', type: 'text', required: true },
+      {
+        key: 'conditionField',
+        label: '判断字段',
+        type: 'select',
+        options: [
+          { label: '金额', value: 'amount' },
+          { label: '天数', value: 'days' },
+          { label: '类型', value: 'type' },
+          { label: '部门', value: 'department' },
+        ],
+      },
+      {
+        key: 'conditionOperator',
+        label: '判断方式',
+        type: 'select',
+        options: [
+          { label: '大于', value: '>' },
+          { label: '小于', value: '<' },
+          { label: '等于', value: '=' },
+          { label: '大于等于', value: '>=' },
+          { label: '小于等于', value: '<=' },
+          { label: '不等于', value: '!=' },
+        ],
+      },
+      { key: 'conditionValue', label: '判断值', type: 'text', placeholder: '如：1000' },
+    ],
+  },
+  {
+    type: 'parallel',
+    label: '并行审批',
+    icon: <IconTool />,
+    color: '#722ed1',
+    defaultData: {
+      label: '并行审批',
+      branches: [
+        { id: 'p1', label: '分支1' },
+        { id: 'p2', label: '分支2' },
+      ],
+    },
+    fields: [{ key: 'label', label: '节点名称', type: 'text', required: true }],
+  },
+  {
+    type: 'notify',
+    label: '通知节点',
+    icon: <IconNotification />,
+    color: '#0fc6c2',
+    defaultData: { label: '发送通知', notifyType: 'email' },
+    fields: [
+      { key: 'label', label: '通知名称', type: 'text', required: true },
+      {
+        key: 'notifyType',
+        label: '通知方式',
+        type: 'select',
+        options: [
+          { label: '邮件', value: 'email' },
+          { label: '短信', value: 'sms' },
+          { label: '站内推送', value: 'push' },
+        ],
+      },
+    ],
+  },
+]
+
+/** 判断节点是否为 React Flow 格式（拥有 position 字段） */
+function isFlowCanvasNode(node: any): boolean {
+  return node && typeof node.position === 'object' && node.position !== null
+}
+
+/** 根据审批流数据构建 FlowCanvas 初始图数据 */
+function buildInitialGraph(flow: ApprovalFlow | null): {
+  nodes: FlowNodeData[]
+  edges: FlowEdgeData[]
+} {
+  if (!flow) return { nodes: defaultFlowNodes, edges: defaultFlowEdges }
+
+  const nodes = flow.nodes ?? []
+  const edges = flow.edges ?? []
+  const hasValidGraph =
+    nodes.length > 0 && edges.length > 0 && nodes.every(isFlowCanvasNode)
+
+  if (hasValidGraph) {
+    return { nodes: nodes as FlowNodeData[], edges: edges as FlowEdgeData[] }
+  }
+  return { nodes: defaultFlowNodes, edges: defaultFlowEdges }
+}
+
 function Flow() {
   const [data, setData] = useState<ApprovalFlow[]>([])
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
   const [detailVisible, setDetailVisible] = useState(false)
   const [currentFlow, setCurrentFlow] = useState<ApprovalFlow | null>(null)
+  const [savingFlow, setSavingFlow] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -80,12 +270,18 @@ function Flow() {
     }),
     onSubmit: async (_values, id) => {
       if (id) {
-        toast.info('编辑功能开发中')
-      } else {
-        // 此处仅使用 values 但 lint 警告
-        await createApprovalFlow(_values as any)
-        toast.success('新增成功')
+        await updateApprovalFlow(id, _values)
+        toast.success('编辑成功')
         fetchData()
+      } else {
+        const res = await createApprovalFlow(_values as any)
+        toast.success('新增成功，请配置流程节点')
+        fetchData()
+        // 新建后直接打开画布编辑器
+        if (res?.data) {
+          setCurrentFlow(res.data)
+          setDetailVisible(true)
+        }
       }
     },
   })
@@ -112,9 +308,16 @@ function Flow() {
       render: (nodes: any[]) => (
         <Space size={4} wrap>
           {nodes?.length ? (
-            nodes.map((node: any, index: number) => (
-              <Tag key={index} size="small">{node.nodeName}</Tag>
-            ))
+            nodes
+              .filter((n) => {
+                const t = n?.data?.nodeType ?? n?.nodeType
+                return t !== 'start' && t !== 'end'
+              })
+              .map((node: any, index: number) => (
+                <Tag key={index} size="small">
+                  {node?.data?.label ?? node?.nodeName}
+                </Tag>
+              ))
           ) : (
             <Tag size="small" color="gray">暂无节点</Tag>
           )}
@@ -145,11 +348,11 @@ function Flow() {
       title: '更新时间',
       dataIndex: 'updatedAt',
       width: 160,
-      render: (value: string) => value ? new Date(value).toLocaleString() : '-',
+      render: (value: string) => (value ? new Date(value).toLocaleString() : '-'),
     },
     {
       title: '操作',
-      width: 200,
+      width: 220,
       render: (_: unknown, record: ApprovalFlow) => (
         <Space size="small">
           <Button
@@ -186,65 +389,34 @@ function Flow() {
     setDetailVisible(true)
   }
 
-  const [savingFlow, setSavingFlow] = useState(false)
+  // FlowCanvas 的初始图数据
+  const initialGraph = useMemo(() => buildInitialGraph(currentFlow), [currentFlow])
 
-  // Convert API ApprovalFlowNode[] to WorkflowNode[] for the designer
-  const flowToWorkflowNodes = useCallback((flow: ApprovalFlow): WorkflowNode[] => {
-    const startNode: WorkflowNode = { id: 'start', type: 'start', name: '开始' }
-    const endNode: WorkflowNode = { id: 'end', type: 'end', name: '结束' }
+  // 保存流程画布配置
+  const handleSaveFlow = useCallback(
+    async (nodes: FlowNodeData[], edges: FlowEdgeData[]) => {
+      if (!currentFlow) return
+      setSavingFlow(true)
+      try {
+        await updateApprovalFlow(currentFlow.id, { nodes, edges })
+        toast.success('流程配置保存成功')
+        setDetailVisible(false)
+        fetchData()
+      } catch (e) {
+        catchError(e, {
+          component: 'ApprovalFlow',
+          operation: '保存流程配置',
+          silent: true,
+        })
+        toast.error('保存流程配置失败')
+      } finally {
+        setSavingFlow(false)
+      }
+    },
+    [currentFlow],
+  )
 
-    const middle: WorkflowNode[] = (flow.nodes ?? []).map((n) => ({
-      id: `api_node_${n.id}`,
-      type: n.nodeType === 'condition' ? 'condition' as const : 'approval' as const,
-      name: n.nodeName,
-      approverType: (n.approverType as WorkflowNode['approverType']) ?? undefined,
-    }))
-
-    // If no existing nodes, return default workflow
-    if (middle.length === 0) {
-      return [
-        startNode,
-        { id: 'default_1', type: 'approval', name: '直属上级审批', approverType: 'direct_superior' },
-        { id: 'default_2', type: 'approval', name: '部门负责人审批', approverType: 'dept_head' },
-        endNode,
-      ]
-    }
-
-    return [startNode, ...middle, endNode]
-  }, [])
-
-  const handleSaveWorkflow = useCallback(async (workflowNodes: WorkflowNode[]) => {
-    if (!currentFlow) return
-    setSavingFlow(true)
-    try {
-      // Convert WorkflowNode[] back to API format
-      const apiNodes = workflowNodes
-        .filter((n) => n.type !== 'start' && n.type !== 'end')
-        .map((n, index) => ({
-          nodeName: n.name,
-          nodeType: n.type,
-          nodeOrder: index,
-          approverType: n.approverType,
-          conditions: n.conditions ? JSON.stringify(n.conditions) : undefined,
-        }))
-
-      await updateApprovalFlow(currentFlow.id, { nodes: apiNodes })
-      toast.success('流程配置保存成功')
-      setDetailVisible(false)
-      fetchData()
-    } catch (e) {
-      catchError(e, {
-        component: 'ApprovalFlow',
-        operation: '保存流程配置',
-        silent: true,
-      })
-      toast.error('保存流程配置失败')
-    } finally {
-      setSavingFlow(false)
-    }
-  }, [currentFlow])
-
-  const handleCancelWorkflow = useCallback(() => {
+  const handleCancelFlow = useCallback(() => {
     setDetailVisible(false)
   }, [])
 
@@ -328,37 +500,42 @@ function Flow() {
       </Modal>
 
       <Modal
-        title={`流程配置 - ${currentFlow?.name}`}
+        title={`流程配置 - ${currentFlow?.name ?? ''}`}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        className={styles['approval-flow__detail-modal']}
-        style={{ width: '80vw', maxWidth: 1200 }}
+        style={{ width: '100vw', maxWidth: '100vw', top: 0, paddingBottom: 0 }}
         footer={null}
         unmountOnExit
+        maskClosable={false}
       >
-        {currentFlow && (
-          <div style={{ height: '70vh', minHeight: 500 }}>
-            <WorkflowDesigner
-              initialNodes={flowToWorkflowNodes(currentFlow)}
-              onSave={handleSaveWorkflow}
-              onCancel={handleCancelWorkflow}
+        <div style={{ position: 'relative', height: 'calc(100vh - 55px)', width: '100%' }}>
+          {currentFlow && (
+            <FlowCanvas
+              initialNodes={initialGraph.nodes}
+              initialEdges={initialGraph.edges}
+              nodeTypes={nodeTypes}
+              onSave={handleSaveFlow}
+              onCancel={handleCancelFlow}
+              title={currentFlow.name}
             />
-          </div>
-        )}
-        {savingFlow && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(255,255,255,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10,
-            borderRadius: 8,
-          }}>
-            保存中...
-          </div>
-        )}
+          )}
+          {savingFlow && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(255,255,255,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+                borderRadius: 8,
+              }}
+            >
+              保存中...
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   )

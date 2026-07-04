@@ -3,6 +3,17 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  animation: lx-fade-in 0.3s ease-out both;
+}
+
+@keyframes lx-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Breadcrumb */
+.lx-page__breadcrumb {
+  font-size: 13px;
 }
 
 /* Header */
@@ -16,20 +27,21 @@
 .lx-page__title-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .lx-page__title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   margin: 0;
-  color: var(--color-text-1);
-  line-height: 1.4;
+  color: var(--lx-gray-900, #111827);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .lx-page__desc {
   font-size: 13px;
-  color: var(--color-text-3);
+  color: var(--lx-gray-400, #9CA3AF);
   margin: 0;
   line-height: 1.5;
 }
@@ -40,11 +52,18 @@
   gap: 8px;
 }
 
-.lx-page__refresh {
-  color: var(--color-text-3) !important;
+/* White card wrapper */
+.lx-page__card {
+  background: var(--lx-surface, #FFFFFF);
+  border-radius: var(--lx-card-radius, 12px);
+  box-shadow: var(--lx-card-shadow, 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06));
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* Body */
+/* Plain body (no card) */
 .lx-page__body {
   display: flex;
   flex-direction: column;
@@ -54,5 +73,9 @@
 @media (max-width: 768px) {
   .lx-page__header {
     flex-direction: column;
+  }
+  .lx-page__card {
+    padding: 16px;
+    border-radius: 8px;
   }
 }

@@ -172,13 +172,11 @@ body.arco-theme-dark {
 /* Stat Card */
 .lx-stat-card {
   border-radius: var(--lx-card-radius) !important;
-  transition: box-shadow var(--lx-normal) var(--lx-ease),
-              transform var(--lx-normal) var(--lx-ease);
+  transition: box-shadow var(--lx-normal) var(--lx-ease);
 }
 
 .lx-stat-card:hover {
   box-shadow: var(--lx-card-shadow-hover);
-  transform: translateY(-2px);
 }
 
 .lx-stat-card .arco-card-body {
@@ -400,12 +398,10 @@ body.arco-theme-dark .lx-detail-row__value {
 
 /* Hover micro-interactions */
 .lx-hover-lift {
-  transition: transform var(--lx-normal) var(--lx-ease),
-              box-shadow var(--lx-normal) var(--lx-ease);
+  transition: box-shadow var(--lx-normal) var(--lx-ease);
 }
 
 .lx-hover-lift:hover {
-  transform: translateY(-2px);
   box-shadow: var(--lx-card-shadow-hover);
 }
 

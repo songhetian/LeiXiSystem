@@ -68,7 +68,8 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
   fastify.post('/courses', { preHandler: [requirePermission('training:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(courseSchema, request.body)
     setAudit(request, { action: 'training_course_create', module: 'training', requestData: body })
-    const course = await prisma.trainingCourse.create({ data: { ...body, createdBy: request.user.id } })
+    const code = body.code || await generateCode('trainingCourse', prisma.trainingCourse)
+    const course = await prisma.trainingCourse.create({ data: { ...body, code, createdBy: request.user.id } })
     setAfter(request, { id: course.id })
     return { code: 0, message: '创建成功', data: course }
   })

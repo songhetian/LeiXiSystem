@@ -180,11 +180,9 @@ body.arco-theme-dark ::-webkit-scrollbar-thumb:hover {
 
 .arco-btn-primary:hover {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  transform: translateY(-1px);
 }
 
 .arco-btn-primary:active {
-  transform: translateY(0);
   box-shadow: 0 1px 2px rgba(16, 185, 129, 0.2);
 }
 

@@ -4,7 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
-import { validateData } from '../utils/validation'
+import { idParamsSchema, validateData } from '../utils/validation'
 
 const approvalListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -18,6 +18,8 @@ const approvalFlowBodySchema = z.object({
   description: z.string().trim().max(1000).optional().nullable(),
   isDefault: z.coerce.boolean().optional().default(false),
   status: z.string().trim().max(30).regex(/^[a-zA-Z0-9_-]+$/).optional().default('active'),
+  nodes: z.array(z.any()).optional(),  // React Flow 节点数据
+  edges: z.array(z.any()).optional(),  // React Flow 连线数据
 })
 
 export default async function approvalRoutes(fastify: FastifyInstance) {
@@ -144,7 +146,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
   fastify.get('/flows', { preHandler: [requirePermission('approval:view')] }, async () => {
     const flows = await prisma.approvalWorkflow.findMany({
-      include: { nodes: { orderBy: { nodeOrder: 'asc' } } },
+      include: { approvalNodes: { orderBy: { nodeOrder: 'asc' } } },
     })
 
     return { code: 0, data: flows }
@@ -160,9 +162,31 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
         description: body.description,
         isDefault: body.isDefault || false,
         status: body.status || 'active',
+        nodes: body.nodes || null,
+        edges: body.edges || null,
       },
     })
 
     return { code: 0, message: '创建成功', data: flow }
+  })
+
+  fastify.put('/flows/:id', { preHandler: [requirePermission('approval:view')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const body = validateData(approvalFlowBodySchema.partial(), request.body)
+
+    const flow = await prisma.approvalWorkflow.update({
+      where: { id },
+      data: {
+        ...(body.name && { name: body.name }),
+        ...(body.type && { type: body.type }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.isDefault !== undefined && { isDefault: body.isDefault }),
+        ...(body.status && { status: body.status }),
+        ...(body.nodes !== undefined && { nodes: body.nodes }),
+        ...(body.edges !== undefined && { edges: body.edges }),
+      },
+    })
+
+    return { code: 0, message: '更新成功', data: flow }
   })
 }

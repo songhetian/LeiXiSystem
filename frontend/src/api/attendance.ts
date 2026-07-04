@@ -476,3 +476,19 @@ export function batchUnlockMonthly(params: {
 }) {
   return post('/attendance/monthly/batch-unlock', params)
 }
+
+// 批量删除打卡记录
+export function batchDeleteAttendanceRecords(ids: number[]) {
+  return post('/attendance/records/batch-delete', { ids })
+}
+
+// 批量修改打卡记录
+export function batchUpdateAttendanceRecords(data: {
+  ids: number[]
+  checkIn?: string | null
+  checkOut?: string | null
+  status?: string
+  workHours?: number | null
+}) {
+  return post('/attendance/records/batch-update', data)
+}

@@ -295,4 +295,87 @@ export default async function recordsRoutes(fastify: FastifyInstance) {
       },
     }
   })
+
+  // 批量删除打卡记录
+  fastify.post('/records/batch-delete', { preHandler: [requirePermission('attendance:view')] }, async (request: FastifyRequest<{
+    Body: { ids: number[] }
+  }>) => {
+    const { ids } = validateData(z.object({
+      ids: z.array(z.number().int().positive()).min(1, '至少选择一条记录'),
+    }), request.body)
+
+    const records = await prisma.attendanceRecord.findMany({
+      where: { id: { in: ids } },
+    })
+
+    if (records.length === 0) {
+      return { code: 404, message: '未找到相关记录' }
+    }
+
+    setAudit(request, {
+      action: 'attendance.records.batchDelete',
+      module: 'attendance',
+      requestData: { ids },
+    })
+
+    await prisma.attendanceRecord.deleteMany({
+      where: { id: { in: ids } },
+    })
+
+    return {
+      code: 0,
+      message: `成功删除 ${records.length} 条记录`,
+      data: { deletedCount: records.length },
+    }
+  })
+
+  // 批量修改打卡记录
+  fastify.post('/records/batch-update', { preHandler: [requirePermission('attendance:view')] }, async (request: FastifyRequest<{
+    Body: {
+      ids: number[]
+      checkIn?: string | null
+      checkOut?: string | null
+      status?: string
+      workHours?: number | null
+    }
+  }>) => {
+    const { ids, checkIn, checkOut, status, workHours } = validateData(z.object({
+      ids: z.array(z.number().int().positive()).min(1, '至少选择一条记录'),
+      checkIn: z.string().nullable().optional(),
+      checkOut: z.string().nullable().optional(),
+      status: z.string().optional(),
+      workHours: z.number().nullable().optional(),
+    }), request.body)
+
+    const records = await prisma.attendanceRecord.findMany({
+      where: { id: { in: ids } },
+    })
+
+    if (records.length === 0) {
+      return { code: 404, message: '未找到相关记录' }
+    }
+
+    const updateData: any = {}
+    if (checkIn !== undefined) updateData.checkIn = checkIn ? new Date(checkIn) : null
+    if (checkOut !== undefined) updateData.checkOut = checkOut ? new Date(checkOut) : null
+    if (status !== undefined) updateData.status = status
+    if (workHours !== undefined) updateData.workHours = workHours
+
+    setAudit(request, {
+      action: 'attendance.records.batchUpdate',
+      module: 'attendance',
+      requestData: { ids, ...updateData },
+    })
+
+    await prisma.attendanceRecord.updateMany({
+      where: { id: { in: ids } },
+      data: updateData,
+    })
+
+    return {
+      code: 0,
+      message: `成功修改 ${records.length} 条记录`,
+      data: { updatedCount: records.length },
+    }
+  })
 }

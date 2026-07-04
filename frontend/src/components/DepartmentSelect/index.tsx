@@ -10,6 +10,7 @@ interface DepartmentSelectProps {
   allowClear?: boolean
   mode?: 'multiple' | 'tags'
   className?: string
+  style?: React.CSSProperties
 }
 
 function DepartmentSelect({

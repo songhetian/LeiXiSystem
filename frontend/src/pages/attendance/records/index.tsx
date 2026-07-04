@@ -11,14 +11,24 @@ import {
   Statistic,
   Grid,
   Spin,
+  Modal,
+  Message,
+  Popconfirm,
 } from '@arco-design/web-react'
 import {
   IconExport,
   IconDownload,
+  IconDelete,
+  IconEdit,
 } from '@arco-design/web-react/icon'
 import type { TableProps } from '@arco-design/web-react'
 import type { Dayjs } from 'dayjs'
-import { getAttendanceRecords, getAttendanceStats } from '@/api/attendance'
+import {
+  getAttendanceRecords,
+  getAttendanceStats,
+  batchDeleteAttendanceRecords,
+  batchUpdateAttendanceRecords,
+} from '@/api/attendance'
 import type { AttendanceRecord } from '@/api/attendance'
 import { FilterBar, TableHeader, DepartmentSelect } from '@/components'
 import styles from './records.module.css'
@@ -55,6 +65,17 @@ function Records() {
     leave: 0,
     attendanceRate: '0',
   })
+
+  // 批量操作相关状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const [batchEditVisible, setBatchEditVisible] = useState(false)
+  const [batchEditForm, setBatchEditForm] = useState({
+    checkIn: '',
+    checkOut: '',
+    status: '',
+    workHours: '',
+  })
+  const [batchEditLoading, setBatchEditLoading] = useState(false)
 
   const fetchData = async (page = 1, pageSize = 10) => {
     setLoading(true)
@@ -108,12 +129,73 @@ function Records() {
     setSearchStatus(undefined)
     setSearchAttendanceType(undefined)
     setDateRange([])
+    setSelectedRowKeys([])
     fetchData(1, pagination.pageSize)
     fetchStats()
   }
 
   const handlePageChange = (page: number, pageSize: number) => {
     fetchData(page, pageSize)
+  }
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      Message.warning('请先选择要删除的记录')
+      return
+    }
+    try {
+      const res = await batchDeleteAttendanceRecords(selectedRowKeys)
+      Message.success(res.message || `成功删除 ${selectedRowKeys.length} 条记录`)
+      setSelectedRowKeys([])
+      fetchData(pagination.current, pagination.pageSize)
+      fetchStats()
+    } catch {
+      Message.error('删除失败')
+    }
+  }
+
+  // 打开批量修改弹窗
+  const handleOpenBatchEdit = () => {
+    if (selectedRowKeys.length === 0) {
+      Message.warning('请先选择要修改的记录')
+      return
+    }
+    setBatchEditForm({
+      checkIn: '',
+      checkOut: '',
+      status: '',
+      workHours: '',
+    })
+    setBatchEditVisible(true)
+  }
+
+  // 批量修改
+  const handleBatchEdit = async () => {
+    const updateData: any = { ids: selectedRowKeys }
+    if (batchEditForm.checkIn) updateData.checkIn = batchEditForm.checkIn
+    if (batchEditForm.checkOut) updateData.checkOut = batchEditForm.checkOut
+    if (batchEditForm.status) updateData.status = batchEditForm.status
+    if (batchEditForm.workHours) updateData.workHours = parseFloat(batchEditForm.workHours)
+
+    if (!updateData.checkIn && !updateData.checkOut && !updateData.status && updateData.workHours === undefined) {
+      Message.warning('请至少填写一项要修改的内容')
+      return
+    }
+
+    setBatchEditLoading(true)
+    try {
+      const res = await batchUpdateAttendanceRecords(updateData)
+      Message.success(res.message || `成功修改 ${selectedRowKeys.length} 条记录`)
+      setBatchEditVisible(false)
+      setSelectedRowKeys([])
+      fetchData(pagination.current, pagination.pageSize)
+      fetchStats()
+    } catch {
+      Message.error('修改失败')
+    } finally {
+      setBatchEditLoading(false)
+    }
   }
 
   const columns: TableProps<AttendanceRecord>['columns'] = [
@@ -258,7 +340,21 @@ function Records() {
           title="打卡记录"
           total={pagination.total}
           totalText="条"
-          extra={<Button type="secondary" icon={<IconDownload />}>导出</Button>}
+          extra={
+            <div style={{ display: 'flex', gap: 8 }}>
+              {selectedRowKeys.length > 0 && (
+                <>
+                  <Button type="primary" status="danger" icon={<IconDelete />} onClick={handleBatchDelete}>
+                    批量删除 ({selectedRowKeys.length})
+                  </Button>
+                  <Button type="primary" icon={<IconEdit />} onClick={handleOpenBatchEdit}>
+                    批量修改 ({selectedRowKeys.length})
+                  </Button>
+                </>
+              )}
+              <Button type="secondary" icon={<IconDownload />}>导出</Button>
+            </div>
+          }
         />
 
         <Table
@@ -266,6 +362,11 @@ function Records() {
           columns={columns}
           data={data}
           rowKey="id"
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys as number[]),
+          }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -274,6 +375,59 @@ function Records() {
           }}
         />
       </Card>
+
+      {/* 批量修改弹窗 */}
+      <Modal
+        title={`批量修改打卡记录 (${selectedRowKeys.length} 条)`}
+        visible={batchEditVisible}
+        onOk={handleBatchEdit}
+        onCancel={() => setBatchEditVisible(false)}
+        confirmLoading={batchEditLoading}
+        okText="确认修改"
+        cancelText="取消"
+      >
+        <Form layout="vertical">
+          <FormItem label="上班打卡时间">
+            <Input
+              placeholder="例如: 2024-01-15 09:00:00"
+              value={batchEditForm.checkIn}
+              onChange={(val) => setBatchEditForm({ ...batchEditForm, checkIn: val })}
+            />
+          </FormItem>
+          <FormItem label="下班打卡时间">
+            <Input
+              placeholder="例如: 2024-01-15 18:00:00"
+              value={batchEditForm.checkOut}
+              onChange={(val) => setBatchEditForm({ ...batchEditForm, checkOut: val })}
+            />
+          </FormItem>
+          <FormItem label="状态">
+            <Select
+              placeholder="请选择状态"
+              value={batchEditForm.status}
+              onChange={(val) => setBatchEditForm({ ...batchEditForm, status: val })}
+              allowClear
+            >
+              <Option value="normal">正常</Option>
+              <Option value="late">迟到</Option>
+              <Option value="early">早退</Option>
+              <Option value="absent">旷工</Option>
+              <Option value="leave">请假</Option>
+              <Option value="business">出差</Option>
+            </Select>
+          </FormItem>
+          <FormItem label="工时(小时)">
+            <Input
+              placeholder="例如: 8.5"
+              value={batchEditForm.workHours}
+              onChange={(val) => setBatchEditForm({ ...batchEditForm, workHours: val })}
+            />
+          </FormItem>
+        </Form>
+        <div style={{ color: 'var(--color-text-3)', fontSize: 12, marginTop: 8 }}>
+          提示：留空的字段将不会被修改
+        </div>
+      </Modal>
     </div>
   )
 }

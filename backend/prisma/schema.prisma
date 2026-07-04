@@ -361,6 +361,7 @@ model Shift {
   attendanceRecords AttendanceRecord[]
   dailyRecords AttendanceDaily[]
   preferredBy  EmployeeSchedulePreference[]
+  checkins     AttendanceCheckin[]
 
   @@map("shifts")
 }
@@ -964,12 +965,14 @@ model ApprovalWorkflow {
   description String?
   isDefault   Boolean   @default(false) @map("is_default")
   conditions  Json?
+  nodes       Json?     @map("nodes")  // React Flow 节点数据
+  edges       Json?     @map("edges")  // React Flow 连线数据
   status      String    @default("active") @db.VarChar(20)
   createdBy   Int?      @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  nodes       ApprovalNode[]
+  approvalNodes ApprovalNode[]
 
   @@map("approval_workflows")
 }
@@ -1192,6 +1195,8 @@ model OnboardingFlow {
   status       String            @default("active") @db.VarChar(20)
   isDefault    Boolean           @default(false) @map("is_default")
   sortOrder    Int               @default(0) @map("sort_order")
+  nodes        Json?             @map("nodes")  // React Flow 节点数据
+  edges        Json?             @map("edges")  // React Flow 连线数据
   createdBy    Int?              @map("created_by")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
@@ -1205,6 +1210,23 @@ model OnboardingFlow {
   @@index([status])
   @@index([departmentId, positionId])
   @@map("onboarding_flows")
+}
+
+// 入职流程步骤类型（可自定义）
+model OnboardingStepType {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(50)
+  code        String   @unique @db.VarChar(30)
+  icon        String?  @db.VarChar(30)
+  color       String?  @db.VarChar(20)
+  description String?
+  status      String   @default("active") @db.VarChar(20)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("onboarding_step_types")
 }
 
 // 入职流程步骤

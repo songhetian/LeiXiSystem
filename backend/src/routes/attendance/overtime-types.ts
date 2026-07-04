@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
 import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
+import { generateCode } from '../../utils/codeGenerator'
 
 const overtimeTypeListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -16,7 +17,7 @@ const overtimeTypeListQuerySchema = z.object({
 
 const createOvertimeTypeSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  code: z.string().trim().min(1).max(50),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   description: z.string().trim().max(500).optional().nullable(),
   payRate: z.coerce.number().min(0).max(10).optional().default(1.5),
   minMinutes: z.number().int().min(0).max(1440).optional().default(30),
@@ -109,16 +110,21 @@ export default async function overtimeTypesRoutes(fastify: FastifyInstance) {
   fastify.post('/overtime-types', { preHandler: [requirePermission('attendance:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(createOvertimeTypeSchema, request.body)
 
-    const existing = await prisma.overtimeType.findUnique({
-      where: { code: body.code },
-    })
-    if (existing) {
-      return { code: 400, message: '类型编码已存在' }
+    const code = body.code || await generateCode('overtimeType', prisma.overtimeType)
+
+    if (body.code) {
+      const existing = await prisma.overtimeType.findUnique({
+        where: { code },
+      })
+      if (existing) {
+        return { code: 400, message: '类型编码已存在' }
+      }
     }
 
     const item = await prisma.overtimeType.create({
       data: {
         ...body,
+        code,
         createdBy: request.user.id,
       },
     })

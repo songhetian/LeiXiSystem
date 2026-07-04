@@ -5,8 +5,7 @@ import zhCN from '@arco-design/web-react/es/locale/zh-CN'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import '@arco-design/web-react/dist/css/arco.css'
-import './styles/design-tokens.css'
-import './styles/global.css'
+import './styles/global.less'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -22,7 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         Select: { size: 'default' },
       }}
       theme={{
-        primaryColor: '#10B981',
+        primaryColor: '#165DFF',
       }}
     >
       <BrowserRouter>

@@ -59,12 +59,14 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
     const body = validateData(ssoAppBodySchema, request.body)
     const appUrl = parseSafeHttpUrl(body.appUrl)
     const logoUrl = body.logoUrl ? parseSafeHttpUrl(body.logoUrl) : undefined
+    const code = body.code || await generateCode('ssoApp', prisma.ssoApp)
 
     setAudit(request, { action: 'sso_app_create', module: 'sso', requestData: { ...body, appUrl, logoUrl } })
 
     const app = await prisma.ssoApp.create({
       data: {
         ...body,
+        code,
         appUrl,
         logoUrl,
       },

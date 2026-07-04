@@ -7,10 +7,11 @@ import { canAccessEmployee } from '../../services/objectAuthorization'
 import { requirePermission } from '../../middleware/permission'
 import { idParamsSchema, positiveIntSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
 import { invalidatePayrollCache } from '../../services/cacheService'
+import { generateCode } from '../../utils/codeGenerator'
 
 const salaryComponentSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  code: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/, '组件编码只能包含字母、数字和下划线'),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/, '组件编码只能包含字母、数字、下划线和横线').optional(),
   type: z.enum(['earning', 'deduction', 'allowance']),
   amountType: z.enum(['fixed', 'formula', 'percent']).optional().default('fixed'),
   formula: z.string().trim().max(500).optional().nullable(),
@@ -55,8 +56,10 @@ export default async function componentsRoutes(fastify: FastifyInstance) {
       requestData: body,
     })
 
+    const code = body.code || await generateCode('salaryComponent', prisma.salaryComponent)
+
     const component = await prisma.salaryComponent.create({
-      data: body,
+      data: { ...body, code },
     })
 
     setAfter(request, { id: component.id })

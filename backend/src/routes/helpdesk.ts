@@ -9,11 +9,12 @@ import { enqueueNotification, enqueueNotifications } from '../plugins/notificati
 import { normalizePagination } from '../utils/pagination'
 import { HttpError, dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData } from '../utils/validation'
 import { helpdeskTicketStatusSchema, helpdeskPrioritySchema } from '../utils/schemas'
+import { generateCode } from '../utils/codeGenerator'
 import type { AuthUser } from '../types/fastify'
 
 const categorySchema = z.object({
   name: z.string().trim().min(1).max(100),
-  code: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/, '分类编码只能包含字母、数字、下划线和横线'),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/, '分类编码只能包含字母、数字、下划线和横线').optional(),
   description: z.string().trim().max(1000).optional().nullable(),
   status: z.enum(['active', 'inactive']).optional().default('active'),
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(0),
@@ -100,7 +101,8 @@ export default async function helpdeskRoutes(fastify: FastifyInstance) {
   fastify.post('/categories', { preHandler: [requirePermission('helpdesk:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
     const body = validateData(categorySchema, request.body)
     setAudit(request, { action: 'helpdesk.category.create', module: 'helpdesk', requestData: body })
-    const category = await prisma.helpdeskCategory.create({ data: body })
+    const code = body.code || await generateCode('helpdeskCategory', prisma.helpdeskCategory)
+    const category = await prisma.helpdeskCategory.create({ data: { ...body, code } })
     setAfter(request, { id: category.id })
     return { code: 0, message: '创建成功', data: category }
   })

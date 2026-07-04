@@ -18,7 +18,8 @@ export interface ApprovalFlow {
   description?: string
   isDefault: boolean
   status: string
-  nodes?: ApprovalFlowNode[]
+  nodes?: any[]
+  edges?: any[]
   createdAt: string
   updatedAt: string
 }
@@ -72,13 +73,23 @@ export function createApprovalFlow(data: {
   description?: string
   isDefault?: boolean
   status?: string
+  nodes?: any[]
+  edges?: any[]
 }) {
   return post<ApiResponse<ApprovalFlow>>('/approval/flows', data)
 }
 
 export function updateApprovalFlow(
   id: number,
-  data: { nodes?: any[]; [key: string]: any },
+  data: Partial<{
+    name: string
+    type: string
+    description: string
+    isDefault: boolean
+    status: string
+    nodes: any[]
+    edges: any[]
+  }>,
 ) {
   return put<ApiResponse<ApprovalFlow>>(`/approval/flows/${id}`, data)
 }

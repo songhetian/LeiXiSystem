@@ -103,6 +103,7 @@ export function clockIn(data: {
   fieldWorkReason?: string
   photoUrl?: string
   shiftId?: number
+  skipLocationCheck?: boolean
 }) {
   return post<{
     code: number
@@ -159,4 +160,15 @@ export function getClockInCalendar(params?: { year?: number; month?: number }) {
       days: CalendarDayItem[]
     }
   }>('/attendance/clock-in/calendar', { params })
+}
+
+export function selectShift(shiftId: number) {
+  return post<{
+    code: number
+    message: string
+    data: {
+      shiftId: number
+      shiftName: string
+    }
+  }>('/attendance/clock-in/select-shift', { shiftId })
 }

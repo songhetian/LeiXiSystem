@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { requireAnyPermission, requirePermission } from '../../middleware/permission'
 import { normalizePagination } from '../../utils/pagination'
 import { dateStringSchema, idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../../utils/validation'
+import { generateCode } from '../../utils/codeGenerator'
 
 const flowListQuerySchema = z.object({
   page: z.unknown().optional(),
@@ -22,6 +23,8 @@ const createFlowSchema = z.object({
   status: z.enum(['active', 'inactive']).optional().default('active'),
   isDefault: z.boolean().optional().default(false),
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
+  nodes: z.array(z.any()).optional(),  // React Flow 节点数据
+  edges: z.array(z.any()).optional(),  // React Flow 连线数据
   steps: z.array(z.object({
     title: z.string().trim().min(1).max(100),
     description: z.string().trim().max(2000).optional().nullable(),
@@ -156,7 +159,7 @@ export default async function onboardingFlowRoutes(fastify: FastifyInstance) {
 
     const updatedFlow = await prisma.onboardingFlow.update({
       where: { id },
-      data: flowData,
+      data: flowData as any,
       include: { steps: { orderBy: { stepOrder: 'asc' } } },
     })
 
@@ -373,5 +376,66 @@ export default async function onboardingFlowRoutes(fastify: FastifyInstance) {
     })
 
     return { code: 0, message: '入职流程已完成', data: completed }
+  })
+
+  // 获取步骤类型列表
+  fastify.get('/step-types', { preHandler: [requireAnyPermission(['lifecycle:view', 'lifecycle:manage'])] }, async () => {
+    const types = await prisma.onboardingStepType.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    })
+    return { code: 0, data: types }
+  })
+
+  // 创建步骤类型
+  fastify.post('/step-types', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Body: unknown }>) => {
+    const body = validateData(z.object({
+      name: z.string().trim().min(1).max(50),
+      code: z.string().trim().min(1).max(30).optional(),
+      icon: z.string().trim().max(30).optional(),
+      color: z.string().trim().max(20).optional(),
+      description: z.string().trim().max(500).optional(),
+      sortOrder: z.number().int().min(0).optional().default(0),
+    }), request.body)
+
+    // 如果没有传 code，自动生成
+    const code = body.code || await generateCode('onboardingStepType', prisma.onboardingStepType)
+
+    const type = await prisma.onboardingStepType.create({
+      data: {
+        name: body.name,
+        code,
+        icon: body.icon,
+        color: body.color,
+        description: body.description,
+        sortOrder: body.sortOrder,
+      },
+    })
+    return { code: 0, message: '创建成功', data: type }
+  })
+
+  // 更新步骤类型
+  fastify.put('/step-types/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown; Body: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const data = validateData(partialUpdateSchema(z.object({
+      name: z.string().trim().min(1).max(50),
+      icon: z.string().trim().max(30).optional(),
+      color: z.string().trim().max(20).optional(),
+      description: z.string().trim().max(500).optional(),
+      status: z.enum(['active', 'inactive']).optional(),
+      sortOrder: z.number().int().min(0).optional(),
+    })), request.body)
+    requireAtLeastOneField(data)
+
+    const updated = await prisma.onboardingStepType.update({ where: { id }, data })
+    return { code: 0, message: '更新成功', data: updated }
+  })
+
+  // 删除步骤类型
+  fastify.delete('/step-types/:id', { preHandler: [requirePermission('lifecycle:manage')] }, async (request: FastifyRequest<{ Params: unknown }>) => {
+    const { id } = validateData(idParamsSchema, request.params)
+    const type = await prisma.onboardingStepType.findUnique({ where: { id } })
+    if (type?.isSystem) return { code: 400, message: '系统预设类型不可删除' }
+    await prisma.onboardingStepType.delete({ where: { id } })
+    return { code: 0, message: '删除成功' }
   })
 }

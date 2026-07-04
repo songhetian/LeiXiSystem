@@ -4,6 +4,7 @@ import prisma from '../prisma'
 import { authMiddleware } from '../middleware/auth'
 import { requirePermission } from '../middleware/permission'
 import { normalizePagination } from '../utils/pagination'
+import { generateCode } from '../utils/codeGenerator'
 import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, statusSchema, timeSchema, validateData, partialUpdateSchema, requireAtLeastOneField } from '../utils/validation'
 
 const shiftListQuerySchema = z.object({
@@ -16,7 +17,7 @@ const shiftListQuerySchema = z.object({
 
 const shiftBodySchema = z.object({
   name: z.string().trim().min(1).max(50),
-  code: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/, '班次编码只能包含字母、数字、下划线和横线'),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/, '班次编码只能包含字母、数字、下划线和横线').optional(),
   departmentId: positiveIntSchema.optional().nullable(),
   startTime: timeSchema,
   endTime: timeSchema,
@@ -100,10 +101,11 @@ export default async function shiftRoutes(fastify: FastifyInstance) {
   fastify.post('/', { preHandler: [requirePermission('shift:manage')] }, async (request: FastifyRequest<{ Body: any }>) => {
     const body = validateData(shiftBodySchema, request.body)
 
+    const code = body.code || await generateCode('shift', prisma.shift)
     const shift = await prisma.shift.create({
       data: {
         name: body.name,
-        code: body.code,
+        code,
         departmentId: body.departmentId ?? undefined,
         startTime: body.startTime,
         endTime: body.endTime,

@@ -5,10 +5,11 @@ import { authMiddleware } from '../../middleware/auth'
 import { requirePermission, requireAnyPermission } from '../../middleware/permission'
 import { setAudit, setAfter } from '../../plugins/audit'
 import { idParamsSchema, optionalKeywordSchema, positiveIntSchema, validateData } from '../../utils/validation'
+import { generateCode } from '../../utils/codeGenerator'
 
 const ruleCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  code: z.string().trim().min(1).max(50).regex(/^[a-zA-Z0-9_-]+$/, '规则编码只能包含字母、数字、下划线和横线'),
+  code: z.string().trim().max(50).regex(/^[a-zA-Z0-9_-]+$/, '规则编码只能包含字母、数字、下划线和横线').optional(),
   departmentId: positiveIntSchema.optional().nullable(),
   shiftIds: z.string().min(1, '请至少选择一个班次'),
   pattern: z.string().max(2000).optional().nullable(),
@@ -91,7 +92,9 @@ export default async function scheduleRuleRoutes(fastify: FastifyInstance) {
     const body = validateData(ruleCreateSchema, request.body)
     setAudit(request, { action: 'schedule.rule.create', module: 'schedule', requestData: body })
 
-    const rule = await prisma.scheduleRule.create({ data: body })
+    const code = body.code || await generateCode('scheduleRule', prisma.scheduleRule)
+
+    const rule = await prisma.scheduleRule.create({ data: { ...body, code } })
     setAfter(request, { id: rule.id })
 
     return { code: 0, message: '创建成功', data: rule }
