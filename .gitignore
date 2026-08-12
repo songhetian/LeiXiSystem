@@ -53,3 +53,8 @@ leixi.*
 *.md
 *.sh
 *.skill
+
+
+.agents/
+.trae/
+.iflow/
