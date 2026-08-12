@@ -1,3 +1,5 @@
+'use client';
+
 import { Statistic, Card, Grid, Typography } from '@arco-design/web-react';
 const { Row, Col } = Grid;
 

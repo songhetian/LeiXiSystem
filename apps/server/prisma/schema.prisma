@@ -1,0 +1,66 @@
+// 雷犀客服管理系统 · Prisma Schema（S02 起步：RBAC）
+// 对齐 docs/schema + legacy 表结构；命名 snake_case 映射 camelCase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @map("username") @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(100)
+  name         String    @map("name") @db.VarChar(50)
+  status       String    @default("active") @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  roles        UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique @map("code") @db.VarChar(50)
+  name        String          @map("name") @db.VarChar(50)
+  description String?         @map("description") @db.VarChar(200)
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id     Int    @id @default(autoincrement())
+  code   String @unique @map("code") @db.VarChar(80)
+  name   String @map("name") @db.VarChar(50)
+  module String @map("module") @db.VarChar(50)
+  type   String @default("menu") @map("type") @db.VarChar(20)
+  roles  RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId Int  @map("user_id")
+  roleId Int  @map("role_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       Int        @map("role_id")
+  permissionId Int        @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

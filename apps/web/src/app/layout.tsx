@@ -1,7 +1,6 @@
-import { ConfigProvider } from '@arco-design/web-react';
-import zhCN from '@arco-design/web-react/es/locale/zh-CN';
 import '@arco-design/web-react/dist/css/arco.css';
 import './globals.css';
+import Providers from './providers';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -13,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN">
       <body>
-        <ConfigProvider locale={zhCN}>{children}</ConfigProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

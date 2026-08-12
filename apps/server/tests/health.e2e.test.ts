@@ -1,14 +1,19 @@
 // S01 · 后端 TDD（RED 先行）— 健康检查端到端（对齐 spec 第 4 章统一响应格式）
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+// S01 · 健康检查 e2e
+import 'reflect-metadata';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import cookie from '@fastify/cookie';
 import { AppModule } from '../src/app.module';
 
-describe('GET /health（S01 骨架验收）', () => {
+describe('GET /api/v1/health（S01 骨架验收）', () => {
   let app: NestFastifyApplication;
 
   beforeAll(async () => {
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+    await app.register(cookie);
+    app.setGlobalPrefix('api/v1');
     await app.init();
   });
   afterAll(async () => {
@@ -18,7 +23,7 @@ describe('GET /health（S01 骨架验收）', () => {
   it('返回 200 且响应体为统一格式 { code: 0, message, data }', async () => {
     const res = await app.getHttpAdapter().getInstance().inject({
       method: 'GET',
-      url: '/health',
+      url: '/api/v1/health',
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
