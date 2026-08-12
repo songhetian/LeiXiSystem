@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROTOTYPE · 算薪试算流程交互验证</title>
+<style>
+  :root {
+    --primary: #165DFF; --success: #00B42A; --warning: #FF7D00;
+    --danger: #F53F3F; --bg: #f5f6f8; --card: #fff; --border: #e5e6eb;
+    --text: #1d2129; --muted: #86909c; --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  .topbar { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  .topbar h1 { font-size: 16px; font-weight: 500; }
+  .tag { padding: 2px 10px; border-radius: 4px; font-size: 12px; background: #e8f3ff; color: var(--primary); }
+  .tag.draft { background: #f0f0f0; color: #4e5969; }
+  .tag.confirmed { background: #e8ffea; color: var(--success); }
+  .tag.published { background: #e8f3ff; color: var(--primary); }
+  .container { max-width: 960px; margin: 20px auto; padding: 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 400; background: #fafafa; }
+  tr.row-diff { background: #fff9e6; }
+  tr.row-diff td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+  .highlight { color: var(--danger); }
+  .money { font-variant-numeric: tabular-nums; }
+  .btn { border: 1px solid var(--border); background: var(--card); padding: 6px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .steps { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .step { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); text-align: center; background: var(--card); color: var(--muted); font-size: 13px; }
+  .step.active { border-color: var(--primary); color: var(--primary); font-weight: 500; }
+  .step.done { border-color: var(--success); color: var(--success); }
+  .detail-box { background: #fafafa; border-radius: 4px; padding: 12px; font-size: 12px; }
+  .detail-box div { display: flex; justify-content: space-between; padding: 4px 0; }
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1d2129; color: #fff; padding: 10px 20px; border-radius: 4px; font-size: 13px; opacity: 0; transition: opacity .3s; z-index: 99; }
+  .toast.show { opacity: 1; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .check-label { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>算薪批次 · 2026-07</h1>
+  <span id="statusTag" class="tag draft">草稿</span>
+  <span style="color:var(--muted);font-size:12px">PROTOTYPE — 仅验证交互流程，非生产代码</span>
+</div>
+
+<div class="container">
+  <div class="steps">
+    <div class="step active" id="step1">① 试算核对</div>
+    <div class="step" id="step2">② 抽检确认（3 人）</div>
+    <div class="step" id="step3">③ 发布工资条</div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0">试算明细（差异高亮 = 与上月偏差 &gt;5%）</h2>
+      <div>
+        <button class="btn primary" id="btnConfirm" disabled>确认批次</button>
+        <button class="btn" id="btnExport">导出试算表</button>
+      </div>
+    </div>
+    <table id="payTable">
+      <thead>
+        <tr><th style="width:40px"></th><th>员工</th><th>基本工资</th><th>加班费</th><th>缺勤扣款</th><th>全勤奖</th><th>餐补</th><th>社保代扣</th><th style="text-align:right">合计</th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="checkCard" style="display:none">
+    <h2>人工抽检确认（ADR-0011 / spec 5.3：确认前必须抽检 3 人）</h2>
+    <div id="checkBoxes"></div>
+    <div style="margin-top:12px">
+      <button class="btn success" id="btnPublish" disabled>确认抽检并发布</button>
+      <button class="btn" id="btnBack">返回试算</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- 原型数据（写死，仅演示）----
+const employees = [
+  { name: '张三', base: 5000, ot: 431.03, absent: 0, bonus: 200, meal: 220, social: -500, diff: 0.3 },
+  { name: '李四', base: 6000, ot: 551.72, absent: -545.45, bonus: 0, meal: 200, social: -500, diff: 12.4 },
+  { name: '王五', base: 4000, ot: 0, absent: -857.14, bonus: 0, meal: 110, social: -500, diff: 8.1 },
+  { name: '赵六', base: 5500, ot: 287.36, absent: 0, bonus: 200, meal: 220, social: -500, diff: 1.2 },
+  { name: '钱七', base: 4800, ot: 0, absent: 0, bonus: 200, meal: 210, social: -500, diff: 0 },
+  { name: '孙八', base: 5200, ot: 172.41, absent: -236.36, bonus: 0, meal: 180, social: -500, diff: 6.8 },
+];
+employees.forEach(e => e.total = Math.round((e.base + e.ot + e.absent + e.bonus + e.meal + e.social) * 100) / 100);
+const checked = new Set();
+let phase = 1; // 1 试算 2 抽检 3 已发布
+
+// ---- 渲染 ----
+function render() {
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = employees.map((e, i) => `
+    <tr class="${e.diff > 5 ? 'row-diff' : ''}">
+      <td><input type="checkbox" class="chk" data-i="${i}" ${checked.has(i) ? 'checked' : ''} ${phase > 1 ? '' : 'disabled'}></td>
+      <td>${e.name}${e.diff > 5 ? ' <span style="color:var(--warning)">▲ 偏差' + e.diff + '%</span>' : ''}</td>
+      <td class="money">${e.base.toFixed(2)}</td>
+      <td class="money">${e.ot.toFixed(2)}</td>
+      <td class="money">${e.absent < 0 ? '<span class="highlight">' + e.absent.toFixed(2) + '</span>' : '—'}</td>
+      <td class="money">${e.bonus ? e.bonus.toFixed(2) : '—'}</td>
+      <td class="money">${e.meal.toFixed(2)}</td>
+      <td class="money">${e.social.toFixed(2)}</td>
+      <td class="money" style="text-align:right;font-weight:500">${e.total.toFixed(2)}</td>
+    </tr>`).join('');
+
+  // 状态条
+  document.getElementById('step1').className = 'step' + (phase >= 1 ? (phase > 1 ? ' done' : ' active') : '');
+  document.getElementById('step2').className = 'step' + (phase >= 2 ? (phase > 2 ? ' done' : ' active') : '');
+  document.getElementById('step3').className = 'step' + (phase >= 3 ? ' active' : '');
+  const tag = document.getElementById('statusTag');
+  tag.className = 'tag ' + (phase === 1 ? 'draft' : phase === 2 ? 'confirmed' : 'published');
+  tag.textContent = phase === 1 ? '草稿' : phase === 2 ? '已确认' : '已发布';
+
+  // 按钮
+  document.getElementById('btnConfirm').disabled = phase !== 1;
+  document.getElementById('btnExport').disabled = phase !== 1;
+  document.getElementById('checkCard').style.display = phase === 2 ? 'block' : 'none';
+
+  // 抽检面板
+  const cb = document.getElementById('checkBoxes');
+  if (phase === 2) {
+    cb.innerHTML = employees.map((e, i) => `<label class="check-label"><input type="checkbox" data-i="${i}" ${checked.has(i) ? 'checked' : ''}>${e.name}</label>`).join('');
+    document.getElementById('btnPublish').disabled = checked.size < 3;
+    document.querySelectorAll('#checkCard input').forEach(inp => inp.onchange = (ev) => {
+      const i = +ev.target.dataset.i;
+      ev.target.checked ? checked.add(i) : checked.delete(i);
+      document.getElementById('btnPublish').disabled = checked.size < 3;
+      toast(`已抽检 ${checked.size}/3 人`);
+    });
+  }
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+// ---- 交互 ----
+document.getElementById('btnConfirm').onclick = () => {
+  phase = 2; render();
+  toast('进入抽检确认：请勾选 3 名员工人工核对');
+};
+document.getElementById('btnBack').onclick = () => { phase = 1; checked.clear(); render(); };
+document.getElementById('btnPublish').onclick = () => {
+  phase = 3; render();
+  toast('已发布：6 名员工工资条已生成并通知');
+};
+document.getElementById('btnExport').onclick = () => toast('（原型）导出试算表 Excel');
+// 行点击展开明细（模拟 ModalForm/明细）
+document.getElementById('tbody').addEventListener('click', (ev) => {
+  const tr = ev.target.closest('tr'); if (!tr) return;
+  const name = tr.children[1].textContent.replace(/[▲\s\d%偏差]/g, '').trim();
+  const e = employees.find(x => x.name === name); if (!e) return;
+  const isOpen = tr.nextElementSibling && tr.nextElementSibling.classList.contains('detail-row');
+  if (isOpen) { tr.nextElementSibling.remove(); return; }
+  const det = document.createElement('tr'); det.className = 'detail-row';
+  det.innerHTML = `<td colspan="9"><div class="detail-box">
+    ${[['基本工资', e.base], ['加班费', e.ot], ['缺勤扣款', e.absent], ['全勤奖', e.bonus], ['餐补', e.meal], ['社保代扣', e.social]]
+      .map(([k, v]) => `<div><span>${k}</span><span class="money">${v === 0 ? '—' : v.toFixed(2)}</span></div>`).join('')}
+    <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;font-weight:500"><span>合计</span><span class="money">${e.total.toFixed(2)}</span></div>
+  </div></td>`;
+  tr.after(det);
+});
+// 试算阶段复选框禁用
+document.querySelectorAll('#payTable .chk').forEach(inp => inp.onchange = (ev) => {
+  const i = +ev.target.dataset.i;
+  ev.target.checked ? checked.add(i) : checked.delete(i);
+  toast(`已勾选 ${checked.size} 人（试算阶段勾选仅演示）`);
+});
+
+render();
+</script>
+</body>
+</html>
