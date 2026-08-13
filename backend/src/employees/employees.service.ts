@@ -1,11 +1,15 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { DataScopeService } from '../common/data-scope.service';
 import { Employee } from '@prisma/client';
 
-// 员工聚合根服务（S03）：CRUD + 离职状态机 + 部门数据隔离（ADR-0010）
+// 员工聚合根服务（S03）：CRUD + 离职状态机 + 部门数据隔离（ADR-0010，经 DataScopeService 统一注入）
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dataScope: DataScopeService,
+  ) {}
 
   async create(dto: any) {
     const exists = await this.prisma.employee.findUnique({ where: { employeeNo: dto.employeeNo } });
@@ -74,30 +78,8 @@ export class EmployeesService {
     return employee;
   }
 
-  // ADR-0010：可见部门范围（admin/hr 全量；否则本人所属部门 + 子部门）
-  private async visibleScope(userId: number): Promise<{ all: boolean; ids: number[] }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        roles: { include: { role: true } },
-        departments: true,
-      },
-    });
-    const roleCodes = user?.roles.map((ur) => ur.role.code) ?? [];
-    if (roleCodes.some((c) => c === 'admin' || c === 'hr')) return { all: true, ids: [] };
-
-    const deptIds = user?.departments.map((d) => d.departmentId) ?? [];
-    const allIds = [...deptIds];
-    let frontier = deptIds;
-    while (frontier.length > 0) {
-      const children = await this.prisma.department.findMany({
-        where: { parentId: { in: frontier } },
-        select: { id: true },
-      });
-      const ids = children.map((c) => c.id);
-      allIds.push(...ids);
-      frontier = ids;
-    }
-    return { all: false, ids: allIds };
+  // ADR-0010：可见部门范围（统一经 DataScopeService）
+  private async visibleScope(userId: number) {
+    return this.dataScope.visibleScope(userId);
   }
 }

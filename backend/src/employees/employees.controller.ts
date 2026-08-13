@@ -15,12 +15,12 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { employeeNoSchema } from '@lei/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { EmployeesService } from './employees.service';
 
-const employeeNoSchema = z.string().regex(/^[A-Za-z0-9-]{2,20}$/, '工号格式错误');
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误').optional().or(z.literal('').transform(() => undefined));
 
 const createSchema = z.object({

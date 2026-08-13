@@ -8,7 +8,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@lei/shared": ["../../packages/shared/src"]
+    }
   },
   "include": ["src/**/*", "tests/**/*"]
 }

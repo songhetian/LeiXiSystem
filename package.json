@@ -7,8 +7,8 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "dev:web": "pnpm --filter @lei/web dev",
-    "dev:server": "pnpm --filter @lei/server dev"
+    "dev:frontend": "pnpm --filter @lei/frontend dev",
+    "dev:backend": "pnpm --filter @lei/backend dev"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

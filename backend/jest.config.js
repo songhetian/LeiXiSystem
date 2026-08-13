@@ -6,6 +6,9 @@ module.exports = {
   transform: {
     '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },
+  moduleNameMapper: {
+    '^@lei/shared$': '<rootDir>/../../packages/shared/src/index.ts',
+  },
   testEnvironment: 'node',
   testTimeout: 20000,
 };
