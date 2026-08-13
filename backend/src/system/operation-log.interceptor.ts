@@ -1,0 +1,122 @@
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { OperationLogService } from './operation-log.service';
+
+const WRITE_METHODS = ['POST', 'PUT', 'DELETE', 'PATCH'];
+const LOG_MODULE_MAP: Record<string, string> = {
+  'system': '系统管理',
+  'employees': '员工管理',
+  'attendance': '考勤管理',
+  'payroll': '薪资管理',
+  'payslips': '工资条',
+  'knowledge': '知识库',
+  'leave-records': '请假管理',
+  'overtime-records': '加班管理',
+  'shifts': '班次管理',
+  'schedules': '排班管理',
+  'auth': '认证',
+};
+
+@Injectable()
+export class OperationLogInterceptor implements NestInterceptor {
+  constructor(private readonly operationLogService: OperationLogService) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    const method = request.method;
+
+    if (!WRITE_METHODS.includes(method)) {
+      return next.handle();
+    }
+
+    const url = request.url || request.raw?.url;
+    const path = url?.split('?')[0] || '';
+    const module = this.detectModule(path);
+
+    if (!module) {
+      return next.handle();
+    }
+
+    const user = request.user;
+    const action = this.detectAction(method, path);
+    const params = request.body ? JSON.stringify(request.body).slice(0, 2000) : undefined;
+    const ip = request.ip || request.headers?.['x-forwarded-for'] || request.raw?.ip;
+
+    return next.handle().pipe(
+      tap({
+        next: (data: any) => {
+          this.operationLogService.createLog({
+            userId: user?.id,
+            username: user?.username,
+            module,
+            action,
+            method,
+            url: path,
+            ip: Array.isArray(ip) ? ip[0] : ip,
+            params,
+            status: 'success',
+          }).catch(() => {});
+        },
+        error: (err) => {
+          this.operationLogService.createLog({
+            userId: user?.id,
+            username: user?.username,
+            module,
+            action,
+            method,
+            url: path,
+            ip: Array.isArray(ip) ? ip[0] : ip,
+            params,
+            result: err?.message?.slice(0, 500),
+            status: 'failed',
+          }).catch(() => {});
+        },
+      }),
+    );
+  }
+
+  private detectModule(path: string): string | null {
+    const segments = path.replace(/^\/api\/v1\//, '').split('/');
+    const first = segments[0];
+    return LOG_MODULE_MAP[first] || null;
+  }
+
+  private detectAction(method: string, path: string): string {
+    const segments = path.replace(/^\/api\/v1\//, '').split('/');
+    const actionMap: Record<string, string> = {
+      POST: '创建',
+      PUT: '修改',
+      DELETE: '删除',
+      PATCH: '更新',
+    };
+    const action = actionMap[method] || method;
+    const resource = segments[1] || '';
+    if (path.includes('/publish')) return '发布';
+    if (path.includes('/confirm')) return '确认';
+    if (path.includes('/view')) return '查看';
+    if (resource === 'login') return '登录';
+    if (segments.length >= 3 && /^\d+$/.test(segments[2])) {
+      return `${action}${this.getResourceName(segments[1])}`;
+    }
+    return `${action}${this.getResourceName(segments[1] || segments[0])}`;
+  }
+
+  private getResourceName(segment: string): string {
+    const map: Record<string, string> = {
+      broadcasts: '公告',
+      users: '用户',
+      roles: '角色',
+      employees: '员工',
+      categories: '分类',
+      articles: '文章',
+      attachments: '附件',
+    };
+    return map[segment] || segment;
+  }
+}

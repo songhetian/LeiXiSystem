@@ -5,3 +5,6 @@ dist/
 *.log
 .env
 .DS_Store
+
+# 生成的报表产物（测试/定时任务导出）
+backend/exports/

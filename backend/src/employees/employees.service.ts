@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { Employee } from '@prisma/client';
@@ -50,7 +50,8 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException({ code: 1002, message: '员工不存在' });
     if (!scope.all && !scope.ids.includes(employee.departmentId)) {
-      throw new NotFoundException({ code: 1002, message: '员工不存在' });
+      // ADR-0010：员工存在但不在调用者数据范围内 → 行级越权，返回 5003（非 1002）
+      throw new ForbiddenException({ code: 5003, message: '无权限访问该数据' });
     }
     return employee;
   }

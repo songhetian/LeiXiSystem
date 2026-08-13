@@ -11,7 +11,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@lei/shared": ["../../packages/shared/src"]
+      "@lei/shared": ["../shared/src"]
     }
   },
   "include": ["src/**/*", "tests/**/*"]

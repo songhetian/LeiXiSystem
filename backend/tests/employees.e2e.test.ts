@@ -246,4 +246,19 @@ describe('S03 · 员工档案（/api/v1/employees）', () => {
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.body).code).toBe(5003);
   });
+
+  // ADR-0010 行级越权：有 employee:list 权限但数据范围不含目标 → 应 5003，而非 1002
+  it('部门经理访问非管辖员工详情 → 403 + 5003（ADR-0010 行级越权）', async () => {
+    const adminCookie = await login(app, 'admin');
+    const listRes = await inject(app, { method: 'GET', url: '/api/v1/employees', headers: { cookie: adminCookie } });
+    const target = JSON.parse(listRes.body).data.list.find((e: any) => e.employeeNo === 'E001'); // 张三，技术部，不在经理(客服部)范围内
+    const managerCookie = await login(app, 'manager');
+    const res = await inject(app, {
+      method: 'GET',
+      url: `/api/v1/employees/${target.id}`,
+      headers: { cookie: managerCookie },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe(5003);
+  });
 });

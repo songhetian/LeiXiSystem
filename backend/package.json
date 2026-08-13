@@ -22,7 +22,8 @@
     "exceljs": "^4.4.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@lei/shared": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
