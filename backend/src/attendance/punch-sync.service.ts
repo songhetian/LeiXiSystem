@@ -72,7 +72,13 @@ export class PunchSyncService {
           where: { deviceNo: device.deviceNo },
         });
         const lastSyncTime = syncState?.lastSyncTime || null;
-        const newRecords = await this.syncFromDevice(device.deviceNo, device.ipAddress, device.port, lastSyncTime);
+        const newRecords = await this.syncFromDevice(
+          device.deviceNo,
+          device.ipAddress,
+          device.port,
+          lastSyncTime,
+          device.apiKey ?? undefined,
+        );
         totalNew += newRecords.length;
       } catch (e: any) {
         this.logger.error(`同步设备 ${device.deviceNo} 失败: ${e.message}`);
@@ -96,8 +102,9 @@ export class PunchSyncService {
     ipAddress: string,
     port = 80,
     lastSyncTime: Date | null = null,
+    apiKey?: string,
   ): Promise<XFaceRecord[]> {
-    const apiResponse = await this.fetchFromDevice(ipAddress, port, lastSyncTime);
+    const apiResponse = await this.fetchFromDevice(ipAddress, port, lastSyncTime, apiKey);
     const records = parseXFaceRecords(apiResponse);
 
     const validNos = await this.getValidEmployeeNos(records.map(r => r.employeeNo));
@@ -147,9 +154,15 @@ export class PunchSyncService {
     return newRecords;
   }
 
-  async fetchFromDevice(ipAddress: string, port: number, lastSyncTime: Date | null): Promise<any> {
+  async fetchFromDevice(
+    ipAddress: string,
+    port: number,
+    lastSyncTime: Date | null,
+    apiKey?: string,
+  ): Promise<any> {
     const cursor = buildLastSyncTimeCursor(lastSyncTime);
-    const url = `http://${ipAddress}:${port}/api/attendance/getRecord?lastSyncTime=${encodeURIComponent(cursor)}`;
+    const keyParam = apiKey ? `&key=${encodeURIComponent(apiKey)}` : '';
+    const url = `http://${ipAddress}:${port}/api/attendance/getRecord?lastSyncTime=${encodeURIComponent(cursor)}${keyParam}`;
 
     try {
       const response = await fetch(url, {
