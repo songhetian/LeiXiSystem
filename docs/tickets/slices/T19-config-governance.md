@@ -1,7 +1,7 @@
 # T19 — 配置治理（env 校验 + .env.example + 前端 dev 代理）
 
 **日期**：2026-08-13
-**状态**：🔧 进行中
+**状态**：✅ 完成（已提交 `031ca94`）
 **依赖**：zod@3.25.76（backend 直接依赖）、@nestjs/config@4
 
 ## 背景（来自 config-integration-review P0）
