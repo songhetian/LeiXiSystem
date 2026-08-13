@@ -20,6 +20,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { EmployeesService } from './employees.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误').optional().or(z.literal('').transform(() => undefined));
 
@@ -56,7 +57,7 @@ export class EmployeesController {
       if (issue?.path[0] === 'phone') {
         throw new UnprocessableEntityException({ code: 1003, message: '手机号格式错误' });
       }
-      throw new BadRequestException({ code: 422, message: issue?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: issue?.message ?? '参数校验失败' });
     }
     const data = { ...parsed.data, phone: parsed.data.phone ?? null };
     const employee = await this.employeesService.create(data);
@@ -86,7 +87,7 @@ export class EmployeesController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 422, message: '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const employee = await this.employeesService.update(id, parsed.data);
     return { code: 0, message: 'ok', data: employee };

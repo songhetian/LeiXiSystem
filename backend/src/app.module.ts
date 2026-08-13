@@ -4,6 +4,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { DataScopeModule } from './common/data-scope.module';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
 import { EmployeesModule } from './employees/employees.module';
@@ -23,6 +24,7 @@ import { NotificationModule } from './notification/notification.module';
     EventEmitterModule.forRoot(),
     PrismaModule,
     DataScopeModule,
+    CommonModule,
     AuthModule,
     EmployeesModule,
     AttendanceModule,
