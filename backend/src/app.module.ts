@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfigModule } from '@nestjs/config';
 import { configModuleOptions } from './common/config/config.options';
+import { RedisModule } from './common/redis/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DataScopeModule } from './common/data-scope.module';
 import { CommonModule } from './common/common.module';
@@ -26,6 +27,7 @@ import { NotificationModule } from './notification/notification.module';
     PrismaModule,
     DataScopeModule,
     CommonModule,
+    RedisModule,
     AuthModule,
     EmployeesModule,
     AttendanceModule,

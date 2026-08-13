@@ -64,6 +64,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ERROR_CODES.DATA_NO_PERMISSION]: '无权限访问该数据',
   [ERROR_CODES.KNOWLEDGE_CATEGORY_NOT_FOUND]: '分类不存在',
   [ERROR_CODES.KNOWLEDGE_ARTICLE_NOT_FOUND]: '文章不存在',
+  [ERROR_CODES.RATE_LIMIT_EXCEEDED]: '操作过于频繁，请稍后再试',
 
   // 系统-公告 6001~6099
   [ERROR_CODES.BROADCAST_NOT_FOUND]: '公告不存在',

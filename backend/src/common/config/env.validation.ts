@@ -10,6 +10,8 @@ export const envSchema = z.object({
     .string()
     .refine((v) => v.startsWith('mysql://'), 'DATABASE_URL 必须是 mysql:// 协议'),
   JWT_SECRET: z.string().min(8, 'JWT_SECRET 至少 8 位'),
+  // 可选：Redis（缓存/会话/限流，缺失时降级 no-op）
+  REDIS_URL: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
