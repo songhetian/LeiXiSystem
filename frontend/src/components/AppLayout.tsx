@@ -1,6 +1,7 @@
 'use client';
 
 import { Layout } from '@arco-design/web-react';
+import { useRouter } from 'next/navigation';
 import AppSider from './AppSider';
 import AppHeader from './AppHeader';
 import ProtectedRoute from './ProtectedRoute';
@@ -14,16 +15,31 @@ export interface AppLayoutProps {
   onMenuClick?: (key: string) => void;
 }
 
+const MENU_ROUTES: Record<string, string> = {
+  dashboard: '/',
+  settings: '/settings',
+};
+
 export default function AppLayout({
   children,
   title,
   activeMenu = 'dashboard',
   onMenuClick,
 }: AppLayoutProps) {
+  const router = useRouter();
+
+  const handleMenuClick = (key: string) => {
+    const route = MENU_ROUTES[key];
+    if (route) {
+      router.push(route);
+    }
+    onMenuClick?.(key);
+  };
+
   return (
     <ProtectedRoute>
       <Layout style={{ minHeight: '100vh' }}>
-        <AppSider activeKey={activeMenu} onMenuClick={onMenuClick} />
+        <AppSider activeKey={activeMenu} onMenuClick={handleMenuClick} />
         <Layout>
           <AppHeader title={title} />
           <Content style={styles.content}>{children}</Content>

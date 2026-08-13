@@ -67,6 +67,22 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// ===== 系统参数（KV 表，T23 设置界面） =====
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  group       String   @default("general") @map("group") @db.VarChar(50)
+  key         String   @unique @map("key") @db.VarChar(100)
+  value       String   @db.Text
+  label       String?  @map("label") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  isPublic    Boolean  @default(false) @map("is_public")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   Int?     @map("updated_by")
+
+  @@index([group])
+  @@map("system_setting")
+}
+
 // ===== S03 · 组织与员工 =====
 
 model Department {

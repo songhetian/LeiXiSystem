@@ -38,7 +38,7 @@ jest.mock('@arco-design/web-react', () => {
 jest.mock('@arco-design/web-react/icon', () => ({
   IconDashboard: () => <span data-testid="icon-dashboard" />,
   IconCalendar: () => <span data-testid="icon-calendar" />,
-  IconMoneyCircle: () => <span data-testid="icon-money" />,
+  IconIdcard: () => <span data-testid="icon-idcard" />,
   IconUser: () => <span data-testid="icon-user" />,
   IconFile: () => <span data-testid="icon-file" />,
   IconMore: () => <span data-testid="icon-more">more</span>,

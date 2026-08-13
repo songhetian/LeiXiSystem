@@ -18,6 +18,7 @@ import { ApprovalModule } from './approval/approval.module';
 import { ReimbursementModule } from './reimbursement/reimbursement.module';
 import { ReportsModule } from './reports/reports.module';
 import { NotificationModule } from './notification/notification.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { NotificationModule } from './notification/notification.module';
     ReimbursementModule,
     ReportsModule,
     NotificationModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
 })

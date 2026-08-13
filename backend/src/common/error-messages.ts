@@ -78,6 +78,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   // 通知 7001~7099
   [ERROR_CODES.NOTIFICATION_NOT_FOUND]: '通知不存在',
   [ERROR_CODES.NOTIFICATION_NO_PERMISSION]: '无权限操作',
+  [ERROR_CODES.SETTING_NOT_FOUND]: '设置项不存在',
 
   // 通用 5000
   [ERROR_CODES.INTERNAL_ERROR]: '服务器内部错误',

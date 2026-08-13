@@ -95,6 +95,9 @@ export const ERROR_CODES = {
   NOTIFICATION_NOT_FOUND: 7001,
   NOTIFICATION_NO_PERMISSION: 7002,
 
+  // 系统设置 7201~7299
+  SETTING_NOT_FOUND: 7201,
+
   // 通用 5000（跨域服务器内部错误）
   INTERNAL_ERROR: 5000,
 } as const;

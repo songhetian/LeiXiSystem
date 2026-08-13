@@ -1,7 +1,7 @@
 'use client';
 
 import { Layout, Menu, Typography } from '@arco-design/web-react';
-import { IconDashboard, IconCalendar, IconMoneyCircle, IconUser, IconFile } from '@arco-design/web-react/icon';
+import { IconDashboard, IconCalendar, IconIdcard, IconUser, IconFile } from '@arco-design/web-react/icon';
 
 const Sider = Layout.Sider;
 const MenuItem = Menu.Item;
@@ -9,13 +9,15 @@ const MenuItem = Menu.Item;
 export interface MenuItemConfig {
   key: string;
   label: string;
+  icon?: React.ReactNode;
 }
 
 const defaultMenuItems: MenuItemConfig[] = [
-  { key: 'dashboard', label: '工作台' },
-  { key: 'attendance', label: '考勤' },
-  { key: 'payroll', label: '薪资' },
-  { key: 'employee', label: '员工' },
+  { key: 'dashboard', label: '工作台', icon: <IconDashboard /> },
+  { key: 'attendance', label: '考勤', icon: <IconCalendar /> },
+  { key: 'payroll', label: '薪资', icon: <IconIdcard /> },
+  { key: 'employee', label: '员工', icon: <IconUser /> },
+  { key: 'settings', label: '设置', icon: <IconFile /> },
 ];
 
 export interface AppSiderProps {
@@ -42,7 +44,16 @@ export default function AppSider({
         onClickMenuItem={(key) => onMenuClick?.(key)}
       >
         {menuItems.map((item) => (
-          <MenuItem key={item.key}>{item.label}</MenuItem>
+          <MenuItem key={item.key}>
+            {item.icon ? (
+              <span
+                style={{ marginRight: 8, display: 'inline-flex', verticalAlign: 'middle' }}
+              >
+                {item.icon}
+              </span>
+            ) : null}
+            {item.label}
+          </MenuItem>
         ))}
       </Menu>
     </Sider>
