@@ -154,7 +154,7 @@ export default function PunchDevicesPage() {
   ];
 
   return (
-    <AppLayout title="打卡设备管理" activeMenu="attendance">
+    <AppLayout title="打卡设备管理" activeMenu="attendance-devices">
       <PageContainer title="打卡设备管理">
         <ProTable
           columns={columns}

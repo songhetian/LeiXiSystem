@@ -111,7 +111,7 @@ describe('SchedulesPage', () => {
   describe('正常用例', () => {
     it('renders with correct menu and title', () => {
       render(<SchedulesPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance');
+      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance-schedules');
       expect(screen.getByTestId('page-title')).toHaveTextContent('排班管理');
     });
 

@@ -16,6 +16,12 @@ jest.mock('@arco-design/web-react', () => {
       {children}
     </div>
   );
+  Menu.SubMenu = ({ children, title }: any) => (
+    <div role="menu-group">
+      <div>{title}</div>
+      {children}
+    </div>
+  );
 
   const Layout = ({ children, style }: any) => <div data-testid="layout" style={style}>{children}</div>;
   Layout.Header = ({ children, style }: any) => <header data-testid="layout-header" style={style}>{children}</header>;
@@ -40,7 +46,11 @@ jest.mock('@arco-design/web-react/icon', () => ({
   IconCalendar: () => <span data-testid="icon-calendar" />,
   IconIdcard: () => <span data-testid="icon-idcard" />,
   IconUser: () => <span data-testid="icon-user" />,
+  IconCheckCircle: () => <span data-testid="icon-check" />,
+  IconSafe: () => <span data-testid="icon-safe" />,
+  IconBook: () => <span data-testid="icon-book" />,
   IconFile: () => <span data-testid="icon-file" />,
+  IconSettings: () => <span data-testid="icon-settings" />,
   IconMore: () => <span data-testid="icon-more">more</span>,
 }));
 
@@ -65,11 +75,21 @@ jest.mock('@/components/ProtectedRoute', () => ({
 describe('AppSider', () => {
   it('renders logo and menu items', () => {
     render(<AppSider />);
-    expect(screen.getByText(/雷犀客服管理系统/i)).toBeInTheDocument();
-    expect(screen.getByText(/工作台/i)).toBeInTheDocument();
-    expect(screen.getByText(/考勤/i)).toBeInTheDocument();
-    expect(screen.getByText(/薪资/i)).toBeInTheDocument();
-    expect(screen.getByText(/员工/i)).toBeInTheDocument();
+    expect(screen.getByText(/雷犀管理系统/i)).toBeInTheDocument();
+    expect(screen.getByText('工作台')).toBeInTheDocument();
+    expect(screen.getByText('考勤')).toBeInTheDocument();
+    expect(screen.getByText('薪资')).toBeInTheDocument();
+    expect(screen.getByText('员工')).toBeInTheDocument();
+    expect(screen.getByText('设置')).toBeInTheDocument();
+  });
+
+  it('renders submenu children (班次/排班/日报/休假/打卡设备)', () => {
+    render(<AppSider />);
+    expect(screen.getByText(/班次管理/i)).toBeInTheDocument();
+    expect(screen.getByText(/排班管理/i)).toBeInTheDocument();
+    expect(screen.getByText(/考勤日报/i)).toBeInTheDocument();
+    expect(screen.getByText(/休假管理/i)).toBeInTheDocument();
+    expect(screen.getByText(/打卡设备/i)).toBeInTheDocument();
   });
 
   it('passes activeKey to menu selectedKeys', () => {

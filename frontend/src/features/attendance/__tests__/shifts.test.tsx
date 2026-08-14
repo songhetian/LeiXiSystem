@@ -134,7 +134,7 @@ describe('ShiftsPage', () => {
   describe('正常用例', () => {
     it('renders inside AppLayout with attendance menu', () => {
       render(<ShiftsPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance');
+      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance-shifts');
     });
 
     it('renders PageContainer with title 班次管理', () => {

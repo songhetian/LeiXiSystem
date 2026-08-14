@@ -368,6 +368,10 @@ export const attendanceApi = {
   recalcDaily(params: RecalcParams): Promise<RecalcResult> {
     return request.post('/attendance/daily/recalc', params);
   },
+  // 打卡导入（模拟打卡/设备数据导入，CSV 表头：工号,打卡时间,设备号）
+  importPunchLogs(csv: string): Promise<{ code: number; message?: string; data?: { count?: number } }> {
+    return request.post('/attendance/punch/import', { csv });
+  },
   // 月报
   getMonthlyList(params: MonthlyListParams = {}): Promise<MonthlyListResult> {
     return request.get('/attendance/monthly', { params });

@@ -289,7 +289,7 @@ export default function VacationPage() {
   ];
 
   return (
-    <AppLayout title="休假管理" activeMenu="attendance">
+    <AppLayout title="休假管理" activeMenu="attendance-vacation">
       <PageContainer title="休假管理">
         <Tabs activeTab={activeTab} onChange={setActiveTab}>
           <TabPane key="balance" title="休假额度">

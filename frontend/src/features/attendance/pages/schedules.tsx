@@ -198,7 +198,7 @@ export default function SchedulesPage() {
   ];
 
   return (
-    <AppLayout title="排班管理" activeMenu="attendance">
+    <AppLayout title="排班管理" activeMenu="attendance-schedules">
       <PageContainer title="排班管理">
         <ProTable
           columns={columns}

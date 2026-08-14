@@ -17,6 +17,18 @@ export interface AppLayoutProps {
 
 const MENU_ROUTES: Record<string, string> = {
   dashboard: '/',
+  employee: '/employees',
+  'attendance-shifts': '/attendance/shifts',
+  'attendance-schedules': '/attendance/schedules',
+  'attendance-daily': '/attendance/daily',
+  'attendance-vacation': '/attendance/vacation',
+  'attendance-devices': '/attendance/devices',
+  'approval-todo': '/approval/todo',
+  'payroll-runs': '/payroll/runs',
+  'my-payslips': '/payroll/my-payslips',
+  'my-reimbursement': '/expense/my',
+  knowledge: '/knowledge',
+  system: '/system/broadcasts',
   settings: '/settings',
 };
 

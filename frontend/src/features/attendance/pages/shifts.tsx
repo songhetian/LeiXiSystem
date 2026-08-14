@@ -148,7 +148,7 @@ export default function ShiftsPage() {
   ];
 
   return (
-    <AppLayout title="班次管理" activeMenu="attendance">
+    <AppLayout title="班次管理" activeMenu="attendance-shifts">
       <PageContainer title="班次管理">
         <ProTable
           columns={columns}

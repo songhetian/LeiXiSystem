@@ -102,6 +102,27 @@ export default function AttendanceDailyPage() {
     }
   };
 
+  // 模拟打卡：生成一条当前时间的打卡记录（等价于打卡机推一条数据）
+  const handleDemoPunch = async () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(
+      now.getHours(),
+    )}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const csv = `工号,打卡时间,设备号\nE001,${ts},DEMO-001`;
+    try {
+      const result = await attendanceApi.importPunchLogs(csv);
+      if (result.code === 0) {
+        Message.success(`模拟打卡成功（E001 ${ts}），正在重算日报...`);
+        await handleRecalc();
+      } else {
+        Message.error(result.message || '模拟打卡失败');
+      }
+    } catch (e) {
+      Message.error('模拟打卡失败');
+    }
+  };
+
   const columns: ProTableColumn[] = [
     { title: '工号', dataIndex: 'employeeNo', width: 100 },
     { title: '姓名', dataIndex: 'employeeName', width: 100 },
@@ -118,7 +139,8 @@ export default function AttendanceDailyPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'recalc', label: '重新计算', type: 'primary', onClick: handleRecalc },
+    { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch },
+    { key: 'recalc', label: '重新计算', onClick: handleRecalc },
   ];
 
   return (
