@@ -2,3 +2,12 @@ packages:
   - "backend"
   - "frontend"
   - "shared"
+
+# pnpm 10 安全策略：放行需要 postinstall 构建脚本的依赖（Docker 构建必需）
+onlyBuiltDependencies:
+  - "@nestjs/core"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "esbuild"
+  - "msw"
+  - "prisma"

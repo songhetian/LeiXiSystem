@@ -37,8 +37,8 @@ export interface KnowledgeAttachment {
 
 export interface PreviewUrlResult {
   previewUrl: string;
-  token: string;
-  expiresAt: string;
+  expiresAt: number;
+  fileName: string;
 }
 
 export interface CategoryListParams {
@@ -138,9 +138,9 @@ export const knowledgeApi = {
     return request.get(`/knowledge/articles/${articleId}/attachments`);
   },
 
-  getPreviewUrl(fileUrl: string): Promise<DetailResult<PreviewUrlResult>> {
+  getPreviewUrl(attachmentId: number): Promise<DetailResult<PreviewUrlResult>> {
     return request.get('/knowledge/preview-url', {
-      params: { fileUrl },
+      params: { attachmentId },
     });
   },
 };

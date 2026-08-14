@@ -20,6 +20,11 @@ export default function KnowledgeListPage() {
   const [currentArticle, setCurrentArticle] = useState<KnowledgeArticle | null>(null);
   const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
 
+  // KKFileView 在线预览（iframe 内嵌）
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('');
+
   const fetchCategories = async () => {
     try {
       const result = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
@@ -113,9 +118,11 @@ export default function KnowledgeListPage() {
 
   const handlePreview = async (attachment: KnowledgeAttachment) => {
     try {
-      const result = await knowledgeApi.getPreviewUrl(attachment.fileUrl);
+      const result = await knowledgeApi.getPreviewUrl(attachment.id);
       if (result.code === 0 && result.data) {
-        window.open(result.data.previewUrl, '_blank');
+        setPreviewUrl(result.data.previewUrl);
+        setPreviewFileName(result.data.fileName || attachment.fileName);
+        setPreviewVisible(true);
       } else {
         Message.error(result.message || '获取预览地址失败');
       }
@@ -235,6 +242,21 @@ export default function KnowledgeListPage() {
           style={{ width: 720 }}
         >
           {renderDetailContent()}
+        </Modal>
+
+        {/* KKFileView 在线预览（iframe 内嵌，URL 由后端签发签名时效） */}
+        <Modal
+          title={previewFileName || '附件预览'}
+          visible={previewVisible}
+          onCancel={() => setPreviewVisible(false)}
+          footer={null}
+          style={{ width: 960 }}
+        >
+          <iframe
+            src={previewUrl}
+            title={previewFileName}
+            style={{ width: '100%', height: 560, border: '1px solid #e5e6eb', borderRadius: 4 }}
+          />
         </Modal>
       </PageContainer>
     </AppLayout>

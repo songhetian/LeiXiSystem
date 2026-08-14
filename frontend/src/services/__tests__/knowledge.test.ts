@@ -215,7 +215,7 @@ describe('knowledgeApi', () => {
   });
 
   describe('预览 - 正常用例', () => {
-    it('getPreviewUrl sends GET request with fileUrl', async () => {
+    it('getPreviewUrl sends GET request with attachmentId', async () => {
       mockedRequest.get.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
@@ -225,9 +225,9 @@ describe('knowledgeApi', () => {
           expiresAt: '2026-08-13T11:00:00+08:00',
         },
       });
-      const result = await knowledgeApi.getPreviewUrl('/uploads/test.pdf');
+      const result = await knowledgeApi.getPreviewUrl(42);
       expect(mockedRequest.get).toHaveBeenCalledWith('/knowledge/preview-url', {
-        params: { fileUrl: '/uploads/test.pdf' },
+        params: { attachmentId: 42 },
       });
       expect(result.code).toBe(0);
       expect(result.data!.previewUrl).toBeTruthy();
@@ -299,7 +299,7 @@ describe('knowledgeApi', () => {
         code: 5004,
         message: '预览 token 不能为空',
       });
-      const result = await knowledgeApi.getPreviewUrl('');
+      const result = await knowledgeApi.getPreviewUrl(0);
       expect(result.code).toBe(5004);
     });
 
