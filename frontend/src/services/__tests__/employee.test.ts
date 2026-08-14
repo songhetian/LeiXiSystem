@@ -42,8 +42,8 @@ describe('employeeApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
-      expect(result.data.total).toBe(1);
+      expect(result.data!.list).toHaveLength(1);
+      expect(result.data!.total).toBe(1);
     });
 
     it('getList sends search params when provided', async () => {
@@ -68,8 +68,8 @@ describe('employeeApi', () => {
       });
       const result = await employeeApi.getById(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/employees/1');
-      expect(result.data.id).toBe(1);
-      expect(result.data.employeeNo).toBe('E001');
+      expect(result.data!.id).toBe(1);
+      expect(result.data!.employeeNo).toBe('E001');
     });
 
     it('create sends POST request with employee data', async () => {
@@ -101,7 +101,7 @@ describe('employeeApi', () => {
       });
       const result = await employeeApi.update(1, updateData);
       expect(mockedRequest.patch).toHaveBeenCalledWith('/employees/1', updateData);
-      expect(result.data.name).toBe('张三丰');
+      expect(result.data!.name).toBe('张三丰');
     });
 
     it('resign sends POST request to resign endpoint', async () => {
@@ -112,7 +112,7 @@ describe('employeeApi', () => {
       });
       const result = await employeeApi.resign(1, { resignDate: '2026-08-13' });
       expect(mockedRequest.post).toHaveBeenCalledWith('/employees/1/resign', { resignDate: '2026-08-13' });
-      expect(result.data.status).toBe('inactive');
+      expect(result.data!.status).toBe('inactive');
     });
   });
 
@@ -178,8 +178,8 @@ describe('employeeApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await employeeApi.getList({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
   });
 });

@@ -44,7 +44,7 @@ describe('approvalApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('handles empty todo list', async () => {
@@ -53,8 +53,8 @@ describe('approvalApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await approvalApi.listTodos({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
   });
 

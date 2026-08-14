@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import SearchForm from '@/components/SearchForm';
+import SearchForm, { SearchFieldConfig } from '@/components/SearchForm';
 
 jest.mock('@arco-design/web-react', () => {
   const Form = ({ children, onSubmit, className }: any) => {
@@ -61,7 +61,7 @@ jest.mock('@arco-design/web-react', () => {
   return { Form, Input, Select, Button, Card, Grid };
 });
 
-const mockFields = [
+const mockFields: SearchFieldConfig[] = [
   { key: 'name', label: '姓名', type: 'input', placeholder: '请输入姓名' },
   { key: 'departmentId', label: '部门', type: 'select', options: [
     { value: 1, label: '技术部' },

@@ -73,7 +73,7 @@ describe('knowledgeApi', () => {
         params: {},
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('createCategory sends POST request', async () => {
@@ -125,7 +125,7 @@ describe('knowledgeApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('getArticles sends categoryId filter', async () => {
@@ -153,7 +153,7 @@ describe('knowledgeApi', () => {
       const result = await knowledgeApi.getArticleDetail(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/knowledge/articles/1');
       expect(result.code).toBe(0);
-      expect(result.data.id).toBe(1);
+      expect(result.data!.id).toBe(1);
     });
 
     it('createArticle sends POST request', async () => {
@@ -230,7 +230,7 @@ describe('knowledgeApi', () => {
         params: { fileUrl: '/uploads/test.pdf' },
       });
       expect(result.code).toBe(0);
-      expect(result.data.previewUrl).toBeTruthy();
+      expect(result.data!.previewUrl).toBeTruthy();
     });
   });
 
@@ -242,8 +242,8 @@ describe('knowledgeApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await knowledgeApi.getArticles({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
 
     it('uses default params when not provided', async () => {
@@ -261,7 +261,7 @@ describe('knowledgeApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 100 },
       });
       const result = await knowledgeApi.getCategories();
-      expect(result.data.list).toHaveLength(0);
+      expect(result.data!.list).toHaveLength(0);
     });
   });
 

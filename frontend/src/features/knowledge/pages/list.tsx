@@ -181,23 +181,26 @@ export default function KnowledgeListPage() {
               size="small"
               dataSource={attachments}
               render={(item) => (
-                <List.Item
+                <div
                   key={item.id}
-                  action={
-                    <Button
-                      size="mini"
-                      type="primary"
-                      onClick={() => handlePreview(item)}
-                    >
-                      预览
-                    </Button>
-                  }
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 4px',
+                    borderBottom: '1px solid var(--color-border-2)',
+                  }}
                 >
-                  <List.Item.Meta
-                    title={item.fileName}
-                    description={`${(item.fileSize / 1024).toFixed(1)} KB`}
-                  />
-                </List.Item>
+                  <div>
+                    <div>{item.fileName}</div>
+                    <div style={{ fontSize: 12, color: '#86909c' }}>
+                      {(item.fileSize / 1024).toFixed(1)} KB
+                    </div>
+                  </div>
+                  <Button size="mini" type="primary" onClick={() => handlePreview(item)}>
+                    预览
+                  </Button>
+                </div>
               )}
             />
           </>

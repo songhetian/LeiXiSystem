@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Tabs, Table, Button, Space, Modal, TextArea, Message, Tag, Card } from '@arco-design/web-react';
+import { Tabs, Table, Button, Space, Modal, Input, Message, Tag, Card } from '@arco-design/web-react';
 import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import StatusTag from '@/components/StatusTag';
@@ -240,7 +240,7 @@ export default function ApprovalTodoPage() {
               </div>
             )}
           </div>
-          <TextArea
+          <Input.TextArea
             value={comment}
             onChange={setComment}
             placeholder={actionType === 'approve' ? '请输入审批意见（选填）' : '请输入驳回原因（必填）'}

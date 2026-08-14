@@ -62,7 +62,7 @@ describe('payslipApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('getMyPayslips sends month filter', async () => {
@@ -82,7 +82,7 @@ describe('payslipApi', () => {
       const result = await payslipApi.getMyPayslipDetail(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/payslips/me/1');
       expect(result.code).toBe(0);
-      expect(result.data.id).toBe(1);
+      expect(result.data!.id).toBe(1);
     });
 
     it('markAsViewed sends POST request', async () => {
@@ -137,8 +137,8 @@ describe('payslipApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await payslipApi.getMyPayslips({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
 
     it('uses default params when not provided', async () => {
@@ -162,8 +162,8 @@ describe('payslipApi', () => {
         data: payslipWithAdjustments,
       });
       const result = await payslipApi.getMyPayslipDetail(1);
-      expect(result.data.adjustments).toHaveLength(1);
-      expect(result.data.adjustments[0].amount).toBe(300);
+      expect(result.data!.adjustments).toHaveLength(1);
+      expect(result.data!.adjustments[0].amount).toBe(300);
     });
   });
 

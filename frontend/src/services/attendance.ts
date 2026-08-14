@@ -312,6 +312,8 @@ export interface LeaveListResult {
   data?: {
     list: LeaveRecord[];
     total: number;
+    page: number;
+    pageSize: number;
   };
 }
 
@@ -355,6 +357,8 @@ export interface OvertimeListResult {
   data?: {
     list: OvertimeRecord[];
     total: number;
+    page: number;
+    pageSize: number;
   };
 }
 

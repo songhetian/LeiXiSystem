@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import ModalForm from '@/components/ModalForm';
+import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 
 jest.mock('@arco-design/web-react', () => {
   const Modal = ({ visible, title, onCancel, confirmLoading, onOk, okText, cancelText, children }: any) => {
@@ -56,7 +56,7 @@ jest.mock('@arco-design/web-react', () => {
   return { Modal, Form, Input, Select };
 });
 
-const mockFields = [
+const mockFields: FormFieldConfig[] = [
   { key: 'name', label: '姓名', type: 'input', required: true },
   { key: 'departmentId', label: '部门', type: 'select', options: [
     { value: 1, label: '技术部' },

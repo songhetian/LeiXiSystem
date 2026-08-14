@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ProTable from '@/components/ProTable';
+import type { SearchFieldConfig } from '@/components/SearchForm';
 
 jest.mock('@/components/SearchForm', () => ({
   __esModule: true,
@@ -79,7 +80,7 @@ const mockData = [
   { id: 2, employeeNo: 'E002', name: '李四', department: '产品部' },
 ];
 
-const mockSearchFields = [
+const mockSearchFields: SearchFieldConfig[] = [
   { key: 'name', label: '姓名', type: 'input' },
 ];
 

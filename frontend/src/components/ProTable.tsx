@@ -7,9 +7,11 @@ export interface ProTableColumn {
   title: string;
   dataIndex: string;
   key?: string;
-  width?: number | string;
+  width?: number;
   render?: (value: any, record: any, index: number) => React.ReactNode;
   align?: 'left' | 'center' | 'right';
+  /** 超长内容省略号截断（透传给 Arco Table 列） */
+  ellipsis?: boolean;
 }
 
 export interface ProTableToolbarAction {
@@ -108,11 +110,11 @@ export default function ProTable({
         rowKey={rowKey}
         loading={loading}
         pagination={tablePagination as any}
-        bordered={bordered}
+        border={bordered}
         stripe={stripe}
         onRow={(record) => ({
           onClick: () => handleRowClick(record),
-          style: { cursor: onRowClick ? 'pointer' : 'default' },
+          style: { cursor: onRowClick ? 'pointer' : 'default' } as React.CSSProperties,
         })}
       />
     </div>

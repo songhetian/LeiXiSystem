@@ -99,6 +99,8 @@ jest.mock('@arco-design/web-react', () => {
     />
   );
 
+  const Input = { TextArea };
+
   const Card = ({ children, style }: any) => (
     <div data-testid="card" style={style}>{children}</div>
   );
@@ -158,7 +160,7 @@ jest.mock('@arco-design/web-react', () => {
     warning: jest.fn(),
   };
 
-  return { Tabs, Button, Modal, TextArea, Card, Table, Tag, Space, Message };
+  return { Tabs, Button, Modal, TextArea, Input, Card, Table, Tag, Space, Message };
 });
 
 const mockTodos = [

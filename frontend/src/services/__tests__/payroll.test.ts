@@ -76,7 +76,7 @@ describe('payrollApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('createSalaryItem sends POST request', async () => {
@@ -122,7 +122,7 @@ describe('payrollApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('getPayrollRuns sends status filter', async () => {
@@ -163,7 +163,7 @@ describe('payrollApi', () => {
       const result = await payrollApi.getPayrollRunDetail(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/payroll/runs/1');
       expect(result.code).toBe(0);
-      expect(result.data.id).toBe(1);
+      expect(result.data!.id).toBe(1);
     });
 
     it('getPayrollRunDetails sends GET request for employee details', async () => {
@@ -247,8 +247,8 @@ describe('payrollApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await payrollApi.getPayrollRuns({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
 
     it('uses default params when not provided', async () => {
@@ -266,7 +266,7 @@ describe('payrollApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await payrollApi.getSalaryItems({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
+      expect(result.data!.list).toHaveLength(0);
     });
   });
 

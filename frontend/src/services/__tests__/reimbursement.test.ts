@@ -80,7 +80,7 @@ describe('reimbursementApi', () => {
         params: { page: 1, pageSize: 20 },
       });
       expect(result.code).toBe(0);
-      expect(result.data.list).toHaveLength(1);
+      expect(result.data!.list).toHaveLength(1);
     });
 
     it('getMyReimbursements sends status filter', async () => {
@@ -113,8 +113,8 @@ describe('reimbursementApi', () => {
       const result = await reimbursementApi.getDetail(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/reimbursements/1');
       expect(result.code).toBe(0);
-      expect(result.data.id).toBe(1);
-      expect(result.data.items).toHaveLength(2);
+      expect(result.data!.id).toBe(1);
+      expect(result.data!.items).toHaveLength(2);
     });
   });
 
@@ -196,8 +196,8 @@ describe('reimbursementApi', () => {
         data: { list: [], total: 0, page: 1, pageSize: 20 },
       });
       const result = await reimbursementApi.getMyReimbursements({ page: 1, pageSize: 20 });
-      expect(result.data.list).toHaveLength(0);
-      expect(result.data.total).toBe(0);
+      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!.total).toBe(0);
     });
 
     it('uses default params when not provided', async () => {
@@ -225,7 +225,7 @@ describe('reimbursementApi', () => {
         data: { ...mockReimbursement, items: [] },
       });
       const result = await reimbursementApi.getDetail(1);
-      expect(result.data.items).toHaveLength(0);
+      expect(result.data!.items).toHaveLength(0);
     });
   });
 
