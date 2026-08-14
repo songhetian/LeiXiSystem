@@ -11,7 +11,7 @@ export class PayrollController {
 
   @Get('items')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
+  @RequirePermission('payroll:view')
   async listItems() {
     const data = await this.payrollService.listSalaryItems();
     return { code: 0, data };
@@ -19,7 +19,7 @@ export class PayrollController {
 
   @Post('items')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async createItem(@Body() body: any) {
     const data = await this.payrollService.createSalaryItem({
       code: body.code,
@@ -35,7 +35,7 @@ export class PayrollController {
 
   @Put('items/:id')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async updateItem(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
     const data = await this.payrollService.updateSalaryItem(id, {
       name: body.name,
@@ -50,7 +50,7 @@ export class PayrollController {
 
   @Patch('items/:id')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async toggleItem(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
     const data = await this.payrollService.toggleSalaryItem(id, body.enabled);
     return { code: 0, data };
@@ -58,7 +58,7 @@ export class PayrollController {
 
   @Get('runs')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
+  @RequirePermission('payroll:view')
   async listRuns(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -74,7 +74,7 @@ export class PayrollController {
 
   @Post('runs')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async createRun(@Body() body: any, @Req() req: any) {
     const data = await this.payrollService.createRun(body.month, req.user.id);
     return { code: 0, data };
@@ -82,7 +82,7 @@ export class PayrollController {
 
   @Get('runs/:id/details')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
+  @RequirePermission('payroll:view')
   async details(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const data = await this.payrollService.getRunDetails(id, req.user.id);
     return { code: 0, data };
@@ -90,7 +90,7 @@ export class PayrollController {
 
   @Post('runs/:id/confirm')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async confirm(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const data = await this.payrollService.confirmRun(id, req.user.id);
     return { code: 0, data };
@@ -98,7 +98,7 @@ export class PayrollController {
 
   @Post('runs/:id/publish')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async publish(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const data = await this.payrollService.publishRun(id, req.user.id);
     return { code: 0, data };
@@ -106,7 +106,7 @@ export class PayrollController {
 
   @Post('runs/:id/recall')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async recall(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const data = await this.payrollService.recallRun(id, req.user.id);
     return { code: 0, data };
@@ -114,7 +114,7 @@ export class PayrollController {
 
   @Post('runs/:id/adjust')
   @HttpCode(200)
-  @RequirePermission('attendance:manage')
+  @RequirePermission('payroll:manage')
   async adjust(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
     const data = await this.payrollService.addAdjustment(
       id,

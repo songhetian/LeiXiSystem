@@ -41,7 +41,7 @@ export class PayslipController {
   @Get()
   @HttpCode(200)
   @UseGuards(PermissionGuard)
-  @RequirePermission('attendance:view')
+  @RequirePermission('payroll:view')
   async list(
     @Query('runId') runId?: string,
     @Query('month') month?: string,

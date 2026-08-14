@@ -54,10 +54,10 @@ describe('S11 · 工资条自助 + 通知', () => {
     await prisma.permission.deleteMany();
 
     const permManage = await prisma.permission.create({
-      data: { code: 'attendance:manage', name: '考勤管理', module: 'attendance', type: 'menu' },
+      data: { code: 'payroll:manage', name: '薪资管理', module: 'payroll', type: 'menu' },
     });
     const permView = await prisma.permission.create({
-      data: { code: 'attendance:view', name: '考勤查看', module: 'attendance', type: 'menu' },
+      data: { code: 'payroll:view', name: '薪资查看', module: 'payroll', type: 'menu' },
     });
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
