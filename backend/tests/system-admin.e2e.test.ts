@@ -215,6 +215,41 @@ describe('S14 · 系统管理（操作日志 + 公告）', () => {
       expect(body.code).toBe(0);
     });
 
+    it('重置密码后旧密码不可登录、新密码可登录（T27）', async () => {
+      const created = await inject(app, {
+        method: 'POST',
+        url: '/api/v1/system/users',
+        headers: { cookie: adminCookie },
+        payload: { username: 'pwreset', password: 'old123456', name: '密码重置测试' },
+      });
+      const createdBody = JSON.parse(created.body);
+      expect(created.statusCode).toBe(200);
+      const uid = createdBody.data.id;
+
+      const upd = await inject(app, {
+        method: 'PUT',
+        url: `/api/v1/system/users/${uid}`,
+        headers: { cookie: adminCookie },
+        payload: { password: 'new123456' },
+      });
+      expect(upd.statusCode).toBe(200);
+      expect(JSON.parse(upd.body).code).toBe(0);
+
+      const oldLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { username: 'pwreset', password: 'old123456' },
+      });
+      expect(JSON.parse(oldLogin.body).code).toBe(5001);
+
+      const newLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { username: 'pwreset', password: 'new123456' },
+      });
+      expect(JSON.parse(newLogin.body).code).toBe(0);
+    });
+
     it('应该获取角色列表（含权限点）', async () => {
       const res = await inject(app, {
         method: 'GET',

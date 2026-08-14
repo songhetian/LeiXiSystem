@@ -51,6 +51,8 @@ jest.mock('@arco-design/web-react/icon', () => ({
   IconBook: () => <span data-testid="icon-book" />,
   IconFile: () => <span data-testid="icon-file" />,
   IconSettings: () => <span data-testid="icon-settings" />,
+  IconList: () => <span data-testid="icon-list" />,
+  IconNotification: () => <span data-testid="icon-notification" />,
   IconMore: () => <span data-testid="icon-more">more</span>,
 }));
 

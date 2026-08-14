@@ -29,7 +29,12 @@ const MENU_ROUTES: Record<string, string> = {
   'my-payslips': '/payroll/my-payslips',
   'my-reimbursement': '/expense/my',
   knowledge: '/knowledge',
+  reports: '/reports',
+  notifications: '/notifications',
   system: '/system/broadcasts',
+  'system-users': '/system/users',
+  'system-roles': '/system/roles',
+  'system-logs': '/system/logs',
   settings: '/settings',
 };
 

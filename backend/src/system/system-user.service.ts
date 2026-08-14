@@ -84,12 +84,17 @@ export class SystemUserService {
   async updateUser(id: number, params: {
     name?: string;
     status?: string;
+    password?: string;
   }) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new NotFoundException({ code: 6102, message: '用户不存在' });
     }
-    return this.prisma.user.update({ where: { id }, data: params });
+    const data: any = { name: params.name, status: params.status };
+    if (params.password) {
+      data.passwordHash = await bcrypt.hash(params.password, 10);
+    }
+    return this.prisma.user.update({ where: { id }, data });
   }
 
   async assignRoles(userId: number, roleIds: number[]) {

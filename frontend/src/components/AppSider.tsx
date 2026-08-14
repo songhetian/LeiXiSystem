@@ -12,6 +12,8 @@ import {
   IconBook,
   IconFile,
   IconSettings,
+  IconList,
+  IconNotification,
 } from '@arco-design/web-react/icon';
 
 const Sider = Layout.Sider;
@@ -71,12 +73,19 @@ const defaultMenuItems: MenuItemConfig[] = [
     permission: 'reimbursement:view',
   },
   { key: 'knowledge', label: '知识库', icon: <IconBook />, path: '/knowledge', permission: 'knowledge:view' },
+  { key: 'reports', label: '报表', icon: <IconList />, path: '/reports', permission: 'reports:view' },
+  { key: 'notifications', label: '我的通知', icon: <IconNotification />, path: '/notifications' },
   {
     key: 'system',
     label: '系统管理',
     icon: <IconFile />,
     permission: 'system:view',
-    children: [{ key: 'system', label: '公告管理' }],
+    children: [
+      { key: 'system', label: '公告管理' },
+      { key: 'system-users', label: '用户管理' },
+      { key: 'system-roles', label: '角色权限' },
+      { key: 'system-logs', label: '操作日志' },
+    ],
   },
   {
     key: 'settings',
