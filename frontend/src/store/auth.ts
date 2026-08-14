@@ -4,6 +4,8 @@ export interface User {
   id: number;
   username: string;
   name: string;
+  /** 当前用户的权限点 code 集合（后端 login/me 返回） */
+  permissions: string[];
 }
 
 interface AuthState {
@@ -24,13 +26,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearUser: () => set({ user: null, isAuthenticated: false }),
 
   logout: () => {
-    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     set({ user: null, isAuthenticated: false });
   },
 
   checkAuth: () => {
     const hasToken = document.cookie.split(';').some((item) =>
-      item.trim().startsWith('token='),
+      item.trim().startsWith('access_token='),
     );
     if (hasToken) {
       set({ isAuthenticated: true });

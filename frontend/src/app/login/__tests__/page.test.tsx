@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { authApi } from '@/services/auth';
+import { useAuthStore } from '@/store/auth';
 
 const mockPush = jest.fn();
 
@@ -103,6 +104,7 @@ describe('LoginPage', () => {
   beforeEach(() => {
     mockPush.mockClear();
     (authApi.login as jest.Mock).mockReset();
+    useAuthStore.getState().clearUser();
   });
 
   it('renders login form with username, password and submit button', () => {
@@ -114,7 +116,10 @@ describe('LoginPage', () => {
   });
 
   it('logs in successfully with correct credentials and redirects to home', async () => {
-    (authApi.login as jest.Mock).mockResolvedValue({ code: 0, data: { user: { id: 1, username: 'admin' } } });
+    (authApi.login as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { user: { id: 1, username: 'admin', name: '管理员', permissions: ['attendance:view'] } },
+    });
 
     const user = userEvent.setup();
     render(<LoginPage />);
@@ -127,6 +132,9 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/');
     });
+    // T26：登录成功后把用户（含权限点）写入 store
+    expect(useAuthStore.getState().user?.username).toBe('admin');
+    expect(useAuthStore.getState().user?.permissions).toEqual(['attendance:view']);
   });
 
   it('shows error message with wrong credentials', async () => {

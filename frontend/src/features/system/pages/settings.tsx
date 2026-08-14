@@ -5,6 +5,7 @@ import { Message, Card, Input, Button, Space, Spin } from '@arco-design/web-reac
 import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import { settingsApi, SystemSetting } from '@/services/settings';
+import { usePermission } from '@/hooks/use-permission';
 
 const GROUP_LABELS: Record<string, string> = {
   general: '基础信息',
@@ -13,6 +14,7 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
@@ -80,7 +82,12 @@ export default function SettingsPage() {
       <PageContainer
         title="系统设置"
         extra={
-          <Button type="primary" loading={saving} onClick={handleSave}>
+          <Button
+            type="primary"
+            loading={saving}
+            onClick={handleSave}
+            disabled={!can('system:setting:update')}
+          >
             保存更改
           </Button>
         }

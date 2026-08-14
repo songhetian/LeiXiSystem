@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppSider from './AppSider';
 import AppHeader from './AppHeader';
 import ProtectedRoute from './ProtectedRoute';
+import { useAuthStore } from '@/store/auth';
 
 const Content = Layout.Content;
 
@@ -39,6 +40,8 @@ export default function AppLayout({
   onMenuClick,
 }: AppLayoutProps) {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const permissions = user?.permissions;
 
   const handleMenuClick = (key: string) => {
     const route = MENU_ROUTES[key];
@@ -51,7 +54,7 @@ export default function AppLayout({
   return (
     <ProtectedRoute>
       <Layout style={{ minHeight: '100vh' }}>
-        <AppSider activeKey={activeMenu} onMenuClick={handleMenuClick} />
+        <AppSider activeKey={activeMenu} onMenuClick={handleMenuClick} permissions={permissions} />
         <Layout>
           <AppHeader title={title} />
           <Content style={styles.content}>{children}</Content>

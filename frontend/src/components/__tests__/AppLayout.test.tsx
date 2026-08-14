@@ -139,6 +139,33 @@ describe('AppSider', () => {
     const menu = screen.getByRole('menu');
     expect(menu).toHaveAttribute('data-selected', 'dashboard');
   });
+
+  it('filters menu by permissions (staff: 仅员工/考勤/知识库)', () => {
+    render(
+      <AppSider permissions={['employee:list', 'attendance:view', 'knowledge:view']} />,
+    );
+    expect(screen.getByText('员工')).toBeInTheDocument();
+    expect(screen.getByText('考勤')).toBeInTheDocument();
+    expect(screen.getByText('知识库')).toBeInTheDocument();
+    expect(screen.queryByText('薪资')).not.toBeInTheDocument();
+    expect(screen.queryByText('审批中心')).not.toBeInTheDocument();
+    expect(screen.queryByText('我的报销')).not.toBeInTheDocument();
+    expect(screen.queryByText('系统管理')).not.toBeInTheDocument();
+    expect(screen.queryByText('设置')).not.toBeInTheDocument();
+  });
+
+  it('without permissions only shows unrestricted items (工作台)', () => {
+    render(<AppSider permissions={[]} />);
+    expect(screen.getByText('工作台')).toBeInTheDocument();
+    expect(screen.queryByText('员工')).not.toBeInTheDocument();
+    expect(screen.queryByText('考勤')).not.toBeInTheDocument();
+  });
+
+  it('shows all menus when permissions prop is not provided (兼容默认)', () => {
+    render(<AppSider />);
+    expect(screen.getByText('薪资')).toBeInTheDocument();
+    expect(screen.getByText('设置')).toBeInTheDocument();
+  });
 });
 
 describe('AppHeader', () => {

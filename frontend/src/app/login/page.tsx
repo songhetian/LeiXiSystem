@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Input, Button, Typography, Message } from '@arco-design/web-react';
 import { authApi } from '@/services/auth';
+import { useAuthStore } from '@/store/auth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const setUser = useAuthStore((s) => s.setUser);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +22,8 @@ export default function LoginPage() {
     setErrorMsg('');
     try {
       const res = await authApi.login({ username: username.trim(), password });
-      if (res.code === 0) {
+      if (res.code === 0 && res.data?.user) {
+        setUser(res.data.user);
         Message.success('登录成功');
         router.push('/');
       } else {

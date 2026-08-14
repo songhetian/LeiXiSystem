@@ -7,8 +7,10 @@ import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { broadcastApi, Broadcast, BroadcastCreateDto } from '@/services/broadcast';
+import { usePermission } from '@/hooks/use-permission';
 
 export default function BroadcastsPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Broadcast[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -181,16 +183,16 @@ export default function BroadcastsPage() {
         <Space>
           <Button size="small" type="text" onClick={() => handleViewDetail(record)}>查看</Button>
           {record.status === 'draft' && (
-            <Button size="small" type="text" onClick={() => handlePublish(record)}>发布</Button>
+            <Button size="small" type="text" disabled={!can('system:manage')} onClick={() => handlePublish(record)}>发布</Button>
           )}
-          <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          <Button size="small" type="text" status="danger" disabled={!can('system:manage')} onClick={() => handleDelete(record)}>删除</Button>
         </Space>
       ),
     },
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建公告', type: 'primary', onClick: () => Message.info('新建公告功能开发中') },
+    { key: 'add', label: '新建公告', type: 'primary', disabled: !can('system:manage'), onClick: () => Message.info('新建公告功能开发中') },
   ];
 
   return (

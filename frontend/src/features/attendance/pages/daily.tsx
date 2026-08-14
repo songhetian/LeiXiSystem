@@ -8,6 +8,7 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import StatusTag from '@/components/StatusTag';
 import { attendanceApi, DailyRecord } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
+import { usePermission } from '@/hooks/use-permission';
 
 const searchFields: SearchFieldConfig[] = [
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
@@ -35,6 +36,7 @@ const statusMap: Record<string, { label: string; color: string }> = {
 };
 
 export default function AttendanceDailyPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DailyRecord[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -139,8 +141,8 @@ export default function AttendanceDailyPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch },
-    { key: 'recalc', label: '重新计算', onClick: handleRecalc },
+    { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch, disabled: !can('attendance:manage') },
+    { key: 'recalc', label: '重新计算', onClick: handleRecalc, disabled: !can('attendance:manage') },
   ];
 
   return (

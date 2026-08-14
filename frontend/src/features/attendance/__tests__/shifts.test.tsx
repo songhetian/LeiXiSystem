@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ShiftsPage from '@/features/attendance/pages/shifts';
 import { attendanceApi } from '@/services/attendance';
+import { useAuthStore } from '@/store/auth';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -47,7 +48,7 @@ jest.mock('@/components/ProTable', () => ({
       {toolbar && (
         <div data-testid="toolbar">
           {toolbar.map((t: any) => (
-            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick}>
+            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick} disabled={t.disabled}>
               {t.label}
             </button>
           ))}
@@ -105,6 +106,9 @@ jest.mock('@arco-design/web-react', () => {
   };
 });
 
+jest.mock('@/store/auth', () => ({ useAuthStore: jest.fn() }));
+const mockUseAuthStore = jest.mocked(useAuthStore);
+
 const mockShifts = [
   { id: 1, name: '早班', startTime: '08:00', endTime: '16:00', isNextDay: false },
   { id: 2, name: '中班', startTime: '14:00', endTime: '22:00', isNextDay: false },
@@ -114,6 +118,9 @@ const mockShifts = [
 describe('ShiftsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 1, username: 'admin', name: '管理员', permissions: ['attendance:view', 'attendance:manage'] },
+    });
     (attendanceApi.getShiftList as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: mockShifts, total: 3 },
@@ -170,6 +177,19 @@ describe('ShiftsPage', () => {
       render(<ShiftsPage />);
       await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
       expect(screen.getByTestId('toolbar-add')).toHaveTextContent('新增班次');
+    });
+
+    it('admin（有 attendance:manage）新增班次按钮可用', async () => {
+      render(<ShiftsPage />);
+      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeEnabled());
+    });
+
+    it('staff（无 attendance:manage）新增班次按钮禁用', async () => {
+      mockUseAuthStore.mockReturnValue({
+        user: { id: 2, username: 'staff', name: '王小明', permissions: ['attendance:view'] },
+      });
+      render(<ShiftsPage />);
+      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeDisabled());
     });
   });
 

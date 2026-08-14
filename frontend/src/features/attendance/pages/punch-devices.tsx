@@ -7,8 +7,10 @@ import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, PunchDevice, PunchDeviceCreateDto, PunchDeviceUpdateDto } from '@/services/attendance';
+import { usePermission } from '@/hooks/use-permission';
 
 export default function PunchDevicesPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<PunchDevice[]>([]);
   const [total, setTotal] = useState(0);
@@ -150,7 +152,7 @@ export default function PunchDevicesPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增设备', type: 'primary', onClick: handleAdd },
+    { key: 'add', label: '新增设备', type: 'primary', onClick: handleAdd, disabled: !can('attendance:manage') },
   ];
 
   return (

@@ -13,6 +13,7 @@ export interface LoginResult {
       id: number;
       username: string;
       name: string;
+      permissions: string[];
     };
   };
 }

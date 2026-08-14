@@ -7,8 +7,10 @@ import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, Shift, ShiftCreateDto, ShiftUpdateDto } from '@/services/attendance';
+import { usePermission } from '@/hooks/use-permission';
 
 export default function ShiftsPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Shift[]>([]);
   const [total, setTotal] = useState(0);
@@ -144,7 +146,7 @@ export default function ShiftsPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增班次', type: 'primary', onClick: handleAdd },
+    { key: 'add', label: '新增班次', type: 'primary', onClick: handleAdd, disabled: !can('attendance:manage') },
   ];
 
   return (

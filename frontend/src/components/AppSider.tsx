@@ -26,15 +26,18 @@ export interface MenuItemConfig {
   path?: string;
   /** 子菜单项 */
   children?: MenuItemConfig[];
+  /** 显示该菜单所需的权限点（缺省=无需权限，登录即可见） */
+  permission?: string;
 }
 
 const defaultMenuItems: MenuItemConfig[] = [
   { key: 'dashboard', label: '工作台', icon: <IconDashboard />, path: '/' },
-  { key: 'employee', label: '员工', icon: <IconUser />, path: '/employees' },
+  { key: 'employee', label: '员工', icon: <IconUser />, path: '/employees', permission: 'employee:list' },
   {
     key: 'attendance',
     label: '考勤',
     icon: <IconCalendar />,
+    permission: 'attendance:view',
     children: [
       { key: 'attendance-shifts', label: '班次管理' },
       { key: 'attendance-schedules', label: '排班管理' },
@@ -43,45 +46,85 @@ const defaultMenuItems: MenuItemConfig[] = [
       { key: 'attendance-devices', label: '打卡设备' },
     ],
   },
-  { key: 'approval-todo', label: '审批中心', icon: <IconCheckCircle />, path: '/approval/todo' },
+  {
+    key: 'approval-todo',
+    label: '审批中心',
+    icon: <IconCheckCircle />,
+    path: '/approval/todo',
+    permission: 'approval:use',
+  },
   {
     key: 'payroll',
     label: '薪资',
     icon: <IconIdcard />,
+    permission: 'payroll:view',
     children: [
       { key: 'payroll-runs', label: '算薪批次' },
       { key: 'my-payslips', label: '我的工资条' },
     ],
   },
-  { key: 'my-reimbursement', label: '我的报销', icon: <IconSafe />, path: '/expense/my' },
-  { key: 'knowledge', label: '知识库', icon: <IconBook />, path: '/knowledge' },
+  {
+    key: 'my-reimbursement',
+    label: '我的报销',
+    icon: <IconSafe />,
+    path: '/expense/my',
+    permission: 'reimbursement:view',
+  },
+  { key: 'knowledge', label: '知识库', icon: <IconBook />, path: '/knowledge', permission: 'knowledge:view' },
   {
     key: 'system',
     label: '系统管理',
     icon: <IconFile />,
+    permission: 'system:view',
     children: [{ key: 'system', label: '公告管理' }],
   },
-  { key: 'settings', label: '设置', icon: <IconSettings />, path: '/settings' },
+  {
+    key: 'settings',
+    label: '设置',
+    icon: <IconSettings />,
+    path: '/settings',
+    permission: 'system:setting:update',
+  },
 ];
 
 export interface AppSiderProps {
   activeKey?: string;
   onMenuClick?: (key: string) => void;
   menuItems?: MenuItemConfig[];
+  /** 当前用户权限点 code 集合；缺省=不过滤（显示全部） */
+  permissions?: string[];
+}
+
+/** 按权限点过滤菜单：无 permission 要求的保留；父节点子项全被滤掉或自身权限不足时一并隐藏 */
+function filterMenuItems(items: MenuItemConfig[], permissions?: string[]): MenuItemConfig[] {
+  if (!permissions) return items;
+  const result: MenuItemConfig[] = [];
+  for (const item of items) {
+    if (item.permission && !permissions.includes(item.permission)) continue;
+    const children = item.children ? filterMenuItems(item.children, permissions) : undefined;
+    if (item.children) {
+      if (children && children.length > 0) result.push({ ...item, children });
+      continue;
+    }
+    result.push(item);
+  }
+  return result;
 }
 
 export default function AppSider({
   activeKey = 'dashboard',
   onMenuClick,
   menuItems = defaultMenuItems,
+  permissions,
 }: AppSiderProps) {
+  const visibleItems = useMemo(() => filterMenuItems(menuItems, permissions), [menuItems, permissions]);
   // 根据当前选中项推导需要展开的父级菜单
   const derivedOpenKeys = useMemo(
     () =>
-      menuItems
+      visibleItems
         .filter((item) => item.children?.some((c) => c.key === activeKey))
         .map((item) => item.key),
-    [activeKey, menuItems],
+    [activeKey, visibleItems],
   );
   const [openKeys, setOpenKeys] = useState<string[]>(derivedOpenKeys);
   useEffect(() => {
@@ -138,7 +181,7 @@ export default function AppSider({
         }}
         onClickMenuItem={(key) => onMenuClick?.(key)}
       >
-        {menuItems.map(renderItem)}
+        {visibleItems.map(renderItem)}
       </Menu>
     </Sider>
   );

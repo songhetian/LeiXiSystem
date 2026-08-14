@@ -8,8 +8,10 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { attendanceApi, Schedule, Shift, ScheduleCreateDto } from '@/services/attendance';
+import { usePermission } from '@/hooks/use-permission';
 
 export default function SchedulesPage() {
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Schedule[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -194,7 +196,7 @@ export default function SchedulesPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增排班', type: 'primary', onClick: handleAdd },
+    { key: 'add', label: '新增排班', type: 'primary', onClick: handleAdd, disabled: !can('attendance:manage') },
   ];
 
   return (
