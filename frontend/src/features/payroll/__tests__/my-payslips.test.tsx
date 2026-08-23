@@ -12,14 +12,6 @@ jest.mock('@/services/payslip', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -160,11 +152,6 @@ describe('MyPayslipsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with correct menu', () => {
-      render(<MyPayslipsPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'my-payslips');
-    });
-
     it('renders PageContainer with title 我的工资条', () => {
       render(<MyPayslipsPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('我的工资条');

@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Table, Descriptions, Tag, Space, Divider } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
-import { payslipApi, Payslip } from '@/services/payslip';
+import { payslipApi, Payslip, PayslipDetail, PayslipItem } from '@/services/payslip';
 import { SearchFieldConfig } from '@/components/SearchForm';
 
 const searchFields: SearchFieldConfig[] = [
@@ -20,16 +20,18 @@ const statusMap: Record<string, { label: string; color: string }> = {
 
 export default function MyPayslipsPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Payslip[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [currentPayslip, setCurrentPayslip] = useState<Payslip | null>(null);
+  const [currentPayslip, setCurrentPayslip] = useState<PayslipDetail | null>(null);
 
   const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const result = await payslipApi.getMyPayslips({
         page,
@@ -44,6 +46,9 @@ export default function MyPayslipsPage() {
           total: result.data.total,
         });
       }
+    } catch (e: any) {
+      setError(e?.message || '加载失败');
+      notifyError(e, '加载失败');
     } finally {
       setLoading(false);
     }
@@ -118,8 +123,8 @@ export default function MyPayslipsPage() {
   const renderDetailContent = () => {
     if (!currentPayslip) return null;
 
-    const incomeItems = currentPayslip.items.filter((item) => item.type === 'income');
-    const deductionItems = currentPayslip.items.filter((item) => item.type === 'deduction');
+    const incomeItems = currentPayslip.items.filter((item: PayslipItem) => item.type === 'income');
+    const deductionItems = currentPayslip.items.filter((item: PayslipItem) => item.type === 'deduction');
     const adjustmentItems = currentPayslip.adjustments || [];
 
     return (
@@ -201,33 +206,33 @@ export default function MyPayslipsPage() {
   };
 
   return (
-    <AppLayout title="我的工资条" activeMenu="my-payslips">
-      <PageContainer title="我的工资条">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-          onRowClick={handleViewDetail}
-        />
-        <Modal
-          title="工资条明细"
-          visible={detailVisible}
-          onCancel={handleDetailCancel}
-          confirmLoading={detailLoading}
-          okText="关闭"
-          cancelText={null}
-          onOk={handleDetailCancel}
-          style={{ width: 720 }}
-        >
-          {renderDetailContent()}
-        </Modal>
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="我的工资条">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onRowClick={handleViewDetail}
+      />
+      <Modal
+        title="工资条明细"
+        visible={detailVisible}
+        onCancel={handleDetailCancel}
+        confirmLoading={detailLoading}
+        okText="关闭"
+        cancelText={null}
+        onOk={handleDetailCancel}
+        style={{ width: 720 }}
+      >
+        {renderDetailContent()}
+      </Modal>
+    </PageContainer>
   );
 }

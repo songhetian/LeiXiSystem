@@ -2,46 +2,40 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import StatusTag from '@/components/StatusTag';
 
-jest.mock('@arco-design/web-react', () => ({
-  Tag: ({ color, children }: any) => (
-    <span data-testid="status-tag" data-color={color}>{children}</span>
-  ),
-}));
-
 describe('StatusTag', () => {
   describe('正常用例 - 内置状态映射', () => {
-    it('renders success status with green color', () => {
+    it('renders success status with success color', () => {
       render(<StatusTag status="active" />);
       const tag = screen.getByTestId('status-tag');
-      expect(tag).toHaveAttribute('data-color', 'green');
+      expect(tag).toHaveAttribute('data-color', 'success');
       expect(tag).toHaveTextContent('在职');
     });
 
-    it('renders inactive status with gray color', () => {
+    it('renders inactive status with default color', () => {
       render(<StatusTag status="inactive" />);
       const tag = screen.getByTestId('status-tag');
       expect(tag).toHaveAttribute('data-color', 'default');
       expect(tag).toHaveTextContent('离职');
     });
 
-    it('renders pending status with blue color', () => {
+    it('renders pending status with info color', () => {
       render(<StatusTag status="pending" />);
       const tag = screen.getByTestId('status-tag');
-      expect(tag).toHaveAttribute('data-color', 'arcoblue');
+      expect(tag).toHaveAttribute('data-color', 'info');
       expect(tag).toHaveTextContent('待审批');
     });
 
-    it('renders error status with red color', () => {
+    it('renders error status with danger color', () => {
       render(<StatusTag status="error" />);
       const tag = screen.getByTestId('status-tag');
-      expect(tag).toHaveAttribute('data-color', 'red');
+      expect(tag).toHaveAttribute('data-color', 'danger');
       expect(tag).toHaveTextContent('异常');
     });
 
-    it('renders warning status with orange color', () => {
+    it('renders warning status with warning color', () => {
       render(<StatusTag status="warning" />);
       const tag = screen.getByTestId('status-tag');
-      expect(tag).toHaveAttribute('data-color', 'orangered');
+      expect(tag).toHaveAttribute('data-color', 'warning');
       expect(tag).toHaveTextContent('警告');
     });
   });

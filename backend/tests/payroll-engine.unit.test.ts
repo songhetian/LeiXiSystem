@@ -17,6 +17,7 @@ describe('S10 · 算薪引擎（纯函数）— 3人对账样例回归基线', (
       scheduledDays: 22,
       absentDays: 0,
       lateCount: 0,
+      earlyCount: 0,
       noLeave: true,
       overtimeHours: { weekday: 10, weekend: 0, holiday: 0 },
     };
@@ -52,6 +53,7 @@ describe('S10 · 算薪引擎（纯函数）— 3人对账样例回归基线', (
       scheduledDays: 22,
       absentDays: 2,
       lateCount: 3,
+      earlyCount: 0,
       noLeave: true,
       overtimeHours: { weekday: 0, weekend: 8, holiday: 0 },
     };
@@ -87,6 +89,7 @@ describe('S10 · 算薪引擎（纯函数）— 3人对账样例回归基线', (
       scheduledDays: 14,
       absentDays: 3,
       lateCount: 0,
+      earlyCount: 0,
       noLeave: false,
       overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
     };
@@ -112,6 +115,136 @@ describe('S10 · 算薪引擎（纯函数）— 3人对账样例回归基线', (
     it('合计 = 2752.86（4000-857.14+110-500）', () => {
       const r = calculatePayroll(emp, snapshot, cfg);
       expect(r.total).toBe(2752.86);
+    });
+  });
+});
+
+describe('S10 · 算薪引擎 — 迟到/早退按次扣款', () => {
+  const cfg: PayrollConfig = {
+    fullAttendanceBonus: 200,
+    mealAllowancePerDay: 10,
+    socialSecurity: 500,
+    lateDeductionPerTime: 50,
+    earlyDeductionPerTime: 50,
+  };
+
+  describe('迟到2次扣款', () => {
+    const emp: EmployeePayrollInput = { name: '员工D', basicSalary: 4800 };
+    const snapshot: AttendanceSnapshot = {
+      workDays: 22,
+      scheduledDays: 22,
+      absentDays: 0,
+      lateCount: 2,
+      earlyCount: 0,
+      noLeave: true,
+      overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
+    };
+
+    it('迟到扣款 = 2次 × 50元/次 = -100', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const lateDeduct = r.items.find((i) => i.code === 'lateDeduct');
+      expect(lateDeduct?.amount).toBe(-100);
+    });
+
+    it('无全勤奖（有迟到）', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const bonus = r.items.find((i) => i.code === 'bonus');
+      expect(bonus).toBeUndefined();
+    });
+  });
+
+  describe('迟到3次扣款', () => {
+    const emp: EmployeePayrollInput = { name: '员工E', basicSalary: 4800 };
+    const snapshot: AttendanceSnapshot = {
+      workDays: 21,
+      scheduledDays: 22,
+      absentDays: 0,
+      lateCount: 3,
+      earlyCount: 0,
+      noLeave: true,
+      overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
+    };
+
+    it('迟到扣款 = 3次 × 50元/次 = -150', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const lateDeduct = r.items.find((i) => i.code === 'lateDeduct');
+      expect(lateDeduct?.amount).toBe(-150);
+    });
+  });
+
+  describe('早退按次扣款', () => {
+    const emp: EmployeePayrollInput = { name: '员工F', basicSalary: 4800 };
+    const snapshot: AttendanceSnapshot = {
+      workDays: 22,
+      scheduledDays: 22,
+      absentDays: 0,
+      lateCount: 0,
+      earlyCount: 3,
+      noLeave: true,
+      overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
+    };
+
+    it('早退扣款 = 3次 × 50元/次 = -150', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const earlyDeduct = r.items.find((i) => i.code === 'earlyDeduct');
+      expect(earlyDeduct?.amount).toBe(-150);
+    });
+
+    it('无全勤奖（有早退）', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const bonus = r.items.find((i) => i.code === 'bonus');
+      expect(bonus).toBeUndefined();
+    });
+  });
+
+  describe('同时有迟到和早退', () => {
+    const emp: EmployeePayrollInput = { name: '员工G', basicSalary: 4800 };
+    const snapshot: AttendanceSnapshot = {
+      workDays: 21,
+      scheduledDays: 22,
+      absentDays: 0,
+      lateCount: 1,
+      earlyCount: 1,
+      noLeave: true,
+      overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
+    };
+
+    it('迟到扣款 + 早退扣款', () => {
+      const r = calculatePayroll(emp, snapshot, cfg);
+      const lateDeduct = r.items.find((i) => i.code === 'lateDeduct');
+      const earlyDeduct = r.items.find((i) => i.code === 'earlyDeduct');
+      expect(lateDeduct?.amount).toBe(-50);
+      expect(earlyDeduct?.amount).toBe(-50);
+    });
+  });
+
+  describe('未配置迟到早退扣款时不扣款', () => {
+    const cfgDisabled: PayrollConfig = {
+      fullAttendanceBonus: 200,
+      mealAllowancePerDay: 10,
+      socialSecurity: 500,
+    };
+    const emp: EmployeePayrollInput = { name: '员工H', basicSalary: 4800 };
+    const snapshot: AttendanceSnapshot = {
+      workDays: 22,
+      scheduledDays: 22,
+      absentDays: 0,
+      lateCount: 2,
+      earlyCount: 0,
+      noLeave: true,
+      overtimeHours: { weekday: 0, weekend: 0, holiday: 0 },
+    };
+
+    it('无迟到扣款项目', () => {
+      const r = calculatePayroll(emp, snapshot, cfgDisabled);
+      const lateDeduct = r.items.find((i) => i.code === 'lateDeduct');
+      expect(lateDeduct).toBeUndefined();
+    });
+
+    it('无全勤奖（有迟到次数）', () => {
+      const r = calculatePayroll(emp, snapshot, cfgDisabled);
+      const bonus = r.items.find((i) => i.code === 'bonus');
+      expect(bonus).toBeUndefined();
     });
   });
 });

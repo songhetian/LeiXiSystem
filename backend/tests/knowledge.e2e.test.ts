@@ -1,4 +1,4 @@
-// S12 · 知识库 + KKFileView 预览 e2e（TDD RED 先行）
+// S12 · 知识库 + Open-File-Viewer 预览 e2e（TDD RED 先行）
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { NestFactory } from '@nestjs/core';
@@ -22,7 +22,7 @@ async function login(app: NestFastifyApplication, username: string, password = '
   return (Array.isArray(sc) ? sc[0] : sc).split(';')[0];
 }
 
-describe('S12 · 知识库 + KKFileView 预览', () => {
+describe('S12 · 知识库 + Open-File-Viewer 预览', () => {
   let app: NestFastifyApplication;
   let adminCookie: string;
   let staffCookie: string;
@@ -56,10 +56,10 @@ describe('S12 · 知识库 + KKFileView 预览', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -190,7 +190,7 @@ describe('S12 · 知识库 + KKFileView 预览', () => {
       attachmentId = body.data.id;
     });
 
-    it('GET /knowledge/preview-url 应该返回带签名的预览 URL', async () => {
+    it('GET /knowledge/preview-url 应该返回前端预览路由 URL', async () => {
       const res = await inject(app, {
         method: 'GET',
         url: `/api/v1/knowledge/preview-url?attachmentId=${attachmentId}`,
@@ -201,6 +201,7 @@ describe('S12 · 知识库 + KKFileView 预览', () => {
       expect(body.code).toBe(0);
       expect(body.data.previewUrl).toBeDefined();
       expect(body.data.previewUrl).toContain('token=');
+      expect(body.data.previewUrl).toMatch(/^\/knowledge\/preview\//);
       expect(body.data.expiresAt).toBeDefined();
     });
 

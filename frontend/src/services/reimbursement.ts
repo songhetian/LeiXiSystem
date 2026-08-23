@@ -27,7 +27,7 @@ export interface Reimbursement {
   departmentName: string;
   title: string;
   totalAmount: number;
-  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  status: 'draft' | 'pending' | 'approving' | 'approved' | 'rejected';
   description?: string;
   currentApproverId?: number;
   currentApproverName?: string;

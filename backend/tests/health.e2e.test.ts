@@ -12,7 +12,7 @@ describe('GET /api/v1/health（S01 骨架验收）', () => {
 
   beforeAll(async () => {
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-    await app.register(cookie);
+    await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
   });

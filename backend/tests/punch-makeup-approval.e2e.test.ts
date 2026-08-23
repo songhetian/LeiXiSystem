@@ -39,7 +39,7 @@ describe('S05 · 补卡申请接入审批流', () => {
     const dept = await prisma.department.create({ data: { name: '技术部' } });
 
     const emp = await prisma.user.create({
-      data: { username: 'emp_mk2', passwordHash: await bcrypt.hash('123456', 10), name: '员工甲' },
+      data: { username: 'emp_mk2', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲' },
     });
     empId = emp.id;
 
@@ -228,7 +228,7 @@ describe('S05 · 补卡申请接入审批流', () => {
 
     it('其他用户不能查看我的补卡详情 → 403', async () => {
       const other = await prisma.user.create({
-        data: { username: 'other_mk2', passwordHash: await bcrypt.hash('123456', 10), name: '其他' },
+        data: { username: 'other_mk2', passwordHash: await bcrypt.hash('123456', 10), realName: '其他' },
       });
       const dept = await prisma.department.create({ data: { name: '其他部门' } });
       await prisma.employee.create({

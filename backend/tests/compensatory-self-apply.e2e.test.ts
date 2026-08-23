@@ -62,13 +62,13 @@ describe('S06 · 调休兑换员工端自助申请', () => {
     });
 
     const user1 = await prisma.user.create({
-      data: { username: 'staff_c', passwordHash: await bcrypt.hash('123456', 10), name: '员工C' },
+      data: { username: 'staff_c', passwordHash: await bcrypt.hash('123456', 10), realName: '员工C' },
     });
     const user2 = await prisma.user.create({
-      data: { username: 'staff_d', passwordHash: await bcrypt.hash('123456', 10), name: '员工D' },
+      data: { username: 'staff_d', passwordHash: await bcrypt.hash('123456', 10), realName: '员工D' },
     });
     const mgr = await prisma.user.create({
-      data: { username: 'mgr_c', passwordHash: await bcrypt.hash('123456', 10), name: '主管' },
+      data: { username: 'mgr_c', passwordHash: await bcrypt.hash('123456', 10), realName: '主管' },
     });
     await prisma.userRole.createMany({
       data: [

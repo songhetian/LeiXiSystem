@@ -14,13 +14,14 @@ export class SchedulesService {
     // 数据隔离：经理只能给本部门员工排班（ADR-0010）
     await this.assertInScope(dto.employeeId, userId);
     try {
-      return await this.prisma.schedule.create({
-        data: { ...dto, workDate: new Date(dto.workDate) },
+      const workDate = new Date(dto.workDate);
+      // upsert：同一员工同一天已有排班则覆盖为本次班次，而非抛出“排班重复”
+      return await this.prisma.schedule.upsert({
+        where: { employeeId_workDate: { employeeId: dto.employeeId, workDate } },
+        create: { employeeId: dto.employeeId, shiftId: dto.shiftId, workDate },
+        update: { shiftId: dto.shiftId },
       });
     } catch (e: any) {
-      if (e.code === 'P2002') {
-        throw new ConflictException({ code: 2002, message: '该员工当日已排班' });
-      }
       if (e.code === 'P2003') {
         throw new UnprocessableEntityException({ code: 1002, message: '员工或班次不存在' });
       }
@@ -28,7 +29,7 @@ export class SchedulesService {
     }
   }
 
-  // 批量排班：事务内逐条插入，冲突整体回滚（原子性）
+  // 批量排班：事务内逐条 upsert，冲突覆盖而非报错（幂等）
   async batch(items: { employeeId: number; shiftId: number; workDate: string }[], userId: number) {
     for (const item of items) {
       await this.assertInScope(item.employeeId, userId);
@@ -37,16 +38,18 @@ export class SchedulesService {
       const count = await this.prisma.$transaction(async (tx) => {
         let n = 0;
         for (const item of items) {
-          await tx.schedule.create({ data: { ...item, workDate: new Date(item.workDate) } });
+          const workDate = new Date(item.workDate);
+          await tx.schedule.upsert({
+            where: { employeeId_workDate: { employeeId: item.employeeId, workDate } },
+            create: { employeeId: item.employeeId, shiftId: item.shiftId, workDate },
+            update: { shiftId: item.shiftId },
+          });
           n++;
         }
         return n;
       });
       return { count };
     } catch (e: any) {
-      if (e.code === 'P2002') {
-        throw new ConflictException({ code: 2002, message: '批量排班存在重复（已全部回滚）' });
-      }
       if (e.code === 'P2003') {
         throw new UnprocessableEntityException({ code: 1002, message: '员工或班次不存在' });
       }
@@ -60,10 +63,19 @@ export class SchedulesService {
   ) {
     const scope = await this.dataScope.visibleScope(userId);
     const where: any = {};
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      where.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
       where.employee = { departmentId: { in: scope.ids } };
     }
-    if (query.employeeId) where.employeeId = Number(query.employeeId);
+    if (query.employeeId) {
+      if (scope.selfEmployeeId && scope.selfEmployeeId !== Number(query.employeeId)) {
+        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+      }
+      if (!scope.selfEmployeeId) {
+        where.employeeId = Number(query.employeeId);
+      }
+    }
     if (query.startDate || query.endDate) {
       where.workDate = {};
       if (query.startDate) where.workDate.gte = new Date(query.startDate);
@@ -80,6 +92,35 @@ export class SchedulesService {
       this.prisma.schedule.count({ where }),
     ]);
     return { list, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /** 我的排班：仅返回当前登录用户本人（其绑定员工）在时间范围内的排班，含班次信息 */
+  async mySchedule(userId: number, range: { startDate?: string; endDate?: string; page: number; pageSize: number }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { employees: { select: { id: true } } },
+    });
+    const myEmployeeId = user?.employees?.[0]?.id;
+    if (!myEmployeeId) {
+      return { list: [], total: 0, page: range.page, pageSize: range.pageSize };
+    }
+    const where: any = { employeeId: myEmployeeId };
+    if (range.startDate || range.endDate) {
+      where.workDate = {};
+      if (range.startDate) where.workDate.gte = new Date(range.startDate);
+      if (range.endDate) where.workDate.lte = new Date(range.endDate);
+    }
+    const [list, total] = await Promise.all([
+      this.prisma.schedule.findMany({
+        where,
+        include: { shift: true },
+        orderBy: { workDate: 'asc' },
+        skip: (range.page - 1) * range.pageSize,
+        take: range.pageSize,
+      }),
+      this.prisma.schedule.count({ where }),
+    ]);
+    return { list, total, page: range.page, pageSize: range.pageSize };
   }
 
   async update(id: number, dto: { employeeId?: number; shiftId?: number; workDate?: string }, userId: number) {
@@ -122,6 +163,12 @@ export class SchedulesService {
 
   private async assertInScope(employeeId: number, userId: number) {
     const scope = await this.dataScope.visibleScope(userId);
+    if (scope.selfEmployeeId) {
+      if (employeeId !== scope.selfEmployeeId) {
+        throw new ForbiddenException({ code: 5003, message: '无权限为该员工排班' });
+      }
+      return;
+    }
     if (scope.all) return;
     const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee || !scope.ids.includes(employee.departmentId)) {

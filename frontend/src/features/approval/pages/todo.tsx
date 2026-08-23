@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Tabs, Table, Button, Space, Modal, Input, Message, Tag, Card } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import StatusTag from '@/components/StatusTag';
+import DataState from '@/components/DataState';
 import { approvalApi, TodoItem, SubmissionItem } from '@/services/approval';
+import useFetchState from '@/hooks/use-fetch-state';
 
 const TabPane = Tabs.TabPane;
 
@@ -15,15 +16,20 @@ const approvalStatusMap: Record<string, { label: string; color: string }> = {
   rejected: { label: '已驳回', color: 'red' },
 };
 
+interface ListResult<T> {
+  list: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export default function ApprovalTodoPage() {
   const [activeTab, setActiveTab] = useState('todos');
 
-  const [todoLoading, setTodoLoading] = useState(false);
-  const [todoData, setTodoData] = useState<TodoItem[]>([]);
+  const { data: todoData, loading: todoLoading, error: todoError, run: runFetchTodos, setData: setTodoData } = useFetchState<ListResult<TodoItem>>();
   const [todoPagination, setTodoPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
-  const [submissionLoading, setSubmissionLoading] = useState(false);
-  const [submissionData, setSubmissionData] = useState<SubmissionItem[]>([]);
+  const { data: submissionData, loading: submissionLoading, error: submissionError, run: runFetchSubmissions, setData: setSubmissionData } = useFetchState<ListResult<SubmissionItem>>();
   const [submissionPagination, setSubmissionPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -33,37 +39,33 @@ export default function ApprovalTodoPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchTodos = async (page = 1, pageSize = 20) => {
-    setTodoLoading(true);
-    try {
+    await runFetchTodos(async () => {
       const result = await approvalApi.listTodos({ page, pageSize });
       if (result.code === 0 && result.data) {
-        setTodoData(result.data.list);
         setTodoPagination({
           current: result.data.page,
           pageSize: result.data.pageSize,
           total: result.data.total,
         });
+        return result.data;
       }
-    } finally {
-      setTodoLoading(false);
-    }
+      throw new Error(result.message || '获取待办列表失败');
+    });
   };
 
   const fetchSubmissions = async (page = 1, pageSize = 20) => {
-    setSubmissionLoading(true);
-    try {
+    await runFetchSubmissions(async () => {
       const result = await approvalApi.listMySubmissions({ page, pageSize });
       if (result.code === 0 && result.data) {
-        setSubmissionData(result.data.list);
         setSubmissionPagination({
           current: result.data.page,
           pageSize: result.data.pageSize,
           total: result.data.total,
         });
+        return result.data;
       }
-    } finally {
-      setSubmissionLoading(false);
-    }
+      throw new Error(result.message || '获取申请列表失败');
+    });
   };
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export default function ApprovalTodoPage() {
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
-    if (key === 'submissions' && submissionData.length === 0) {
+    if (key === 'submissions' && (!submissionData || submissionData.list.length === 0)) {
       fetchSubmissions(1, 20);
     }
   };
@@ -183,16 +185,20 @@ export default function ApprovalTodoPage() {
   ];
 
   return (
-    <AppLayout title="审批中心" activeMenu="approval-todo">
-      <PageContainer title="审批中心">
-        <Tabs activeTab={activeTab} onChange={handleTabChange}>
-          <TabPane key="todos" title="待办审批">
-            <Card style={{ marginTop: 16 }}>
+    <PageContainer title="审批中心">
+      <Tabs activeTab={activeTab} onChange={handleTabChange}>
+        <TabPane key="todos" title="待办审批">
+          <Card style={{ marginTop: 16 }}>
+            <DataState
+              loading={todoLoading}
+              error={todoError}
+              onRetry={() => fetchTodos(todoPagination.current, todoPagination.pageSize)}
+              isEmpty={!todoData || todoData.list.length === 0}
+            >
               <Table
                 columns={todoColumns}
-                data={todoData}
+                data={todoData?.list || []}
                 rowKey="id"
-                loading={todoLoading}
                 pagination={{
                   current: todoPagination.current,
                   pageSize: todoPagination.pageSize,
@@ -201,15 +207,21 @@ export default function ApprovalTodoPage() {
                   showTotal: true,
                 }}
               />
-            </Card>
-          </TabPane>
-          <TabPane key="submissions" title="我的申请">
-            <Card style={{ marginTop: 16 }}>
+            </DataState>
+          </Card>
+        </TabPane>
+        <TabPane key="submissions" title="我的申请">
+          <Card style={{ marginTop: 16 }}>
+            <DataState
+              loading={submissionLoading}
+              error={submissionError}
+              onRetry={() => fetchSubmissions(submissionPagination.current, submissionPagination.pageSize)}
+              isEmpty={!submissionData || submissionData.list.length === 0}
+            >
               <Table
                 columns={submissionColumns}
-                data={submissionData}
+                data={submissionData?.list || []}
                 rowKey="id"
-                loading={submissionLoading}
                 pagination={{
                   current: submissionPagination.current,
                   pageSize: submissionPagination.pageSize,
@@ -218,36 +230,36 @@ export default function ApprovalTodoPage() {
                   showTotal: true,
                 }}
               />
-            </Card>
-          </TabPane>
-        </Tabs>
+            </DataState>
+          </Card>
+        </TabPane>
+      </Tabs>
 
-        <Modal
-          visible={actionModalVisible}
-          title={actionType === 'approve' ? '同意' : '驳回'}
-          onOk={handleActionOk}
-          onCancel={handleActionCancel}
-          confirmLoading={actionLoading}
-          okText="确定"
-          cancelText="取消"
-          maskClosable={false}
-        >
-          <div style={{ marginBottom: 12 }}>
-            {currentTodo && (
-              <div>
-                <p><strong>标题：</strong>{currentTodo.title}</p>
-                <p><strong>申请人：</strong>{currentTodo.submitterName}</p>
-              </div>
-            )}
-          </div>
-          <Input.TextArea
-            value={comment}
-            onChange={setComment}
-            placeholder={actionType === 'approve' ? '请输入审批意见（选填）' : '请输入驳回原因（必填）'}
-            style={{ width: '100%', minHeight: 80 }}
-          />
-        </Modal>
-      </PageContainer>
-    </AppLayout>
+      <Modal
+        visible={actionModalVisible}
+        title={actionType === 'approve' ? '同意' : '驳回'}
+        onOk={handleActionOk}
+        onCancel={handleActionCancel}
+        confirmLoading={actionLoading}
+        okText="确定"
+        cancelText="取消"
+        maskClosable={false}
+      >
+        <div style={{ marginBottom: 12 }}>
+          {currentTodo && (
+            <div>
+              <p><strong>标题：</strong>{currentTodo.title}</p>
+              <p><strong>申请人：</strong>{currentTodo.submitterName}</p>
+            </div>
+          )}
+        </div>
+        <Input.TextArea
+          value={comment}
+          onChange={setComment}
+          placeholder={actionType === 'approve' ? '请输入审批意见（选填）' : '请输入驳回原因（必填）'}
+          style={{ width: '100%', minHeight: 80 }}
+        />
+      </Modal>
+    </PageContainer>
   );
 }

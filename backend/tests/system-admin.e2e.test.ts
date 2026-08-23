@@ -36,25 +36,41 @@ describe('S14 · 系统管理（操作日志 + 公告）', () => {
     await prisma.rolePermission.deleteMany();
     await prisma.permission.deleteMany();
 
-    const permSystem = await prisma.permission.create({
-      data: { code: 'system:manage', name: '系统管理', module: 'system', type: 'menu' },
+    const permLogView = await prisma.permission.create({
+      data: { code: 'system:log:view', name: '操作日志查看', module: 'system', type: 'menu' },
     });
-    const permView = await prisma.permission.create({
-      data: { code: 'system:view', name: '系统查看', module: 'system', type: 'menu' },
+    const permBroadcastManage = await prisma.permission.create({
+      data: { code: 'system:broadcast:manage', name: '公告管理', module: 'system', type: 'menu' },
+    });
+    const permUserView = await prisma.permission.create({
+      data: { code: 'system:user:view', name: '用户查看', module: 'system', type: 'menu' },
+    });
+    const permUserManage = await prisma.permission.create({
+      data: { code: 'system:user:manage', name: '用户管理', module: 'system', type: 'menu' },
+    });
+    const permRoleView = await prisma.permission.create({
+      data: { code: 'system:role:view', name: '角色查看', module: 'system', type: 'menu' },
+    });
+    const permRoleManage = await prisma.permission.create({
+      data: { code: 'system:role:manage', name: '角色管理', module: 'system', type: 'menu' },
     });
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
     await prisma.rolePermission.createMany({
       data: [
-        { roleId: adminRole.id, permissionId: permSystem.id },
-        { roleId: adminRole.id, permissionId: permView.id },
+        { roleId: adminRole.id, permissionId: permLogView.id },
+        { roleId: adminRole.id, permissionId: permBroadcastManage.id },
+        { roleId: adminRole.id, permissionId: permUserView.id },
+        { roleId: adminRole.id, permissionId: permUserManage.id },
+        { roleId: adminRole.id, permissionId: permRoleView.id },
+        { roleId: adminRole.id, permissionId: permRoleManage.id },
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -108,6 +124,48 @@ describe('S14 · 系统管理（操作日志 + 公告）', () => {
       const res = await inject(app, {
         method: 'GET',
         url: '/api/v1/system/logs',
+        headers: { cookie: staffCookie },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('GET /system/logs/export 应该导出操作日志 Excel', async () => {
+      const res = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/system/logs/export',
+        headers: { cookie: adminCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.headers['content-disposition']).toContain('attachment; filename="operation_logs_');
+      expect(Buffer.isBuffer(res.rawPayload)).toBe(true);
+      expect(res.rawPayload.length).toBeGreaterThan(0);
+    });
+
+    it('GET /system/logs/export 支持按模块筛选', async () => {
+      const res = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/system/logs/export?module=系统管理',
+        headers: { cookie: adminCookie },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    });
+
+    it('GET /system/logs/export 支持按时间范围筛选', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await inject(app, {
+        method: 'GET',
+        url: `/api/v1/system/logs/export?startDate=${today}&endDate=${today}`,
+        headers: { cookie: adminCookie },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('普通员工不能导出操作日志 → 403', async () => {
+      const res = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/system/logs/export',
         headers: { cookie: staffCookie },
       });
       expect(res.statusCode).toBe(403);

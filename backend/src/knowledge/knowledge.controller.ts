@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   Req,
+  Res,
   UseGuards,
   HttpCode,
   ParseIntPipe,
@@ -16,6 +17,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { KnowledgeService } from './knowledge.service';
+import { createReadStream } from 'fs';
+import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CreateArticleDto, UpdateArticleDto } from './dto/article.dto';
+import { AddAttachmentDto } from './dto/attachment.dto';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('knowledge')
 @UseGuards(JwtAuthGuard)
@@ -34,7 +40,7 @@ export class KnowledgeController {
   @HttpCode(200)
   @UseGuards(PermissionGuard)
   @RequirePermission('knowledge:manage')
-  async createCategory(@Body() body: any) {
+  async createCategory(@Body() body: CreateCategoryDto) {
     const data = await this.knowledgeService.createCategory(body.name, body.sortOrder);
     return { code: 0, data };
   }
@@ -45,7 +51,7 @@ export class KnowledgeController {
   @RequirePermission('knowledge:manage')
   async updateCategory(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
+    @Body() body: UpdateCategoryDto,
   ) {
     const data = await this.knowledgeService.updateCategory(id, body.name, body.sortOrder);
     return { code: 0, data };
@@ -69,11 +75,12 @@ export class KnowledgeController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.knowledgeService.listArticles({
       categoryId: categoryId ? parseInt(categoryId) : undefined,
       keyword,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
     });
     return { code: 0, data };
   }
@@ -89,7 +96,7 @@ export class KnowledgeController {
   @HttpCode(200)
   @UseGuards(PermissionGuard)
   @RequirePermission('knowledge:manage')
-  async createArticle(@Body() body: any, @Req() req: any) {
+  async createArticle(@Body() body: CreateArticleDto, @Req() req: any) {
     const data = await this.knowledgeService.createArticle({
       categoryId: body.categoryId,
       title: body.title,
@@ -105,7 +112,7 @@ export class KnowledgeController {
   @RequirePermission('knowledge:manage')
   async updateArticle(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
+    @Body() body: UpdateArticleDto,
   ) {
     const data = await this.knowledgeService.updateArticle(id, body);
     return { code: 0, data };
@@ -117,6 +124,15 @@ export class KnowledgeController {
   @RequirePermission('knowledge:manage')
   async deleteArticle(@Param('id', ParseIntPipe) id: number) {
     const data = await this.knowledgeService.deleteArticle(id);
+    return { code: 0, data };
+  }
+
+  @Post('articles/:id/restore')
+  @HttpCode(200)
+  @UseGuards(PermissionGuard)
+  @RequirePermission('knowledge:manage')
+  async restoreArticle(@Param('id', ParseIntPipe) id: number) {
+    const data = await this.knowledgeService.restoreArticle(id);
     return { code: 0, data };
   }
 
@@ -134,7 +150,7 @@ export class KnowledgeController {
   @RequirePermission('knowledge:manage')
   async addAttachment(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
+    @Body() body: AddAttachmentDto,
   ) {
     const data = await this.knowledgeService.addAttachment({
       articleId: id,
@@ -191,5 +207,25 @@ export class KnowledgePublicController {
   async verifyPreview(@Query('token') token?: string) {
     const data = this.knowledgeService.verifyPreviewToken(token || '');
     return { code: 0, data };
+  }
+
+  // ===== 附件下载（验证预览 token 或 JWT）=====
+  @Get('attachments/:id/download')
+  async downloadAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('token') token: string,
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    const cookieHeader: string | undefined = req.headers?.cookie;
+    const { filePath, fileName, mimeType } = await this.knowledgeService.downloadAttachment(
+      id,
+      token,
+      cookieHeader,
+    );
+    const stream = createReadStream(filePath);
+    res.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.type(mimeType);
+    res.send(stream);
   }
 }

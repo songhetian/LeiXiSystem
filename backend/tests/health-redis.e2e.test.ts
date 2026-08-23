@@ -5,8 +5,19 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { HealthController } from '../src/health/health.controller';
 import { RedisModule } from '../src/common/redis/redis.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 
-@Module({ imports: [RedisModule], controllers: [HealthController] })
+// Mock PrismaService so the health check DB test always succeeds in this e2e
+// suite, which is focused on Redis status behaviour.
+const mockPrismaService = {
+  $queryRaw: jest.fn().mockResolvedValue([{ '1': 1 }]),
+};
+
+@Module({
+  imports: [RedisModule],
+  controllers: [HealthController],
+  providers: [{ provide: PrismaService, useValue: mockPrismaService }],
+})
 class HealthTestModule {}
 
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -21,7 +32,7 @@ describe('T22.5 /health 含 redis 状态', () => {
   });
 
   it('RED: REDIS_URL 存在时，/health 返回 data.redis === "up"', async () => {
-    process.env.REDIS_URL = 'redis://127.0.0.1:6379';
+    process.env.REDIS_URL = 'redis://:123456@127.0.0.1:6379';
     const app = await NestFactory.create<NestFastifyApplication>(HealthTestModule, new FastifyAdapter());
     await app.init();
     const res = await inject(app, { method: 'GET', url: '/health' });

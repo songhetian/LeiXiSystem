@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PunchMakeupService } from './punch-makeup.service';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('attendance/punch/makeup')
 @UseGuards(JwtAuthGuard)
@@ -25,17 +26,21 @@ export class PunchMakeupController {
   async list(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('employeeId') employeeId?: string,
     @Query('status') status?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.punchMakeupService.list({
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
+      employeeId: employeeId ? parseInt(employeeId) : undefined,
       status,
       startDate,
       endDate,
+      userId: req.user.id,
     });
     return { code: 0, data };
   }

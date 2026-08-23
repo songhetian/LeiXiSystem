@@ -217,4 +217,49 @@ describe('ProTable', () => {
       expect(search.compareDocumentPosition(table)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
   });
+
+  describe('空页自动回跳', () => {
+    it('当前页越界时，自动跳转到最后有效页', () => {
+      const onPageChange = jest.fn();
+      render(
+        <ProTable
+          columns={mockColumns}
+          data={[]}
+          rowKey="id"
+          pagination={{ current: 5, pageSize: 10, total: 25 }}
+          onPageChange={onPageChange}
+        />,
+      );
+      // 5 页 * 10 = 50 > 25，越界。最后有效页是 ceil(25/10) = 3
+      expect(onPageChange).toHaveBeenCalledWith(3, 10);
+    });
+
+    it('当前页有效时，不触发跳转', () => {
+      const onPageChange = jest.fn();
+      render(
+        <ProTable
+          columns={mockColumns}
+          data={mockData}
+          rowKey="id"
+          pagination={{ current: 2, pageSize: 10, total: 25 }}
+          onPageChange={onPageChange}
+        />,
+      );
+      expect(onPageChange).not.toHaveBeenCalled();
+    });
+
+    it('total 未知时，不自动跳转', () => {
+      const onPageChange = jest.fn();
+      render(
+        <ProTable
+          columns={mockColumns}
+          data={[]}
+          rowKey="id"
+          pagination={{ current: 5, pageSize: 10 }}
+          onPageChange={onPageChange}
+        />,
+      );
+      expect(onPageChange).not.toHaveBeenCalled();
+    });
+  });
 });

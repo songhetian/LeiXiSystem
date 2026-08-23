@@ -45,29 +45,25 @@ describe('S14 · 公告指定接收人（全员/部门/人员）', () => {
     await prisma.department.deleteMany();
     await prisma.user.deleteMany();
 
-    const permSystemManage = await prisma.permission.create({
-      data: { code: 'system:manage', name: '系统管理', module: 'system', type: 'menu' },
-    });
-    const permSystemView = await prisma.permission.create({
-      data: { code: 'system:view', name: '系统查看', module: 'system', type: 'menu' },
+    const permBroadcastManage = await prisma.permission.create({
+      data: { code: 'system:broadcast:manage', name: '公告管理', module: 'system', type: 'menu' },
     });
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '员工' } });
     await prisma.rolePermission.createMany({
       data: [
-        { roleId: adminRole.id, permissionId: permSystemManage.id },
-        { roleId: adminRole.id, permissionId: permSystemView.id },
+        { roleId: adminRole.id, permissionId: permBroadcastManage.id },
       ],
     });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin_r', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_r', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const userA = await prisma.user.create({
-      data: { username: 'userA', passwordHash: await bcrypt.hash('123456', 10), name: 'A部门员工' },
+      data: { username: 'userA', passwordHash: await bcrypt.hash('123456', 10), realName: 'A部门员工' },
     });
     const userB = await prisma.user.create({
-      data: { username: 'userB', passwordHash: await bcrypt.hash('123456', 10), name: 'B部门员工' },
+      data: { username: 'userB', passwordHash: await bcrypt.hash('123456', 10), realName: 'B部门员工' },
     });
     userAId = userA.id;
     userBId = userB.id;

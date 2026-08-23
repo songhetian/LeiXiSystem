@@ -28,30 +28,106 @@ export class SettingsService {
 
   async upsert(key: string, input: UpsertInput, updatedBy?: number) {
     const group = input.group ?? 'general';
-    return this.prisma.systemSetting.upsert({
-      where: { key },
-      update: {
-        value: input.value,
-        label: input.label,
-        description: input.description,
-        updatedBy,
-      },
-      create: {
-        key,
-        value: input.value,
-        label: input.label,
-        description: input.description,
-        group,
-        updatedBy,
-      },
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.systemSetting.findUnique({ where: { key } });
+
+      const result = await tx.systemSetting.upsert({
+        where: { key },
+        update: {
+          value: input.value,
+          label: input.label,
+          description: input.description,
+          updatedBy,
+        },
+        create: {
+          key,
+          value: input.value,
+          label: input.label,
+          description: input.description,
+          group,
+          updatedBy,
+        },
+      });
+
+      const oldValue = existing?.value;
+      const newValue = input.value;
+
+      if (oldValue !== newValue) {
+        await tx.systemSettingHistory.create({
+          data: {
+            settingKey: key,
+            oldValue,
+            newValue,
+            changedBy: updatedBy,
+          },
+        });
+      }
+
+      return result;
     });
   }
 
   async bulkUpsert(items: Array<{ key: string } & UpsertInput>, updatedBy?: number) {
-    return Promise.all(items.map((it) => this.upsert(it.key, it, updatedBy)));
+    return this.prisma.$transaction(async (tx) => {
+      // 一次性批量预读现有值，避免在循环内逐条 findUnique（消除 N+1 读）
+      const keys = items.map((it) => it.key);
+      const existingRows = await tx.systemSetting.findMany({
+        where: { key: { in: keys } },
+      });
+      const existingMap = new Map(existingRows.map((r) => [r.key, r.value]));
+
+      const results = [];
+      for (const it of items) {
+        const oldValue = existingMap.get(it.key);
+        const group = it.group ?? 'general';
+
+        const result = await tx.systemSetting.upsert({
+          where: { key: it.key },
+          update: {
+            value: it.value,
+            label: it.label,
+            description: it.description,
+            updatedBy,
+          },
+          create: {
+            key: it.key,
+            value: it.value,
+            label: it.label,
+            description: it.description,
+            group,
+            updatedBy,
+          },
+        });
+
+        const newValue = it.value;
+
+        if (oldValue !== newValue) {
+          await tx.systemSettingHistory.create({
+            data: {
+              settingKey: it.key,
+              oldValue: oldValue ?? null,
+              newValue,
+              changedBy: updatedBy,
+            },
+          });
+        }
+
+        results.push(result);
+      }
+      return results;
+    });
   }
 
   async remove(key: string) {
     await this.prisma.systemSetting.delete({ where: { key } });
+  }
+
+  async getHistory(key?: string) {
+    const where = key ? { settingKey: key } : {};
+    return this.prisma.systemSettingHistory.findMany({
+      where,
+      orderBy: { changedAt: 'desc' },
+    });
   }
 }

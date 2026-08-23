@@ -73,7 +73,9 @@ export class PunchLogsService {
   ) {
     const scope = await this.dataScope.visibleScope(userId);
     const where: any = {};
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      where.employee = { id: scope.selfEmployeeId };
+    } else if (!scope.all) {
       where.employee = { departmentId: { in: scope.ids } };
     }
     if (query.employeeNo) where.employeeNo = query.employeeNo;
@@ -124,9 +126,11 @@ export class PunchLogsService {
     return !isNaN(d.getTime());
   }
 
-  private async getValidEmployeeNos(nos: string[], scope: { all: boolean; ids: number[] }): Promise<Set<string>> {
+  private async getValidEmployeeNos(nos: string[], scope: { all: boolean; ids: number[]; selfEmployeeId?: number }): Promise<Set<string>> {
     const where: any = { employeeNo: { in: nos } };
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      where.id = scope.selfEmployeeId;
+    } else if (!scope.all) {
       where.departmentId = { in: scope.ids };
     }
     const emps = await this.prisma.employee.findMany({ where, select: { employeeNo: true } });

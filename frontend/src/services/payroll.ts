@@ -73,32 +73,39 @@ export interface CreatePayrollRunParams {
   remark?: string;
 }
 
+/** 算薪明细项（对应后端 PayrollDetail 记录） */
 export interface PayrollDetailItem {
   code: string;
   name: string;
   amount: number;
-  type?: string;
 }
 
+/** 算薪调整项（对应后端 PayrollAdjustment 记录） */
+export interface PayrollAdjustmentItem {
+  id: number;
+  itemCode: string;
+  amount: number;
+  reason: string;
+  createdAt: string;
+}
+
+/** 算薪批次中单个员工的明细汇总（后端 getRunDetails 返回） */
 export interface PayrollEmployeeDetail {
-  employeeId: number;
-  employeeNo: string;
-  employeeName: string;
-  departmentName: string;
-  baseSalary: number;
-  overtimePay: number;
-  absenceDeduction: number;
-  bonus: number;
-  total: number;
+  employee: {
+    id: number;
+    employeeNo: string;
+    name: string;
+    departmentId?: number | null;
+  };
   items: PayrollDetailItem[];
-  adjustments?: PayrollDetailItem[];
+  adjustments: PayrollAdjustmentItem[];
+  total: number;
 }
 
-export interface PayrollRunDetailsParams {
-  page?: number;
-  pageSize?: number;
-  departmentId?: number;
-  keyword?: string;
+/** 算薪批次明细（后端 GET /payroll/runs/:id/details 返回） */
+export interface PayrollRunDetails {
+  run: PayrollRun;
+  employees: PayrollEmployeeDetail[];
 }
 
 export interface AdjustPayrollRunParams {
@@ -151,11 +158,8 @@ export const payrollApi = {
     return request.get(`/payroll/runs/${id}`);
   },
 
-  getPayrollRunDetails(
-    id: number,
-    params: PayrollRunDetailsParams = {}
-  ): Promise<ListResult<PayrollEmployeeDetail>> {
-    return request.get(`/payroll/runs/${id}/details`, { params });
+  getPayrollRunDetails(id: number): Promise<DetailResult<PayrollRunDetails>> {
+    return request.get(`/payroll/runs/${id}/details`);
   },
 
   confirmPayrollRun(id: number): Promise<DetailResult<PayrollRun>> {

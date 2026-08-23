@@ -1,0 +1,2234 @@
+/* ========================================
+   雷犀管理系统 · Arco Design 组件全局样式覆写
+   风格：扁平 · 细字重 · 信息密集 · 极弱阴影
+   参考 admin-ui-redesign-final.html 设计规范
+   ======================================== */
+
+/* ---- 按钮 ---- */
+.arco-btn {
+  border-radius: var(--lx-radius-sm);
+  font-weight: var(--lx-font-normal);
+  transition: border-color var(--lx-transition-fast), color var(--lx-transition-fast), background-color var(--lx-transition-fast), opacity var(--lx-transition-fast);
+  height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.arco-btn-primary {
+  box-shadow: none;
+  background: var(--lx-primary);
+}
+
+.arco-btn-primary:hover {
+  box-shadow: none;
+  opacity: 0.88;
+  background: var(--lx-primary-hover);
+}
+
+.arco-btn-secondary {
+  border-color: var(--lx-border-1);
+  color: var(--lx-text-2);
+  background: var(--lx-bg-card);
+}
+
+.arco-btn-secondary:hover {
+  border-color: var(--lx-primary);
+  color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+}
+
+.arco-btn-text:hover {
+  background: var(--lx-bg-hover);
+}
+
+.arco-btn-default {
+  border-color: var(--lx-border-1);
+  color: var(--lx-text-2);
+}
+
+.arco-btn-default:hover {
+  border-color: var(--lx-primary);
+  color: var(--lx-primary);
+}
+
+/* ---- 卡片 ---- */
+.arco-card {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+  box-shadow: var(--lx-shadow-card);
+  transition: box-shadow var(--lx-transition-fast), border-color var(--lx-transition-fast);
+  background: var(--lx-bg-card);
+}
+
+.arco-card-hoverable:hover {
+  box-shadow: var(--lx-shadow-md);
+  border-color: var(--lx-border-3);
+}
+
+.arco-card-body {
+  padding: var(--lx-space-4) var(--lx-space-5);
+}
+
+.arco-card-header {
+  padding: 14px 18px 0;
+  border-bottom: none;
+}
+
+.arco-card-header-title {
+  font-size: 14px;
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-1);
+}
+
+.arco-card-extra {
+  font-size: 12px;
+  color: var(--lx-text-3);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- 表格 ---- */
+.arco-table {
+  border-radius: var(--lx-radius-md);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.arco-table-th {
+  background: var(--lx-bg-secondary) !important;
+  border-bottom: 1px solid var(--lx-border-1) !important;
+  color: var(--lx-text-2) !important;
+  font-weight: var(--lx-font-normal) !important;
+  font-size: 12.5px !important;
+  padding: 10px 14px !important;
+}
+
+.arco-table-td {
+  border-bottom: 1px solid var(--lx-border-2) !important;
+  padding: 10px 14px !important;
+  font-size: 13px;
+  color: var(--lx-text-1);
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-table-tr:hover .arco-table-td {
+  background: var(--lx-bg-hover) !important;
+}
+
+.arco-table-container {
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+}
+
+/* ---- 输入框 / 选择器 ---- */
+.arco-input,
+.arco-textarea,
+.arco-picker,
+.arco-select-view {
+  border-radius: var(--lx-radius-sm);
+  border-color: var(--lx-border-1);
+  transition: border-color var(--lx-transition-fast), box-shadow var(--lx-transition-fast);
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-input:focus,
+.arco-textarea:focus,
+.arco-picker-focused,
+.arco-select-view-focused {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1);
+}
+
+.arco-input:hover,
+.arco-textarea:hover,
+.arco-select-view:hover {
+  border-color: var(--lx-border-3);
+}
+
+.arco-input-wrapper {
+  border-radius: var(--lx-radius-sm);
+}
+
+/* ---- 表单 ---- */
+.arco-form-item-label {
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-1);
+  font-size: 13px;
+}
+
+.arco-form-item-label-col .arco-form-item-label {
+  font-size: 13px;
+}
+
+/* ---- 标签 ---- */
+.arco-tag {
+  border-radius: 4px;
+  font-weight: var(--lx-font-normal);
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: none;
+}
+
+.arco-tag-default {
+  background: var(--lx-bg-secondary);
+  color: var(--lx-text-2);
+}
+
+.arco-tag-blue {
+  background: var(--lx-info-bg);
+  color: var(--lx-info);
+}
+
+.arco-tag-green {
+  background: var(--lx-success-bg);
+  color: var(--lx-success);
+}
+
+.arco-tag-red {
+  background: var(--lx-danger-bg);
+  color: var(--lx-danger);
+}
+
+.arco-tag-orange {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.arco-tag-purple {
+  background: var(--lx-purple-bg);
+  color: var(--lx-purple);
+}
+
+/* ---- 模态框 ---- */
+.arco-modal {
+  border-radius: var(--lx-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--lx-shadow-xl);
+}
+
+.arco-modal-header {
+  border-bottom: 1px solid var(--lx-border-2);
+  padding: var(--lx-space-4) var(--lx-space-5);
+  font-weight: var(--lx-font-medium);
+  font-size: 15px;
+}
+
+.arco-modal-body {
+  padding: var(--lx-space-5);
+}
+
+.arco-modal-footer {
+  border-top: 1px solid var(--lx-border-2);
+  padding: var(--lx-space-3) var(--lx-space-5);
+}
+
+/* ---- 菜单（侧边栏） ---- */
+.arco-menu {
+  border-radius: 0;
+}
+
+.arco-menu-item {
+  border-radius: 0;
+  margin: 0;
+  height: 38px;
+  line-height: 38px;
+  font-size: 13.5px;
+  font-weight: var(--lx-font-normal);
+  transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast);
+  border-left: 3px solid transparent;
+  padding: 0 20px !important;
+}
+
+.arco-menu-item:hover {
+  background: var(--lx-border-2);
+  color: var(--lx-text-1);
+}
+
+.arco-menu-item-selected {
+  background: var(--lx-primary-bg) !important;
+  color: var(--lx-primary) !important;
+  font-weight: var(--lx-font-medium) !important;
+  border-left-color: var(--lx-primary);
+}
+
+.arco-menu-item-selected .arco-icon {
+  color: var(--lx-primary);
+}
+
+.arco-menu-inline .arco-menu-inline-content {
+  background: transparent;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.arco-menu-inline .arco-menu-inline-content .arco-menu-item {
+  margin: 0;
+  height: 36px;
+  line-height: 36px;
+  font-size: 13px;
+  padding-left: 38px !important;
+}
+
+.arco-menu-sub-title {
+  border-radius: 0;
+  margin: 0;
+  height: 38px;
+  line-height: 38px;
+  font-size: 13.5px;
+  font-weight: var(--lx-font-medium);
+  padding: 0 20px !important;
+}
+
+.arco-menu-sub-title:hover {
+  background: var(--lx-border-2);
+}
+
+/* 侧栏分组标题 */
+.arco-menu-label-title {
+  font-size: 12px !important;
+  color: var(--lx-text-4) !important;
+  font-weight: var(--lx-font-normal) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 20px 6px !important;
+}
+
+/* ---- 面包屑 ---- */
+.arco-breadcrumb-item {
+  font-size: 13px;
+  color: var(--lx-text-3);
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-breadcrumb-item:last-child {
+  color: var(--lx-text-1);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- 分页 ---- */
+.arco-pagination-item {
+  border-radius: var(--lx-radius-sm);
+  min-width: 28px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 12.5px;
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-pagination-item-active {
+  background: var(--lx-primary);
+  border-color: var(--lx-primary);
+}
+
+/* ---- 抽屉 ---- */
+.arco-drawer {
+  border-radius: 0;
+  box-shadow: var(--lx-shadow-xl);
+}
+
+/* ---- 消息提示 / 通知 ---- */
+.arco-message {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-lg);
+}
+
+.arco-notification {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-xl);
+}
+
+/* ---- Spin ---- */
+.arco-spin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- 下拉菜单 ---- */
+.arco-dropdown {
+  border-radius: var(--lx-radius-sm);
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-1);
+  padding: 4px;
+}
+
+.arco-dropdown-item {
+  border-radius: var(--lx-radius-xs);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- 空状态 ---- */
+.arco-empty {
+  padding: var(--lx-space-7) var(--lx-space-5);
+}
+
+.arco-empty-description {
+  font-size: 13px;
+  color: var(--lx-text-3);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Dropdown 用户菜单 ---- */
+.arco-dropdown-list {
+  min-width: 160px;
+}
+
+/* ---- Grid 间距修正 ---- */
+.arco-row {
+  margin: 0 !important;
+}
+
+/* ---- Typography 标题 ---- */
+.arco-typography {
+  color: var(--lx-text-1);
+}
+
+.arco-typography-h1,
+.arco-typography-h2,
+.arco-typography-h3,
+.arco-typography-h4,
+.arco-typography-h5,
+.arco-typography-h6 {
+  font-weight: var(--lx-font-medium) !important;
+  letter-spacing: -0.01em;
+  color: var(--lx-text-1);
+}
+
+/* ---- Badge ---- */
+.arco-badge-dot {
+  background: var(--lx-danger);
+}
+
+.arco-badge-count {
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Statistic 数字 ---- */
+.arco-statistic-value-content {
+  font-weight: var(--lx-font-medium) !important;
+}
+
+/* ---- Tabs ---- */
+.arco-tabs-header-title {
+  font-weight: var(--lx-font-normal);
+  font-size: 13.5px;
+}
+
+.arco-tabs-header-title-active {
+  font-weight: var(--lx-font-medium);
+}
+
+/* ---- Steps ---- */
+.arco-step-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 13.5px;
+}
+
+/* ---- Descriptions ---- */
+.arco-descriptions-item-label {
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-3);
+  font-size: 12.5px;
+}
+
+.arco-descriptions-item-content {
+  color: var(--lx-text-1);
+  font-size: 13px;
+}
+
+/* ---- Progress ---- */
+.arco-progress-inner {
+  border-radius: var(--lx-radius-full);
+}
+
+/* ---- Alert ---- */
+.arco-alert {
+  border-radius: var(--lx-radius-sm);
+  border: none;
+}
+
+.arco-alert-info {
+  background: var(--lx-info-bg);
+  color: var(--lx-info);
+}
+
+.arco-alert-success {
+  background: var(--lx-success-bg);
+  color: var(--lx-success);
+}
+
+.arco-alert-warning {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.arco-alert-error {
+  background: var(--lx-danger-bg);
+  color: var(--lx-danger);
+}
+
+/* ---- Popover ---- */
+.arco-popover {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-1);
+}
+
+/* ---- Tooltip ---- */
+.arco-tooltip-content {
+  border-radius: var(--lx-radius-sm);
+  font-size: 12px;
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Cascader / Transfer / Tree ---- */
+.arco-tree-node-title {
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- List ---- */
+.arco-list-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+/* ---- Calendar ---- */
+.arco-picker-cell {
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Avatar ---- */
+.arco-avatar {
+  font-weight: var(--lx-font-medium);
+}
+
+/* ---- Divider ---- */
+.arco-divider-vertical {
+  border-left-color: var(--lx-border-2);
+}
+
+.arco-divider-horizontal {
+  border-top-color: var(--lx-border-2);
+}
+
+/* ---- Checkbox / Radio ---- */
+.arco-checkbox-label,
+.arco-radio-label {
+  font-weight: var(--lx-font-normal);
+  font-size: 13px;
+}
+
+/* ---- Switch ---- */
+.arco-switch {
+  border-radius: var(--lx-radius-full);
+}
+
+/* ========================================
+   弹出组件完整样式补充
+   ======================================== */
+
+/* ---- Modal 遮罩毛玻璃效果 ---- */
+.arco-modal-mask {
+  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ---- Modal 标题字重修正 ---- */
+.arco-modal-header-title {
+  font-weight: var(--lx-font-normal);
+  font-size: 16px;
+  color: var(--lx-text-1);
+}
+
+.arco-modal-header {
+  border-bottom: 1px solid var(--lx-border-1);
+  padding: 18px 22px 14px;
+}
+
+.arco-modal-body {
+  padding: 20px 22px;
+}
+
+.arco-modal-footer {
+  border-top: 1px solid var(--lx-border-1);
+  padding: 14px 22px;
+}
+
+/* ---- Drawer 内部样式 ---- */
+.arco-drawer-header {
+  border-bottom: 1px solid var(--lx-border-1);
+  padding: 18px 22px 14px;
+  font-weight: var(--lx-font-normal);
+  font-size: 16px;
+}
+
+.arco-drawer-body {
+  padding: 20px 22px;
+}
+
+.arco-drawer-footer {
+  border-top: 1px solid var(--lx-border-1);
+  padding: 14px 22px;
+}
+
+/* ---- Message / Toast 完整样式 ---- */
+.arco-message {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-lg);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+  border: none;
+}
+
+.arco-message-info {
+  background: var(--lx-info-bg);
+  color: var(--lx-info);
+}
+
+.arco-message-success {
+  background: var(--lx-success-bg);
+  color: var(--lx-success);
+}
+
+.arco-message-warning {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.arco-message-error {
+  background: var(--lx-danger-bg);
+  color: var(--lx-danger);
+}
+
+.arco-message-normal {
+  background: var(--lx-bg-card);
+  color: var(--lx-text-1);
+  border: 1px solid var(--lx-border-1);
+}
+
+.arco-message-content {
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Notification 完整样式 ---- */
+.arco-notification {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-xl);
+  border: 1px solid var(--lx-border-1);
+  padding: 16px 18px;
+}
+
+.arco-notification-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 14px;
+  color: var(--lx-text-1);
+  margin-bottom: 6px;
+}
+
+.arco-notification-content {
+  font-weight: var(--lx-font-normal);
+  font-size: 13px;
+  color: var(--lx-text-2);
+  line-height: 1.6;
+}
+
+.arco-notification-info .arco-notification-icon {
+  color: var(--lx-info);
+}
+
+.arco-notification-success .arco-notification-icon {
+  color: var(--lx-success);
+}
+
+.arco-notification-warning .arco-notification-icon {
+  color: var(--lx-warning);
+}
+
+.arco-notification-error .arco-notification-icon {
+  color: var(--lx-danger);
+}
+
+/* ---- Popconfirm 气泡确认 ---- */
+.arco-popover {
+  border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-1);
+  padding: 12px 14px;
+}
+
+.arco-popconfirm-content {
+  font-size: 13px;
+  color: var(--lx-text-1);
+  font-weight: var(--lx-font-normal);
+  margin-bottom: 12px;
+}
+
+.arco-popconfirm-button-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.arco-popconfirm-button-container .arco-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+/* ---- Tooltip ---- */
+.arco-tooltip-content {
+  border-radius: var(--lx-radius-sm);
+  font-size: 12px;
+  font-weight: var(--lx-font-normal);
+  padding: 6px 10px;
+}
+
+/* ---- Dropdown 下拉菜单 ---- */
+.arco-dropdown {
+  border-radius: var(--lx-radius-sm);
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-1);
+  padding: 4px;
+}
+
+.arco-dropdown-menu {
+  padding: 4px;
+}
+
+.arco-dropdown-option {
+  border-radius: var(--lx-radius-xs);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-1);
+}
+
+.arco-dropdown-option:hover {
+  background: var(--lx-bg-hover);
+}
+
+/* ---- Upload 上传 ---- */
+.arco-upload-picture-card {
+  border-radius: var(--lx-radius-sm);
+  border: 1px dashed var(--lx-border-1);
+}
+
+.arco-upload-list-item {
+  border-radius: var(--lx-radius-sm);
+  border: 1px solid var(--lx-border-1);
+  padding: 8px 12px;
+}
+
+/* ---- Rate 评分 ---- */
+.arco-rate-character {
+  color: var(--lx-text-4);
+}
+
+/* ---- Slider 滑块 ---- */
+.arco-slider-bar {
+  border-radius: var(--lx-radius-full);
+}
+
+/* ---- InputTag 标签输入 ---- */
+.arco-input-tag {
+  border-radius: var(--lx-radius-sm);
+  border-color: var(--lx-border-1);
+}
+
+.arco-input-tag:focus-within {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1);
+}
+
+/* ---- Mentions 提及 ---- */
+.arco-mentions {
+  border-radius: var(--lx-radius-sm);
+  border-color: var(--lx-border-1);
+}
+
+.arco-mentions:focus-within {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1);
+}
+
+/* ---- AutoComplete 自动完成 ---- */
+.arco-autocomplete {
+  border-radius: var(--lx-radius-sm);
+}
+
+/* ---- TimePicker 时间选择器 ---- */
+.arco-picker {
+  border-radius: var(--lx-radius-sm);
+}
+
+/* ---- DateRangePicker 日期范围选择 ---- */
+.arco-range-picker-start,
+.arco-range-picker-end {
+  border-radius: var(--lx-radius-sm);
+}
+
+/* ---- ColorPicker 颜色选择器 ---- */
+.arco-color-picker {
+  border-radius: var(--lx-radius-sm);
+}
+
+/* ---- Transfer 穿梭框 ---- */
+.arco-transfer-view {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+}
+
+.arco-transfer-view-header {
+  border-bottom: 1px solid var(--lx-border-2);
+  padding: 10px 14px;
+  font-weight: var(--lx-font-medium);
+  font-size: 13px;
+}
+
+.arco-transfer-view-search {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+.arco-transfer-view-body {
+  padding: 4px 0;
+}
+
+.arco-transfer-list-item {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-transfer-list-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+/* ---- Tree 树形组件 ---- */
+.arco-tree-node-title {
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+  border-radius: var(--lx-radius-xs);
+}
+
+.arco-tree-node-title:hover {
+  background: var(--lx-bg-hover);
+}
+
+.arco-tree-node-selected > .arco-tree-node-title {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+
+/* ---- Cascader 级联选择 ---- */
+.arco-cascader-view {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+  box-shadow: var(--lx-shadow-dropdown);
+}
+
+.arco-cascader-menu {
+  border-right: 1px solid var(--lx-border-2);
+}
+
+.arco-cascader-menu-item {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-cascader-menu-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.arco-cascader-menu-item-active {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+
+/* ---- Anchor 锚点 ---- */
+.arco-anchor-link-title {
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Affix 固钉 ---- */
+.arco-affix {
+  z-index: var(--lx-z-sticky);
+}
+
+/* ---- BackTop 回到顶部 ---- */
+.arco-back-top {
+  border-radius: var(--lx-radius-full);
+  box-shadow: var(--lx-shadow-lg);
+}
+
+/* ---- Image 图片 ---- */
+.arco-image {
+  border-radius: var(--lx-radius-md);
+}
+
+.arco-image-preview {
+  z-index: var(--lx-z-modal);
+}
+
+/* ---- Skeleton 骨架屏 ---- */
+.arco-skeleton {
+  border-radius: var(--lx-radius-sm);
+}
+
+.arco-skeleton-text {
+  border-radius: var(--lx-radius-xs);
+}
+
+/* ---- Timeline 时间线 ---- */
+.arco-timeline-item-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 13.5px;
+  color: var(--lx-text-1);
+}
+
+.arco-timeline-item-content {
+  font-size: 13px;
+  color: var(--lx-text-2);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Comment 评论 ---- */
+.arco-comment-author {
+  font-weight: var(--lx-font-medium);
+  font-size: 13px;
+  color: var(--lx-text-1);
+}
+
+.arco-comment-content {
+  font-size: 13px;
+  color: var(--lx-text-2);
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-comment-datetime {
+  font-size: 12px;
+  color: var(--lx-text-3);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Collapse 折叠面板 ---- */
+.arco-collapse {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+  background: var(--lx-bg-card);
+}
+
+.arco-collapse-item {
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+.arco-collapse-item:last-child {
+  border-bottom: none;
+}
+
+.arco-collapse-item-header {
+  padding: 12px 16px;
+  font-weight: var(--lx-font-normal);
+  font-size: 13.5px;
+  color: var(--lx-text-1);
+}
+
+.arco-collapse-item-content {
+  padding: 0 16px 16px;
+  font-size: 13px;
+  color: var(--lx-text-2);
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Grid 栅格 ---- */
+.arco-row {
+  margin: 0 !important;
+}
+
+/* ---- Space 间距 ---- */
+.arco-space {
+  gap: 12px;
+}
+
+/* ---- Typography 排版 ---- */
+.arco-typography {
+  color: var(--lx-text-1);
+}
+
+.arco-typography-h1,
+.arco-typography-h2,
+.arco-typography-h3,
+.arco-typography-h4,
+.arco-typography-h5,
+.arco-typography-h6 {
+  font-weight: var(--lx-font-medium) !important;
+  letter-spacing: -0.01em;
+  color: var(--lx-text-1);
+}
+
+.arco-typography-p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-2);
+}
+
+/* ---- Link 链接 ---- */
+.arco-link {
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Table 行选择 ---- */
+.arco-table-checkbox {
+  margin-right: 8px;
+}
+
+/* ---- Table 展开行 ---- */
+.arco-table-expand-icon {
+  margin-right: 8px;
+}
+
+/* ---- Table 空数据 ---- */
+.arco-table-empty {
+  padding: 36px 20px;
+}
+
+/* ---- Pagination 分页选择器 ---- */
+.arco-pagination-item {
+  border-radius: var(--lx-radius-sm);
+  min-width: 28px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 12.5px;
+  font-weight: var(--lx-font-normal);
+}
+
+.arco-pagination-item-active {
+  background: var(--lx-primary);
+  border-color: var(--lx-primary);
+}
+
+.arco-pagination-jumper-input {
+  border-radius: var(--lx-radius-sm);
+  border-color: var(--lx-border-1);
+}
+
+.arco-pagination-jumper-input:focus {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1);
+}
+
+/* ---- PageHeader 页头 ---- */
+.arco-page-header {
+  padding: 0 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+.arco-page-header-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 20px;
+  color: var(--lx-text-1);
+}
+
+.arco-page-header-sub-title {
+  font-weight: var(--lx-font-normal);
+  font-size: 13px;
+  color: var(--lx-text-3);
+}
+
+/* ---- Result 结果页 ---- */
+.arco-result-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 18px;
+  color: var(--lx-text-1);
+}
+
+.arco-result-subtitle {
+  font-weight: var(--lx-font-normal);
+  font-size: 13px;
+  color: var(--lx-text-3);
+}
+
+/* ---- Card 卡片鼠标悬浮效果修正 ---- */
+.arco-card-hoverable {
+  transition: box-shadow var(--lx-transition-fast), border-color var(--lx-transition-fast);
+}
+
+.arco-card-hoverable:hover {
+  box-shadow: var(--lx-shadow-card-hover);
+  border-color: var(--lx-border-3);
+}
+
+/* ---- Card 卡片 Meta ---- */
+.arco-card-meta-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 14px;
+  color: var(--lx-text-1);
+}
+
+.arco-card-meta-description {
+  font-weight: var(--lx-font-normal);
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+}
+
+/* ---- Avatar 头像组 ---- */
+.arco-avatar-group .arco-avatar {
+  border-color: var(--lx-bg-card);
+  border-width: 2px;
+}
+
+/* ---- Badge 徽标 ---- */
+.arco-badge-dot {
+  background: var(--lx-danger);
+}
+
+.arco-badge-count {
+  font-weight: var(--lx-font-normal);
+  font-size: 12px;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+}
+
+/* ---- Ribbon 缎带 ---- */
+.arco-ribbon {
+  font-weight: var(--lx-font-normal);
+  font-size: 12px;
+}
+
+/* ---- Statistic 数值 ---- */
+.arco-statistic-value-content {
+  font-weight: var(--lx-font-medium) !important;
+}
+
+.arco-statistic-title {
+  font-weight: var(--lx-font-normal);
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+}
+
+/* ---- Countdown 倒计时 ---- */
+.arco-countdown-value {
+  font-weight: var(--lx-font-medium);
+}
+
+/* ---- Progress 进度条 ---- */
+.arco-progress-inner {
+  border-radius: var(--lx-radius-full);
+}
+
+.arco-progress-text {
+  font-weight: var(--lx-font-normal);
+  font-size: 12.5px;
+  color: var(--lx-text-2);
+}
+
+/* ---- Steps 步骤条 ---- */
+.arco-step-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 13.5px;
+}
+
+.arco-step-description {
+  font-weight: var(--lx-font-normal);
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+}
+
+/* ---- Descriptions 描述列表 ---- */
+.arco-descriptions-item-label {
+  font-weight: var(--lx-font-normal);
+  color: var(--lx-text-3);
+  font-size: 12.5px;
+}
+
+.arco-descriptions-item-content {
+  color: var(--lx-text-1);
+  font-size: 13px;
+}
+
+/* ---- List 列表 ---- */
+.arco-list {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+  background: var(--lx-bg-card);
+}
+
+.arco-list-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+.arco-list-item:last-child {
+  border-bottom: none;
+}
+
+.arco-list-item-meta-title {
+  font-weight: var(--lx-font-medium);
+  font-size: 13.5px;
+  color: var(--lx-text-1);
+}
+
+.arco-list-item-meta-description {
+  font-weight: var(--lx-font-normal);
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+}
+
+/* ---- VirtualList 虚拟列表 ---- */
+.arco-virtual-list-item {
+  font-size: 13px;
+  font-weight: var(--lx-font-normal);
+}
+
+/* ---- Table 分页底部间距修正 ---- */
+.arco-pagination {
+  margin: 12px 0 0;
+}
+
+/* ========================================
+   浅色侧边栏样式（白底 + 彩色点缀）
+   ======================================== */
+
+.app-sider {
+  position: relative;
+  z-index: 10;
+  width: 240px;
+  min-width: 240px;
+  background: var(--lx-sider-gradient);
+  border-right: 1px solid var(--lx-sider-border);
+  height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============ 折叠态（图标窄栏） ============ */
+.app-sider.collapsed .side-logo {
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.app-sider.collapsed .side-logo-text,
+.app-sider.collapsed .si-label,
+.app-sider.collapsed .sp-label,
+.app-sider.collapsed .sp-arrow {
+  display: none;
+}
+
+.app-sider.collapsed .side-group-title {
+  display: block;
+  font-size: 0;
+  line-height: 0;
+  height: 9px;
+  padding: 0 16px;
+  margin: 8px 0;
+  border-top: 1px solid var(--lx-sider-border);
+}
+
+.app-sider.collapsed .side-item,
+.app-sider.collapsed .side-parent {
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.app-sider.collapsed .side-children .side-item {
+  margin: 2px 14px;
+  padding: 8px 0;
+  border-radius: 8px;
+  background: var(--lx-bg-hover);
+}
+
+/* 折叠时子菜单项用彩色圆点表达 */
+.fold-dot {
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.app-sider.collapsed .fold-dot {
+  display: block;
+}
+
+.app-sider.collapsed .side-footer {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.app-sider.collapsed .side-user-info,
+.app-sider.collapsed .side-logout-btn {
+  display: none;
+}
+
+.lx-sider-drawer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1030;
+  width: 240px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.side-logo {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--lx-sider-border);
+  flex-shrink: 0;
+}
+
+.side-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--lx-sider-logo-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(36, 85, 217, 0.25);
+}
+
+.side-logo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.side-logo-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lx-text-1);
+  line-height: 1.2;
+}
+
+.side-logo-sub {
+  font-size: 11px;
+  color: var(--lx-text-4);
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.side-menu {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 8px;
+  min-height: 0;
+}
+
+.side-menu::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.side-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.side-group {
+  margin-bottom: 2px;
+}
+
+.side-group-title {
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  color: var(--lx-sider-group-text);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding-left: 14px;
+}
+
+.side-item {
+  display: flex;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: var(--lx-sider-text);
+  cursor: pointer;
+  transition: all var(--lx-transition-fast);
+  font-size: 13.5px;
+  font-weight: 400;
+  border-radius: 8px;
+  margin: 1px 0;
+  position: relative;
+}
+
+.side-item:hover {
+  background: var(--lx-sider-bg-hover);
+  color: var(--lx-sider-text-hover);
+}
+
+.side-item.active {
+  background: var(--lx-sider-bg-active);
+  color: var(--lx-sider-text-active);
+  font-weight: 500;
+}
+
+/* 智能交互：选中项左侧彩色指示条（每个菜单分组用专属主题色） */
+.side-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: var(--item-accent, var(--lx-primary));
+}
+
+.si-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--item-accent, var(--lx-sider-text));
+  opacity: 0.55;
+  transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
+}
+
+.side-item:hover .si-icon {
+  opacity: 0.9;
+}
+
+.side-item.active .si-icon {
+  opacity: 1;
+  color: var(--item-accent, var(--lx-primary));
+}
+
+.si-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-parent {
+  display: flex;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: var(--lx-sider-text);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 400;
+  transition: all var(--lx-transition-fast);
+  border-radius: 8px;
+  margin: 1px 0;
+}
+
+.side-parent:hover {
+  background: var(--lx-sider-bg-hover);
+  color: var(--lx-sider-text-hover);
+}
+
+.sp-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--item-accent, var(--lx-sider-text));
+  opacity: 0.6;
+  transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
+}
+
+.side-parent:hover .sp-icon {
+  opacity: 0.9;
+}
+
+.sp-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-arrow {
+  flex-shrink: 0;
+  color: var(--lx-text-4);
+  font-size: 11px;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.sp-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.side-children {
+  display: flex;
+  flex-direction: column;
+  padding-left: 4px;
+  animation: lx-slideDown 0.2s ease-out;
+}
+
+.side-children.collapsed {
+  display: none;
+}
+
+.side-children .side-item {
+  font-size: 13px;
+  padding-left: 16px;
+}
+
+.side-footer {
+  padding: 12px 14px;
+  border-top: 1px solid var(--lx-sider-border);
+  background: var(--lx-sider-bg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.side-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.side-user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lx-text-1);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-user-role {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.side-logout-btn {
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all var(--lx-transition-fast);
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--lx-text-4);
+}
+
+.side-logout-btn:hover {
+  color: var(--lx-text-2);
+  background: var(--lx-bg-hover);
+}
+
+.side-logout-btn.hover {
+  color: var(--lx-danger);
+  background: var(--lx-danger-bg);
+}
+
+/* ========================================
+   AppHeader 顶部导航样式（玻璃拟态 + 智能交互）
+   ======================================== */
+
+.app-header {
+  height: 60px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border-bottom: 1px solid var(--lx-border-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-toggle-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--lx-transition-fast);
+}
+
+.menu-toggle-btn:hover {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--lx-text-3);
+  font-weight: 400;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color var(--lx-transition-fast);
+}
+
+.breadcrumb-item:hover {
+  color: var(--lx-primary);
+}
+
+.breadcrumb-sep {
+  font-size: 12px;
+  color: var(--lx-text-4);
+}
+
+.breadcrumb-current {
+  color: var(--lx-text-1);
+  font-weight: 500;
+}
+
+/* 面包屑父级可点击返回 */
+.breadcrumb-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: var(--lx-text-3);
+  cursor: pointer;
+  transition: color var(--lx-transition-fast);
+}
+
+.breadcrumb-link:hover {
+  color: var(--lx-primary);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 智能搜索触发按钮 */
+.header-search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--lx-border-1);
+  border-radius: 10px;
+  background: var(--lx-bg-secondary);
+  cursor: pointer;
+  transition: all var(--lx-transition-fast);
+  font-family: inherit;
+}
+
+.header-search-trigger:hover {
+  border-color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+}
+
+.header-search-trigger:hover svg {
+  color: var(--lx-primary) !important;
+}
+
+.header-search-text {
+  font-size: 13px;
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+
+.header-search-kbd {
+  font-size: 10px;
+  color: var(--lx-text-4);
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--lx-border-1);
+  margin: 0 4px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 10px;
+  gap: 8px;
+  transition: all var(--lx-transition-fast);
+}
+
+.user-info:hover {
+  background: var(--lx-primary-bg);
+}
+
+.user-name {
+  font-size: 13px;
+  color: var(--lx-text-1);
+  font-weight: 500;
+}
+
+/* ========================================
+   AppLayout 布局样式
+   ======================================== */
+
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--lx-bg-gradient);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 28px;
+  background: var(--lx-bg-gradient);
+}
+
+/* ========================================
+   多标签页签栏（页面导航）
+   ======================================== */
+
+.page-tabs {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  border-bottom: 1px solid var(--lx-border-1);
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.page-tabs-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.page-tab-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.page-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--lx-text-3);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all var(--lx-transition-fast);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.page-tab.has-close {
+  padding-right: 24px;
+}
+
+.page-tab:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-2);
+}
+
+.page-tab.active {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+  font-weight: 500;
+  border-color: rgba(36, 85, 217, 0.15);
+}
+
+.page-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lx-text-4);
+  flex-shrink: 0;
+}
+
+.page-tab.active .page-tab-dot {
+  background: var(--lx-primary);
+}
+
+.page-tab-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-tab-close {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--lx-text-4);
+  transition: all var(--lx-transition-fast);
+  flex-shrink: 0;
+}
+
+.page-tab-close:hover {
+  background: var(--lx-danger-bg);
+  color: var(--lx-danger);
+}
+
+.page-tabs-actions {
+  flex-shrink: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--lx-border-1);
+  display: flex;
+  align-items: center;
+}
+
+.page-tabs-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--lx-text-3);
+  transition: all var(--lx-transition-fast);
+}
+
+.page-tabs-more-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-1);
+}
+
+/* 页签横向滚动导航按钮 */
+.page-tabs-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--lx-border-1);
+  background: var(--lx-bg-card);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--lx-text-3);
+  padding: 0;
+  transition: all var(--lx-transition-fast);
+  box-shadow: var(--lx-shadow-card);
+}
+
+.page-tabs-nav-btn:hover {
+  border-color: var(--lx-primary);
+  color: var(--lx-primary);
+}
+
+/* 页签区域滚动条：hover 时可见（细滚动条） */
+.page-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.page-tabs-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.page-tabs-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--lx-border-3);
+}
+
+.page-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 右键 / 更多 菜单 */
+.page-tabs-menu-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 3999;
+  background: transparent;
+}
+
+.page-tabs-menu {
+  position: fixed;
+  z-index: 4000;
+  min-width: 150px;
+  padding: 5px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: 8px;
+  box-shadow: var(--lx-shadow-lg);
+  animation: lx-menu-in 0.12s ease;
+}
+
+@keyframes lx-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.page-tabs-menu-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--lx-text-3);
+  border-bottom: 1px solid var(--lx-border-2);
+  margin-bottom: 4px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-tabs-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--lx-text-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--lx-transition-fast), color var(--lx-transition-fast);
+  font-weight: var(--lx-font-normal);
+}
+
+.page-tabs-menu-item svg {
+  color: var(--lx-text-3);
+}
+
+.page-tabs-menu-item:hover:not(:disabled) {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+
+.page-tabs-menu-item:hover:not(:disabled) svg {
+  color: var(--lx-primary);
+}
+
+.page-tabs-menu-item:disabled {
+  color: var(--lx-text-4);
+  cursor: not-allowed;
+}
+
+.drawer-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 9;
+}
+
+/* ========================================
+   PageContainer 页面容器样式
+   ======================================== */
+
+.page-container {
+  width: 100%;
+  /* 超宽屏居中聚焦，避免表格/内容被拉满显得松散 */
+  max-width: 1640px;
+  margin: 0 auto;
+  animation: lx-slideUp 0.3s ease-out;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.page-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-title {
+  font-size: var(--lx-font-lg);
+  font-weight: 600;
+  color: var(--lx-text-1);
+  letter-spacing: -0.01em;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--lx-text-3);
+  margin-top: 4px;
+}
+
+.page-action {
+  flex-shrink: 0;
+}
+
+.page-extra {
+  margin-bottom: 20px;
+}
+
+.page-content {
+  min-height: 200px;
+  position: relative;
+}
+
+.page-content-card {
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--lx-shadow-card);
+  border: 1px solid var(--lx-border-1);
+}
+
+/* ========================================
+   表格样式优化
+   ======================================== */
+
+/* 表格容器 */
+.arco-table-container {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 表格头部 */
+.arco-table-th {
+  background: var(--lx-bg-secondary) !important;
+  font-weight: 500 !important;
+  color: var(--lx-text-1) !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid var(--lx-border-1) !important;
+  padding: 12px 16px !important;
+}
+
+.arco-table-th:hover {
+  background: var(--lx-bg-tertiary) !important;
+}
+
+/* 表格单元格 */
+.arco-table-td {
+  padding: 12px 16px !important;
+  font-size: 13px !important;
+  color: var(--lx-text-2) !important;
+  border-bottom: 1px solid var(--lx-border-2) !important;
+}
+
+/* 斑马纹 */
+.arco-table-body tr:nth-child(even) .arco-table-td {
+  background: var(--lx-bg-soft);
+}
+
+.arco-table-body tr:hover .arco-table-td {
+  background: var(--lx-bg-hover) !important;
+}
+
+/* 表格操作列按钮 */
+.arco-table-td .arco-btn-text {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+
+/* 分页区域 */
+.arco-pagination {
+  padding: 16px 20px;
+  justify-content: flex-end !important;
+}
+
+.arco-pagination-item {
+  min-width: 30px;
+  height: 30px;
+  line-height: 28px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.arco-pagination-item-active {
+  background: var(--lx-primary) !important;
+  border-color: var(--lx-primary) !important;
+  color: #fff !important;
+}
+
+/* 空状态 */
+.arco-empty {
+  padding: 48px 0;
+}
+
+.arco-empty-description {
+  font-size: 13px;
+  color: var(--lx-text-3);
+}
+
+/* 表格外的搜索表单区域 */
+.pro-table-search-area {
+  background: var(--lx-bg-card);
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+/* 表格工具栏 */
+.pro-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--lx-border-2);
+  background: var(--lx-bg-card);
+}
+
+.pro-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pro-table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 表格批量操作栏 */
+.pro-table-batch-bar {
+  padding: 10px 20px;
+  background: var(--lx-primary-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--lx-primary-100);
+}
+
+.pro-table-batch-info {
+  font-size: 13px;
+  color: var(--lx-primary);
+}
+
+.pro-table-batch-info span {
+  font-weight: 600;
+  margin: 0 2px;
+}
+
+/* 加载状态优化 */
+.arco-spin {
+  color: var(--lx-primary);
+}
+
+/* 表格边框优化 */
+.arco-table-border .arco-table-th,
+.arco-table-border .arco-table-td {
+  border-right: 1px solid var(--lx-border-2) !important;
+}
+
+.arco-table-border .arco-table-th:last-child,
+.arco-table-border .arco-table-td:last-child {
+  border-right: none !important;
+}

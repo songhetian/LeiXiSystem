@@ -61,10 +61,10 @@ describe('S07 · 考勤日报增强（请假合并 + 定时重算任务）', () 
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_daily2', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_daily2', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_daily2', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_daily2', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [

@@ -58,7 +58,11 @@ jest.mock('@arco-design/web-react', () => {
     Col: ({ children, span }: any) => <div data-testid="grid-col" data-span={span}>{children}</div>,
   };
 
-  return { Form, Input, Select, Button, Card, Grid };
+  const RangePicker = () => <div data-testid="date-range" />;
+  const DatePicker = (props: any) => <div data-testid="date-picker" />;
+  DatePicker.RangePicker = RangePicker;
+
+  return { Form, Input, Select, Button, Card, Grid, DatePicker };
 });
 
 const mockFields: SearchFieldConfig[] = [
@@ -118,6 +122,13 @@ describe('SearchForm', () => {
       const onSearch = jest.fn();
       expect(() => {
         render(<SearchForm fields={mockFields} onSearch={onSearch} />);
+      }).not.toThrow();
+    });
+
+    it('accepts debounceMs prop without error', () => {
+      const onSearch = jest.fn();
+      expect(() => {
+        render(<SearchForm fields={mockFields} onSearch={onSearch} debounceMs={300} />);
       }).not.toThrow();
     });
   });

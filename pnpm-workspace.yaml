@@ -2,12 +2,17 @@ packages:
   - "backend"
   - "frontend"
   - "shared"
-
-# pnpm 10 安全策略：放行需要 postinstall 构建脚本的依赖（Docker 构建必需）
+minimumReleaseAgeExclude:
+  - framer-motion@13.1.1
+  - motion-dom@13.1.1
+# pnpm 11 安全策略：放行需要 postinstall 构建脚本的依赖
 onlyBuiltDependencies:
   - "@nestjs/core"
+  - "@parcel/watcher"
   - "@prisma/client"
   - "@prisma/engines"
+  - "@scarf/scarf"
+  - "@swc/core"
   - "esbuild"
   - "msw"
   - "prisma"

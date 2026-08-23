@@ -13,9 +13,14 @@ export class ReportsController {
   @Get('attendance-monthly')
   @HttpCode(200)
   @RequirePermission('reports:view')
-  async attendanceMonthly(@Query('month') month: string, @Req() req: any) {
+  async attendanceMonthly(
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
     const data = await this.reportsService.attendanceMonthly({
       month,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
       userId: req.user.id,
     });
     return { code: 0, message: 'ok', data };
@@ -24,38 +29,163 @@ export class ReportsController {
   @Get('labor-cost')
   @HttpCode(200)
   @RequirePermission('reports:view')
-  async laborCost(@Query('month') month: string, @Req() req: any) {
+  async laborCost(
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
     const data = await this.reportsService.laborCost({
       month,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
       userId: req.user.id,
     });
     return { code: 0, message: 'ok', data };
   }
 
-  @Get('attendance-monthly/export')
+  @Get('hiring-trend')
+  @HttpCode(200)
   @RequirePermission('reports:view')
-  async exportAttendanceMonthly(@Query('month') month: string, @Req() req: any, @Res() res: any) {
-    const csv = await this.reportsService.exportAttendanceMonthlyCsv({
-      month,
+  async hiringTrend(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('groupBy') groupBy?: 'department' | 'month' | 'quarter' | 'year',
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
+    const data = await this.reportsService.getHiringTrend({
+      startDate,
+      endDate,
+      groupBy,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
       userId: req.user.id,
     });
-    const filename = `attendance-monthly-${month}.csv`;
-    res.header('Content-Type', 'text/csv; charset=utf-8');
-    res.header('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csv);
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Get('probation-pass-rate')
+  @HttpCode(200)
+  @RequirePermission('reports:view')
+  async probationPassRate(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('groupBy') groupBy?: 'department' | 'month' | 'quarter' | 'year',
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
+    const data = await this.reportsService.getProbationPassRate({
+      startDate,
+      endDate,
+      groupBy,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
+      userId: req.user.id,
+    });
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Get('attendance-abnormal')
+  @HttpCode(200)
+  @RequirePermission('reports:view')
+  async attendanceAbnormal(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('groupBy') groupBy?: 'department' | 'employee',
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
+    const data = await this.reportsService.getAttendanceAbnormal({
+      startDate,
+      endDate,
+      groupBy,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
+      userId: req.user.id,
+    });
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Get('approval-efficiency')
+  @HttpCode(200)
+  @RequirePermission('reports:view')
+  async approvalEfficiency(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('groupBy') groupBy?: 'workflow' | 'department',
+    @Query('departmentId') departmentId?: string,
+    @Req() req?: any,
+  ) {
+    const data = await this.reportsService.getApprovalEfficiency({
+      startDate,
+      endDate,
+      groupBy,
+      departmentId: departmentId ? parseInt(departmentId, 10) : undefined,
+      userId: req.user.id,
+    });
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Get('employee-structure')
+  @HttpCode(200)
+  @RequirePermission('reports:view')
+  async employeeStructure(@Req() req: any) {
+    const data = await this.reportsService.employeeStructure(req.user.id);
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Get('attendance-monthly/export')
+  @RequirePermission('reports:view')
+  async exportAttendanceMonthly(
+    @Query('month') month: string,
+    @Query('format') format = 'xlsx',
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    if (format === 'csv') {
+      const csv = await this.reportsService.exportAttendanceMonthlyCsv({
+        month,
+        userId: req.user.id,
+      });
+      const filename = `attendance-monthly-${month}.csv`;
+      res.header('Content-Type', 'text/csv; charset=utf-8');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } else {
+      const buffer = await this.reportsService.exportAttendanceMonthlyXlsx({
+        month,
+        userId: req.user.id,
+      });
+      const filename = `attendance-monthly-${month}.xlsx`;
+      res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    }
   }
 
   @Get('labor-cost/export')
   @RequirePermission('reports:view')
-  async exportLaborCost(@Query('month') month: string, @Req() req: any, @Res() res: any) {
-    const csv = await this.reportsService.exportLaborCostCsv({
-      month,
-      userId: req.user.id,
-    });
-    const filename = `labor-cost-${month}.csv`;
-    res.header('Content-Type', 'text/csv; charset=utf-8');
-    res.header('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csv);
+  async exportLaborCost(
+    @Query('month') month: string,
+    @Query('format') format = 'xlsx',
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    if (format === 'csv') {
+      const csv = await this.reportsService.exportLaborCostCsv({
+        month,
+        userId: req.user.id,
+      });
+      const filename = `labor-cost-${month}.csv`;
+      res.header('Content-Type', 'text/csv; charset=utf-8');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } else {
+      const buffer = await this.reportsService.exportLaborCostXlsx({
+        month,
+        userId: req.user.id,
+      });
+      const filename = `labor-cost-${month}.xlsx`;
+      res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    }
   }
 
   @Post('export')
@@ -84,6 +214,14 @@ export class ReportsController {
   @RequirePermission('reports:view')
   async getExportStatus(@Param('id') id: string, @Req() req: any) {
     const data = await this.reportsService.getTaskStatus(parseInt(id), req.user.id);
+    return { code: 0, data };
+  }
+
+  @Post('export/:id/retry')
+  @HttpCode(200)
+  @RequirePermission('reports:view')
+  async retryExportTask(@Param('id') id: string, @Req() req: any) {
+    const data = await this.reportsService.retryTask(parseInt(id), req.user.id);
     return { code: 0, data };
   }
 

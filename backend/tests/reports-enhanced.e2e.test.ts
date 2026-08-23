@@ -53,10 +53,10 @@ describe('S15 · 报表中心增强（异步导出 + Excel）', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_export', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_export', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_export', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_export', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [

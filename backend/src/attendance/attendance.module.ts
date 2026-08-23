@@ -19,10 +19,22 @@ import { PunchMakeupService } from './punch-makeup.service';
 import { PunchMakeupController } from './punch-makeup.controller';
 import { PunchDeviceService } from './punch-device.service';
 import { PunchDeviceController } from './punch-device.controller';
+import { PunchService } from './punch.service';
+import { PunchController } from './punch.controller';
+import { XFacePushController } from './push/xface-push.controller';
+import { XFacePushService } from './push/xface-push.service';
+import { AttendanceSettingsService } from './settings.service';
+import { AttendanceSettingsController } from './settings.controller';
 import { ApprovalModule } from '../approval/approval.module';
+import { NotificationModule } from '../notification/notification.module';
+import { AttendanceApprovalListener } from './attendance-approval.listener';
+import { ExceptionRulesController, ExceptionsController } from './exception-rules.controller';
+import { ExceptionRulesService } from './exception-rules.service';
+import { DeductionRulesController } from './deduction-rules.controller';
+import { DeductionRulesService } from './deduction-rules.service';
 
 @Module({
-  imports: [ApprovalModule],
+  imports: [ApprovalModule, NotificationModule],
   controllers: [
     ShiftsController,
     SchedulesController,
@@ -34,6 +46,12 @@ import { ApprovalModule } from '../approval/approval.module';
     AttendanceMonthlyController,
     PunchMakeupController,
     PunchDeviceController,
+    PunchController,
+    XFacePushController,
+    AttendanceSettingsController,
+    ExceptionRulesController,
+    ExceptionsController,
+    DeductionRulesController,
   ],
   providers: [
     ShiftsService,
@@ -46,6 +64,12 @@ import { ApprovalModule } from '../approval/approval.module';
     AttendanceMonthlyService,
     PunchMakeupService,
     PunchDeviceService,
+    PunchService,
+    XFacePushService,
+    AttendanceSettingsService,
+    AttendanceApprovalListener,
+    ExceptionRulesService,
+    DeductionRulesService,
   ],
   exports: [
     ShiftsService,
@@ -58,6 +82,10 @@ import { ApprovalModule } from '../approval/approval.module';
     AttendanceMonthlyService,
     PunchMakeupService,
     PunchDeviceService,
+    PunchService,
+    AttendanceSettingsService,
+    ExceptionRulesService,
+    DeductionRulesService,
   ],
 })
 export class AttendanceModule {}

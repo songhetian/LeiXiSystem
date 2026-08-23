@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Space, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { payrollApi, PayrollRun } from '@/services/payroll';
 import { SearchFieldConfig } from '@/components/SearchForm';
+import { notifyError } from '@/lib/request';
 
 const searchFields: SearchFieldConfig[] = [
   { key: 'month', label: '月份', type: 'input', placeholder: 'YYYY-MM' },
@@ -51,6 +51,7 @@ const createFormFields: FormFieldConfig[] = [
 
 export default function PayrollRunsPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PayrollRun[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
@@ -60,6 +61,7 @@ export default function PayrollRunsPage() {
 
   const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const result = await payrollApi.getPayrollRuns({
         page,
@@ -74,6 +76,9 @@ export default function PayrollRunsPage() {
           total: result.data.total,
         });
       }
+    } catch (e: any) {
+      setError(e?.message || '加载失败');
+      notifyError(e, '加载失败');
     } finally {
       setLoading(false);
     }
@@ -218,29 +223,29 @@ export default function PayrollRunsPage() {
   ];
 
   return (
-    <AppLayout title="算薪批次" activeMenu="payroll-runs">
-      <PageContainer title="算薪批次">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          toolbar={toolbar}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-        />
-        <ModalForm
-          visible={createModalVisible}
-          title="创建算薪批次"
-          fields={createFormFields}
-          onOk={handleCreateOk}
-          onCancel={handleCreateCancel}
-          confirmLoading={createLoading}
-        />
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="算薪批次">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        toolbar={toolbar}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+      />
+      <ModalForm
+        visible={createModalVisible}
+        title="创建算薪批次"
+        fields={createFormFields}
+        onOk={handleCreateOk}
+        onCancel={handleCreateCancel}
+        confirmLoading={createLoading}
+      />
+    </PageContainer>
   );
 }

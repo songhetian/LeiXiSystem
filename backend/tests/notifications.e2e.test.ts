@@ -45,10 +45,10 @@ describe('S11 · 通知中心', () => {
     });
 
     const user1 = await prisma.user.create({
-      data: { username: 'user_notify1', passwordHash: await bcrypt.hash('123456', 10), name: '用户1' },
+      data: { username: 'user_notify1', passwordHash: await bcrypt.hash('123456', 10), realName: '用户1' },
     });
     const user2 = await prisma.user.create({
-      data: { username: 'user_notify2', passwordHash: await bcrypt.hash('123456', 10), name: '用户2' },
+      data: { username: 'user_notify2', passwordHash: await bcrypt.hash('123456', 10), realName: '用户2' },
     });
     user1Id = user1.id;
     user2Id = user2.id;

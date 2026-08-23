@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Descriptions, Tag, Space, Divider, List, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
+import { IconEye } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { knowledgeApi, KnowledgeArticle, KnowledgeCategory, KnowledgeAttachment } from '@/services/knowledge';
 import { SearchFieldConfig } from '@/components/SearchForm';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 export default function KnowledgeListPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<KnowledgeArticle[]>([]);
   const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -19,11 +22,6 @@ export default function KnowledgeListPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [currentArticle, setCurrentArticle] = useState<KnowledgeArticle | null>(null);
   const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
-
-  // KKFileView 在线预览（iframe 内嵌）
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [previewFileName, setPreviewFileName] = useState('');
 
   const fetchCategories = async () => {
     try {
@@ -38,6 +36,7 @@ export default function KnowledgeListPage() {
 
   const fetchArticles = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const result = await knowledgeApi.getArticles({
         page,
@@ -52,6 +51,9 @@ export default function KnowledgeListPage() {
           total: result.data.total,
         });
       }
+    } catch (e: any) {
+      setError(e?.message || '加载失败');
+      notifyError(e, '加载失败');
     } finally {
       setLoading(false);
     }
@@ -120,9 +122,7 @@ export default function KnowledgeListPage() {
     try {
       const result = await knowledgeApi.getPreviewUrl(attachment.id);
       if (result.code === 0 && result.data) {
-        setPreviewUrl(result.data.previewUrl);
-        setPreviewFileName(result.data.fileName || attachment.fileName);
-        setPreviewVisible(true);
+        window.open(result.data.previewUrl, '_blank');
       } else {
         Message.error(result.message || '获取预览地址失败');
       }
@@ -175,7 +175,7 @@ export default function KnowledgeListPage() {
             <Divider />
             <h4>正文</h4>
             <div
-              dangerouslySetInnerHTML={{ __html: currentArticle.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentArticle.content) }}
               style={{ lineHeight: 1.8 }}
             />
           </>
@@ -204,7 +204,7 @@ export default function KnowledgeListPage() {
                       {(item.fileSize / 1024).toFixed(1)} KB
                     </div>
                   </div>
-                  <Button size="mini" type="primary" onClick={() => handlePreview(item)}>
+                  <Button size="mini" type="primary" icon={<IconEye />} onClick={() => handlePreview(item)}>
                     预览
                   </Button>
                 </div>
@@ -217,48 +217,33 @@ export default function KnowledgeListPage() {
   };
 
   return (
-    <AppLayout title="知识库" activeMenu="knowledge">
-      <PageContainer title="知识库">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={getSearchFields()}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-          onRowClick={handleViewDetail}
-        />
-        <Modal
-          title="文章详情"
-          visible={detailVisible}
-          onCancel={handleDetailCancel}
-          confirmLoading={detailLoading}
-          okText={null}
-          cancelText="关闭"
-          footer={null}
-          style={{ width: 720 }}
-        >
-          {renderDetailContent()}
-        </Modal>
-
-        {/* KKFileView 在线预览（iframe 内嵌，URL 由后端签发签名时效） */}
-        <Modal
-          title={previewFileName || '附件预览'}
-          visible={previewVisible}
-          onCancel={() => setPreviewVisible(false)}
-          footer={null}
-          style={{ width: 960 }}
-        >
-          <iframe
-            src={previewUrl}
-            title={previewFileName}
-            style={{ width: '100%', height: 560, border: '1px solid #e5e6eb', borderRadius: 4 }}
-          />
-        </Modal>
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="知识库">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchArticles(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={getSearchFields()}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onRowClick={handleViewDetail}
+      />
+      <Modal
+        title="文章详情"
+        visible={detailVisible}
+        onCancel={handleDetailCancel}
+        confirmLoading={detailLoading}
+        okText={null}
+        cancelText="关闭"
+        footer={null}
+        style={{ width: 720 }}
+      >
+        {renderDetailContent()}
+      </Modal>
+    </PageContainer>
   );
 }

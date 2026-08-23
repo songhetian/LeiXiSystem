@@ -46,11 +46,14 @@ describe('S09 · 审批工作流', () => {
     await prisma.permission.deleteMany();
 
     // 权限
-    const permUse = await prisma.permission.create({
-      data: { code: 'approval:use', name: '审批使用', module: 'approval', type: 'menu' },
+    const permTodoView = await prisma.permission.create({
+      data: { code: 'approval:todo:view', name: '我的待办查看', module: 'approval', type: 'menu' },
     });
-    const permManage = await prisma.permission.create({
-      data: { code: 'approval:manage', name: '审批配置', module: 'approval', type: 'menu' },
+    const permSubmittedView = await prisma.permission.create({
+      data: { code: 'approval:submitted:view', name: '我的申请查看', module: 'approval', type: 'menu' },
+    });
+    const permWorkflowManage = await prisma.permission.create({
+      data: { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'menu' },
     });
 
     // 角色
@@ -61,26 +64,30 @@ describe('S09 · 审批工作流', () => {
 
     await prisma.rolePermission.createMany({
       data: [
-        { roleId: adminRole.id, permissionId: permUse.id },
-        { roleId: adminRole.id, permissionId: permManage.id },
-        { roleId: deptMgrRole.id, permissionId: permUse.id },
-        { roleId: hrRole.id, permissionId: permUse.id },
-        { roleId: staffRole.id, permissionId: permUse.id },
+        { roleId: adminRole.id, permissionId: permTodoView.id },
+        { roleId: adminRole.id, permissionId: permSubmittedView.id },
+        { roleId: adminRole.id, permissionId: permWorkflowManage.id },
+        { roleId: deptMgrRole.id, permissionId: permTodoView.id },
+        { roleId: deptMgrRole.id, permissionId: permSubmittedView.id },
+        { roleId: hrRole.id, permissionId: permTodoView.id },
+        { roleId: hrRole.id, permissionId: permSubmittedView.id },
+        { roleId: staffRole.id, permissionId: permTodoView.id },
+        { roleId: staffRole.id, permissionId: permSubmittedView.id },
       ],
     });
 
     // 用户
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), name: '张主管' },
+      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr', passwordHash: await bcrypt.hash('123456', 10), name: '李HR' },
+      data: { username: 'hr', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '王员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
     });
 
     await prisma.userRole.createMany({
@@ -292,6 +299,171 @@ describe('S09 · 审批工作流', () => {
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
       expect(body.data.status).toBe('rejected');
+    });
+  });
+
+  describe('重新提交（resubmit）', () => {
+    describe('rejected 状态可以重新提交', () => {
+      let instanceId: number;
+
+      beforeAll(async () => {
+        const res = await inject(app, {
+          method: 'POST',
+          url: '/api/v1/approval/instances',
+          headers: { cookie: staffCookie },
+          payload: {
+            workflowCode: 'leave_request',
+            title: '驳回重提测试-王员工',
+            formData: { days: 5, type: 'annual' },
+          },
+        });
+        instanceId = JSON.parse(res.body).data.id;
+
+        await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/reject`,
+          headers: { cookie: managerCookie },
+          payload: { comment: '驳回' },
+        });
+      });
+
+      it('rejected 状态可以重新提交', async () => {
+        const res = await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/resubmit`,
+          headers: { cookie: staffCookie },
+          payload: { formData: { days: 3, type: 'annual' } },
+        });
+        const body = JSON.parse(res.body);
+        expect(res.statusCode).toBe(200);
+        expect(body.code).toBe(0);
+        expect(body.data.status).toBe('pending');
+        expect(body.data.currentNodeName).toBe('部门主管审批');
+      });
+
+      it('重新提交后审批节点从第一个开始', async () => {
+        const res = await inject(app, {
+          method: 'GET',
+          url: '/api/v1/approval/todos',
+          headers: { cookie: managerCookie },
+        });
+        const body = JSON.parse(res.body);
+        const hasTodo = body.data.list.some((t: any) => t.instanceId === instanceId);
+        expect(hasTodo).toBe(true);
+      });
+    });
+
+    describe('cancelled（撤回）状态可以重新提交', () => {
+      let instanceId: number;
+
+      beforeAll(async () => {
+        const res = await inject(app, {
+          method: 'POST',
+          url: '/api/v1/approval/instances',
+          headers: { cookie: staffCookie },
+          payload: {
+            workflowCode: 'leave_request',
+            title: '撤回重提测试-王员工',
+            formData: { days: 2, type: 'sick' },
+          },
+        });
+        instanceId = JSON.parse(res.body).data.id;
+
+        await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/withdraw`,
+          headers: { cookie: staffCookie },
+          payload: { reason: '信息有误，撤回修改' },
+        });
+      });
+
+      it('cancelled 状态可以重新提交', async () => {
+        const res = await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/resubmit`,
+          headers: { cookie: staffCookie },
+          payload: { formData: { days: 1, type: 'sick' } },
+        });
+        const body = JSON.parse(res.body);
+        expect(res.statusCode).toBe(200);
+        expect(body.code).toBe(0);
+        expect(body.data.status).toBe('pending');
+        expect(body.data.currentNodeName).toBe('部门主管审批');
+      });
+
+      it('撤回后重新提交，审批节点从第一个开始', async () => {
+        const res = await inject(app, {
+          method: 'GET',
+          url: '/api/v1/approval/todos',
+          headers: { cookie: managerCookie },
+        });
+        const body = JSON.parse(res.body);
+        const hasTodo = body.data.list.some((t: any) => t.instanceId === instanceId);
+        expect(hasTodo).toBe(true);
+      });
+    });
+
+    describe('其他状态不能重新提交', () => {
+      it('pending 状态不能重新提交', async () => {
+        const createRes = await inject(app, {
+          method: 'POST',
+          url: '/api/v1/approval/instances',
+          headers: { cookie: staffCookie },
+          payload: {
+            workflowCode: 'leave_request',
+            title: 'pending重提测试-王员工',
+            formData: { days: 1, type: 'annual' },
+          },
+        });
+        const instanceId = JSON.parse(createRes.body).data.id;
+
+        const res = await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/resubmit`,
+          headers: { cookie: staffCookie },
+          payload: {},
+        });
+        const body = JSON.parse(res.body);
+        expect(res.statusCode).toBe(200);
+        expect(body.code).not.toBe(0);
+      });
+
+      it('approved 状态不能重新提交', async () => {
+        const createRes = await inject(app, {
+          method: 'POST',
+          url: '/api/v1/approval/instances',
+          headers: { cookie: staffCookie },
+          payload: {
+            workflowCode: 'leave_request',
+            title: 'approved重提测试-王员工',
+            formData: { days: 1, type: 'annual' },
+          },
+        });
+        const instanceId = JSON.parse(createRes.body).data.id;
+
+        await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/approve`,
+          headers: { cookie: managerCookie },
+          payload: { comment: '同意' },
+        });
+        await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/approve`,
+          headers: { cookie: hrCookie },
+          payload: { comment: '同意' },
+        });
+
+        const res = await inject(app, {
+          method: 'POST',
+          url: `/api/v1/approval/instances/${instanceId}/resubmit`,
+          headers: { cookie: staffCookie },
+          payload: {},
+        });
+        const body = JSON.parse(res.body);
+        expect(res.statusCode).toBe(200);
+        expect(body.code).not.toBe(0);
+      });
     });
   });
 

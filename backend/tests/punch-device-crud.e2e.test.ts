@@ -51,10 +51,10 @@ describe('S05 · 打卡设备管理 CRUD（/api/v1/attendance/punch/devices）',
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_dev', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_dev', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_dev', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_dev', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [

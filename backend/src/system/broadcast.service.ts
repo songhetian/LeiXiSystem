@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BroadcastRecipientType } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class BroadcastService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(BroadcastService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   async list(params: {
     status?: string;
@@ -91,11 +97,45 @@ export class BroadcastService {
     return result;
   }
 
+  /**
+   * 公开端点获取公告详情：校验发布状态 + 接收人范围
+   * - 未发布 → NotFoundException (隐藏存在性)
+   * - 非接收人 → ForbiddenException
+   */
+  async getPublicDetail(id: number, userId: number) {
+    const bc = await this.prisma.broadcast.findUnique({
+      where: { id },
+      include: { recipients: true },
+    });
+    if (!bc || bc.status !== 'published') {
+      throw new NotFoundException({ code: 6001, message: '公告不存在' });
+    }
+    // 校验接收人范围
+    await this.assertRecipient(bc, userId);
+
+    const read = await this.prisma.broadcastRead.findUnique({
+      where: { broadcastId_userId: { broadcastId: id, userId } },
+    });
+    return { ...bc, read: !!read };
+  }
+
   async markRead(broadcastId: number, userId: number) {
-    const bc = await this.prisma.broadcast.findUnique({ where: { id: broadcastId } });
+    const bc = await this.prisma.broadcast.findUnique({
+      where: { id: broadcastId },
+      include: { recipients: true },
+    });
     if (!bc) {
       throw new NotFoundException({ code: 6001, message: '公告不存在' });
     }
+
+    // 校验公告是否已发布：未发布公告不可标记已读
+    if (bc.status !== 'published') {
+      throw new NotFoundException({ code: 6001, message: '公告不存在' });
+    }
+
+    // 校验用户是否为该公告的接收人
+    await this.assertRecipient(bc, userId);
+
     await this.prisma.broadcastRead.upsert({
       where: { broadcastId_userId: { broadcastId, userId } },
       update: {},
@@ -213,17 +253,41 @@ export class BroadcastService {
   }
 
   async publish(id: number, userId: number) {
-    const bc = await this.prisma.broadcast.findUnique({ where: { id } });
+    const bc = await this.prisma.broadcast.findUnique({
+      where: { id },
+      include: { recipients: true },
+    });
     if (!bc) {
       throw new NotFoundException({ code: 6001, message: '公告不存在' });
     }
     if (bc.status === 'published') {
       throw new ConflictException({ code: 6002, message: '公告已发布' });
     }
-    return this.prisma.broadcast.update({
+    const updated = await this.prisma.broadcast.update({
       where: { id },
       data: { status: 'published', publishedBy: userId, publishedAt: new Date() },
     });
+
+    // Notify all recipients. Wrapped in try/catch so a notification failure
+    // never breaks the publish operation.
+    try {
+      const userIds = await this.resolveRecipientUserIds(bc);
+      if (userIds.length > 0) {
+        await this.notificationService.createMany(userIds, {
+          title: bc.title,
+          content: bc.content ?? undefined,
+          type: 'broadcast',
+          relatedId: bc.id,
+          relatedType: 'broadcast',
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to create broadcast notifications for broadcast ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    return updated;
   }
 
   async delete(id: number) {
@@ -233,6 +297,48 @@ export class BroadcastService {
     }
     await this.prisma.broadcast.delete({ where: { id } });
     return { success: true };
+  }
+
+  /**
+   * Asserts that the given user is a valid recipient of the broadcast.
+   *
+   * - `all`        → everyone is a recipient
+   * - `department` → user must be linked to an employee in one of the departments
+   * - `user`       → user must be explicitly listed in the recipients
+   */
+  private async assertRecipient(
+    bc: { recipientType: string; recipients: Array<{ recipientType: string; departmentId?: number | null; userId?: number | null }> },
+    userId: number,
+  ) {
+    if (bc.recipientType === 'all') {
+      return;
+    }
+
+    if (bc.recipientType === 'user') {
+      const isUserRecipient = bc.recipients.some(
+        r => r.recipientType === 'user' && r.userId === userId,
+      );
+      if (!isUserRecipient) {
+        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+      }
+      return;
+    }
+
+    if (bc.recipientType === 'department') {
+      const deptIds = bc.recipients
+        .filter(r => r.recipientType === 'department' && r.departmentId != null)
+        .map(r => r.departmentId as number);
+      if (deptIds.length === 0) {
+        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+      }
+      const employee = await this.prisma.employee.findFirst({
+        where: { userId, departmentId: { in: deptIds } },
+      });
+      if (!employee) {
+        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+      }
+      return;
+    }
   }
 
   private validateRecipients(
@@ -260,6 +366,44 @@ export class BroadcastService {
     if (recipientType === 'user') {
       return (userIds || []).map(uid => ({ recipientType: BroadcastRecipientType.user, userId: uid }));
     }
+    return [];
+  }
+
+  /**
+   * Resolves the concrete user IDs that should receive a broadcast, based on
+   * the broadcast's `recipientType` and its stored recipient entries.
+   *
+   * - `all`        → every user in the system
+   * - `department` → all users linked (via Employee.userId) to employees in
+   *                   the specified departments
+   * - `user`       → the explicitly listed user IDs
+   */
+  private async resolveRecipientUserIds(
+    bc: { recipientType: string; recipients: Array<{ recipientType: string; departmentId?: number | null; userId?: number | null }> },
+  ): Promise<number[]> {
+    if (bc.recipientType === 'all') {
+      const users = await this.prisma.user.findMany({ select: { id: true } });
+      return users.map(u => u.id);
+    }
+
+    if (bc.recipientType === 'user') {
+      return bc.recipients
+        .filter(r => r.recipientType === 'user' && r.userId != null)
+        .map(r => r.userId as number);
+    }
+
+    if (bc.recipientType === 'department') {
+      const deptIds = bc.recipients
+        .filter(r => r.recipientType === 'department' && r.departmentId != null)
+        .map(r => r.departmentId as number);
+      if (deptIds.length === 0) return [];
+      const employees = await this.prisma.employee.findMany({
+        where: { departmentId: { in: deptIds }, userId: { not: null } },
+        select: { userId: true },
+      });
+      return employees.map(e => e.userId as number);
+    }
+
     return [];
   }
 }

@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PayslipService } from './payslip.service';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('payslips')
 @UseGuards(JwtAuthGuard)
@@ -16,10 +17,11 @@ export class PayslipController {
     @Query('pageSize') pageSize?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payslipService.getMyPayslips(
       req.user.id,
-      page ? parseInt(page) : 1,
-      pageSize ? parseInt(pageSize) : 20,
+      pageNum,
+      pageSizeNum,
     );
     return { code: 0, data };
   }
@@ -49,12 +51,13 @@ export class PayslipController {
     @Query('pageSize') pageSize?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payslipService.listPayslips({
       userId: req.user.id,
       runId: runId ? parseInt(runId) : undefined,
       month,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
     });
     return { code: 0, data };
   }

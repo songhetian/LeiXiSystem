@@ -13,14 +13,6 @@ jest.mock('@/services/approval', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -36,6 +28,15 @@ jest.mock('@/components/StatusTag', () => ({
   __esModule: true,
   default: ({ status }: any) => (
     <span data-testid={`status-tag-${status}`}>{status}</span>
+  ),
+}));
+
+jest.mock('@/components/DataState', () => ({
+  __esModule: true,
+  default: ({ children, loading, error, isEmpty }: any) => (
+    <div data-testid="data-state" data-loading={loading ? 'true' : 'false'} data-error={error || ''} data-empty={isEmpty ? 'true' : 'false'}>
+      {children}
+    </div>
   ),
 }));
 
@@ -187,11 +188,6 @@ describe('ApprovalTodoPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with approval-todo menu', () => {
-      render(<ApprovalTodoPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'approval-todo');
-    });
-
     it('renders PageContainer with title 审批中心', () => {
       render(<ApprovalTodoPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('审批中心');

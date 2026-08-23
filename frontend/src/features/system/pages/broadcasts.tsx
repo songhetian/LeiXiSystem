@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { broadcastApi, Broadcast, BroadcastCreateDto } from '@/services/broadcast';
 import { usePermission } from '@/hooks/use-permission';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 export default function BroadcastsPage() {
   const { can } = usePermission();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Broadcast[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
@@ -21,6 +23,7 @@ export default function BroadcastsPage() {
 
   const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const res = await broadcastApi.getList({ page, pageSize, ...params });
       if (res.code === 0 && res.data) {
@@ -31,10 +34,12 @@ export default function BroadcastsPage() {
           total: res.data.total,
         });
       } else {
+        setError(res.message || '获取公告列表失败');
         Message.error(res.message || '获取公告列表失败');
       }
-    } catch (e) {
-      Message.error('获取公告列表失败');
+    } catch (e: any) {
+      setError(e?.message || '获取公告列表失败');
+      notifyError(e, '获取公告列表失败');
     } finally {
       setLoading(false);
     }
@@ -196,42 +201,42 @@ export default function BroadcastsPage() {
   ];
 
   return (
-    <AppLayout title="公告管理" activeMenu="system">
-      <PageContainer title="公告管理">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          toolbar={toolbar}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-        />
-        <Modal
-          title="公告详情"
-          visible={detailVisible}
-          onCancel={handleDetailCancel}
-          footer={null}
-          style={{ width: 680 }}
-        >
-          {currentBroadcast && (
-            <div>
-              <h3 style={{ marginBottom: 12 }}>{currentBroadcast.title}</h3>
-              <Space style={{ marginBottom: 16 }}>
-                {getStatusTag(currentBroadcast.status)}
-                <Tag>{getRecipientTypeText(currentBroadcast.recipientType)}</Tag>
-              </Space>
-              <div
-                dangerouslySetInnerHTML={{ __html: currentBroadcast.content }}
-                style={{ lineHeight: 1.8 }}
-              />
-            </div>
-          )}
-        </Modal>
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="公告管理">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        toolbar={toolbar}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+      />
+      <Modal
+        title="公告详情"
+        visible={detailVisible}
+        onCancel={handleDetailCancel}
+        footer={null}
+        style={{ width: 680 }}
+      >
+        {currentBroadcast && (
+          <div>
+            <h3 style={{ marginBottom: 12 }}>{currentBroadcast.title}</h3>
+            <Space style={{ marginBottom: 16 }}>
+              {getStatusTag(currentBroadcast.status)}
+              <Tag>{getRecipientTypeText(currentBroadcast.recipientType)}</Tag>
+            </Space>
+            <div
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBroadcast.content) }}
+              style={{ lineHeight: 1.8 }}
+            />
+          </div>
+        )}
+      </Modal>
+    </PageContainer>
   );
 }

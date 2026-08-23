@@ -38,10 +38,10 @@ describe('S14 · 公告已读状态', () => {
     await prisma.user.deleteMany();
 
     const u1 = await prisma.user.create({
-      data: { username: 'u1_bread', passwordHash: await bcrypt.hash('123456', 10), name: '用户1' },
+      data: { username: 'u1_bread', passwordHash: await bcrypt.hash('123456', 10), realName: '用户1' },
     });
     const u2 = await prisma.user.create({
-      data: { username: 'u2_bread', passwordHash: await bcrypt.hash('123456', 10), name: '用户2' },
+      data: { username: 'u2_bread', passwordHash: await bcrypt.hash('123456', 10), realName: '用户2' },
     });
     user1Id = u1.id;
     user2Id = u2.id;

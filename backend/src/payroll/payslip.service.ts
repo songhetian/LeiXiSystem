@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { DataScopeService } from '../common/data-scope.service';
+
+type TxClient = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class PayslipService {
@@ -9,8 +12,9 @@ export class PayslipService {
     private dataScope: DataScopeService,
   ) {}
 
-  async generateFromRun(runId: number) {
-    const run = await this.prisma.payrollRun.findUnique({
+  async generateFromRun(runId: number, tx?: TxClient) {
+    const db = tx || this.prisma;
+    const run = await db.payrollRun.findUnique({
       where: { id: runId },
       include: { details: true },
     });
@@ -30,22 +34,32 @@ export class PayslipService {
       });
     }
 
+    const existingPayslips = await db.payslip.findMany({
+      where: { runId },
+      select: { employeeId: true },
+    });
+    const existingIds = new Set(existingPayslips.map((p) => p.employeeId));
+
+    const payslipData: Array<{
+      runId: number;
+      employeeId: number;
+      month: string;
+      totalAmount: number;
+      itemsJson: string;
+    }> = [];
     for (const [employeeId, items] of detailMap) {
+      if (existingIds.has(employeeId)) continue;
       const total = items.reduce((s, i) => s + i.amount, 0);
-      const existing = await this.prisma.payslip.findUnique({
-        where: { runId_employeeId: { runId, employeeId } },
+      payslipData.push({
+        runId,
+        employeeId,
+        month: run.month,
+        totalAmount: Math.round(total * 100) / 100,
+        itemsJson: JSON.stringify(items),
       });
-      if (!existing) {
-        await this.prisma.payslip.create({
-          data: {
-            runId,
-            employeeId,
-            month: run.month,
-            totalAmount: Math.round(total * 100) / 100,
-            itemsJson: JSON.stringify(items),
-          },
-        });
-      }
+    }
+    if (payslipData.length > 0) {
+      await db.payslip.createMany({ data: payslipData });
     }
   }
 
@@ -129,7 +143,9 @@ export class PayslipService {
     const where: any = {};
     if (runId) where.runId = runId;
     if (month) where.month = month;
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      where.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
       where.employee = { departmentId: { in: scope.ids } };
     }
 

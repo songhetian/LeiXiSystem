@@ -1,5 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { RedisService } from './redis.service';
+import { DistributedLockService } from '../distributed-lock.service';
+import { PermissionCacheService } from '../permission-cache.service';
+import { CsrfService } from '../csrf.service';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 /**
  * Redis 全局模块（T22.1）。注册为 @Global，任意模块可直接注入 RedisService。
@@ -7,7 +11,8 @@ import { RedisService } from './redis.service';
  */
 @Global()
 @Module({
-  providers: [RedisService],
-  exports: [RedisService],
+  imports: [PrismaModule],
+  providers: [RedisService, DistributedLockService, PermissionCacheService, CsrfService],
+  exports: [RedisService, DistributedLockService, PermissionCacheService, CsrfService],
 })
 export class RedisModule {}

@@ -7,14 +7,13 @@ describe('S12 · 预览签名引擎（纯函数）', () => {
   const secret = 'test-secret-key-12345';
 
   describe('signPreviewUrl — 生成签名', () => {
-    it('应该生成包含 token 的预览 URL', () => {
+    it('应该生成包含 token 的签名结果', () => {
       const result = signPreviewUrl({
         fileUrl: 'https://oss.example.com/docs/xxx.pdf',
         fileName: '测试文档.pdf',
         secret,
         expiresIn: 3600,
       });
-      expect(result.previewUrl).toBeDefined();
       expect(result.token).toBeDefined();
       expect(result.expiresAt).toBeGreaterThan(Date.now());
     });

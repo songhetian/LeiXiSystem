@@ -82,6 +82,11 @@ jest.mock('@arco-design/web-react', () => {
     Typography: {
       Title: ({ heading, style, children }: any) => <h4>{children}</h4>,
     },
+    Alert: ({ content, type }: any) => (
+      <div role="alert" data-type={type}>
+        {content}
+      </div>
+    ),
     Message: { success: jest.fn(), error: jest.fn() },
   };
 });
@@ -112,7 +117,7 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/用户名/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/密码/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /登录/i })).toBeInTheDocument();
-    expect(screen.getByText('雷犀客服管理系统')).toBeInTheDocument();
+    expect(screen.getByText('雷犀管理系统')).toBeInTheDocument();
   });
 
   it('logs in successfully with correct credentials and redirects to home', async () => {

@@ -14,12 +14,6 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, activeMenu }: any) => (
-    <div data-testid="app-layout" data-active-menu={activeMenu}>{children}</div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -109,12 +103,6 @@ describe('SchedulesPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders with correct menu and title', () => {
-      render(<SchedulesPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance-schedules');
-      expect(screen.getByTestId('page-title')).toHaveTextContent('排班管理');
-    });
-
     it('fetches schedules and shifts on mount', async () => {
       render(<SchedulesPage />);
       await waitFor(() => {

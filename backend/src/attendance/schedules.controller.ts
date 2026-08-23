@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { SchedulesService } from './schedules.service';
+import { parsePagination } from '../common/pagination.util';
 
 const scheduleItemSchema = z.object({
   employeeId: z.number().int().positive(),
@@ -51,15 +52,35 @@ export class SchedulesController {
     @Query('employeeId') employeeId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('page') page = '1',
-    @Query('pageSize') pageSize = '100',
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize }, { defaultPageSize: 100, maxPageSize: 200 });
     const result = await this.schedulesService.list((req as any).user.id, {
       employeeId: employeeId ? Number(employeeId) : undefined,
       startDate,
       endDate,
-      page: Math.max(1, parseInt(page, 10) || 1),
-      pageSize: Math.min(200, Math.max(1, parseInt(pageSize, 10) || 100)),
+      page: pageNum,
+      pageSize: pageSizeNum,
+    });
+    return { code: 0, message: 'ok', data: result };
+  }
+
+  @Get('my')
+  @RequirePermission('attendance:view')
+  async my(
+    @Req() req: FastifyRequest,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize }, { defaultPageSize: 200, maxPageSize: 400 });
+    const result = await this.schedulesService.mySchedule((req as any).user.id, {
+      startDate,
+      endDate,
+      page: pageNum,
+      pageSize: pageSizeNum,
     });
     return { code: 0, message: 'ok', data: result };
   }

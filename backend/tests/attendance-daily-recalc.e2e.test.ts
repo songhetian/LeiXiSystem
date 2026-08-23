@@ -55,7 +55,7 @@ describe('S07 · 考勤日报定时重算任务', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_cron', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_cron', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     await prisma.userRole.create({
       data: { userId: admin.id, roleId: adminRole.id },

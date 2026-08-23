@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BroadcastService } from './broadcast.service';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('broadcasts')
 @UseGuards(JwtAuthGuard)
@@ -25,10 +26,11 @@ export class BroadcastPublicController {
     @Query('pageSize') pageSize?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.broadcastService.list({
       type,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
       onlyPublished: true,
       userId: req?.user?.id,
     });
@@ -45,7 +47,7 @@ export class BroadcastPublicController {
   @Get(':id')
   @HttpCode(200)
   async getDetail(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.broadcastService.getDetail(id, req.user.id);
+    const data = await this.broadcastService.getPublicDetail(id, req.user.id);
     return { code: 0, data };
   }
 

@@ -12,7 +12,7 @@ module.exports = {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
         jsx: 'react-jsx',
-        module: 'esnext',
+        module: 'commonjs',
         target: 'es2022',
         moduleResolution: 'node',
         esModuleInterop: true,

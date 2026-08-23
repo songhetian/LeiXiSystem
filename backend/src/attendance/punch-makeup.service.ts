@@ -5,13 +5,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { DataScopeService } from '../common/data-scope.service';
 import { ApprovalService } from '../approval/approval.service';
+import { AttendanceSettingsService } from './settings.service';
 
 @Injectable()
 export class PunchMakeupService {
   constructor(
     private prisma: PrismaService,
+    private dataScope: DataScopeService,
     private approvalService: ApprovalService,
+    private settingsService: AttendanceSettingsService,
   ) {}
 
   async list(params: {
@@ -19,12 +23,27 @@ export class PunchMakeupService {
     status?: string;
     startDate?: string;
     endDate?: string;
+    userId: number;
     page: number;
     pageSize: number;
   }) {
-    const { employeeId, status, startDate, endDate, page, pageSize } = params;
+    const { employeeId, status, startDate, endDate, userId, page, pageSize } = params;
+    const scope = await this.dataScope.visibleScope(userId);
+
     const where: any = {};
-    if (employeeId) where.employeeId = employeeId;
+    if (scope.selfEmployeeId) {
+      where.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
+      where.employee = { departmentId: { in: scope.ids } };
+    }
+    if (employeeId) {
+      if (scope.selfEmployeeId && scope.selfEmployeeId !== employeeId) {
+        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+      }
+      if (!scope.selfEmployeeId) {
+        where.employeeId = employeeId;
+      }
+    }
     if (status) where.status = status;
     if (startDate || endDate) {
       where.punchDate = {};
@@ -54,11 +73,19 @@ export class PunchMakeupService {
       throw new NotFoundException({ code: 2101, message: '补卡申请不存在' });
     }
     if (userId !== undefined) {
+      // IDOR fix: use DataScopeService instead of emp.userId check
+      const scope = await this.dataScope.visibleScope(userId);
       const emp = await this.prisma.employee.findUnique({
         where: { id: makeup.employeeId },
       });
-      if (!emp || emp.userId !== userId) {
-        throw new ForbiddenException({ code: 5003, message: '无权限查看' });
+      if (scope.selfEmployeeId) {
+        if (makeup.employeeId !== scope.selfEmployeeId) {
+          throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+        }
+      } else if (!scope.all) {
+        if (!emp || !scope.ids.includes(emp.departmentId)) {
+          throw new ForbiddenException({ code: 4030, message: '无权查看其他部门的记录' });
+        }
       }
     }
     return makeup;
@@ -77,6 +104,31 @@ export class PunchMakeupService {
     });
     if (!emp) {
       throw new BadRequestException({ code: 2102, message: '员工信息不存在' });
+    }
+
+    const settings = await this.settingsService.getSettings({ publicOnly: true });
+    const daysLimit = Number(settings.makeupDaysLimit) || 30;
+
+    const punchDateObj = new Date(params.punchDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    punchDateObj.setHours(0, 0, 0, 0);
+
+    const diffTime = today.getTime() - punchDateObj.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > daysLimit) {
+      throw new BadRequestException({
+        code: 2110,
+        message: `只能补最近 ${daysLimit} 天内的卡，当前补卡日期已超出范围`,
+      });
+    }
+
+    if (punchDateObj > today) {
+      throw new BadRequestException({
+        code: 2111,
+        message: '不能补未来日期的卡',
+      });
     }
 
     const data: any = {
@@ -112,6 +164,33 @@ export class PunchMakeupService {
     });
     if (!emp || emp.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
+    }
+
+    if (params.punchDate !== undefined) {
+      const settings = await this.settingsService.getSettings({ publicOnly: true });
+      const daysLimit = Number(settings.makeupDaysLimit) || 30;
+
+      const punchDateObj = new Date(params.punchDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      punchDateObj.setHours(0, 0, 0, 0);
+
+      const diffTime = today.getTime() - punchDateObj.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays > daysLimit) {
+        throw new BadRequestException({
+          code: 2110,
+          message: `只能补最近 ${daysLimit} 天内的卡，当前补卡日期已超出范围`,
+        });
+      }
+
+      if (punchDateObj > today) {
+        throw new BadRequestException({
+          code: 2111,
+          message: '不能补未来日期的卡',
+        });
+      }
     }
 
     const data: any = {};
@@ -177,6 +256,36 @@ export class PunchMakeupService {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
 
+    const settings = await this.settingsService.getSettings({ publicOnly: true });
+    const monthlyLimit = Number(settings.makeupMonthlyLimit) || 3;
+
+    const punchDate = new Date(makeup.punchDate);
+    const year = punchDate.getFullYear();
+    const month = punchDate.getMonth();
+
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+
+    const monthlyCount = await this.prisma.punchMakeup.count({
+      where: {
+        employeeId: makeup.employeeId,
+        punchDate: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+        status: {
+          in: ['approving', 'approved', 'rejected'],
+        },
+      },
+    });
+
+    if (monthlyCount >= monthlyLimit) {
+      throw new BadRequestException({
+        code: 2112,
+        message: `当月补卡次数已达上限（${monthlyLimit}次），请下月再申请`,
+      });
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
     const instance = await this.approvalService.startInstance({
@@ -188,7 +297,7 @@ export class PunchMakeupService {
         punchType: makeup.punchType,
       },
       userId,
-      userName: user!.name,
+      userName: user!.realName,
       departmentId: emp.departmentId ?? undefined,
     });
 
@@ -220,7 +329,7 @@ export class PunchMakeupService {
     await this.approvalService.approve({
       instanceId: makeup.approvalInstanceId,
       userId,
-      userName: approver?.name || '',
+      userName: approver?.realName || '',
       comment,
     });
 
@@ -254,7 +363,7 @@ export class PunchMakeupService {
     await this.approvalService.reject({
       instanceId: makeup.approvalInstanceId,
       userId,
-      userName: approver?.name || '',
+      userName: approver?.realName || '',
       comment,
     });
 

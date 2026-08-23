@@ -25,20 +25,19 @@ const mockPayrollRun = {
 };
 
 const mockPayrollDetail = {
-  employeeId: 1,
-  employeeNo: 'E001',
-  employeeName: '张三',
-  departmentName: '技术部',
-  baseSalary: 5000,
-  overtimePay: 500,
-  absenceDeduction: 0,
-  bonus: 200,
-  total: 5700,
+  employee: {
+    id: 1,
+    employeeNo: 'E001',
+    name: '张三',
+    departmentId: 1,
+  },
   items: [
     { code: 'BASE_SALARY', name: '基本工资', amount: 5000 },
     { code: 'OVERTIME', name: '加班费', amount: 500 },
     { code: 'BONUS', name: '全勤奖', amount: 200 },
   ],
+  adjustments: [],
+  total: 5700,
 };
 
 const mockListResponse = {
@@ -166,21 +165,17 @@ describe('payrollApi', () => {
       expect(result.data!.id).toBe(1);
     });
 
-    it('getPayrollRunDetails sends GET request for employee details', async () => {
+    it('getPayrollRunDetails sends GET request for run details', async () => {
       mockedRequest.get.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
         data: {
-          list: [mockPayrollDetail],
-          total: 1,
-          page: 1,
-          pageSize: 20,
+          run: mockPayrollRun,
+          employees: [mockPayrollDetail],
         },
       });
-      const result = await payrollApi.getPayrollRunDetails(1, { page: 1, pageSize: 20 });
-      expect(mockedRequest.get).toHaveBeenCalledWith('/payroll/runs/1/details', {
-        params: { page: 1, pageSize: 20 },
-      });
+      const result = await payrollApi.getPayrollRunDetails(1);
+      expect(mockedRequest.get).toHaveBeenCalledWith('/payroll/runs/1/details');
       expect(result.code).toBe(0);
     });
 

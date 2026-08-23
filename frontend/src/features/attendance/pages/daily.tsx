@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
-import { attendanceApi, DailyRecord } from '@/services/attendance';
+import { useCachedData } from '@/hooks/use-cached-data';
+import { attendanceApi, DailyRecord, DailyListResult } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
+import { exportToExcel } from '@/lib/excel';
 
 const searchFields: SearchFieldConfig[] = [
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
-  { key: 'startDate', label: '开始日期', type: 'input', placeholder: 'YYYY-MM-DD' },
-  { key: 'endDate', label: '结束日期', type: 'input', placeholder: 'YYYY-MM-DD' },
+  { key: 'startDate', label: '开始日期', type: 'date', placeholder: '请选择日期', span: 4 },
+  { key: 'endDate', label: '结束日期', type: 'date', placeholder: '请选择日期', span: 4 },
   {
     key: 'status',
     label: '状态',
@@ -37,48 +38,65 @@ const statusMap: Record<string, { label: string; color: string }> = {
 
 export default function AttendanceDailyPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<DailyRecord[]>([]);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
-  const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    try {
-      const result = await attendanceApi.getDailyList({
-        page,
-        pageSize,
-        ...params,
-      });
-      if (result.code === 0 && result.data) {
-        setData(result.data.list);
-        setPagination({
-          current: result.data.page,
-          pageSize: result.data.pageSize,
-          total: result.data.total,
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  // SWR 缓存：以 页码/大小/筛选条件 为 key。同一查询在有效期内切回本页直接复用，不重复请求。
+  const cacheKey = `attendance:daily:${JSON.stringify({ page, pageSize, search: searchParams })}`;
+  const { data: result, loading, error, revalidate } = useCachedData<DailyListResult>(
+    cacheKey,
+    () => attendanceApi.getDailyList({ page, pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
 
-  useEffect(() => {
-    fetchData(1, 20, searchParams);
-  }, []);
+  const data = result?.data?.list ?? [];
+  const pagination = { current: page, pageSize, total: result?.data?.total ?? 0 };
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchData(1, pagination.pageSize, values);
+    setPage(1);
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchData(1, pagination.pageSize, {});
+    setPage(1);
+  };
+
+  // 导出 Excel：拉取符合当前筛选条件的全部日报
+  const handleExport = async () => {
+    try {
+      const res = await attendanceApi.getDailyList({ page: 1, pageSize: 10000, ...searchParams });
+      const list = (res.data?.list ?? []) as DailyRecord[];
+      const statusLabel: Record<string, string> = {
+        normal: '正常', abnormal: '异常', leave: '请假', absent: '旷工',
+      };
+      if (!exportToExcel(
+        `考勤日报_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        '考勤日报',
+        [
+          { title: '工号', dataIndex: 'employeeNo' },
+          { title: '姓名', dataIndex: 'employeeName' },
+          { title: '部门', dataIndex: 'departmentName' },
+          { title: '日期', dataIndex: 'date' },
+          { title: '班次', dataIndex: 'shiftName' },
+          { title: '上班打卡', dataIndex: 'checkIn' },
+          { title: '下班打卡', dataIndex: 'checkOut' },
+          { title: '工时(小时)', dataIndex: 'workHours' },
+          { title: '状态', value: (r: DailyRecord) => statusLabel[r.status] ?? r.status },
+        ],
+        list,
+      )) {
+        Message.info('当前没有可导出的日报数据');
+      }
+    } catch {
+      Message.error('导出失败');
+    }
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchData(page, pageSize, searchParams);
+    setPage(page);
+    setPageSize(pageSize);
   };
 
   const handleRecalc = async () => {
@@ -95,7 +113,7 @@ export default function AttendanceDailyPage() {
       });
       if (result.code === 0) {
         Message.success(`重新计算完成，更新 ${result.data?.updated || 0} 条记录`);
-        fetchData(pagination.current, pagination.pageSize, searchParams);
+        await revalidate();
       } else {
         Message.error(result.message || '计算失败');
       }
@@ -143,24 +161,25 @@ export default function AttendanceDailyPage() {
   const toolbar: ProTableToolbarAction[] = [
     { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch, disabled: !can('attendance:manage') },
     { key: 'recalc', label: '重新计算', onClick: handleRecalc, disabled: !can('attendance:manage') },
+    { key: 'export', label: '导出 Excel', onClick: handleExport, disabled: !can('attendance:view') },
   ];
 
   return (
-    <AppLayout title="考勤日报" activeMenu="attendance-daily">
-      <PageContainer title="考勤日报">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          toolbar={toolbar}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-        />
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="考勤日报">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        toolbar={toolbar}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+      />
+    </PageContainer>
   );
 }

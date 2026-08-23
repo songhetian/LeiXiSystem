@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import AttendanceDailyPage from '@/features/attendance/pages/daily';
 import { attendanceApi } from '@/services/attendance';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -11,14 +12,6 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -97,6 +90,7 @@ const mockRecords = [
 describe('AttendanceDailyPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
@@ -110,11 +104,6 @@ describe('AttendanceDailyPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with correct menu', () => {
-      render(<AttendanceDailyPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance-daily');
-    });
-
     it('renders PageContainer with title 考勤日报', () => {
       render(<AttendanceDailyPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('考勤日报');
@@ -184,8 +173,8 @@ describe('AttendanceDailyPage', () => {
       render(<AttendanceDailyPage />);
       await waitFor(() => {
         expect(screen.getByTestId('pagination')).toBeInTheDocument();
+        expect(screen.getByTestId('page-total')).toHaveTextContent('3');
       });
-      expect(screen.getByTestId('page-total')).toHaveTextContent('3');
     });
   });
 

@@ -58,10 +58,10 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -94,7 +94,7 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
     }
 
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-    await app.register(cookie);
+    await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
     adminCookie = await login(app, 'admin');

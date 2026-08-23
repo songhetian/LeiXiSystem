@@ -21,7 +21,7 @@ function makeService(isEnabled: boolean, store: Record<string, string> = {}) {
 
 describe('T22.3 LoginRateLimitService', () => {
   it('连续失败达到上限后，下一次 assertNotBlocked 抛 429 + code 5006', async () => {
-    const { svc } = makeService(true, { 'login:fail:alice': '5' });
+    const { svc } = makeService(true, { 'login:fail:user:alice': '5' });
     let thrown: HttpException | null = null;
     try {
       await svc.assertNotBlocked('alice');
@@ -34,24 +34,24 @@ describe('T22.3 LoginRateLimitService', () => {
   });
 
   it('失败次数未达上限：assertNotBlocked 不抛', async () => {
-    const { svc } = makeService(true, { 'login:fail:bob': '2' });
+    const { svc } = makeService(true, { 'login:fail:user:bob': '2' });
     await expect(svc.assertNotBlocked('bob')).resolves.toBeUndefined();
   });
 
   it('首次失败：registerFailure 写入计数并设置窗口过期(900s)', async () => {
     const { svc, redisMock } = makeService(true);
     await svc.registerFailure('carol');
-    expect(redisMock.incr).toHaveBeenCalledWith('login:fail:carol');
-    expect(redisMock.expire).toHaveBeenCalledWith('login:fail:carol', 900);
+    expect(redisMock.incr).toHaveBeenCalledWith('login:fail:user:carol');
+    expect(redisMock.expire).toHaveBeenCalledWith('login:fail:user:carol', 900);
     // 再次失败：已存在，不应再设置过期
     await svc.registerFailure('carol');
     expect(redisMock.expire).toHaveBeenCalledTimes(1);
   });
 
   it('登录成功：reset 清除计数', async () => {
-    const { svc, redisMock } = makeService(true, { 'login:fail:dave': '3' });
+    const { svc, redisMock } = makeService(true, { 'login:fail:user:dave': '3' });
     await svc.reset('dave');
-    expect(redisMock.del).toHaveBeenCalledWith('login:fail:dave');
+    expect(redisMock.del).toHaveBeenCalledWith('login:fail:user:dave');
   });
 
   it('Redis 未启用(isEnabled=false)：所有方法直通、不抛、不调用', async () => {

@@ -8,34 +8,29 @@ const mockPayslipItem = {
   code: 'BASE_SALARY',
   name: '基本工资',
   amount: 5000,
-  type: 'income',
 };
 
 const mockPayslip = {
   id: 1,
-  employeeId: 1,
-  employeeNo: 'E001',
-  employeeName: '张三',
-  departmentName: '技术部',
-  month: '2026-08',
   runId: 1,
-  status: 'unviewed',
-  baseSalary: 5000,
-  overtimePay: 500,
-  absenceDeduction: 0,
-  bonus: 200,
-  totalIncome: 5700,
-  totalDeduction: 500,
-  netSalary: 5200,
+  employeeId: 1,
+  month: '2026-08',
+  totalAmount: 5200,
+  status: 'unviewed' as const,
+  viewedAt: null,
+  itemsJson: '[{"code":"BASE_SALARY","name":"基本工资","amount":5000}]',
+  createdAt: '2026-08-13T10:00:00+08:00',
+  updatedAt: '2026-08-13T10:00:00+08:00',
+};
+
+const mockPayslipDetail = {
+  ...mockPayslip,
   items: [
     mockPayslipItem,
-    { code: 'OVERTIME', name: '加班费', amount: 500, type: 'income' },
-    { code: 'BONUS', name: '全勤奖', amount: 200, type: 'income' },
-    { code: 'SOCIAL_SECURITY', name: '社保', amount: 500, type: 'deduction' },
+    { code: 'OVERTIME', name: '加班费', amount: 500 },
+    { code: 'BONUS', name: '全勤奖', amount: 200 },
+    { code: 'SOCIAL_SECURITY', name: '社保', amount: -500 },
   ],
-  adjustments: [],
-  createdAt: '2026-08-13T10:00:00+08:00',
-  viewedAt: null,
 };
 
 const mockListResponse = {
@@ -77,7 +72,7 @@ describe('payslipApi', () => {
       mockedRequest.get.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
-        data: mockPayslip,
+        data: mockPayslipDetail,
       });
       const result = await payslipApi.getMyPayslipDetail(1);
       expect(mockedRequest.get).toHaveBeenCalledWith('/payslips/me/1');
@@ -107,24 +102,23 @@ describe('payslipApi', () => {
       expect(result.code).toBe(0);
     });
 
-    it('getPayslips sends employee filter', async () => {
+    it('getPayslips sends runId filter', async () => {
       mockedRequest.get.mockResolvedValueOnce(mockListResponse);
-      await payslipApi.getPayslips({ page: 1, pageSize: 20, employeeNo: 'E001' });
+      await payslipApi.getPayslips({ page: 1, pageSize: 20, runId: 1 });
       expect(mockedRequest.get).toHaveBeenCalledWith('/payslips', {
-        params: { page: 1, pageSize: 20, employeeNo: 'E001' },
+        params: { page: 1, pageSize: 20, runId: 1 },
       });
     });
 
-    it('getPayslips sends month and department filters', async () => {
+    it('getPayslips sends month filter', async () => {
       mockedRequest.get.mockResolvedValueOnce(mockListResponse);
       await payslipApi.getPayslips({
         page: 1,
         pageSize: 20,
         month: '2026-08',
-        departmentId: 1,
       });
       expect(mockedRequest.get).toHaveBeenCalledWith('/payslips', {
-        params: { page: 1, pageSize: 20, month: '2026-08', departmentId: 1 },
+        params: { page: 1, pageSize: 20, month: '2026-08' },
       });
     });
   });
@@ -149,21 +143,23 @@ describe('payslipApi', () => {
       });
     });
 
-    it('handles payslip with adjustments', async () => {
-      const payslipWithAdjustments = {
-        ...mockPayslip,
-        adjustments: [
-          { code: 'ADJUST_BONUS', name: '绩效调整', amount: 300, type: 'income' },
+    it('handles payslip with multiple items', async () => {
+      const payslipWithItems = {
+        ...mockPayslipDetail,
+        items: [
+          { code: 'BASE_SALARY', name: '基本工资', amount: 5000 },
+          { code: 'OVERTIME', name: '加班费', amount: 500 },
+          { code: 'BONUS', name: '全勤奖', amount: 200 },
         ],
       };
       mockedRequest.get.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
-        data: payslipWithAdjustments,
+        data: payslipWithItems,
       });
       const result = await payslipApi.getMyPayslipDetail(1);
-      expect(result.data!.adjustments).toHaveLength(1);
-      expect(result.data!.adjustments[0].amount).toBe(300);
+      expect(result.data!.items).toHaveLength(3);
+      expect(result.data!.items[0].amount).toBe(5000);
     });
   });
 

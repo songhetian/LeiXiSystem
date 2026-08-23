@@ -57,10 +57,10 @@ describe('S12 · 知识库增强（阅读统计日表 + 预览token验证）', (
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_stat', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_stat', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_stat', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_stat', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [

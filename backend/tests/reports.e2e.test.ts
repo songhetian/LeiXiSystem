@@ -73,13 +73,13 @@ describe('S15 · 报表中心', () => {
     });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin_report', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_report', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager_report', passwordHash: await bcrypt.hash('123456', 10), name: '张主管' },
+      data: { username: 'manager_report', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_report', passwordHash: await bcrypt.hash('123456', 10), name: '王员工' },
+      data: { username: 'staff_report', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
     });
 
     await prisma.userRole.createMany({

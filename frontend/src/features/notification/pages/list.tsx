@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Card, Tag, Button, Space, Badge, List, Empty } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import { notificationApi, Notification } from '@/services/notification';
 
@@ -63,58 +62,56 @@ export default function NotificationsPage() {
   };
 
   return (
-    <AppLayout title="我的通知" activeMenu="notifications">
-      <PageContainer
-        title="我的通知"
-        action={
-          <Space>
-            {unread > 0 && <Badge count={unread} />}
-            <Button size="small" onClick={handleReadAll} disabled={unread === 0}>
-              全部已读
-            </Button>
-          </Space>
-        }
-      >
-        <Card loading={loading}>
-          {data.length === 0 ? (
-            <Empty description="暂无通知" />
-          ) : (
-            <List
-              dataSource={data}
-              render={(item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleReadOne(item)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 4px',
-                    borderBottom: '1px solid var(--color-border-2)',
-                    cursor: item.read ? 'default' : 'pointer',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={item.read ? { color: '#86909c' } : { fontWeight: 600 }}>
-                      {item.title}
-                    </span>
-                    {item.content ? (
-                      <div style={{ fontSize: 13, color: '#4e5969', marginTop: 2 }}>{item.content}</div>
-                    ) : null}
-                    <div style={{ fontSize: 12, color: '#86909c', marginTop: 4 }}>{item.createdAt}</div>
-                  </div>
-                  <Space>
-                    <Tag color={typeMap[item.type]?.color || 'gray'}>
-                      {typeMap[item.type]?.label || item.type}
-                    </Tag>
-                    {!item.read && <Tag color="red">未读</Tag>}
-                  </Space>
+    <PageContainer
+      title="我的通知"
+      action={
+        <Space>
+          {unread > 0 && <Badge count={unread} />}
+          <Button size="small" onClick={handleReadAll} disabled={unread === 0}>
+            全部已读
+          </Button>
+        </Space>
+      }
+    >
+      <Card loading={loading}>
+        {data.length === 0 ? (
+          <Empty description="暂无通知" />
+        ) : (
+          <List
+            dataSource={data}
+            render={(item) => (
+              <div
+                key={item.id}
+                onClick={() => handleReadOne(item)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 4px',
+                  borderBottom: '1px solid var(--color-border-2)',
+                  cursor: item.read ? 'default' : 'pointer',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={item.read ? { color: '#86909c' } : { fontWeight: 600 }}>
+                    {item.title}
+                  </span>
+                  {item.content ? (
+                    <div style={{ fontSize: 13, color: '#4e5969', marginTop: 2 }}>{item.content}</div>
+                  ) : null}
+                  <div style={{ fontSize: 12, color: '#86909c', marginTop: 4 }}>{item.createdAt}</div>
                 </div>
-              )}
-            />
-          )}
-        </Card>
-      </PageContainer>
-    </AppLayout>
+                <Space>
+                  <Tag color={typeMap[item.type]?.color || 'gray'}>
+                    {typeMap[item.type]?.label || item.type}
+                  </Tag>
+                  {!item.read && <Tag color="red">未读</Tag>}
+                </Space>
+              </div>
+            )}
+          />
+        )}
+      </Card>
+    </PageContainer>
   );
 }

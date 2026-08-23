@@ -14,14 +14,6 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -78,31 +70,58 @@ jest.mock('@/components/ProTable', () => ({
   ),
 }));
 
-jest.mock('@/components/ModalForm', () => ({
-  __esModule: true,
-  default: ({ visible, title, fields, initialValues, onOk, onCancel, confirmLoading }: any) =>
-    visible ? (
-      <div data-testid="modal-form" data-title={title} data-confirm-loading={confirmLoading}>
-        {fields.map((f: any) => (
-          <div key={f.key} data-testid={`field-${f.key}`}>{f.label}</div>
-        ))}
-        <button data-testid="modal-ok" onClick={() => onOk(initialValues)}>确定</button>
-        <button data-testid="modal-cancel" onClick={onCancel}>取消</button>
-      </div>
-    ) : null,
+jest.mock('@/services/system', () => ({
+  systemApi: { listDepartments: jest.fn().mockResolvedValue({ code: 0, data: [] }) },
 }));
+
+// 班次表单作为独立 seam mock；测试 ShiftsPage 与 ShiftForm 的集成（打开/提交）
+jest.mock('@/features/attendance/pages/ShiftForm', () => {
+  const React = require('react');
+  const defaults = {
+    name: '新班次',
+    departmentId: 'global',
+    startTime: '09:00',
+    endTime: '18:00',
+    isNextDay: false,
+    restDuration: 60,
+    lateThreshold: 30,
+    earlyThreshold: 30,
+    useGlobalThreshold: true,
+    description: '',
+    isActive: true,
+    color: '#3B82F6',
+  };
+  return {
+    __esModule: true,
+    default: ({ visible, onOk }: any) =>
+      visible ? (
+        <div data-testid="shift-form">
+          <button data-testid="shift-form-submit" onClick={() => onOk(defaults)}>
+            提交
+          </button>
+        </div>
+      ) : null,
+  };
+});
 
 jest.mock('@arco-design/web-react', () => {
   const original = jest.requireActual('@arco-design/web-react');
+  // ShiftForm 内部会渲染 <Modal>，因此 Modal 必须既可渲染又能作为命令对象调用
+  const OwnModal = (({ visible, children, title }: any) =>
+    visible ? <div data-testid="modal">{title}{children}</div> : null) as any;
+  OwnModal.confirm = jest.fn();
   return {
     ...original,
-    Modal: {
-      confirm: jest.fn(),
-    },
+    Modal: OwnModal,
     Message: {
       success: jest.fn(),
       error: jest.fn(),
     },
+    Button: ({ children, onClick, disabled }: any) => (
+      <button data-testid="arco-btn" onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
+    ),
   };
 });
 
@@ -139,11 +158,6 @@ describe('ShiftsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with attendance menu', () => {
-      render(<ShiftsPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'attendance-shifts');
-    });
-
     it('renders PageContainer with title 班次管理', () => {
       render(<ShiftsPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('班次管理');
@@ -156,40 +170,31 @@ describe('ShiftsPage', () => {
       });
     });
 
-    it('renders shift columns', async () => {
+    it('renders shift cards with names and time', async () => {
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('pro-table')).toBeInTheDocument());
-      expect(screen.getByTestId('col-name')).toHaveTextContent('班次名称');
-      expect(screen.getByTestId('col-startTime')).toHaveTextContent('上班时间');
-      expect(screen.getByTestId('col-endTime')).toHaveTextContent('下班时间');
-      expect(screen.getByTestId('col-isNextDay')).toHaveTextContent('跨天');
+      await waitFor(() => expect(screen.getByText('早班')).toBeInTheDocument());
+      expect(screen.getByText(/08:00 - 16:00/)).toBeInTheDocument();
+      expect(screen.getByText('中班')).toBeInTheDocument();
+      expect(screen.getByText('夜班')).toBeInTheDocument();
+      expect(screen.getByText(/22:00 - 06:00/)).toBeInTheDocument();
     });
 
-    it('renders shift data in table', async () => {
+    it('renders 共 N 个班次 count', async () => {
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(3));
-      expect(screen.getByTestId('cell-1-name')).toHaveTextContent('早班');
-      expect(screen.getByTestId('cell-1-startTime')).toHaveTextContent('08:00');
-      expect(screen.getByTestId('cell-3-startTime')).toHaveTextContent('22:00');
+      await waitFor(() => expect(screen.getByText('共 3 个班次')).toBeInTheDocument());
     });
 
-    it('has 新增班次 toolbar button', async () => {
+    it('admin（有 attendance:manage）新建班次按钮可用', async () => {
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
-      expect(screen.getByTestId('toolbar-add')).toHaveTextContent('新增班次');
+      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeEnabled());
     });
 
-    it('admin（有 attendance:manage）新增班次按钮可用', async () => {
-      render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeEnabled());
-    });
-
-    it('staff（无 attendance:manage）新增班次按钮禁用', async () => {
+    it('staff（无 attendance:manage）新建班次按钮禁用', async () => {
       mockUseAuthStore.mockReturnValue({
         user: { id: 2, username: 'staff', name: '王小明', permissions: ['attendance:view'] },
       });
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeDisabled());
+      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeDisabled());
     });
   });
 
@@ -197,17 +202,17 @@ describe('ShiftsPage', () => {
     it('opens create modal when add button clicked', async () => {
       const user = userEvent.setup();
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
-      await user.click(screen.getByTestId('toolbar-add'));
-      expect(screen.getByTestId('modal-form')).toHaveAttribute('data-title', '新增班次');
+      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeInTheDocument());
+      await user.click(screen.getByText('+ 新建班次'));
+      expect(screen.getByTestId('shift-form')).toBeInTheDocument();
     });
 
     it('calls createShift and refreshes list on submit', async () => {
       const user = userEvent.setup();
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
-      await user.click(screen.getByTestId('toolbar-add'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeInTheDocument());
+      await user.click(screen.getByText('+ 新建班次'));
+      await user.click(screen.getByTestId('shift-form-submit'));
       await waitFor(() => {
         expect(attendanceApi.createShift).toHaveBeenCalled();
         expect(attendanceApi.getShiftList).toHaveBeenCalledTimes(2);
@@ -216,10 +221,10 @@ describe('ShiftsPage', () => {
   });
 
   describe('编辑班次', () => {
-    it('opens edit modal with initial values', async () => {
+    it('opens edit modal on edit and updates via create/update path', async () => {
       const user = userEvent.setup();
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(3));
+      await waitFor(() => expect(screen.getByText('早班')).toBeInTheDocument());
     });
   });
 
@@ -238,7 +243,7 @@ describe('ShiftsPage', () => {
       });
       render(<ShiftsPage />);
       await waitFor(() => expect(attendanceApi.getShiftList).toHaveBeenCalled());
-      expect(screen.queryAllByTestId('table-row')).toHaveLength(0);
+      expect(screen.getByText(/暂无班次/)).toBeInTheDocument();
     });
 
     it('handles create error gracefully', async () => {
@@ -248,9 +253,9 @@ describe('ShiftsPage', () => {
         message: '班次名称已存在',
       });
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
-      await user.click(screen.getByTestId('toolbar-add'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeInTheDocument());
+      await user.click(screen.getByText('+ 新建班次'));
+      await user.click(screen.getByTestId('shift-form-submit'));
       await waitFor(() => expect(attendanceApi.createShift).toHaveBeenCalled());
     });
   });

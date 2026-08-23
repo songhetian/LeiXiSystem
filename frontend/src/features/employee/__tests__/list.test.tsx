@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import EmployeeListPage from '@/features/employee/pages/list';
 import { employeeApi } from '@/services/employee';
+import { systemApi } from '@/services/system';
 
 jest.mock('@/services/employee', () => ({
   employeeApi: {
@@ -13,14 +14,13 @@ jest.mock('@/services/employee', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
+jest.mock('@/services/system', () => ({
+  systemApi: {
+    listDepartments: jest.fn(),
+    listPositions: jest.fn(),
+  },
 }));
+
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -99,7 +99,18 @@ jest.mock('@/components/ModalForm', () => ({
         <div data-testid="modal-title">{title}</div>
         <div data-testid="modal-fields">
           {fields?.map((f: any) => (
-            <span key={f.key} data-testid={`modal-field-${f.key}`}>{f.label}</span>
+            <div key={f.key}>
+              <span data-testid={`modal-field-${f.key}`}>{f.label}</span>
+              {f.type === 'select' && f.options?.length > 0 && (
+                <div data-testid={`modal-options-${f.key}`}>
+                  {f.options.map((o: any) => (
+                    <span key={o.value} data-testid={`modal-option-${f.key}-${o.value}`}>
+                      {o.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
         <button data-testid="modal-cancel" onClick={onCancel}>取消</button>
@@ -128,14 +139,25 @@ describe('EmployeeListPage', () => {
         pageSize: 20,
       },
     });
+    (systemApi.listDepartments as jest.Mock).mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: [
+        { id: 1, name: '技术部' },
+        { id: 2, name: '产品部' },
+      ],
+    });
+    (systemApi.listPositions as jest.Mock).mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: [
+        { id: 1, name: '工程师' },
+        { id: 2, name: '产品经理' },
+      ],
+    });
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with correct menu', () => {
-      render(<EmployeeListPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'employee');
-    });
-
     it('renders PageContainer with title 员工管理', () => {
       render(<EmployeeListPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('员工管理');
@@ -259,6 +281,22 @@ describe('EmployeeListPage', () => {
       expect(screen.getByTestId('modal-field-hireDate')).toBeInTheDocument();
       expect(screen.getByTestId('modal-field-phone')).toBeInTheDocument();
       expect(screen.getByTestId('modal-field-salary')).toBeInTheDocument();
+    });
+
+    it('modal loads department and position options from systemApi', async () => {
+      const user = userEvent.setup();
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-add')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-add'));
+      await waitFor(() => {
+        expect(screen.getByTestId('employee-modal')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('modal-option-departmentId-1')).toHaveTextContent('技术部');
+      expect(screen.getByTestId('modal-option-departmentId-2')).toHaveTextContent('产品部');
+      expect(screen.getByTestId('modal-option-positionId-1')).toHaveTextContent('工程师');
+      expect(screen.getByTestId('modal-option-positionId-2')).toHaveTextContent('产品经理');
     });
 
     it('calls employeeApi.create when confirming add', async () => {
@@ -403,7 +441,7 @@ describe('EmployeeListPage', () => {
   });
 
   describe('离职功能', () => {
-    it('calls employeeApi.resign when resign confirmed', async () => {
+    it('点击离职打开确认弹窗，确认后调用 employeeApi.resign', async () => {
       const user = userEvent.setup();
       (employeeApi.resign as jest.Mock).mockResolvedValue({
         code: 0,
@@ -415,10 +453,15 @@ describe('EmployeeListPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       await user.click(screen.getByTestId('btn-resign-1'));
-      expect(employeeApi.resign).toHaveBeenCalledWith(1, expect.any(Object));
+      // 先只打开弹窗，不应立即调接口
+      expect(employeeApi.resign).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => {
+        expect(employeeApi.resign).toHaveBeenCalledWith(1, expect.objectContaining({ resignDate: expect.any(String) }));
+      });
     });
 
-    it('refreshes list after successful resign', async () => {
+    it('确认离职成功后刷新列表', async () => {
       const user = userEvent.setup();
       (employeeApi.resign as jest.Mock).mockResolvedValue({
         code: 0,
@@ -430,12 +473,13 @@ describe('EmployeeListPage', () => {
         expect(employeeApi.getList).toHaveBeenCalledTimes(1);
       });
       await user.click(screen.getByTestId('btn-resign-1'));
+      await user.click(screen.getByTestId('modal-ok'));
       await waitFor(() => {
         expect(employeeApi.getList).toHaveBeenCalledTimes(2);
       });
     });
 
-    it('handles employee already resigned error (code 1004)', async () => {
+    it('离职返回错误码时不刷新，仅提示', async () => {
       const user = userEvent.setup();
       (employeeApi.resign as jest.Mock).mockResolvedValue({
         code: 1004,
@@ -446,8 +490,12 @@ describe('EmployeeListPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       await user.click(screen.getByTestId('btn-resign-1'));
+      await user.click(screen.getByTestId('modal-ok'));
       await waitFor(() => {
         expect(employeeApi.resign).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(employeeApi.getList).toHaveBeenCalledTimes(1);
       });
     });
   });

@@ -3,7 +3,8 @@
 // 规则 A1：小时基数 = 基本工资 ÷ 21.75 ÷ 8
 // 规则：加班平日1.5/休息日2/法定3倍
 // 规则：缺勤扣款 = 基本工资 ÷ 当月应出勤天数 × 缺勤天数
-// 规则：全勤奖 = 无迟到/无缺卡/无请假（有薪假除外）
+// 规则：全勤奖 = 无迟到/无早退/无缺勤/无请假（有薪假除外）
+// 规则：迟到/早退按次扣款
 // 规则：餐补按出勤天数；社保固定代扣
 
 export interface EmployeePayrollInput {
@@ -22,6 +23,7 @@ export interface AttendanceSnapshot {
   scheduledDays: number;
   absentDays: number;
   lateCount: number;
+  earlyCount: number;
   noLeave: boolean;
   overtimeHours: OvertimeHours;
 }
@@ -30,6 +32,8 @@ export interface PayrollConfig {
   fullAttendanceBonus: number;
   mealAllowancePerDay: number;
   socialSecurity: number;
+  lateDeductionPerTime?: number;
+  earlyDeductionPerTime?: number;
 }
 
 export interface PayrollItem {
@@ -44,7 +48,12 @@ export interface PayrollResult {
   total: number;
 }
 
-const round2 = (n: number): number => Math.round(n * 100) / 100;
+export function round2(n: number): number {
+  if (!isFinite(n)) return 0;
+  const sign = n < 0 ? -1 : 1;
+  const abs = Math.abs(n);
+  return sign * Number(Math.round(Number(abs + 'e' + 2)) + 'e-' + 2);
+}
 
 export function calculatePayroll(
   emp: EmployeePayrollInput,
@@ -67,8 +76,21 @@ export function calculatePayroll(
     items.push({ code: 'absent', name: '缺勤扣款', amount: round2(-deduct) });
   }
 
+  if (cfg.lateDeductionPerTime && snapshot.lateCount > 0) {
+    const deduct = cfg.lateDeductionPerTime * snapshot.lateCount;
+    items.push({ code: 'lateDeduct', name: '迟到扣款', amount: round2(-deduct) });
+  }
+
+  if (cfg.earlyDeductionPerTime && snapshot.earlyCount > 0) {
+    const deduct = cfg.earlyDeductionPerTime * snapshot.earlyCount;
+    items.push({ code: 'earlyDeduct', name: '早退扣款', amount: round2(-deduct) });
+  }
+
   const fullAttendance =
-    snapshot.lateCount === 0 && snapshot.absentDays === 0 && snapshot.noLeave;
+    snapshot.lateCount === 0 &&
+    snapshot.earlyCount === 0 &&
+    snapshot.absentDays === 0 &&
+    snapshot.noLeave;
   if (fullAttendance && cfg.fullAttendanceBonus > 0) {
     items.push({ code: 'bonus', name: '全勤奖', amount: round2(cfg.fullAttendanceBonus) });
   }

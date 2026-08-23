@@ -1,9 +1,17 @@
-import { Controller, Get, Post, Put, Patch, Param, Body, Query, Req, UseGuards, HttpCode, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Param, Body, Query, Req, UseGuards, HttpCode, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PayrollService } from './payroll.service';
+import { confirmRunSchema, type ConfirmRunDto } from './dto/confirm.dto';
+import { CreateSalaryItemDto, UpdateSalaryItemDto } from './dto/salary-item.dto';
+import { ToggleSalaryItemDto } from './dto/toggle-salary-item.dto';
+import { CreateRunDto } from './dto/create-run.dto';
+import { AdjustRunDto } from './dto/adjust-run.dto';
+import { parsePagination } from '../common/pagination.util';
 
+@ApiTags('薪资')
 @Controller('payroll')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class PayrollController {
@@ -20,7 +28,7 @@ export class PayrollController {
   @Post('items')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async createItem(@Body() body: any) {
+  async createItem(@Body() body: CreateSalaryItemDto) {
     const data = await this.payrollService.createSalaryItem({
       code: body.code,
       name: body.name,
@@ -36,7 +44,7 @@ export class PayrollController {
   @Put('items/:id')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async updateItem(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  async updateItem(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateSalaryItemDto) {
     const data = await this.payrollService.updateSalaryItem(id, {
       name: body.name,
       type: body.type,
@@ -51,7 +59,7 @@ export class PayrollController {
   @Patch('items/:id')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async toggleItem(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  async toggleItem(@Param('id', ParseIntPipe) id: number, @Body() body: ToggleSalaryItemDto) {
     const data = await this.payrollService.toggleSalaryItem(id, body.enabled);
     return { code: 0, data };
   }
@@ -64,10 +72,11 @@ export class PayrollController {
     @Query('pageSize') pageSize?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payrollService.listRuns({
       userId: req.user.id,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
     });
     return { code: 0, data };
   }
@@ -75,7 +84,7 @@ export class PayrollController {
   @Post('runs')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async createRun(@Body() body: any, @Req() req: any) {
+  async createRun(@Body() body: CreateRunDto, @Req() req: any) {
     const data = await this.payrollService.createRun(body.month, req.user.id);
     return { code: 0, data };
   }
@@ -91,8 +100,13 @@ export class PayrollController {
   @Post('runs/:id/confirm')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async confirm(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payrollService.confirmRun(id, req.user.id);
+  async confirm(@Param('id', ParseIntPipe) id: number, @Body() body: ConfirmRunDto, @Req() req: any) {
+    const parsed = confirmRunSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 3008, message: parsed.error.errors[0].message });
+    }
+    const dto: ConfirmRunDto = parsed.data;
+    const data = await this.payrollService.confirmRun(id, req.user.id, dto.checkedEmployeeIds);
     return { code: 0, data };
   }
 
@@ -115,7 +129,7 @@ export class PayrollController {
   @Post('runs/:id/adjust')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async adjust(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
+  async adjust(@Param('id', ParseIntPipe) id: number, @Body() body: AdjustRunDto, @Req() req: any) {
     const data = await this.payrollService.addAdjustment(
       id,
       {

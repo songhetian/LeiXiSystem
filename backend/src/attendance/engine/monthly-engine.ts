@@ -15,6 +15,8 @@ export interface MonthlyResult {
   workDays: number;
   lateCount: number;
   earlyCount: number;
+  totalLateMinutes: number;
+  totalEarlyMinutes: number;
   absentDays: number;
   leaveMinutes: number;
   overtimeHours: number;
@@ -24,6 +26,8 @@ export function buildMonthly(dailies: DailyRecord[]): MonthlyResult {
   let workDays = 0;
   let lateCount = 0;
   let earlyCount = 0;
+  let totalLateMinutes = 0;
+  let totalEarlyMinutes = 0;
   let absentDays = 0;
   let leaveMinutes = 0;
   let totalOvertimeMinutes = 0;
@@ -42,6 +46,8 @@ export function buildMonthly(dailies: DailyRecord[]): MonthlyResult {
       earlyCount++;
     }
 
+    totalLateMinutes += d.lateMinutes;
+    totalEarlyMinutes += d.earlyMinutes;
     leaveMinutes += d.leaveMinutes;
     totalOvertimeMinutes += d.overtimeMinutes;
   }
@@ -50,6 +56,8 @@ export function buildMonthly(dailies: DailyRecord[]): MonthlyResult {
     workDays,
     lateCount,
     earlyCount,
+    totalLateMinutes,
+    totalEarlyMinutes,
     absentDays,
     leaveMinutes,
     overtimeHours: totalOvertimeMinutes / 60,

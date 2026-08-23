@@ -59,13 +59,13 @@ describe('S04 · 班次与排班（/api/v1/shifts、/api/v1/schedules）', () =>
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), name: '经理' },
+      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), realName: '经理' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -90,14 +90,14 @@ describe('S04 · 班次与排班（/api/v1/shifts、/api/v1/schedules）', () =>
       data: { employeeNo: 'E201', name: '王五', departmentId: dept2.id, hireDate: new Date('2026-01-01') },
     });
     const manager2 = await prisma.user.create({
-      data: { username: 'manager2', passwordHash: await bcrypt.hash('123456', 10), name: '经理二' },
+      data: { username: 'manager2', passwordHash: await bcrypt.hash('123456', 10), realName: '经理二' },
     });
     await prisma.userRole.create({ data: { userId: manager2.id, roleId: managerRole.id } });
     await prisma.userDepartment.create({ data: { userId: manager2.id, departmentId: dept2.id } });
     empC = e3.id;
 
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-    await app.register(cookie);
+    await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
     adminCookie = await login(app, 'admin');

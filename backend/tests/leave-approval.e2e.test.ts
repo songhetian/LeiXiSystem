@@ -77,13 +77,13 @@ describe('S06+S09 · 请假接入真实审批流', () => {
     });
 
     const staff = await prisma.user.create({
-      data: { username: 'staff_approval', passwordHash: await bcrypt.hash('123456', 10), name: '王员工' },
+      data: { username: 'staff_approval', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager_approval', passwordHash: await bcrypt.hash('123456', 10), name: '张主管' },
+      data: { username: 'manager_approval', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr_approval', passwordHash: await bcrypt.hash('123456', 10), name: '李HR' },
+      data: { username: 'hr_approval', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR' },
     });
     staffUserId = staff.id;
     managerUserId = manager.id;

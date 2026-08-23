@@ -24,20 +24,21 @@ describe('S02 · 认证与权限（/api/v1/auth）', () => {
       data: { code: 'admin', name: '管理员' },
     });
     const perm = await prisma.permission.create({
-      data: { code: 'employee:list', name: '查看员工', module: 'employee', type: 'menu' },
+      data: { code: 'employee:view', name: '员工查看', module: 'employee', type: 'menu' },
     });
     await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: perm.id } });
     const user = await prisma.user.create({
       data: {
         username: 'admin',
         passwordHash: await bcrypt.hash('123456', 10),
-        name: '管理员',
+        realName: '管理员',
+        status: 'active',
       },
     });
     await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
 
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-    await app.register(cookie);
+    await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
   });
@@ -119,7 +120,7 @@ describe('S02 · 认证与权限（/api/v1/auth）', () => {
   it('无权限用户访问受保护接口 → 403 + 业务码 5003', async () => {
     // 种子一个无权限用户 staff
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '普通员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '普通员工', status: 'active' },
     });
     const login = await inject(app, {
       method: 'POST',

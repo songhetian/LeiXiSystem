@@ -1,0 +1,81 @@
+.lx-pro-table {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+  overflow: hidden;
+  box-shadow: var(--lx-shadow-card);
+}
+
+.lx-pro-table-search {
+  padding: 16px 18px 0;
+  border-bottom: 1px solid var(--lx-border-2);
+  background: var(--lx-bg-card);
+}
+
+.lx-pro-table-search .arco-form-item {
+  margin-bottom: 16px;
+}
+
+.lx-pro-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--lx-border-2);
+  background: var(--lx-bg-card);
+}
+
+.lx-pro-table-toolbar .toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lx-pro-table-toolbar .toolbar-actions .arco-btn {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+.lx-pro-table-batch-bar {
+  padding: 8px 18px;
+  background: var(--lx-primary-bg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--lx-border-2);
+}
+
+.lx-pro-table-batch-bar .batch-info {
+  font-size: 13px;
+  color: var(--lx-primary);
+  font-weight: 400;
+}
+
+.lx-pro-table-batch-bar .batch-info strong {
+  font-weight: 500;
+  margin: 0 2px;
+}
+
+.lx-pro-table .arco-table-container {
+  border: none;
+  border-radius: 0;
+}
+
+.lx-pro-table-pagination {
+  padding: 12px 18px;
+  border-top: 1px solid var(--lx-border-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lx-pro-table-pagination .pg-total {
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+  font-weight: 400;
+}
+
+.lx-pro-table .arco-pagination {
+  justify-content: flex-end;
+}

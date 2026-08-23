@@ -38,36 +38,84 @@ jest.mock('@arco-design/web-react', () => {
     Title: ({ heading, children, style }: any) => <h6 data-testid="logo-title" style={style}>{children}</h6>,
   };
 
-  return { Layout, Menu, Avatar, Dropdown, Typography };
+  const Badge = ({ children, count, offset }: any) => (
+    <span data-testid="badge" data-count={count}>{children}</span>
+  );
+
+  return { Layout, Menu, Avatar, Dropdown, Typography, Badge };
 });
 
-jest.mock('@arco-design/web-react/icon', () => ({
-  IconDashboard: () => <span data-testid="icon-dashboard" />,
-  IconCalendar: () => <span data-testid="icon-calendar" />,
-  IconIdcard: () => <span data-testid="icon-idcard" />,
-  IconUser: () => <span data-testid="icon-user" />,
-  IconCheckCircle: () => <span data-testid="icon-check" />,
-  IconSafe: () => <span data-testid="icon-safe" />,
-  IconBook: () => <span data-testid="icon-book" />,
-  IconFile: () => <span data-testid="icon-file" />,
-  IconSettings: () => <span data-testid="icon-settings" />,
-  IconList: () => <span data-testid="icon-list" />,
-  IconNotification: () => <span data-testid="icon-notification" />,
-  IconMore: () => <span data-testid="icon-more">more</span>,
-}));
+// 侧边栏/命令面板使用大量图标。为避免固定 mock 遗漏新图标导致渲染崩溃，
+// 用 Proxy 兜底：任意图标名都返回可渲染的组件（data-testid=`icon-${name}`）。
+jest.mock('@arco-design/web-react/icon', () => {
+  const React = require('react');
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (prop === '__esModule') return true;
+        if (typeof prop === 'symbol') return undefined;
+        const name = String(prop);
+        return (props: any) =>
+          React.createElement('span', { 'data-testid': `icon-${name}`, ...props });
+      },
+    },
+  );
+});
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
-jest.mock('@/store/auth', () => ({
-  useAuthStore: jest.fn().mockReturnValue({
-    user: { id: 1, username: 'admin', name: '管理员' },
-    logout: jest.fn(),
-    isAuthenticated: true,
-    checkAuth: () => true,
-  }),
+// AppLayout 现在调用 useSocket() 初始化实时连接；测试中置为空操作，避免真实建连
+jest.mock('@/hooks/use-socket', () => ({
+  useSocket: () => null,
 }));
+
+// AppHeader 头部角标会拉取未读数；mock 掉避免真实网络请求
+jest.mock('@/services/notification', () => ({
+  notificationApi: {
+    list: jest.fn(),
+    unreadCount: jest.fn().mockResolvedValue({ code: 0, data: { count: 0 } }),
+    markRead: jest.fn(),
+    markAllRead: jest.fn(),
+  },
+}));
+
+jest.mock('@/store/auth', () => {
+  const state = {
+    user: {
+      id: 1,
+      username: 'admin',
+      name: '管理员',
+      permissions: [
+        'employee:view', 'attendance:view', 'attendance:manage',
+        'attendance:exception:view', 'attendance:deduction:view',
+        'approval:todo:view', 'approval:submitted:view', 'approval:workflow:manage',
+        'payroll:view', 'reimbursement:view', 'reimbursement:approve',
+        'knowledge:view', 'knowledge:manage',
+        'performance:view', 'okr:view',
+        'finance:budget:view', 'finance:expense-standard:view',
+        'helpdesk:view',
+        'system:user:view', 'system:user:manage', 'system:role:manage',
+        'department:manage', 'system:broadcast:manage', 'system:log:view',
+        'system:setting:view',
+      ],
+    },
+    logout: jest.fn(),
+    refreshUser: jest.fn(),
+    isAuthenticated: true,
+    checkAuth: () => Promise.resolve(true),
+  };
+  // 同时支持无参调用（返回整个 store）和 selector 调用（返回选中片段）
+  const useAuthStore = jest.fn((selector?: (s: typeof state) => unknown) =>
+    selector ? selector(state) : state,
+  );
+  (useAuthStore as any).getState = () => state;
+  return { useAuthStore };
+});
 
 jest.mock('@/components/ProtectedRoute', () => ({
   __esModule: true,
@@ -75,105 +123,82 @@ jest.mock('@/components/ProtectedRoute', () => ({
 }));
 
 describe('AppSider', () => {
-  it('renders logo and menu items', () => {
+  it('renders logo and top-level menu labels', () => {
     render(<AppSider />);
     expect(screen.getByText(/雷犀管理系统/i)).toBeInTheDocument();
     expect(screen.getByText('工作台')).toBeInTheDocument();
-    expect(screen.getByText('考勤')).toBeInTheDocument();
-    expect(screen.getByText('薪资')).toBeInTheDocument();
-    expect(screen.getByText('员工')).toBeInTheDocument();
-    expect(screen.getByText('设置')).toBeInTheDocument();
+    expect(screen.getByText('考勤管理')).toBeInTheDocument();
+    expect(screen.getByText('薪资管理')).toBeInTheDocument();
+    expect(screen.getByText('员工管理')).toBeInTheDocument();
+    expect(screen.getByText('系统设置')).toBeInTheDocument();
   });
 
-  it('renders submenu children (班次/排班/日报/休假/打卡设备)', () => {
+  it('renders submenu children (班次/排班/日报/休假额度/请假/加班/打卡设备)', () => {
     render(<AppSider />);
     expect(screen.getByText(/班次管理/i)).toBeInTheDocument();
     expect(screen.getByText(/排班管理/i)).toBeInTheDocument();
     expect(screen.getByText(/考勤日报/i)).toBeInTheDocument();
-    expect(screen.getByText(/休假管理/i)).toBeInTheDocument();
+    expect(screen.getByText(/休假额度/i)).toBeInTheDocument();
+    expect(screen.getByText(/请假记录/i)).toBeInTheDocument();
+    expect(screen.getByText(/加班记录/i)).toBeInTheDocument();
     expect(screen.getByText(/打卡设备/i)).toBeInTheDocument();
   });
 
-  it('passes activeKey to menu selectedKeys', () => {
-    render(<AppSider activeKey="dashboard" />);
-    const menu = screen.getByRole('menu');
-    expect(menu).toHaveAttribute('data-selected', 'dashboard');
+  it('marks the active menu item (activeKey)', () => {
+    render(<AppSider activeKey="attendance-daily" />);
+    const item = screen.getByText(/考勤日报/i).closest('.side-item');
+    expect(item).toHaveClass('active');
   });
 
-  it('calls onMenuClick when menu item is clicked', async () => {
+  it('calls onMenuClick when a leaf menu item is clicked', async () => {
     const user = userEvent.setup();
     const onMenuClick = jest.fn();
-
-    const mockMenu = jest.fn(({ children, onClickMenuItem }: any) => {
-      const items: React.ReactNode[] = [];
-      const cloneChildren = (child: any): any => {
-        if (!child) return null;
-        if (Array.isArray(child)) return child.map(cloneChildren);
-        if (typeof child === 'object' && child.props) {
-          return {
-            ...child,
-            props: {
-              ...child.props,
-              onClick: () => onClickMenuItem?.(child.key),
-            },
-          };
-        }
-        return child;
-      };
-      return <div role="menu">{cloneChildren(children)}</div>;
-    });
-
-    const arco = jest.requireMock('@arco-design/web-react');
-    const originalMenu = arco.Menu;
-    arco.Menu = mockMenu;
-    arco.Menu.Item = originalMenu.Item;
-
     render(<AppSider onMenuClick={onMenuClick} />);
-
-    const menuItems = screen.getAllByRole('menuitem');
-    await user.click(menuItems[1]);
-
-    arco.Menu = originalMenu;
+    await user.click(screen.getByText(/考勤日报/i));
+    expect(onMenuClick).toHaveBeenCalledWith('attendance-daily');
   });
 
-  it('uses default activeKey when not provided', () => {
+  it('uses default activeKey when not provided (工作台 active)', () => {
     render(<AppSider />);
-    const menu = screen.getByRole('menu');
-    expect(menu).toHaveAttribute('data-selected', 'dashboard');
+    const item = screen.getByText('工作台').closest('.side-item');
+    expect(item).toHaveClass('active');
   });
 
   it('filters menu by permissions (staff: 仅员工/考勤/知识库)', () => {
     render(
-      <AppSider permissions={['employee:list', 'attendance:view', 'knowledge:view']} />,
+      <AppSider permissions={['employee:view', 'attendance:view', 'knowledge:view']} />,
     );
-    expect(screen.getByText('员工')).toBeInTheDocument();
-    expect(screen.getByText('考勤')).toBeInTheDocument();
+    expect(screen.getByText('员工管理')).toBeInTheDocument();
+    expect(screen.getByText('考勤管理')).toBeInTheDocument();
     expect(screen.getByText('知识库')).toBeInTheDocument();
-    expect(screen.queryByText('薪资')).not.toBeInTheDocument();
+    expect(screen.queryByText('薪资管理')).not.toBeInTheDocument();
     expect(screen.queryByText('审批中心')).not.toBeInTheDocument();
-    expect(screen.queryByText('我的报销')).not.toBeInTheDocument();
+    expect(screen.queryByText('报销管理')).not.toBeInTheDocument();
     expect(screen.queryByText('系统管理')).not.toBeInTheDocument();
-    expect(screen.queryByText('设置')).not.toBeInTheDocument();
+    expect(screen.queryByText('系统设置')).not.toBeInTheDocument();
+    expect(screen.queryByText('财务预算')).not.toBeInTheDocument();
+    expect(screen.queryByText('绩效 OKR')).not.toBeInTheDocument();
   });
 
-  it('without permissions only shows unrestricted items (工作台)', () => {
+  it('without permissions only shows unrestricted items (工作台/我的通知)', () => {
     render(<AppSider permissions={[]} />);
     expect(screen.getByText('工作台')).toBeInTheDocument();
-    expect(screen.queryByText('员工')).not.toBeInTheDocument();
-    expect(screen.queryByText('考勤')).not.toBeInTheDocument();
+    expect(screen.getByText('我的通知')).toBeInTheDocument();
+    expect(screen.queryByText('员工管理')).not.toBeInTheDocument();
+    expect(screen.queryByText('考勤管理')).not.toBeInTheDocument();
   });
 
   it('shows all menus when permissions prop is not provided (兼容默认)', () => {
     render(<AppSider />);
-    expect(screen.getByText('薪资')).toBeInTheDocument();
-    expect(screen.getByText('设置')).toBeInTheDocument();
+    expect(screen.getByText('薪资管理')).toBeInTheDocument();
+    expect(screen.getByText('系统设置')).toBeInTheDocument();
   });
 });
 
 describe('AppHeader', () => {
-  it('renders breadcrumb title', () => {
+  it('renders breadcrumb from current pathname', () => {
     render(<AppHeader title="工作台" />);
-    expect(screen.getByText('工作台')).toBeInTheDocument();
+    expect(screen.getByText('首页')).toBeInTheDocument();
   });
 
   it('renders user avatar and name', () => {
@@ -182,8 +207,8 @@ describe('AppHeader', () => {
     expect(screen.getByText('管理员')).toBeInTheDocument();
   });
 
-  it('shows default title when not provided', () => {
-    render(<AppHeader />);
+  it('falls back to default title when pathname has no mapping', () => {
+    render(<AppHeader title="工作台" />);
     expect(screen.getByText(/首页/i)).toBeInTheDocument();
   });
 
@@ -200,19 +225,20 @@ describe('AppLayout', () => {
         <div data-testid="page-content">Page Content</div>
       </AppLayout>,
     );
-    expect(screen.getByTestId('layout-sider')).toBeInTheDocument();
-    expect(screen.getByTestId('layout-header')).toBeInTheDocument();
-    expect(screen.getByTestId('layout-content')).toBeInTheDocument();
+    expect(document.querySelector('.app-sider')).toBeInTheDocument();
+    expect(document.querySelector('.app-header')).toBeInTheDocument();
+    expect(document.querySelector('.app-content')).toBeInTheDocument();
     expect(screen.getByTestId('page-content')).toBeInTheDocument();
   });
 
-  it('passes title to header', () => {
+  it('renders logo and menus inside sider', () => {
     render(
-      <AppLayout title="员工管理">
+      <AppLayout>
         <div>Content</div>
       </AppLayout>,
     );
-    expect(screen.getByText('员工管理')).toBeInTheDocument();
+    expect(screen.getByText(/雷犀管理系统/i)).toBeInTheDocument();
+    expect(screen.getByText('考勤管理')).toBeInTheDocument();
   });
 
   it('renders children inside content', () => {
@@ -221,17 +247,17 @@ describe('AppLayout', () => {
         <div data-testid="child">Hello World</div>
       </AppLayout>,
     );
-    const content = screen.getByTestId('layout-content');
+    const content = document.querySelector('.app-content');
     expect(content).toContainElement(screen.getByTestId('child'));
   });
 
   it('passes activeMenu to sider', () => {
     render(
-      <AppLayout activeMenu="employee">
+      <AppLayout activeMenu="attendance-daily">
         <div>Content</div>
       </AppLayout>,
     );
-    const menu = screen.getByRole('menu');
-    expect(menu).toHaveAttribute('data-selected', 'employee');
+    const item = screen.getByText(/考勤日报/i).closest('.side-item');
+    expect(item).toHaveClass('active');
   });
 });

@@ -1,14 +1,14 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PrismaService } from '../prisma/prisma.service';
 import { REQUIRED_PERMISSION_KEY } from './require-permission.decorator';
+import { ERROR_CODES } from '../common/error-codes';
+import { PermissionCacheService } from '../common/permission-cache.service';
 
-// RBAC 按钮/菜单级权限守卫：比较用户权限点集合与所需权限（ADR-0010 数据隔离由 Service 层注入）
 @Injectable()
 export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly prisma: PrismaService,
+    private readonly permCache: PermissionCacheService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -19,17 +19,17 @@ export class PermissionGuard implements CanActivate {
     if (!required) return true;
 
     const req = context.switchToHttp().getRequest();
-    const user = await this.prisma.user.findUnique({
-      where: { id: req.user.id },
-      include: {
-        roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
-      },
-    });
-    const permissionCodes = new Set(
-      user?.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code)) ?? [],
-    );
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException({
+        code: ERROR_CODES.AUTH_TOKEN_INVALID,
+        message: 'token 无效或过期',
+      });
+    }
+    const permissionCodes = await this.permCache.getUserPermissions(userId);
+
     if (!permissionCodes.has(required)) {
-      throw new ForbiddenException({ code: 5003, message: '无权限访问该资源' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限访问该资源' });
     }
     return true;
   }

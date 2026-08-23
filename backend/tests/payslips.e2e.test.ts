@@ -68,10 +68,10 @@ describe('S11 · 工资条自助 + 通知', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -180,6 +180,7 @@ describe('S11 · 工资条自助 + 通知', () => {
       method: 'POST',
       url: `/api/v1/payroll/runs/${runId}/confirm`,
       headers: { cookie: adminCookie },
+      payload: { checkedEmployeeIds: [empA.id, empB.id, empC.id] },
     });
     await inject(app, {
       method: 'POST',

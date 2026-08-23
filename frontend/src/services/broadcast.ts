@@ -7,7 +7,7 @@ export interface Broadcast {
   summary?: string;
   status: 'draft' | 'published' | 'archived';
   recipientType: 'all' | 'department' | 'user';
-  priority: 'normal' | 'important' | 'urgent';
+  priority: 'normal' | 'important' | 'urgent' | number;
   publishedAt?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -25,8 +25,8 @@ export interface BroadcastRecipient {
 export interface BroadcastCreateDto {
   title: string;
   content: string;
-  summary?: string;
-  priority?: string;
+  type?: string;
+  priority?: number;
   recipientType: 'all' | 'department' | 'user';
   recipientDepartmentIds?: number[];
   recipientUserIds?: number[];
@@ -35,8 +35,8 @@ export interface BroadcastCreateDto {
 export interface BroadcastUpdateDto {
   title?: string;
   content?: string;
-  summary?: string;
-  priority?: string;
+  type?: string;
+  priority?: number;
   recipientType?: 'all' | 'department' | 'user';
   recipientDepartmentIds?: number[];
   recipientUserIds?: number[];
@@ -66,23 +66,28 @@ export interface BroadcastResult {
   data?: Broadcast;
 }
 
+/**
+ * 公告管理 API。
+ * 后端管理端点统一挂载在 SystemController(@Controller('system')) 下，
+ * 即 /system/broadcasts，区别于 /broadcasts 公开端点（仅已发布、仅查询/已读）。
+ */
 export const broadcastApi = {
   getList(params: BroadcastListParams = {}): Promise<BroadcastListResult> {
-    return request.get('/broadcasts', { params });
+    return request.get('/system/broadcasts', { params });
   },
   getDetail(id: number): Promise<BroadcastResult> {
-    return request.get(`/broadcasts/${id}`);
+    return request.get(`/system/broadcasts/${id}`);
   },
   create(data: BroadcastCreateDto): Promise<BroadcastResult> {
-    return request.post('/broadcasts', data);
+    return request.post('/system/broadcasts', data);
   },
   update(id: number, data: BroadcastUpdateDto): Promise<BroadcastResult> {
-    return request.put(`/broadcasts/${id}`, data);
+    return request.put(`/system/broadcasts/${id}`, data);
   },
   publish(id: number): Promise<{ code: number; message?: string }> {
-    return request.post(`/broadcasts/${id}/publish`);
+    return request.post(`/system/broadcasts/${id}/publish`);
   },
   remove(id: number): Promise<{ code: number; message?: string }> {
-    return request.delete(`/broadcasts/${id}`);
+    return request.delete(`/system/broadcasts/${id}`);
   },
 };

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Param, Query, UseGuards, HttpCode, Req } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
@@ -16,9 +17,10 @@ export class NotificationController {
     @Query('type') type?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.notificationService.list(req.user.id, {
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
       read: read === undefined ? undefined : read === 'true',
       type,
     });

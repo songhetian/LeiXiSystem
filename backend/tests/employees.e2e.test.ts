@@ -37,27 +37,32 @@ describe('S03 · 员工档案（/api/v1/employees）', () => {
     await prisma.role.deleteMany();
     await prisma.permission.deleteMany();
 
-    const perm = await prisma.permission.create({
-      data: { code: 'employee:list', name: '查看员工', module: 'employee', type: 'menu' },
+    const permView = await prisma.permission.create({
+      data: { code: 'employee:view', name: '查看员工', module: 'employee', type: 'menu' },
+    });
+    const permManage = await prisma.permission.create({
+      data: { code: 'employee:manage', name: '管理员工', module: 'employee', type: 'menu' },
     });
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
     const managerRole = await prisma.role.create({ data: { code: 'manager', name: '部门经理' } });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
     await prisma.rolePermission.createMany({
       data: [
-        { roleId: adminRole.id, permissionId: perm.id },
-        { roleId: managerRole.id, permissionId: perm.id },
+        { roleId: adminRole.id, permissionId: permView.id },
+        { roleId: adminRole.id, permissionId: permManage.id },
+        { roleId: managerRole.id, permissionId: permView.id },
+        { roleId: managerRole.id, permissionId: permManage.id },
       ],
     });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), name: '经理' },
+      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), realName: '经理' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -90,7 +95,7 @@ describe('S03 · 员工档案（/api/v1/employees）', () => {
     });
 
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-    await app.register(cookie);
+    await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
   });
@@ -256,6 +261,155 @@ describe('S03 · 员工档案（/api/v1/employees）', () => {
     const res = await inject(app, {
       method: 'GET',
       url: `/api/v1/employees/${target.id}`,
+      headers: { cookie: managerCookie },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe(5003);
+  });
+
+  // ---- 变更历史记录 ----
+  it('修改单个字段产生一条变更记录', async () => {
+    const adminCookie = await login(app, 'admin');
+    const e = await prisma.employee.findUnique({ where: { employeeNo: 'E001' } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: e!.id } });
+
+    const res = await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { name: '张单字段' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const logs = await prisma.employeeChangeLog.findMany({ where: { employeeId: e!.id } });
+    expect(logs.length).toBe(1);
+    expect(logs[0].field).toBe('name');
+    expect(logs[0].oldValue).toBe('张三丰');
+    expect(logs[0].newValue).toBe('张单字段');
+    expect(logs[0].changeType).toBe('admin_update');
+  });
+
+  it('修改多个字段产生多条变更记录', async () => {
+    const adminCookie = await login(app, 'admin');
+    const e = await prisma.employee.findUnique({ where: { employeeNo: 'E001' } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: e!.id } });
+
+    const res = await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { name: '张多字段', salary: 8000 },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const logs = await prisma.employeeChangeLog.findMany({ where: { employeeId: e!.id } });
+    expect(logs.length).toBe(2);
+    const fields = logs.map((l) => l.field).sort();
+    expect(fields).toEqual(['name', 'salary']);
+  });
+
+  it('未修改的字段不产生记录', async () => {
+    const adminCookie = await login(app, 'admin');
+    const e = await prisma.employee.findUnique({ where: { employeeNo: 'E001' } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: e!.id } });
+
+    const res = await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { name: '张多字段' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const logs = await prisma.employeeChangeLog.findMany({ where: { employeeId: e!.id } });
+    expect(logs.length).toBe(0);
+  });
+
+  it('查询变更历史按时间倒序', async () => {
+    const adminCookie = await login(app, 'admin');
+    const e = await prisma.employee.findUnique({ where: { employeeNo: 'E001' } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: e!.id } });
+
+    await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { name: '第一次修改' },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { name: '第二次修改' },
+    });
+
+    const res = await inject(app, {
+      method: 'GET',
+      url: `/api/v1/employees/${e!.id}/change-logs`,
+      headers: { cookie: adminCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.code).toBe(0);
+    expect(body.data.length).toBe(2);
+    expect(body.data[0].newValue).toBe('第二次修改');
+    expect(body.data[1].newValue).toBe('第一次修改');
+  });
+
+  it('敏感字段（salary）变更也需要记录', async () => {
+    const adminCookie = await login(app, 'admin');
+    const e = await prisma.employee.findUnique({ where: { employeeNo: 'E001' } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: e!.id } });
+
+    const res = await inject(app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${e!.id}`,
+      headers: { cookie: adminCookie },
+      payload: { salary: 9999 },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const logs = await prisma.employeeChangeLog.findMany({ where: { employeeId: e!.id, field: 'salary' } });
+    expect(logs.length).toBe(1);
+    expect(logs[0].oldValue).toBe('8000');
+    expect(logs[0].newValue).toBe('9999');
+  });
+
+  it('员工自助修改也要记录（updateMyProfile）', async () => {
+    const staff = await prisma.user.findUnique({ where: { username: 'staff' } });
+    const staffEmployee = await prisma.employee.findFirst({ where: { userId: staff!.id } });
+    if (!staffEmployee) {
+      const e = await prisma.employee.findUnique({ where: { employeeNo: 'E003' } });
+      await prisma.employee.update({ where: { id: e!.id }, data: { userId: staff!.id } });
+    }
+    const employee = await prisma.employee.findFirst({ where: { userId: staff!.id } });
+    await prisma.employeeChangeLog.deleteMany({ where: { employeeId: employee!.id } });
+
+    const staffCookie = await login(app, 'staff');
+    const res = await inject(app, {
+      method: 'PATCH',
+      url: '/api/v1/employees/me/profile',
+      headers: { cookie: staffCookie },
+      payload: { phone: '13800001111', address: '测试地址' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const logs = await prisma.employeeChangeLog.findMany({ where: { employeeId: employee!.id } });
+    expect(logs.length).toBeGreaterThanOrEqual(2);
+    const changeTypes = new Set(logs.map((l) => l.changeType));
+    expect(changeTypes.has('self_update')).toBe(true);
+  });
+
+  it('无权限访问其他员工变更历史 → 403', async () => {
+    const managerCookie = await login(app, 'manager');
+    const adminCookie = await login(app, 'admin');
+    const listRes = await inject(app, { method: 'GET', url: '/api/v1/employees', headers: { cookie: adminCookie } });
+    const target = JSON.parse(listRes.body).data.list.find((e: any) => e.employeeNo === 'E001');
+
+    const res = await inject(app, {
+      method: 'GET',
+      url: `/api/v1/employees/${target.id}/change-logs`,
       headers: { cookie: managerCookie },
     });
     expect(res.statusCode).toBe(403);

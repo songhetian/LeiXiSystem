@@ -14,14 +14,6 @@ jest.mock('@/services/knowledge', () => ({
   },
 }));
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -187,11 +179,6 @@ describe('KnowledgeListPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders inside AppLayout with correct menu', () => {
-      render(<KnowledgeListPage />);
-      expect(screen.getByTestId('app-layout')).toHaveAttribute('data-active-menu', 'knowledge');
-    });
-
     it('renders PageContainer with title 知识库', () => {
       render(<KnowledgeListPage />);
       expect(screen.getByTestId('page-title')).toHaveTextContent('知识库');

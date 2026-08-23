@@ -3,6 +3,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   resolveNextApprovers,
   buildApprovalChain,
+  resolveApproverList,
   type WorkflowNode,
   type ApproverCandidate,
   type RoutingContext,
@@ -80,6 +81,44 @@ describe('S09 · 审批路由引擎（纯函数）', () => {
     it('空节点列表应返回空链', () => {
       const chain = buildApprovalChain([], ctx);
       expect(chain.length).toBe(0);
+    });
+  });
+
+  describe('部门负责人节点类型', () => {
+    const deptManagerNode: WorkflowNode = {
+      id: 'dm1',
+      name: '部门负责人审批',
+      type: 'department_manager',
+      order: 1,
+    };
+
+    it('应解析部门负责人类型节点', () => {
+      const result = resolveNextApprovers(deptManagerNode, {
+        ...ctx,
+        departmentManagers: { 1: 100 },
+      });
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe('department_manager');
+      expect(result!.userId).toBe(100);
+    });
+
+    it('部门无负责人时应返回 null', () => {
+      const result = resolveNextApprovers(deptManagerNode, {
+        ...ctx,
+        departmentManagers: {},
+      });
+      expect(result).toBeNull();
+    });
+
+    it('resolveApproverList 应返回部门负责人 userId', () => {
+      const approvers = resolveApproverList(
+        [deptManagerNode],
+        'dm1',
+        { ...ctx, departmentManagers: { 1: 100 } },
+      );
+      expect(approvers.length).toBe(1);
+      expect(approvers[0].userId).toBe(100);
+      expect(approvers[0].required).toBe(true);
     });
   });
 

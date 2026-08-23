@@ -1,10 +1,65 @@
+# ===== 依赖与构建产物 =====
 node_modules/
 dist/
+build/
 .next/
 .next-*/
-*.log
-.env
-.DS_Store
+out/
+.nuxt/
+.cache/
+.parcel-cache/
 
-# 生成的报表产物（测试/定时任务导出）
+# ===== 日志 =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 环境变量（含密钥，绝不可提交）；保留纯模板 =====
+.env*
+!.env.docker.example
+!.env.example
+!.env.production.example
+
+# ===== 编辑器与系统 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== 测试与覆盖率 =====
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+jest-*.txt
+test-output.txt
+
+# ===== 临时文件 =====
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ===== 类型构建信息 =====
+*.tsbuildinfo
+
+# ===== 生成的报表产物（测试/定时任务导出） =====
 backend/exports/
+
+# ===== PWA 生成文件（构建时生成） =====
+frontend/public/workbox-*.js
+frontend/public/sw.js
+
+# ===== 旧版代码（归档，如需纳入版本管理请移除此行） =====
+LeiXiSystem-main/
+
+# ===== 原型与草稿 =====
+prototypes/

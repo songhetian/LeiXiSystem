@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Tabs, Tag, Space, Button, Modal } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, VacationBalance, LeaveRecord, OvertimeRecord, LeaveCreateDto, OvertimeCreateDto } from '@/services/attendance';
@@ -15,10 +15,12 @@ export default function VacationPage() {
 
   // 额度
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const [balances, setBalances] = useState<VacationBalance[]>([]);
 
   // 请假
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
   const [leavePagination, setLeavePagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
@@ -26,6 +28,7 @@ export default function VacationPage() {
 
   // 加班
   const [overtimeLoading, setOvertimeLoading] = useState(false);
+  const [overtimeError, setOvertimeError] = useState<string | null>(null);
   const [overtimes, setOvertimes] = useState<OvertimeRecord[]>([]);
   const [overtimePagination, setOvertimePagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [overtimeModalVisible, setOvertimeModalVisible] = useState(false);
@@ -35,6 +38,7 @@ export default function VacationPage() {
 
   const fetchBalances = async () => {
     setBalanceLoading(true);
+    setBalanceError(null);
     try {
       const res = await attendanceApi.getMyBalances(new Date().getFullYear());
       if (res.code === 0 && res.data) {
@@ -45,8 +49,9 @@ export default function VacationPage() {
         });
         setVacationTypes(types);
       }
-    } catch (e) {
-      Message.error('获取休假额度失败');
+    } catch (e: any) {
+      setBalanceError(e?.message || '获取休假额度失败');
+      notifyError(e, '获取休假额度失败');
     } finally {
       setBalanceLoading(false);
     }
@@ -54,14 +59,16 @@ export default function VacationPage() {
 
   const fetchLeaves = async (page = 1, pageSize = 20) => {
     setLeaveLoading(true);
+    setLeaveError(null);
     try {
       const res = await attendanceApi.getLeaveList({ page, pageSize });
       if (res.code === 0 && res.data) {
         setLeaves(res.data.list);
         setLeavePagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total });
       }
-    } catch (e) {
-      Message.error('获取请假记录失败');
+    } catch (e: any) {
+      setLeaveError(e?.message || '获取请假记录失败');
+      notifyError(e, '获取请假记录失败');
     } finally {
       setLeaveLoading(false);
     }
@@ -69,14 +76,16 @@ export default function VacationPage() {
 
   const fetchOvertimes = async (page = 1, pageSize = 20) => {
     setOvertimeLoading(true);
+    setOvertimeError(null);
     try {
       const res = await attendanceApi.getOvertimeList({ page, pageSize });
       if (res.code === 0 && res.data) {
         setOvertimes(res.data.list);
         setOvertimePagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total });
       }
-    } catch (e) {
-      Message.error('获取加班记录失败');
+    } catch (e: any) {
+      setOvertimeError(e?.message || '获取加班记录失败');
+      notifyError(e, '获取加班记录失败');
     } finally {
       setOvertimeLoading(false);
     }
@@ -289,62 +298,66 @@ export default function VacationPage() {
   ];
 
   return (
-    <AppLayout title="休假管理" activeMenu="attendance-vacation">
-      <PageContainer title="休假管理">
-        <Tabs activeTab={activeTab} onChange={setActiveTab}>
-          <TabPane key="balance" title="休假额度">
-            <ProTable
-              columns={balanceColumns}
-              data={balances}
-              rowKey="id"
-              loading={balanceLoading}
-              pagination={false}
-            />
-          </TabPane>
-          <TabPane key="leave" title="请假记录">
-            <ProTable
-              columns={leaveColumns}
-              data={leaves}
-              rowKey="id"
-              loading={leaveLoading}
-              toolbar={[{ key: 'add', label: '申请请假', type: 'primary', onClick: handleAddLeave }]}
-              pagination={leavePagination}
-              onPageChange={(p, ps) => fetchLeaves(p, ps)}
-            />
-          </TabPane>
-          <TabPane key="overtime" title="加班记录">
-            <ProTable
-              columns={overtimeColumns}
-              data={overtimes}
-              rowKey="id"
-              loading={overtimeLoading}
-              toolbar={[{ key: 'add', label: '申请加班', type: 'primary', onClick: handleAddOvertime }]}
-              pagination={overtimePagination}
-              onPageChange={(p, ps) => fetchOvertimes(p, ps)}
-            />
-          </TabPane>
-        </Tabs>
+    <PageContainer title="休假管理">
+      <Tabs activeTab={activeTab} onChange={setActiveTab}>
+        <TabPane key="balance" title="休假额度">
+          <ProTable
+            columns={balanceColumns}
+            data={balances}
+            rowKey="id"
+            loading={balanceLoading}
+            error={balanceError}
+            onRetry={fetchBalances}
+            pagination={false}
+          />
+        </TabPane>
+        <TabPane key="leave" title="请假记录">
+          <ProTable
+            columns={leaveColumns}
+            data={leaves}
+            rowKey="id"
+            loading={leaveLoading}
+            error={leaveError}
+            onRetry={() => fetchLeaves(leavePagination.current, leavePagination.pageSize)}
+            toolbar={[{ key: 'add', label: '申请请假', type: 'primary', onClick: handleAddLeave }]}
+            pagination={leavePagination}
+            onPageChange={(p, ps) => fetchLeaves(p, ps)}
+          />
+        </TabPane>
+        <TabPane key="overtime" title="加班记录">
+          <ProTable
+            columns={overtimeColumns}
+            data={overtimes}
+            rowKey="id"
+            loading={overtimeLoading}
+            error={overtimeError}
+            onRetry={() => fetchOvertimes(overtimePagination.current, overtimePagination.pageSize)}
+            toolbar={[{ key: 'add', label: '申请加班', type: 'primary', onClick: handleAddOvertime }]}
+            pagination={overtimePagination}
+            onPageChange={(p, ps) => fetchOvertimes(p, ps)}
+          />
+        </TabPane>
+      </Tabs>
 
-        <ModalForm
-          visible={leaveModalVisible}
-          title="申请请假"
-          fields={leaveFormFields}
-          onOk={handleLeaveSubmit}
-          onCancel={() => setLeaveModalVisible(false)}
-          confirmLoading={leaveModalLoading}
-          width={500}
-        />
+      <ModalForm
+        visible={leaveModalVisible}
+        title="申请请假"
+        fields={leaveFormFields}
+        onOk={handleLeaveSubmit}
+        onCancel={() => setLeaveModalVisible(false)}
+        confirmLoading={leaveModalLoading}
+        width={500}
+      />
 
-        <ModalForm
-          visible={overtimeModalVisible}
-          title="申请加班"
-          fields={overtimeFormFields}
-          onOk={handleOvertimeSubmit}
-          onCancel={() => setOvertimeModalVisible(false)}
-          confirmLoading={overtimeModalLoading}
-          width={500}
-        />
-      </PageContainer>
-    </AppLayout>
+      <ModalForm
+        visible={overtimeModalVisible}
+        title="申请加班"
+        fields={overtimeFormFields}
+        onOk={handleOvertimeSubmit}
+        onCancel={() => setOvertimeModalVisible(false)}
+        confirmLoading={overtimeModalLoading}
+        width={500}
+      />
+    </PageContainer>
   );
 }

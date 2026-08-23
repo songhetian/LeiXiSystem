@@ -10,8 +10,22 @@ function build(rateLimitMock: any, user: any = null) {
     user: { findUnique: jest.fn().mockResolvedValue(user) },
   };
   const jwtMock: any = { signAsync: jest.fn().mockResolvedValue('tok') };
-  const svc = new AuthService(prismaMock, jwtMock, rateLimitMock);
-  return { svc, prismaMock, jwtMock };
+  const redisMock: any = {
+    isEnabled: false,
+    get: jest.fn().mockResolvedValue(null),
+    setex: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+  };
+  const eventEmitterMock: any = { emit: jest.fn() };
+  const settingsServiceMock: any = {
+    get: jest.fn().mockResolvedValue({ key: 'password_strength_level', value: 'medium' }),
+  };
+  const permCacheMock: any = {
+    getUserInfo: jest.fn(),
+    invalidateUser: jest.fn(),
+  };
+  const svc = new AuthService(prismaMock, jwtMock, rateLimitMock, redisMock, eventEmitterMock, settingsServiceMock, permCacheMock);
+  return { svc, prismaMock, jwtMock, redisMock, eventEmitterMock, settingsServiceMock, permCacheMock };
 }
 
 describe('T22.4 AuthService.login 接入登录限流', () => {
@@ -55,7 +69,7 @@ describe('T22.4 AuthService.login 接入登录限流', () => {
     }
     expect(thrown).not.toBeNull();
     expect(thrown!.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
-    expect(rateLimitMock.registerFailure).toHaveBeenCalledWith('alice');
+    expect(rateLimitMock.registerFailure).toHaveBeenCalledWith('alice', undefined);
   });
 
   it('凭据正确：返回 token 且 reset 被调用', async () => {

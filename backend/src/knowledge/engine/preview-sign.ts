@@ -4,11 +4,11 @@ export interface PreviewTokenPayload {
   fileUrl: string;
   fileName: string;
   exp: number;
+  attachmentId?: number;
 }
 
 export interface SignResult {
   token: string;
-  previewUrl: string;
   expiresAt: number;
 }
 
@@ -40,20 +40,20 @@ export function signPreviewUrl(params: {
   fileName: string;
   secret: string;
   expiresIn: number;
-  kkFileViewBaseUrl?: string;
+  attachmentId?: number;
 }): SignResult {
-  const { fileUrl, fileName, secret, expiresIn, kkFileViewBaseUrl = '/preview' } = params;
+  const { fileUrl, fileName, secret, expiresIn, attachmentId } = params;
   const exp = Math.floor(Date.now() / 1000) + expiresIn;
 
   const payload: PreviewTokenPayload = { fileUrl, fileName, exp };
+  if (attachmentId !== undefined) {
+    payload.attachmentId = attachmentId;
+  }
   const payloadStr = base64UrlEncode(JSON.stringify(payload));
   const signature = sign(payloadStr, secret);
   const token = `${payloadStr}.${signature}`;
 
-  const encodedFileUrl = encodeURIComponent(fileUrl);
-  const previewUrl = `${kkFileViewBaseUrl}/onlinePreview?url=${encodeURIComponent(encodedFileUrl)}&token=${token}`;
-
-  return { token, previewUrl, expiresAt: exp * 1000 };
+  return { token, expiresAt: exp * 1000 };
 }
 
 export function verifyPreviewToken(token: string, secret: string): VerifyResult {

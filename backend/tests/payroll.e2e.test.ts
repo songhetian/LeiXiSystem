@@ -25,6 +25,7 @@ async function login(app: NestFastifyApplication, username: string, password = '
 describe('S10 · 算薪引擎 + 批次', () => {
   let app: NestFastifyApplication;
   let adminCookie: string;
+  let empIds: number[] = []; // 3 名抽检员工 ID
 
   beforeAll(async () => {
     await prisma.payrollDetail.deleteMany();
@@ -63,7 +64,7 @@ describe('S10 · 算薪引擎 + 批次', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     await prisma.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } });
 
@@ -100,6 +101,8 @@ describe('S10 · 算薪引擎 + 批次', () => {
         hireDate: new Date('2025-01-15'),
       },
     });
+
+    empIds = [empA.id, empB.id, empC.id];
 
     // 写入确认的考勤月报（S08已确认）
     await prisma.attendanceMonthly.createMany({
@@ -221,8 +224,8 @@ describe('S10 · 算薪引擎 + 批次', () => {
     });
   });
 
-  describe('POST /payroll/runs/:id/confirm — 确认算薪', () => {
-    it('应该成功确认，状态变为 confirmed', async () => {
+  describe('POST /payroll/runs/:id/confirm — 确认算薪（抽检3人闸门）', () => {
+    it('缺少 checkedEmployeeIds 应返回 3008 错误', async () => {
       const listRes = await inject(app, {
         method: 'GET',
         url: '/api/v1/payroll/runs?page=1&pageSize=10',
@@ -235,11 +238,72 @@ describe('S10 · 算薪引擎 + 批次', () => {
         method: 'POST',
         url: `/api/v1/payroll/runs/${runId}/confirm`,
         headers: { cookie: adminCookie },
+        payload: {},
+      });
+      const body = JSON.parse(res.body);
+      expect(body.code).toBe(3008);
+    });
+
+    it('checkedEmployeeIds 不足3人应返回 3008 错误', async () => {
+      const listRes = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/payroll/runs?page=1&pageSize=10',
+        headers: { cookie: adminCookie },
+      });
+      const listBody = JSON.parse(listRes.body);
+      const runId = listBody.data.list[0].id;
+
+      const res = await inject(app, {
+        method: 'POST',
+        url: `/api/v1/payroll/runs/${runId}/confirm`,
+        headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: [empIds[0], empIds[1]] },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.code).toBe(3008);
+    });
+
+    it('checkedEmployeeIds 含不存在员工应返回 3009 错误', async () => {
+      const listRes = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/payroll/runs?page=1&pageSize=10',
+        headers: { cookie: adminCookie },
+      });
+      const listBody = JSON.parse(listRes.body);
+      const runId = listBody.data.list[0].id;
+
+      const res = await inject(app, {
+        method: 'POST',
+        url: `/api/v1/payroll/runs/${runId}/confirm`,
+        headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: [empIds[0], empIds[1], 99999] },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.code).toBe(3009);
+    });
+
+    it('提供有效3人抽检 ID 应成功确认，状态变为 confirmed', async () => {
+      const listRes = await inject(app, {
+        method: 'GET',
+        url: '/api/v1/payroll/runs?page=1&pageSize=10',
+        headers: { cookie: adminCookie },
+      });
+      const listBody = JSON.parse(listRes.body);
+      const runId = listBody.data.list[0].id;
+
+      const res = await inject(app, {
+        method: 'POST',
+        url: `/api/v1/payroll/runs/${runId}/confirm`,
+        headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: empIds },
       });
       const body = JSON.parse(res.body);
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
       expect(body.data.status).toBe('confirmed');
+      expect(body.data.checkedEmployeeIds).toEqual(empIds);
+      expect(body.data.checkedBy).toBeDefined();
+      expect(body.data.checkedAt).toBeDefined();
     });
 
     it('重复确认应该返回 3003 错误', async () => {
@@ -255,6 +319,7 @@ describe('S10 · 算薪引擎 + 批次', () => {
         method: 'POST',
         url: `/api/v1/payroll/runs/${runId}/confirm`,
         headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: empIds },
       });
       const body = JSON.parse(res.body);
       expect(body.code).toBe(3003);

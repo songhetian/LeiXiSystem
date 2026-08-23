@@ -1,15 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { Prisma } from '@prisma/client';
 import { buildDaily, type Shift as EngineShift } from './engine/attendance-engine';
 import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput } from './engine/daily-status-merger';
+import { AttendanceMonthlyService } from './attendance-monthly.service';
 
 @Injectable()
 export class AttendanceDailyService {
   constructor(
     private prisma: PrismaService,
     private dataScope: DataScopeService,
+    private monthlyService: AttendanceMonthlyService,
   ) {}
 
   async recalculate(params: {
@@ -19,6 +21,14 @@ export class AttendanceDailyService {
     userId: number;
   }) {
     const { employeeId, startDate, endDate, userId } = params;
+
+    await this.monthlyService.checkDateRangeHasConfirmedMonthly({
+      employeeId,
+      startDate,
+      endDate,
+      userId,
+    });
+
     const scope = await this.dataScope.visibleScope(userId);
 
     const scheduleWhere: Prisma.ScheduleWhereInput = {
@@ -28,7 +38,9 @@ export class AttendanceDailyService {
       },
     };
     if (employeeId) scheduleWhere.employeeId = employeeId;
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      scheduleWhere.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
       scheduleWhere.employee = { departmentId: { in: scope.ids } };
     }
 
@@ -58,6 +70,28 @@ export class AttendanceDailyService {
       leaveMap.get(key)!.push(leave);
     }
 
+    // 批量查询所有打卡记录，避免 N+1（原先在循环内逐条查询）
+    const employeeNos = [...new Set(schedules.map((s) => s.employee.employeeNo))];
+    const batchStart = new Date(startDate);
+    batchStart.setHours(0, 0, 0, 0);
+    const batchEnd = new Date(endDate);
+    batchEnd.setHours(23, 59, 59, 999);
+    batchEnd.setDate(batchEnd.getDate() + 1); // 考虑 isNextDay
+
+    const allPunches = await this.prisma.punchLog.findMany({
+      where: {
+        employeeNo: { in: employeeNos },
+        punchTime: { gte: batchStart, lte: batchEnd },
+      },
+      orderBy: { punchTime: 'asc' },
+    });
+
+    const punchMap = new Map<string, typeof allPunches>();
+    for (const p of allPunches) {
+      if (!punchMap.has(p.employeeNo)) punchMap.set(p.employeeNo, []);
+      punchMap.get(p.employeeNo)!.push(p);
+    }
+
     let count = 0;
     for (const sched of schedules) {
       const workDate = sched.workDate;
@@ -75,13 +109,9 @@ export class AttendanceDailyService {
         punchEnd = new Date(punchEnd.getTime() + 24 * 60 * 60 * 1000);
       }
 
-      const punches = await this.prisma.punchLog.findMany({
-        where: {
-          employeeNo: sched.employee.employeeNo,
-          punchTime: { gte: punchStart, lte: punchEnd },
-        },
-        orderBy: { punchTime: 'asc' },
-      });
+      const punches = (punchMap.get(sched.employee.employeeNo) || []).filter(
+        (p) => p.punchTime >= punchStart && p.punchTime <= punchEnd,
+      );
 
       const punchTimes = punches.map((p) => ({
         time: this.formatTime(p.punchTime),
@@ -163,10 +193,19 @@ export class AttendanceDailyService {
     const scope = await this.dataScope.visibleScope(userId);
 
     const where: Prisma.AttendanceDailyWhereInput = {};
-    if (!scope.all) {
+    if (scope.selfEmployeeId) {
+      where.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
       where.employee = { departmentId: { in: scope.ids } };
     }
-    if (employeeId) where.employeeId = employeeId;
+    if (employeeId) {
+      if (scope.selfEmployeeId && scope.selfEmployeeId !== employeeId) {
+        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+      }
+      if (!scope.selfEmployeeId) {
+        where.employeeId = employeeId;
+      }
+    }
     if (startDate && endDate) {
       where.workDate = { gte: new Date(startDate), lte: new Date(endDate) };
     }

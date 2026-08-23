@@ -1,0 +1,41 @@
+.lx-status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.8;
+  white-space: nowrap;
+  border: none;
+}
+
+.lx-tag-info {
+  background: var(--lx-info-bg);
+  color: var(--lx-primary);
+}
+
+.lx-tag-success {
+  background: var(--lx-success-bg);
+  color: var(--lx-success);
+}
+
+.lx-tag-warning {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.lx-tag-danger {
+  background: var(--lx-danger-bg);
+  color: var(--lx-danger);
+}
+
+.lx-tag-purple {
+  background: var(--lx-purple-bg);
+  color: var(--lx-purple);
+}
+
+.lx-tag-default {
+  background: var(--lx-border-2);
+  color: var(--lx-text-3);
+}

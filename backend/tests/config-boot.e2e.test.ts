@@ -13,7 +13,7 @@ describe('ConfigModule 启动期校验 (T19.2)', () => {
 
   it('合法 env：应用可正常启动（configModuleOptions 已接入）', async () => {
     process.env.DATABASE_URL = 'mysql://root:root@127.0.0.1:3306/leixin_v2';
-    process.env.JWT_SECRET = 'dev-secret-please-change';
+    process.env.JWT_SECRET = 'dev-secret-please-change-0123456789abcdef';
 
     @Module({
       imports: [ConfigModule.forRoot({ ...configModuleOptions, ignoreEnvFile: true })],
@@ -38,11 +38,11 @@ describe('ConfigModule 启动期校验 (T19.2)', () => {
   it('合法 env：validate 函数返回解析值', () => {
     const result = configModuleOptions.validate!({
       DATABASE_URL: 'mysql://root:root@127.0.0.1:3306/leixin_v2',
-      JWT_SECRET: 'dev-secret-please-change',
+      JWT_SECRET: 'dev-secret-please-change-0123456789abcdef',
     });
     expect(result).toMatchObject({
       DATABASE_URL: 'mysql://root:root@127.0.0.1:3306/leixin_v2',
-      JWT_SECRET: 'dev-secret-please-change',
+      JWT_SECRET: 'dev-secret-please-change-0123456789abcdef',
     });
   });
 });

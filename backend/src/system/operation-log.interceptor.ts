@@ -7,8 +7,13 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { OperationLogService } from './operation-log.service';
+import { maskSensitiveFields } from '../common/sensitive-mask.util';
 
 const WRITE_METHODS = ['POST', 'PUT', 'DELETE', 'PATCH'];
+
+/** 跳过 body 记录的路径（如登录、改密，body 含明文密码）。 */
+const SKIP_BODY_PATHS = ['/api/v1/auth/login', '/api/v1/auth/change-password', '/api/v1/auth/reset-password'];
+
 const LOG_MODULE_MAP: Record<string, string> = {
   'system': '系统管理',
   'employees': '员工管理',
@@ -21,6 +26,13 @@ const LOG_MODULE_MAP: Record<string, string> = {
   'shifts': '班次管理',
   'schedules': '排班管理',
   'auth': '认证',
+  'approval': '审批管理',
+  'reimbursements': '报销管理',
+  'reports': '报表中心',
+  'settings': '系统设置',
+  'notifications': '通知中心',
+  'vacation': '假期管理',
+  'broadcasts': '公告管理',
 };
 
 @Injectable()
@@ -45,12 +57,16 @@ export class OperationLogInterceptor implements NestInterceptor {
 
     const user = request.user;
     const action = this.detectAction(method, path);
-    const params = request.body ? JSON.stringify(request.body).slice(0, 2000) : undefined;
+    const skipBody = SKIP_BODY_PATHS.some((p) => path.startsWith(p));
+    const bodyToLog = skipBody ? undefined : (request.body ? maskSensitiveFields(request.body) : undefined);
+    const params = bodyToLog ? JSON.stringify(bodyToLog).slice(0, 2000) : undefined;
     const ip = request.ip || request.headers?.['x-forwarded-for'] || request.raw?.ip;
 
     return next.handle().pipe(
       tap({
         next: (data: any) => {
+          const maskedResult = data ? maskSensitiveFields(data) : undefined;
+          const resultStr = maskedResult ? JSON.stringify(maskedResult).slice(0, 500) : undefined;
           this.operationLogService.createLog({
             userId: user?.id,
             username: user?.username,
@@ -60,10 +76,13 @@ export class OperationLogInterceptor implements NestInterceptor {
             url: path,
             ip: Array.isArray(ip) ? ip[0] : ip,
             params,
+            result: resultStr,
             status: 'success',
           }).catch(() => {});
         },
         error: (err) => {
+          const errMsg = err?.message ? String(err.message).slice(0, 500) : undefined;
+          const maskedErr = errMsg ? maskSensitiveFields({ error: errMsg }) : undefined;
           this.operationLogService.createLog({
             userId: user?.id,
             username: user?.username,
@@ -73,7 +92,7 @@ export class OperationLogInterceptor implements NestInterceptor {
             url: path,
             ip: Array.isArray(ip) ? ip[0] : ip,
             params,
-            result: err?.message?.slice(0, 500),
+            result: maskedErr ? JSON.stringify(maskedErr).slice(0, 500) : undefined,
             status: 'failed',
           }).catch(() => {});
         },

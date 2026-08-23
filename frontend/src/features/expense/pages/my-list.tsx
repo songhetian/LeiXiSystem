@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Descriptions, Table, Divider, Tag, Space, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
@@ -58,6 +58,7 @@ const createFormFields: FormFieldConfig[] = [
 
 export default function MyReimbursementPage() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Reimbursement[]>([]);
   const [types, setTypes] = useState<ReimbursementType[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -83,6 +84,7 @@ export default function MyReimbursementPage() {
 
   const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const result = await reimbursementApi.getMyReimbursements({
         page,
@@ -97,6 +99,9 @@ export default function MyReimbursementPage() {
           total: result.data.total,
         });
       }
+    } catch (e: any) {
+      setError(e?.message || '加载失败');
+      notifyError(e, '加载失败');
     } finally {
       setLoading(false);
     }
@@ -281,42 +286,42 @@ export default function MyReimbursementPage() {
   };
 
   return (
-    <AppLayout title="我的报销" activeMenu="my-reimbursement">
-      <PageContainer title="我的报销">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          toolbar={toolbar}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-          onRowClick={handleViewDetail}
-        />
-        <ModalForm
-          visible={createModalVisible}
-          title="新建报销"
-          fields={createFormFields}
-          onOk={handleCreateOk}
-          onCancel={handleCreateCancel}
-          confirmLoading={createLoading}
-        />
-        <Modal
-          title="报销详情"
-          visible={detailVisible}
-          onCancel={handleDetailCancel}
-          confirmLoading={detailLoading}
-          okText={null}
-          cancelText="关闭"
-          footer={null}
-          style={{ width: 720 }}
-        >
-          {renderDetailContent()}
-        </Modal>
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="我的报销">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        toolbar={toolbar}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onRowClick={handleViewDetail}
+      />
+      <ModalForm
+        visible={createModalVisible}
+        title="新建报销"
+        fields={createFormFields}
+        onOk={handleCreateOk}
+        onCancel={handleCreateCancel}
+        confirmLoading={createLoading}
+      />
+      <Modal
+        title="报销详情"
+        visible={detailVisible}
+        onCancel={handleDetailCancel}
+        confirmLoading={detailLoading}
+        okText={null}
+        cancelText="关闭"
+        footer={null}
+        style={{ width: 720 }}
+      >
+        {renderDetailContent()}
+      </Modal>
+    </PageContainer>
   );
 }

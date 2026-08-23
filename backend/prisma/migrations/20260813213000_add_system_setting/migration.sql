@@ -27,8 +27,8 @@ INSERT INTO `system_setting` (`group`, `key`, `value`, `label`, `description`, `
   ('security', 'loginFailMax', '5', '登录失败上限(次)', NULL, 0, NOW()),
   ('security', 'jwtExpiresIn', '2h', '登录Token有效期', NULL, 0, NOW());
 
--- 设置管理权限 + 绑定 admin 角色(role id=535)
+-- 设置管理权限 + 绑定 admin 角色（幂等：仅当 admin 角色存在时绑定，避免依赖硬编码 role_id）
 INSERT INTO `permissions` (`code`, `name`, `module`, `type`) VALUES
   ('system:setting:update', '系统设置管理', 'system', 'api');
 INSERT INTO `role_permissions` (`role_id`, `permission_id`)
-  VALUES (535, LAST_INSERT_ID());
+  SELECT r.`id`, LAST_INSERT_ID() FROM `roles` r WHERE r.`code` = 'admin' LIMIT 1;

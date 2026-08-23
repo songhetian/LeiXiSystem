@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { VacationService } from './vacation.service';
+import { CreateOvertimeDto, OvertimeActionDto } from './dto/overtime-record.dto';
 
 @Controller('overtime-records')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -36,7 +37,7 @@ export class OvertimeRecordsController {
   @Post()
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async create(@Body() body: any, @Req() req: any) {
+  async create(@Body() body: CreateOvertimeDto, @Req() req: any) {
     const record = await this.vacationService.createOvertime({
       employeeId: body.employeeId,
       overtimeDate: body.overtimeDate,
@@ -44,7 +45,7 @@ export class OvertimeRecordsController {
       endTime: body.endTime,
       hours: Number(body.hours),
       reason: body.reason,
-    });
+    }, req.user.id);
     return { code: 0, data: record };
   }
 
@@ -58,16 +59,16 @@ export class OvertimeRecordsController {
 
   @Post(':id/approve')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
-  async approve(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  @RequirePermission('attendance:manage')
+  async approve(@Param('id') id: string, @Body() body: OvertimeActionDto, @Req() req: any) {
     const data = await this.vacationService.approveOvertime(parseInt(id), req.user.id, body.comment);
     return { code: 0, data };
   }
 
   @Post(':id/reject')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
-  async reject(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  @RequirePermission('attendance:manage')
+  async reject(@Param('id') id: string, @Body() body: OvertimeActionDto, @Req() req: any) {
     const data = await this.vacationService.rejectOvertime(parseInt(id), req.user.id, body.comment);
     return { code: 0, data };
   }

@@ -17,14 +17,6 @@ jest.mock('@/services/settings', () => ({
 jest.mock('@/store/auth', () => ({ useAuthStore: jest.fn() }));
 const mockUseAuthStore = jest.mocked(useAuthStore);
 
-jest.mock('@/components/AppLayout', () => ({
-  __esModule: true,
-  default: ({ children, title, activeMenu }: any) => (
-    <div data-testid="app-layout" data-title={title} data-active-menu={activeMenu}>
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,

@@ -54,16 +54,16 @@ describe('S09 · 审批组 CRUD', () => {
     });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin_group', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_group', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const u1 = await prisma.user.create({
-      data: { username: 'u1_group', passwordHash: await bcrypt.hash('123456', 10), name: '用户1' },
+      data: { username: 'u1_group', passwordHash: await bcrypt.hash('123456', 10), realName: '用户1' },
     });
     const u2 = await prisma.user.create({
-      data: { username: 'u2_group', passwordHash: await bcrypt.hash('123456', 10), name: '用户2' },
+      data: { username: 'u2_group', passwordHash: await bcrypt.hash('123456', 10), realName: '用户2' },
     });
     const u3 = await prisma.user.create({
-      data: { username: 'u3_group', passwordHash: await bcrypt.hash('123456', 10), name: '用户3' },
+      data: { username: 'u3_group', passwordHash: await bcrypt.hash('123456', 10), realName: '用户3' },
     });
     user1Id = u1.id;
     user2Id = u2.id;

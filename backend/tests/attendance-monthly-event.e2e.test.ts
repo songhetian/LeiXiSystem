@@ -57,7 +57,7 @@ describe('S08 · 考勤月报确认领域事件', () => {
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_event', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_event', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     await prisma.userRole.create({
       data: { userId: admin.id, roleId: adminRole.id },

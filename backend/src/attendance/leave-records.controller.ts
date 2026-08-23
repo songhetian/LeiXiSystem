@@ -3,6 +3,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { VacationService } from './vacation.service';
+import { CreateLeaveRecordDto, LeaveActionDto } from './dto/leave-record.dto';
+import { parsePagination } from '../common/pagination.util';
 
 @Controller('leave-records')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -12,8 +14,21 @@ export class LeaveRecordsController {
   @Get('mine')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async listMine(@Req() req?: any) {
-    const data = await this.vacationService.listMyLeaveRecords(req.user.id);
+  async listMine(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('vacationType') vacationType?: string,
+    @Query('status') status?: string,
+    @Req() req?: any,
+  ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
+    const data = await this.vacationService.listMyLeaveRecords(
+      req.user.id,
+      pageNum,
+      pageSizeNum,
+      vacationType,
+      status,
+    );
     return { code: 0, data };
   }
 
@@ -36,7 +51,7 @@ export class LeaveRecordsController {
   @Post()
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async create(@Body() body: any, @Req() req: any) {
+  async create(@Body() body: CreateLeaveRecordDto, @Req() req: any) {
     const record = await this.vacationService.createLeaveRecord(
       {
         employeeId: body.employeeId,
@@ -61,16 +76,16 @@ export class LeaveRecordsController {
 
   @Post(':id/approve')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
-  async approve(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  @RequirePermission('attendance:manage')
+  async approve(@Param('id') id: string, @Body() body: LeaveActionDto, @Req() req: any) {
     const data = await this.vacationService.approveLeave(parseInt(id), req.user.id, body.comment);
     return { code: 0, data };
   }
 
   @Post(':id/reject')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
-  async reject(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  @RequirePermission('attendance:manage')
+  async reject(@Param('id') id: string, @Body() body: LeaveActionDto, @Req() req: any) {
     const data = await this.vacationService.rejectLeave(parseInt(id), req.user.id, body.comment);
     return { code: 0, data };
   }

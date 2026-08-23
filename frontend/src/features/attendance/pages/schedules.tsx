@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Space, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
@@ -13,6 +13,7 @@ import { usePermission } from '@/hooks/use-permission';
 export default function SchedulesPage() {
   const { can } = usePermission();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Schedule[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
@@ -24,6 +25,7 @@ export default function SchedulesPage() {
 
   const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
+    setError(null);
     try {
       const res = await attendanceApi.getScheduleList({ page, pageSize, ...params });
       if (res.code === 0 && res.data) {
@@ -34,10 +36,12 @@ export default function SchedulesPage() {
           total: res.data.total,
         });
       } else {
+        setError(res.message || '获取排班列表失败');
         Message.error(res.message || '获取排班列表失败');
       }
-    } catch (e) {
-      Message.error('获取排班列表失败');
+    } catch (e: any) {
+      setError(e?.message || '获取排班列表失败');
+      notifyError(e, '获取排班列表失败');
     } finally {
       setLoading(false);
     }
@@ -137,12 +141,12 @@ export default function SchedulesPage() {
   };
 
   const searchFields: SearchFieldConfig[] = [
-    { key: 'startDate', label: '开始日期', type: 'input', placeholder: 'YYYY-MM-DD' },
-    { key: 'endDate', label: '结束日期', type: 'input', placeholder: 'YYYY-MM-DD' },
+    { key: 'startDate', label: '开始日期', type: 'date', placeholder: '请选择日期', span: 4 },
+    { key: 'endDate', label: '结束日期', type: 'date', placeholder: '请选择日期', span: 4 },
   ];
 
   const formFields: FormFieldConfig[] = [
-    { key: 'employeeId', label: '员工ID', type: 'input', required: true, placeholder: '请输入员工ID' },
+    { key: 'employeeId', label: '员工', type: 'input', required: true, placeholder: '请输入员工ID' },
     {
       key: 'shiftId',
       label: '班次',
@@ -150,7 +154,7 @@ export default function SchedulesPage() {
       required: true,
       options: shifts.map((s) => ({ value: String(s.id), label: s.name })),
     },
-    { key: 'workDate', label: '工作日期', type: 'input', required: true, placeholder: 'YYYY-MM-DD' },
+    { key: 'workDate', label: '工作日期', type: 'date', required: true, placeholder: '请选择日期' },
   ];
 
   const columns: ProTableColumn[] = [
@@ -200,35 +204,35 @@ export default function SchedulesPage() {
   ];
 
   return (
-    <AppLayout title="排班管理" activeMenu="attendance-schedules">
-      <PageContainer title="排班管理">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          searchFields={searchFields}
-          onSearch={handleSearch}
-          onReset={handleReset}
-          toolbar={toolbar}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-        />
-        <ModalForm
-          visible={modalVisible}
-          title={editingSchedule ? '编辑排班' : '新增排班'}
-          fields={formFields}
-          initialValues={editingSchedule ? {
-            employeeId: String(editingSchedule.employeeId),
-            shiftId: String(editingSchedule.shiftId),
-            workDate: editingSchedule.workDate,
-          } : {}}
-          onOk={handleModalOk}
-          onCancel={handleModalCancel}
-          confirmLoading={modalLoading}
-          width={500}
-        />
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="排班管理">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        searchFields={searchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        toolbar={toolbar}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+      />
+      <ModalForm
+        visible={modalVisible}
+        title={editingSchedule ? '编辑排班' : '新增排班'}
+        fields={formFields}
+        initialValues={editingSchedule ? {
+          employeeId: String(editingSchedule.employeeId),
+          shiftId: String(editingSchedule.shiftId),
+          workDate: editingSchedule.workDate,
+        } : {}}
+        onOk={handleModalOk}
+        onCancel={handleModalCancel}
+        confirmLoading={modalLoading}
+        width={500}
+      />
+    </PageContainer>
   );
 }

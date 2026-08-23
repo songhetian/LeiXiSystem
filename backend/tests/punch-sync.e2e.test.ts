@@ -55,10 +55,10 @@ describe('S05 · XFace600 打卡同步（/api/v1/attendance/punch/sync）', () =
       ],
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_sync', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_sync', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_sync', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_sync', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
     await prisma.userRole.createMany({
       data: [

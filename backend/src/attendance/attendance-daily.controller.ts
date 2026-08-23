@@ -1,10 +1,13 @@
 import { Controller, Get, Query, Post, Body, Req, UseGuards, HttpCode } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceDailyService } from './attendance-daily.service';
 import { AttendanceDailyRecalcService } from './attendance-daily-recalc.service';
+import { parsePagination } from '../common/pagination.util';
 
+@ApiTags('考勤日报')
 @Controller('attendance/daily')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class AttendanceDailyController {
@@ -25,14 +28,15 @@ export class AttendanceDailyController {
     @Query('pageSize') pageSize?: string,
     @Req() req?: any,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.dailyService.list({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       startDate,
       endDate,
       status,
       userId: req.user.id,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
     });
     return { code: 0, data };
   }
@@ -77,9 +81,10 @@ export class AttendanceDailyController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
   ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.recalcService.listTasks({
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 20,
+      page: pageNum,
+      pageSize: pageSizeNum,
       status,
     });
     return { code: 0, data };

@@ -4,14 +4,48 @@
   "version": "0.1.0",
   "description": "雷犀客服管理系统（重构版）— pnpm workspace",
   "scripts": {
+    "============ 开发环境 ============": "",
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "dev:fast": "pnpm -r --parallel dev",
+    "dev:full": "pnpm --filter @lei/backend db:push && pnpm --filter @lei/backend db:seed && pnpm -r --parallel dev",
     "dev:frontend": "pnpm --filter @lei/frontend dev",
-    "dev:backend": "pnpm --filter @lei/backend dev"
+    "dev:backend": "pnpm --filter @lei/backend dev",
+    "dev:seed": "pnpm --filter @lei/backend db:push && pnpm --filter @lei/backend db:seed",
+
+    "============ 构建 ============": "",
+    "build": "pnpm -r build",
+    "build:frontend": "pnpm --filter @lei/frontend build",
+    "build:backend": "pnpm --filter @lei/backend build",
+
+    "============ 测试 ============": "",
+    "test": "pnpm -r test",
+    "test:backend": "pnpm --filter @lei/backend test",
+    "test:frontend": "pnpm --filter @lei/frontend test",
+
+    "============ 重启 ============": "",
+    "restart": "npx kill-port 4000 4001 && pnpm -r --parallel dev",
+    "restart:frontend": "npx kill-port 4000 && pnpm dev:frontend",
+    "restart:backend": "npx kill-port 4001 && pnpm dev:backend",
+
+    "============ 重构（重新安装依赖 + 构建）============": "",
+    "rebuild": "pnpm install --config.dangerouslyAllowAllBuilds=true && pnpm -r build",
+
+    "============ Docker 部署 ============": "",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:restart": "docker compose down && docker compose up -d --build",
+    "docker:logs": "docker compose logs -f",
+    "docker:ps": "docker compose ps",
+
+    "============ 生产环境部署（阿里云 Docker）============": "",
+    "deploy:prod": "docker compose --env-file .env.production up -d --build",
+    "deploy:prod:down": "docker compose --env-file .env.production down",
+    "deploy:prod:restart": "docker compose --env-file .env.production down && docker compose --env-file .env.production up -d --build",
+    "deploy:prod:logs": "docker compose --env-file .env.production logs -f"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
-  }
+  },
+  "packageManager": "pnpm@11.10.0+sha512.0b7f8b98060031904c017e3a41eb187a16d40eeb829b95c4f8cb03681761fc4ab53dd219115b9b447f4dce1a05a214764461e7d3703392a9f32f9511ce8c86c8"
 }

@@ -27,6 +27,7 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
   let adminCookie: string;
   let staffCookie: string;
   let employeeId: number;
+  let allEmpIds: number[] = [];
 
   beforeAll(async () => {
     await prisma.payslip.deleteMany();
@@ -63,10 +64,10 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
     });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin_pay', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_pay', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff_pay', passwordHash: await bcrypt.hash('123456', 10), name: '员工' },
+      data: { username: 'staff_pay', passwordHash: await bcrypt.hash('123456', 10), realName: '员工' },
     });
 
     await prisma.userRole.createMany({
@@ -90,6 +91,29 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
       },
     });
     employeeId = emp.id;
+
+    // 抽检3人闸门需要至少3名员工
+    const empB = await prisma.employee.create({
+      data: {
+        employeeNo: 'PAY-002',
+        name: '李四',
+        departmentId: dept.id,
+        salary: 6000,
+        hireDate: new Date('2025-01-01'),
+        status: 'active',
+      },
+    });
+    const empC = await prisma.employee.create({
+      data: {
+        employeeNo: 'PAY-003',
+        name: '王五',
+        departmentId: dept.id,
+        salary: 4000,
+        hireDate: new Date('2025-01-01'),
+        status: 'active',
+      },
+    });
+    allEmpIds = [emp.id, empB.id, empC.id];
 
     await prisma.attendanceMonthly.createMany({
       data: [
@@ -134,6 +158,112 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
         },
         {
           employeeId: emp.id,
+          month: '2026-05',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        // empB 月报
+        {
+          employeeId: empB.id,
+          month: '2026-02',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empB.id,
+          month: '2026-03',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empB.id,
+          month: '2026-04',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empB.id,
+          month: '2026-05',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        // empC 月报
+        {
+          employeeId: empC.id,
+          month: '2026-02',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empC.id,
+          month: '2026-03',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empC.id,
+          month: '2026-04',
+          workDays: 22,
+          lateCount: 0,
+          earlyCount: 0,
+          absentDays: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          status: 'confirmed',
+          confirmedBy: admin.id,
+          confirmedAt: new Date(),
+        },
+        {
+          employeeId: empC.id,
           month: '2026-05',
           workDays: 22,
           lateCount: 0,
@@ -333,6 +463,7 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
         method: 'POST',
         url: `/api/v1/payroll/runs/${runId}/confirm`,
         headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: allEmpIds },
       });
 
       const res = await inject(app, {
@@ -370,6 +501,7 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
         method: 'POST',
         url: `/api/v1/payroll/runs/${runId}/confirm`,
         headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: allEmpIds },
       });
 
       await inject(app, {
@@ -405,6 +537,7 @@ describe('S10 · 算薪增强（薪资项目/调整项/撤回）', () => {
         method: 'POST',
         url: `/api/v1/payroll/runs/${run2Id}/confirm`,
         headers: { cookie: adminCookie },
+        payload: { checkedEmployeeIds: allEmpIds },
       });
       await inject(app, {
         method: 'POST',

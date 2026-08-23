@@ -46,13 +46,16 @@ describe('S13 · 报销', () => {
     await prisma.permission.deleteMany();
 
     const permReim = await prisma.permission.create({
-      data: { code: 'reimbursement:use', name: '报销使用', module: 'reimbursement', type: 'menu' },
+      data: { code: 'reimbursement:view', name: '报销使用', module: 'reimbursement', type: 'menu' },
     });
-    const permApprovalManage = await prisma.permission.create({
-      data: { code: 'approval:manage', name: '审批配置管理', module: 'approval', type: 'menu' },
+    const permApprovalWorkflowManage = await prisma.permission.create({
+      data: { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'menu' },
     });
-    const permApprovalUse = await prisma.permission.create({
-      data: { code: 'approval:use', name: '审批使用', module: 'approval', type: 'menu' },
+    const permApprovalTodoView = await prisma.permission.create({
+      data: { code: 'approval:todo:view', name: '我的待办查看', module: 'approval', type: 'menu' },
+    });
+    const permApprovalSubmittedView = await prisma.permission.create({
+      data: { code: 'approval:submitted:view', name: '我的申请查看', module: 'approval', type: 'menu' },
     });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
     const managerRole = await prisma.role.create({ data: { code: 'dept_manager', name: '部门主管' } });
@@ -61,28 +64,32 @@ describe('S13 · 报销', () => {
     await prisma.rolePermission.createMany({
       data: [
         { roleId: staffRole.id, permissionId: permReim.id },
+        { roleId: staffRole.id, permissionId: permApprovalTodoView.id },
+        { roleId: staffRole.id, permissionId: permApprovalSubmittedView.id },
         { roleId: managerRole.id, permissionId: permReim.id },
+        { roleId: managerRole.id, permissionId: permApprovalTodoView.id },
+        { roleId: managerRole.id, permissionId: permApprovalSubmittedView.id },
         { roleId: hrRole.id, permissionId: permReim.id },
+        { roleId: hrRole.id, permissionId: permApprovalTodoView.id },
+        { roleId: hrRole.id, permissionId: permApprovalSubmittedView.id },
         { roleId: adminRole.id, permissionId: permReim.id },
-        { roleId: adminRole.id, permissionId: permApprovalManage.id },
-        { roleId: adminRole.id, permissionId: permApprovalUse.id },
-        { roleId: managerRole.id, permissionId: permApprovalUse.id },
-        { roleId: hrRole.id, permissionId: permApprovalUse.id },
-        { roleId: staffRole.id, permissionId: permApprovalUse.id },
+        { roleId: adminRole.id, permissionId: permApprovalWorkflowManage.id },
+        { roleId: adminRole.id, permissionId: permApprovalTodoView.id },
+        { roleId: adminRole.id, permissionId: permApprovalSubmittedView.id },
       ],
     });
 
     const staff = await prisma.user.create({
-      data: { username: 'staff_reim', passwordHash: await bcrypt.hash('123456', 10), name: '王员工' },
+      data: { username: 'staff_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager_reim', passwordHash: await bcrypt.hash('123456', 10), name: '李主管' },
+      data: { username: 'manager_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '李主管' },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr_reim', passwordHash: await bcrypt.hash('123456', 10), name: '张HR' },
+      data: { username: 'hr_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '张HR' },
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_reim', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     await prisma.userRole.createMany({
       data: [

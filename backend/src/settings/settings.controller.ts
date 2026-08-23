@@ -27,6 +27,13 @@ export class SettingsController {
     return { code: 0, data: await this.settings.list(group) };
   }
 
+  @Get('history')
+  @HttpCode(200)
+  @RequirePermission('system:setting:view')
+  async getHistory(@Query('key') key?: string) {
+    return { code: 0, data: await this.settings.getHistory(key) };
+  }
+
   @Get(':key')
   @HttpCode(200)
   async get(@Param('key') key: string) {

@@ -3,7 +3,7 @@
 // - HttpException：取异常 status 为 HTTP 状态；业务码取 payload.code
 // - 业务码被误写成 HTTP 状态（如 422）→ 归位为通用校验码 4000 / 服务器码 5000
 // - 未知错误：500 + 5000，不向客户端泄露内部信息（服务端 console.error 留痕）
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
 import { ERROR_CODES, ErrorCode } from '../error-codes';
 import { messageOf } from '../error-messages';
@@ -12,6 +12,8 @@ const HTTP_STATUS_CODES = new Set([400, 401, 403, 404, 409, 422, 429, 500]);
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  private static readonly logger = new Logger(AllExceptionsFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const reply = ctx.getResponse<FastifyReply>();
@@ -32,8 +34,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else {
       // 非预期异常：仅服务端留痕，绝不外泄堆栈
-      // eslint-disable-next-line no-console
-      console.error('[UnhandledException]', exception);
+      AllExceptionsFilter.logger.error(
+        `[UnhandledException] ${exception instanceof Error ? exception.message : String(exception)}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
     }
 
     // 业务码缺省 → 按层级兜底

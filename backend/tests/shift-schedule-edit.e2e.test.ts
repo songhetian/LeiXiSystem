@@ -44,7 +44,7 @@ describe('S04 · 班次编辑/删除 + 排班编辑/删除', () => {
     await prisma.rolePermission.create({ data: { roleId: adminRole.id, permissionId: perm.id } });
 
     const admin = await prisma.user.create({
-      data: { username: 'admin_s04', passwordHash: await bcrypt.hash('123456', 10), name: '管理员' },
+      data: { username: 'admin_s04', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
     });
     await prisma.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } });
 

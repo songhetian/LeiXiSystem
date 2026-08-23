@@ -2,7 +2,7 @@ export interface WorkflowNode {
   id: string | number;
   nodeKey?: string;
   name: string;
-  type: 'role' | 'user' | 'group' | 'start' | 'end';
+  type: 'role' | 'user' | 'group' | 'department_manager' | 'start' | 'end';
   roleCode?: string;
   userId?: number;
   groupId?: number;
@@ -27,7 +27,7 @@ export interface Approver {
 }
 
 export interface ApproverCandidate {
-  type: 'role' | 'user' | 'group';
+  type: 'role' | 'user' | 'group' | 'department_manager';
   roleCode?: string;
   userId?: number;
   groupId?: number;
@@ -39,6 +39,7 @@ export interface RoutingContext {
   formData?: Record<string, any>;
   roleUsers?: Record<string, number[]>;
   groups?: Record<number, number[]>;
+  departmentManagers?: Record<number, number>;
 }
 
 export interface ChainItem {
@@ -103,6 +104,14 @@ export function resolveNextApprovers(
       return { type: 'user', userId: node.userId };
     case 'group':
       return { type: 'group', groupId: node.approvalGroupId || node.groupId };
+    case 'department_manager': {
+      const deptId = ctx.applicantDepartmentId;
+      const managerId = deptId !== undefined ? ctx.departmentManagers?.[deptId] : undefined;
+      if (managerId !== undefined && managerId !== null) {
+        return { type: 'department_manager', userId: managerId };
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -143,6 +152,14 @@ export function resolveApproverList(
         userIds = ctx.groups[groupId] || [];
       }
       break;
+    case 'department_manager': {
+      const deptId = ctx.applicantDepartmentId;
+      const managerId = deptId !== undefined ? ctx.departmentManagers?.[deptId] : undefined;
+      if (managerId !== undefined && managerId !== null) {
+        userIds = [managerId];
+      }
+      break;
+    }
     default:
       return [];
   }

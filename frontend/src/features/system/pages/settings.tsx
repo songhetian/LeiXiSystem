@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Message, Card, Input, Button, Space, Spin } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import { settingsApi, SystemSetting } from '@/services/settings';
 import { usePermission } from '@/hooks/use-permission';
@@ -78,51 +77,55 @@ export default function SettingsPage() {
   };
 
   return (
-    <AppLayout title="系统设置" activeMenu="settings">
-      <PageContainer
-        title="系统设置"
-        extra={
-          <Button
-            type="primary"
-            loading={saving}
-            onClick={handleSave}
-            disabled={!can('system:setting:update')}
-          >
-            保存更改
-          </Button>
-        }
-      >
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 48 }}>
-            <Spin />
+    <PageContainer
+      title="系统设置"
+      extra={
+        <Button
+          type="primary"
+          loading={saving}
+          onClick={handleSave}
+          disabled={!can('system:setting:update')}
+        >
+          保存更改
+        </Button>
+      }
+    >
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin />
+        </div>
+      ) : settings.length === 0 ? (
+        <Card>
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#86909c' }}>
+            暂无系统设置项
           </div>
-        ) : (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            {Object.entries(grouped).map(([group, items]) => (
-              <Card key={group} title={GROUP_LABELS[group] || group}>
-                <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                  {items.map((s) => (
-                    <div key={s.key}>
-                      <div style={{ marginBottom: 6 }}>
-                        <span style={{ fontWeight: 600 }}>{s.label || s.key}</span>
-                        {s.description && (
-                          <div style={{ fontSize: 12, color: '#86909c' }}>{s.description}</div>
-                        )}
-                      </div>
-                      <Input
-                        value={values[s.key] ?? ''}
-                        onChange={(v) => handleChange(s.key, v)}
-                        placeholder={s.label || s.key}
-                        style={{ maxWidth: 480 }}
-                      />
+        </Card>
+      ) : (
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          {Object.entries(grouped).map(([group, items]) => (
+            <Card key={group} title={GROUP_LABELS[group] || group}>
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                {items.map((s) => (
+                  <div key={s.key}>
+                    <div style={{ marginBottom: 6 }}>
+                      <span style={{ fontWeight: 600 }}>{s.label || s.key}</span>
+                      {s.description && (
+                        <div style={{ fontSize: 12, color: '#86909c' }}>{s.description}</div>
+                      )}
                     </div>
-                  ))}
-                </Space>
-              </Card>
-            ))}
-          </Space>
-        )}
-      </PageContainer>
-    </AppLayout>
+                    <Input
+                      value={values[s.key] ?? ''}
+                      onChange={(v) => handleChange(s.key, v)}
+                      placeholder={s.label || s.key}
+                      style={{ maxWidth: 480 }}
+                    />
+                  </div>
+                ))}
+              </Space>
+            </Card>
+          ))}
+        </Space>
+      )}
+    </PageContainer>
   );
 }

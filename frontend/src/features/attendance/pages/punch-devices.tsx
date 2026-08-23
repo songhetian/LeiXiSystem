@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
-import AppLayout from '@/components/AppLayout';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, PunchDevice, PunchDeviceCreateDto, PunchDeviceUpdateDto } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
+import { notifyError } from '@/lib/request';
 
 export default function PunchDevicesPage() {
   const { can } = usePermission();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PunchDevice[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -21,16 +22,19 @@ export default function PunchDevicesPage() {
 
   const fetchList = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await attendanceApi.getPunchDeviceList();
       if (res.code === 0 && res.data) {
         setData(res.data.list);
         setTotal(res.data.total);
       } else {
+        setError(res.message || '获取设备列表失败');
         Message.error(res.message || '获取设备列表失败');
       }
-    } catch (e) {
-      Message.error('获取设备列表失败');
+    } catch (e: any) {
+      setError(e?.message || '获取设备列表失败');
+      notifyError(e, '获取设备列表失败');
     } finally {
       setLoading(false);
     }
@@ -156,34 +160,34 @@ export default function PunchDevicesPage() {
   ];
 
   return (
-    <AppLayout title="打卡设备管理" activeMenu="attendance-devices">
-      <PageContainer title="打卡设备管理">
-        <ProTable
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          toolbar={toolbar}
-          pagination={false}
-        />
-        <ModalForm
-          visible={modalVisible}
-          title={editingDevice ? '编辑设备' : '新增设备'}
-          fields={formFields}
-          initialValues={editingDevice ? {
-            name: editingDevice.name,
-            deviceNo: editingDevice.deviceNo,
-            ipAddress: editingDevice.ipAddress,
-            port: String(editingDevice.port),
-            apiKey: editingDevice.apiKey,
-            enabled: String(editingDevice.enabled),
-          } : { enabled: 'true', port: '80' }}
-          onOk={handleModalOk}
-          onCancel={handleModalCancel}
-          confirmLoading={modalLoading}
-          width={500}
-        />
-      </PageContainer>
-    </AppLayout>
+    <PageContainer title="打卡设备管理">
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={fetchList}
+        toolbar={toolbar}
+        pagination={false}
+      />
+      <ModalForm
+        visible={modalVisible}
+        title={editingDevice ? '编辑设备' : '新增设备'}
+        fields={formFields}
+        initialValues={editingDevice ? {
+          name: editingDevice.name,
+          deviceNo: editingDevice.deviceNo,
+          ipAddress: editingDevice.ipAddress,
+          port: String(editingDevice.port),
+          apiKey: editingDevice.apiKey,
+          enabled: String(editingDevice.enabled),
+        } : { enabled: 'true', port: '80' }}
+        onOk={handleModalOk}
+        onCancel={handleModalCancel}
+        confirmLoading={modalLoading}
+        width={500}
+      />
+    </PageContainer>
   );
 }
