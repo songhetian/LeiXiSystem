@@ -48,6 +48,9 @@ describe('T22.1b RedisService 运行时容错降级', () => {
   function makeFaultyRedis() {
     process.env.REDIS_URL = 'redis://127.0.0.1:6379';
     const redis = new RedisService();
+    // 构造函数会立即建立真实连接（lazyConnect:false）；替换为 fakeClient 前必须
+    // 先断开真实连接，否则无密码重试 NOAUTH 死循环导致 jest 进程无法退出
+    (redis as any).client?.disconnect();
     const fakeClient = {
       get: jest.fn().mockRejectedValue(new Error('Connection refused')),
       set: jest.fn().mockRejectedValue(new Error('Connection refused')),

@@ -11,7 +11,8 @@
     "migrate:dev": "dotenv -e ../.env -- prisma migrate dev",
     "db:push": "dotenv -e ../.env -- prisma db push --accept-data-loss",
     "db:seed": "dotenv -e ../.env -- prisma db seed",
-    "db:reset": "dotenv -e ../.env -- prisma db push --force-reset && dotenv -e ../.env -- prisma db seed"
+    "db:reset": "dotenv -e ../.env -- prisma db push --force-reset && dotenv -e ../.env -- prisma db seed",
+    "test:e2e": "jest --config jest.e2e.config.js --runInBand"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
