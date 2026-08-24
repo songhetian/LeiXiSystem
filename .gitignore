@@ -63,3 +63,6 @@ LeiXiSystem-main/
 
 # ===== 原型与草稿 =====
 prototypes/
+
+# ===== AI 工具状态目录（非项目资产） =====
+.workbuddy/
