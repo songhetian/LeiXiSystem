@@ -32,6 +32,8 @@ import { ExceptionRulesController, ExceptionsController } from './exception-rule
 import { ExceptionRulesService } from './exception-rules.service';
 import { DeductionRulesController } from './deduction-rules.controller';
 import { DeductionRulesService } from './deduction-rules.service';
+import { AttendanceAuditController } from './attendance-audit.controller';
+import { AttendanceAuditService } from './attendance-audit.service';
 
 @Module({
   imports: [ApprovalModule, NotificationModule],
@@ -52,6 +54,7 @@ import { DeductionRulesService } from './deduction-rules.service';
     ExceptionRulesController,
     ExceptionsController,
     DeductionRulesController,
+    AttendanceAuditController,
   ],
   providers: [
     ShiftsService,
@@ -70,6 +73,7 @@ import { DeductionRulesService } from './deduction-rules.service';
     AttendanceApprovalListener,
     ExceptionRulesService,
     DeductionRulesService,
+    AttendanceAuditService,
   ],
   exports: [
     ShiftsService,

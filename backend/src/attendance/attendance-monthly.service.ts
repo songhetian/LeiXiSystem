@@ -128,13 +128,14 @@ export class AttendanceMonthlyService {
 
   async list(params: {
     employeeId?: number;
+    departmentId?: number;
     month?: string;
     status?: string;
     userId: number;
     page: number;
     pageSize: number;
   }) {
-    const { employeeId, month, status, userId, page, pageSize } = params;
+    const { employeeId, departmentId, month, status, userId, page, pageSize } = params;
     const scope = await this.dataScope.visibleScope(userId);
 
     const where: Prisma.AttendanceMonthlyWhereInput = {};
@@ -152,6 +153,14 @@ export class AttendanceMonthlyService {
       }
       if (!scope.selfEmployeeId) {
         where.employeeId = employeeId;
+      }
+    }
+    // 部门维度过滤（报表按部门查看/导出）：叠加在数据权限之上，交集即不越权
+    if (departmentId && !scope.selfEmployeeId) {
+      if (!scope.all) {
+        where.AND = [{ employee: { departmentId } }];
+      } else {
+        where.employee = { departmentId };
       }
     }
     if (month) where.month = month;

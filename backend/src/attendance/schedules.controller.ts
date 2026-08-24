@@ -66,6 +66,22 @@ export class SchedulesController {
     return { code: 0, message: 'ok', data: result };
   }
 
+  @Get('matrix')
+  @RequirePermission('attendance:manage')
+  async matrix(
+    @Req() req: FastifyRequest,
+    @Query('departmentId') departmentId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const result = await this.schedulesService.matrix((req as any).user.id, {
+      departmentId: departmentId ? Number(departmentId) : undefined,
+      startDate,
+      endDate,
+    });
+    return { code: 0, message: 'ok', data: result };
+  }
+
   @Get('my')
   @RequirePermission('attendance:view')
   async my(

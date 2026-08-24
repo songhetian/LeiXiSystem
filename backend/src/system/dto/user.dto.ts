@@ -17,6 +17,14 @@ export class CreateUserDto {
   @IsInt({ each: true })
   @IsOptional()
   roleIds?: number[];
+
+  // 所有用户都是员工：创建账号时须指定其所属部门（员工档案）
+  @IsInt()
+  departmentId!: number;
+
+  @IsInt()
+  @IsOptional()
+  positionId?: number;
 }
 
 export class UpdateUserDto {

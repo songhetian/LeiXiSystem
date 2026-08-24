@@ -293,4 +293,80 @@ describe('PayrollService', () => {
       );
     });
   });
+
+  describe('getRunDetails — 批次明细 + 数据范围隔离', () => {
+    let service: PayrollService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    function setup(dataScope: { all: boolean; selfEmployeeId?: number; ids?: number[] }) {
+      prisma = createMockPrisma();
+      (prisma.payrollDetail as any).findMany = jest.fn();
+      (prisma as any).payrollAdjustment = { findMany: jest.fn() };
+      const payslipService = createMockPayslipService() as any;
+      const notificationService = createMockNotificationService() as any;
+      const lockService = createMockLockService() as any;
+      const eventEmitter = createMockEventEmitter();
+      service = new PayrollService(
+        prisma as any,
+        { visibleScope: jest.fn().mockResolvedValue(dataScope) } as any,
+        payslipService,
+        notificationService,
+        lockService,
+        eventEmitter as any,
+      );
+      return prisma;
+    }
+
+    it('批次不存在时抛 404（code 3004）', async () => {
+      setup({ all: true });
+      prisma.payrollRun.findUnique.mockResolvedValue(null);
+      await expect(service.getRunDetails(99, 1)).rejects.toMatchObject({
+        response: { code: 3004 },
+      });
+    });
+
+    it('全量数据范围时聚合明细与调整项，合计四舍五入', async () => {
+      const p = setup({ all: true });
+      prisma.payrollRun.findUnique.mockResolvedValue({ id: 1, month: '2026-08', status: 'draft' });
+      (prisma.payrollDetail as any).findMany.mockResolvedValue([
+        { employeeId: 1, itemCode: 'base', itemName: '基本工资', amount: 5000, employee: { id: 1, employeeNo: 'E001', name: '张三', departmentId: 1 } },
+        { employeeId: 1, itemCode: 'meal', itemName: '餐补', amount: 300, employee: { id: 1, employeeNo: 'E001', name: '张三', departmentId: 1 } },
+      ]);
+      (prisma as any).payrollAdjustment.findMany.mockResolvedValue([
+        { id: 1, employeeId: 1, itemCode: 'penalty', amount: -100, reason: '迟到扣款', createdAt: '2026-08-01T00:00:00+08:00', employee: { id: 1, employeeNo: 'E001', name: '张三', departmentId: 1 } },
+      ]);
+
+      const result = await service.getRunDetails(1, 1);
+
+      expect(result.employees).toHaveLength(1);
+      expect(result.employees[0].items).toEqual([
+        { code: 'base', name: '基本工资', amount: 5000 },
+        { code: 'meal', name: '餐补', amount: 300 },
+      ]);
+      expect(result.employees[0].adjustments).toHaveLength(1);
+      expect(result.employees[0].adjustments[0]).toMatchObject({ amount: -100, reason: '迟到扣款' });
+      // 5000 + 300 - 100 = 5200
+      expect(result.employees[0].total).toBe(5200);
+    });
+
+    it('部门数据范围时过滤不在范围内的员工明细与调整项', async () => {
+      const p = setup({ all: false, ids: [1] });
+      prisma.payrollRun.findUnique.mockResolvedValue({ id: 1, month: '2026-08', status: 'draft' });
+      (prisma.payrollDetail as any).findMany.mockResolvedValue([
+        { employeeId: 1, itemCode: 'base', itemName: '基本工资', amount: 5000, employee: { id: 1, employeeNo: 'E001', name: '张三', departmentId: 1 } },
+        { employeeId: 2, itemCode: 'base', itemName: '基本工资', amount: 6000, employee: { id: 2, employeeNo: 'E002', name: '李四', departmentId: 2 } },
+      ]);
+      (prisma as any).payrollAdjustment.findMany.mockResolvedValue([
+        { id: 1, employeeId: 2, itemCode: 'penalty', amount: -50, reason: '迟到扣款', createdAt: '2026-08-01T00:00:00+08:00', employee: { id: 2, employeeNo: 'E002', name: '李四', departmentId: 2 } },
+      ]);
+
+      const result = await service.getRunDetails(1, 1);
+
+      expect(result.employees).toHaveLength(1);
+      expect(result.employees[0].employee.employeeNo).toBe('E001');
+      expect(result.employees[0].items).toEqual([{ code: 'base', name: '基本工资', amount: 5000 }]);
+      expect(result.employees[0].adjustments).toHaveLength(0);
+      expect(result.employees[0].total).toBe(5000);
+    });
+  });
 });

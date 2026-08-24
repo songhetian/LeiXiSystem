@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
@@ -26,6 +27,64 @@ export class ReimbursementService {
       where: { status: 'active' },
       orderBy: { id: 'asc' },
     });
+  }
+
+  /** 报销类型列表（管理用，含停用） */
+  async listAllTypes() {
+    return this.prisma.reimbursementType.findMany({
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  async createType(params: { code: string; name: string; description?: string }) {
+    const existing = await this.prisma.reimbursementType.findUnique({
+      where: { code: params.code },
+    });
+    if (existing) {
+      throw new ConflictException({ code: 7010, message: '报销类型编码已存在' });
+    }
+    return this.prisma.reimbursementType.create({
+      data: {
+        code: params.code,
+        name: params.name,
+        description: params.description,
+        status: 'active',
+      },
+    });
+  }
+
+  async updateType(
+    id: number,
+    params: { name?: string; description?: string; status?: string },
+  ) {
+    const existing = await this.prisma.reimbursementType.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException({ code: 7011, message: '报销类型不存在' });
+    }
+    const data: any = {};
+    if (params.name !== undefined) data.name = params.name;
+    if (params.description !== undefined) data.description = params.description;
+    if (params.status !== undefined) data.status = params.status;
+    return this.prisma.reimbursementType.update({ where: { id }, data });
+  }
+
+  async removeType(id: number) {
+    const existing = await this.prisma.reimbursementType.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException({ code: 7011, message: '报销类型不存在' });
+    }
+    const usedCount = await this.prisma.reimbursement.count({
+      where: { typeId: id },
+    });
+    if (usedCount > 0) {
+      throw new ConflictException({ code: 7012, message: '报销类型已被报销单占用，无法删除' });
+    }
+    await this.prisma.reimbursementType.delete({ where: { id } });
+    return { success: true };
   }
 
   // ===== 创建报销 =====

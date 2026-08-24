@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Optional,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -9,6 +10,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
+import { RoleWorkflowService } from './role-workflow.service';
 import { buildApprovalChain, type WorkflowNode, type RoutingContext } from './engine/routing-engine';
 import { NotificationService } from '../notification/notification.service';
 import { ERROR_CODES } from '../common/error-codes';
@@ -32,6 +34,7 @@ export class ApprovalService {
     private notificationService: NotificationService,
     private eventEmitter: EventEmitter2,
     private redis: RedisService,
+    @Optional() private roleWorkflowService?: RoleWorkflowService,
   ) {}
 
   // ===== 审批流配置 =====
@@ -226,9 +229,26 @@ export class ApprovalService {
     departmentId?: number;
     ccEmployeeIds?: number[];
   }) {
-    const cacheKey = workflowCodeKey(params.workflowCode);
-    let workflow: Awaited<ReturnType<typeof this.prisma.approvalWorkflow.findUnique>> & { nodes: any[] } | null = null;
-    
+    const user = await this.prisma.user.findUnique({ where: { id: params.userId } });
+    if (!user) {
+      throw new NotFoundException({ code: 6308, message: '用户不存在' });
+    }
+
+    // 职责授权：按申请人角色绑定的已激活流程优先；否则使用入参流程编码
+    let workflowCode = params.workflowCode;
+    const boundWorkflow = this.roleWorkflowService
+      ? await this.roleWorkflowService.resolveWorkflowForUser(params.userId)
+      : null;
+    if (boundWorkflow?.code) {
+      workflowCode = boundWorkflow.code;
+    }
+
+    const cacheKey = workflowCodeKey(workflowCode);
+    type WorkflowWithNodes = NonNullable<
+      Awaited<ReturnType<PrismaService['approvalWorkflow']['findUnique']>>
+    > & { nodes: any[] };
+    let workflow: WorkflowWithNodes | null = null;
+
     if (this.redis.isEnabled) {
       const cached = await this.redis.get(cacheKey);
       if (cached) {
@@ -239,7 +259,7 @@ export class ApprovalService {
     }
     if (!workflow) {
       workflow = await this.prisma.approvalWorkflow.findUnique({
-        where: { code: params.workflowCode, deletedAt: null },
+        where: { code: workflowCode, deletedAt: null },
         include: { nodes: { orderBy: { order: 'asc' } } },
       });
       if (workflow && this.redis.isEnabled) {
@@ -252,11 +272,6 @@ export class ApprovalService {
     }
     if (workflow.status !== 'active') {
       throw new BadRequestException({ code: 6303, message: '审批流未激活' });
-    }
-
-    const user = await this.prisma.user.findUnique({ where: { id: params.userId } });
-    if (!user) {
-      throw new NotFoundException({ code: 6308, message: '用户不存在' });
     }
 
     const engineNodes: WorkflowNode[] = workflow.nodes.map((n) => ({

@@ -122,4 +122,58 @@ describe('AttendanceDailyService', () => {
       expect(where1).toEqual(where2);
     });
   });
+
+  describe('list - 部门维度过滤（报表按部门导出）', () => {
+    let service: AttendanceDailyService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+    let dataScope: { visibleScope: jest.Mock };
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      dataScope = { visibleScope: jest.fn() };
+      const monthlyService = createMockMonthlyService();
+      service = new AttendanceDailyService(prisma as any, dataScope as any, monthlyService as any);
+      prisma.attendanceDaily.findMany.mockResolvedValue([]);
+      prisma.attendanceDaily.count.mockResolvedValue(0);
+    });
+
+    it('管理员传入 departmentId 时按部门过滤日报', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+
+      await service.list({
+        departmentId: 5,
+        userId: 9,
+        page: 1,
+        pageSize: 20,
+      });
+
+      const where = prisma.attendanceDaily.findMany.mock.calls[0][0].where;
+      expect(where.employee.departmentId).toBe(5);
+    });
+
+    it('部门受限时，日报过滤为其可见部门与查询部门的交集（不越权）', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: false, ids: [1, 2] });
+
+      await service.list({
+        departmentId: 3,
+        userId: 9,
+        page: 1,
+        pageSize: 20,
+      });
+
+      const where = prisma.attendanceDaily.findMany.mock.calls[0][0].where;
+      // 同时满足“仅可见部门”与“指定部门”，交集后必然空，但不应泄露越权数据
+      expect(where.employee.departmentId).toEqual({ in: [1, 2] });
+      expect(where.AND[0].employee.departmentId).toBe(3);
+    });
+
+    it('未传 departmentId 时不追加部门过滤', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+
+      await service.list({ userId: 9, page: 1, pageSize: 20 });
+
+      const where = prisma.attendanceDaily.findMany.mock.calls[0][0].where;
+      expect(where.employee).toBeUndefined();
+    });
+  });
 });

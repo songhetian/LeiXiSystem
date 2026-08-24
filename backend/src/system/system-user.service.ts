@@ -66,6 +66,8 @@ export class SystemUserService {
     password: string;
     name: string;
     roleIds?: number[];
+    departmentId: number;
+    positionId?: number;
   }) {
     const existing = await this.prisma.user.findUnique({
       where: { username: params.username },
@@ -74,18 +76,53 @@ export class SystemUserService {
       throw new ConflictException({ code: 6101, message: '用户名已存在' });
     }
     await this.validatePassword(params.password, params.username);
-    const passwordHash = await bcrypt.hash(params.password, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        username: params.username,
-        passwordHash,
-        realName: params.name,
-        roles: params.roleIds?.length
-          ? { create: params.roleIds.map((roleId) => ({ roleId })) }
-          : undefined,
-      },
-      include: { roles: { include: { role: true } } },
+
+    // 所有用户都是员工：校验部门/岗位存在，作为员工档案的归属
+    const department = await this.prisma.department.findUnique({
+      where: { id: params.departmentId, deletedAt: null },
     });
+    if (!department) {
+      throw new NotFoundException({ code: 7102, message: '部门不存在' });
+    }
+    let position = null;
+    if (params.positionId != null) {
+      position = await this.prisma.position.findUnique({
+        where: { id: params.positionId },
+      });
+      if (!position) {
+        throw new NotFoundException({ code: 7202, message: '岗位不存在' });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(params.password, 10);
+
+    // 用户 + 员工档案在同一事务中创建，保证“每个账号都绑定员工档案”这一不变量
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          username: params.username,
+          passwordHash,
+          realName: params.name,
+          roles: params.roleIds?.length
+            ? { create: params.roleIds.map((roleId) => ({ roleId })) }
+            : undefined,
+        },
+        include: { roles: { include: { role: true } } },
+      });
+      await tx.employee.create({
+        data: {
+          employeeNo: `U${created.id.toString().padStart(4, '0')}`,
+          name: params.name,
+          departmentId: params.departmentId,
+          positionId: params.positionId ?? null,
+          hireDate: new Date(),
+          status: 'active',
+          userId: created.id,
+        },
+      });
+      return created;
+    });
+
     return {
       id: user.id,
       username: user.username,

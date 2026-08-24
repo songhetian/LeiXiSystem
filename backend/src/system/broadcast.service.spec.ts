@@ -165,3 +165,109 @@ describe('BroadcastService - markRead 接收人校验', () => {
     await expect(service.markRead(999, 1)).rejects.toThrow(NotFoundException);
   });
 });
+
+describe('BroadcastService - 公开查看链路（批次七）', () => {
+  let service: BroadcastService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    const notificationService = createMockNotificationService();
+    service = new BroadcastService(prisma, notificationService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // ------------------------------------------------------------------
+  // getPublicDetail：已发布 + 接收人 → 返回 read
+  // ------------------------------------------------------------------
+  it('getPublicDetail 返回已发布公告并标注是否已读', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 1, title: '公告1', status: 'published', recipientType: 'all', recipients: [],
+    });
+    prisma.broadcastRead.findUnique.mockResolvedValue(null);
+
+    const result = await service.getPublicDetail(1, 999);
+
+    expect(result.read).toBe(false);
+    expect(prisma.broadcastRead.findUnique).toHaveBeenCalledWith({
+      where: { broadcastId_userId: { broadcastId: 1, userId: 999 } },
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // getPublicDetail：未发布 → 隐藏存在性
+  // ------------------------------------------------------------------
+  it('getPublicDetail 未发布公告抛出 NotFoundException', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 2, status: 'draft', recipientType: 'all', recipients: [],
+    });
+
+    await expect(service.getPublicDetail(2, 1)).rejects.toThrow(NotFoundException);
+  });
+
+  // ------------------------------------------------------------------
+  // getPublicDetail：非接收人被拒绝
+  // ------------------------------------------------------------------
+  it('getPublicDetail 非接收人被拒绝', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 3, status: 'published', recipientType: 'user',
+      recipients: [{ recipientType: 'user', userId: 5 }],
+    });
+
+    await expect(service.getPublicDetail(3, 999)).rejects.toThrow(ForbiddenException);
+  });
+
+  // ------------------------------------------------------------------
+  // unreadCount：可见总数 - 已读数
+  // ------------------------------------------------------------------
+  it('unreadCount 计算 可见总数 - 已读数', async () => {
+    prisma.broadcast.count.mockResolvedValue(5);
+    prisma.broadcast.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    prisma.broadcastRead.count.mockResolvedValue(2);
+
+    const result = await service.unreadCount(1);
+
+    expect(result.count).toBe(3);
+  });
+
+  // ------------------------------------------------------------------
+  // unreadCount：无可见公告时返回 0
+  // ------------------------------------------------------------------
+  it('unreadCount 无可见公告时返回 0', async () => {
+    prisma.broadcast.count.mockResolvedValue(0);
+    prisma.broadcast.findMany.mockResolvedValue([]);
+
+    const result = await service.unreadCount(1);
+
+    expect(result.count).toBe(0);
+    expect(prisma.broadcastRead.count).not.toHaveBeenCalled();
+  });
+
+  // ------------------------------------------------------------------
+  // list(onlyPublished)：按接收人过滤 + 标注 read 并统计 total
+  // ------------------------------------------------------------------
+  it('list onlyPublished 过滤已发布并按 userId 标注 read', async () => {
+    prisma.broadcast.findMany.mockResolvedValue([
+      { id: 1, title: 'A', recipientType: 'all' },
+      { id: 2, title: 'B', recipientType: 'all' },
+    ]);
+    prisma.broadcast.count.mockResolvedValue(2);
+    prisma.broadcastRead.findMany.mockResolvedValue([{ broadcastId: 1 }]);
+
+    const result = await service.list({ page: 1, pageSize: 20, onlyPublished: true, userId: 5 } as any);
+
+    expect(result.total).toBe(2);
+    expect(result.list).toHaveLength(2);
+    const items = result.list as any[];
+    expect(items[0].read).toBe(true);
+    expect(items[1].read).toBe(false);
+    // 仅已发布 → 不 include recipients
+    const callArg = prisma.broadcast.findMany.mock.calls[0][0];
+    expect(callArg.where.status).toBe('published');
+    expect(callArg.where.OR).toBeDefined();
+    expect(callArg.include).toBeUndefined();
+  });
+});

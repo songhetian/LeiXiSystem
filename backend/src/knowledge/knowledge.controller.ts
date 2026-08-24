@@ -162,6 +162,18 @@ export class KnowledgeController {
     return { code: 0, data };
   }
 
+  @Delete('articles/:id/attachments/:attId')
+  @HttpCode(200)
+  @UseGuards(PermissionGuard)
+  @RequirePermission('knowledge:manage')
+  async removeAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('attId', ParseIntPipe) attId: number,
+  ) {
+    const data = await this.knowledgeService.deleteAttachment(attId);
+    return { code: 0, data };
+  }
+
   // ===== 预览签名 =====
   @Get('preview-url')
   @HttpCode(200)

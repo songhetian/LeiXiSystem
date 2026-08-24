@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationProvider, NotificationChannel, NotificationChannels, ChannelStatus, NOTIFICATION_PROVIDERS } from './channels';
@@ -141,6 +141,55 @@ export class NotificationService {
     }
 
     return { count: totalCreated };
+  }
+
+  /**
+   * 通知中心发送（批次八）：管理员按目标范围向用户批量发送站内通知。
+   * - targetType=user       → 直接发送给指定 userIds
+   * - targetType=department → 查询部门下启用用户再批量发送
+   * - targetType=all        → 查询全部启用用户再批量发送
+   * 复用 createMany 走多通道/分批落库链路。
+   */
+  async send(params: {
+    title: string;
+    content?: string;
+    type?: string;
+    targetType: 'all' | 'department' | 'user';
+    departmentIds?: number[];
+    userIds?: number[];
+  }) {
+    const { title, content, type, targetType, departmentIds, userIds } = params;
+
+    if (!title || !title.trim()) {
+      throw new BadRequestException({ code: 7003, message: '通知标题不能为空' });
+    }
+
+    let targets: number[];
+    if (targetType === 'user') {
+      const ids = userIds ?? [];
+      if (ids.length === 0) {
+        throw new BadRequestException({ code: 7004, message: '请选择接收人员' });
+      }
+      targets = ids;
+    } else if (targetType === 'department') {
+      const deptIds = departmentIds ?? [];
+      if (deptIds.length === 0) {
+        throw new BadRequestException({ code: 7004, message: '请选择接收部门' });
+      }
+      const users = await this.prisma.user.findMany({
+        where: { departmentId: { in: deptIds }, status: 'active', deletedAt: null },
+        select: { id: true },
+      });
+      targets = users.map(u => u.id);
+    } else {
+      const users = await this.prisma.user.findMany({
+        where: { status: 'active', deletedAt: null },
+        select: { id: true },
+      });
+      targets = users.map(u => u.id);
+    }
+
+    return this.createMany(targets, { title, content, type });
   }
 
   private async sendToChannels(

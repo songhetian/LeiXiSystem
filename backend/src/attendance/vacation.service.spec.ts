@@ -15,6 +15,10 @@ function createMockPrisma() {
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    overtimeRecord: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     employee: {
       findUnique: jest.fn(),
     },
@@ -45,6 +49,9 @@ function createMockPrisma() {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    systemSetting: {
+      findUnique: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -778,6 +785,47 @@ describe('VacationService', () => {
         }
       }
       expect(paramInvalidThrown).toBe(false);
+    });
+
+    it('加班转调休天数按系统设置比例换算（20小时/10小时每天=2天）', async () => {
+      prisma.systemSetting.findUnique.mockResolvedValue({ value: '10', key: 'overtime_to_leave_hours' });
+      prisma._mockTx.overtimeRecord.findUnique.mockResolvedValue({
+        id: 1, employeeId: 1, status: 'approved', isCompensated: false,
+        hours: new Prisma.Decimal(20),
+      });
+      prisma._mockTx.vacationBalance.findUnique.mockResolvedValue(null);
+      prisma._mockTx.vacationBalance.create.mockResolvedValue({
+        id: 9, employeeId: 1, vacationTypeId: 1, year: new Date().getFullYear(),
+        totalDays: new Prisma.Decimal(0), usedDays: new Prisma.Decimal(0),
+      });
+      prisma._mockTx.vacationBalance.update.mockResolvedValue({});
+      prisma._mockTx.overtimeRecord.update.mockResolvedValue({});
+      prisma._mockTx.vacationBalanceChange.create.mockResolvedValue({ id: 1 });
+
+      const result = await service.convertOvertimeToCompensatory({ ...baseParams, hours: 20 });
+
+      expect(prisma.systemSetting.findUnique).toHaveBeenCalledWith({ where: { key: 'overtime_to_leave_hours' } });
+      expect(result.days).toBe('2');
+    });
+
+    it('系统设置未配置加班转调休比例时缺省为8小时/天', async () => {
+      prisma.systemSetting.findUnique.mockResolvedValue(null);
+      prisma._mockTx.overtimeRecord.findUnique.mockResolvedValue({
+        id: 1, employeeId: 1, status: 'approved', isCompensated: false,
+        hours: new Prisma.Decimal(16),
+      });
+      prisma._mockTx.vacationBalance.findUnique.mockResolvedValue(null);
+      prisma._mockTx.vacationBalance.create.mockResolvedValue({
+        id: 9, employeeId: 1, vacationTypeId: 1, year: new Date().getFullYear(),
+        totalDays: new Prisma.Decimal(0), usedDays: new Prisma.Decimal(0),
+      });
+      prisma._mockTx.vacationBalance.update.mockResolvedValue({});
+      prisma._mockTx.overtimeRecord.update.mockResolvedValue({});
+      prisma._mockTx.vacationBalanceChange.create.mockResolvedValue({ id: 1 });
+
+      const result = await service.convertOvertimeToCompensatory({ ...baseParams, hours: 16 });
+
+      expect(result.days).toBe('2');
     });
   });
 });

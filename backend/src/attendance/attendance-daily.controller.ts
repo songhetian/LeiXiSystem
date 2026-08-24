@@ -21,6 +21,7 @@ export class AttendanceDailyController {
   @RequirePermission('attendance:view')
   async list(
     @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('status') status?: string,
@@ -31,6 +32,7 @@ export class AttendanceDailyController {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.dailyService.list({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
       startDate,
       endDate,
       status,

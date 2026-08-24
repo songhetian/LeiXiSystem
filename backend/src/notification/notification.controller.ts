@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Param, Query, UseGuards, HttpCode, Req } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards, HttpCode, Req, Body } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { parsePagination } from '../common/pagination.util';
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
@@ -45,6 +47,21 @@ export class NotificationController {
   @HttpCode(200)
   async readAll(@Req() req: any) {
     const data = await this.notificationService.markAllRead(req.user.id);
+    return { code: 0, data };
+  }
+
+  @Post('send')
+  @HttpCode(200)
+  @RequirePermission('system:notification:send')
+  async send(@Body() body: any) {
+    const data = await this.notificationService.send({
+      title: body.title,
+      content: body.content,
+      type: body.type,
+      targetType: body.targetType,
+      departmentIds: body.departmentIds,
+      userIds: body.userIds,
+    });
     return { code: 0, data };
   }
 }

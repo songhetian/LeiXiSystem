@@ -4,6 +4,8 @@ import { InAppNotificationProvider } from './channels/in-app-notification.provid
 import { EmailNotificationProvider } from './channels/email-notification.provider';
 import { SmsNotificationProvider } from './channels/sms-notification.provider';
 
+import { BadRequestException } from '@nestjs/common';
+
 const mockPrisma: any = {
   notification: {
     create: jest.fn(),
@@ -13,6 +15,9 @@ const mockPrisma: any = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     updateMany: jest.fn(),
+  },
+  user: {
+    findMany: jest.fn(),
   },
 };
 
@@ -191,6 +196,86 @@ describe('NotificationService', () => {
       const result = await service.createMany([], { title: '测试' });
       expect(result.count).toBe(0);
       expect(mockPrisma.notification.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('send - 通知中心发送（批次八）', () => {
+    it('targetType=user 时直接发送给指定用户', async () => {
+      mockPrisma.notification.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.send({
+        title: '站内通知',
+        content: '内容',
+        type: 'system',
+        targetType: 'user',
+        userIds: [1, 2],
+      });
+
+      expect(result.count).toBe(2);
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.notification.createMany).toHaveBeenCalledWith({
+        data: [
+          { userId: 1, title: '站内通知', content: '内容', type: 'system', channels: { in_app: 'pending' } },
+          { userId: 2, title: '站内通知', content: '内容', type: 'system', channels: { in_app: 'pending' } },
+        ],
+      });
+    });
+
+    it('targetType=department 时解析部门启用用户再批量发送', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 3 }, { id: 4 }]);
+      mockPrisma.notification.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.send({
+        title: '部门通知',
+        targetType: 'department',
+        departmentIds: [10, 20],
+      });
+
+      expect(result.count).toBe(2);
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        where: { departmentId: { in: [10, 20] }, status: 'active', deletedAt: null },
+        select: { id: true },
+      });
+      expect(mockPrisma.notification.createMany).toHaveBeenCalledWith({
+        data: [
+          { userId: 3, title: '部门通知', content: undefined, type: undefined, channels: { in_app: 'pending' } },
+          { userId: 4, title: '部门通知', content: undefined, type: undefined, channels: { in_app: 'pending' } },
+        ],
+      });
+    });
+
+    it('targetType=all 时解析全部启用用户再批量发送', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 5 }, { id: 6 }]);
+      mockPrisma.notification.createMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.send({
+        title: '全员通知',
+        targetType: 'all',
+      });
+
+      expect(result.count).toBe(2);
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        where: { status: 'active', deletedAt: null },
+        select: { id: true },
+      });
+    });
+
+    it('缺少标题时抛出 BadRequestException', async () => {
+      await expect(
+        service.send({ title: '', targetType: 'all' } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('targetType=user 但未指定人员时抛出 BadRequestException', async () => {
+      await expect(
+        service.send({ title: '测试', targetType: 'user', userIds: [] } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('targetType=department 但未指定部门时抛出 BadRequestException', async () => {
+      await expect(
+        service.send({ title: '测试', targetType: 'department', departmentIds: [] } as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

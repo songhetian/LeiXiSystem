@@ -182,6 +182,7 @@ export class AttendanceDailyService {
 
   async list(params: {
     employeeId?: number;
+    departmentId?: number;
     startDate?: string;
     endDate?: string;
     status?: string;
@@ -189,7 +190,7 @@ export class AttendanceDailyService {
     page: number;
     pageSize: number;
   }) {
-    const { employeeId, startDate, endDate, status, userId, page, pageSize } = params;
+    const { employeeId, departmentId, startDate, endDate, status, userId, page, pageSize } = params;
     const scope = await this.dataScope.visibleScope(userId);
 
     const where: Prisma.AttendanceDailyWhereInput = {};
@@ -204,6 +205,14 @@ export class AttendanceDailyService {
       }
       if (!scope.selfEmployeeId) {
         where.employeeId = employeeId;
+      }
+    }
+    // 部门维度过滤（报表按部门查看/导出）：叠加在数据权限之上，交集即不越权
+    if (departmentId && !scope.selfEmployeeId) {
+      if (!scope.all) {
+        where.AND = [{ employee: { departmentId } }];
+      } else {
+        where.employee = { departmentId };
       }
     }
     if (startDate && endDate) {

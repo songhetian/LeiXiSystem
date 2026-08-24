@@ -386,4 +386,72 @@ describe('ReportsService', () => {
       expect(result.summary.avgDurationHours).toBe(0);
     });
   });
+
+  describe('exportEmployeeList — 员工列表导出', () => {
+    function mockEmployees() {
+      return [
+        {
+          id: 1,
+          employeeNo: 'U1',
+          name: '张三',
+          status: 'active',
+          department: { name: '技术部' },
+          position: { name: '工程师' },
+          user: { email: 'a@b.com', status: 'active' },
+          hireDate: new Date('2024-01-01'),
+          education: '本科',
+          phone: '13800000000',
+        },
+        {
+          id: 2,
+          employeeNo: 'U2',
+          name: '李四',
+          status: 'probation',
+          department: { name: '技术部' },
+          position: null,
+          user: null,
+          hireDate: new Date('2026-08-01'),
+          education: null,
+          phone: null,
+        },
+      ];
+    }
+
+    beforeEach(() => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+    });
+
+    it('查询员工时应用数据范围（部门维度）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [10, 20] });
+      mockPrisma.employee.findMany.mockResolvedValue(mockEmployees());
+
+      await service.exportEmployeeListXlsx(1);
+
+      const callArgs = mockPrisma.employee.findMany.mock.calls[0][0];
+      expect(callArgs.where.departmentId.in).toEqual([10, 20]);
+      expect(callArgs.select.department.select.name).toBe(true);
+      expect(callArgs.select.position.select.name).toBe(true);
+      expect(callArgs.select.user.select.email).toBe(true);
+    });
+
+    it('导出 xlsx 返回 Buffer', async () => {
+      mockPrisma.employee.findMany.mockResolvedValue(mockEmployees());
+
+      const buf = await service.exportEmployeeListXlsx(1);
+
+      expect(Buffer.isBuffer(buf)).toBe(true);
+      expect(buf.length).toBeGreaterThan(0);
+    });
+
+    it('导出 csv 包含表头与员工信息', async () => {
+      mockPrisma.employee.findMany.mockResolvedValue(mockEmployees());
+
+      const csv = await service.exportEmployeeListCsv(1);
+
+      expect(csv).toContain('工号');
+      expect(csv).toContain('张三');
+      expect(csv).toContain('技术部');
+      expect(csv).toContain('李四');
+    });
+  });
 });

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { NotificationController } from './notification.controller';
+import { NotificationSettingController } from './notification-setting.controller';
+import { NotificationSettingService } from './notification-setting.service';
 import {
   InAppNotificationProvider,
   EmailNotificationProvider,
@@ -15,9 +17,10 @@ const notificationProviders = [
 ];
 
 @Module({
-  controllers: [NotificationController],
+  controllers: [NotificationController, NotificationSettingController],
   providers: [
     NotificationService,
+    NotificationSettingService,
     ...notificationProviders,
     {
       provide: NOTIFICATION_PROVIDERS,

@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
-import { Employee, EmployeeStatus } from '@prisma/client';
+import { Employee, EmployeeStatus, Prisma } from '@prisma/client';
 import { ERROR_CODES } from '../common/error-codes';
 import * as ExcelJS from 'exceljs';
 
@@ -94,13 +94,35 @@ export class EmployeesService {
     return updated;
   }
 
-  async list(userId: number, query: { page: number; pageSize: number; keyword?: string }) {
+  async list(userId: number, query: {
+    page: number;
+    pageSize: number;
+    keyword?: string;
+    departmentId?: number | string;
+    positionId?: number | string;
+    status?: string;
+  }) {
     const scope = await this.visibleScope(userId);
     const where: any = {};
     if (scope.selfEmployeeId) {
       where.id = scope.selfEmployeeId;
     } else if (!scope.all) {
       where.departmentId = { in: scope.ids };
+    }
+    // 多维度过滤：与数据范围叠加（AND）；部门过滤越出可视范围时置空查询结果，杜绝越权
+    if (query.departmentId !== undefined && query.departmentId !== null && query.departmentId !== '') {
+      const fid = Number(query.departmentId);
+      if (scope.all || scope.ids.includes(fid)) {
+        where.departmentId = fid;
+      } else if (!scope.all) {
+        where.departmentId = -1;
+      }
+    }
+    if (query.positionId !== undefined && query.positionId !== null && query.positionId !== '') {
+      where.positionId = Number(query.positionId);
+    }
+    if (query.status) {
+      where.status = query.status;
     }
     if (query.keyword) {
       where.OR = [
@@ -258,6 +280,65 @@ export class EmployeesService {
       where: { employeeId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // 批量变动记录流水（对齐 EmployeeChanges）：全员工分页展示，按 changeType/关键字过滤，经数据范围隔离
+  async listChangeLogs(userId: number, query: {
+    page: number;
+    pageSize: number;
+    changeType?: string;
+    keyword?: string;
+    departmentId?: number | string;
+  }) {
+    const scope = await this.visibleScope(userId);
+    const where: Prisma.EmployeeChangeLogWhereInput = {};
+    if (scope.selfEmployeeId) {
+      where.employeeId = scope.selfEmployeeId;
+    } else if (!scope.all) {
+      where.employee = { departmentId: { in: scope.ids } };
+    }
+    // 部门过滤与数据范围叠加（AND）；越出可视范围时置空结果，杜绝越权
+    if (query.departmentId !== undefined && query.departmentId !== null && query.departmentId !== '') {
+      const fid = Number(query.departmentId);
+      if (scope.all || scope.ids.includes(fid)) {
+        where.employee = { ...(where.employee as object), departmentId: { in: [fid] } };
+      } else if (!scope.all) {
+        where.employee = { ...(where.employee as object), departmentId: { in: [-1] } };
+      }
+    }
+    if (query.changeType) {
+      where.changeType = query.changeType;
+    }
+    if (query.keyword) {
+      where.employee = {
+        ...(where.employee as object),
+        OR: [
+          { name: { contains: query.keyword } },
+          { employeeNo: { contains: query.keyword } },
+        ],
+      };
+    }
+    const [list, total] = await Promise.all([
+      this.prisma.employeeChangeLog.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              employeeNo: true,
+              name: true,
+              hireDate: true,
+              department: { select: { id: true, name: true } },
+              position: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.employeeChangeLog.count({ where }),
+    ]);
+    return { list, total, page: query.page, pageSize: query.pageSize };
   }
 
   private async recordChangeLogs(

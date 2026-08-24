@@ -228,6 +228,8 @@ export class SystemController {
       password: body.password,
       name: body.name,
       roleIds: body.roleIds,
+      departmentId: body.departmentId,
+      positionId: body.positionId,
     });
     return { code: 0, data };
   }

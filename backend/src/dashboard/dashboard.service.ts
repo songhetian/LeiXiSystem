@@ -31,6 +31,20 @@ export class DashboardService {
       where: { workDate: new Date(todayStr), status: { not: 'absent' } },
     });
 
+    // 今日迟到：今日 attendanceDaily 中状态为迟到/迟到早退的条数
+    const todayLateCount = await this.prisma.attendanceDaily.count({
+      where: { workDate: new Date(todayStr), status: { in: ['late', 'late_early'] } },
+    });
+
+    // 本月加班：当月 overtimeMinutes 总和换算为小时（保留 1 位小数）
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const overtimeAgg = await this.prisma.attendanceDaily.aggregate({
+      where: { workDate: { gte: monthStart, lt: monthEnd } },
+      _sum: { overtimeMinutes: true },
+    });
+    const monthOvertimeHours = Math.round((((overtimeAgg._sum.overtimeMinutes ?? 0) / 60) * 10)) / 10;
+
     const pendingApprovals = await this.prisma.approvalRecord.count({
       where: { approverId: userId, status: 'pending' },
     });
@@ -38,6 +52,8 @@ export class DashboardService {
     return {
       employeeCount,
       attendanceCount,
+      todayLateCount,
+      monthOvertimeHours,
       pendingApprovals,
       monthlySalary: null,
       employeeId: employee?.id || null,

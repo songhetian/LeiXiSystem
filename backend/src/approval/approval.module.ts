@@ -3,6 +3,8 @@ import { ApprovalController } from './approval.controller';
 import { ApprovalService } from './approval.service';
 import { ApprovalGroupController } from './approval-group.controller';
 import { ApprovalGroupService } from './approval-group.service';
+import { RoleWorkflowController } from './role-workflow.controller';
+import { RoleWorkflowService } from './role-workflow.service';
 import { ApprovalClientImpl } from './approval-client.impl';
 import { ApprovalReconcilerService } from './approval-reconciler.service';
 import { ApprovalReminderService } from './approval-reminder.service';
@@ -11,10 +13,11 @@ import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [NotificationModule, SettingsModule],
-  controllers: [ApprovalController, ApprovalGroupController],
+  controllers: [ApprovalController, ApprovalGroupController, RoleWorkflowController],
   providers: [
     ApprovalService,
     ApprovalGroupService,
+    RoleWorkflowService,
     ApprovalClientImpl,
     ApprovalReconcilerService,
     ApprovalReminderService,

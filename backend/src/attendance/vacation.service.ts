@@ -721,11 +721,25 @@ export class VacationService {
     return { list, total };
   }
 
+  /** 读取加班转调休比例：系统设置 overtime_to_leave_hours（多少小时=1天），缺省 8 */
+  private async getOvertimeToLeaveHours(): Promise<number> {
+    try {
+      const setting = await this.prisma.systemSetting.findUnique({
+        where: { key: 'overtime_to_leave_hours' },
+      });
+      const parsed = setting?.value ? parseInt(setting.value, 10) : NaN;
+      if (!Number.isFinite(parsed) || parsed <= 0) return 8;
+      return parsed;
+    } catch {
+      return 8;
+    }
+  }
+
   async convertOvertimeToCompensatory(params: {
-    employeeId: number;
     overtimeId: number;
     vacationTypeId: number;
     hours: number;
+    employeeId: number;
     userId: number;
   }) {
     const { employeeId, overtimeId, vacationTypeId, hours, userId } = params;
@@ -747,6 +761,7 @@ export class VacationService {
     }
 
     const year = new Date().getFullYear();
+    const hoursPerDay = await this.getOvertimeToLeaveHours();
 
     return this.prisma.$transaction(async (tx) => {
       const overtime = await tx.overtimeRecord.findUnique({ where: { id: overtimeId } });
@@ -763,7 +778,7 @@ export class VacationService {
         throw new UnprocessableEntityException({ code: ERROR_CODES.OVERTIME_HOURS_EXCEEDED, message: '兑换小时数超出加班时长' });
       }
 
-      const days = new Prisma.Decimal(hours).dividedBy(8);
+      const days = new Prisma.Decimal(hours).dividedBy(hoursPerDay);
 
       let balance = await tx.vacationBalance.findUnique({
         where: {

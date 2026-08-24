@@ -8,6 +8,7 @@ function createMockPrisma() {
   const knowledgeAttachment = {
     findUnique: jest.fn(),
     create: jest.fn(),
+    delete: jest.fn(),
   };
   return {
     knowledgeAttachment,
@@ -314,5 +315,44 @@ describe('KnowledgeService - addAttachment 安全校验', () => {
       ).rejects.toThrow();
       expect(prisma.knowledgeAttachment.create).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('KnowledgeService - deleteAttachment 附件删除', () => {
+  let service: KnowledgeService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let jwt: ReturnType<typeof createMockJwt>;
+
+  beforeEach(() => {
+    process.env.PREVIEW_SECRET = TEST_SECRET;
+    prisma = createMockPrisma();
+    jwt = createMockJwt();
+    service = new KnowledgeService(prisma, jwt);
+  });
+
+  const mockAttachment = {
+    id: 9,
+    articleId: 1,
+    fileName: 'export.pdf',
+    fileUrl: '/uploads/knowledge/export.pdf',
+    fileSize: 2048,
+    mimeType: 'application/pdf',
+    createdAt: new Date(),
+  };
+
+  it('附件不存在时抛出 NotFoundException', async () => {
+    prisma.knowledgeAttachment.findUnique.mockResolvedValue(null);
+
+    await expect(service.deleteAttachment(999)).rejects.toThrow();
+    expect(prisma.knowledgeAttachment.delete).not.toHaveBeenCalled();
+  });
+
+  it('附件存在时删除并返回 success', async () => {
+    prisma.knowledgeAttachment.findUnique.mockResolvedValue(mockAttachment);
+    prisma.knowledgeAttachment.delete.mockResolvedValue(mockAttachment);
+
+    const result = await service.deleteAttachment(9);
+    expect(prisma.knowledgeAttachment.delete).toHaveBeenCalledWith({ where: { id: 9 } });
+    expect(result).toEqual({ success: true });
   });
 });

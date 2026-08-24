@@ -1301,6 +1301,105 @@ export class ReportsService {
     return Buffer.from(buf as any);
   }
 
+  /** 查询当前用户数据范围内可见的员工，供员工列表导出使用 */
+  private async listEmployeesForExport(userId: number): Promise<any[]> {
+    const scope = await this.dataScope.visibleScope(userId);
+
+    const where: Prisma.EmployeeWhereInput = {};
+    if (scope.selfEmployeeId) {
+      where.id = scope.selfEmployeeId;
+    } else if (!scope.all) {
+      where.departmentId = { in: scope.ids };
+    }
+
+    return this.prisma.employee.findMany({
+      where,
+      orderBy: { employeeNo: 'asc' },
+      select: {
+        employeeNo: true,
+        name: true,
+        status: true,
+        hireDate: true,
+        education: true,
+        phone: true,
+        department: { select: { name: true } },
+        position: { select: { name: true } },
+        user: { select: { email: true, status: true } },
+      } as any,
+    }) as any;
+  }
+
+  private static employeeStatusText(status: string): string {
+    switch (status) {
+      case 'active':
+        return '在职';
+      case 'probation':
+        return '试用期';
+      case 'resigned':
+        return '离职';
+      default:
+        return status || '';
+    }
+  }
+
+  private static dateOnly(value: Date): string {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  async exportEmployeeListXlsx(userId: number): Promise<Buffer> {
+    const list = await this.listEmployeesForExport(userId);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('员工列表');
+    ws.columns = [
+      { header: '工号', key: 'employeeNo', width: 12 },
+      { header: '姓名', key: 'name', width: 12 },
+      { header: '部门', key: 'department', width: 16 },
+      { header: '职位', key: 'position', width: 16 },
+      { header: '状态', key: 'status', width: 10 },
+      { header: '入职日期', key: 'hireDate', width: 14 },
+      { header: '学历', key: 'education', width: 12 },
+      { header: '手机号', key: 'phone', width: 16 },
+      { header: '邮箱', key: 'email', width: 24 },
+    ];
+    for (const e of list) {
+      ws.addRow({
+        employeeNo: e.employeeNo ?? '',
+        name: e.name ?? '',
+        department: e.department?.name ?? '',
+        position: e.position?.name ?? '',
+        status: ReportsService.employeeStatusText(e.status),
+        hireDate: e.hireDate ? ReportsService.dateOnly(e.hireDate) : '',
+        education: e.education ?? '',
+        phone: e.phone ?? '',
+        email: e.user?.email ?? '',
+      });
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf as any);
+  }
+
+  async exportEmployeeListCsv(userId: number): Promise<string> {
+    const list = await this.listEmployeesForExport(userId);
+    const header = '工号,姓名,部门,职位,状态,入职日期,学历,手机号,邮箱';
+    const rows = list.map((e) =>
+      [
+        e.employeeNo ?? '',
+        e.name ?? '',
+        e.department?.name ?? '',
+        e.position?.name ?? '',
+        ReportsService.employeeStatusText(e.status),
+        e.hireDate ? ReportsService.dateOnly(e.hireDate) : '',
+        e.education ?? '',
+        e.phone ?? '',
+        e.user?.email ?? '',
+      ].join(','),
+    );
+    return [header, ...rows].join('\n');
+  }
+
   private getExportDir() {
     const dir = join(process.cwd(), 'exports');
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });

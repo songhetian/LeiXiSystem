@@ -15,6 +15,7 @@ export class AttendanceMonthlyController {
   @RequirePermission('attendance:view')
   async list(
     @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('month') month?: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
@@ -24,6 +25,7 @@ export class AttendanceMonthlyController {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.monthlyService.list({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
       month,
       status,
       userId: req.user.id,

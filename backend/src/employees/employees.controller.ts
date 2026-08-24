@@ -99,12 +99,29 @@ export class EmployeesController {
 
   @Get()
   @RequirePermission('employee:view')
-  async list(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
+  async list(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string, @Query('positionId') positionId?: string, @Query('status') status?: string) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const result = await this.employeesService.list((req as any).user.id, {
       page: pageNum,
       pageSize: pageSizeNum,
       keyword,
+      departmentId,
+      positionId,
+      status,
+    });
+    return { code: 0, message: 'ok', data: result };
+  }
+
+  @Get('change-logs')
+  @RequirePermission('employee:view')
+  async listChangeLogs(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('changeType') changeType?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
+    const result = await this.employeesService.listChangeLogs((req as any).user.id, {
+      page: pageNum,
+      pageSize: pageSizeNum,
+      changeType,
+      keyword,
+      departmentId,
     });
     return { code: 0, message: 'ok', data: result };
   }

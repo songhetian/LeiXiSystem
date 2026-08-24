@@ -48,8 +48,24 @@ model Role {
   description String?         @map("description") @db.VarChar(200)
   users       UserRole[]
   permissions RolePermission[]
+  workflow    RoleWorkflow?
 
   @@map("roles")
+}
+
+// 职责授权：角色绑定审批流程（role_workflows）
+model RoleWorkflow {
+  roleId     Int              @map("role_id")
+  workflowId Int              @map("workflow_id")
+  role       Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  workflow   ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@id([roleId])
+  @@unique([roleId, workflowId])
+  @@index([workflowId])
+  @@map("role_workflows")
 }
 
 model Permission {
@@ -914,6 +930,17 @@ model Notification {
   @@map("notifications")
 }
 
+// 通知设置（对齐参考 NotificationSettings）：按事件类型(eventType)配置推送目标角色(targetRoles，JSON 数组)
+model NotificationSetting {
+  id          Int      @id @default(autoincrement())
+  eventType   String   @unique @map("event_type") @db.VarChar(50)
+  targetRoles Json     @map("target_roles") @db.Json
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
 // ===== S09 · 审批工作流 =====
 
 enum ApprovalWorkflowStatus {
@@ -931,6 +958,7 @@ model ApprovalWorkflow {
   maxResubmits  Int                      @default(3) @map("max_resubmits")
   nodes         ApprovalWorkflowNode[]
   instances     ApprovalInstance[]
+  roleBindings  RoleWorkflow[]
   createdAt     DateTime                 @default(now()) @map("created_at")
   updatedAt     DateTime                 @updatedAt @map("updated_at")
   deletedAt     DateTime?                @map("deleted_at") @db.DateTime

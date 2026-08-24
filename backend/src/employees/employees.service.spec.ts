@@ -16,6 +16,7 @@ const mockPrisma: any = {
   employeeChangeLog: {
     createMany: jest.fn(),
     findMany: jest.fn(),
+    count: jest.fn(),
   },
   department: {
     findMany: jest.fn(),
@@ -63,6 +64,52 @@ describe('EmployeesService (敏感字段)', () => {
 
       expect(callArgs.select).toBeDefined();
       expect(callArgs.select.salary).not.toBe(true);
+    });
+  });
+
+  describe('list - 多维度搜索（部门/岗位/状态）', () => {
+    const setupScope = (scope: any) => mockDataScope.visibleScope.mockResolvedValue(scope);
+    const lastWhere = () => mockPrisma.employee.findMany.mock.calls[0][0].where;
+
+    beforeEach(() => {
+      mockPrisma.employee.findMany.mockResolvedValue([]);
+      mockPrisma.employee.count.mockResolvedValue(0);
+    });
+
+    it('按 departmentId 过滤（管理员，scope.all=true）', async () => {
+      setupScope({ all: true, ids: [], selfEmployeeId: null });
+      await service.list(1, { page: 1, pageSize: 20, departmentId: 3 });
+      expect(lastWhere().departmentId).toBe(3);
+    });
+
+    it('按 positionId 过滤', async () => {
+      setupScope({ all: true, ids: [], selfEmployeeId: null });
+      await service.list(1, { page: 1, pageSize: 20, positionId: 2 });
+      expect(lastWhere().positionId).toBe(2);
+    });
+
+    it('按 status 过滤', async () => {
+      setupScope({ all: true, ids: [], selfEmployeeId: null });
+      await service.list(1, { page: 1, pageSize: 20, status: 'inactive' });
+      expect(lastWhere().status).toBe('inactive');
+    });
+
+    it('部门过滤在数据范围内（部门限定角色）→ 生效', async () => {
+      setupScope({ all: false, ids: [1, 2, 3], selfEmployeeId: null });
+      await service.list(1, { page: 1, pageSize: 20, departmentId: 2 });
+      expect(lastWhere().departmentId).toBe(2);
+    });
+
+    it('部门过滤越出数据范围 → 返回空（不会被越权过滤）', async () => {
+      setupScope({ all: false, ids: [1, 2, 3], selfEmployeeId: null });
+      await service.list(1, { page: 1, pageSize: 20, departmentId: 99 });
+      expect(lastWhere().departmentId).toBe(-1);
+    });
+
+    it('本人数据范围（selfEmployeeId）时，过滤不影响按自身 id 限定', async () => {
+      setupScope({ all: false, ids: [], selfEmployeeId: 7 });
+      await service.list(7, { page: 1, pageSize: 20, departmentId: 99, positionId: 1 });
+      expect(lastWhere().id).toBe(7);
     });
   });
 
@@ -376,6 +423,77 @@ describe('EmployeesService (敏感字段)', () => {
       it('薪资为正数时应允许修改', async () => {
         await expect(service.update(1, { salary: 6000 }, 1)).resolves.toBeDefined();
       });
+    });
+  });
+
+  describe('listChangeLogs（全员工变动流水）', () => {
+    const mockLog = {
+      id: 1,
+      employeeId: 7,
+      field: 'departmentId',
+      oldValue: '1',
+      newValue: '2',
+      changeType: 'admin_update',
+      createdAt: new Date('2026-08-01'),
+      employee: {
+        employeeNo: 'E007',
+        name: '张三',
+        department: { id: 2, name: '技术部' },
+        position: { id: 3, name: '工程师' },
+      },
+    };
+
+    beforeEach(() => {
+      mockPrisma.employeeChangeLog.findMany.mockResolvedValue([mockLog]);
+      mockPrisma.employeeChangeLog.count.mockResolvedValue(1);
+    });
+
+    it('管理员可查看全员工变动流水（分页 + join 员工信息）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      const result = await (service as any).listChangeLogs(1, { page: 1, pageSize: 20 });
+
+      const call = mockPrisma.employeeChangeLog.findMany.mock.calls[0][0];
+      expect(call.where).toEqual({});
+      expect(call.include.employee.select.employeeNo).toBe(true);
+      expect(call.include.employee.select.name).toBe(true);
+      expect(call.orderBy.createdAt).toBe('desc');
+      expect(result.list).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(mockPrisma.employeeChangeLog.count).toHaveBeenCalled();
+    });
+
+    it('按 changeType 过滤变动流水', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      await (service as any).listChangeLogs(1, { page: 1, pageSize: 20, changeType: 'resign' });
+      expect(mockPrisma.employeeChangeLog.findMany.mock.calls[0][0].where.changeType).toBe('resign');
+    });
+
+    it('部门受限时仅返回可见部门员工的变动流水（不越权）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [1, 2], selfEmployeeId: null });
+      await (service as any).listChangeLogs(1, { page: 1, pageSize: 20 });
+      expect(mockPrisma.employeeChangeLog.findMany.mock.calls[0][0].where.employee.departmentId).toEqual({ in: [1, 2] });
+    });
+
+    it('本人数据范围时仅返回本人变动', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [], selfEmployeeId: 7 });
+      await (service as any).listChangeLogs(7, { page: 1, pageSize: 20 });
+      expect(mockPrisma.employeeChangeLog.findMany.mock.calls[0][0].where.employeeId).toBe(7);
+    });
+
+    it('按部门过滤流水（管理员传入 departmentId）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      await (service as any).listChangeLogs(1, { page: 1, pageSize: 20, departmentId: 5 });
+
+      const call = mockPrisma.employeeChangeLog.findMany.mock.calls[0][0];
+      expect(call.where.employee.departmentId).toEqual({ in: [5] });
+    });
+
+    it('部门受限且传入越权部门时，置空结果不越权', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [2, 3], selfEmployeeId: null });
+      await (service as any).listChangeLogs(1, { page: 1, pageSize: 20, departmentId: 99 });
+
+      const call = mockPrisma.employeeChangeLog.findMany.mock.calls[0][0];
+      expect(call.where.employee.departmentId).toEqual({ in: [-1] });
     });
   });
 });

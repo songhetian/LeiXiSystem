@@ -94,6 +94,51 @@ export class SchedulesService {
     return { list, total, page: query.page, pageSize: query.pageSize };
   }
 
+  /** 部门×月份排班矩阵：返回指定部门在职员工 + 范围内排班（含班次），用于矩阵视图 */
+  async matrix(userId: number, query: { departmentId?: number; startDate?: string; endDate?: string }) {
+    const scope = await this.dataScope.visibleScope(userId);
+    const selfEmployeeId = scope.selfEmployeeId;
+
+    // 非管理员仅可查看其可见部门的排班
+    if (!scope.all && !selfEmployeeId && query.departmentId && !scope.ids.includes(query.departmentId)) {
+      throw new ForbiddenException({ code: 5003, message: '无权查看该部门排班' });
+    }
+
+    const employeeWhere: any = { status: 'active' };
+    if (selfEmployeeId) {
+      // 本人：仅返回本人矩阵
+      employeeWhere.id = selfEmployeeId;
+    } else if (query.departmentId) {
+      employeeWhere.departmentId = query.departmentId;
+    } else if (!scope.all) {
+      employeeWhere.departmentId = { in: scope.ids };
+    }
+
+    const employees = await this.prisma.employee.findMany({
+      where: employeeWhere,
+      select: { id: true, employeeNo: true, name: true, departmentId: true },
+      orderBy: { id: 'asc' },
+    });
+
+    const empIds = employees.map((e: any) => e.id);
+    let schedules: any[] = [];
+    if (empIds.length) {
+      const where: any = { employeeId: { in: empIds } };
+      if (query.startDate || query.endDate) {
+        where.workDate = {};
+        if (query.startDate) where.workDate.gte = new Date(query.startDate);
+        if (query.endDate) where.workDate.lte = new Date(query.endDate);
+      }
+      schedules = await this.prisma.schedule.findMany({
+        where,
+        include: { shift: true },
+        orderBy: { workDate: 'asc' },
+      });
+    }
+
+    return { employees, schedules };
+  }
+
   /** 我的排班：仅返回当前登录用户本人（其绑定员工）在时间范围内的排班，含班次信息 */
   async mySchedule(userId: number, range: { startDate?: string; endDate?: string; page: number; pageSize: number }) {
     const user = await this.prisma.user.findUnique({

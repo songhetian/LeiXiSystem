@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, UseGuards, HttpCode, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseGuards, HttpCode, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { ReimbursementService } from './reimbursement.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -15,6 +15,45 @@ export class ReimbursementController {
   @RequirePermission('reimbursement:view')
   async listTypes() {
     const data = await this.reimbursementService.listTypes();
+    return { code: 0, data };
+  }
+
+  @Get('types/all')
+  @RequirePermission('reimbursement:manage')
+  async listAllTypes() {
+    const data = await this.reimbursementService.listAllTypes();
+    return { code: 0, data };
+  }
+
+  @Post('types')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async createType(@Body() body: any) {
+    const data = await this.reimbursementService.createType({
+      code: body.code,
+      name: body.name,
+      description: body.description,
+    });
+    return { code: 0, data };
+  }
+
+  @Put('types/:id')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async updateType(@Param('id') id: string, @Body() body: any) {
+    const data = await this.reimbursementService.updateType(parseInt(id), {
+      name: body.name,
+      description: body.description,
+      status: body.status,
+    });
+    return { code: 0, data };
+  }
+
+  @Delete('types/:id')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async removeType(@Param('id') id: string) {
+    const data = await this.reimbursementService.removeType(parseInt(id));
     return { code: 0, data };
   }
 

@@ -95,6 +95,7 @@ export const PERMISSIONS = [
   { code: 'reimbursement:view', name: '报销查看', module: 'reimbursement', type: 'menu' },
   { code: 'reimbursement:create', name: '报销申请', module: 'reimbursement', type: 'api' },
   { code: 'reimbursement:approve', name: '报销审批', module: 'reimbursement', type: 'api' },
+  { code: 'reimbursement:manage', name: '报销配置管理', module: 'reimbursement', type: 'api' },
 
   // ---- 知识库（knowledge）----
   { code: 'knowledge:view', name: '知识库查看', module: 'knowledge', type: 'menu' },
@@ -113,6 +114,8 @@ export const PERMISSIONS = [
   { code: 'system:setting:view', name: '系统设置查看', module: 'system', type: 'api' },
   { code: 'system:setting:update', name: '系统设置修改', module: 'system', type: 'api' },
   { code: 'system:config:edit', name: '系统配置编辑', module: 'system', type: 'api' },
+  { code: 'system:notification:settings', name: '通知设置管理', module: 'system', type: 'api' },
+  { code: 'system:notification:send', name: '通知发送', module: 'system', type: 'api' },
 
   // ---- 数据字典（dict）----
   { code: 'dict:view', name: '字典查看', module: 'system', type: 'api' },
@@ -234,6 +237,7 @@ export async function seedBusiness(prisma: PrismaClient) {
     { key: 'lunch_break_end', value: '13:30', label: '午休结束时间', group: 'attendance', description: '午休结束时间' },
     { key: 'late_tolerance_minutes', value: '10', label: '迟到宽限(分钟)', group: 'attendance', description: '迟到多少分钟内不算迟到' },
     { key: 'early_leave_tolerance_minutes', value: '10', label: '早退宽限(分钟)', group: 'attendance', description: '早退多少分钟内不算早退' },
+    { key: 'overtime_to_leave_hours', value: '8', label: '加班转调休(小时/天)', group: 'attendance', description: '累计多少加班小时折算为1天调休假期' },
     { key: 'password_min_length', value: '6', label: '密码最小长度', group: 'security', description: '用户密码最小字符数' },
     { key: 'password_require_complex', value: 'false', label: '密码复杂度要求', group: 'security', description: '是否要求包含大小写字母和数字' },
     { key: 'login_max_attempts', value: '5', label: '最大登录尝试次数', group: 'security', description: '连续失败多少次后锁定账号' },
@@ -303,6 +307,22 @@ export async function seedBusiness(prisma: PrismaClient) {
     });
     employees.push({ id: emp.id, employeeNo, salary });
   }
+
+  // ---- 演示账号均视为员工：所有用户都应绑定员工档案，身份只是角色不决定有无档案 ----
+  // E001 已在上面按 staff.id 绑定；admin（系统管理员）也应有自己的档案，避免 /employees/me 404
+  // E000 为系统管理员专属档案，不放入上方排班/打卡名单
+  await prisma.employee.upsert({
+    where: { employeeNo: 'E000' },
+    update: { userId: admin.id, name: '系统管理员' },
+    create: {
+      employeeNo: 'E000',
+      name: '系统管理员',
+      departmentId: deps[0],
+      hireDate: new Date('2024-01-01'),
+      status: EmployeeStatus.active,
+      userId: admin.id,
+    },
+  });
 
   // ---- 班次（对齐旧项目字段）----
   const shifts = [

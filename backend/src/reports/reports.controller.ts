@@ -130,6 +130,28 @@ export class ReportsController {
     return { code: 0, message: 'ok', data };
   }
 
+  @Get('employee-list/export')
+  @RequirePermission('reports:view')
+  async exportEmployeeList(
+    @Query('format') format = 'xlsx',
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    if (format === 'csv') {
+      const csv = await this.reportsService.exportEmployeeListCsv(req.user.id);
+      const filename = `employee-list-${new Date().toISOString().slice(0, 10)}.csv`;
+      res.header('Content-Type', 'text/csv; charset=utf-8');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } else {
+      const buffer = await this.reportsService.exportEmployeeListXlsx(req.user.id);
+      const filename = `employee-list-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.header('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    }
+  }
+
   @Get('attendance-monthly/export')
   @RequirePermission('reports:view')
   async exportAttendanceMonthly(
