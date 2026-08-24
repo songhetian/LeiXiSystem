@@ -30,6 +30,18 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
+jest.mock('@/services/system', () => ({
+  systemApi: {
+    listDepartments: jest.fn().mockResolvedValue({
+      code: 0,
+      data: [
+        { id: 1, name: '技术部' },
+        { id: 2, name: '产品部' },
+      ],
+    }),
+  },
+}));
+
 // 放开权限，使「生成月报」「确认」等按钮可点击
 jest.mock('@/hooks/use-permission', () => ({
   usePermission: () => ({ can: () => true }),
@@ -236,6 +248,13 @@ describe('AttendanceMonthlyPage', () => {
       });
       expect(screen.getByTestId('search-month')).toHaveTextContent('月份');
       expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
+    });
+
+    it('renders department search field after departments load', async () => {
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('search-departmentId')).toHaveTextContent('部门');
+      });
     });
 
     it('shows pagination info', async () => {

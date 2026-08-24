@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { attendanceApi, DailyRecord, DailyListResult } from '@/services/attendance';
+import { systemApi } from '@/services/system';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
 
-const searchFields: SearchFieldConfig[] = [
+const baseSearchFields: SearchFieldConfig[] = [
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
   { key: 'startDate', label: '开始日期', type: 'date', placeholder: '请选择日期', span: 4 },
   { key: 'endDate', label: '结束日期', type: 'date', placeholder: '请选择日期', span: 4 },
@@ -41,6 +42,24 @@ export default function AttendanceDailyPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
+  const [searchFields, setSearchFields] = useState<SearchFieldConfig[]>(baseSearchFields);
+
+  // 部门维度筛选：后端 GET /attendance/daily 已支持 departmentId，这里补前端入口
+  useEffect(() => {
+    systemApi.listDepartments().then((res) => {
+      const depts = res.code === 0 && res.data ? res.data : [];
+      setSearchFields([
+        ...baseSearchFields,
+        {
+          key: 'departmentId',
+          label: '部门',
+          type: 'select',
+          placeholder: '请选择部门',
+          options: depts.map((d) => ({ value: d.id, label: d.name })),
+        },
+      ]);
+    }).catch(() => {});
+  }, []);
 
   // SWR 缓存：以 页码/大小/筛选条件 为 key。同一查询在有效期内切回本页直接复用，不重复请求。
   const cacheKey = `attendance:daily:${JSON.stringify({ page, pageSize, search: searchParams })}`;

@@ -12,6 +12,18 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
+jest.mock('@/services/system', () => ({
+  systemApi: {
+    listDepartments: jest.fn().mockResolvedValue({
+      code: 0,
+      data: [
+        { id: 1, name: '技术部' },
+        { id: 2, name: '产品部' },
+      ],
+    }),
+  },
+}));
+
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -167,6 +179,13 @@ describe('AttendanceDailyPage', () => {
       expect(screen.getByTestId('search-startDate')).toHaveTextContent('开始日期');
       expect(screen.getByTestId('search-endDate')).toHaveTextContent('结束日期');
       expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
+    });
+
+    it('renders department search field after departments load', async () => {
+      render(<AttendanceDailyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('search-departmentId')).toHaveTextContent('部门');
+      });
     });
 
     it('shows pagination info', async () => {
