@@ -1,46 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Message, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { attendanceApi, VacationBalance } from '@/services/attendance';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
 
+interface BalanceEnvelope {
+  code: number;
+  data?: VacationBalance[];
+}
+
 export default function VacationBalancePage() {
   const { can } = usePermission();
+  const year = new Date().getFullYear();
 
-  const [balanceLoading, setBalanceLoading] = useState(false);
-  const [balanceError, setBalanceError] = useState<string | null>(null);
-  const [balances, setBalances] = useState<VacationBalance[]>([]);
-  const [vacationTypes, setVacationTypes] = useState<{ id: number; name: string }[]>([]);
-
-  const fetchBalances = async () => {
-    setBalanceLoading(true);
-    setBalanceError(null);
-    try {
-      const res = await attendanceApi.getMyBalances(new Date().getFullYear());
-      if (res.code === 0 && res.data) {
-        setBalances(res.data);
-        const types = [...new Set(res.data.map((b) => b.vacationType.id))].map((id) => {
-          const b = res.data!.find((x) => x.vacationType.id === id)!;
-          return { id: b.vacationType.id, name: b.vacationType.name };
-        });
-        setVacationTypes(types);
-      }
-    } catch (e: any) {
-      setBalanceError(e?.message || '获取休假额度失败');
-      notifyError(e, '获取休假额度失败');
-    } finally {
-      setBalanceLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBalances();
-  }, []);
+  // SWR 缓存：切出再切回本页直接复用缓存；失败时 error 交由 ProTable 展示 + 重试
+  const { data: res, loading, error, revalidate } = useCachedData<BalanceEnvelope>(
+    `vacation:balances:${year}`,
+    () => attendanceApi.getMyBalances(year),
+    { staleTime: 30_000 },
+  );
+  const balances = res?.code === 0 && res.data ? res.data : [];
 
   // 导出休假额度到 Excel
   const handleExport = () => {
@@ -82,9 +65,9 @@ export default function VacationBalancePage() {
         columns={balanceColumns}
         data={balances}
         rowKey="id"
-        loading={balanceLoading}
-        error={balanceError}
-        onRetry={fetchBalances}
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
         toolbar={[{ key: 'export', label: '导出 Excel', onClick: handleExport }]}
         pagination={false}
       />

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import VacationBalancePage from '@/features/attendance/pages/vacation-balance';
 import { attendanceApi } from '@/services/attendance';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -84,6 +85,7 @@ const mockBalances = [
 describe('VacationBalancePage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (attendanceApi.getMyBalances as jest.Mock).mockResolvedValue({
       code: 0,
       data: mockBalances,

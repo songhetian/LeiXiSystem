@@ -13,6 +13,12 @@
 - UI 必须遵守 Arco Design Pro 企业级标准（见 `docs/adr/` 与旧代码归档 `legacy/` 对比例证）。
 - 业务规则以 `CONTEXT.md`「业务规则」节 + `docs/adr/` 为准，变更需先更文档再改代码。
 
+## 前端数据获取规约（2026-08-24 起）
+
+- **列表/详情数据一律用 `useCachedData`**（SWR 共享缓存），禁止新增手写 `setLoading(true)` + try/catch/finally 范式；存量手写范式页面在下次触碰时顺手迁移。
+- **部门/岗位参考数据一律用 `useDepartments()` / `usePositions()`**（`hooks/use-departments.ts`，跨页面共享缓存），禁止页面内 `useEffect` 内联调 `listDepartments/listPositions`。
+- 使用上述缓存 hook 的页面测试，`beforeEach` 必须 `clearDataCache()` / `clearDictCache()`，防止跨用例串数据。
+
 ## Agent skills
 
 ### Issue tracker
