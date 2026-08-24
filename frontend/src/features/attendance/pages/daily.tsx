@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { useDepartments } from '@/hooks/use-departments';
 import { attendanceApi, DailyRecord, DailyListResult } from '@/services/attendance';
-import { systemApi } from '@/services/system';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
@@ -42,24 +42,22 @@ export default function AttendanceDailyPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
-  const [searchFields, setSearchFields] = useState<SearchFieldConfig[]>(baseSearchFields);
+  const { departments } = useDepartments();
 
   // 部门维度筛选：后端 GET /attendance/daily 已支持 departmentId，这里补前端入口
-  useEffect(() => {
-    systemApi.listDepartments().then((res) => {
-      const depts = res.code === 0 && res.data ? res.data : [];
-      setSearchFields([
-        ...baseSearchFields,
-        {
-          key: 'departmentId',
-          label: '部门',
-          type: 'select',
-          placeholder: '请选择部门',
-          options: depts.map((d) => ({ value: d.id, label: d.name })),
-        },
-      ]);
-    }).catch(() => {});
-  }, []);
+  const searchFields = useMemo<SearchFieldConfig[]>(
+    () => [
+      ...baseSearchFields,
+      {
+        key: 'departmentId',
+        label: '部门',
+        type: 'select',
+        placeholder: '请选择部门',
+        options: departments.map((d) => ({ value: d.id, label: d.name })),
+      },
+    ],
+    [departments],
+  );
 
   // SWR 缓存：以 页码/大小/筛选条件 为 key。同一查询在有效期内切回本页直接复用，不重复请求。
   const cacheKey = `attendance:daily:${JSON.stringify({ page, pageSize, search: searchParams })}`;

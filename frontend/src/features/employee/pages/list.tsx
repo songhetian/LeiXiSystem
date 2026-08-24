@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Message, Button, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
@@ -8,7 +8,7 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import StatusTag from '@/components/StatusTag';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { employeeApi, Employee } from '@/services/employee';
-import { systemApi } from '@/services/system';
+import { useDepartments, usePositions } from '@/hooks/use-departments';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { exportToExcel } from '@/lib/excel';
 
@@ -69,41 +69,40 @@ export default function EmployeeListPage() {
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
-  const [formFields, setFormFields] = useState<FormFieldConfig[]>(() => buildFormFields([], []));
-  const [searchFields, setSearchFields] = useState<SearchFieldConfig[]>(baseSearchFields);
+  const { departments } = useDepartments();
+  const { positions } = usePositions();
 
   // 离职确认弹窗
   const [resignVisible, setResignVisible] = useState(false);
   const [resignEmployee, setResignEmployee] = useState<Employee | null>(null);
   const [resigning, setResigning] = useState(false);
 
-  useEffect(() => {
-    systemApi.listDepartments().then((res) => {
-      const depts = res.code === 0 && res.data ? res.data : [];
-      systemApi.listPositions().then((res2) => {
-        const poss = res2.code === 0 && res2.data ? res2.data : [];
-        setFormFields(buildFormFields(depts, poss));
-        // 补全多维度搜索：部门 + 岗位（复用已加载的静态参考数据）
-        setSearchFields([
-          ...baseSearchFields,
-          {
-            key: 'departmentId',
-            label: '部门',
-            type: 'select',
-            placeholder: '请选择部门',
-            options: depts.map((d) => ({ value: d.id, label: d.name })),
-          },
-          {
-            key: 'positionId',
-            label: '岗位',
-            type: 'select',
-            placeholder: '请选择岗位',
-            options: poss.map((p) => ({ value: p.id, label: p.name })),
-          },
-        ]);
-      });
-    });
-  }, []);
+  const formFields = useMemo<FormFieldConfig[]>(
+    () => buildFormFields(departments, positions),
+    [departments, positions],
+  );
+
+  // 多维度搜索：部门 + 岗位（复用共享缓存的参考数据）
+  const searchFields = useMemo<SearchFieldConfig[]>(
+    () => [
+      ...baseSearchFields,
+      {
+        key: 'departmentId',
+        label: '部门',
+        type: 'select',
+        placeholder: '请选择部门',
+        options: departments.map((d) => ({ value: d.id, label: d.name })),
+      },
+      {
+        key: 'positionId',
+        label: '岗位',
+        type: 'select',
+        placeholder: '请选择岗位',
+        options: positions.map((p) => ({ value: p.id, label: p.name })),
+      },
+    ],
+    [departments, positions],
+  );
 
   const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);

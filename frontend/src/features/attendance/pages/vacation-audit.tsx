@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Message,
   Modal,
@@ -21,7 +21,7 @@ import {
   AttendanceAuditResult,
 } from '@/services/attendance';
 import { approvalApi, ApprovalActionParams } from '@/services/approval';
-import { systemApi, SysDepartment } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
@@ -76,19 +76,13 @@ export default function VacationAuditPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const { departments } = useDepartments();
 
   // 审计详情弹窗
   const [detailVisible, setDetailVisible] = useState(false);
   const [current, setCurrent] = useState<AttendanceAuditRow | null>(null);
   const [approvalNote, setApprovalNote] = useState('');
   const [processing, setProcessing] = useState<string | null>(null);
-
-  useEffect(() => {
-    systemApi.listDepartments().then((res) => {
-      if (res.code === 0 && res.data) setDepartments(res.data);
-    });
-  }, []);
 
   const searchFields = useMemo<SearchFieldConfig[]>(
     () => [

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Tag, Tooltip, Message, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { employeeApi, EmployeeChangeLog, EmployeeChangeType, EmployeeChangeLogResult } from '@/services/employee';
-import { systemApi, SysDepartment } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
 import { notifyError } from '@/lib/request';
@@ -114,13 +114,7 @@ export default function EmployeeChangeLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
-
-  useEffect(() => {
-    systemApi.listDepartments().then((res) => {
-      if (res.code === 0 && res.data) setDepartments(res.data);
-    });
-  }, []);
+  const { departments } = useDepartments();
 
   // 部门维度筛选（对齐员工变动 / 入职审批）：前置部门下拉
   const searchFields = useMemo<SearchFieldConfig[]>(
