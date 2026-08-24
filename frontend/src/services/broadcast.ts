@@ -11,6 +11,7 @@ export interface Broadcast {
   publishedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  read?: boolean;
   recipients?: BroadcastRecipient[];
 }
 
@@ -89,5 +90,18 @@ export const broadcastApi = {
   },
   remove(id: number): Promise<{ code: number; message?: string }> {
     return request.delete(`/system/broadcasts/${id}`);
+  },
+  // ===== 公开端点：普通用户公告查看 /broadcasts（仅已发布、接收人可见） =====
+  getPublicList(params: BroadcastListParams = {}): Promise<BroadcastListResult> {
+    return request.get('/broadcasts', { params });
+  },
+  getPublicUnreadCount(): Promise<{ code: number; data: { count: number } }> {
+    return request.get('/broadcasts/unread-count');
+  },
+  getPublicDetail(id: number): Promise<BroadcastResult> {
+    return request.get(`/broadcasts/${id}`);
+  },
+  markBroadcastRead(id: number): Promise<{ code: number; message?: string }> {
+    return request.post(`/broadcasts/${id}/read`);
   },
 };

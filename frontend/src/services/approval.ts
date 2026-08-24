@@ -151,6 +151,54 @@ export interface WorkflowDetailResult {
   data?: Workflow;
 }
 
+export interface ApprovalGroupMember {
+  id: number;
+  groupId: number;
+  userId: number;
+}
+
+export interface ApprovalGroup {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  status: number;
+  createdAt: string;
+  updatedAt: string;
+  members?: ApprovalGroupMember[];
+}
+
+export interface GroupCreateDto {
+  name: string;
+  code: string;
+  description?: string;
+  memberIds?: number[];
+}
+
+export interface GroupUpdateDto {
+  name?: string;
+  description?: string;
+  status?: number;
+  memberIds?: number[];
+}
+
+// 职责授权 · 角色 ↔ 审批流程绑定
+export interface RoleWorkflowItem {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  workflowId?: number | null;
+  workflowName?: string | null;
+  workflowStatus?: string | null;
+}
+
+export interface RoleWorkflowListResult {
+  code: number;
+  message?: string;
+  data?: RoleWorkflowItem[];
+}
+
 export const approvalApi = {
   listTodos(params: PaginationParams = {}): Promise<ListResult<TodoItem>> {
     return request.get('/approval/todos', { params });
@@ -202,5 +250,33 @@ export const approvalApi = {
 
   listMyApproved(params: SubmissionsParams = {}): Promise<ListResult<ApprovedItem>> {
     return request.get('/approval/my-approved', { params });
+  },
+
+  listGroups(params: PaginationParams & { keyword?: string } = {}): Promise<ListResult<ApprovalGroup>> {
+    return request.get('/approval/groups', { params });
+  },
+
+  getGroup(id: number): Promise<DetailResult<ApprovalGroup>> {
+    return request.get(`/approval/groups/${id}`);
+  },
+
+  createGroup(data: GroupCreateDto): Promise<DetailResult<ApprovalGroup>> {
+    return request.post('/approval/groups', data);
+  },
+
+  updateGroup(id: number, data: GroupUpdateDto): Promise<DetailResult<ApprovalGroup>> {
+    return request.put(`/approval/groups/${id}`, data);
+  },
+
+  deleteGroup(id: number): Promise<DetailResult<any>> {
+    return request.delete(`/approval/groups/${id}`);
+  },
+
+  listRoleWorkflows(): Promise<RoleWorkflowListResult> {
+    return request.get('/approval/roles/workflows');
+  },
+
+  setRoleWorkflow(roleId: number, workflowId: number | null): Promise<DetailResult<any>> {
+    return request.put(`/approval/roles/${roleId}/workflow`, { workflowId });
   },
 };

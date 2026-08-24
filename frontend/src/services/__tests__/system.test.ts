@@ -61,12 +61,13 @@ describe('systemApi（T27：用户/角色/日志）', () => {
 
   it('createUser 发送 POST /system/users（含角色）', async () => {
     mockedRequest.post.mockResolvedValueOnce({ code: 0, data: mockUser });
-    await systemApi.createUser({ username: 'zhang', password: '123456', name: '张三', roleIds: [2] });
+    await systemApi.createUser({ username: 'zhang', password: '123456', name: '张三', roleIds: [2], departmentId: 3 });
     expect(mockedRequest.post).toHaveBeenCalledWith('/system/users', {
       username: 'zhang',
       password: '123456',
       name: '张三',
       roleIds: [2],
+      departmentId: 3,
     });
   });
 

@@ -21,6 +21,7 @@ import {
   knowledgeApi,
   KnowledgeCategory,
   KnowledgeArticle,
+  KnowledgeAttachment,
 } from '@/services/knowledge';
 import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
@@ -211,6 +212,11 @@ function ArticleManage() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
+  // 附件管理（对齐参考文章附件）
+  const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
+  const [attLoading, setAttLoading] = useState(false);
+  const [addForm] = Form.useForm();
+
   const fetchCategories = async () => {
     try {
       const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
@@ -253,6 +259,8 @@ function ArticleManage() {
     setEditItem(null);
     form.resetFields();
     form.setFieldsValue({ status: 'draft' });
+    setAttachments([]);
+    addForm.resetFields();
     setModalVisible(true);
   };
 
@@ -266,6 +274,9 @@ function ArticleManage() {
       content: item.content || '',
       status: item.status,
     });
+    setAttachments([]);
+    addForm.resetFields();
+    fetchAttachments(item.id);
     setModalVisible(true);
   };
 
@@ -305,6 +316,55 @@ function ArticleManage() {
       if (res.code === 0) {
         Message.success('删除成功');
         fetchList();
+      } else {
+        Message.error(res.message || '删除失败');
+      }
+    } catch (e) {
+      Message.error('删除失败');
+    }
+  };
+
+  const fetchAttachments = async (articleId: number) => {
+    setAttLoading(true);
+    try {
+      const res = await knowledgeApi.getAttachments(articleId);
+      if (res.code === 0 && res.data) setAttachments(res.data);
+    } catch (e) {
+      Message.error('获取附件失败');
+    } finally {
+      setAttLoading(false);
+    }
+  };
+
+  const handleAddAttachment = async () => {
+    if (!editItem) return;
+    try {
+      const values = await addForm.validate();
+      const res = await knowledgeApi.addAttachment(editItem.id, {
+        fileName: values.fileName,
+        fileUrl: values.fileUrl,
+        fileSize: values.fileSize ?? 0,
+        mimeType: values.mimeType,
+      });
+      if (res.code === 0) {
+        Message.success('添加成功');
+        addForm.resetFields();
+        fetchAttachments(editItem.id);
+      } else {
+        Message.error(res.message || '添加失败');
+      }
+    } catch (e) {
+      Message.error('添加失败');
+    }
+  };
+
+  const handleDeleteAttachment = async (att: KnowledgeAttachment) => {
+    if (!editItem) return;
+    try {
+      const res = await knowledgeApi.deleteAttachment(editItem.id, att.id);
+      if (res.code === 0) {
+        Message.success('删除成功');
+        setAttachments((prev) => prev.filter((a) => a.id !== att.id));
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -411,6 +471,60 @@ function ArticleManage() {
               ]}
             />
           </Form.Item>
+
+          {isEdit && editItem && (
+            <Form.Item label="附件">
+              <div>
+                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+                    {attLoading ? '加载中…' : attachments.length === 0 ? '暂无附件' : `共 ${attachments.length} 个附件`}
+                  </span>
+                </div>
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 8px',
+                      border: '1px solid var(--color-border-2)',
+                      borderRadius: 4,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Space>
+                      <Tag color="arcoblue">附件</Tag>
+                      <span style={{ fontSize: 13 }}>{att.fileName}</span>
+                    </Space>
+                    <Button
+                      size="mini"
+                      status="danger"
+                      onClick={() => handleDeleteAttachment(att)}
+                    >
+                      删除
+                    </Button>
+                  </div>
+                ))}
+                <Form form={addForm} layout="inline" style={{ marginTop: 8 }}>
+                  <Form.Item field="fileName" rules={[{ required: true, message: '请输入文件名' }]} style={{ marginBottom: 8 }}>
+                    <Input placeholder="文件名，如 a.pdf" style={{ width: 180 }} />
+                  </Form.Item>
+                  <Form.Item field="fileUrl" rules={[{ required: true, message: '请输入文件地址' }]} style={{ marginBottom: 8 }}>
+                    <Input placeholder="文件地址" style={{ width: 220 }} />
+                  </Form.Item>
+                  <Form.Item field="fileSize" style={{ marginBottom: 8 }}>
+                    <InputNumber placeholder="大小(字节)" style={{ width: 140 }} />
+                  </Form.Item>
+                  <Form.Item style={{ marginBottom: 8 }}>
+                    <Button size="small" type="primary" onClick={handleAddAttachment}>
+                      添加附件
+                    </Button>
+                  </Form.Item>
+                </Form>
+              </div>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </div>

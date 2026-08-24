@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Message, Modal, Space, Button, Tag, Form, Input, Radio, Checkbox, Typography, Popconfirm } from '@arco-design/web-react';
+import { Message, Modal, Space, Button, Tag, Form, Input, Radio, Checkbox, Select, Typography, Popconfirm } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
-import { systemApi, SysUser, SysRole } from '@/services/system';
+import { systemApi, SysUser, SysRole, SysDepartment, SysPosition } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 
 const { TextArea } = Input;
@@ -19,12 +19,14 @@ export default function SystemUsersPage() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
   const [roles, setRoles] = useState<SysRole[]>([]);
+  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const [positions, setPositions] = useState<SysPosition[]>([]);
 
   // 新建/编辑 Modal
   const [editVisible, setEditVisible] = useState(false);
   const [editing, setEditing] = useState<SysUser | null>(null);
-  const [formValues, setFormValues] = useState({ username: '', name: '', password: '', status: 'active' as string, roleIds: [] as number[] });
-  const [formErrors, setFormErrors] = useState<{ username?: string; name?: string; password?: string }>({});
+  const [formValues, setFormValues] = useState({ username: '', name: '', password: '', status: 'active' as string, roleIds: [] as number[], departmentId: undefined as number | undefined, positionId: undefined as number | undefined });
+  const [formErrors, setFormErrors] = useState<{ username?: string; name?: string; password?: string; departmentId?: string }>({});
   const [saving, setSaving] = useState(false);
 
   // 分配角色 Modal
@@ -57,9 +59,21 @@ export default function SystemUsersPage() {
     if (res.code === 0 && res.data) setRoles(res.data);
   };
 
+  const fetchDepartments = async () => {
+    const res = await systemApi.listDepartments();
+    if (res.code === 0 && res.data) setDepartments(res.data);
+  };
+
+  const fetchPositions = async () => {
+    const res = await systemApi.listPositions();
+    if (res.code === 0 && res.data) setPositions(res.data);
+  };
+
   useEffect(() => {
     fetchList(1, 20, searchParams);
     fetchRoles();
+    fetchDepartments();
+    fetchPositions();
   }, []);
 
   const handleSearch = (values: Record<string, any>) => {
@@ -74,23 +88,24 @@ export default function SystemUsersPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setFormValues({ username: '', name: '', password: '', status: 'active', roleIds: [] });
+    setFormValues({ username: '', name: '', password: '', status: 'active', roleIds: [], departmentId: undefined, positionId: undefined });
     setFormErrors({});
     setEditVisible(true);
   };
 
   const openEdit = (record: SysUser) => {
     setEditing(record);
-    setFormValues({ username: record.username, name: record.name, password: '', status: record.status, roleIds: record.roles.map((r) => r.id) });
+    setFormValues({ username: record.username, name: record.name, password: '', status: record.status, roleIds: record.roles.map((r) => r.id), departmentId: undefined, positionId: undefined });
     setFormErrors({});
     setEditVisible(true);
   };
 
   const validateForm = () => {
-    const next: { username?: string; name?: string; password?: string } = {};
+    const next: { username?: string; name?: string; password?: string; departmentId?: string } = {};
     if (!editing && !formValues.username.trim()) next.username = '请输入用户名';
     if (!formValues.name.trim()) next.name = '请输入姓名';
     if (!editing && !formValues.password) next.password = '请输入初始密码';
+    if (!editing && !formValues.departmentId) next.departmentId = '请选择所属部门';
     setFormErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -111,6 +126,8 @@ export default function SystemUsersPage() {
             password: formValues.password,
             name: formValues.name,
             roleIds: formValues.roleIds,
+            departmentId: formValues.departmentId!,
+            positionId: formValues.positionId,
           });
       if (res.code === 0) {
         Message.success(editing ? '保存成功' : '创建成功');
@@ -277,6 +294,33 @@ export default function SystemUsersPage() {
               ]}
             />
           </Form.Item>
+          {!editing && (
+            <>
+              <Form.Item
+                label="所属部门"
+                required
+                validateStatus={formErrors.departmentId ? 'error' : undefined}
+                help={formErrors.departmentId}
+              >
+                <Select
+                  value={formValues.departmentId}
+                  placeholder="选择员工所属部门"
+                  onChange={(v) => setFormValues((p) => ({ ...p, departmentId: v }))}
+                  options={departments.map((d) => ({ label: d.name, value: d.id }))}
+                  allowClear
+                />
+              </Form.Item>
+              <Form.Item label="岗位">
+                <Select
+                  value={formValues.positionId}
+                  placeholder="选择岗位（可选）"
+                  onChange={(v) => setFormValues((p) => ({ ...p, positionId: v }))}
+                  options={positions.map((x) => ({ label: x.name, value: x.id }))}
+                  allowClear
+                />
+              </Form.Item>
+            </>
+          )}
           <Form.Item label="分配角色">
             <Checkbox.Group
               value={formValues.roleIds}

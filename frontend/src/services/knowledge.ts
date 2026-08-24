@@ -29,6 +29,7 @@ export interface KnowledgeAttachment {
   articleId: number;
   fileName: string;
   fileType: string;
+  mimeType?: string;
   fileSize: number;
   fileUrl: string;
   uploadedBy?: string;
@@ -136,6 +137,17 @@ export const knowledgeApi = {
 
   getAttachments(articleId: number): Promise<DetailResult<KnowledgeAttachment[]>> {
     return request.get(`/knowledge/articles/${articleId}/attachments`);
+  },
+
+  addAttachment(
+    articleId: number,
+    params: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string },
+  ): Promise<DetailResult<KnowledgeAttachment>> {
+    return request.post(`/knowledge/articles/${articleId}/attachments`, params);
+  },
+
+  deleteAttachment(articleId: number, attId: number): Promise<DetailResult<any>> {
+    return request.delete(`/knowledge/articles/${articleId}/attachments/${attId}`);
   },
 
   getPreviewUrl(attachmentId: number): Promise<DetailResult<PreviewUrlResult>> {

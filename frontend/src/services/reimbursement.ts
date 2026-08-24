@@ -80,6 +80,25 @@ export const reimbursementApi = {
     return request.get('/reimbursements/types');
   },
 
+  getAllTypes(): Promise<DetailResult<ReimbursementType[]>> {
+    return request.get('/reimbursements/types/all');
+  },
+
+  createType(params: { code: string; name: string; description?: string }): Promise<DetailResult<ReimbursementType>> {
+    return request.post('/reimbursements/types', params);
+  },
+
+  updateType(
+    id: number,
+    params: { name?: string; description?: string; status?: string },
+  ): Promise<DetailResult<ReimbursementType>> {
+    return request.put(`/reimbursements/types/${id}`, params);
+  },
+
+  deleteType(id: number): Promise<DetailResult<any>> {
+    return request.delete(`/reimbursements/types/${id}`);
+  },
+
   getMyReimbursements(params: ReimbursementListParams = {}): Promise<ListResult<Reimbursement>> {
     return request.get('/reimbursements/mine', { params });
   },

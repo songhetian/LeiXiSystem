@@ -167,4 +167,42 @@ describe('approvalApi', () => {
       expect(result.code).toBe(3003);
     });
   });
+
+  describe('职责授权 · 角色流程绑定', () => {
+    const mockRoleWorkflow = {
+      id: 1,
+      code: 'hr',
+      name: '人事',
+      description: '人事专员',
+      workflowId: 10,
+      workflowName: '人事流程',
+      workflowStatus: 'active',
+    };
+
+    it('listRoleWorkflows sends GET request to /approval/roles/workflows', async () => {
+      mockedRequest.get.mockResolvedValueOnce({ code: 0, data: [mockRoleWorkflow] });
+      const result = await approvalApi.listRoleWorkflows();
+      expect(mockedRequest.get).toHaveBeenCalledWith('/approval/roles/workflows');
+      expect(result.code).toBe(0);
+      expect(result.data).toHaveLength(1);
+      expect(result.data![0].workflowName).toBe('人事流程');
+    });
+
+    it('setRoleWorkflow sends PUT request to bind a workflow', async () => {
+      mockedRequest.put.mockResolvedValueOnce({ code: 0, data: { success: true } });
+      const result = await approvalApi.setRoleWorkflow(1, 10);
+      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/roles/1/workflow', {
+        workflowId: 10,
+      });
+      expect(result.code).toBe(0);
+    });
+
+    it('setRoleWorkflow sends PUT request with null to unbind / use default', async () => {
+      mockedRequest.put.mockResolvedValueOnce({ code: 0, data: { success: true } });
+      await approvalApi.setRoleWorkflow(1, null);
+      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/roles/1/workflow', {
+        workflowId: null,
+      });
+    });
+  });
 });

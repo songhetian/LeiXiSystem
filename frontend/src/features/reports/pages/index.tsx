@@ -27,6 +27,7 @@ export default function ReportsPage() {
   const [month, setMonth] = useState(currentMonth());
   const [attendance, setAttendance] = useState<any>(undefined);
   const [labor, setLabor] = useState<any>(undefined);
+  const [structure, setStructure] = useState<any>(undefined);
   const [tasks, setTasks] = useState<ExportTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,13 +36,15 @@ export default function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [a, l, t] = await Promise.all([
+      const [a, l, s, t] = await Promise.all([
         reportsApi.getAttendanceMonthly(m),
         reportsApi.getLaborCost(m),
+        reportsApi.getEmployeeStructure(),
         reportsApi.listExportTasks(),
       ]);
       if (a.code === 0) setAttendance(a.data);
       if (l.code === 0) setLabor(l.data);
+      if (s.code === 0) setStructure(s.data);
       if (t.code === 0) setTasks(t.data?.list ?? []);
     } catch (e: any) {
       setError(e?.message || '报表加载失败');
@@ -114,6 +117,11 @@ export default function ReportsPage() {
 
   const s1 = attendance?.summary;
   const s2 = labor?.summary;
+  const s3 = structure;
+
+  const handleEmployeeExport = (format: 'xlsx' | 'csv') => {
+    window.open(reportsApi.employeeListExportUrl(format), '_blank');
+  };
 
   return (
     <PageContainer
@@ -195,6 +203,24 @@ export default function ReportsPage() {
           </Card>
         </Col>
       </Row>
+
+      <Card title="员工结构" style={{ marginBottom: 16 }} loading={loading}>
+        <Row gutter={12}>
+          <Col span={8}><Statistic title="在册员工" value={s3?.total ?? 0} suffix="人" /></Col>
+          <Col span={8}><Statistic title="试用期" value={s3?.onProbation ?? 0} suffix="人" /></Col>
+          <Col span={8}><Statistic title="平均司龄" value={s3?.avgTenure?.formatted ?? '-'} /></Col>
+        </Row>
+        <div style={{ marginTop: 12 }}>
+          <Space>
+            <Button size="small" disabled={!can('reports:view')} onClick={() => handleEmployeeExport('xlsx')}>
+              导出 Excel
+            </Button>
+            <Button size="small" disabled={!can('reports:view')} onClick={() => handleEmployeeExport('csv')}>
+              导出 CSV
+            </Button>
+          </Space>
+        </div>
+      </Card>
 
       <Card title="导出任务">
         <ProTable

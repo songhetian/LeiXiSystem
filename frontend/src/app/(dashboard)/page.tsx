@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, Grid, Typography, Button, Message, List, Tag, Avatar, Badge } from '@arco-design/web-react';
+import { Card, Grid, Typography, Button, Message, List, Tag, Avatar, Badge, Empty } from '@arco-design/web-react';
 import {
   IconUserGroup,
   IconCheckCircle,
@@ -20,7 +20,8 @@ import {
   IconArchive,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
-import { dashboardApi, DashboardStats } from '@/services/dashboard';
+import { dashboardApi, DashboardStats, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
+import { usePermission } from '@/hooks/use-permission';
 
 const { Row, Col } = Grid;
 const { Title, Text } = Typography;
@@ -93,7 +94,7 @@ function buildMetrics(stats: DashboardStats | null) {
     },
     {
       label: '今日迟到',
-      value: '3',
+      value: stats?.todayLateCount?.toString() ?? '0',
       suffix: '人',
       icon: IconExclamation,
       iconIndex: 4,
@@ -102,7 +103,7 @@ function buildMetrics(stats: DashboardStats | null) {
     },
     {
       label: '本月加班',
-      value: '128',
+      value: stats?.monthOvertimeHours != null ? `${stats.monthOvertimeHours}` : '0',
       suffix: '小时',
       icon: IconStorage,
       iconIndex: 5,
@@ -127,6 +128,7 @@ const NOTIFICATION_ITEMS = [
 
 export default function HomePage() {
   const router = useRouter();
+  const { can } = usePermission();
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
@@ -228,6 +230,9 @@ export default function HomePage() {
             );
           })}
         </Row>
+
+        {/* 组织管理看板（管理员可见）：部门人力分布 + 近 7 日考勤趋势 */}
+        {can('system:user:view') && <OrgOverview />}
 
         {/* 快捷操作 */}
         <div style={{ marginBottom: 24 }}>
@@ -438,5 +443,96 @@ export default function HomePage() {
         </Row>
       </div>
     </PageContainer>
+  );
+}
+
+// ====== 组织管理看板（AdminDashboard）======
+// 仅对有系统管理权限的账号展示：部门人力分布 + 近 7 日考勤趋势（参照 admin-dashboard.js 的信息层级）
+function OrgOverview() {
+  const [depts, setDepts] = useState<DepartmentStat[]>([]);
+  const [trend, setTrend] = useState<AttendanceTrendPoint[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [dRes, tRes] = await Promise.all([
+          dashboardApi.getDepartmentStats(),
+          dashboardApi.getAttendanceTrend(7),
+        ]);
+        if (dRes.code === 0 && dRes.data) setDepts(dRes.data);
+        if (tRes.code === 0 && tRes.data) setTrend(tRes.data);
+      } catch (e) {
+        Message.error('获取组织数据失败');
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  const maxDept = Math.max(1, ...depts.map((d) => d.count));
+  const maxDay = Math.max(1, ...trend.map((p) => p.present));
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="flex items-center justify-between mb-3">
+        <Title heading={5} style={{ margin: 0 }}>
+          组织管理看板
+        </Title>
+      </div>
+      <Row gutter={[16, 16]}>
+        <Col span={10}>
+          <Card title="部门人力分布" loading={!loaded} bodyStyle={{ paddingTop: 4 }}>
+            {depts.length === 0 ? (
+              <Empty description="暂无部门数据" />
+            ) : (
+              <div className="flex flex-col gap-3 py-2">
+                {depts.map((d) => (
+                  <div key={d.id}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-text-2">{d.name}</span>
+                      <span className="text-text-1 font-medium">{d.count} 人</span>
+                    </div>
+                    <div className="h-2 bg-bg-3 rounded overflow-hidden">
+                      <div
+                        className="h-full rounded"
+                        style={{
+                          width: `${(d.count / maxDept) * 100}%`,
+                          background: 'linear-gradient(90deg, #2455D9, #5b7cf5)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col span={14}>
+          <Card title="近 7 日考勤趋势" loading={!loaded} bodyStyle={{ paddingTop: 4 }}>
+            {trend.length === 0 ? (
+              <Empty description="暂无考勤数据" />
+            ) : (
+              <div className="flex items-end justify-between gap-3 py-3" style={{ height: 140 }}>
+                {trend.map((p) => (
+                  <div key={p.date} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-xs text-text-2">{p.present}</span>
+                    <div
+                      className="w-full max-w-[28px] rounded-t"
+                      style={{
+                        height: `${(p.present / maxDay) * 90 + 6}px`,
+                        background: '#2455D9',
+                      }}
+                      title={`${p.date}：出勤 ${p.present}，迟到 ${p.late}，请假 ${p.leave}，缺勤 ${p.absent}`}
+                    />
+                    <span className="text-xs text-text-3">{p.date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </div>
   );
 }

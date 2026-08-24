@@ -9,6 +9,7 @@ import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { payrollApi, PayrollRun } from '@/services/payroll';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { notifyError } from '@/lib/request';
+import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 
 const searchFields: SearchFieldConfig[] = [
   { key: 'month', label: '月份', type: 'input', placeholder: 'YYYY-MM' },
@@ -58,6 +59,8 @@ export default function PayrollRunsPage() {
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+
+  const [detailRun, setDetailRun] = useState<PayrollRun | null>(null);
 
   const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
     setLoading(true);
@@ -132,7 +135,7 @@ export default function PayrollRunsPage() {
   };
 
   const handleViewDetails = (record: PayrollRun) => {
-    Message.info(`查看批次 ${record.month} 明细`);
+    setDetailRun(record);
   };
 
   const handleConfirm = async (record: PayrollRun) => {
@@ -246,6 +249,14 @@ export default function PayrollRunsPage() {
         onCancel={handleCreateCancel}
         confirmLoading={createLoading}
       />
+      {detailRun && (
+        <RunDetailsModal
+          run={detailRun}
+          visible={!!detailRun}
+          onCancel={() => setDetailRun(null)}
+          onChanged={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        />
+      )}
     </PageContainer>
   );
 }

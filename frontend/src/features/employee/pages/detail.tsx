@@ -23,6 +23,7 @@ import { employeeApi, Employee } from '@/services/employee';
 import { systemApi, SysDepartment, SysPosition } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
+import EmployeeDetailTabs from '@/features/employee/components/EmployeeDetailTabs';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   active: { label: '在职', color: 'green' },
@@ -177,6 +178,12 @@ export default function EmployeeDetailPage() {
         )}
         </DataState>
       </Card>
+
+      {employee && (
+        <Card className="rounded-md" style={{ marginTop: 16 }}>
+          <EmployeeDetailTabs employeeId={employee.id} />
+        </Card>
+      )}
 
       <Modal
         title="编辑员工"

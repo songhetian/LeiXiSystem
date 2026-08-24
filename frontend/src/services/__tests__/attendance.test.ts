@@ -105,6 +105,48 @@ describe('attendanceApi', () => {
         endDate: '2026-08-13',
       });
     });
+
+    it('getScheduleMatrix sends GET request to /schedules/matrix with department + range', async () => {
+      mockedRequest.get.mockResolvedValueOnce({
+        code: 0,
+        data: { employees: [], schedules: [] },
+      });
+      const result = await attendanceApi.getScheduleMatrix({
+        departmentId: 2,
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+      });
+      expect(mockedRequest.get).toHaveBeenCalledWith('/schedules/matrix', {
+        params: { departmentId: 2, startDate: '2026-08-01', endDate: '2026-08-31' },
+      });
+      expect(result.code).toBe(0);
+      expect(result.data!.employees).toHaveLength(0);
+    });
+
+    it('getScheduleMatrix works without departmentId', async () => {
+      mockedRequest.get.mockResolvedValueOnce({ code: 0, data: { employees: [], schedules: [] } });
+      await attendanceApi.getScheduleMatrix({});
+      expect(mockedRequest.get).toHaveBeenCalledWith('/schedules/matrix', {
+        params: {},
+      });
+    });
+
+    it('getMonthlyList sends GET request with department + month + pagination', async () => {
+      mockedRequest.get.mockResolvedValueOnce({
+        code: 0,
+        data: { list: [], total: 0, page: 1, pageSize: 20 },
+      });
+      const result = await attendanceApi.getMonthlyList({
+        page: 1,
+        pageSize: 20,
+        departmentId: 3,
+        month: '2026-08',
+      });
+      expect(mockedRequest.get).toHaveBeenCalledWith('/attendance/monthly', {
+        params: { page: 1, pageSize: 20, departmentId: 3, month: '2026-08' },
+      });
+      expect(result.code).toBe(0);
+    });
   });
 
   describe('边界用例', () => {

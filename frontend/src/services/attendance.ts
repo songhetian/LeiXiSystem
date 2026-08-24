@@ -1,5 +1,51 @@
 import request from '@/lib/request';
 
+// ========== 考勤申请聚合审计（批次六） ==========
+
+export interface AttendanceAuditRow {
+  recordType: 'leave' | 'overtime';
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  employeeNo: string;
+  departmentId: number | null;
+  departmentName: string;
+  businessTypeName: string;
+  status: string;
+  approvalInstanceId: number | null;
+  approvalNote: string | null;
+  createdAt: string;
+  reason: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  days: number | null;
+  overtimeDate: string | null;
+  hours: number | null;
+}
+
+export interface AttendanceAuditParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  recordType?: string;
+  departmentId?: number;
+  keyword?: string;
+  vacationTypeId?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AttendanceAuditResult {
+  code: number;
+  message?: string;
+  data?: {
+    list: AttendanceAuditRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
 // ========== 考勤日报 ==========
 
 export interface DailyRecord {
@@ -218,6 +264,29 @@ export interface ScheduleListResult {
     total: number;
     page: number;
     pageSize: number;
+  };
+}
+
+// 部门×月份排班矩阵：返回部门在职员工 + 范围内排班（含班次）
+export interface ScheduleMatrixEmployee {
+  id: number;
+  employeeNo: string;
+  name: string;
+  departmentId: number;
+}
+
+export interface ScheduleMatrixParams {
+  departmentId?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ScheduleMatrixResult {
+  code: number;
+  message?: string;
+  data?: {
+    employees: ScheduleMatrixEmployee[];
+    schedules: Schedule[];
   };
 }
 
@@ -551,6 +620,10 @@ export const attendanceApi = {
   getScheduleList(params: ScheduleListParams = {}): Promise<ScheduleListResult> {
     return request.get('/schedules', { params });
   },
+
+  getScheduleMatrix(params: ScheduleMatrixParams = {}): Promise<ScheduleMatrixResult> {
+    return request.get('/schedules/matrix', { params });
+  },
   createSchedule(data: ScheduleCreateDto): Promise<ScheduleResult> {
     return request.post('/schedules', data);
   },
@@ -637,6 +710,10 @@ export const attendanceApi = {
   },
   submitOvertime(id: number): Promise<{ code: number; message?: string }> {
     return request.post(`/overtime-records/${id}/submit`);
+  },
+  // 考勤申请聚合审计（批次六）
+  getAuditList(params: AttendanceAuditParams): Promise<AttendanceAuditResult> {
+    return request.get('/attendance/audit', { params });
   },
   // 补卡申请
   getMakeupList(params: MakeupListParams = {}): Promise<MakeupListResult> {

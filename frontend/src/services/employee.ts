@@ -162,9 +162,47 @@ export const employeeApi = {
   } = {}): Promise<{ code: number; message?: string; data?: { list: TimelineRecord[]; total: number; page: number; pageSize: number } }> {
     return request.get('/employees/timeline', { params });
   },
+
+  getChangeLogs(params: EmployeeChangeLogParams = {}): Promise<EmployeeChangeLogResult> {
+    return request.get('/employees/change-logs', { params });
+  },
 };
 
-// ========== 员工标签 ==========
+// ========== 员工变动流水（EmployeeChanges） ==========
+
+export type EmployeeChangeType = 'admin_update' | 'self_update' | 'resign' | 'restore';
+
+export interface EmployeeChangeLog {
+  id: number;
+  employeeId: number;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changedBy: number;
+  changeType: EmployeeChangeType;
+  createdAt: string;
+  employee?: {
+    employeeNo: string;
+    name: string;
+    hireDate?: string;
+    department?: { id: number; name: string } | null;
+    position?: { id: number; name: string } | null;
+  } | null;
+}
+
+export interface EmployeeChangeLogParams {
+  page?: number;
+  pageSize?: number;
+  changeType?: string;
+  keyword?: string;
+  departmentId?: number | string;
+}
+
+export interface EmployeeChangeLogResult {
+  code: number;
+  message?: string;
+  data?: { list: EmployeeChangeLog[]; total: number; page: number; pageSize: number };
+}
 
 export interface EmployeeTag {
   id: number;

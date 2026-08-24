@@ -12,7 +12,7 @@ import { systemApi } from '@/services/system';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { exportToExcel } from '@/lib/excel';
 
-const searchFields: SearchFieldConfig[] = [
+const baseSearchFields: SearchFieldConfig[] = [
   { key: 'name', label: '姓名', type: 'input', placeholder: '请输入姓名' },
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
   {
@@ -70,6 +70,7 @@ export default function EmployeeListPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [formFields, setFormFields] = useState<FormFieldConfig[]>(() => buildFormFields([], []));
+  const [searchFields, setSearchFields] = useState<SearchFieldConfig[]>(baseSearchFields);
 
   // 离职确认弹窗
   const [resignVisible, setResignVisible] = useState(false);
@@ -82,6 +83,24 @@ export default function EmployeeListPage() {
       systemApi.listPositions().then((res2) => {
         const poss = res2.code === 0 && res2.data ? res2.data : [];
         setFormFields(buildFormFields(depts, poss));
+        // 补全多维度搜索：部门 + 岗位（复用已加载的静态参考数据）
+        setSearchFields([
+          ...baseSearchFields,
+          {
+            key: 'departmentId',
+            label: '部门',
+            type: 'select',
+            placeholder: '请选择部门',
+            options: depts.map((d) => ({ value: d.id, label: d.name })),
+          },
+          {
+            key: 'positionId',
+            label: '岗位',
+            type: 'select',
+            placeholder: '请选择岗位',
+            options: poss.map((p) => ({ value: p.id, label: p.name })),
+          },
+        ]);
       });
     });
   }, []);

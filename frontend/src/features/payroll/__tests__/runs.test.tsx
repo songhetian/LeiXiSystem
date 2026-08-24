@@ -83,6 +83,17 @@ jest.mock('@/components/StatusTag', () => ({
   ),
 }));
 
+jest.mock('@/features/payroll/components/RunDetailsModal', () => ({
+  __esModule: true,
+  default: ({ run, visible, onCancel }: any) =>
+    visible && run ? (
+      <div data-testid="run-details-modal" data-month={run.month}>
+        批次明细 · {run.month}
+        <button data-testid="run-details-close" onClick={onCancel}>关闭</button>
+      </div>
+    ) : null,
+}));
+
 jest.mock('@/components/ModalForm', () => ({
   __esModule: true,
   default: ({ visible, title, fields, onOk, onCancel, loading }: any) => (
@@ -217,6 +228,30 @@ describe('PayrollRunsPage', () => {
         expect(screen.getByTestId('pagination')).toBeInTheDocument();
       });
       expect(screen.getByTestId('page-total')).toHaveTextContent('3');
+    });
+  });
+
+  describe('批次明细', () => {
+    it('点击明细打开 RunDetailsModal 并可关闭', async () => {
+      const user = userEvent.setup();
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      await user.click(screen.getAllByText('明细')[0]);
+      expect(screen.getByTestId('run-details-modal')).toHaveAttribute('data-month', '2026-08');
+      await user.click(screen.getByTestId('run-details-close'));
+      await waitFor(() => {
+        expect(screen.queryByTestId('run-details-modal')).not.toBeInTheDocument();
+      });
+    });
+
+    it('未打开明细时不渲染 RunDetailsModal', async () => {
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(payrollApi.getPayrollRuns).toHaveBeenCalled();
+      });
+      expect(screen.queryByTestId('run-details-modal')).not.toBeInTheDocument();
     });
   });
 

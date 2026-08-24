@@ -70,10 +70,18 @@ export const reportsApi = {
   getLaborCost(month: string): Promise<LaborCostResult> {
     return request.get('/reports/labor-cost', { params: { month } });
   },
+  getEmployeeStructure(): Promise<{ code: number; message?: string; data?: any }> {
+    return request.get('/reports/employee-structure');
+  },
   createExportTask(data: { type: string; format: string; month: string }): Promise<{ code: number; message?: string; data?: { id: number } }> {
     return request.post('/reports/export', data);
   },
   listExportTasks(): Promise<{ code: number; message?: string; data?: { list: ExportTask[]; total: number } }> {
     return request.get('/reports/export/tasks');
+  },
+  /** 员工列表导出下载地址（cookie 鉴权，可直接新窗口打开） */
+  employeeListExportUrl(format: 'xlsx' | 'csv' = 'xlsx'): string {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
+    return `${base}/reports/employee-list/export?format=${format}`;
   },
 };

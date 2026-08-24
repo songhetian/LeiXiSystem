@@ -38,6 +38,7 @@ export interface MenuItemConfig {
 const defaultMenuItems: MenuItemConfig[] = [
   { key: 'dashboard', label: '工作台', icon: <IconDashboard />, path: '/', group: '常用' },
   { key: 'attendance-my-schedule', label: '我的排班', icon: <IconCalendar />, path: '/attendance/my-schedule', permission: 'attendance:view', group: '常用' },
+  { key: 'broadcasts-public', label: '公告', icon: <IconNotification />, path: '/broadcasts', group: '常用' },
   {
     key: 'employee',
     label: '员工管理',
@@ -48,6 +49,7 @@ const defaultMenuItems: MenuItemConfig[] = [
       { key: 'employee-list', label: '员工列表', permission: 'employee:view' },
       { key: 'employee-transactions', label: '员工事务', permission: 'employee:view' },
       { key: 'employee-timeline', label: '人员履历', permission: 'employee:view' },
+      { key: 'employee-change-logs', label: '员工变动流水', permission: 'employee:view' },
       { key: 'employee-tags', label: '员工标签', permission: 'employee:view' },
     ],
   },
@@ -85,6 +87,7 @@ const defaultMenuItems: MenuItemConfig[] = [
           { key: 'attendance-vacation-balance', label: '休假额度', permission: 'attendance:view' },
           { key: 'attendance-vacation-leave', label: '请假记录', permission: 'attendance:view' },
           { key: 'attendance-vacation-overtime', label: '加班记录', permission: 'attendance:view' },
+          { key: 'attendance-vacation-audit', label: '考勤申请审计', permission: 'attendance:view' },
           { key: 'attendance-punch-makeup', label: '补卡申请', permission: 'attendance:view' },
         ],
       },
@@ -106,6 +109,8 @@ const defaultMenuItems: MenuItemConfig[] = [
       { key: 'approval-approved', label: '已办审批', permission: 'approval:todo:view' },
       { key: 'approval-submissions', label: '我的申请', permission: 'approval:submitted:view' },
       { key: 'approval-settings', label: '流程设置', permission: 'approval:workflow:manage' },
+      { key: 'approval-approvers', label: '审批人管理', permission: 'approval:manage' },
+      { key: 'approval-role-workflow', label: '职责授权', permission: 'approval:workflow:manage' },
     ],
   },
   {
@@ -128,6 +133,7 @@ const defaultMenuItems: MenuItemConfig[] = [
     children: [
       { key: 'my-reimbursement', label: '我的报销', permission: 'reimbursement:view' },
       { key: 'expense-approval', label: '报销审批', permission: 'reimbursement:approve' },
+      { key: 'expense-settings', label: '报销配置', permission: 'reimbursement:manage' },
     ],
   },
   {
@@ -165,6 +171,7 @@ const defaultMenuItems: MenuItemConfig[] = [
   },
   { key: 'helpdesk', label: '工单客服', icon: <IconCustomerService />, path: '/helpdesk', permission: 'helpdesk:view', group: '工具' },
   { key: 'notifications', label: '我的通知', icon: <IconNotification />, path: '/notifications', group: '工具' },
+  { key: 'notifications-settings', label: '通知设置', icon: <IconNotification />, path: '/notifications/settings', permission: 'system:notification:settings', group: '设置' },
   {
     key: 'system',
     label: '系统管理',
@@ -173,8 +180,10 @@ const defaultMenuItems: MenuItemConfig[] = [
     group: '设置',
     children: [
       { key: 'system-departments', label: '组织架构', permission: 'department:manage' },
+      { key: 'system-positions', label: '岗位管理', permission: 'position:manage' },
       { key: 'system-users', label: '用户管理', permission: 'system:user:manage' },
       { key: 'system-roles', label: '角色权限', permission: 'system:role:manage' },
+      { key: 'system-permissions', label: '权限管理', permission: 'system:role:manage' },
       { key: 'system-broadcasts', label: '公告管理', permission: 'system:broadcast:manage' },
       { key: 'system-logs', label: '操作日志', permission: 'system:log:view' },
     ],

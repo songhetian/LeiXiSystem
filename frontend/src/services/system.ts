@@ -59,6 +59,8 @@ export interface SysUserCreateDto {
   password: string;
   name: string;
   roleIds?: number[];
+  departmentId: number;
+  positionId?: number;
 }
 
 export interface SysUserUpdateDto {
