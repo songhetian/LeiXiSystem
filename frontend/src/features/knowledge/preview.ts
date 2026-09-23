@@ -1,7 +1,6 @@
 /**
- * 文件预览工具：以原生浏览器能力渲染，替代 `@open-file-viewer`。
- * 通过 `getPreviewMode` 判定渲染形态（image/video/audio/pdf/office/unsupported），
- * 供 FilePreviewModal 选择原生元素；不依赖任何第三方预览库。
+ * 文件预览工具：通过 `getPreviewMode` 判定渲染形态（image/video/audio/pdf/office/unsupported），
+ * 供 FilePreviewModal 选择原生元素；Office 类型再由 `shouldUseViewer` 决定交由 @open-file-viewer 在线渲染。
  */
 
 export type PreviewMode = 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'unsupported';
@@ -46,4 +45,13 @@ export function getPreviewMode(fileName: string, mimeType: string): PreviewMode 
   if (OFFICE_EXT.includes(ext) || OFFICE_MIME_KEYWORDS.some((k) => mime.includes(k))) return 'office';
 
   return 'unsupported';
+}
+
+/**
+ * 该模式是否交由 @open-file-viewer 在浏览器端渲染。
+ * 仅 Office 文档走第三方预览器（客户端直渲染，无需公网/在线服务）；
+ * 图片/视频/音频/PDF 均用浏览器原生能力预览，避免引入脆弱的 pdf.js worker 构建配置。
+ */
+export function shouldUseViewer(mode: PreviewMode): boolean {
+  return mode === 'office';
 }

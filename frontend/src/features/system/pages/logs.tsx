@@ -1,52 +1,43 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
-import { Message, Tag } from '@arco-design/web-react';
+import { useState } from 'react';
+import { Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { systemApi, OperationLog } from '@/services/system';
-import { notifyError } from '@/lib/request';
+import { useCachedData } from '@/hooks/use-cached-data';
+
+interface LogListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: OperationLog[]; page: number; pageSize: number; total: number };
+}
 
 export default function SystemLogsPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<OperationLog[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
-  const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await systemApi.listLogs({ page, pageSize, ...params });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setPagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total });
-      } else {
-        setError(res.message || '获取日志失败');
-        Message.error(res.message || '获取日志失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取日志失败');
-      notifyError(e, '获取日志失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchList(1, 20, searchParams);
-  }, []);
+  // SWR 缓存：参数编入 cacheKey，翻页/搜索即重新订阅；同参数复用缓存
+  const cacheKey = `system:logs:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<LogListEnvelope>(
+    cacheKey,
+    () => systemApi.listLogs({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchList(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchList(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const searchFields: SearchFieldConfig[] = [
@@ -70,19 +61,19 @@ export default function SystemLogsPage() {
   ];
 
   return (
-    <PageContainer title="操作日志">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
-        pagination={pagination}
-        onPageChange={(page, pageSize) => fetchList(page, pageSize, searchParams)}
+        pagination={pageResult}
+        onPageChange={(page, pageSize) => setPagination({ ...pageResult, current: page, pageSize })}
       />
     </PageContainer>
   );

@@ -1,6 +1,6 @@
 import { ERROR_CODES } from '../../common/error-codes';
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+export const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 export const ALLOWED_EXTENSIONS = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md',

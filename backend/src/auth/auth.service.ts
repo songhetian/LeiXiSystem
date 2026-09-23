@@ -108,6 +108,10 @@ export class AuthService {
       );
     }
 
+    // 登录即失效旧权限缓存：保证 seed.ts / 角色调整后下一次登录立即生效，
+    // 避免 admin 看到「按钮无反应」需要再登一次的体验。
+    await this.permCache.invalidateUser(user.id);
+
     return { user: this.toPublicUser(user), accessToken };
   }
 

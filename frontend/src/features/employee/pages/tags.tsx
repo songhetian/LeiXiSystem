@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Button, Input, Spin, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import { employeeTagApi, EmployeeTag, EmployeeTagCreateDto, EmployeeTagUpdateDto } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 /** 默认标签色（供新建时随机取色） */
 const VIBRANT_COLORS = [
@@ -14,13 +16,15 @@ const VIBRANT_COLORS = [
   '#EC4899', '#F97316', '#10B981', '#6366F1', '#DC2626', '#2563EB',
 ];
 
+interface TagListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: EmployeeTag[] };
+}
+
 export default function TagsPage() {
   const { can } = usePermission();
   const canManage = can('employee:tag:manage');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tags, setTags] = useState<EmployeeTag[]>([]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
@@ -29,27 +33,13 @@ export default function TagsPage() {
   const [color, setColor] = useState('');
   const [sortOrder, setSortOrder] = useState('');
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await employeeTagApi.list();
-      if (res.code === 0 && res.data) {
-        setTags(res.data.list);
-      } else {
-        setError(res.message || '获取标签列表失败');
-        Message.error(res.message || '获取标签列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取标签列表失败');
-      notifyError(e, '获取标签列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+  // SWR 缓存：标签全量列表共享缓存；增删改后 revalidate 刷新
+  const { data: res, loading, error, revalidate } = useCachedData<TagListEnvelope>(
+    'employee:tags',
+    () => employeeTagApi.list(),
+    { staleTime: 30_000 },
+  );
+  const tags = res?.code === 0 && res.data ? res.data.list : [];
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -79,7 +69,7 @@ export default function TagsPage() {
           const res = await employeeTagApi.remove(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -111,7 +101,7 @@ export default function TagsPage() {
       if (res.code === 0) {
         Message.success(editingTag ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -124,7 +114,7 @@ export default function TagsPage() {
 
   const handleExport = () => {
     if (!exportToExcel(
-      `员工标签_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `员工标签_${todayStr()}.xlsx`,
       '员工标签',
       [
         { title: '标签名称', dataIndex: 'name' },
@@ -138,7 +128,7 @@ export default function TagsPage() {
   };
 
   return (
-    <PageContainer title="员工标签" breadcrumbs={['首页', '员工管理', '员工标签']}>
+    <PageContainer>
       {/* 工具栏 */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-text-2">共 {tags.length} 个标签</span>
@@ -152,7 +142,7 @@ export default function TagsPage() {
         {error ? (
           <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
             <p className="text-text-3 mb-3">{error}</p>
-            <Button onClick={() => fetchList()}>重试</Button>
+            <Button onClick={revalidate}>重试</Button>
           </div>
         ) : tags.length === 0 ? (
           <div className="py-16 bg-surface border border-border-1 rounded-md">

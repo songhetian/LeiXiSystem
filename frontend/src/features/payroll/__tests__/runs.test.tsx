@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import PayrollRunsPage from '@/features/payroll/pages/runs';
 import { payrollApi } from '@/services/payroll';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/payroll', () => ({
   payrollApi: {
@@ -19,7 +20,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -146,6 +147,7 @@ const mockRuns = [
 describe('PayrollRunsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (payrollApi.getPayrollRuns as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
@@ -159,9 +161,9 @@ describe('PayrollRunsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 算薪批次', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<PayrollRunsPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('算薪批次');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('renders ProTable with payroll run columns', async () => {
@@ -226,8 +228,8 @@ describe('PayrollRunsPage', () => {
       render(<PayrollRunsPage />);
       await waitFor(() => {
         expect(screen.getByTestId('pagination')).toBeInTheDocument();
+        expect(screen.getByTestId('page-total')).toHaveTextContent('3');
       });
-      expect(screen.getByTestId('page-total')).toHaveTextContent('3');
     });
   });
 

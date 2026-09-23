@@ -1,5 +1,11 @@
 import request from '@/lib/request';
 
+export interface EmployeeTagLite {
+  id: number;
+  name: string;
+  color?: string | null;
+}
+
 export interface Employee {
   id: number;
   employeeNo: string;
@@ -15,6 +21,14 @@ export interface Employee {
   phone?: string | null;
   status: 'active' | 'inactive' | 'resigned';
   salary: string;
+  rating?: number;
+  tags?: EmployeeTagLite[];
+  emergencyContact?: string | null;
+  emergencyPhone?: string | null;
+  address?: string | null;
+  education?: string | null;
+  skills?: string | null;
+  remark?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -26,7 +40,11 @@ export interface EmployeeListParams {
   name?: string;
   employeeNo?: string;
   departmentId?: number;
+  positionId?: number;
   status?: string;
+  rating?: number;
+  dateFrom?: string;
+  dateTo?: string;
   sort?: string;
 }
 
@@ -54,7 +72,15 @@ export interface CreateEmployeeParams {
   positionId?: number;
   hireDate: string;
   phone?: string;
-  salary?: string;
+  salary?: number;
+  rating?: number;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  address?: string;
+  education?: string;
+  skills?: string;
+  remark?: string;
+  tagIds?: number[];
 }
 
 export interface UpdateEmployeeParams {
@@ -63,7 +89,17 @@ export interface UpdateEmployeeParams {
   positionId?: number | null;
   hireDate?: string;
   phone?: string;
-  salary?: string;
+  salary?: number;
+  /** 薪资生效月（YYYY-MM）：仅改薪时生效，留空由后端默认次月生效 */
+  effectiveMonth?: string;
+  rating?: number;
+  emergencyContact?: string | null;
+  emergencyPhone?: string | null;
+  address?: string | null;
+  education?: string | null;
+  skills?: string | null;
+  remark?: string | null;
+  tagIds?: number[];
 }
 
 export interface ResignParams {
@@ -84,6 +120,22 @@ export interface TimelineRecord {
   toText?: string | null;
   detailText: string;
   reason?: string | null;
+}
+
+const TX_SEG: Record<string, string> = {
+  onboardings: 'onboarding',
+  resignations: 'resignations',
+  probations: 'probations',
+  contracts: 'contracts',
+  'attendance-appeals': 'appeals',
+  certificates: 'certificates',
+  rewards: 'rewards',
+  trainings: 'trainings',
+  transfers: 'transfers',
+};
+
+function txPath(type: string): string {
+  return `/employees/${TX_SEG[type] ?? type}`;
 }
 
 export const employeeApi = {
@@ -128,27 +180,57 @@ export const employeeApi = {
   },
 
   getTxList(type: string, params: { page?: number; pageSize?: number; status?: string } = {}): Promise<any> {
-    return request.get(`/employees/tx/${type}`, { params });
+    return request.get(txPath(type), { params });
+  },
+
+  /** 各事务类型的待处理数（draft+pending），供员工事务页签徽标 */
+  getTxPendingCounts(): Promise<{ code: number; message?: string; data?: Record<string, number> }> {
+    return request.get('/employees/tx-pending-counts');
   },
 
   createTx(type: string, data: any): Promise<any> {
-    return request.post(`/employees/tx/${type}`, data);
+    return request.post(txPath(type), data);
   },
 
   getTxById(type: string, id: number): Promise<any> {
-    return request.get(`/employees/tx/${type}/${id}`);
+    return request.get(`${txPath(type)}/${id}`);
   },
 
   updateTx(type: string, id: number, data: any): Promise<any> {
-    return request.patch(`/employees/tx/${type}/${id}`, data);
+    return request.put(`${txPath(type)}/${id}`, data);
   },
 
   deleteTx(type: string, id: number): Promise<any> {
-    return request.delete(`/employees/tx/${type}/${id}`);
+    return request.delete(`${txPath(type)}/${id}`);
+  },
+
+  /**
+   * 合同附件上传：复用通用文件上传，返回附件 URL 供入库。
+   */
+  uploadContractFile(file: File, bizType = 'contract'): Promise<{
+    code: number;
+    message?: string;
+    data?: { url: string; fileName: string };
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request.post(`/files/upload?bizType=${bizType}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  /** 合同续签：原合同置为已到期，基于原员工新建合同 */
+  renewContract(id: number, data: any): Promise<any> {
+    return request.post(`/employees/contracts/${id}/renew`, data);
+  },
+
+  /** 合同终止/解除：置为已终止，写入终止日期与说明 */
+  terminateContract(id: number, data: any): Promise<any> {
+    return request.post(`/employees/contracts/${id}/terminate`, data);
   },
 
   submitTx(type: string, id: number, workflowCode: string): Promise<any> {
-    return request.post(`/employees/tx/${type}/${id}/submit`, { workflowCode });
+    return request.post(`${txPath(type)}/${id}/submit`, { workflowCode });
   },
 
   getTimeline(params: {
@@ -158,6 +240,7 @@ export const employeeApi = {
     type?: string;
     dateFrom?: string;
     dateTo?: string;
+    departmentId?: number;
     employeeId?: number;
   } = {}): Promise<{ code: number; message?: string; data?: { list: TimelineRecord[]; total: number; page: number; pageSize: number } }> {
     return request.get('/employees/timeline', { params });
@@ -166,11 +249,38 @@ export const employeeApi = {
   getChangeLogs(params: EmployeeChangeLogParams = {}): Promise<EmployeeChangeLogResult> {
     return request.get('/employees/change-logs', { params });
   },
+
+  // 批量状态更新（对齐老项目「一键在职/离休」）
+  batchUpdateStatus(ids: number[], status: 'active' | 'resigned'): Promise<{
+    code: number;
+    message?: string;
+    data?: { success: number; skipped: number };
+  }> {
+    return request.post('/employees/batch-update-status', { ids, status });
+  },
+
+  // 批量调整部门/岗位/职级
+  batchUpdate(ids: number[], data: { departmentId?: number; positionId?: number | null; rating?: number }): Promise<{
+    code: number;
+    message?: string;
+    data?: { success: number; skipped: number };
+  }> {
+    return request.post('/employees/batch-update', { ids, data });
+  },
+
+  // 单员工变动履历（含 入职/离职/再次入职 相关流水）
+  getEmployeeChangeLogs(id: number): Promise<{
+    code: number;
+    message?: string;
+    data?: EmployeeChangeLog[];
+  }> {
+    return request.get(`/employees/${id}/change-logs`);
+  },
 };
 
 // ========== 员工变动流水（EmployeeChanges） ==========
 
-export type EmployeeChangeType = 'admin_update' | 'self_update' | 'resign' | 'restore';
+export type EmployeeChangeType = 'admin_update' | 'self_update' | 'resign' | 'restore' | 'batch_update';
 
 export interface EmployeeChangeLog {
   id: number;

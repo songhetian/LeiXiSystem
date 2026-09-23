@@ -29,8 +29,8 @@ describe('attachment-security.util', () => {
   });
 
   describe('MAX_FILE_SIZE', () => {
-    it('等于 10MB', () => {
-      expect(MAX_FILE_SIZE).toBe(10 * 1024 * 1024);
+    it('等于 200MB', () => {
+      expect(MAX_FILE_SIZE).toBe(200 * 1024 * 1024);
     });
   });
 
@@ -107,7 +107,7 @@ describe('attachment-security.util', () => {
         });
         expect(result.valid).toBe(false);
         expect(result.errorCode).toBe(ERROR_CODES.KNOWLEDGE_ATTACHMENT_INVALID);
-        expect(result.message).toContain('10MB');
+        expect(result.message).toContain('200MB');
       });
 
       it('fileSize 未提供时跳过大小校验', () => {

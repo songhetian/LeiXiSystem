@@ -1,10 +1,11 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Button, Spin, Tag, Typography, Empty } from '@arco-design/web-react';
 import { IconLeft, IconRight } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import { attendanceApi, type Schedule, type Shift } from '@/services/attendance';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Text } = Typography;
 
@@ -47,32 +48,23 @@ export default function MySchedulePage() {
   const today = useMemo(() => new Date(), []);
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(false);
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const monthStart = formatDate(viewYear, viewMonth, 1);
   const monthEnd = formatDate(viewYear, viewMonth, daysInMonth);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await attendanceApi.getMyScheduleList({
-        startDate: monthStart,
-        endDate: monthEnd,
-        pageSize: 400,
-      });
-      setSchedules(res.code === 0 && res.data ? res.data.list : []);
-    } catch {
-      setSchedules([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [monthStart, monthEnd]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // SWR 缓存：cacheKey 含月份区间，切月/回到本月即重新订阅
+  const cacheKey = `attendance:my-schedule:${monthStart}:${monthEnd}`;
+  const { data: res, loading } = useCachedData<{
+    code: number;
+    message?: string;
+    data?: { list: Schedule[] };
+  }>(
+    cacheKey,
+    () => attendanceApi.getMyScheduleList({ startDate: monthStart, endDate: monthEnd, pageSize: 400 }),
+    { staleTime: 30_000 },
+  );
+  const schedules = res?.code === 0 && res.data ? res.data.list : [];
 
   const byDate = useMemo(() => {
     const m = new Map<string, Shift | undefined>();
@@ -109,7 +101,7 @@ export default function MySchedulePage() {
   const distinctShifts = Array.from(shiftSet.values());
 
   return (
-    <PageContainer title="我的排班">
+    <PageContainer >
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-surface border border-border-1 rounded-md mb-3">
         <div className="flex items-center gap-2">
           <Button icon={<IconLeft />} onClick={goPrev} disabled={loading} aria-label="上一月" />

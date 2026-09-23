@@ -41,7 +41,7 @@ export class ApprovalGroupController {
   @HttpCode(200)
   @RequirePermission('approval:manage')
   async create(
-    @Body() body: { name: string; code: string; description?: string; memberIds?: number[] },
+    @Body() body: { name: string; code?: string; description?: string; memberIds?: number[] },
     @Req() req: any,
   ) {
     const data = await this.approvalGroupService.create({

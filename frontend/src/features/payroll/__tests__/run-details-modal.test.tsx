@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 import { payrollApi } from '@/services/payroll';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/payroll', () => ({
   payrollApi: {
@@ -95,6 +96,7 @@ const mockDetails = {
 describe('RunDetailsModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (payrollApi.getPayrollRunDetails as jest.Mock).mockResolvedValue({
       code: 0, message: 'ok', data: mockDetails,
     });

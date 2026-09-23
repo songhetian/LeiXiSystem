@@ -13,15 +13,67 @@ export class EmployeesService {
     private readonly dataScope: DataScopeService,
   ) {}
 
+  // 薪资生效月：默认次月（发薪「本月发上月」，8 月改薪 → 9 月计薪月生效 → 10 月发放）
+  private nextEffectiveMonth(date = new Date()): string {
+    const d = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}`;
+  }
+
+  /**
+   * 员工工号自动生成（对齐老项目 EMP + 递增 4 位序号）。
+   * 查询现有 EMP 前缀工号的最大序号，新增取 max+1；初始为 EMP0001。
+   */
+  private async generateEmployeeNo(): Promise<string> {
+    const existing = await this.prisma.employee.findMany({
+      where: { employeeNo: { startsWith: 'EMP' } },
+      select: { employeeNo: true },
+    });
+    let max = 0;
+    for (const e of existing) {
+      const m = /^EMP(\d+)$/.exec(e.employeeNo);
+      if (m) {
+        const n = Number(m[1]);
+        if (n > max) max = n;
+      }
+    }
+    return `EMP${String(max + 1).padStart(4, '0')}`;
+  }
+
   async create(dto: any) {
-    const exists = await this.prisma.employee.findUnique({ where: { employeeNo: dto.employeeNo } });
-    if (exists) throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_NO_EXISTS });
+    const explicitNo = dto.employeeNo?.trim();
+    const { employeeNo: _ignored, tagIds, ...rest } = dto;
     if (dto.salary !== undefined && Number(dto.salary) < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '员工薪资不能为负' });
     }
-    return this.prisma.employee.create({
-      data: { ...dto, hireDate: new Date(dto.hireDate) },
-    });
+
+    // 自动生成工号在并发下可能命中唯一索引冲突（P2002），重新生成并重试；显式传入的工号冲突则直接抛出。
+    let employeeNo = explicitNo || (await this.generateEmployeeNo());
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const exists = await this.prisma.employee.findUnique({ where: { employeeNo } });
+      if (exists) {
+        if (explicitNo) throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_NO_EXISTS });
+        employeeNo = await this.generateEmployeeNo();
+        continue;
+      }
+      try {
+        return await this.prisma.employee.create({
+          data: {
+            ...rest,
+            employeeNo,
+            hireDate: new Date(dto.hireDate),
+            // 标签多对多：嵌套创建员工-标签关联
+            ...(Array.isArray(tagIds) && tagIds.length
+              ? { tagRelations: { create: (tagIds as number[]).map((tagId) => ({ tagId })) } }
+              : {}),
+          },
+        });
+      } catch (err: any) {
+        if (explicitNo || err?.code !== 'P2002') throw err;
+        employeeNo = await this.generateEmployeeNo();
+      }
+    }
+    throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_NO_EXISTS });
   }
 
   async getByUserId(userId: number) {
@@ -101,6 +153,9 @@ export class EmployeesService {
     departmentId?: number | string;
     positionId?: number | string;
     status?: string;
+    rating?: number | string;
+    dateFrom?: string;
+    dateTo?: string;
   }) {
     const scope = await this.visibleScope(userId);
     const where: any = {};
@@ -123,6 +178,16 @@ export class EmployeesService {
     }
     if (query.status) {
       where.status = query.status;
+    }
+    if (query.rating !== undefined && query.rating !== null && query.rating !== '') {
+      where.rating = Number(query.rating);
+    }
+    // 入职时间范围筛选（dateFrom/dateTo，支持单边）
+    if (query.dateFrom || query.dateTo) {
+      const range: any = {};
+      if (query.dateFrom) range.gte = new Date(query.dateFrom);
+      if (query.dateTo) range.lte = new Date(query.dateTo);
+      where.hireDate = range;
     }
     if (query.keyword) {
       where.OR = [
@@ -152,6 +217,9 @@ export class EmployeesService {
           position: {
             select: { id: true, name: true },
           },
+          tagRelations: {
+            select: { tag: { select: { id: true, name: true, color: true } } },
+          },
         },
         orderBy: { id: 'asc' },
         skip: (query.page - 1) * query.pageSize,
@@ -159,14 +227,25 @@ export class EmployeesService {
       }),
       this.prisma.employee.count({ where }),
     ]);
-    return { list, total, page: query.page, pageSize: query.pageSize };
+    // 契约对齐：于嵌套 department/position 之上派生扁平化 name，避免前端读取 undefined
+    const formattedList = list.map((emp) => ({
+      ...emp,
+      departmentName: emp.department?.name || '',
+      positionName: emp.position?.name || '',
+      tags: emp.tagRelations?.map((r) => r.tag) ?? [],
+    }));
+    return { list: formattedList, total, page: query.page, pageSize: query.pageSize };
   }
 
   async detail(userId: number, id: number) {
     const scope = await this.visibleScope(userId);
     const employee = await this.prisma.employee.findUnique({
       where: { id },
-      include: { department: true, position: true },
+      include: {
+        department: true,
+        position: true,
+        tagRelations: { include: { tag: true } },
+      },
     });
     if (!employee) throw new NotFoundException({ code: 1002, message: '员工不存在' });
     if (scope.selfEmployeeId) {
@@ -177,7 +256,7 @@ export class EmployeesService {
       // ADR-0010：员工存在但不在调用者数据范围内 → 行级越权，返回 5003（非 1002）
       throw new ForbiddenException({ code: 5003, message: '无权限访问该数据' });
     }
-    return employee;
+    return { ...employee, tags: employee.tagRelations?.map((r) => r.tag) ?? [] };
   }
 
   async update(id: number, dto: any, userId: number) {
@@ -194,15 +273,50 @@ export class EmployeesService {
     if (dto.salary !== undefined && Number(dto.salary) < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '员工薪资不能为负' });
     }
+    // tagIds 不进 employee.update 标量字段，事务内单独重建关联
+    // effectiveMonth：薪资生效月，默认次月；不参与 employee.update 标量字段
+    const { tagIds, effectiveMonth, ...updateDto } = dto;
+    // 判断薪资是否发生变化（需写入薪资调整留痕）
+    const salaryChanged =
+      updateDto.salary !== undefined &&
+      Number(updateDto.salary) !== Number(employee.salary);
+    const effMonth = effectiveMonth ?? this.nextEffectiveMonth();
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.employee.update({ where: { id: employee.id }, data: dto });
-      await this.recordChangeLogsWithTx(tx, employee.id, employee, dto, userId, 'admin_update');
+      const result = await tx.employee.update({ where: { id: employee.id }, data: updateDto });
+      // 薪资调整留痕：改薪写一条带生效月；8 月改薪 → 9 月计薪月生效 → 10 月发放
+      if (salaryChanged) {
+        await tx.salaryAdjustment.create({
+          data: {
+            employeeId: employee.id,
+            amount: Number(updateDto.salary),
+            effectiveMonth: effMonth,
+            remark: effectiveMonth
+              ? `指定生效月 ${effMonth}`
+              : `默认次月生效（${effMonth}）`,
+            changedBy: userId,
+          },
+        });
+      }
+      // 标签多对多：未传 tagIds 时保持原样；传入时全量清空重建
+      if (Array.isArray(tagIds)) {
+        await tx.employeeTagRelation.deleteMany({ where: { employeeId: employee.id } });
+        if (tagIds.length > 0) {
+          await tx.employeeTagRelation.createMany({
+            data: (tagIds as number[]).map((tagId) => ({ employeeId: employee.id, tagId })),
+          });
+        }
+      }
+      await this.recordChangeLogsWithTx(tx, employee.id, employee, updateDto, userId, 'admin_update');
       return result;
     });
     return updated;
   }
 
-  async resign(id: number, userId: number) {
+  async resign(
+    id: number,
+    userId: number,
+    data: { resignDate?: string; reason?: string } = {},
+  ) {
     const scope = await this.visibleScope(userId);
     const employee = await this.getActive(id);
     if (scope.selfEmployeeId) {
@@ -212,13 +326,29 @@ export class EmployeesService {
     } else if (!scope.all && !scope.ids.includes(employee.departmentId)) {
       throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
     }
-    const updateData = { status: EmployeeStatus.resigned, resignDate: new Date() };
+    const resignDate = data.resignDate ? new Date(data.resignDate) : new Date();
+    const dbData = {
+      status: EmployeeStatus.resigned,
+      resignDate,
+    };
+    // 离职原因记入变更流水（字段名 resignReason），便于履历查看离职缘由
+    const resignReason = data.reason?.trim();
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.employee.update({
         where: { id: employee.id },
-        data: updateData,
+        data: dbData,
       });
-      await this.recordChangeLogsWithTx(tx, employee.id, employee, updateData, userId, 'resign');
+      const extraLogs = resignReason
+        ? [{
+            employeeId: employee.id,
+            field: 'resignReason',
+            oldValue: null,
+            newValue: resignReason,
+            changedBy: userId,
+            changeType: 'resign',
+          }]
+        : [];
+      await this.recordChangeLogsWithTx(tx, employee.id, employee, dbData, userId, 'resign', extraLogs);
       return result;
     });
     return updated;
@@ -248,6 +378,75 @@ export class EmployeesService {
       return result;
     });
     return updated;
+  }
+
+  // 批量状态更新（对齐老项目「一键在职/离休」）：仅处理数据范围内的员工，越权自动跳过
+  async batchUpdateStatus(
+    userId: number,
+    input: { ids: number[]; status: 'active' | 'resigned' },
+  ): Promise<{ success: number; skipped: number }> {
+    const { ids, status } = input;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '请选择要操作的员工' });
+    }
+    if (status !== EmployeeStatus.active && status !== EmployeeStatus.resigned) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '不支持的批量状态' });
+    }
+    const scope = await this.visibleScope(userId);
+    const employees = await this.prisma.employee.findMany({ where: { id: { in: ids } } });
+    // 数据范围过滤：仅操作可见部门（或本人）内的员工
+    const scoped = employees.filter(
+      (emp) => scope.all || scope.selfEmployeeId === emp.id || scope.ids.includes(emp.departmentId),
+    );
+    const changeType = status === EmployeeStatus.resigned ? 'resign' : 'restore';
+    await this.prisma.$transaction(async (tx) => {
+      for (const emp of scoped) {
+        const updateData: any = { status };
+        if (status === EmployeeStatus.resigned) {
+          updateData.resignDate = new Date();
+        } else {
+          updateData.resignDate = null;
+        }
+        const updated = await tx.employee.update({ where: { id: emp.id }, data: updateData });
+        await this.recordChangeLogsWithTx(tx, emp.id, emp, updateData, userId, changeType);
+        void updated;
+      }
+    });
+    return { success: scoped.length, skipped: ids.length - scoped.length };
+  }
+
+  // 批量调整部门/岗位/职级（仅接受明确允许的字段），逐人校验数据范围并记录变更流水
+  async batchUpdate(
+    userId: number,
+    input: { ids: number[]; data: { departmentId?: number; positionId?: number | null; rating?: number } },
+  ): Promise<{ success: number; skipped: number }> {
+    const { ids, data } = input;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '请选择要操作的员工' });
+    }
+    const ALLOWED = ['departmentId', 'positionId', 'rating'] as const;
+    const updateData: any = {};
+    for (const key of ALLOWED) {
+      if (data[key] !== undefined) updateData[key] = data[key];
+    }
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '请选择要调整的字段' });
+    }
+
+    const scope = await this.visibleScope(userId);
+    const employees = await this.prisma.employee.findMany({ where: { id: { in: ids } } });
+    const scoped = employees.filter(
+      (emp) => scope.all || scope.selfEmployeeId === emp.id || scope.ids.includes(emp.departmentId),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const emp of scoped) {
+        const updated = await tx.employee.update({ where: { id: emp.id }, data: updateData });
+        await this.recordChangeLogsWithTx(tx, emp.id, emp, updateData, userId, 'batch_update');
+        void updated;
+      }
+    });
+    return { success: scoped.length, skipped: ids.length - scoped.length };
   }
 
   // 离职状态机：仅 active 可修改/离职
@@ -361,8 +560,19 @@ export class EmployeesService {
     updateData: Record<string, any>,
     changedBy: number,
     changeType: string,
+    extraLogs?: Array<{
+      employeeId: number;
+      field: string;
+      oldValue: string | null;
+      newValue: string | null;
+      changedBy: number;
+      changeType: string;
+    }>,
   ) {
     const changeLogs = this.buildChangeLogs(employeeId, oldEmployee, updateData, changedBy, changeType);
+    if (extraLogs && extraLogs.length > 0) {
+      changeLogs.push(...extraLogs);
+    }
     if (changeLogs.length > 0) {
       await tx.employeeChangeLog.createMany({ data: changeLogs });
     }

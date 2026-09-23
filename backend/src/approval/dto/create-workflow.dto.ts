@@ -47,8 +47,8 @@ export class CreateWorkflowNodeDto {
 
 export class CreateWorkflowDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @IsString()
   @IsNotEmpty()

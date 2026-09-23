@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Message } from '@arco-design/web-react';
 import { useAuthStore } from '@/store/auth';
+import { redirectToLogin } from '@/lib/redirect';
 
 export class ApiError extends Error {
   code: number;
@@ -66,12 +67,17 @@ request.interceptors.response.use(
     const status = err.response?.status;
     const message = err.response?.data?.message || err.message || '网络错误';
     const isMockUser = useAuthStore.getState().isMockUser;
-    
-    if (status === 401) {
+    // 登录接口自身返回的 401/403 属预期失败（密码错误、被封禁），
+    // 不应被当作“会话过期”触发整页跳转；真实原因交由调用方展示。
+    const isAuthEndpoint =
+      typeof err.config?.url === 'string' &&
+      (err.config.url === '/auth/login' || err.config.url.endsWith('/auth/login'));
+
+    if (status === 401 && !isAuthEndpoint) {
       if (!isMockUser) {
         showErrorToast('登录已过期，请重新登录');
         setTimeout(() => {
-          window.location.href = '/login';
+          redirectToLogin('/login');
         }, 1000);
       }
     } else if (status === 403) {
@@ -79,7 +85,7 @@ request.interceptors.response.use(
         showErrorToast('没有权限执行此操作');
       }
     } else {
-      if (!isMockUser) {
+      if (!isMockUser && !isAuthEndpoint) {
         showErrorToast(message);
       }
     }

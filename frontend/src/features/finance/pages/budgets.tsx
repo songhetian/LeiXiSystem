@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Spin, Space } from '@arco-design/web-react';
+import { useState } from 'react';
+import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import { financeApi, Budget, BudgetCreateDto, BudgetUpdateDto } from '@/services/finance';
-import { systemApi, type SysDepartment } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
+import { useDepartments } from '@/hooks/use-departments';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 /** 常用预算类别选项 */
 const BUDGET_CATEGORIES = ['行政', '差旅', '办公', '营销', '培训', '设备', '其他'];
@@ -22,10 +23,7 @@ export default function BudgetsPage() {
   const { can } = usePermission();
   const canManage = can('finance:budget:manage');
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Budget[]>([]);
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const { departments } = useDepartments();
 
   // 筛选条件
   const [filters, setFilters] = useState<{ year: string; departmentId: string; category: string }>({
@@ -40,17 +38,18 @@ export default function BudgetsPage() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [form] = Form.useForm();
 
-  const fetchList = useCallback(async (activeFilters = filters) => {
-    setLoading(true);
-    setError(null);
-    try {
+  // 预算列表：筛选条件编入缓存键，变化即重新获取
+  const { year, departmentId, category } = filters;
+  const cacheKey = `finance:budgets:${year}:${departmentId}:${category}`;
+  const { data: resData, loading, error, revalidate } = useCachedData<Budget[]>(
+    cacheKey,
+    async () => {
       const params: Record<string, any> = {};
-      if (activeFilters.year) params.year = Number(activeFilters.year);
-      const depValue =
-        activeFilters.departmentId === 'global' ? '' : activeFilters.departmentId;
+      if (year) params.year = Number(year);
+      const depValue = departmentId === 'global' ? '' : departmentId;
       if (depValue) params.departmentId = Number(depValue);
       else params.departmentId = null;
-      if (activeFilters.category) params.category = activeFilters.category;
+      if (category) params.category = category;
       const res = await financeApi.listBudgets(params);
       let list: Budget[] = [];
       if (res.code === 0) {
@@ -61,48 +60,23 @@ export default function BudgetsPage() {
       // 若后端未按条件过滤，则本地兜底
       if (params.year !== undefined) list = list.filter((b) => b.year === params.year);
       if (depValue) list = list.filter((b) => (b.departmentId ?? null) === Number(depValue));
-      if (activeFilters.category) {
-        const kw = String(activeFilters.category).toLowerCase();
+      if (category) {
+        const kw = String(category).toLowerCase();
         list = list.filter((b) => String(b.category ?? '').toLowerCase().includes(kw));
       }
-      setData(list);
-    } catch (e: any) {
-      setError(e?.message || '获取预算列表失败');
-      notifyError(e, '获取预算列表失败');
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.year, filters.departmentId, filters.category]);
+      return list;
+    },
+    { staleTime: 30_000 },
+  );
+  const data = resData ?? [];
 
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  // 加载部门列表（用于筛选与表单）
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await systemApi.listDepartments();
-      if (res.code === 0 && res.data) setDepartments(res.data);
-    } catch {
-      // 忽略部门加载失败
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDepartments();
-  }, [fetchDepartments]);
-
+  // 加载部门列表（用于筛选与表单），由 useDepartments 共享缓存提供
   const handleFilterChange = (key: 'year' | 'departmentId' | 'category', value: string) => {
-    const next = { ...filters, [key]: value };
-    setFilters(next);
-    fetchList(next);
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleReset = () => {
-    const empty = { year: '', departmentId: '', category: '' };
-    setFilters(empty);
-    fetchList(empty);
+    setFilters({ year: '', departmentId: '', category: '' });
   };
 
   const handleAdd = () => {
@@ -126,7 +100,7 @@ export default function BudgetsPage() {
           const res = await financeApi.deleteBudget(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -159,7 +133,7 @@ export default function BudgetsPage() {
           Message.success('修改成功');
           setModalVisible(false);
           form.resetFields();
-          fetchList();
+          revalidate();
         } else {
           Message.error(res.message || '操作失败');
         }
@@ -176,7 +150,7 @@ export default function BudgetsPage() {
           Message.success('创建成功');
           setModalVisible(false);
           form.resetFields();
-          fetchList();
+          revalidate();
         } else {
           Message.error(res.message || '操作失败');
         }
@@ -221,7 +195,7 @@ export default function BudgetsPage() {
   // 导出当前（筛选后的）预算数据
   const handleExport = () => {
     if (!exportToExcel(
-      `财务预算_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `财务预算_${todayStr()}.xlsx`,
       '财务预算',
       [
         { title: '年份', dataIndex: 'year' },
@@ -280,7 +254,7 @@ export default function BudgetsPage() {
   ];
 
   return (
-    <PageContainer title="财务预算">
+    <PageContainer >
       {/* 筛选栏 */}
       <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -355,6 +329,7 @@ export default function BudgetsPage() {
             loading={loading}
             data={data}
             columns={columns}
+            scroll={{ x: true }}
             pagination={{ pageSize: 10, showTotal: true }}
             noDataElement={<div className="py-16 text-text-3">暂无预算数据</div>}
           />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useThrottle } from '@/hooks/use-throttle';
 import { useRouter, usePathname } from 'next/navigation';
 import {
@@ -13,6 +14,11 @@ import {
   IconBranch,
 } from '@arco-design/web-react/icon';
 import { useTabsStore, type TabItem } from '@/store/tabs';
+import { clampMenuPosition } from './page-tabs-position';
+
+// 右键 /「更多」菜单固定尺寸（与 .page-tabs-menu 的 width 对齐）
+const MENU_W = 180;
+const MENU_H = 156;
 
 // 页面标题映射（用于页签名称）
 const TABS_TITLE: Record<string, string> = {
@@ -136,24 +142,27 @@ export default function PageTabs() {
   const openMenu = useCallback((e: React.MouseEvent, tab: TabItem) => {
     e.preventDefault();
     e.stopPropagation();
-    // 菜单位于页签栏正下方，并限制在视窗内避免被截断/遮挡
-    const bar = (e.currentTarget as HTMLElement).closest('.page-tabs');
-    const barRect = bar?.getBoundingClientRect();
-    const MENU_W = 160;
-    const MENU_H = 150;
-    const margin = 6;
-    const topBase = barRect ? barRect.bottom : 56;
-    const x = Math.max(margin, Math.min(e.clientX, window.innerWidth - MENU_W - margin));
-    const y = Math.max(topBase + 4, Math.min(e.clientY, window.innerHeight - MENU_H - margin));
+    // 菜单锚定在被点击页签的正下方（左对齐），并限制在视窗内避免被截断/遮挡
+    const wrap = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const { x, y } = clampMenuPosition(
+      { left: wrap.left, bottom: wrap.bottom },
+      { width: window.innerWidth, height: window.innerHeight },
+      { width: MENU_W, height: MENU_H },
+    );
     setMenu({ x, y, tab });
   }, []);
 
   const openMoreMenu = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
+    const { y } = clampMenuPosition(
+      { left: rect.right, bottom: rect.bottom },
+      { width: window.innerWidth, height: window.innerHeight },
+      { width: MENU_W, height: MENU_H },
+    );
     setMenu({
-      x: Math.min(rect.right, window.innerWidth - 160),
-      y: rect.bottom + 4,
+      x: Math.min(rect.right, window.innerWidth - MENU_W),
+      y,
       tab: tabs.find((t) => t.path === pathname) ?? tabs[tabs.length - 1],
     });
   }, [tabs, pathname]);
@@ -187,10 +196,15 @@ export default function PageTabs() {
   const handleRefresh = useCallback(() => {
     if (!menu) return;
     const tab = menu.tab;
-    const current = tab.path === pathname;
-    if (!current) router.push(tab.path);
-    // 强制刷新：重新读取路由
-    router.replace(tab.path + (tab.path.includes('?') ? '&_t=' : '?_t=') + Date.now());
+    // Next App Router 下，pathname 不变仅 query 变（_t）并不会触发 client component 重渲染；
+    // router.refresh() 会重拉当前路由的 server 数据并复位 client 边界，确保页面真正重载。
+    if (tab.path !== pathname) {
+      router.push(tab.path);
+      // 路由切换是异步的，等 push 落地后再 refresh
+      setTimeout(() => router.refresh(), 0);
+    } else {
+      router.refresh();
+    }
     setMenu(null);
   }, [menu, pathname, router]);
 
@@ -278,35 +292,39 @@ export default function PageTabs() {
         </button>
       </div>
 
-      {menu && (
-        <>
-          <div className="page-tabs-menu-mask" onClick={closeMenu} />
-          <div
-            className="page-tabs-menu"
-            ref={menuRef}
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="page-tabs-menu-title">
-              <IconBranch style={{ fontSize: 12 }} />
-              {menu.tab.label}
-            </div>
-            <button className="page-tabs-menu-item" onClick={handleRefresh}>
-              <IconRefresh /> 刷新当前页
-            </button>
-            <button
-              className="page-tabs-menu-item"
-              disabled={CLOSEABLE.includes(menu.tab.path)}
-              onClick={handleCloseOthers}
+      {menu &&
+        createPortal(
+          <>
+            <div className="page-tabs-menu-mask" onClick={closeMenu} />
+            <div
+              className="page-tabs-menu"
+              ref={menuRef}
+              style={{ left: menu.x, top: menu.y }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <IconBranch /> 关闭其他
-            </button>
-            <button className="page-tabs-menu-item" onClick={handleCloseAll}>
-              <IconDelete /> 关闭所有
-            </button>
-          </div>
-        </>
-      )}
+              <div className="page-tabs-menu-title">
+                <IconBranch style={{ fontSize: 12 }} />
+                {menu.tab.label}
+              </div>
+              <button className="page-tabs-menu-item" onClick={handleRefresh}>
+                <IconRefresh /> 刷新当前页
+              </button>
+              <button
+                className="page-tabs-menu-item"
+                disabled={CLOSEABLE.includes(menu.tab.path)}
+                onClick={handleCloseOthers}
+              >
+                <IconBranch /> 关闭其他
+              </button>
+              <button className="page-tabs-menu-item" onClick={handleCloseAll}>
+                <IconDelete /> 关闭所有
+              </button>
+            </div>
+          </>,
+          // portal 到 body 顶层：.page-tabs 的 backdrop-filter 会为 fixed 子元素建立包含块，
+          // 将菜单渲染在 body 下可让其按视口坐标正确定位，解决右键弹出框消失/错位问题。
+          document.body,
+        )}
     </div>
   );
 }

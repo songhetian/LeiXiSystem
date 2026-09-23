@@ -78,26 +78,25 @@ describe('usePermission', () => {
       expect(result.current.can('employee:manage')).toBe(false);
     });
 
-    it('支持多个权限判断', () => {
+    it('不支持 system:manage 这种已废弃的合并权限 code（必须用细粒度 code）', () => {
       (useAuthStore as unknown as jest.Mock).mockReturnValue({
         user: {
           permissions: [
-            'employee:view',
-            'employee:manage',
-            'attendance:view',
-            'approval:todo:view',
+            'system:user:manage',
+            'system:role:manage',
+            'system:broadcast:manage',
           ],
         },
       });
 
       const { result } = renderHook(() => usePermission());
 
-      expect(result.current.can('employee:view')).toBe(true);
-      expect(result.current.can('employee:manage')).toBe(true);
-      expect(result.current.can('attendance:view')).toBe(true);
-      expect(result.current.can('approval:todo:view')).toBe(true);
-      expect(result.current.can('payroll:view')).toBe(false);
-      expect(result.current.can('system:user:manage')).toBe(false);
+      // 合并的"system:manage" 并不存在于 seed；这里强制契约
+      expect(result.current.can('system:manage')).toBe(false);
+      // 真实权限位依旧可用
+      expect(result.current.can('system:user:manage')).toBe(true);
+      expect(result.current.can('system:role:manage')).toBe(true);
+      expect(result.current.can('system:broadcast:manage')).toBe(true);
     });
   });
 });

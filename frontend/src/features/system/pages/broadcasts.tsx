@@ -1,66 +1,53 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { broadcastApi, Broadcast, BroadcastCreateDto } from '@/services/broadcast';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { sanitizeHtml } from '@/lib/sanitize';
+
+interface BroadcastListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: Broadcast[]; page: number; pageSize: number; total: number };
+}
 
 export default function BroadcastsPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Broadcast[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [currentBroadcast, setCurrentBroadcast] = useState<Broadcast | null>(null);
 
-  const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await broadcastApi.getList({ page, pageSize, ...params });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setPagination({
-          current: res.data.page,
-          pageSize: res.data.pageSize,
-          total: res.data.total,
-        });
-      } else {
-        setError(res.message || '获取公告列表失败');
-        Message.error(res.message || '获取公告列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取公告列表失败');
-      notifyError(e, '获取公告列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchList(1, 20, searchParams);
-  }, []);
+  // SWR 缓存：参数编入 cacheKey，翻页/搜索即重新订阅；同参数复用缓存
+  const cacheKey = `system:broadcasts:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<BroadcastListEnvelope>(
+    cacheKey,
+    () => broadcastApi.getList({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchList(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchList(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchList(page, pageSize, searchParams);
+    setPagination({ ...pageResult, current: page, pageSize });
   };
 
   const handleViewDetail = async (record: Broadcast) => {
@@ -86,7 +73,7 @@ export default function BroadcastsPage() {
           const res = await broadcastApi.publish(record.id);
           if (res.code === 0) {
             Message.success('发布成功');
-            fetchList(pagination.current, pagination.pageSize, searchParams);
+            revalidate();
           } else {
             Message.error(res.message || '发布失败');
           }
@@ -106,7 +93,7 @@ export default function BroadcastsPage() {
           const res = await broadcastApi.remove(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList(pagination.current, pagination.pageSize, searchParams);
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -188,32 +175,32 @@ export default function BroadcastsPage() {
         <Space>
           <Button size="small" type="text" onClick={() => handleViewDetail(record)}>查看</Button>
           {record.status === 'draft' && (
-            <Button size="small" type="text" disabled={!can('system:manage')} onClick={() => handlePublish(record)}>发布</Button>
+            <Button size="small" type="text" disabled={!can('system:broadcast:manage')} onClick={() => handlePublish(record)}>发布</Button>
           )}
-          <Button size="small" type="text" status="danger" disabled={!can('system:manage')} onClick={() => handleDelete(record)}>删除</Button>
+          <Button size="small" type="text" status="danger" disabled={!can('system:broadcast:manage')} onClick={() => handleDelete(record)}>删除</Button>
         </Space>
       ),
     },
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建公告', type: 'primary', disabled: !can('system:manage'), onClick: () => Message.info('新建公告功能开发中') },
+    { key: 'add', label: '新建公告', type: 'primary', disabled: !can('system:broadcast:manage'), onClick: () => Message.info('新建公告功能开发中') },
   ];
 
   return (
-    <PageContainer title="公告管理">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
         toolbar={toolbar}
-        pagination={pagination}
+        pagination={pageResult}
         onPageChange={handlePageChange}
       />
       <Modal

@@ -5,6 +5,7 @@ export interface TimelineEmployee {
   status: string;
   hireDate: string | Date;
   resignDate?: string | Date | null;
+  departmentId?: number;
   department?: string | null;
   position?: string | null;
 }
@@ -16,6 +17,7 @@ export interface TimelineTransfer {
   employeeNo: string;
   type: string; // transfer | promotion | demotion | salary_adjust
   effectiveDate: string | Date;
+  departmentId?: number;
   fromText?: string | null;
   toText?: string | null;
   reason?: string | null;
@@ -27,6 +29,7 @@ export interface TimelineResignation {
   employeeName: string;
   employeeNo: string;
   resignDate: string | Date;
+  departmentId?: number;
   reason?: string | null;
   department?: string | null;
 }
@@ -42,6 +45,7 @@ export type TimelineRecordType = 'hire' | 'transfer' | 'promotion' | 'demotion' 
 export interface TimelineRecord {
   id: string;
   employeeId: number;
+  departmentId?: number;
   employeeName: string;
   employeeNo: string;
   type: TimelineRecordType;
@@ -58,6 +62,7 @@ export interface TimelineFilters {
   dateFrom?: string;
   dateTo?: string;
   employeeId?: number;
+  departmentId?: number;
   page?: number;
   pageSize?: number;
 }
@@ -92,6 +97,7 @@ export function buildTimeline(
 
   const matches = (rec: TimelineRecord): boolean => {
     if (filters.employeeId && rec.employeeId !== filters.employeeId) return false;
+    if (filters.departmentId && rec.departmentId !== filters.departmentId) return false;
     if (filters.type && rec.type !== filters.type) return false;
     if (keyword && !rec.employeeName.toLowerCase().includes(keyword) && !rec.employeeNo.toLowerCase().includes(keyword)) {
       return false;
@@ -113,6 +119,7 @@ export function buildTimeline(
       employeeId: emp.id,
       employeeName: emp.name,
       employeeNo: emp.employeeNo,
+      departmentId: emp.departmentId,
       type: 'hire',
       occurredAt,
       toText: deptPos || null,
@@ -129,6 +136,7 @@ export function buildTimeline(
       employeeId: t.employeeId,
       employeeName: t.employeeName,
       employeeNo: t.employeeNo,
+      departmentId: t.departmentId,
       type: t.type as TimelineRecordType,
       occurredAt,
       fromText: t.fromText || null,
@@ -147,6 +155,7 @@ export function buildTimeline(
       employeeId: r.employeeId,
       employeeName: r.employeeName,
       employeeNo: r.employeeNo,
+      departmentId: r.departmentId,
       type: 'resign',
       occurredAt,
       fromText: r.department || null,

@@ -1,7 +1,7 @@
 import { KnowledgeService } from './knowledge.service';
-import { verifyPreviewToken } from './engine/preview-sign';
+import { verifyPreviewToken, signPreviewUrl } from './engine/preview-sign';
 import { ERROR_CODES } from '../common/error-codes';
-import { BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 // Mock PrismaService
 function createMockPrisma() {
@@ -283,20 +283,20 @@ describe('KnowledgeService - addAttachment 安全校验', () => {
   });
 
   describe('文件大小校验', () => {
-    it('超过 10MB 的文件被拒绝', async () => {
+    it('超过 200MB 的文件被拒绝', async () => {
       try {
         await service.addAttachment({
           articleId: 1,
           fileName: 'large.pdf',
           fileUrl: '/uploads/knowledge/large.pdf',
-          fileSize: 11 * 1024 * 1024,
+          fileSize: 201 * 1024 * 1024,
           mimeType: 'application/pdf',
         });
         fail('应该抛出异常');
       } catch (e: any) {
         expect(e).toBeInstanceOf(BadRequestException);
         expect(e.response.code).toBe(ERROR_CODES.KNOWLEDGE_ATTACHMENT_INVALID);
-        expect(e.response.message).toContain('10MB');
+        expect(e.response.message).toContain('200MB');
         expect(prisma.knowledgeAttachment.create).not.toHaveBeenCalled();
       }
     });
@@ -354,5 +354,162 @@ describe('KnowledgeService - deleteAttachment 附件删除', () => {
     const result = await service.deleteAttachment(9);
     expect(prisma.knowledgeAttachment.delete).toHaveBeenCalledWith({ where: { id: 9 } });
     expect(result).toEqual({ success: true });
+  });
+});
+
+// ----------------------------------------------------------------------
+// 附件上传（multipart→FilesService 落盘→入库）与下载通用化（本地/OSS 读流）
+// ----------------------------------------------------------------------
+describe('KnowledgeService - uploadAttachment / downloadAttachment（FilesService 存储抽象）', () => {
+  let service: KnowledgeService;
+  let prisma: any;
+  let filesService: any;
+
+  beforeEach(() => {
+    process.env.PREVIEW_SECRET = TEST_SECRET;
+    prisma = createMockPrisma();
+    filesService = {
+      save: jest.fn(),
+      openStream: jest.fn(),
+    };
+    service = new KnowledgeService(prisma, {} as any, filesService);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  describe('uploadAttachment - 流式上传附件', () => {
+    it('先经 FilesService.save 落盘（本地/OSS），再以返回 URL 入库', async () => {
+      prisma.knowledgeArticle.findUnique.mockResolvedValue({ id: 1 });
+      filesService.save.mockResolvedValue({ url: '/uploads/knowledge/123-abc.pdf', fileName: '手册.pdf' });
+      prisma.knowledgeAttachment.create.mockResolvedValue({ id: 7 });
+
+      const result = await service.uploadAttachment({
+        articleId: 1,
+        buffer: Buffer.from('pdf-data'),
+        fileName: '手册.pdf',
+        fileSize: 8,
+        mimeType: 'application/pdf',
+      });
+
+      expect(filesService.save).toHaveBeenCalledWith(
+        Buffer.from('pdf-data'),
+        '手册.pdf',
+        'knowledge',
+      );
+      expect(prisma.knowledgeAttachment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          articleId: 1,
+          fileName: '手册.pdf',
+          fileUrl: '/uploads/knowledge/123-abc.pdf',
+          fileSize: 8,
+          mimeType: 'application/pdf',
+        }),
+      });
+      expect(result).toEqual({ id: 7 });
+    });
+
+    it('文章不存在时抛异常且不落盘', async () => {
+      prisma.knowledgeArticle.findUnique.mockResolvedValue(null);
+      await expect(
+        service.uploadAttachment({ articleId: 999, buffer: Buffer.from('x'), fileName: 'a.exe' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(filesService.save).not.toHaveBeenCalled();
+    });
+
+    it('扩展名不允许时被校验拦截，不落盘', async () => {
+      prisma.knowledgeArticle.findUnique.mockResolvedValue({ id: 1 });
+      await expect(
+        service.uploadAttachment({ articleId: 1, buffer: Buffer.from('x'), fileName: 'a.exe' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(filesService.save).not.toHaveBeenCalled();
+    });
+
+    it('文件存储服务未注入时抛异常', async () => {
+      const bare = new KnowledgeService(prisma, {} as any, undefined as any);
+      prisma.knowledgeArticle.findUnique.mockResolvedValue({ id: 1 });
+      await expect(
+        bare.uploadAttachment({ articleId: 1, buffer: Buffer.from('x'), fileName: 'a.pdf' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('downloadAttachment - 按存储驱动读流', () => {
+    it('经 FilesService.openStream 返回流（本地/OSS 统一）', async () => {
+      const fakeStream = { readable: true };
+      prisma.knowledgeAttachment.findUnique.mockResolvedValue({
+        id: 1,
+        articleId: 1,
+        fileName: 'a.pdf',
+        fileUrl: '/uploads/knowledge/a.pdf',
+        mimeType: 'application/pdf',
+        article: { status: 'published' },
+      });
+      filesService.openStream.mockResolvedValue({ stream: fakeStream });
+
+      // 生成可通过校验的预览签名 token
+      const signed = signPreviewUrl({
+        fileUrl: '/uploads/knowledge/a.pdf',
+        fileName: 'a.pdf',
+        attachmentId: 1,
+        secret: TEST_SECRET,
+        expiresIn: 3600,
+      });
+
+      const result = await service.downloadAttachment(1, signed.token);
+      expect(filesService.openStream).toHaveBeenCalledWith('/uploads/knowledge/a.pdf');
+      expect(result.stream).toBe(fakeStream);
+      expect(result.fileName).toBe('a.pdf');
+      expect(result.mimeType).toBe('application/pdf');
+    });
+  });
+});
+
+describe('KnowledgeService - 分类拖拽排序 reorderCategories', () => {
+  let service: KnowledgeService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    process.env.PREVIEW_SECRET = TEST_SECRET;
+    prisma = createMockPrisma();
+    service = new KnowledgeService(prisma, {} as any);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('按 ids 顺序批量更新 sortOrder（从 0 递增）', async () => {
+    prisma.knowledgeCategory.findMany.mockResolvedValue([{ id: 3 }, { id: 1 }, { id: 2 }]);
+    prisma.knowledgeCategory.update.mockResolvedValue({ id: 1 });
+
+    const result = await service.reorderCategories([3, 1, 2]);
+
+    expect(result.success).toBe(true);
+    expect(prisma.knowledgeCategory.update).toHaveBeenCalledTimes(3);
+    expect(prisma.knowledgeCategory.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 3 },
+      data: { sortOrder: 0 },
+    });
+    expect(prisma.knowledgeCategory.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 1 },
+      data: { sortOrder: 1 },
+    });
+    expect(prisma.knowledgeCategory.update).toHaveBeenNthCalledWith(3, {
+      where: { id: 2 },
+      data: { sortOrder: 2 },
+    });
+  });
+
+  it('传入的 id 存在缺失时抛 NotFoundException 且不更新', async () => {
+    prisma.knowledgeCategory.findMany.mockResolvedValue([{ id: 1 }]);
+
+    await expect(service.reorderCategories([1, 99])).rejects.toThrow(NotFoundException);
+    expect(prisma.knowledgeCategory.update).not.toHaveBeenCalled();
+  });
+
+  it('空数组直接返回成功', async () => {
+    prisma.knowledgeCategory.findMany.mockResolvedValue([]);
+
+    const result = await service.reorderCategories([]);
+    expect(result.success).toBe(true);
+    expect(prisma.knowledgeCategory.update).not.toHaveBeenCalled();
   });
 });

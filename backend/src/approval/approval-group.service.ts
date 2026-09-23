@@ -1,5 +1,6 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { generateAutoCode } from '../common/code-gen.util';
 
 @Injectable()
 export class ApprovalGroupService {
@@ -53,18 +54,19 @@ export class ApprovalGroupService {
     return group;
   }
 
-  async create(params: { name: string; code: string; description?: string; memberIds?: number[]; createdBy: number }) {
-    const existing = await this.prisma.approvalGroup.findUnique({
-      where: { code: params.code },
-    });
-    if (existing) {
-      throw new ConflictException({ code: 6402, message: '审批组编码已存在' });
+  async create(params: { name: string; code?: string; description?: string; memberIds?: number[]; createdBy: number }) {
+    const code = params.code || generateAutoCode('AG');
+    if (params.code) {
+      const existing = await this.prisma.approvalGroup.findUnique({ where: { code } });
+      if (existing) {
+        throw new ConflictException({ code: 6402, message: '审批组编码已存在' });
+      }
     }
 
     const group = await this.prisma.approvalGroup.create({
       data: {
         name: params.name,
-        code: params.code,
+        code,
         description: params.description,
         createdBy: params.createdBy,
         members: params.memberIds && params.memberIds.length > 0

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import KnowledgeListPage from '@/features/knowledge/pages/list';
 import { knowledgeApi } from '@/services/knowledge';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/knowledge', () => ({
   knowledgeApi: {
@@ -18,7 +19,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -29,36 +30,13 @@ jest.mock('@arco-design/web-react', () => {
   const original = jest.requireActual('@arco-design/web-react');
   return {
     ...original,
-    Tree: ({ treeData, onSelect, selectedKeys }: any) => (
-      <div data-testid="category-tree">
-        {treeData?.map((root: any) => (
-          <div key={root.key}>
-            <button
-              data-testid={`tree-node-${root.key}`}
-              data-selected={String(selectedKeys?.includes(root.key))}
-              onClick={() => onSelect?.([root.key])}
-            >
-              {root.title}
-            </button>
-            {root.children?.map((child: any) => (
-              <button
-                key={child.key}
-                data-testid={`tree-node-${child.key}`}
-                data-selected={String(selectedKeys?.includes(child.key))}
-                onClick={() => onSelect?.([child.key])}
-              >
-                {child.title}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    ),
     Input: {
-      ...original.Input ?? {},
-      Search: ({ onChange, onSearch }: any) => (
+      ...(original.Input ?? {}),
+      Search: ({ onChange, onSearch, value, disabled }: any) => (
         <input
           data-testid="keyword-search"
+          data-disabled={String(!!disabled)}
+          value={value ?? ''}
           onChange={(e) => {
             onChange?.(e.target.value);
             onSearch?.(e.target.value);
@@ -98,10 +76,11 @@ const mockAttachment = { id: 11, articleId: 1, fileName: '手册.pdf', fileType:
 
 describe('KnowledgeListPage', () => {
   beforeEach(() => {
+    clearDataCache();
     jest.clearAllMocks();
     (knowledgeApi.getCategories as jest.Mock).mockResolvedValue({
       code: 0,
-      data: { list: mockCategories, total: 3, page: 1, pageSize: 100 },
+      data: mockCategories,
     });
     (knowledgeApi.getArticles as jest.Mock).mockResolvedValue({
       code: 0,
@@ -120,10 +99,10 @@ describe('KnowledgeListPage', () => {
     Object.defineProperty(URL, 'revokeObjectURL', { writable: true, value: jest.fn() });
   });
 
-  describe('正常用例', () => {
-    it('渲染 PageContainer 标题知识库', () => {
+  describe('根视图（文件夹卡片）', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<KnowledgeListPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('知识库');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('挂载时拉取分类与文章', async () => {
@@ -134,69 +113,84 @@ describe('KnowledgeListPage', () => {
       });
     });
 
-    it('渲染左侧分类树（全部 + 各分类）', async () => {
+    it('根视图展示分类文件夹卡片（含未分类）与文档计数', async () => {
       render(<KnowledgeListPage />);
-      expect(await screen.findByTestId('category-tree')).toBeInTheDocument();
-      expect(screen.getByTestId('tree-node-all')).toHaveTextContent('全部');
-      expect(screen.getByTestId('tree-node-1')).toHaveTextContent('公司制度');
-      expect(screen.getByTestId('tree-node-3')).toHaveTextContent('常见问题');
+      expect(await screen.findByText('公司制度')).toBeInTheDocument();
+      expect(screen.getByText('培训资料')).toBeInTheDocument();
+      expect(screen.getByText('常见问题')).toBeInTheDocument();
+      expect(screen.getByText('未分类')).toBeInTheDocument();
+      expect(screen.getByText('2 篇')).toBeInTheDocument();
     });
 
-    it('默认选中全部并展示全部文章', async () => {
+    it('未进入分类时搜索框不可用', async () => {
       render(<KnowledgeListPage />);
+      await screen.findByText('公司制度');
+      expect(screen.getByTestId('keyword-search')).toHaveAttribute('data-disabled', 'true');
+    });
+
+    it('根视图不直接平铺文章列表', async () => {
+      render(<KnowledgeListPage />);
+      await screen.findByText('公司制度');
+      expect(screen.queryByText('员工手册')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('分类内（文章卡片）', () => {
+    it('点击文件夹进入分类，展示该分类文章卡片', async () => {
+      const user = userEvent.setup();
+      render(<KnowledgeListPage />);
+      await user.click(await screen.findByText('公司制度'));
       expect(await screen.findByText('员工手册')).toBeInTheDocument();
-      expect(screen.getByText('入职指南')).toBeInTheDocument();
+      expect(screen.getByText('差旅报销制度')).toBeInTheDocument();
+      // 其他分类文章不显示
+      expect(screen.queryByText('入职指南')).not.toBeInTheDocument();
     });
-  });
 
-  describe('分类过滤', () => {
-    it('点击分类节点过滤文章', async () => {
+    it('进入分类后搜索框可用，输入关键字过滤文章', async () => {
       const user = userEvent.setup();
       render(<KnowledgeListPage />);
+      await user.click(await screen.findByText('公司制度'));
       await screen.findByText('员工手册');
-      await user.click(screen.getByTestId('tree-node-2'));
-      await waitFor(() => {
-        expect(screen.getByText('入职指南')).toBeInTheDocument();
-        expect(screen.queryByText('员工手册')).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('关键字搜索', () => {
-    it('输入关键字过滤文章', async () => {
-      const user = userEvent.setup();
-      render(<KnowledgeListPage />);
-      await screen.findByText('员工手册');
+      expect(screen.getByTestId('keyword-search')).toHaveAttribute('data-disabled', 'false');
       await user.type(screen.getByTestId('keyword-search'), '差旅');
       await waitFor(() => {
         expect(screen.getByText('差旅报销制度')).toBeInTheDocument();
         expect(screen.queryByText('员工手册')).not.toBeInTheDocument();
       });
     });
-  });
 
-  describe('文章详情', () => {
-    it('点击文章打开详情并拉取详情与附件', async () => {
+    it('支持返回根视图并重新看到文件夹', async () => {
       const user = userEvent.setup();
       render(<KnowledgeListPage />);
+      await user.click(await screen.findByText('公司制度'));
       await screen.findByText('员工手册');
-      await user.click(screen.getByText('员工手册'));
+      await user.click(screen.getByRole('button', { name: /返回/ }));
+      expect(await screen.findByText('培训资料')).toBeInTheDocument();
+    });
+  });
+
+  describe('文章预览', () => {
+    it('点击文章打开预览并拉取详情与附件', async () => {
+      const user = userEvent.setup();
+      render(<KnowledgeListPage />);
+      await user.click(await screen.findByText('公司制度'));
+      await user.click(await screen.findByText('员工手册'));
       await waitFor(() => {
         expect(knowledgeApi.getArticleDetail).toHaveBeenCalledWith(1);
         expect(knowledgeApi.getAttachments).toHaveBeenCalledWith(1);
       });
     });
 
-    it('详情附件提供预览按钮', async () => {
+    it('预览弹窗提供附件预览按钮', async () => {
       const user = userEvent.setup();
       render(<KnowledgeListPage />);
-      await screen.findByText('员工手册');
-      await user.click(screen.getByText('员工手册'));
+      await user.click(await screen.findByText('公司制度'));
+      await user.click(await screen.findByText('员工手册'));
       expect(await screen.findByText('手册.pdf')).toBeInTheDocument();
     });
   });
 
-  describe('内嵌预览', () => {
+  describe('内嵌附件预览', () => {
     it('点击预览获取下载 blob 并打开内嵌模态', async () => {
       const user = userEvent.setup();
       global.fetch = jest.fn().mockResolvedValue({
@@ -207,8 +201,8 @@ describe('KnowledgeListPage', () => {
         blob: () => Promise.resolve(new Blob()),
       }) as any;
       render(<KnowledgeListPage />);
-      await screen.findByText('员工手册');
-      await user.click(screen.getByText('员工手册'));
+      await user.click(await screen.findByText('公司制度'));
+      await user.click(await screen.findByText('员工手册'));
       const previewBtn = await screen.findByText('预览');
       await user.click(previewBtn);
       await waitFor(() => {
@@ -222,13 +216,15 @@ describe('KnowledgeListPage', () => {
   });
 
   describe('边界用例', () => {
-    it('处理空文章列表', async () => {
+    it('空文章时根视图仍显示文件夹卡片（0 篇），不平铺文章', async () => {
       (knowledgeApi.getArticles as jest.Mock).mockResolvedValue({
         code: 0,
         data: { list: [], total: 0, page: 1, pageSize: 200 },
       });
       render(<KnowledgeListPage />);
-      expect(await screen.findByText(/暂无文档/)).toBeInTheDocument();
+      expect(await screen.findByText('公司制度')).toBeInTheDocument();
+      expect(screen.getByText('未分类')).toBeInTheDocument();
+      expect(screen.queryByText('员工手册')).not.toBeInTheDocument();
     });
   });
 });

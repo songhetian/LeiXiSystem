@@ -14,5 +14,6 @@
       "@lei/shared": ["../shared/src"]
     }
   },
-  "include": ["src/**/*", "tests/**/*"]
+  "include": ["src/**/*", "tests/**/*"],
+  "ts-node": { "transpileOnly": true }
 }

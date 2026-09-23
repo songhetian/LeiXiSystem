@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -167,8 +167,6 @@ export default function ApprovalDetailPage() {
 
   return (
       <PageContainer
-        title="审批详情"
-        subTitle="查看审批流程详情和审批记录"
       >
         <DataState loading={loading} error={error} onRetry={fetchDetail} isEmpty={!detail}>
           {detail && (

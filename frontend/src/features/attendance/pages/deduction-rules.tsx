@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Message,
   Modal,
@@ -19,7 +19,9 @@ import {
   DeductionRule,
 } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 /** 扣款方式中文映射（固定 / 比例 / 倍数） */
 function methodLabel(method?: string): string {
@@ -47,42 +49,28 @@ function leaveTypeLabel(leaveType?: string | null): string {
   return map[leaveType] || leaveType;
 }
 
+interface DeductionListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: DeductionRule[]; total: number };
+}
+
 export default function DeductionRulesPage() {
   const { can } = usePermission();
   const canManage = can('attendance:deduction:manage');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DeductionRule[]>([]);
-  const [total, setTotal] = useState(0);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editingRule, setEditingRule] = useState<DeductionRule | null>(null);
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res: any = await deductionApi.listDeductionRules();
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setTotal(res.data.total);
-      } else {
-        setError(res.message || '获取扣款规则失败');
-        Message.error(res.message || '获取扣款规则失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取扣款规则失败');
-      notifyError(e, '获取扣款规则失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+  // SWR 缓存：扣款规则全量列表共享缓存；增删改后 revalidate 刷新
+  const { data: res, loading, error, revalidate } = useCachedData<DeductionListEnvelope>(
+    'attendance:deduction-rules',
+    () => deductionApi.listDeductionRules(),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const total = res?.code === 0 && res.data ? res.data.total : 0;
 
   const handleAdd = () => {
     setEditingRule(null);
@@ -103,7 +91,7 @@ export default function DeductionRulesPage() {
           const res = await deductionApi.deleteDeductionRule(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -137,7 +125,7 @@ export default function DeductionRulesPage() {
       if (res.code === 0) {
         Message.success(editingRule ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -156,7 +144,7 @@ export default function DeductionRulesPage() {
   // 导出当前扣款规则
   const handleExport = () => {
     if (!exportToExcel(
-      `扣款规则_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `扣款规则_${todayStr()}.xlsx`,
       '扣款规则',
       [
         { title: '规则名称', dataIndex: 'name' },
@@ -249,7 +237,7 @@ export default function DeductionRulesPage() {
   ];
 
   return (
-    <PageContainer title="扣款规则">
+    <PageContainer >
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-text-2">共 {total} 条扣款规则</span>
         <div className="flex gap-2">
@@ -264,7 +252,7 @@ export default function DeductionRulesPage() {
         {error ? (
           <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
             <p className="text-text-3 mb-3">{error}</p>
-            <Button onClick={() => fetchList()}>重试</Button>
+            <Button onClick={revalidate}>重试</Button>
           </div>
         ) : (
           <Table

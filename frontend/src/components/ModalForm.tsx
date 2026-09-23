@@ -5,6 +5,9 @@ import { Modal, Form, Input, Select, DatePicker, Message } from '@arco-design/we
 
 const FormItem = Form.Item;
 
+/** 未提供 initialValues 时的稳定空值哨兵：避免默认 {} 每次渲染生成新引用导致效应反复触发 */
+const EMPTY_INITIAL: Record<string, any> = {};
+
 export interface FormFieldOption {
   value: string | number;
   label: string;
@@ -32,7 +35,7 @@ const DEFAULT_COLOR_PRESETS = [
 export interface FormFieldConfig {
   key: string;
   label: string;
-  type: 'input' | 'select' | 'date' | 'textarea' | 'colorPicker';
+  type: 'input' | 'select' | 'date' | 'month' | 'textarea' | 'colorPicker' | 'tags';
   placeholder?: string;
   options?: FormFieldOption[];
   required?: boolean;
@@ -53,33 +56,46 @@ export interface ModalFormProps {
   okText?: string;
   cancelText?: string;
   width?: number | string;
+  /** 表单列数：>1 时按网格排布（textarea/colorPicker 自动占整行） */
+  columns?: number;
 }
 
 export default function ModalForm({
   visible,
   title,
   fields,
-  initialValues = {},
+  initialValues,
   onOk,
   onCancel,
   confirmLoading = false,
   okText = '确定',
   cancelText = '取消',
   width = 600,
+  columns = 1,
 }: ModalFormProps) {
-  const [values, setValues] = useState<Record<string, any>>(initialValues);
+  // 未传 initialValues 时使用稳定哨兵，避免每次渲染生成新引用
+  const initial = initialValues ?? EMPTY_INITIAL;
+  const [values, setValues] = useState<Record<string, any>>(initial);
   const [internalLoading, setInternalLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const inputRefs = useRef<Record<string, HTMLElement | null>>({});
+  // 记录最近一次已回填的 initialValues 引用：打开弹窗、或详情异步晚到导致引用变化时重新回填；
+  // 用引用相等避免父组件无关重渲染传入同内容新对象而清空用户已输入内容。
+  const seedRef = useRef<Record<string, any> | null>(null);
 
   useEffect(() => {
-    if (visible) {
-      setValues(initialValues || {});
-      setInternalLoading(false);
+    if (!visible) {
+      // 关闭时复位，确保下次打开必定按新 initialValues 回填
+      seedRef.current = null;
+      return;
+    }
+    if (initial !== seedRef.current) {
+      seedRef.current = initial;
+      setValues(initial);
       setErrors({});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+    setInternalLoading(false);
+  }, [visible, initial]);
 
   const handleChange = (key: string, value: any) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -157,9 +173,38 @@ export default function ModalForm({
             onChange={(val) => handleChange(field.key, val)}
           />
         );
+      case 'tags':
+        return (
+          <Select
+            mode="multiple"
+            id={field.key}
+            ref={registerRef(field.key)}
+            style={{ width: '100%' }}
+            placeholder={field.placeholder || '请选择标签'}
+            value={value}
+            options={field.options || []}
+            allowClear
+            disabled={field.disabled}
+            onChange={(val) => handleChange(field.key, val)}
+          />
+        );
+      case 'month':
+        return (
+          <DatePicker
+            {...{ id: field.key }}
+            ref={registerRef(field.key)}
+            style={{ width: '100%' }}
+            placeholder={field.placeholder || '请选择生效月份'}
+            value={value}
+            {...{ precision: 'month', format: 'YYYY-MM' } as any}
+            disabled={field.disabled}
+            onChange={(dateString: string) => handleChange(field.key, dateString)}
+          />
+        );
       case 'date':
         return (
           <DatePicker
+            {...{ id: field.key }}
             ref={registerRef(field.key)}
             style={{ width: '100%' }}
             placeholder={field.placeholder || '请选择日期'}
@@ -172,6 +217,7 @@ export default function ModalForm({
       case 'textarea':
         return (
           <Input.TextArea
+            id={field.key}
             style={{ width: '100%' }}
             placeholder={field.placeholder || '请输入'}
             value={value}
@@ -254,18 +300,30 @@ export default function ModalForm({
       maskClosable={false}
     >
       <Form layout="vertical">
-        {fields.map((field) => (
-          <FormItem
-            key={field.key}
-            label={field.label}
-            field={field.key}
-            required={field.required}
-            validateStatus={errors[field.key] ? 'error' : undefined}
-            help={errors[field.key]}
-          >
-            {renderField(field)}
-          </FormItem>
-        ))}
+        <div
+          data-testid="modal-form-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: columns > 1 ? '1fr 1fr' : '1fr',
+            columnGap: 16,
+          }}
+        >
+          {fields.map((field) => {
+            const fullRow = columns > 1 && (field.type === 'textarea' || field.type === 'colorPicker');
+            return (
+              <FormItem
+                key={field.key}
+                label={field.label}
+                required={field.required}
+                validateStatus={errors[field.key] ? 'error' : undefined}
+                help={errors[field.key]}
+                style={fullRow ? { gridColumn: '1 / -1' } : undefined}
+              >
+                {renderField(field)}
+              </FormItem>
+            );
+          })}
+        </div>
       </Form>
     </Modal>
   );

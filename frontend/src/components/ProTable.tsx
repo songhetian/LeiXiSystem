@@ -60,6 +60,12 @@ export interface ProTableProps {
   searchFields?: SearchFieldConfig[];
   onSearch?: (values: Record<string, any>) => void;
   onReset?: () => void;
+  /** 搜索表单每行列数，默认 3；传入 4 及以上可让字段排成一行 */
+  searchColumn?: number;
+  /** 是否允许“展开/收起”搜索框（默认 true）；不想让字段藏起来时传 false */
+  searchExpandable?: boolean;
+  /** 是否让查询/重置与搜索字段同一行（右侧固定），默认 false */
+  searchInlineActions?: boolean;
   toolbar?: ProTableToolbarAction[];
   pagination?: ProTablePagination | false;
   onPageChange?: (page: number, pageSize: number) => void;
@@ -89,6 +95,9 @@ export default function ProTable({
   searchFields,
   onSearch,
   onReset,
+  searchColumn,
+  searchExpandable,
+  searchInlineActions,
   toolbar,
   pagination,
   onPageChange,
@@ -160,6 +169,9 @@ export default function ProTable({
         total: pagination?.total || 0,
         onChange: handlePageChange,
         showTotal: true,
+        // 支持自定义每页条数
+        sizeCanChange: true,
+        pageSizeOptions: [10, 20, 50, 100],
       };
 
   const handleRowClick = (record: any) => {
@@ -227,17 +239,63 @@ export default function ProTable({
 
   return (
     <div className="bg-surface border border-border-1 rounded-md overflow-hidden shadow-card">
-      {searchFields && searchFields.length > 0 && (
-        <div className="pt-4 px-[18px] border-b border-border-2 bg-surface">
+      {searchFields && searchFields.length > 0 ? (
+        <div className="pt-3 px-[18px] border-b border-border-2 bg-surface">
+          {((toolbar && toolbar.length > 0) || showColumnSetting || showExport || showDensity) && (
+            <div className="flex items-center justify-end gap-2.5 pb-3">
+              <div className="flex items-center gap-2.5">
+                {toolbar?.map((action) => (
+                  <Button
+                    key={action.key}
+                    type={action.type || 'primary'}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    loading={action.loading}
+                    status={action.status}
+                    size="small"
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2.5">
+                {showExport && (
+                  <Button size="small" onClick={handleExportCSV}>导出 CSV</Button>
+                )}
+                {showDensity && (
+                  <Select
+                    size="small"
+                    value={density}
+                    style={{ width: 100 }}
+                    onChange={(val) => setDensity(val as TableDensity)}
+                  >
+                    <Select.Option value="default">默认</Select.Option>
+                    <Select.Option value="middle">中等</Select.Option>
+                    <Select.Option value="small">紧凑</Select.Option>
+                  </Select>
+                )}
+                {showColumnSetting && (
+                  <Popover
+                    content={columnSettingContent}
+                    trigger="click"
+                    position="br"
+                  >
+                    <Button size="small">列设置</Button>
+                  </Popover>
+                )}
+              </div>
+            </div>
+          )}
           <SearchForm
             fields={searchFields}
             onSearch={onSearch || (() => {})}
             onReset={onReset}
+            column={searchColumn}
+            expandable={searchExpandable}
+            inlineActions={searchInlineActions}
           />
         </div>
-      )}
-
-      {(toolbar && toolbar.length > 0) || showColumnSetting || showExport || showDensity ? (
+      ) : ((toolbar && toolbar.length > 0) || showColumnSetting || showExport || showDensity) ? (
         <div className="flex items-center justify-between py-3 px-[18px] border-b border-border-2 bg-surface">
           <div className="flex items-center gap-2.5">
             {toolbar?.map((action) => (
@@ -322,8 +380,12 @@ export default function ProTable({
           })}
           noDataElement={<Empty description="暂无数据" />}
           style={{ borderRadius: 0 }}
+          scroll={{
+            x: true, // 按内容横向扩展，列不被压缩换行，杜绝中文逐字竖排
+            ...(virtual ? { y: maxHeight } : {}),
+          }}
           {...(virtual
-            ? { virtual: true, scroll: { y: maxHeight }, pageSize: (pagination === false ? undefined : pagination?.pageSize) || 20 }
+            ? { virtual: true, pageSize: (pagination === false ? undefined : pagination?.pageSize) || 20 }
             : {})}
         />
       </DataState>

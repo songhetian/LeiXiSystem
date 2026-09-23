@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Card, Statistic, Grid, Button, Space, Input, Typography, List } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { reportsApi, ExportTask } from '@/services/reports';
 import { usePermission } from '@/hooks/use-permission';
-import { notifyError } from '@/lib/request';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Row, Col } = Grid;
 
@@ -25,41 +25,57 @@ const exportStatusMap: Record<string, { label: string; color: string }> = {
 export default function ReportsPage() {
   const { can } = usePermission();
   const [month, setMonth] = useState(currentMonth());
-  const [attendance, setAttendance] = useState<any>(undefined);
-  const [labor, setLabor] = useState<any>(undefined);
-  const [structure, setStructure] = useState<any>(undefined);
-  const [tasks, setTasks] = useState<ExportTask[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = async (m: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [a, l, s, t] = await Promise.all([
-        reportsApi.getAttendanceMonthly(m),
-        reportsApi.getLaborCost(m),
-        reportsApi.getEmployeeStructure(),
-        reportsApi.listExportTasks(),
-      ]);
-      if (a.code === 0) setAttendance(a.data);
-      if (l.code === 0) setLabor(l.data);
-      if (s.code === 0) setStructure(s.data);
-      if (t.code === 0) setTasks(t.data?.list ?? []);
-    } catch (e: any) {
-      setError(e?.message || '报表加载失败');
-      notifyError(e, '报表加载失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 考勤月报（随月份变化）
+  const { data: attRes, loading: attLoading, error: attError, revalidate: attRevalidate } = useCachedData<{
+    code: number;
+    data?: any;
+  }>(
+    `reports:attendance:${month}`,
+    () => reportsApi.getAttendanceMonthly(month),
+    { staleTime: 30_000 },
+  );
+  const attendance = attRes?.code === 0 && attRes.data ? attRes.data : undefined;
 
-  useEffect(() => {
-    fetchAll(month);
-  }, []);
+  // 人力成本（随月份变化）
+  const { data: laborRes, loading: laborLoading, error: laborError, revalidate: laborRevalidate } = useCachedData<{
+    code: number;
+    data?: any;
+  }>(
+    `reports:labor-cost:${month}`,
+    () => reportsApi.getLaborCost(month),
+    { staleTime: 30_000 },
+  );
+  const labor = laborRes?.code === 0 && laborRes.data ? laborRes.data : undefined;
+
+  // 员工结构：共享缓存
+  const { data: structRes, loading: structLoading } = useCachedData<{ code: number; data?: any }>(
+    'reports:employee-structure',
+    () => reportsApi.getEmployeeStructure(),
+    { staleTime: 60_000 },
+  );
+  const structure = structRes?.code === 0 && structRes.data ? structRes.data : undefined;
+
+  // 导出任务
+  const { data: tasksRes, loading: taskLoading, revalidate: tasksRevalidate } = useCachedData<{
+    code: number;
+    data?: { list: ExportTask[] };
+  }>(
+    'reports:export-tasks',
+    async () => {
+      const res = await reportsApi.listExportTasks();
+      return { code: res.code, data: res.data ?? undefined };
+    },
+    { staleTime: 10_000 },
+  );
+  const tasks = tasksRes?.code === 0 && tasksRes.data ? tasksRes.data.list ?? [] : [];
+
+  const loading = attLoading || laborLoading || structLoading || taskLoading;
+  const error = attError || laborError;
 
   const handleQuery = () => {
-    fetchAll(month);
+    void attRevalidate();
+    void laborRevalidate();
   };
 
   const handleExport = async (type: 'attendance-monthly' | 'labor-cost') => {
@@ -67,7 +83,7 @@ export default function ReportsPage() {
       const res = await reportsApi.createExportTask({ type, format: 'xlsx', month });
       if (res.code === 0) {
         Message.success('导出任务已提交，生成完成后可下载');
-        fetchAll(month);
+        void tasksRevalidate();
       } else {
         Message.error(res.message || '导出失败');
       }
@@ -124,9 +140,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <PageContainer
-      title="报表中心"
-      action={
+    <PageContainer action={
         <Space>
           <Input
             placeholder="月份 YYYY-MM"
@@ -184,7 +198,7 @@ export default function ReportsPage() {
               rowKey="id"
               loading={loading}
               error={error}
-              onRetry={() => fetchAll(month)}
+              onRetry={handleQuery}
               pagination={false}
             />
           </Card>
@@ -197,7 +211,7 @@ export default function ReportsPage() {
               rowKey="id"
               loading={loading}
               error={error}
-              onRetry={() => fetchAll(month)}
+              onRetry={handleQuery}
               pagination={false}
             />
           </Card>
@@ -229,7 +243,7 @@ export default function ReportsPage() {
           rowKey="id"
           loading={loading}
           error={error}
-          onRetry={() => fetchAll(month)}
+          onRetry={handleQuery}
           pagination={false}
         />
       </Card>

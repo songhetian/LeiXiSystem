@@ -5,10 +5,17 @@ jest.mock('@/store/auth', () => ({
   useAuthStore: { getState: () => ({ isMockUser: false }) },
 }));
 
+jest.mock('@/lib/redirect', () => ({
+  redirectToLogin: jest.fn(),
+}));
+
 jest.mock('@arco-design/web-react', () => ({
   Message: { error: jest.fn(), success: jest.fn() },
 }));
 
+import { redirectToLogin } from '@/lib/redirect';
+
+const redirectToLoginMock = redirectToLogin as jest.Mock;
 const messageError = Message.error as jest.Mock;
 
 // 用自定义 adapter 让 axios 拦截器跑真实错误分支，从而验证 Toast 行为
@@ -18,6 +25,13 @@ const respondAdapter = (payload: any) => () => Promise.resolve({
   statusText: 'OK',
   headers: {},
   config: {} as any,
+});
+
+// 模拟 HTTP 401 的“网络层拒绝”（走 err 分支）
+const rejectWithStatus = (status: number, body: any, url = '/auth/login') => () => Promise.reject({
+  response: { status, data: body },
+  message: `Request failed with status code ${status}`,
+  config: { url },
 });
 
 beforeEach(() => {
@@ -62,5 +76,31 @@ describe('request 错误 Toast 去重', () => {
     showErrorToast('重复提示');
     showErrorToast('重复提示');
     expect(messageError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('登录接口 401 不应触发会话过期跳转', () => {
+  it('登录失败(401)时：不跳转 /login、不弹“登录已过期”，只抛真实错误', async () => {
+    (request.defaults.adapter as any) = rejectWithStatus(401, { code: 5001, message: '用户名或密码错误' });
+    await expect(request.post('/auth/login')).rejects.toMatchObject({ message: '用户名或密码错误' });
+    // 不该触发整页跳转
+    expect(redirectToLoginMock).not.toHaveBeenCalled();
+    // 不该弹误导性的“登录已过期”
+    expect(messageError).not.toHaveBeenCalledWith('登录已过期，请重新登录');
+  });
+
+  it('非登录接口的 401 仍正常触发会话过期跳转', async () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((fn: () => void) => {
+      fn();
+      return 0 as any;
+    });
+    (request.defaults.adapter as any) = rejectWithStatus(401, { code: 5001, message: 'token 失效' }, '/employees');
+    try {
+      await expect(request.get('/employees')).rejects.toBeInstanceOf(ApiError);
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
+    expect(redirectToLoginMock).toHaveBeenCalledWith('/login');
+    expect(messageError).toHaveBeenCalledWith('登录已过期，请重新登录');
   });
 });

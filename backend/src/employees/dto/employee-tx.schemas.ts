@@ -48,12 +48,13 @@ export const updateProbationSchema = createProbationSchema.partial();
 
 export const createContractSchema = z.object({
   employeeId: z.number().int().positive(),
-  contractNo: z.string().min(1, '合同编号不能为空'),
+  contractNo: z.string().max(50).optional(),
   type: z.string().min(1, '合同类型不能为空'),
   startDate: z.string().min(1, '开始日期不能为空'),
   endDate: z.string().optional(),
   salary: z.number().min(0).optional(),
   position: z.string().optional(),
+  attachmentUrl: z.string().max(500).optional(),
   remark: z.string().optional(),
 });
 

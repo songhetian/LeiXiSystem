@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray } from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -18,4 +18,9 @@ export class UpdateCategoryDto {
   @IsInt()
   @IsOptional()
   sortOrder?: number;
+}
+
+export class ReorderCategoriesDto {
+  @IsArray()
+  ids!: number[];
 }

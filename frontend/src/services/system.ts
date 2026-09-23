@@ -88,7 +88,8 @@ export interface SysRole {
 }
 
 export interface SysRoleCreateDto {
-  code: string;
+  /** 角色编码：可留空，由后端自动生成 */
+  code?: string;
   name: string;
   description?: string;
 }
@@ -102,6 +103,11 @@ export interface SysDepartment {
   id: number;
   name: string;
   parentId?: number | null;
+  managerId?: number | null;
+  description?: string | null;
+  status?: string;
+  deletedAt?: string | null;
+  employeeCount?: number;
 }
 
 export interface SysPosition {
@@ -194,20 +200,27 @@ export const systemApi = {
     return request.post(`/system/roles/${id}/permissions`, { permissionIds });
   },
   // GET /system/departments
-  listDepartments(): Promise<DepartmentListResult> {
+  listDepartments(includeDeleted = false): Promise<DepartmentListResult> {
+    if (includeDeleted) {
+      return request.get('/system/departments?includeDeleted=true');
+    }
     return cachedGet('departments', () => request.get('/system/departments'));
   },
-  createDepartment(data: { name: string; parentId?: number }): Promise<{ code: number; message?: string; data: SysDepartment }> {
+  createDepartment(data: { name: string; parentId?: number; description?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
     invalidateReferenceCache('departments');
     return request.post('/system/departments', data);
   },
-  updateDepartment(id: number, data: { name?: string; parentId?: number | null }): Promise<{ code: number; message?: string; data: SysDepartment }> {
+  updateDepartment(id: number, data: { name?: string; parentId?: number | null; description?: string; status?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
     invalidateReferenceCache('departments');
     return request.put(`/system/departments/${id}`, data);
   },
   deleteDepartment(id: number): Promise<{ code: number; message?: string; data: { success: boolean } }> {
     invalidateReferenceCache('departments');
     return request.delete(`/system/departments/${id}`);
+  },
+  restoreDepartment(id: number): Promise<{ code: number; message?: string; data: { success: boolean } }> {
+    invalidateReferenceCache('departments');
+    return request.post(`/system/departments/${id}/restore`);
   },
   listPositions(): Promise<{ code: number; message?: string; data: SysPosition[] }> {
     return cachedGet('positions', () => request.get('/system/positions'));

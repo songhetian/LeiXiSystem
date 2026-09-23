@@ -1,4 +1,4 @@
-import { getKnowledgeView } from '../view';
+import { getKnowledgeView, getKnowledgeFolders, getFolderArticles, FOLDER_ALL, FOLDER_UNCAT } from '../view';
 import type { KnowledgeCategory, KnowledgeArticle } from '@/services/knowledge';
 
 const categories: KnowledgeCategory[] = [
@@ -54,5 +54,45 @@ describe('getKnowledgeView', () => {
       const { filteredArticles } = getKnowledgeView(categories, articles, 'all', '不存在词');
       expect(filteredArticles).toHaveLength(0);
     });
+  });
+});
+
+describe('getKnowledgeFolders（文件夹/浏览根视图）', () => {
+  it('按分类生成文件夹卡片，count 以实际文章统计，未分类排最后', () => {
+    const folders = getKnowledgeFolders(categories, articles);
+    expect(folders).toEqual([
+      { key: '1', name: '公司制度', count: 2 },
+      { key: '2', name: '培训资料', count: 1 },
+      { key: FOLDER_UNCAT, name: '未分类', count: 1 },
+    ]);
+  });
+
+  it('无分类时只有未分类文件夹', () => {
+    const folders = getKnowledgeFolders([], articles);
+    expect(folders).toEqual([{ key: FOLDER_UNCAT, name: '未分类', count: 1 }]);
+  });
+
+  it('空文章时 count 全为 0', () => {
+    const folders = getKnowledgeFolders(categories, []);
+    expect(folders.map((f) => f.count)).toEqual([0, 0, 0]);
+  });
+});
+
+describe('getFolderArticles（分类内文章浏览）', () => {
+  it('FOLDER_ALL 返回全部文章', () => {
+    expect(getFolderArticles(categories, articles, FOLDER_ALL)).toHaveLength(4);
+  });
+
+  it('按分类 id 过滤', () => {
+    expect(getFolderArticles(categories, articles, '1').map((a) => a.id)).toEqual([1, 2]);
+  });
+
+  it('未分类返回无分类文章', () => {
+    expect(getFolderArticles(categories, articles, FOLDER_UNCAT).map((a) => a.id)).toEqual([4]);
+  });
+
+  it('配合关键字过滤命中标题/摘要', () => {
+    expect(getFolderArticles(categories, articles, FOLDER_ALL, '制度').map((a) => a.id)).toEqual([2]);
+    expect(getFolderArticles(categories, articles, '1', '员工').map((a) => a.id)).toEqual([1]);
   });
 });

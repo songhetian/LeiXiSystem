@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Table,
   Button,
@@ -35,7 +35,7 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { approvalApi, Workflow, WorkflowNode } from '@/services/approval';
 import { notifyError } from '@/lib/request';
 import { usePermission } from '@/hooks/use-permission';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -67,7 +67,20 @@ function getNodeTypeMeta(type: string) {
 
 export default function ApprovalSettingsPage() {
   const { can } = usePermission();
-  const { data, loading, error, run: runFetch, setData } = useFetchState<Workflow[]>([]);
+  const fetchList = useCallback(
+    () =>
+      approvalApi.listWorkflows().then((res) => {
+        if (res.code === 0 && res.data) {
+          return res.data;
+        }
+        throw new Error(res.message || '获取审批流程列表失败');
+      }),
+    [],
+  );
+  const { data, loading, error, revalidate: revalidateList } = useCachedData<Workflow[]>(
+    'config:approval:workflows',
+    fetchList,
+  );
 
   // ===== 基本信息弹窗 =====
   const [baseModalVisible, setBaseModalVisible] = useState(false);
@@ -81,20 +94,6 @@ export default function ApprovalSettingsPage() {
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
   const [activeNodeKey, setActiveNodeKey] = useState<string | null>(null);
   const [nodeSaving, setNodeSaving] = useState(false);
-
-  const fetchList = async () => {
-    await runFetch(async () => {
-      const res = await approvalApi.listWorkflows();
-      if (res.code === 0 && res.data) {
-        return res.data;
-      }
-      throw new Error(res.message || '获取审批流程列表失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchList();
-  }, []);
 
   // ===== 基本信息操作 =====
   const openCreateBase = () => {
@@ -130,7 +129,7 @@ export default function ApprovalSettingsPage() {
       if (res.code === 0) {
         Message.success(editingBase ? '更新成功' : '创建成功');
         setBaseModalVisible(false);
-        fetchList();
+        revalidateList();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -194,7 +193,7 @@ export default function ApprovalSettingsPage() {
       if (res.code === 0) {
         Message.success('节点配置保存成功');
         setNodeModalVisible(false);
-        fetchList();
+        revalidateList();
       } else {
         Message.error(res.message || '保存失败');
       }
@@ -209,7 +208,7 @@ export default function ApprovalSettingsPage() {
     const res = await approvalApi.deleteWorkflow(record.id);
     if (res.code === 0) {
       Message.success('删除成功');
-      fetchList();
+      revalidateList();
     } else {
       Message.error(res.message || '删除失败');
     }
@@ -282,8 +281,6 @@ export default function ApprovalSettingsPage() {
 
   return (
     <PageContainer
-      title="审批流程设置"
-      subTitle="配置各业务模块的审批流程和节点"
     >
       <Card style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
@@ -297,11 +294,12 @@ export default function ApprovalSettingsPage() {
             新建审批流程
           </Button>
         </div>
-        <DataState loading={loading} error={error} onRetry={fetchList} isEmpty={!data || data.length === 0}>
+        <DataState loading={loading} error={error} onRetry={revalidateList} isEmpty={!data || data.length === 0}>
           <Table
             columns={columns}
             data={data || []}
             rowKey="id"
+            scroll={{ x: true }}
             pagination={{ pageSize: 20, showTotal: true }}
           />
         </DataState>
@@ -323,8 +321,8 @@ export default function ApprovalSettingsPage() {
           <Form.Item label="流程名称" field="name" rules={[{ required: true, message: '请输入流程名称' }]}>
             <Input placeholder="请输入流程名称" />
           </Form.Item>
-          <Form.Item label="流程编码" field="code" rules={[{ required: true, message: '请输入流程编码' }]}>
-            <Input placeholder="英文唯一标识" disabled={!!editingBase} />
+          <Form.Item label="流程编码">
+            <Input disabled placeholder="保存后由系统自动生成" />
           </Form.Item>
           <Form.Item label="适用模块" field="module" rules={[{ required: true, message: '请选择适用模块' }]}>
             <Select placeholder="请选择适用模块">

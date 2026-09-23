@@ -17,7 +17,9 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  // 原始请求限流放宽至 20 次/分钟（避免正常重试误伤）；暴力破解由
+  // LoginRateLimitService 基于失败次数（5次失败/15分钟/账号）兜底。
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async login(
     @Body() body: unknown,
     @Req() req: FastifyRequest,

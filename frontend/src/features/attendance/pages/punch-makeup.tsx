@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
@@ -8,8 +8,9 @@ import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { punchMakeupApi, PunchMakeupRecord } from '@/services/attendance';
-import { notifyError } from '@/lib/request';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const PUNCH_TYPE_OPTIONS = [
   { label: '上班卡', value: 'morning' },
@@ -26,9 +27,6 @@ const STATUS_MAP: Record<string, { color: string; text: string }> = {
 };
 
 export default function PunchMakeupPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<PunchMakeupRecord[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
@@ -36,42 +34,34 @@ export default function PunchMakeupPage() {
   const [editing, setEditing] = useState<PunchMakeupRecord | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
-  const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await punchMakeupApi.list({ page, pageSize, ...params });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setPagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total });
-      } else {
-        setError(res.message || '获取补卡记录失败');
-        Message.error(res.message || '获取补卡记录失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取补卡记录失败');
-      notifyError(e, '获取补卡记录失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData(1, 20, searchParams);
-  }, []);
+  // SWR 缓存：参数编入 cacheKey，搜索/翻页即重新订阅；同参数复用缓存
+  const cacheKey = `attendance:punch-makeup:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<{
+    code: number;
+    message?: string;
+    data?: { list: PunchMakeupRecord[]; page: number; pageSize: number; total: number };
+  }>(
+    cacheKey,
+    () => punchMakeupApi.list({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchData(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchData(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchData(page, pageSize, searchParams);
+    setPagination({ ...pageResult, current: page, pageSize });
   };
 
   // 导出补卡记录到 Excel
@@ -81,7 +71,7 @@ export default function PunchMakeupPage() {
       const list = (res.data?.list ?? []) as PunchMakeupRecord[];
       const typeLabel = (v: string) => PUNCH_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v;
       if (!exportToExcel(
-        `补卡申请_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        `补卡申请_${todayStr()}.xlsx`,
         '补卡申请',
         [
           { title: '补卡日期', dataIndex: 'punchDate' },
@@ -119,7 +109,7 @@ export default function PunchMakeupPage() {
         if (res.code === 0) {
           Message.success('修改成功');
           setModalVisible(false);
-          fetchData(pagination.current, pagination.pageSize, searchParams);
+          revalidate();
         } else {
           Message.error(res.message || '修改失败');
         }
@@ -134,7 +124,7 @@ export default function PunchMakeupPage() {
         if (res.code === 0) {
           Message.success('创建成功');
           setModalVisible(false);
-          fetchData(pagination.current, pagination.pageSize, searchParams);
+          revalidate();
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -151,7 +141,7 @@ export default function PunchMakeupPage() {
       const res = await punchMakeupApi.remove(id);
       if (res.code === 0) {
         Message.success('删除成功');
-        fetchData(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -165,7 +155,7 @@ export default function PunchMakeupPage() {
       const res = await punchMakeupApi.submit(id);
       if (res.code === 0) {
         Message.success('提交成功');
-        fetchData(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -269,19 +259,19 @@ export default function PunchMakeupPage() {
   ];
 
   return (
-    <PageContainer title="补卡申请">
+    <PageContainer >
       <ProTable
         rowKey="id"
         columns={columns}
         data={data}
         loading={loading}
         error={error}
-        onRetry={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
         toolbar={toolbar}
-        pagination={pagination}
+        pagination={pageResult}
         onPageChange={handlePageChange}
       />
       <ModalForm

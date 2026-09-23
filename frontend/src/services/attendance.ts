@@ -540,13 +540,17 @@ export interface PunchTodayResult {
   message?: string;
   data?: {
     id: number;
-    firstPunch?: string;
-    lastPunch?: string;
+    firstPunch?: string | null;
+    lastPunch?: string | null;
     punchCount: number;
     lateMinutes: number;
     earlyMinutes: number;
     status: string;
-    shift?: { id: number; name: string; startTime: string; endTime: string; isNextDay: boolean; color?: string };
+    shift?: { id: number; name: string; startTime: string; endTime: string; isNextDay: boolean; color?: string; isRest?: boolean } | null;
+    hasSchedule?: boolean;
+    isRestDay?: boolean;
+    clockIn?: { allowed: boolean; message: string };
+    clockOut?: { allowed: boolean; message: string };
   } | null;
 }
 

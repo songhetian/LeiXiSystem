@@ -1,11 +1,13 @@
-// T24 · 权限点落库 + 演示数据种子（幂等，可重复执行）
+// T24 · 权限点落库 + 真实业务数据种子（幂等，可重复执行）
 // 用法: node --env-file=.env --import tsx prisma/seed.ts
 // 或:   pnpm --filter @lei/backend exec prisma db seed
 //
 // 注意：业务演示数据与后端 e2e 的"全库清表"模式互斥——
 // 跑完整后端测试后演示数据会被测试清理，需重新执行本 seed 恢复。
-import { PrismaClient, Prisma, EmployeeStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import Redis from 'ioredis';
+import { seedRealData } from './seed-real-data';
 
 // ===== 权限点全集（操作级粒度，对齐各 controller @RequirePermission 实际使用） =====
 export const PERMISSIONS = [
@@ -101,6 +103,10 @@ export const PERMISSIONS = [
   { code: 'knowledge:view', name: '知识库查看', module: 'knowledge', type: 'menu' },
   { code: 'knowledge:manage', name: '知识库管理', module: 'knowledge', type: 'api' },
 
+  // ---- 通用文件（files）----
+  { code: 'file:upload', name: '文件上传', module: 'system', type: 'api' },
+  { code: 'file:view', name: '文件查看', module: 'system', type: 'api' },
+
   // ---- 报表（reports）----
   { code: 'reports:view', name: '报表查看', module: 'reports', type: 'menu' },
 
@@ -147,6 +153,9 @@ export const STAFF_PERMISSIONS: string[] = [
   // 报销：申请
   'reimbursement:view',
   'reimbursement:create',
+  // 通用文件：上传/查看（报销附件）
+  'file:upload',
+  'file:view',
   // 知识库：查看
   'knowledge:view',
   // 工资条
@@ -219,12 +228,72 @@ export async function seedPermissions(prisma: PrismaClient) {
     create: { userId: staff.id, roleId: staffRole.id },
   });
 
+  // 重建权限绑定后失效 admin/staff 的 Redis 权限缓存，
+  // 避免已登录用户继续使用旧权限（按钮无反应 / 菜单不全）
+  await invalidateUserPermCache([admin.id, staff.id]);
+
   return { admin, staff };
 }
 
-/** 演示业务数据（幂等：唯一键 upsert / createMany skipDuplicates / findFirst 跳过） */
+/**
+ * 根据 userIds 构造 Redis 权限缓存 key 列表（纯函数，便于测试）。
+ * 与 backend/src/common/permission-cache.service.ts 的 USER_PERM_CACHE_KEY_PREFIX 保持一致。
+ */
+export function buildUserPermCacheKeys(userIds: number[], keyPrefix = 'leixi:'): string[] {
+  return userIds.map((id) => `${keyPrefix}user:perm:${id}`);
+}
+
+/**
+ * 删除指定用户的 Redis 权限缓存键。
+ * seed 脚本不通过 NestJS DI，直接用 ioredis 连接 REDIS_URL；
+ * Redis 未配置或不可用时静默跳过（与 PermissionCacheService 一致）。
+ */
+export async function invalidateUserPermCache(
+  userIds: number[],
+  options: {
+    redisUrl?: string;
+    keyPrefix?: string;
+    clientFactory?: (url: string) => Pick<Redis, 'connect' | 'del' | 'quit'>;
+  } = {},
+): Promise<void> {
+  const url = options.redisUrl ?? process.env.REDIS_URL;
+  if (!url) return;
+  const prefix = options.keyPrefix ?? process.env.REDIS_KEY_PREFIX ?? 'leixi:';
+  const factory = options.clientFactory ?? ((u: string) => new Redis(u, {
+    maxRetriesPerRequest: 2,
+    lazyConnect: true,
+    enableOfflineQueue: false,
+  }) as unknown as Pick<Redis, 'connect' | 'del' | 'quit'>);
+  const client = factory(url);
+  try {
+    await client.connect();
+    const keys = buildUserPermCacheKeys(userIds, prefix);
+    if (keys.length > 0) {
+      await client.del(...keys);
+      console.log(`[seed] 已失效 Redis 权限缓存: ${keys.length} 个用户`);
+    }
+  } catch (err: any) {
+    console.warn(`[seed] 失效权限缓存失败（忽略）: ${err.message}`);
+  } finally {
+    try {
+      await client.quit();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/** 真实业务数据（幂等：唯一键 upsert / createMany skipDuplicates / findFirst 跳过） */
 export async function seedBusiness(prisma: PrismaClient) {
   const { admin, staff } = await seedPermissions(prisma);
+  const staffRole = await prisma.role.findUniqueOrThrow({ where: { code: 'staff' } });
+
+  // ---- 1) 真实业务数据：部门/职位/30 名员工（各绑定 User 账号）/员工事务/履历/变动流水/考勤/薪资/报销 ----
+  await seedRealData(prisma, {
+    adminUser: { id: admin.id },
+    staffUser: { id: staff.id },
+    staffRoleId: staffRole.id,
+  });
 
   // ---- 系统设置 ----
   const systemSettings = [
@@ -251,165 +320,6 @@ export async function seedBusiness(prisma: PrismaClient) {
     }
   }
 
-  // ---- 组织 ----
-  const depNames = ['技术部', '客服部', '人事财务部'];
-  const deps: number[] = [];
-  for (const name of depNames) {
-    let d = await prisma.department.findFirst({ where: { name } });
-    if (!d) d = await prisma.department.create({ data: { name } });
-    deps.push(d.id);
-  }
-
-  const posNames = ['产品经理', '开发工程师', '客服专员', '财务专员', '人事专员'];
-  const posIds: Record<string, number> = {};
-  for (const name of posNames) {
-    let p = await prisma.position.findFirst({ where: { name } });
-    if (!p) p = await prisma.position.create({ data: { name } });
-    posIds[name] = p.id;
-  }
-
-  // ---- 员工（30 人，E001-E030）----
-  const empNames = [
-    '张伟', '王芳', '李娜', '刘洋', '陈静', '杨帆', '赵磊', '黄敏', '周涛', '吴倩',
-    '徐强', '孙丽', '马超', '朱婷', '胡军', '郭雪', '何平', '高翔', '林峰', '罗燕',
-    '郑浩', '梁欣', '谢鹏', '宋佳', '唐明', '韩雪', '冯磊', '董雯', '萧然', '程亮',
-  ];
-  const deptOf = (i: number) => (i < 12 ? deps[0] : i < 24 ? deps[1] : deps[2]);
-  const posOf = (i: number) =>
-    i < 12
-      ? i % 4 === 0
-        ? posIds['产品经理']
-        : posIds['开发工程师']
-      : i < 24
-        ? posIds['客服专员']
-        : i % 2 === 0
-          ? posIds['财务专员']
-          : posIds['人事专员'];
-
-  const employees: { id: number; employeeNo: string; salary: number }[] = [];
-  for (let i = 0; i < 30; i++) {
-    const employeeNo = `E${String(i + 1).padStart(3, '0')}`;
-    const salary = 5200 + ((i * 137) % 70) * 100; // 5200 ~ 12100
-    const emp = await prisma.employee.upsert({
-      where: { employeeNo },
-      update: {},
-      create: {
-        employeeNo,
-        name: empNames[i],
-        departmentId: deptOf(i),
-        positionId: posOf(i),
-        hireDate: new Date(2023 + (i % 3), (i * 3) % 12, ((i * 7) % 27) + 1),
-        salary,
-        status: EmployeeStatus.active,
-        // E001 绑定 staff 演示账号（我的申请/我的工资条视角）
-        userId: i === 0 ? staff.id : undefined,
-      },
-    });
-    employees.push({ id: emp.id, employeeNo, salary });
-  }
-
-  // ---- 演示账号均视为员工：所有用户都应绑定员工档案，身份只是角色不决定有无档案 ----
-  // E001 已在上面按 staff.id 绑定；admin（系统管理员）也应有自己的档案，避免 /employees/me 404
-  // E000 为系统管理员专属档案，不放入上方排班/打卡名单
-  await prisma.employee.upsert({
-    where: { employeeNo: 'E000' },
-    update: { userId: admin.id, name: '系统管理员' },
-    create: {
-      employeeNo: 'E000',
-      name: '系统管理员',
-      departmentId: deps[0],
-      hireDate: new Date('2024-01-01'),
-      status: EmployeeStatus.active,
-      userId: admin.id,
-    },
-  });
-
-  // ---- 班次（对齐旧项目字段）----
-  const shifts = [
-    { name: '早班', startTime: '09:00', endTime: '18:00', restDuration: 60, lateThreshold: 15, earlyThreshold: 15, useGlobalThreshold: true, color: '#3B82F6', description: '标准早班 9:00-18:00', isActive: true },
-    { name: '晚班', startTime: '13:00', endTime: '22:00', restDuration: 60, lateThreshold: 15, earlyThreshold: 15, useGlobalThreshold: true, color: '#F59E0B', description: '下午班次 13:00-22:00', isActive: true },
-    { name: '行政班', startTime: '09:00', endTime: '17:30', restDuration: 60, lateThreshold: 10, earlyThreshold: 10, useGlobalThreshold: true, color: '#10B981', description: '行政班次 9:00-17:30', isActive: true },
-  ];
-  const shiftIds: number[] = [];
-  for (const s of shifts) {
-    const sh = await prisma.shift.upsert({ where: { name: s.name }, update: {}, create: s });
-    shiftIds.push(sh.id);
-  }
-
-  // ---- 近 30 天工作日 ----
-  const workDates: Date[] = [];
-  const today = new Date();
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-    const dow = d.getDay();
-    if (dow === 0 || dow === 6) continue;
-    workDates.push(d);
-  }
-
-  // ---- 排班 ----
-  const scheduleRows = [];
-  for (let i = 0; i < employees.length; i++) {
-    for (const wd of workDates) {
-      scheduleRows.push({ employeeId: employees[i].id, shiftId: shiftIds[i % 3], workDate: wd });
-    }
-  }
-  await prisma.schedule.createMany({ data: scheduleRows, skipDuplicates: true });
-
-  // ---- 打卡（每天上班/下班两条，DEMO 设备）----
-  const punchRows: Prisma.PunchLogCreateManyInput[] = [];
-  for (let i = 0; i < employees.length; i++) {
-    const emp = employees[i];
-    for (const wd of workDates) {
-      const inT = new Date(wd);
-      inT.setHours(8, 45 + (i % 16), 0, 0); // 8:45~9:00
-      const outT = new Date(wd);
-      outT.setHours(18, 0 + (i % 13), 0, 0);
-      punchRows.push({
-        employeeNo: emp.employeeNo,
-        deviceNo: 'DEMO-001',
-        punchTime: inT,
-        punchType: 'in',
-        source: 'import',
-        status: 'matched',
-      });
-      punchRows.push({
-        employeeNo: emp.employeeNo,
-        deviceNo: 'DEMO-001',
-        punchTime: outT,
-        punchType: 'out',
-        source: 'import',
-        status: 'matched',
-      });
-    }
-  }
-  await prisma.punchLog.createMany({ data: punchRows, skipDuplicates: true });
-
-  // ---- 考勤日报（~6% 迟到）----
-  const dailyRows: Prisma.AttendanceDailyCreateManyInput[] = [];
-  for (let i = 0; i < employees.length; i++) {
-    const emp = employees[i];
-    const late = i % 17 === 0;
-    for (const wd of workDates) {
-      const inT = new Date(wd);
-      inT.setHours(8, 50, 0, 0);
-      const outT = new Date(wd);
-      outT.setHours(18, 10, 0, 0);
-      dailyRows.push({
-        employeeId: emp.id,
-        workDate: wd,
-        firstPunch: inT,
-        lastPunch: outT,
-        punchCount: 2,
-        lateMinutes: late ? 15 : 0,
-        earlyMinutes: 0,
-        overtimeMinutes: 0,
-        leaveDays: 0,
-        status: late ? 'late' : 'normal',
-      });
-    }
-  }
-  await prisma.attendanceDaily.createMany({ data: dailyRows, skipDuplicates: true });
-
   // ---- 休假类型 + 额度 ----
   const vacationTypes = [
     { code: 'annual', name: '年假', baseDays: 5 },
@@ -426,7 +336,10 @@ export async function seedBusiness(prisma: PrismaClient) {
     });
     vacTypeIds[t.code] = vt.id;
   }
-  for (const emp of employees.slice(0, 10)) {
+  const annualEmps = await prisma.employee.findMany({
+    where: { employeeNo: { in: ['E001', 'E002', 'E006', 'E013', 'E017', 'E024', 'E029'] } },
+  });
+  for (const emp of annualEmps) {
     await prisma.vacationBalance.upsert({
       where: {
         employeeId_vacationTypeId_year: {
@@ -464,7 +377,8 @@ export async function seedBusiness(prisma: PrismaClient) {
       order: 1,
     },
   });
-  const empE1 = await prisma.employee.findUniqueOrThrow({ where: { employeeNo: 'E001' } });
+  const empE1 = await prisma.employee.findUniqueOrThrow({ where: { employeeNo: 'E013' } });
+  const staffDept = await prisma.department.findFirstOrThrow({ where: { name: '客服部' } });
   const demoInstances = [
     { title: '演示请假1-年假-8月20日', start: '2026-08-20', days: 1, status: 'pending' as const },
     { title: '演示请假2-事假-8月22日', start: '2026-08-22', days: 0.5, status: 'pending' as const },
@@ -480,7 +394,7 @@ export async function seedBusiness(prisma: PrismaClient) {
         title: it.title,
         applicantId: staff.id,
         applicantName: '王小明',
-        departmentId: deps[1],
+        departmentId: staffDept.id,
         status: it.status,
         currentNodeKey: it.status === 'pending' ? 'manager' : null,
         currentNodeName: it.status === 'pending' ? '直属上级审批' : null,
@@ -512,64 +426,6 @@ export async function seedBusiness(prisma: PrismaClient) {
       },
     });
   }
-
-  // ---- 薪资批次（2026-07 confirmed）+ 明细 + 工资条 ----
-  await prisma.salaryItem.upsert({
-    where: { code: 'base' },
-    update: {},
-    create: { code: 'base', name: '基础工资', type: 'fixed' },
-  });
-  await prisma.salaryItem.upsert({
-    where: { code: 'meal' },
-    update: {},
-    create: { code: 'meal', name: '餐补', type: 'fixed', amount: 300 },
-  });
-  const totalAmount = employees.reduce((sum, e) => sum + e.salary + 300, 0);
-  const run = await prisma.payrollRun.upsert({
-    where: { month: '2026-07' },
-    update: {},
-    create: {
-      month: '2026-07',
-      status: 'confirmed',
-      totalEmployees: employees.length,
-      totalAmount,
-      checkedEmployeeIds: employees.slice(0, 3).map((e) => e.id),
-      checkedBy: admin.id,
-      checkedAt: new Date('2026-07-31'),
-      confirmedBy: admin.id,
-      confirmedAt: new Date('2026-08-01'),
-      remark: '演示数据',
-    },
-  });
-  const detailRows = [];
-  for (const emp of employees) {
-    detailRows.push({
-      runId: run.id,
-      employeeId: emp.id,
-      itemCode: 'base',
-      itemName: '基础工资',
-      amount: emp.salary,
-    });
-    detailRows.push({
-      runId: run.id,
-      employeeId: emp.id,
-      itemCode: 'meal',
-      itemName: '餐补',
-      amount: 300,
-    });
-  }
-  await prisma.payrollDetail.createMany({ data: detailRows, skipDuplicates: true });
-  const slipRows = employees.map((emp) => ({
-    runId: run.id,
-    employeeId: emp.id,
-    month: '2026-07',
-    totalAmount: emp.salary + 300,
-    itemsJson: JSON.stringify([
-      { code: 'base', name: '基础工资', amount: emp.salary },
-      { code: 'meal', name: '餐补', amount: 300 },
-    ]),
-  }));
-  await prisma.payslip.createMany({ data: slipRows, skipDuplicates: true });
 
   // ---- 知识库 ----
   const catRows = [

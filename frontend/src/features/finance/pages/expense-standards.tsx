@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { financeApi, ExpenseStandard, ExpenseStandardCreateDto, ExpenseStandardUpdateDto } from '@/services/finance';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { notifyError } from '@/lib/request';
+import { todayStr } from '@/lib/format';
 
 /** 常用费用类别选项 */
 const EXPENSE_CATEGORIES = ['差旅', '办公', '通讯', '招待', '交通', '住宿', '其他'];
@@ -21,10 +22,6 @@ export default function ExpenseStandardsPage() {
   const { can } = usePermission();
   const canManage = can('finance:expense-standard:manage');
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ExpenseStandard[]>([]);
-
   // 筛选条件
   const [filters, setFilters] = useState<{ category: string; status: string; keyword: string }>({
     category: '',
@@ -38,14 +35,19 @@ export default function ExpenseStandardsPage() {
   const [editingStandard, setEditingStandard] = useState<ExpenseStandard | null>(null);
   const [form] = Form.useForm();
 
-  const fetchList = useCallback(async (activeFilters = filters) => {
-    setLoading(true);
-    setError(null);
-    try {
+  // SWR 缓存：筛选条件编入 cacheKey，同参数复用缓存
+  const {
+    data: resData,
+    loading,
+    error,
+    revalidate,
+  } = useCachedData<ExpenseStandard[]>(
+    `finance:expense-standards:${filters.category}:${filters.status}:${filters.keyword}`,
+    async () => {
       const params: Record<string, any> = {};
-      if (activeFilters.category) params.category = activeFilters.category;
-      if (activeFilters.status) params.status = activeFilters.status;
-      if (activeFilters.keyword) params.keyword = activeFilters.keyword;
+      if (filters.category) params.category = filters.category;
+      if (filters.status) params.status = filters.status;
+      if (filters.keyword) params.keyword = filters.keyword;
       const res = await financeApi.listExpenseStandards(params);
       let list: ExpenseStandard[] = [];
       if (res.code === 0) {
@@ -54,39 +56,27 @@ export default function ExpenseStandardsPage() {
         list = (res as any).data;
       }
       // 若后端未按条件过滤，则本地兜底
-      if (activeFilters.category) {
-        const kw = String(activeFilters.category).toLowerCase();
+      if (filters.category) {
+        const kw = String(filters.category).toLowerCase();
         list = list.filter((s) => String(s.category ?? '').toLowerCase().includes(kw));
       }
-      if (activeFilters.status) list = list.filter((s) => s.status === activeFilters.status);
-      if (activeFilters.keyword) {
-        const kw = String(activeFilters.keyword).toLowerCase();
+      if (filters.status) list = list.filter((s) => s.status === filters.status);
+      if (filters.keyword) {
+        const kw = String(filters.keyword).toLowerCase();
         list = list.filter((s) => s.name.toLowerCase().includes(kw));
       }
-      setData(list);
-    } catch (e: any) {
-      setError(e?.message || '获取费用标准列表失败');
-      notifyError(e, '获取费用标准列表失败');
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.category, filters.status, filters.keyword]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+      return list;
+    },
+    { staleTime: 30_000 },
+  );
+  const data = resData ?? [];
 
   const handleFilterChange = (key: 'category' | 'status' | 'keyword', value: string) => {
-    const next = { ...filters, [key]: value };
-    setFilters(next);
-    fetchList(next);
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleReset = () => {
-    const empty = { category: '', status: '', keyword: '' };
-    setFilters(empty);
-    fetchList(empty);
+    setFilters({ category: '', status: '', keyword: '' });
   };
 
   const handleAdd = () => {
@@ -131,7 +121,7 @@ export default function ExpenseStandardsPage() {
           Message.success('修改成功');
           setModalVisible(false);
           form.resetFields();
-          fetchList();
+          revalidate();
         } else {
           Message.error(res.message || '操作失败');
         }
@@ -148,7 +138,7 @@ export default function ExpenseStandardsPage() {
           Message.success('创建成功');
           setModalVisible(false);
           form.resetFields();
-          fetchList();
+          revalidate();
         } else {
           Message.error(res.message || '操作失败');
         }
@@ -181,7 +171,7 @@ export default function ExpenseStandardsPage() {
           const res = await financeApi.toggleExpenseStandard(record.id);
           if (res.code === 0) {
             Message.success(toEnable ? '已启用' : '已停用');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '操作失败');
           }
@@ -201,7 +191,7 @@ export default function ExpenseStandardsPage() {
           const res = await financeApi.deleteExpenseStandard(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -215,7 +205,7 @@ export default function ExpenseStandardsPage() {
   // 导出当前（筛选后的）费用标准数据
   const handleExport = () => {
     if (!exportToExcel(
-      `费用标准_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `费用标准_${todayStr()}.xlsx`,
       '费用标准',
       [
         { title: '名称', dataIndex: 'name' },
@@ -270,7 +260,7 @@ export default function ExpenseStandardsPage() {
   ];
 
   return (
-    <PageContainer title="费用标准">
+    <PageContainer >
       {/* 筛选栏 */}
       <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -339,6 +329,7 @@ export default function ExpenseStandardsPage() {
             loading={loading}
             data={data}
             columns={columns}
+            scroll={{ x: true }}
             pagination={{ pageSize: 10, showTotal: true }}
             noDataElement={<div className="py-16 text-text-3">暂无费用标准数据</div>}
           />

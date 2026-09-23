@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, Grid, Typography, Button, Message, List, Tag, Avatar, Badge, Empty } from '@arco-design/web-react';
+import { Grid, Typography, Button, Message, Empty } from '@arco-design/web-react';
 import {
   IconUserGroup,
   IconCheckCircle,
@@ -15,45 +15,50 @@ import {
   IconStorage,
   IconUser,
   IconEdit,
-  IconPlus,
-  IconExclamation,
   IconArchive,
+  IconExclamation,
 } from '@arco-design/web-react/icon';
+import { BRAND_PRIMARY } from '@/lib/dashboard-tone';
 import PageContainer from '@/components/PageContainer';
 import { dashboardApi, DashboardStats, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { usePermission } from '@/hooks/use-permission';
 
 const { Row, Col } = Grid;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface QuickAction {
   label: string;
   path: string;
   icon: React.ComponentType<{ style?: React.CSSProperties }>;
-  color: string;
-  bgColor: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: '员工管理', path: '/employees', icon: IconUserGroup, color: '#2455D9', bgColor: 'linear-gradient(135deg, rgba(36,85,217,0.1), rgba(36,85,217,0.03))' },
-  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle, color: '#22c55e', bgColor: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.03))' },
-  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle, color: '#f59e0b', bgColor: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.03))' },
-  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar, color: '#8b5cf6', bgColor: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.03))' },
-  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit, color: '#14b8a6', bgColor: 'linear-gradient(135deg, rgba(20,184,166,0.1), rgba(20,184,166,0.03))' },
-  { label: '报销申请', path: '/expense/my', icon: IconArchive, color: '#ef4444', bgColor: 'linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.03))' },
-  { label: '知识库', path: '/knowledge', icon: IconBook, color: '#6366f1', bgColor: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.03))' },
-  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar, color: '#8b5cf6', bgColor: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.03))' },
-  { label: '工单客服', path: '/helpdesk', icon: IconUser, color: '#14b8a6', bgColor: 'linear-gradient(135deg, rgba(20,184,166,0.1), rgba(20,184,166,0.03))' },
+  { label: '员工管理', path: '/employees', icon: IconUserGroup },
+  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle },
+  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle },
+  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar },
+  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit },
+  { label: '报销申请', path: '/expense/my', icon: IconArchive },
+  { label: '知识库', path: '/knowledge', icon: IconBook },
+  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar },
+  { label: '工单客服', path: '/helpdesk', icon: IconUser },
 ];
 
-const METRIC_ICON_CONFIGS = [
-  { bg: 'linear-gradient(135deg, rgba(36,85,217,0.12), rgba(36,85,217,0.04))', color: '#2455D9' },
-  { bg: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))', color: '#22c55e' },
-  { bg: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04))', color: '#f59e0b' },
-  { bg: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(139,92,246,0.04))', color: '#8b5cf6' },
-  { bg: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04))', color: '#ef4444' },
-  { bg: 'linear-gradient(135deg, rgba(20,184,166,0.12), rgba(20,184,166,0.04))', color: '#14b8a6' },
-];
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 6) return '夜深了';
+  if (h < 9) return '早上好';
+  if (h < 12) return '上午好';
+  if (h < 14) return '中午好';
+  if (h < 18) return '下午好';
+  return '晚上好';
+}
+
+function todayText() {
+  const now = new Date();
+  const week = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  return `${now.getMonth() + 1}月${now.getDate()}日 · 星期${week}`;
+}
 
 function buildMetrics(stats: DashboardStats | null) {
   return [
@@ -62,53 +67,41 @@ function buildMetrics(stats: DashboardStats | null) {
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
       icon: IconUserGroup,
-      iconIndex: 0,
       trend: '+2.3%',
-      trendUp: true,
     },
     {
       label: '今日出勤',
       value: stats?.attendanceCount?.toString() ?? '0',
       suffix: '人',
       icon: IconCheckCircle,
-      iconIndex: 1,
       trend: '95.2%',
-      trendUp: true,
     },
     {
       label: '待审批',
       value: stats?.pendingApprovals?.toString() ?? '0',
       suffix: '项',
       icon: IconClockCircle,
-      iconIndex: 2,
       trend: '待处理',
-      trendUp: false,
     },
     {
       label: '本月工资',
       value: stats?.monthlySalary != null ? `¥${(stats.monthlySalary / 10000).toFixed(1)}万` : '¥0.00',
       icon: IconArchive,
-      iconIndex: 3,
       trend: '已核算',
-      trendUp: true,
     },
     {
       label: '今日迟到',
       value: stats?.todayLateCount?.toString() ?? '0',
       suffix: '人',
       icon: IconExclamation,
-      iconIndex: 4,
       trend: '较昨日',
-      trendUp: false,
     },
     {
       label: '本月加班',
       value: stats?.monthOvertimeHours != null ? `${stats.monthOvertimeHours}` : '0',
       suffix: '小时',
       icon: IconStorage,
-      iconIndex: 5,
       trend: '+8.5%',
-      trendUp: true,
     },
   ];
 }
@@ -125,6 +118,62 @@ const NOTIFICATION_ITEMS = [
   { id: 2, title: '您的请假申请已通过', type: 'approval', time: '昨天 14:30' },
   { id: 3, title: '考勤规则已更新', type: 'system', time: '2天前' },
 ];
+
+const dotColor = (priority: string) => {
+  switch (priority) {
+    case 'high': return '#f53f3f';
+    case 'medium': return '#ff7d00';
+    case 'low': return '#2455D9';
+    default: return '#86909c';
+  }
+};
+
+const priorityText = (priority: string) => {
+  switch (priority) {
+    case 'high': return '紧急';
+    case 'medium': return '普通';
+    case 'low': return '一般';
+    default: return '';
+  }
+};
+
+/** 解析字符串中的数值段（保留前后缀与小数位），如 '¥12.5万' → {prefix:'¥', num:'12.5', suffix:'万'} */
+function parseNumberPart(text: string): { prefix: string; num: string; suffix: string; decimals: number } | null {
+  const m = text.match(/^([^\d]*)(\d+(?:\.\d+)?)(.*)$/);
+  if (!m) return null;
+  return { prefix: m[1], num: m[2], suffix: m[3], decimals: (m[2].split('.')[1] ?? '').length };
+}
+
+/** 数字滚动：目标值从 0 缓动滚到真实值，非数字（如 '—'）原样渲染 */
+function Ticker({ text }: { text: string }) {
+  const part = parseNumberPart(text);
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (!part) return;
+    const target = parseFloat(part.num);
+    let raf = 0;
+    const t0 = performance.now();
+    const ms = 650;
+    const tick = (t: number) => {
+      const k = Math.min((t - t0) / ms, 1);
+      const eased = 1 - Math.pow(1 - k, 3);
+      setValue(target * eased);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [text]);
+
+  if (!part) return <>{text}</>;
+  return (
+    <>
+      {part.prefix}
+      {value.toFixed(part.decimals)}
+      {part.suffix}
+    </>
+  );
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -152,27 +201,8 @@ export default function HomePage() {
 
   const metrics = buildMetrics(stats);
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'red';
-      case 'medium': return 'orange';
-      case 'low': return 'blue';
-      default: return 'gray';
-    }
-  };
-
-  const getPriorityText = (priority: string) => {
-    switch (priority) {
-      case 'high': return '紧急';
-      case 'medium': return '普通';
-      case 'low': return '一般';
-      default: return '';
-    }
-  };
-
   return (
     <PageContainer
-      title="工作台"
       action={
         <Button
           type="primary"
@@ -184,271 +214,212 @@ export default function HomePage() {
         </Button>
       }
     >
-      <div>
-        {/* 数据统计卡片 */}
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      {/* 欢迎横幅 */}
+      <div className="dsh-hero">
+        <div>
+          <h2 className="dsh-hero-title">{greeting()}，欢迎回来</h2>
+          <p className="dsh-hero-desc">今天也是元气满满的一天，专注工作，高效处理待办</p>
+        </div>
+        <div className="dsh-hero-side">
+          <span className="dsh-hero-chip">
+            <IconCalendar style={{ color: 'var(--lx-primary)' }} />
+            {todayText()}
+          </span>
+        </div>
+      </div>
+
+      {/* KPI 指标卡 */}
+      <div style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]}>
           {metrics.map((m, idx) => {
             const Icon = m.icon;
-            const iconConfig = METRIC_ICON_CONFIGS[m.iconIndex] || METRIC_ICON_CONFIGS[0];
             return (
-              <Col span={4} key={m.label}>
-                <Card
-                  hoverable
-                  className="lx-card-hover lx-hover-lift"
-                  bodyStyle={{ padding: 18 }}
-                  loading={loading}
-                  style={{ animationDelay: `${idx * 50}ms` }}
+              <Col xs={12} md={6} xl={4} key={m.label}>
+                <div
+                  className="dsh-stat"
+                  style={{ padding: 16, background: '#fff', animationDelay: `${idx * 40}ms` }}
                 >
-                  <div className="flex justify-between items-start mb-3">
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center"
-                      style={{ background: iconConfig.bg }}
-                    >
-                      <Icon style={{ fontSize: 22, color: iconConfig.color }} />
-                    </div>
-                    <Tag
-                      color={m.trendUp ? 'green' : 'orange'}
-                      size="small"
-                      style={{ borderRadius: 4 }}
-                    >
+                  <div className="dsh-stat-top">
+                    <span className="dsh-stat-ic">
+                      <Icon style={{ fontSize: 18 }} />
+                    </span>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       {m.trend}
-                    </Tag>
+                    </Text>
                   </div>
-                  <div className="text-xs text-text-3 mb-1">
-                    {m.label}
+                  <div className="dsh-stat-value">
+                    {loading ? '—' : <Ticker text={m.value} />}
+                    {m.suffix && <span className="u">{m.suffix}</span>}
                   </div>
-                  <div className="text-2xl font-semibold text-text-1 tracking-tight">
-                    {m.value}
-                    {m.suffix && (
-                      <span className="text-sm font-normal text-text-3 ml-1">
-                        {m.suffix}
-                      </span>
-                    )}
-                  </div>
-                </Card>
+                  <div className="dsh-stat-label">{m.label}</div>
+                </div>
               </Col>
             );
           })}
         </Row>
-
-        {/* 组织管理看板（管理员可见）：部门人力分布 + 近 7 日考勤趋势 */}
-        {can('system:user:view') && <OrgOverview />}
-
-        {/* 快捷操作 */}
-        <div style={{ marginBottom: 24 }}>
-          <div className="flex items-center justify-between mb-3">
-            <Title heading={5} style={{ margin: 0 }}>
-              快捷操作
-            </Title>
-            <Text type="secondary" style={{ fontSize: 12, cursor: 'pointer' }}>
-              更多 <IconRight style={{ fontSize: 12 }} />
-            </Text>
-          </div>
-          <Row gutter={[12, 12]}>
-            {QUICK_ACTIONS.map((a) => {
-              const Icon = a.icon;
-              return (
-                <Col span={3} key={a.path}>
-                  <Card
-                    hoverable
-                    className="lx-card-hover lx-hover-lift"
-                    bodyStyle={{ padding: 14 }}
-                    style={{ cursor: 'pointer', animationDelay: `${QUICK_ACTIONS.indexOf(a) * 40}ms` }}
-                    onClick={() => router.push(a.path)}
-                  >
-                    <div className="flex flex-col items-center text-center">
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center mb-2"
-                        style={{ background: a.bgColor }}
-                      >
-                        <Icon style={{ fontSize: 22, color: a.color }} />
-                      </div>
-                      <span className="text-xs font-medium text-text-2">
-                        {a.label}
-                      </span>
-                    </div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </div>
-
-        {/* 待办事项 + 最新通知 */}
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-          <Col span={12}>
-            <Card
-              title="待办事项"
-              extra={
-                <Button
-                  type="text"
-                  size="small"
-                  onClick={() => router.push('/approval/todo')}
-                >
-                  查看全部
-                </Button>
-              }
-              bodyStyle={{ padding: 0 }}
-            >
-              <List
-                size="small"
-                dataSource={TODO_ITEMS}
-                render={(item) => (
-                  <List.Item key={item.id}>
-                    <List.Item.Meta
-                      avatar={
-                        <Badge dot color={getPriorityColor(item.priority)}>
-                          <Avatar size={36}>
-                            <IconClockCircle style={{ fontSize: 18 }} />
-                          </Avatar>
-                        </Badge>
-                      }
-                      title={
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-text-1">
-                            {item.title}
-                          </span>
-                          <Tag color={getPriorityColor(item.priority)} size="small">
-                            {getPriorityText(item.priority)}
-                          </Tag>
-                        </div>
-                      }
-                      description={
-                        <div className="flex items-center justify-between mt-1">
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {item.type}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {item.time}
-                          </Text>
-                        </div>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card
-              title="最新通知"
-              extra={
-                <Button
-                  type="text"
-                  size="small"
-                  onClick={() => router.push('/notifications')}
-                >
-                  查看全部
-                </Button>
-              }
-              bodyStyle={{ padding: 0 }}
-            >
-              <List
-                size="small"
-                dataSource={NOTIFICATION_ITEMS}
-                render={(item) => (
-                  <List.Item key={item.id}>
-                    <List.Item.Meta
-                      avatar={
-                        <Avatar size={36}>
-                          <IconNotification style={{ fontSize: 18 }} />
-                        </Avatar>
-                      }
-                      title={item.title}
-                      description={item.time}
-                    />
-                  </List.Item>
-                )}
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        {/* 考勤概览 + 我的审批 */}
-        <Row gutter={[16, 16]}>
-          <Col span={12}>
-            <Card
-              title="本周考勤概览"
-              extra={
-                <Button
-                  type="text"
-                  size="small"
-                  onClick={() => router.push('/attendance/daily')}
-                >
-                  查看详情
-                </Button>
-              }
-            >
-              <div className="flex items-center justify-around py-4">
-                <div className="text-center">
-                  <div className="text-2xl font-semibold text-success mb-1">5</div>
-                  <div className="text-xs text-text-3">正常出勤</div>
-                </div>
-                <div className="w-px h-10 bg-border-2" />
-                <div className="text-center">
-                  <div className="text-2xl font-semibold text-warning mb-1">1</div>
-                  <div className="text-xs text-text-3">迟到</div>
-                </div>
-                <div className="w-px h-10 bg-border-2" />
-                <div className="text-center">
-                  <div className="text-2xl font-semibold text-danger mb-1">0</div>
-                  <div className="text-xs text-text-3">缺勤</div>
-                </div>
-                <div className="w-px h-10 bg-border-2" />
-                <div className="text-center">
-                  <div className="text-2xl font-semibold text-brand mb-1">8.5h</div>
-                  <div className="text-xs text-text-3">平均工时</div>
-                </div>
-              </div>
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card
-              title="我的申请进度"
-              extra={
-                <Button
-                  type="text"
-                  size="small"
-                  onClick={() => router.push('/approval/submissions')}
-                >
-                  查看全部
-                </Button>
-              }
-            >
-              <div className="space-y-3 py-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 rounded-full bg-success mr-3" />
-                    <span className="text-sm text-text-1">年假申请（2天）</span>
-                  </div>
-                  <Tag color="green" size="small">已通过</Tag>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 rounded-full bg-warning mr-3" />
-                    <span className="text-sm text-text-1">加班申请（3小时）</span>
-                  </div>
-                  <Tag color="orange" size="small">审批中</Tag>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 rounded-full bg-brand mr-3" />
-                    <span className="text-sm text-text-1">报销申请（交通费）</span>
-                  </div>
-                  <Tag color="blue" size="small">待提交</Tag>
-                </div>
-              </div>
-            </Card>
-          </Col>
-        </Row>
       </div>
+
+      {/* 组织管理看板（管理员可见） */}
+      {can('system:user:view') && <OrgChart />}
+
+      {/* 快捷操作 */}
+      <div style={{ marginBottom: 16 }}>
+        <div className="dsh-panel-head">
+          <h3 className="dsh-panel-title">快捷操作</h3>
+          <span className="dsh-panel-more">
+            更多 <IconRight style={{ fontSize: 12 }} />
+          </span>
+        </div>
+        <div className="dsh-quick-grid">
+          {QUICK_ACTIONS.map((a, idx) => {
+            const Icon = a.icon;
+            return (
+              <div
+                key={a.path}
+                className="dsh-quick-item"
+                style={{ animationDelay: `${idx * 30}ms` }}
+                onClick={() => router.push(a.path)}
+              >
+                <span className="dsh-quick-ic">
+                  <Icon />
+                </span>
+                <span className="dsh-quick-label">{a.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 待办事项 + 最新通知 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} lg={12}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">
+                <IconNotification style={{ color: 'var(--lx-primary)', marginRight: 6, verticalAlign: -2 }} />
+                待办事项
+              </h3>
+              <span className="dsh-panel-more" onClick={() => router.push('/approval/todo')}>
+                查看全部 <IconRight style={{ fontSize: 12 }} />
+              </span>
+            </div>
+            <div>
+              {TODO_ITEMS.map((item) => (
+                <div className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
+                  <span className="dsh-feed-dot" style={{ background: dotColor(item.priority) }} />
+                  <div className="dsh-feed-main">
+                    <div className="dsh-feed-title">{item.title}</div>
+                    <div className="dsh-feed-meta">{item.type} · {item.time}</div>
+                  </div>
+                  <div className="dsh-feed-side">
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: dotColor(item.priority),
+                        fontWeight: 400,
+                      }}
+                    >
+                      {priorityText(item.priority)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} lg={12}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">
+                <IconNotification style={{ color: 'var(--lx-primary)', marginRight: 6, verticalAlign: -2 }} />
+                最新通知
+              </h3>
+              <span className="dsh-panel-more" onClick={() => router.push('/notifications')}>
+                查看全部 <IconRight style={{ fontSize: 12 }} />
+              </span>
+            </div>
+            <div>
+              {NOTIFICATION_ITEMS.map((item) => (
+                <div className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
+                  <span className="dsh-feed-dot" style={{ background: item.type === 'system' ? BRAND_PRIMARY : '#00b42a' }} />
+                  <div className="dsh-feed-main">
+                    <div className="dsh-feed-title">{item.title}</div>
+                    <div className="dsh-feed-meta">{item.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Col>
+      </Row>
+
+      {/* 考勤概览 + 我的申请进度 */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">本周考勤概览</h3>
+              <span className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
+                查看详情 <IconRight style={{ fontSize: 12 }} />
+              </span>
+            </div>
+            <div className="dsh-kpi">
+              <div className="dsh-kpi-item">
+                <div className="dsh-kpi-value" style={{ color: '#00b42a' }}>5</div>
+                <div className="dsh-kpi-label">正常出勤</div>
+              </div>
+              <div className="dsh-kpi-divider" />
+              <div className="dsh-kpi-item">
+                <div className="dsh-kpi-value" style={{ color: '#ff7d00' }}>1</div>
+                <div className="dsh-kpi-label">迟到</div>
+              </div>
+              <div className="dsh-kpi-divider" />
+              <div className="dsh-kpi-item">
+                <div className="dsh-kpi-value" style={{ color: '#f53f3f' }}>0</div>
+                <div className="dsh-kpi-label">缺勤</div>
+              </div>
+              <div className="dsh-kpi-divider" />
+              <div className="dsh-kpi-item">
+                <div className="dsh-kpi-value" style={{ color: BRAND_PRIMARY }}>8.5h</div>
+                <div className="dsh-kpi-label">平均工时</div>
+              </div>
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} lg={12}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">我的申请进度</h3>
+              <span className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
+                查看全部 <IconRight style={{ fontSize: 12 }} />
+              </span>
+            </div>
+            <div>
+              {[
+                { label: '年假申请（2天）', color: '#00b42a', status: '已通过' },
+                { label: '加班申请（3小时）', color: '#ff7d00', status: '审批中' },
+                { label: '报销申请（交通费）', color: BRAND_PRIMARY, status: '待提交' },
+              ].map((it) => (
+                <div className="dsh-feed-item" key={it.label}>
+                  <span className="dsh-feed-dot" style={{ background: it.color }} />
+                  <div className="dsh-feed-main">
+                    <div className="dsh-feed-title">{it.label}</div>
+                  </div>
+                  <div className="dsh-feed-side">
+                    <span style={{ fontSize: 12, color: it.color }}>{it.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Col>
+      </Row>
     </PageContainer>
   );
 }
 
-// ====== 组织管理看板（AdminDashboard）======
-// 仅对有系统管理权限的账号展示：部门人力分布 + 近 7 日考勤趋势（参照 admin-dashboard.js 的信息层级）
-function OrgOverview() {
+// ====== 组织管理看板（仅有系统管理权限展示）：部门人力分布 + 近 7 日考勤趋势 ======
+function OrgChart() {
   const [depts, setDepts] = useState<DepartmentStat[]>([]);
   const [trend, setTrend] = useState<AttendanceTrendPoint[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -474,31 +445,34 @@ function OrgOverview() {
   const maxDay = Math.max(1, ...trend.map((p) => p.present));
 
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div className="flex items-center justify-between mb-3">
-        <Title heading={5} style={{ margin: 0 }}>
-          组织管理看板
-        </Title>
+    <div style={{ marginBottom: 16 }}>
+      <div className="dsh-panel-head">
+        <h3 className="dsh-panel-title">组织管理看板</h3>
       </div>
       <Row gutter={[16, 16]}>
-        <Col span={10}>
-          <Card title="部门人力分布" loading={!loaded} bodyStyle={{ paddingTop: 4 }}>
-            {depts.length === 0 ? (
+        <Col xs={24} lg={10}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">部门人力分布</h3>
+            </div>
+            {!loaded ? (
+              <Empty description="加载中" />
+            ) : depts.length === 0 ? (
               <Empty description="暂无部门数据" />
             ) : (
               <div className="flex flex-col gap-3 py-2">
                 {depts.map((d) => (
                   <div key={d.id}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-text-2">{d.name}</span>
-                      <span className="text-text-1 font-medium">{d.count} 人</span>
+                      <Text type="secondary">{d.name}</Text>
+                      <Text style={{ fontWeight: 500 }}>{d.count} 人</Text>
                     </div>
                     <div className="h-2 bg-bg-3 rounded overflow-hidden">
                       <div
                         className="h-full rounded"
                         style={{
                           width: `${(d.count / maxDept) * 100}%`,
-                          background: 'linear-gradient(90deg, #2455D9, #5b7cf5)',
+                          background: `linear-gradient(90deg, #2455D9, #5e8bf5)`,
                         }}
                       />
                     </div>
@@ -506,11 +480,16 @@ function OrgOverview() {
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         </Col>
-        <Col span={14}>
-          <Card title="近 7 日考勤趋势" loading={!loaded} bodyStyle={{ paddingTop: 4 }}>
-            {trend.length === 0 ? (
+        <Col xs={24} lg={14}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">近 7 日考勤趋势</h3>
+            </div>
+            {!loaded ? (
+              <Empty description="加载中" />
+            ) : trend.length === 0 ? (
               <Empty description="暂无考勤数据" />
             ) : (
               <div className="flex items-end justify-between gap-3 py-3" style={{ height: 140 }}>
@@ -521,7 +500,7 @@ function OrgOverview() {
                       className="w-full max-w-[28px] rounded-t"
                       style={{
                         height: `${(p.present / maxDay) * 90 + 6}px`,
-                        background: '#2455D9',
+                        background: BRAND_PRIMARY,
                       }}
                       title={`${p.date}：出勤 ${p.present}，迟到 ${p.late}，请假 ${p.leave}，缺勤 ${p.absent}`}
                     />
@@ -530,7 +509,7 @@ function OrgOverview() {
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         </Col>
       </Row>
     </div>

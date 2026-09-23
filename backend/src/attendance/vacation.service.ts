@@ -345,8 +345,14 @@ export class VacationService {
     });
   }
 
-  async listLeaveRecords(params: { employeeId?: number; status?: string; userId: number }) {
-    const { employeeId, status, userId } = params;
+  async listLeaveRecords(params: {
+    employeeId?: number;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    userId: number;
+  }) {
+    const { employeeId, status, startDate, endDate, userId } = params;
     const scope = await this.dataScope.visibleScope(userId);
 
     const where: Prisma.LeaveRecordWhereInput = {};
@@ -364,6 +370,9 @@ export class VacationService {
       }
     }
     if (status) where.status = status as any;
+    // 区间重叠过滤：请假区间 [startDate, endDate] 与查询区间相交
+    if (startDate) where.endDate = { gte: startDate };
+    if (endDate) where.startDate = { lte: endDate };
 
     const [list, total] = await Promise.all([
       this.prisma.leaveRecord.findMany({

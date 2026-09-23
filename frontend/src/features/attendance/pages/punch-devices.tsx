@@ -1,48 +1,33 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, PunchDevice, PunchDeviceCreateDto, PunchDeviceUpdateDto } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
-import { notifyError } from '@/lib/request';
+import { useCachedData } from '@/hooks/use-cached-data';
+
+interface DeviceListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: PunchDevice[]; total: number };
+}
 
 export default function PunchDevicesPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<PunchDevice[]>([]);
-  const [total, setTotal] = useState(0);
-
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editingDevice, setEditingDevice] = useState<PunchDevice | null>(null);
 
-  const fetchList = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await attendanceApi.getPunchDeviceList();
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setTotal(res.data.total);
-      } else {
-        setError(res.message || '获取设备列表失败');
-        Message.error(res.message || '获取设备列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取设备列表失败');
-      notifyError(e, '获取设备列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchList();
-  }, []);
+  // SWR 缓存：设备列表共享缓存；增删改后 revalidate 刷新
+  const { data: res, loading, error, revalidate } = useCachedData<DeviceListEnvelope>(
+    'attendance:punch-devices',
+    () => attendanceApi.getPunchDeviceList(),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
 
   const handleAdd = () => {
     setEditingDevice(null);
@@ -63,7 +48,7 @@ export default function PunchDevicesPage() {
           const res = await attendanceApi.deletePunchDevice(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -94,7 +79,7 @@ export default function PunchDevicesPage() {
       if (res.code === 0) {
         Message.success(editingDevice ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -160,14 +145,14 @@ export default function PunchDevicesPage() {
   ];
 
   return (
-    <PageContainer title="打卡设备管理">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={fetchList}
+        onRetry={revalidate}
         toolbar={toolbar}
         pagination={false}
       />

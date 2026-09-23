@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Message,
   Modal,
@@ -17,45 +17,42 @@ import DataState from '@/components/DataState';
 import { approvalApi, ApprovalGroup } from '@/services/approval';
 import { systemApi, SysUser } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
+
+const GROUPS_KEY = 'config:approval:groups';
+const USERS_KEY = 'config:system:users-approvers';
 
 // 审批人管理：复用后端 /approval/groups 审批组接口，参考 ApproverManagement 组织审批组与成员
 export default function ApproverManagementPage() {
   const { can } = usePermission();
-  const { data: list, loading, error, run: runFetch } = useFetchState<ApprovalGroup[]>([]);
-  const [users, setUsers] = useState<SysUser[]>([]);
+  const { data: list, loading, error, revalidate: revalidateGroups } = useCachedData<ApprovalGroup[]>(
+    GROUPS_KEY,
+    () =>
+      approvalApi.listGroups({ page: 1, pageSize: 100 }).then((res) => {
+        if (res.code === 0 && res.data) {
+          return res.data.list;
+        }
+        throw new Error(res.message || '获取审批人列表失败');
+      }),
+  );
+
+  const { data: users } = useCachedData<SysUser[]>(
+    USERS_KEY,
+    () =>
+      systemApi.listUsers({ page: 1, pageSize: 100 }).then((res) => {
+        if (res.code === 0 && res.data) {
+          return res.data.list;
+        }
+        throw new Error(res.message || '获取用户列表失败');
+      }),
+  );
+
   const [modalVisible, setModalVisible] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [editItem, setEditItem] = useState<ApprovalGroup | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchData = async () => {
-    await runFetch(async () => {
-      const res = await approvalApi.listGroups({ page: 1, pageSize: 100 });
-      if (res.code === 0 && res.data) {
-        return res.data.list;
-      }
-      throw new Error(res.message || '获取审批人列表失败');
-    });
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await systemApi.listUsers({ page: 1, pageSize: 100 });
-      if (res.code === 0 && res.data) {
-        setUsers(res.data.list);
-      }
-    } catch (e) {
-      notifyError(e, '获取用户列表失败');
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    fetchUsers();
-  }, []);
 
   const openCreate = () => {
     setIsEdit(false);
@@ -89,21 +86,20 @@ export default function ApproverManagementPage() {
         if (res.code === 0) {
           Message.success('更新成功');
           setModalVisible(false);
-          fetchData();
+          await revalidateGroups();
         } else {
           Message.error(res.message || '更新失败');
         }
       } else {
         const res = await approvalApi.createGroup({
           name: values.name,
-          code: values.code,
           description: values.description,
           memberIds: values.memberIds || [],
         });
         if (res.code === 0) {
           Message.success('创建成功');
           setModalVisible(false);
-          fetchData();
+          await revalidateGroups();
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -120,7 +116,7 @@ export default function ApproverManagementPage() {
       const res = await approvalApi.deleteGroup(item.id);
       if (res.code === 0) {
         Message.success('删除成功');
-        fetchData();
+        await revalidateGroups();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -129,10 +125,10 @@ export default function ApproverManagementPage() {
     }
   };
 
-  const userNameById = (id: number) => users.find((u) => u.id === id)?.name || `#${id}`;
+  const userNameById = (id: number) => (users || []).find((u) => u.id === id)?.name || `#${id}`;
 
   return (
-    <PageContainer title="审批人管理" subTitle="维护审批组与组内审批人">
+    <PageContainer>
       <div className="bg-bg-secondary rounded-md p-4 border border-border-2">
         <div className="mb-4 flex justify-between">
           <span className="font-medium text-text-1">审批组</span>
@@ -142,7 +138,7 @@ export default function ApproverManagementPage() {
             </Button>
           )}
         </div>
-        <DataState loading={loading} error={error} onRetry={fetchData} isEmpty={!list || list.length === 0}>
+        <DataState loading={loading} error={error} onRetry={revalidateGroups} isEmpty={!list || list.length === 0}>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-border-2">
@@ -211,11 +207,6 @@ export default function ApproverManagementPage() {
         cancelText="取消"
       >
         <Form form={form} layout="vertical">
-          {!isEdit && (
-            <Form.Item label="编码" field="code" rules={[{ required: true, message: '请输入编码' }]}>
-              <Input placeholder="英文唯一标识" />
-            </Form.Item>
-          )}
           <Form.Item label="组名" field="name" rules={[{ required: true, message: '请输入组名' }]}>
             <Input placeholder="请输入审批组名称" />
           </Form.Item>
@@ -228,7 +219,7 @@ export default function ApproverManagementPage() {
               placeholder="选择审批组成员"
               allowClear
               showSearch
-              options={users.map((u) => ({ label: `${u.name}（${u.username}）`, value: u.id }))}
+              options={(users || []).map((u) => ({ label: `${u.name}（${u.username}）`, value: u.id }))}
             />
           </Form.Item>
         </Form>

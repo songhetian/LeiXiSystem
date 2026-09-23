@@ -8,6 +8,7 @@ import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/serv
 import { systemApi, type SysUser } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 import { notifyError } from '@/lib/request';
 
 const TabPane = Tabs.TabPane;
@@ -331,7 +332,7 @@ export default function HelpdeskTicketsPage() {
   // 导出工单
   const handleExportTickets = () => {
     if (!exportToExcel(
-      `工单列表_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `工单列表_${todayStr()}.xlsx`,
       '工单',
       [
         { title: '工单号', dataIndex: 'ticketNo' },
@@ -427,7 +428,7 @@ export default function HelpdeskTicketsPage() {
   const assigneeOptions = users.map((u) => ({ value: u.id, label: `${u.username} - ${u.name}` }));
 
   return (
-    <PageContainer title="工单客服" breadcrumbs={['首页', '工单客服']}>
+    <PageContainer breadcrumbs={['首页', '工单客服']}>
       <Tabs defaultActiveTab="tickets">
         <TabPane key="tickets" title="工单列表">
           {/* 筛选区 */}
@@ -495,6 +496,7 @@ export default function HelpdeskTicketsPage() {
                 columns={ticketColumns}
                 data={tickets}
                 rowKey="id"
+                scroll={{ x: true }}
                 pagination={{ pageSize: 10, showTotal: true }}
                 stripe
                 style={{ borderRadius: 0 }}
@@ -519,6 +521,7 @@ export default function HelpdeskTicketsPage() {
                 columns={slaColumns}
                 data={slas}
                 rowKey="id"
+                scroll={{ x: true }}
                 pagination={false}
                 stripe
                 style={{ borderRadius: 0 }}

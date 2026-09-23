@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Message,
   Card,
@@ -18,8 +18,12 @@ import {
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notificationApi, Notification } from '@/services/notification';
-import { systemApi, SysDepartment, SysUser } from '@/services/system';
+import { systemApi, SysUser } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
+
+const EMPTY_NOTIFICATIONS: Notification[] = [];
 
 const typeMap: Record<string, { label: string; color: string }> = {
   approval: { label: '审批', color: 'arcoblue' },
@@ -38,36 +42,44 @@ const typeOptions = [
 
 export default function NotificationsPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
-
-  // 发送通知弹窗状态
   const [sendVisible, setSendVisible] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const { departments } = useDepartments();
   const [users, setUsers] = useState<SysUser[]>([]);
   const [sendForm] = Form.useForm();
 
-  const fetchList = async () => {
-    setLoading(true);
-    try {
-      const [listRes, countRes] = await Promise.all([
-        notificationApi.list({ page: 1, pageSize: 50 }),
-        notificationApi.unreadCount(),
-      ]);
-      if (listRes.code === 0 && listRes.data) setData(listRes.data.list);
-      if (countRes.code === 0 && countRes.data) setUnread(countRes.data.count);
-    } catch (e) {
-      Message.error('获取通知失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 通知列表
+  const { data: listRes, loading, revalidate: listRevalidate } = useCachedData<{
+    code: number;
+    data?: { list: Notification[] };
+  }>(
+    'notification:list:1:50',
+    async () => {
+      const res = await notificationApi.list({ page: 1, pageSize: 50 });
+      return { code: res.code, data: res.data ?? undefined };
+    },
+    { staleTime: 30_000 },
+  );
+  const data = listRes?.code === 0 && listRes.data ? listRes.data.list : EMPTY_NOTIFICATIONS;
 
-  useEffect(() => {
-    fetchList();
-  }, []);
+  // 未读数
+  const { data: unreadRes, revalidate: unreadRevalidate } = useCachedData<{
+    code: number;
+    data?: { count: number };
+  }>(
+    'notification:unread',
+    async () => {
+      const res = await notificationApi.unreadCount();
+      return { code: res.code, data: res.data ?? undefined };
+    },
+    { staleTime: 20_000 },
+  );
+  const unread = unreadRes?.code === 0 && unreadRes.data ? unreadRes.data.count : 0;
+
+  const refresh = () => {
+    void listRevalidate();
+    void unreadRevalidate();
+  };
 
   const openSend = async () => {
     setSendVisible(true);
@@ -75,11 +87,7 @@ export default function NotificationsPage() {
     sendForm.setFieldValue('targetType', 'all');
     sendForm.setFieldValue('type', 'notice');
     try {
-      const [deptRes, userRes] = await Promise.all([
-        systemApi.listDepartments(),
-        systemApi.listUsers({ page: 1, pageSize: 200 }),
-      ]);
-      if (deptRes.code === 0 && deptRes.data) setDepartments(deptRes.data);
+      const userRes = await systemApi.listUsers({ page: 1, pageSize: 200 });
       if (userRes.code === 0 && userRes.data) setUsers(userRes.data.list);
     } catch (e) {
       // 目标数据加载失败不阻塞表单填写
@@ -102,7 +110,7 @@ export default function NotificationsPage() {
       if (res.code === 0) {
         Message.success('发送成功');
         setSendVisible(false);
-        fetchList();
+        refresh();
       } else {
         Message.error(res.message || '发送失败');
       }
@@ -118,7 +126,7 @@ export default function NotificationsPage() {
       const res = await notificationApi.markAllRead();
       if (res.code === 0) {
         Message.success('已全部标记为已读');
-        fetchList();
+        refresh();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -131,16 +139,14 @@ export default function NotificationsPage() {
     if (item.read) return;
     try {
       const res = await notificationApi.markRead(item.id);
-      if (res.code === 0) fetchList();
+      if (res.code === 0) refresh();
     } catch (e) {
       // 忽略单条已读失败
     }
   };
 
   return (
-    <PageContainer
-      title="我的通知"
-      action={
+    <PageContainer action={
         <Space>
           {unread > 0 && <Badge count={unread} />}
           {can('system:notification:send') && (

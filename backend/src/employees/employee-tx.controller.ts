@@ -46,6 +46,15 @@ export class EmployeeTxController {
     private readonly employeesService: EmployeesService,
   ) {}
 
+  // ===== 汇总：各事务待处理数（供页签徽标） =====
+  @Get('tx-pending-counts')
+  @HttpCode(200)
+  @RequirePermission('employee:view')
+  async getTxPendingCounts(@Req() req: any) {
+    const data = await this.txService.getPendingCounts(req.user.id);
+    return { code: 0, data };
+  }
+
   // ===== 入职登记 =====
   @Get('onboarding')
   @HttpCode(200)
@@ -252,6 +261,22 @@ export class EmployeeTxController {
   @RequirePermission('contract:manage')
   async deleteContract(@Param('id', ParseIntPipe) id: number) {
     const data = await this.txService.deleteContract(id);
+    return { code: 0, data };
+  }
+
+  @Post('contracts/:id/renew')
+  @HttpCode(200)
+  @RequirePermission('contract:manage')
+  async renewContract(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    const data = await this.txService.renewContract(id, body);
+    return { code: 0, data };
+  }
+
+  @Post('contracts/:id/terminate')
+  @HttpCode(200)
+  @RequirePermission('contract:manage')
+  async terminateContract(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    const data = await this.txService.terminateContract(id, body);
     return { code: 0, data };
   }
 
@@ -561,6 +586,7 @@ export class EmployeeTxController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
     @Req() req?: any,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
@@ -569,6 +595,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       keyword, type, dateFrom, dateTo,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
       userId: req.user.id,
     });
     return { code: 0, data };

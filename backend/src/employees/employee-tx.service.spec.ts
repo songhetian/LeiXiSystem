@@ -9,6 +9,7 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -19,10 +20,12 @@ function createMockPrisma() {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     employee: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -32,17 +35,21 @@ function createMockPrisma() {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     contract: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     attendanceAppeal: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     employeeCertificate: {
       findUnique: jest.fn(),
@@ -54,6 +61,7 @@ function createMockPrisma() {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     trainingRecord: {
       findUnique: jest.fn(),
@@ -65,6 +73,7 @@ function createMockPrisma() {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     payrollAdjustment: {
       findMany: jest.fn(),
@@ -569,6 +578,298 @@ describe('EmployeeTxService - 审批撤回业务数据回滚', () => {
         data: { status: 'draft', approvalInstanceId: null },
       });
       expect(prisma.payrollAdjustment.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getPendingCounts - 各事务待处理数（draft+pending）', () => {
+    beforeEach(() => {
+      prisma.onboarding.count.mockResolvedValue(2);
+      prisma.resignation.count.mockResolvedValue(3);
+      prisma.probation.count.mockResolvedValue(4);
+      prisma.contract.count.mockResolvedValue(1);
+      prisma.attendanceAppeal.count.mockResolvedValue(5);
+      prisma.employeeReward.count.mockResolvedValue(6);
+      prisma.employeeTransfer.count.mockResolvedValue(7);
+    });
+
+    it('全量可见时，不附加部门/员工范围，返回各类型待处理数（证书/培训恒为 0）', async () => {
+      const result = await service.getPendingCounts(1);
+
+      expect(result).toEqual({
+        onboardings: 2,
+        resignations: 3,
+        probations: 4,
+        contracts: 1,
+        'attendance-appeals': 5,
+        certificates: 0,
+        rewards: 6,
+        trainings: 0,
+        transfers: 7,
+      });
+
+      // 合同状态枚举无 pending，仅按 draft 统计
+      expect(prisma.contract.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: { in: ['draft'] } } }),
+      );
+      // 其余流程模型统计 draft + pending
+      expect(prisma.resignation.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: { in: ['draft', 'pending'] } } }),
+      );
+      // 证书/培训无状态字段，不发 count 查询
+      expect(prisma.employeeCertificate.count).toBeUndefined();
+      expect(prisma.trainingRecord.count).toBeUndefined();
+    });
+
+    it('按部门可见（scope.ids）时，员工类事务按可见员工集合过滤，入职按部门过滤', async () => {
+      // 建一个只可见部门 1、2 的独立服务实例
+      const scopedService = new EmployeeTxService(
+        prisma as any,
+        createMockApprovalService() as any,
+        {
+          visibleScope: jest.fn().mockResolvedValue({ all: false, ids: [1, 2], selfEmployeeId: null }),
+        } as any,
+      );
+      prisma.employee.findMany.mockResolvedValue([
+        { id: 11 },
+        { id: 12 },
+      ]);
+
+      await scopedService.getPendingCounts(1);
+
+      expect(prisma.employee.findMany).toHaveBeenCalledWith({
+        where: { departmentId: { in: [1, 2] } },
+        select: { id: true },
+      });
+      expect(prisma.onboarding.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: { in: ['draft', 'pending'] }, departmentId: { in: [1, 2] } } }),
+      );
+      expect(prisma.resignation.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: { in: ['draft', 'pending'] }, employeeId: { in: [11, 12] } } }),
+      );
+    });
+  });
+});
+
+describe('EmployeeTxService - 合同管理增强（到期/续签/终止/附件）', () => {
+  let service: EmployeeTxService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  const FIXED_NOW = new Date('2026-08-27T00:00:00.000Z');
+
+  const mockContract = (over: any = {}) => ({
+    id: 1,
+    employeeId: 1,
+    contractNo: 'CT001',
+    type: 'fixed_term',
+    startDate: new Date('2025-08-01'),
+    endDate: new Date('2026-09-30'),
+    status: 'active' as const,
+    renewalCount: 0,
+    ...over,
+  });
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(FIXED_NOW);
+    prisma = createMockPrisma();
+    const approvalService = createMockApprovalService();
+    const dataScope = createMockDataScopeService();
+    service = new EmployeeTxService(prisma as any, approvalService as any, dataScope as any);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  describe('listContracts - 到期预警计算', () => {
+    it('即将到期（30天内）返回 expiringSoon=true 与正数 daysToExpire', async () => {
+      prisma.contract.findMany.mockResolvedValue([
+        mockContract({ id: 1, endDate: new Date('2026-09-10') }), // 距今天 14 天
+        mockContract({ id: 2, endDate: new Date('2026-09-26') }), // 距今天 30 天，边界视为预警
+      ]);
+      prisma.contract.count.mockResolvedValue(2);
+
+      const res = await service.listContracts({ page: 1, pageSize: 10, userId: 1 });
+
+      const [a, b] = res.list;
+      expect(a.daysToExpire).toBe(14);
+      expect(a.expiringSoon).toBe(true);
+      expect(b.daysToExpire).toBe(30);
+      expect(b.expiringSoon).toBe(true);
+    });
+
+    it('无结束日期或已终止的合同，daysToExpire 为 null 且不预警', async () => {
+      prisma.contract.findMany.mockResolvedValue([
+        mockContract({ id: 1, endDate: null, status: 'active' }),
+        mockContract({ id: 2, endDate: new Date('2026-01-01'), status: 'terminated' }),
+      ]);
+      prisma.contract.count.mockResolvedValue(2);
+
+      const res = await service.listContracts({ page: 1, pageSize: 10, userId: 1 });
+
+      expect(res.list[0].daysToExpire).toBeNull();
+      expect(res.list[0].expiringSoon).toBe(false);
+      expect(res.list[1].daysToExpire).toBeNull();
+      expect(res.list[1].expiringSoon).toBe(false);
+    });
+
+    it('长期未到期（超过30天）不预警，daysToExpire 为实际天数', async () => {
+      prisma.contract.findMany.mockResolvedValue([
+        mockContract({ id: 1, endDate: new Date('2027-01-01') }),
+      ]);
+      prisma.contract.count.mockResolvedValue(1);
+
+      const res = await service.listContracts({ page: 1, pageSize: 10, userId: 1 });
+
+      expect(res.list[0].daysToExpire).toBe(127);
+      expect(res.list[0].expiringSoon).toBe(false);
+    });
+  });
+
+  describe('renewContract - 续签', () => {
+    it('原合同置为 expired、renewalCount+1，并创建新合同返回', async () => {
+      const old = mockContract({ id: 1 });
+      prisma.contract.findUnique.mockResolvedValue(old);
+      prisma.contract.create.mockResolvedValue({ ...old, id: 2, contractNo: 'CT002', renewalCount: 1 });
+
+      const dto = {
+        contractNo: 'CT002',
+        type: 'fixed_term',
+        startDate: '2026-09-01',
+        endDate: '2027-08-31',
+        salary: 20000,
+      };
+
+      const result = await service.renewContract(1, dto as any);
+
+      // 原合同在事务内被更新为 expired 且续签次数 +1
+      expect(prisma.contract.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1 },
+          data: expect.objectContaining({ status: 'expired' }),
+        }),
+      );
+      expect(prisma.contract.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ renewalCount: 1 }) }),
+      );
+      // 新合同复用原员工并记录续签来源
+      expect(prisma.contract.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            employeeId: 1,
+            contractNo: 'CT002',
+            renewalCount: 1,
+          }),
+        }),
+      );
+      expect(result.id).toBe(2);
+    });
+  });
+
+  describe('terminateContract - 终止/解除', () => {
+    it('将合同置为 terminated，写入终止日期与操作人', async () => {
+      const c = mockContract({ id: 1 });
+      prisma.contract.findUnique.mockResolvedValue(c);
+      prisma.contract.update.mockResolvedValue({ ...c, status: 'terminated' });
+
+      const dto = { terminationDate: '2026-08-27', remark: '协商解除', terminatedBy: 'HR' };
+
+      await service.terminateContract(1, dto as any);
+
+      expect(prisma.contract.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1 },
+          data: expect.objectContaining({
+            status: 'terminated',
+            terminatedBy: 'HR',
+            terminationDate: new Date('2026-08-27T00:00:00.000Z'),
+          }),
+        }),
+      );
+    });
+
+    it('已终止或已过期的合同不可重复终止', async () => {
+      prisma.contract.findUnique.mockResolvedValue(mockContract({ status: 'terminated' }));
+
+      await expect(
+        service.terminateContract(1, { terminationDate: '2026-08-27' } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('createContract / updateContract - 附件回填', () => {
+    it('createContract 允许 attachmentUrl 字段入库', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 1 });
+      prisma.contract.create.mockResolvedValue({ id: 1 });
+
+      await service.createContract({
+        employeeId: 1,
+        contractNo: 'CT001',
+        type: 'fixed_term',
+        startDate: '2025-01-01',
+        attachmentUrl: '/uploads/contracts/ct001.pdf',
+      } as any);
+
+      expect(prisma.contract.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ attachmentUrl: '/uploads/contracts/ct001.pdf' }),
+        }),
+      );
+    });
+
+    it('createContract 未传 contractNo 时自动生成 CT-YYYY-XXXX', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 1 });
+      prisma.contract.create.mockResolvedValue({ id: 1 });
+      prisma.sequence.findUnique.mockResolvedValue(null);
+      prisma.$queryRaw.mockResolvedValue([{ next_val: 7 }]);
+
+      await service.createContract({
+        employeeId: 1,
+        type: 'fixed_term',
+        startDate: '2025-01-01',
+      } as any);
+
+      const called = prisma.contract.create.mock.calls[0][0] as any;
+      expect(called.data.contractNo).toMatch(/^CT-2026-0007$/);
+    });
+
+    it('创建时显式传入 contractNo 则不再自动生成', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 1 });
+      prisma.contract.create.mockResolvedValue({ id: 1 });
+
+      await service.createContract({
+        employeeId: 1,
+        contractNo: 'CT-2026-9999',
+        type: 'fixed_term',
+        startDate: '2025-01-01',
+      } as any);
+
+      const called = prisma.contract.create.mock.calls[0][0] as any;
+      expect(called.data.contractNo).toBe('CT-2026-9999');
+    });
+
+    it('updateContract 允许 attachmentUrl 字段更新且剥离 status', async () => {
+      prisma.contract.findUnique.mockResolvedValue(mockContract({ id: 1 }));
+      prisma.contract.update.mockResolvedValue({ id: 1 });
+
+      await service.updateContract(1, {
+        attachmentUrl: '/uploads/contracts/ct001-new.pdf',
+        status: 'terminated',
+      } as any);
+
+      expect(prisma.contract.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ attachmentUrl: '/uploads/contracts/ct001-new.pdf' }),
+        }),
+      );
+    });
+  });
+
+  describe('renewContract - 失败分支', () => {
+    it('合同不存在时抛出 NotFoundException', async () => {
+      prisma.contract.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.renewContract(99, { contractNo: 'CT2', type: 'fixed_term', startDate: '2026-09-01' } as any),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

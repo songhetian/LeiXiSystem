@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Message, Tabs, Tag, Space, Button, Modal } from '@arco-design/web-react';
@@ -298,7 +298,7 @@ export default function VacationPage() {
   ];
 
   return (
-    <PageContainer title="休假管理">
+    <PageContainer >
       <Tabs activeTab={activeTab} onChange={setActiveTab}>
         <TabPane key="balance" title="休假额度">
           <ProTable

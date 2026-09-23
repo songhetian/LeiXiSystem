@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Tabs, Select, Button, Message, Spin, Tooltip } from '@arco-design/web-react';
@@ -202,8 +202,6 @@ export default function NotificationSettingsPage() {
 
   return (
     <PageContainer
-      title="通知设置"
-      subTitle="按事件类型配置业务通知的推送目标角色，全局分发规则统一编排"
       breadcrumbs={['系统设置', '通知设置']}
     >
       {loading ? (

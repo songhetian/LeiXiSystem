@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import SchedulesPage from '@/features/attendance/pages/schedules';
 import { attendanceApi } from '@/services/attendance';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -88,6 +89,7 @@ const mockSchedules = [
 
 describe('SchedulesPage', () => {
   beforeEach(() => {
+    clearDataCache();
     jest.clearAllMocks();
     (attendanceApi.getScheduleList as jest.Mock).mockResolvedValue({
       code: 0,
@@ -139,6 +141,40 @@ describe('SchedulesPage', () => {
       await user.click(screen.getByTestId('toolbar-add'));
       await user.click(screen.getByTestId('modal-ok'));
       await waitFor(() => expect(attendanceApi.createSchedule).toHaveBeenCalled());
+    });
+  });
+
+  describe('编辑排班', () => {
+    it('提交时将 datetime 形式的 workDate 归一化为 YYYY-MM-DD', async () => {
+      (attendanceApi.getScheduleList as jest.Mock).mockResolvedValue({
+        code: 0,
+        data: {
+          list: [
+            {
+              id: 9,
+              employeeId: 1,
+              shiftId: 2,
+              workDate: '2026-08-13T00:00:00.000Z',
+              employee: { id: 1, employeeNo: 'E001', name: '张三' },
+              shift: { id: 2, name: '中班', startTime: '14:00', endTime: '22:00', isNextDay: false },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      const user = userEvent.setup();
+      render(<SchedulesPage />);
+      await waitFor(() => expect(screen.getByText('编辑')).toBeInTheDocument());
+      await user.click(screen.getByText('编辑'));
+      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => expect(attendanceApi.updateSchedule).toHaveBeenCalled());
+      expect(attendanceApi.updateSchedule).toHaveBeenCalledWith(9, {
+        employeeId: 1,
+        shiftId: 2,
+        workDate: '2026-08-13',
+      });
     });
   });
 

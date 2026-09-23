@@ -16,6 +16,7 @@ export class PunchService {
 
   private lateThresholdCache: { value: number; expiresAt: number } | null = null;
   private earlyThresholdCache: { value: number; expiresAt: number } | null = null;
+  private earlyClockInCache: { value: number; expiresAt: number } | null = null;
 
   private readonly CACHE_TTL = 5 * 60 * 1000;
 
@@ -53,16 +54,33 @@ export class PunchService {
         throw new BadRequestException('今天已经打过上班卡了');
       }
 
+      // ── 时间准入限制（对齐旧项目 AttendanceHome.checkClockInTime）──
+      // 未排班 → 拒绝
+      if (!schedule) {
+        throw new BadRequestException('请先排班后再打卡');
+      }
+      const shift = schedule.shift;
+      // 休息班次 → 拒绝
+      if (shift && shift.isRest) {
+        throw new BadRequestException('今日为休息日，无需打卡');
+      }
+
       const clockInTime = new Date();
       let status: AttendanceDailyStatus = 'normal';
       let lateMinutes = 0;
       let shiftName: string | null = null;
 
-      if (schedule && schedule.shift) {
-        const shift = schedule.shift;
+      if (shift) {
         shiftName = shift.name;
+        const shiftStart = this.combineTime(today, shift.startTime, shift.isNextDay);
+        // 提前打卡窗口：now < 班次开始 - 提前窗口 时拒绝
+        const advance = await this.resolveEarlyClockInMinutes();
+        const earliest = new Date(shiftStart.getTime() - advance * 60 * 1000);
+        if (clockInTime.getTime() < earliest.getTime()) {
+          throw new BadRequestException(`需在上班前${advance}分钟内打卡`);
+        }
+
         const lateThreshold = await this.resolveLateThreshold(shift);
-        const shiftStart = this.combineTime(today, shift.startTime);
         // 迟到：打卡时间超过 班次开始 + 阈值
         if (clockInTime.getTime() - shiftStart.getTime() > lateThreshold * 60 * 1000) {
           status = 'late';
@@ -153,6 +171,19 @@ export class PunchService {
         const shift = existing.shift;
         const earlyThreshold = await this.resolveEarlyThreshold(shift);
         const shiftEnd = this.combineTime(today, shift.endTime, shift.isNextDay);
+
+        // ── 签退准入限制（对齐旧项目 AttendanceHome.checkClockOutTime）──
+        // 未到「班次结束 - 早退阈值」时不允许签退
+        const earliest = new Date(shiftEnd.getTime() - earlyThreshold * 60 * 1000);
+        if (clockOutTime.getTime() < earliest.getTime()) {
+          const diffMin = Math.ceil((earliest.getTime() - clockOutTime.getTime()) / 60000);
+          throw new BadRequestException(
+            earlyThreshold > 0
+              ? `需在下班前${earlyThreshold}分钟内才允许签退`
+              : `尚未到达下班时间，还需等待 ${diffMin} 分钟`,
+          );
+        }
+
         // 早退：下班时间早于 班次结束 - 阈值
         if (shiftEnd.getTime() - clockOutTime.getTime() > earlyThreshold * 60 * 1000) {
           status = status === 'late' ? 'late_early' : 'early';
@@ -238,8 +269,9 @@ export class PunchService {
   }
 
   /**
-   * 查询今日打卡状态
-   * - 按 userId 查员工 → 今日 AttendanceDaily（含班次），无记录返回 null
+   * 查询今日打卡状态（含准入信息，供前端渲染状态/禁态）
+   * - 对齐旧项目 AttendanceHome.checkClockInTime / checkClockOutTime
+   * - 返回：打卡记录字段 + hasSchedule / isRestDay / clockIn / clockOut 准入判定
    */
   async getToday(userId: number) {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
@@ -248,20 +280,90 @@ export class PunchService {
     }
 
     const today = this.today();
+
+    // 今日排班（含班次）用于准入判定与休息日识别
+    const schedule = await this.prisma.schedule.findFirst({
+      where: { employeeId: employee.id, workDate: today },
+      include: {
+        shift: {
+          select: { id: true, name: true, startTime: true, endTime: true, isNextDay: true, color: true, isRest: true },
+        },
+      },
+    });
+
     const record = await this.prisma.attendanceDaily.findUnique({
       where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
       include: {
-        shift: { select: { id: true, name: true, startTime: true, endTime: true, isNextDay: true, color: true } },
+        shift: { select: { id: true, name: true, startTime: true, endTime: true, isNextDay: true, color: true, isRest: true } },
         employee: { select: { id: true, employeeNo: true, name: true } },
       },
     });
 
-    return record;
+    const shift = record?.shift ?? schedule?.shift ?? null;
+
+    return {
+      ...(record ?? {}),
+      // 无记录时明确置 null，避免前端取 undefined
+      firstPunch: record?.firstPunch ?? null,
+      lastPunch: record?.lastPunch ?? null,
+      shift,
+      hasSchedule: !!schedule,
+      isRestDay: shift ? shift.isRest === true : false,
+      clockIn: await this.computeClockInAdmission(shift, !!record?.firstPunch, new Date()),
+      clockOut: await this.computeClockOutAdmission(shift, !!record?.firstPunch, !!record?.lastPunch, new Date()),
+    };
   }
 
   // -----------------------------------------------------------------
   // 私有辅助方法
   // -----------------------------------------------------------------
+
+  /** 上班准入判定（对齐旧项目 checkClockInTime） */
+  private async computeClockInAdmission(
+    shift: { isRest?: boolean; startTime: string; isNextDay?: boolean } | null,
+    alreadyClockedIn: boolean,
+    now: Date,
+  ): Promise<{ allowed: boolean; message: string }> {
+    if (shift?.isRest) return { allowed: false, message: '今日为休息日，无需打卡' };
+    if (!shift || !shift.startTime) return { allowed: false, message: '请先排班后再打卡' };
+    if (alreadyClockedIn) return { allowed: false, message: '今天已经打过上班卡了' };
+
+    const advance = await this.resolveEarlyClockInMinutes();
+    const shiftStart = this.combineTime(this.today(), shift.startTime, shift.isNextDay);
+    const earliest = new Date(shiftStart.getTime() - advance * 60 * 1000);
+    if (now.getTime() < earliest.getTime()) {
+      return { allowed: false, message: `需在上班前${advance}分钟内打卡` };
+    }
+    return { allowed: true, message: '' };
+  }
+
+  /** 下班准入判定（对齐旧项目 checkClockOutTime） */
+  private async computeClockOutAdmission(
+    shift: { isRest?: boolean; endTime: string; isNextDay?: boolean; useGlobalThreshold?: boolean; earlyThreshold?: number } | null,
+    hasClockedIn: boolean,
+    alreadyClockedOut: boolean,
+    now: Date,
+  ): Promise<{ allowed: boolean; message: string }> {
+    if (shift?.isRest) return { allowed: false, message: '今日为休息日' };
+    if (!shift || !shift.endTime) return { allowed: false, message: '暂无排班' };
+    if (!hasClockedIn) return { allowed: false, message: '请先打上班卡' };
+    if (alreadyClockedOut) return { allowed: false, message: '今天已经打过下班卡了' };
+
+    const earlyThreshold = await this.resolveEarlyThreshold(shift);
+    const shiftEnd = this.combineTime(this.today(), shift.endTime, shift.isNextDay);
+    const earliest = new Date(shiftEnd.getTime() - earlyThreshold * 60 * 1000);
+    if (now.getTime() < earliest.getTime()) {
+      const diffMin = Math.ceil((earliest.getTime() - now.getTime()) / 60000);
+      return {
+        allowed: false,
+        message:
+          earlyThreshold > 0
+            ? `需在下班前${earlyThreshold}分钟内才允许签退`
+            : `尚未到达下班时间，还需等待 ${diffMin} 分钟`,
+      };
+    }
+    return { allowed: true, message: '' };
+  }
 
   /** 服务器本地日期的 0 点（用于 workDate 匹配） */
   private today(): Date {
@@ -303,8 +405,8 @@ export class PunchService {
 
   /** 早退阈值（分钟）：useGlobalThreshold 时读 SystemSetting，默认 30 */
   private async resolveEarlyThreshold(shift: {
-    useGlobalThreshold: boolean;
-    earlyThreshold: number;
+    useGlobalThreshold?: boolean;
+    earlyThreshold?: number;
   }): Promise<number> {
     if (shift.useGlobalThreshold) {
       const now = Date.now();
@@ -319,5 +421,19 @@ export class PunchService {
       return value;
     }
     return shift.earlyThreshold ?? 0;
+  }
+
+  /** 提前打卡窗口（分钟）：读 SystemSetting attendance.early_clock_in_minutes，默认 60 */
+  private async resolveEarlyClockInMinutes(): Promise<number> {
+    const now = Date.now();
+    if (this.earlyClockInCache && this.earlyClockInCache.expiresAt > now) {
+      return this.earlyClockInCache.value;
+    }
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'attendance.early_clock_in_minutes' },
+    });
+    const value = setting ? Number(setting.value) : 60;
+    this.earlyClockInCache = { value, expiresAt: now + this.CACHE_TTL };
+    return value;
   }
 }

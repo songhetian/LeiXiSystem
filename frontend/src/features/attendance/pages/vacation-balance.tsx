@@ -7,6 +7,7 @@ import { attendanceApi, VacationBalance } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 interface BalanceEnvelope {
   code: number;
@@ -28,7 +29,7 @@ export default function VacationBalancePage() {
   // 导出休假额度到 Excel
   const handleExport = () => {
     if (!exportToExcel(
-      `休假额度_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `休假额度_${todayStr()}.xlsx`,
       '休假额度',
       [
         { title: '假期类型', value: (r: VacationBalance) => r.vacationType?.name ?? '' },
@@ -60,7 +61,7 @@ export default function VacationBalancePage() {
   ];
 
   return (
-    <PageContainer title="休假额度">
+    <PageContainer >
       <ProTable
         columns={balanceColumns}
         data={balances}

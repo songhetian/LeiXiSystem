@@ -1,26 +1,41 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  Card, Button, Empty, Tag, Message, Typography, Modal, Select,
+  Button, Message, Modal, Tag,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
-import { attendanceApi, type PunchResult } from '@/services/attendance';
+import { attendanceApi } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
 
-const { Title, Text } = Typography;
-const Option = Select.Option;
+// 状态 → 中文徽标（对齐旧项目 getStatusBadge 语义）
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  normal: { label: '正常', color: '#16a34a', bg: '#ecfdf5' },
+  late: { label: '迟到', color: '#dc2626', bg: '#fef2f2' },
+  early: { label: '早退', color: '#ea580c', bg: '#fff7ed' },
+  late_early: { label: '迟到且早退', color: '#e11d48', bg: '#fff1f2' },
+};
 
-function formatTime(iso?: string): string {
+// 仅时分（HH:mm），用于打卡时间展示
+function formatHM(iso?: string | null): string {
   if (!iso) return '--:--';
   try {
     const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   } catch {
-    return iso;
+    return '--:--';
   }
+}
+
+// 计薪工时（小时）：有上下班卡时据实计算，否则占位
+function workHoursOf(first?: string | null, last?: string | null): string {
+  if (!first || !last) return '--';
+  const diff = new Date(last).getTime() - new Date(first).getTime();
+  if (diff <= 0) return '--';
+  return `${(diff / 3600000).toFixed(1)}h`;
 }
 
 function formatDate(d: Date): string {
@@ -32,42 +47,30 @@ function getWeekday(d: Date): string {
   return names[d.getDay()];
 }
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  normal: { label: '正常', color: 'green' },
-  late: { label: '迟到', color: 'orange' },
-  early: { label: '早退', color: 'gold' },
-  late_early: { label: '迟到+早退', color: 'red' },
-  absent: { label: '缺勤', color: 'red' },
-};
-
-interface Shift {
-  id: number;
-  name: string;
-  startTime: string;
-  endTime: string;
-  isNextDay?: boolean;
-  color?: string;
-}
-
 interface TodayPunchData {
-  id: number;
-  firstPunch?: string;
-  lastPunch?: string;
-  punchCount: number;
-  lateMinutes: number;
-  earlyMinutes: number;
-  status: string;
-  shift?: { id: number; name: string; startTime: string; endTime: string; isNextDay: boolean; color?: string };
+  id?: number;
+  firstPunch?: string | null;
+  lastPunch?: string | null;
+  punchCount?: number;
+  lateMinutes?: number;
+  earlyMinutes?: number;
+  status?: string;
+  shift?: { id: number; name: string; startTime: string; endTime: string; isNextDay?: boolean; color?: string; isRest?: boolean } | null;
+  hasSchedule?: boolean;
+  isRestDay?: boolean;
+  clockIn?: { allowed: boolean; message: string };
+  clockOut?: { allowed: boolean; message: string };
 }
 
 export default function PunchPage() {
-  const { can } = usePermission();
-  const { data: todayData, loading, error, run: runFetch, setData: setTodayData } = useFetchState<TodayPunchData>();
+  usePermission();
+  const router = useRouter();
+  const { data: todayData, loading, error, run: runFetch } = useFetchState<TodayPunchData>();
   const [punching, setPunching] = useState(false);
 
   const [serverTime, setServerTime] = useState(new Date());
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
-  const [availableShifts, setAvailableShifts] = useState<Shift[]>([]);
+  const [availableShifts, setAvailableShifts] = useState<{ id: number; name: string; startTime: string; endTime: string; isNextDay?: boolean; color?: string; description?: string }[]>([]);
   const [selectedShiftId, setSelectedShiftId] = useState<number | undefined>();
   const [scheduling, setScheduling] = useState(false);
 
@@ -79,9 +82,7 @@ export default function PunchPage() {
   const fetchToday = useCallback(async () => {
     await runFetch(async () => {
       const res = await attendanceApi.getTodayPunch();
-      if (res.code === 0) {
-        return res.data ?? null;
-      }
+      if (res.code === 0) return res.data ?? null;
       throw new Error(res.message || '获取打卡数据失败');
     });
   }, [runFetch]);
@@ -93,9 +94,7 @@ export default function PunchPage() {
   const fetchAvailableShifts = async () => {
     try {
       const res = await attendanceApi.getAvailableShifts();
-      if (res.code === 0 && res.data) {
-        setAvailableShifts(res.data);
-      }
+      if (res.code === 0 && res.data) setAvailableShifts(res.data as any);
     } catch {
       // ignore
     }
@@ -106,13 +105,13 @@ export default function PunchPage() {
     try {
       const res = await attendanceApi.clockIn();
       if (res.code === 0 && res.data) {
-        Message.success(`打卡成功（${res.data.status === 'late' ? '迟到' : '正常'}）`);
+        Message.success(res.data.status === 'late' ? '打卡成功，但您迟到了' : '打卡成功');
         fetchToday();
       } else {
         Message.error(res.message || '打卡失败');
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || '打卡失败';
+      const msg = e?.response?.data?.message || e?.response?.data?.data?.message || '打卡失败';
       Message.error(msg);
     } finally {
       setPunching(false);
@@ -124,14 +123,14 @@ export default function PunchPage() {
     try {
       const res = await attendanceApi.clockOut();
       if (res.code === 0 && res.data) {
-        const statusText = res.data.status === 'early' ? '早退' : res.data.status === 'normal' ? '正常' : '';
-        Message.success(`下班打卡成功${statusText ? `（${statusText}）` : ''}`);
+        const late = res.data.earlyMinutes && res.data.earlyMinutes > 0;
+        Message.success(late ? '打卡成功，但您早退了' : '打卡成功');
         fetchToday();
       } else {
         Message.error(res.message || '打卡失败');
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || '打卡失败';
+      const msg = e?.response?.data?.message || e?.response?.data?.data?.message || '打卡失败';
       Message.error(msg);
     } finally {
       setPunching(false);
@@ -160,8 +159,7 @@ export default function PunchPage() {
         Message.error(res.message || '设置失败');
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || '设置失败';
-      Message.error(msg);
+      Message.error(e?.response?.data?.message || '设置失败');
     } finally {
       setScheduling(false);
     }
@@ -169,157 +167,327 @@ export default function PunchPage() {
 
   const hasClockedIn = !!todayData?.firstPunch;
   const hasClockedOut = !!todayData?.lastPunch;
-  const statusInfo = todayData ? STATUS_MAP[todayData.status] ?? { label: todayData.status, color: 'gray' } : null;
-  const shift = todayData?.shift;
+  const shift = todayData?.shift || null;
+  const isRestDay = !!todayData?.isRestDay;
+  const hasSchedule = !!todayData?.hasSchedule;
+  const statusMeta = todayData?.status ? STATUS_META[todayData.status] : null;
+
+  const clockInAllowed = todayData?.clockIn?.allowed;
+  const clockInMsg = todayData?.clockIn?.message || '';
+  const clockOutAllowed = todayData?.clockOut?.allowed;
+  const clockOutMsg = todayData?.clockOut?.message || '';
+
+  // 上班按钮态
+  const clockInBtn: { text: string; disabled: boolean; primary: boolean } = hasClockedIn
+    ? { text: '已完成上班打卡', disabled: true, primary: false }
+    : clockInAllowed === false
+      ? { text: '上班签到', disabled: true, primary: false }
+      : { text: punching ? '处理中...' : '上班签到', disabled: false, primary: true };
+
+  // 下班按钮态
+  const clockOutBtn: { text: string; disabled: boolean; primary: boolean } =
+    !hasClockedIn
+      ? { text: '等待上班签到', disabled: true, primary: false }
+      : hasClockedOut
+        ? { text: '已完成下班打卡', disabled: true, primary: false }
+        : clockOutAllowed === false
+          ? { text: '下班签退', disabled: true, primary: false }
+          : { text: punching ? '处理中...' : '下班签退', disabled: false, primary: true };
+
+  // 按钮下方提示文案
+  const clockInHint = !hasClockedIn
+    ? clockInAllowed === false
+      ? clockInMsg
+      : shift && hasSchedule
+        ? `签到时段已开启（${shift.startTime}）`
+        : ''
+    : '';
+  const clockOutHint =
+    hasClockedIn && !hasClockedOut
+      ? clockOutAllowed === false
+        ? clockOutMsg
+        : shift && hasSchedule
+          ? `签退时段已开启（${shift.endTime}）`
+          : ''
+      : '';
+
+  const hh = String(serverTime.getHours()).padStart(2, '0');
+  const mm = String(serverTime.getMinutes()).padStart(2, '0');
+  const ss = String(serverTime.getSeconds()).padStart(2, '0');
 
   return (
-    <PageContainer title="考勤打卡">
-      <DataState loading={loading} error={error} onRetry={fetchToday} isEmpty={!todayData}>
-        <div className="max-w-[600px] mx-auto">
-          <Card className="mb-4 text-center punch-clock-card" bodyStyle={{ paddingTop: 28, paddingBottom: 24 }}>
-            <div className="text-sm text-text-3 mb-1">
-              {formatDate(serverTime)} {getWeekday(serverTime)}
+    <PageContainer>
+      <DataState loading={loading} error={error} onRetry={fetchToday}>
+        <div className="max-w-5xl mx-auto">
+          {/* ─── 顶部信息卡：日期 + 服务器时间 ─── */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 mb-4 flex justify-between items-center">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold text-slate-800">考勤打卡</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">{formatDate(serverTime)} {getWeekday(serverTime)}</p>
             </div>
-            <div className="text-[52px] font-semibold font-mono my-2 tracking-tight lx-text-gradient">
-              {String(serverTime.getHours()).padStart(2, '0')}:
-              {String(serverTime.getMinutes()).padStart(2, '0')}:
-              {String(serverTime.getSeconds()).padStart(2, '0')}
+            <div className="text-right">
+              <div className="text-2xl font-bold text-[#2455D9] font-mono leading-none tabular-nums">
+                {hh}:{mm}:{ss}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">当前服务器时间</div>
             </div>
-          </Card>
+          </div>
 
-          {shift ? (
-            <Card
-              title="今日排班"
-              style={{ marginBottom: 16, borderTop: `3px solid ${shift.color || '#3B82F6'}` }}
-              extra={
-                <Button size="small" type="text" onClick={openScheduleModal}>
-                  更换班次
-                </Button>
-              }
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <Text className="text-base font-medium">{shift.name}</Text>
-                  <div className="text-text-2 mt-1">
-                    {shift.startTime} - {shift.endTime}{shift.isNextDay ? ' (次日)' : ''}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* ─── 今日考勤状态 ─── */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-50">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-[#2455D9] rounded-full" />
+                    <h2 className="text-sm font-semibold text-slate-800">今日考勤状态</h2>
+                  </div>
+                  {shift && hasSchedule && !isRestDay ? (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span
+                        className="px-2 py-0.5 rounded text-white text-[11px]"
+                        style={{ background: shift.color || '#2455D9' }}
+                      >
+                        {shift.name}
+                      </span>
+                      <span className="text-slate-500">
+                        {shift.startTime} - {shift.endTime}{shift.isNextDay ? '（次日）' : ''}
+                      </span>
+                    </div>
+                  ) : (!isRestDay && (
+                    <Button size="small" type="primary" onClick={openScheduleModal}>
+                      设置排班
+                    </Button>
+                  ))}
+                </div>
+
+                {/* 三卡统计：上班 / 下班 / 计薪工时（对齐旧项目顺序） */}
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
+                    <div className="text-[11px] text-slate-400 mb-2">上班打卡</div>
+                    <div className={`text-lg font-bold tabular-nums ${hasClockedIn ? 'text-slate-800' : 'text-slate-300'}`}>
+                      {formatHM(todayData?.firstPunch)}
+                    </div>
+                    {hasClockedIn && (
+                      <div className="mt-2 flex justify-center">
+                        {todayData?.lateMinutes ? (
+                          <Tag color="red">迟到 {todayData.lateMinutes} 分钟</Tag>
+                        ) : (
+                          <Tag color="green">正常</Tag>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
+                    <div className="text-[11px] text-slate-400 mb-2">下班打卡</div>
+                    <div className={`text-lg font-bold tabular-nums ${hasClockedOut ? 'text-slate-800' : 'text-slate-300'}`}>
+                      {formatHM(todayData?.lastPunch)}
+                    </div>
+                    {hasClockedOut && (
+                      <div className="mt-2 flex justify-center">
+                        {todayData?.earlyMinutes ? (
+                          <Tag color="gold">早退 {todayData.earlyMinutes} 分钟</Tag>
+                        ) : (
+                          <Tag color="green">正常</Tag>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
+                    <div className="text-[11px] text-slate-400 mb-2">计薪工时</div>
+                    <div className="text-lg font-bold text-slate-800 tabular-nums">
+                      {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
+                    </div>
+                    {todayData?.status === 'normal' && (
+                      <div className="mt-2 flex justify-center">
+                        <Tag color="green">正常</Tag>
+                      </div>
+                    )}
+                    {!hasClockedOut && (
+                      <div className="mt-2 text-[10px] text-slate-300">下班后统计</div>
+                    )}
                   </div>
                 </div>
-                {statusInfo && (
-                  <Tag color={statusInfo.color} className="text-sm">
-                    {statusInfo.label}
-                  </Tag>
+
+                {/* 状态徽标（迟到/早退等） */}
+                {statusMeta && statusMeta.label !== '正常' && (
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-blue-600 text-xs border border-blue-100 bg-blue-50" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: `${statusMeta.color}22` }}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: statusMeta.color }} />
+                    <span className="font-medium">系统提醒：您今日考勤状态为「{statusMeta.label}」</span>
+                  </div>
+                )}
+
+                {/* 无排班 / 休息日 提示条 */}
+                {!hasSchedule && (
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-amber-700 border border-amber-200 bg-amber-50">
+                    <span>⚠️</span>
+                    <span className="font-medium">暂无排班，请先排班后再打卡</span>
+                  </div>
+                )}
+                {isRestDay && (
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-emerald-700 border border-emerald-200 bg-emerald-50">
+                    <span>🛌</span>
+                    <span className="font-medium">休息日，无需打卡</span>
+                  </div>
+                )}
+
+                {/* 打卡按钮区 */}
+                {!isRestDay && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Button
+                        type="primary"
+                        size="large"
+                        long
+                        loading={punching}
+                        disabled={clockInBtn.disabled}
+                        onClick={hasClockedIn ? undefined : handleClockIn}
+                        style={clockInBtn.disabled || hasClockedIn ? {} : { background: '#2455D9', borderColor: '#2455D9' }}
+                      >
+                        {clockInBtn.text}
+                      </Button>
+                      {clockInHint && (
+                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockInAllowed === false ? 'text-slate-400' : 'text-[#2455D9]'}`}>
+                          {clockInHint}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <Button
+                        type="primary"
+                        size="large"
+                        long
+                        loading={punching}
+                        disabled={clockOutBtn.disabled}
+                        onClick={!hasClockedIn || hasClockedOut ? undefined : handleClockOut}
+                        style={clockOutBtn.disabled || !hasClockedIn || hasClockedOut ? {} : { background: '#4f46e5', borderColor: '#4f46e5' }}
+                      >
+                        {clockOutBtn.text}
+                      </Button>
+                      {clockOutHint && (
+                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockOutAllowed === false ? 'text-slate-400' : 'text-[#4f46e5]'}`}>
+                          {clockOutHint}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-            </Card>
-          ) : (
-            <Card
-              className="mb-4"
-              title="今日排班"
-              extra={
-                <Button size="small" type="primary" onClick={openScheduleModal}>
-                  设置排班
-                </Button>
-              }
-            >
-              <Empty description="今日未排班" />
-              <div className="text-center text-text-3 text-sm mt-2">
-                点击右上角"设置排班"选择今日班次，即可开始打卡
-              </div>
-            </Card>
-          )}
+            </div>
 
-          <Card title="打卡记录" className="mb-4">
-            <div className="flex justify-around text-center">
-              <div>
-                <div className="text-text-3 text-sm">上班打卡</div>
-                <div className="text-2xl font-medium font-mono my-2">
-                  {formatTime(todayData?.firstPunch)}
+            {/* ─── 快捷自助功能 ─── */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-50">
+                  <span className="w-1.5 h-4 bg-[#4f46e5] rounded-full" />
+                  <h2 className="text-sm font-semibold text-slate-800">快捷自助功能</h2>
                 </div>
-                {todayData?.lateMinutes ? (
-                  <Tag color="orange">迟到 {todayData.lateMinutes} 分钟</Tag>
-                ) : hasClockedIn ? (
-                  <Tag color="green">正常</Tag>
-                ) : null}
-              </div>
-              <div className="w-px bg-border-1 self-stretch" />
-              <div>
-                <div className="text-text-3 text-sm">下班打卡</div>
-                <div className="text-2xl font-medium font-mono my-2">
-                  {formatTime(todayData?.lastPunch)}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { icon: '📋', label: '打卡月报', path: '/attendance/monthly', bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3' },
+                    { icon: '🏖️', label: '在线请假', path: '/attendance/vacation/leave', bg: '#ecfdf5', border: '#a7f3d0', text: '#047857' },
+                    { icon: '⏰', label: '加班申请', path: '/attendance/vacation/overtime', bg: '#fdf4ff', border: '#f5d0fe', text: '#86198f' },
+                    { icon: '📊', label: '数据统计', path: '/attendance/daily', bg: '#fff7ed', border: '#fed7aa', text: '#9a3412' },
+                  ].map((item) => (
+                    <Button
+                      key={item.label}
+                      type="secondary"
+                      long
+                      onClick={() => router.push(item.path)}
+                      style={{ background: item.bg, borderColor: item.border, color: item.text }}
+                      className="!h-auto py-4 flex flex-col gap-2 items-center justify-center"
+                    >
+                      <span className="text-xl leading-none">{item.icon}</span>
+                      <span className="text-xs font-medium" style={{ color: item.text }}>{item.label}</span>
+                    </Button>
+                  ))}
                 </div>
-                {todayData?.earlyMinutes ? (
-                  <Tag color="gold">早退 {todayData.earlyMinutes} 分钟</Tag>
-                ) : hasClockedOut ? (
-                  <Tag color="green">正常</Tag>
-                ) : null}
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="mb-4">
-            {!shift && !hasClockedIn && (
-              <div style={{ textAlign: 'center', marginBottom: 16, color: '#86909c', fontSize: 13 }}>
-                未设置排班将按灵活打卡模式记录，不计算迟到早退
-              </div>
-            )}
-            <div className="flex gap-4 justify-center" style={{ padding: '8px 0 4px' }}>
-              <Button
-                type="primary"
-                size="large"
-                className={hasClockedOut ? 'punch-btn' : 'punch-btn primary'}
-                loading={punching}
-                disabled={hasClockedIn}
-                onClick={handleClockIn}
-                style={{ minWidth: 168, height: 48, fontSize: 16 }}
-              >
-                {hasClockedIn ? '已打卡' : '上班打卡'}
-              </Button>
-              <Button
-                type="outline"
-                size="large"
-                className="punch-btn outline"
-                loading={punching}
-                disabled={!hasClockedIn || hasClockedOut}
-                onClick={handleClockOut}
-                style={{ minWidth: 168, height: 48, fontSize: 16 }}
-              >
-                {hasClockedOut ? '已打卡' : '下班打卡'}
-              </Button>
-            </div>
-            {!hasClockedIn && (
-              <div className="text-center mt-3 text-text-3" style={{ fontSize: 12 }}>
-                点击打卡即可记录上班时间
-              </div>
-            )}
-          </Card>
+          <div className="text-center text-slate-400 mt-4 text-xs">
+            打卡时间精确到秒，班次内打卡自动判定迟到 / 早退
+          </div>
         </div>
       </DataState>
 
       <Modal
         title="设置今日排班"
         visible={scheduleModalVisible}
-        onOk={handleSelfSchedule}
         onCancel={() => setScheduleModalVisible(false)}
-        confirmLoading={scheduling}
-        okText="确认设置"
-        cancelText="取消"
+        autoFocus={false}
+        footer={null}
       >
-        <div style={{ padding: '12px 0' }}>
-          <div style={{ marginBottom: 8, color: '#4e5969' }}>选择今日班次：</div>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="请选择班次"
-            value={selectedShiftId}
-            onChange={(val) => setSelectedShiftId(val as number)}
-          >
-            {availableShifts.map((s) => (
-              <Option key={s.id} value={s.id}>
-                {s.name}（{s.startTime} - {s.endTime}）
-              </Option>
-            ))}
-          </Select>
-          <div style={{ marginTop: 12, fontSize: 13, color: '#86909c' }}>
-            设置后将按照所选班次计算迟到、早退时间
+        <div className="py-1">
+          <div className="mb-4 text-xs text-slate-400">
+            请选择您今日的排班计划，提交后即可生效签到
+          </div>
+          {availableShifts.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-300">
+              📋 暂无可用的班次
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+              {availableShifts.map((s) => {
+                const active = selectedShiftId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedShiftId(s.id)}
+                    className={`w-full text-left pl-3 pr-3 py-3 rounded-md border-l-[3px] transition-colors duration-200 flex items-center gap-3 ${
+                      active
+                        ? 'border-l-[#2455D9] border-t border-b border-r border-[#bfdbfe] bg-[#eef2fc]'
+                        : 'border-l-transparent border border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0 mt-0.5"
+                      style={{ background: s.color || '#2455D9' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-slate-800">{s.name}</span>
+                        {s.isNextDay && (
+                          <span className="text-[10px] px-1.5 py-px rounded-full bg-slate-100 text-slate-400 leading-none">
+                            跨天
+                          </span>
+                        )}
+                      </div>
+                      {s.description && (
+                        <div className="text-xs text-slate-400 mt-1 truncate">{s.description}</div>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-sm tabular-nums font-medium text-[#2455D9]">
+                      {s.startTime} – {s.endTime}
+                    </span>
+                    <span
+                      className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[13px] leading-none ${
+                        active ? 'bg-[#2455D9] text-white' : 'bg-slate-100 text-transparent'
+                      }`}
+                    >
+                      ✓
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-4 flex justify-end gap-3">
+            <Button onClick={() => setScheduleModalVisible(false)}>
+              取消
+            </Button>
+            <Button
+              type="primary"
+              loading={scheduling}
+              disabled={!selectedShiftId}
+              onClick={handleSelfSchedule}
+            >
+              {scheduling ? '提交中...' : '确认设置'}
+            </Button>
           </div>
         </div>
       </Modal>

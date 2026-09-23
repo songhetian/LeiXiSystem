@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -48,6 +49,9 @@ async function bootstrap() {
   });
 
   await app.register(cookie as any);
+
+  // multipart：通用文件上传（报销发票附件等），Fastify 4 内核解析；单文件上限 200MB
+  await app.register(multipart as any, { limits: { fileSize: 200 * 1024 * 1024 } });
 
   app.enableCors({
     origin: (process.env.CORS_ORIGIN || 'http://localhost:8088,http://localhost:3000').split(','),

@@ -173,6 +173,21 @@ describe('AuthService - 单设备登录 (Q16)', () => {
   });
 
   // ----------------------------------------------------------------
+  // login — invalidates stale perm cache so admin gets fresh permissions
+  // （避免 seed.ts 重建角色权限后，admin 还要重登一次才生效）
+  // ----------------------------------------------------------------
+  it('invalidates perm cache on login so role changes take effect immediately', async () => {
+    prisma.user.findUnique.mockResolvedValue(mockUser);
+    jwt.signAsync.mockResolvedValue('fresh-token');
+    redis.get.mockResolvedValue(null);
+
+    const permCache = (service as any).permCache;
+    await service.login('admin', '123456');
+
+    expect(permCache.invalidateUser).toHaveBeenCalledWith(1);
+  });
+
+  // ----------------------------------------------------------------
   // login — same token re-login does not trigger kicked_out
   // ----------------------------------------------------------------
   it('does not emit kicked_out when re-login with the same token', async () => {

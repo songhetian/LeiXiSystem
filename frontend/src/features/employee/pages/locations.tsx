@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Button, Select, Input, Table, Tag, Space, Spin } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import type { ProTableColumn } from '@/components/ProTable';
 import { attendanceLocationApi, AttendanceLocation, AttendanceLocationCreateDto, AttendanceLocationUpdateDto } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 /** 工作类型中文映射 */
 const WORK_TYPE_MAP: Record<string, { label: string; color: string }> = {
@@ -21,13 +23,15 @@ const WORK_TYPE_OPTIONS = [
   { value: 'field', label: '外勤' },
 ];
 
+interface LocationListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: AttendanceLocation[] };
+}
+
 export default function LocationsPage() {
   const { can } = usePermission();
   const canManage = can('attendance:location:manage');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<AttendanceLocation[]>([]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
@@ -42,27 +46,13 @@ export default function LocationsPage() {
   const [workType, setWorkType] = useState('office');
   const [enabled, setEnabled] = useState(true);
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await attendanceLocationApi.list();
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-      } else {
-        setError(res.message || '获取打卡定位列表失败');
-        Message.error(res.message || '获取打卡定位列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取打卡定位列表失败');
-      notifyError(e, '获取打卡定位列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+  // SWR 缓存：打卡定位全量列表共享缓存；增删改后 revalidate 刷新
+  const { data: res, loading, error, revalidate } = useCachedData<LocationListEnvelope>(
+    'employee:attendance-locations',
+    () => attendanceLocationApi.list(),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -96,7 +86,7 @@ export default function LocationsPage() {
       const res = await attendanceLocationApi.update(record.id, { enabled: !record.enabled });
       if (res.code === 0) {
         Message.success(record.enabled ? '已停用该定位' : '已启用该定位');
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -115,7 +105,7 @@ export default function LocationsPage() {
           const res = await attendanceLocationApi.remove(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -161,7 +151,7 @@ export default function LocationsPage() {
       if (res.code === 0) {
         Message.success(editingLocation ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -174,7 +164,7 @@ export default function LocationsPage() {
 
   const handleExport = () => {
     if (!exportToExcel(
-      `打卡定位_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `打卡定位_${todayStr()}.xlsx`,
       '打卡定位',
       [
         { title: '名称', dataIndex: 'name' },
@@ -229,7 +219,7 @@ export default function LocationsPage() {
   ];
 
   return (
-    <PageContainer title="打卡定位" breadcrumbs={['首页', '考勤管理', '打卡定位']}>
+    <PageContainer breadcrumbs={['首页', '考勤管理', '打卡定位']}>
       {/* 工具栏 */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-text-2">共 {data.length} 个打卡定位</span>
@@ -244,13 +234,14 @@ export default function LocationsPage() {
           {error ? (
             <div className="text-center py-16">
               <p className="text-text-3 mb-3">{error}</p>
-              <Button onClick={() => fetchList()}>重试</Button>
+              <Button onClick={revalidate}>重试</Button>
             </div>
           ) : (
             <Table
               columns={columns}
               data={data}
               rowKey="id"
+              scroll={{ x: true }}
               pagination={false}
               stripe
               style={{ borderRadius: 0 }}

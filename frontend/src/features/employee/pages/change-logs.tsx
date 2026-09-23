@@ -5,10 +5,11 @@ import { Tag, Tooltip, Message, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
-import { employeeApi, EmployeeChangeLog, EmployeeChangeType, EmployeeChangeLogResult } from '@/services/employee';
+import { employeeApi, EmployeeChangeLog, EmployeeChangeType, EmployeeChangeLogResult, EmployeeChangeLogParams } from '@/services/employee';
 import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 import { notifyError } from '@/lib/request';
 
 // changeType 映射（后端 EmployeeChangeLog.changeType）
@@ -17,6 +18,7 @@ const TYPE_META: Record<EmployeeChangeType, { label: string; color: string }> = 
   self_update: { label: '本人修改', color: 'cyan' },
   resign: { label: '离职', color: 'red' },
   restore: { label: '恢复', color: 'green' },
+  batch_update: { label: '批量调整', color: 'purple' },
 };
 
 // 变动字段可读名（对齐参考项目的可读展示，避免直接暴露数据库字段名）
@@ -25,6 +27,7 @@ const FIELD_LABELS: Record<string, string> = {
   positionId: '职位',
   status: '状态',
   resignDate: '离职日期',
+  resignReason: '离职原因',
   hireDate: '入职日期',
   salary: '薪资',
   phone: '手机号',
@@ -45,10 +48,10 @@ function fmt(value: string | null | undefined): string {
 }
 
 const baseSearchFields: SearchFieldConfig[] = [
-  { key: 'keyword', label: '关键字', type: 'input', placeholder: '姓名 / 工号' },
+  { key: 'keyword', label: '姓名', type: 'input', placeholder: '姓名 / 工号' },
   {
     key: 'changeType',
-    label: '变动类型',
+    label: '类型',
     type: 'select',
     placeholder: '全部类型',
     options: Object.entries(TYPE_META).map(([value, meta]) => ({ value, label: meta.label })),
@@ -113,7 +116,7 @@ const columns: ProTableColumn[] = [
 export default function EmployeeChangeLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [searchParams, setSearchParams] = useState<Record<string, any>>({});
+  const [searchParams, setSearchParams] = useState<Omit<EmployeeChangeLogParams, 'page' | 'pageSize'>>({});
   const { departments } = useDepartments();
 
   // 部门维度筛选（对齐员工变动 / 入职审批）：前置部门下拉
@@ -161,7 +164,7 @@ export default function EmployeeChangeLogsPage() {
       const res = await employeeApi.getChangeLogs({ page: 1, pageSize: 10000, ...searchParams });
       const list = res.data?.list ?? [];
       if (!exportToExcel(
-        `员工变动流水_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        `员工变动流水_${todayStr()}.xlsx`,
         '员工变动流水',
         [
           { title: '工号', value: (r: EmployeeChangeLog) => r.employee?.employeeNo ?? '' },
@@ -183,11 +186,7 @@ export default function EmployeeChangeLogsPage() {
   };
 
   return (
-    <PageContainer
-      title="员工变动流水"
-      subTitle="汇总员工入职、调动、晋升、调薪、离职等信息变更记录，支持部门维度查看"
-      breadcrumbs={['员工管理', '员工变动流水']}
-    >
+    <PageContainer>
       <ProTable
         columns={columns}
         data={data}
@@ -196,6 +195,9 @@ export default function EmployeeChangeLogsPage() {
         error={error}
         onRetry={() => revalidate()}
         searchFields={searchFields}
+        searchColumn={3}
+        searchExpandable={false}
+        searchInlineActions
         onSearch={handleSearch}
         onReset={handleReset}
         toolbar={[

@@ -25,15 +25,20 @@ jest.mock('@arco-design/web-react', () => {
       {children}
     </form>
   );
-  Form.Item = ({ label, field, children, help, error }: any) => (
-    <div data-testid={`form-item-${field}`}>
-      {label && <label htmlFor={field}>{label}</label>}
-      {children}
-      {(help || error) && (
-        <div role="alert" data-testid={`field-error-${field}`}>{help || error}</div>
-      )}
-    </div>
-  );
+  // ModalForm 源码刻意不向 FormItem 传 `field`（真实 Arco 会用空 store 覆盖受控 value，
+  // 导致回显为空）；测试锚点改从子控件 id 派生（renderField 已为输入控件设 id=field.key）。
+  Form.Item = ({ label, children, help, error }: any) => {
+    const field = children?.props?.id;
+    return (
+      <div data-testid={`form-item-${field}`}>
+        {label && <label htmlFor={field}>{label}</label>}
+        {children}
+        {(help || error) && (
+          <div role="alert" data-testid={`field-error-${field}`}>{help || error}</div>
+        )}
+      </div>
+    );
+  };
 
   const Input: any = React.forwardRef(
     ({ value, onChange, placeholder, id }: any, ref: any) => (
@@ -224,6 +229,72 @@ describe('ModalForm', () => {
         />,
       );
       expect(screen.getByTestId('form-item-name')).toBeInTheDocument();
+    });
+
+    it('打开时数据晚到（弹窗先开 + 详情异步回填）也能将值回显到表单', async () => {
+      const { rerender } = render(
+        <ModalForm
+          visible={true}
+          title="编辑"
+          fields={mockFields}
+          initialValues={{}}
+          onOk={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      // 弹窗刚打开时详情未返回，输入框为空
+      expect(screen.getByTestId('input-name')).toHaveValue('');
+      // 模拟详情接口晚到：重新渲染带上完整数据
+      rerender(
+        <ModalForm
+          visible={true}
+          title="编辑"
+          fields={mockFields}
+          initialValues={{ name: '张三', departmentId: 1 }}
+          onOk={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId('input-name')).toHaveValue('张三');
+      });
+      expect(screen.getByTestId('select-departmentId')).toHaveValue('1');
+    });
+
+    it('重新打开同一弹窗时用新的 initialValues 回填（不残留上一次的旧值）', () => {
+      const { rerender } = render(
+        <ModalForm
+          visible={true}
+          title="编辑"
+          fields={mockFields}
+          initialValues={{ name: '李四', departmentId: 2 }}
+          onOk={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('input-name')).toHaveValue('李四');
+      // 关闭后重新打开编辑另一名员工
+      rerender(
+        <ModalForm
+          visible={false}
+          title="编辑"
+          fields={mockFields}
+          onOk={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      rerender(
+        <ModalForm
+          visible={true}
+          title="编辑"
+          fields={mockFields}
+          initialValues={{ name: '王五', departmentId: 1 }}
+          onOk={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('input-name')).toHaveValue('王五');
     });
 
     it('handles empty fields array', () => {

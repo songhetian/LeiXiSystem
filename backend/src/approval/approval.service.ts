@@ -14,6 +14,7 @@ import { RoleWorkflowService } from './role-workflow.service';
 import { buildApprovalChain, type WorkflowNode, type RoutingContext } from './engine/routing-engine';
 import { NotificationService } from '../notification/notification.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { generateAutoCode } from '../common/code-gen.util';
 
 const WORKFLOW_CACHE_TTL = 30 * 60;
 
@@ -73,7 +74,7 @@ export class ApprovalService {
   }
 
   async createWorkflow(params: {
-    code: string;
+    code?: string;
     name: string;
     module: string;
     status?: string;
@@ -93,7 +94,7 @@ export class ApprovalService {
     try {
       return await this.prisma.approvalWorkflow.create({
         data: {
-          code: params.code,
+          code: params.code || generateAutoCode('WF'),
           name: params.name,
           module: params.module,
           status: params.status as any || 'draft',

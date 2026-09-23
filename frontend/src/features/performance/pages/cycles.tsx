@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { performanceApi, PerformanceCycle, PerformanceCycleCreateDto, PerformanceCycleUpdateDto } from '@/services/performance';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
-import { notifyError } from '@/lib/request';
+import { todayStr } from '@/lib/format';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const FormItem = Form.Item;
 
@@ -47,55 +48,38 @@ interface Filters {
 export default function CyclesPage() {
   const { can } = usePermission();
   const canManage = can('performance:manage');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<PerformanceCycle[]>([]);
   const [filters, setFilters] = useState<Filters>({ type: '', status: '', keyword: '' });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editing, setEditing] = useState<PerformanceCycle | null>(null);
 
-  const fetchList = useCallback(async (activeFilters = filters) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res: any = await performanceApi.listCycles();
+  const cacheKey = `performance:cycles:${filters.type}:${filters.status}:${filters.keyword}`;
+  const { data: resData, loading, error, revalidate } = useCachedData<PerformanceCycle[]>(
+    cacheKey,
+    async () => {
+      const res = await performanceApi.listCycles();
       let list = (res.data?.list ?? []) as PerformanceCycle[];
-      // 本地兜底过滤
-      if (activeFilters.type !== '') list = list.filter((c) => c.type === activeFilters.type);
-      if (activeFilters.status !== '') list = list.filter((c) => c.status === activeFilters.status);
-      if (activeFilters.keyword) {
-        const kw = String(activeFilters.keyword).toLowerCase();
+      // 本地兜底过滤（缓存键已含筛选条件，筛选变化即重新获取）
+      if (filters.type !== '') list = list.filter((c) => c.type === filters.type);
+      if (filters.status !== '') list = list.filter((c) => c.status === filters.status);
+      if (filters.keyword) {
+        const kw = String(filters.keyword).toLowerCase();
         list = list.filter((c) => c.name.toLowerCase().includes(kw));
       }
-      setData(list);
-    } catch (e: any) {
-      setError(e?.message || '获取绩效周期列表失败');
-      notifyError(e, '获取绩效周期列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return list;
+    },
+    { staleTime: 30_000 },
+  );
+  const data = resData ?? [];
 
-  useEffect(() => {
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleFilterChange = (key: keyof Filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
-    setFilters((prev) => {
-      const next = { ...prev, [key]: value };
-      fetchList(next);
-      return next;
-    });
-  }, [fetchList]);
-
-  const handleReset = useCallback(() => {
-    const empty: Filters = { type: '', status: '', keyword: '' };
-    setFilters(empty);
-    fetchList(empty);
-  }, [fetchList]);
+  const handleReset = () => {
+    setFilters({ type: '', status: '', keyword: '' });
+  };
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -119,7 +103,7 @@ export default function CyclesPage() {
           const res = await performanceApi.deleteCycle(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -150,7 +134,7 @@ export default function CyclesPage() {
         Message.success(editing ? '修改成功' : '创建成功');
         setModalVisible(false);
         setEditing(null);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -168,7 +152,7 @@ export default function CyclesPage() {
 
   const handleExport = () => {
     if (!exportToExcel(
-      `绩效周期_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `绩效周期_${todayStr()}.xlsx`,
       '绩效周期',
       [
         { title: '周期名称', dataIndex: 'name' },
@@ -190,7 +174,7 @@ export default function CyclesPage() {
   const filteredCount = data.length;
 
   return (
-    <PageContainer title="绩效管理">
+    <PageContainer >
       {/* 筛选栏 */}
       <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

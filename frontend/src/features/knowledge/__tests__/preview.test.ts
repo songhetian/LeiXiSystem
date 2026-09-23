@@ -1,5 +1,5 @@
 import { getPreviewMode } from '../preview';
-import { formatFileSize, getFileExt } from '../preview';
+import { formatFileSize, getFileExt, shouldUseViewer } from '../preview';
 
 describe('getPreviewMode', () => {
   it('识别图片类型', () => {
@@ -37,6 +37,21 @@ describe('getPreviewMode', () => {
   it('无法识别的 mime 与扩展名判定为 unsupported', () => {
     expect(getPreviewMode('unknown.foo', 'application/octet-stream')).toBe('unsupported');
     expect(getPreviewMode('', '')).toBe('unsupported');
+  });
+});
+
+describe('shouldUseViewer（由 @open-file-viewer 渲染的类型）', () => {
+  it('Office 文档走 @open-file-viewer 在线渲染', () => {
+    expect(shouldUseViewer('office')).toBe(true);
+  });
+  it('图片/视频/音频仍用浏览器原生预览，不接第三方预览器', () => {
+    expect(shouldUseViewer('image')).toBe(false);
+    expect(shouldUseViewer('video')).toBe(false);
+    expect(shouldUseViewer('audio')).toBe(false);
+  });
+  it('PDF 仍用浏览器原生 iframe 预览，无需 pdf.js 构建；不支持类型走下载兜底', () => {
+    expect(shouldUseViewer('pdf')).toBe(false);
+    expect(shouldUseViewer('unsupported')).toBe(false);
   });
 });
 

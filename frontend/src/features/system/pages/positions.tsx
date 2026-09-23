@@ -113,17 +113,15 @@ export function PositionList() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-border-2">
-              <th className="text-left py-2.5 px-3">ID</th>
-              <th className="text-left py-2.5 px-3">岗位名称</th>
-              {can('position:manage') && (
-                <th className="text-right py-2.5 px-3">操作</th>
-              )}
-            </tr>
+            <th className="text-left py-2.5 px-3">岗位名称</th>
+            {can('position:manage') && (
+              <th className="text-right py-2.5 px-3">操作</th>
+            )}
+          </tr>
           </thead>
           <tbody>
             {(list || []).map((item) => (
               <tr key={item.id} className="border-b border-border-2">
-                <td className="py-2.5 px-3">{item.id}</td>
                 <td className="py-2.5 px-3">{item.name}</td>
                 {can('position:manage') && (
                   <td className="py-2.5 px-3 text-right">
@@ -169,7 +167,7 @@ export function PositionList() {
 
 export default function SystemPositionsPage() {
   return (
-    <PageContainer title="岗位管理">
+    <PageContainer >
       <PositionList />
     </PageContainer>
   );

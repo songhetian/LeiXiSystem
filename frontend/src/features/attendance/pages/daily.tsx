@@ -7,10 +7,11 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import StatusTag from '@/components/StatusTag';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments } from '@/hooks/use-departments';
-import { attendanceApi, DailyRecord, DailyListResult } from '@/services/attendance';
+import { attendanceApi, DailyRecord, DailyListResult, DailyListParams } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
@@ -41,7 +42,7 @@ export default function AttendanceDailyPage() {
   const { can } = usePermission();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [searchParams, setSearchParams] = useState<Record<string, any>>({});
+  const [searchParams, setSearchParams] = useState<Omit<DailyListParams, 'page' | 'pageSize'>>({});
   const { departments } = useDepartments();
 
   // 部门维度筛选：后端 GET /attendance/daily 已支持 departmentId，这里补前端入口
@@ -89,7 +90,7 @@ export default function AttendanceDailyPage() {
         normal: '正常', abnormal: '异常', leave: '请假', absent: '旷工',
       };
       if (!exportToExcel(
-        `考勤日报_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        `考勤日报_${todayStr()}.xlsx`,
         '考勤日报',
         [
           { title: '工号', dataIndex: 'employeeNo' },
@@ -182,7 +183,7 @@ export default function AttendanceDailyPage() {
   ];
 
   return (
-    <PageContainer title="考勤日报">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}

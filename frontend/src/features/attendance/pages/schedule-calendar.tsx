@@ -28,9 +28,11 @@ import {
   type ScheduleCreateDto,
 } from '@/services/attendance';
 import { employeeApi, type Employee } from '@/services/employee';
-import { systemApi, type SysDepartment } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { formatDate } from '@/lib/format';
+import { leaveDateKeys } from '@/lib/leave-days';
 import * as XLSX from 'xlsx';
 
 const { Text } = Typography;
@@ -64,17 +66,12 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-function formatDate(year: number, month0: number, day: number): string {
+function fmtDate(year: number, month0: number, day: number): string {
   return `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
 }
 
 function getDaysInMonth(year: number, month0: number): number {
   return new Date(year, month0 + 1, 0).getDate();
-}
-
-function parseDate(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -89,7 +86,7 @@ function dateOnly(s?: string): string {
   if (DATE_RE.test(s)) return s;
   const d = new Date(s);
   if (isNaN(d.getTime())) return s;
-  return formatDate(d.getFullYear(), d.getMonth(), d.getDate());
+  return fmtDate(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 /** 根据底色计算可读的文字颜色 */
@@ -127,7 +124,7 @@ export default function ScheduleCalendarPage() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
   // 基础数据
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const { departments } = useDepartments();
   const [selectedDeptId, setSelectedDeptId] = useState<number | undefined>(undefined);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -159,9 +156,9 @@ export default function ScheduleCalendarPage() {
   // ============ 派生数据 ============
 
   const daysInMonth = useMemo(() => getDaysInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
-  const monthStart = useMemo(() => formatDate(viewYear, viewMonth, 1), [viewYear, viewMonth]);
+  const monthStart = useMemo(() => fmtDate(viewYear, viewMonth, 1), [viewYear, viewMonth]);
   const monthEnd = useMemo(
-    () => formatDate(viewYear, viewMonth, daysInMonth),
+    () => fmtDate(viewYear, viewMonth, daysInMonth),
     [viewYear, viewMonth, daysInMonth],
   );
 
@@ -188,18 +185,8 @@ export default function ScheduleCalendarPage() {
   const leaveMap = useMemo(() => {
     const m = new Map<string, LeaveRecord>();
     leaves.forEach((l) => {
-      if (l.status !== 'approved' || !l.startDate || !l.endDate) return;
-      const start = parseDate(l.startDate);
-      const end = parseDate(l.endDate);
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
-      const cursor = new Date(start);
-      while (cursor.getTime() <= end.getTime()) {
-        m.set(
-          `${l.employeeId}_${formatDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())}`,
-          l,
-        );
-        cursor.setDate(cursor.getDate() + 1);
-      }
+      if (l.status !== 'approved') return;
+      leaveDateKeys(l.employeeId, l.startDate, l.endDate).forEach((k) => m.set(k, l));
     });
     return m;
   }, [leaves]);
@@ -220,17 +207,6 @@ export default function ScheduleCalendarPage() {
   }, [deptEmployees, keyword]);
 
   // ============ 数据加载 ============
-
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await systemApi.listDepartments();
-      if (res.code === 0 && res.data) {
-        setDepartments(res.data);
-      }
-    } catch {
-      // 忽略部门加载失败
-    }
-  }, []);
 
   const fetchShifts = useCallback(async () => {
     try {
@@ -293,10 +269,9 @@ export default function ScheduleCalendarPage() {
 
   // 首次加载：部门 + 班次 + 全部在职员工
   useEffect(() => {
-    fetchDepartments();
     fetchShifts();
     fetchEmployees();
-  }, [fetchDepartments, fetchShifts, fetchEmployees]);
+  }, [fetchShifts, fetchEmployees]);
 
   // 部门加载完成后默认选中第一个（仅初始化一次，允许用户清空以查看全部）
   const didInitDeptRef = useRef(false);
@@ -384,7 +359,7 @@ export default function ScheduleCalendarPage() {
         rows.forEach((row, idx) => {
           const no = String(row['工号'] ?? row['employeeNo'] ?? row['员工工号'] ?? '').trim();
           const name = String(row['姓名'] ?? row['name'] ?? '').trim();
-          const date = String(row['日期'] ?? row['date'] ?? row['workDate'] ?? '').slice(0, 10);
+          const date = formatDate(row['日期'] ?? row['date'] ?? row['workDate'], 'YYYY-MM-DD', '');
           const shiftName = String(row['班次'] ?? row['shift'] ?? row['shiftName'] ?? '').trim();
           if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             errors.push(`第 ${idx + 2} 行：日期格式应为 YYYY-MM-DD`);
@@ -816,7 +791,7 @@ export default function ScheduleCalendarPage() {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateObj = new Date(viewYear, viewMonth, day);
-      const dateStr = formatDate(viewYear, viewMonth, day);
+      const dateStr = fmtDate(viewYear, viewMonth, day);
       const weekday = dateObj.getDay();
       const isWeekend = weekday === 0 || weekday === 6;
 
@@ -906,7 +881,7 @@ export default function ScheduleCalendarPage() {
   const monthLabel = `${viewYear} 年 ${viewMonth + 1} 月`;
 
   return (
-      <PageContainer title="排班管理">
+      <PageContainer >
         {/* 顶部工具栏 */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-surface border border-border-1 rounded-md mb-3">
           <Space wrap>

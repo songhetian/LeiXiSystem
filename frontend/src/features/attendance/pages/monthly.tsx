@@ -7,10 +7,11 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import StatusTag from '@/components/StatusTag';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments } from '@/hooks/use-departments';
-import { attendanceApi, MonthlyRecord, MonthlyListResult } from '@/services/attendance';
+import { attendanceApi, MonthlyRecord, MonthlyListResult, MonthlyListParams } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
   { key: 'month', label: '月份', type: 'date', format: 'YYYY-MM', placeholder: '请选择月份', span: 4 },
@@ -42,7 +43,7 @@ export default function AttendanceMonthlyPage() {
   const { can } = usePermission();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [searchParams, setSearchParams] = useState<Record<string, any>>({});
+  const [searchParams, setSearchParams] = useState<Omit<MonthlyListParams, 'page' | 'pageSize'>>({});
   const { departments } = useDepartments();
 
   // 部门维度筛选：后端 GET /attendance/monthly 已支持 departmentId，这里补前端入口
@@ -108,7 +109,7 @@ export default function AttendanceMonthlyPage() {
       const res = await attendanceApi.getMonthlyList({ page: 1, pageSize: 10000, ...searchParams });
       const list = (res.data?.list ?? []) as MonthlyRecord[];
       if (!exportToExcel(
-        `考勤月报_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        `考勤月报_${todayStr()}.xlsx`,
         '考勤月报',
         [
           { title: '工号', value: (r: MonthlyRecord) => r.employee?.employeeNo ?? r.employeeNo },
@@ -213,7 +214,7 @@ export default function AttendanceMonthlyPage() {
   ];
 
   return (
-    <PageContainer title="考勤月报">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}

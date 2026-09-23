@@ -8,29 +8,24 @@ export function groupPermissionsByModule(permissions: SysPermission[]): Record<s
   }, {});
 }
 
-const ids = (perms: SysPermission[]) => perms.map((p) => p.id);
+/** 权限模块英文键 -> 中文展示名（权限点 name 已是中文，仅模块分组键为英文） */
+export const MODULE_LABELS: Record<string, string> = {
+  employee: '人事管理',
+  attendance: '考勤管理',
+  vacation: '假期管理',
+  performance: '绩效管理',
+  finance: '财务管理',
+  helpdesk: '工单客服',
+  approval: '审批中心',
+  payroll: '薪酬管理',
+  reimbursement: '报销管理',
+  knowledge: '知识库',
+  system: '系统管理',
+  reports: '业务报表',
+  personal: '个人中心',
+};
 
-/** 模块内权限是否全部被选中 */
-export function moduleAllChecked(selected: number[], perms: SysPermission[]): boolean {
-  if (perms.length === 0) return false;
-  return ids(perms).every((id) => selected.includes(id));
-}
-
-/** 模块内已选中的权限数量 */
-export function moduleSelectedCount(selected: number[], perms: SysPermission[]): number {
-  return ids(perms).filter((id) => selected.includes(id)).length;
-}
-
-/**
- * 切换一个模块的全选/全不选。
- * checked=true 加入模块全部权限（并集去重）；false 移除模块内权限，保留其他模块。
- */
-export function toggleModule(selected: number[], perms: SysPermission[], checked: boolean): number[] {
-  const moduleIds = ids(perms);
-  if (checked) {
-    const set = new Set([...selected, ...moduleIds]);
-    return Array.from(set);
-  }
-  const set = new Set(moduleIds);
-  return selected.filter((id) => !set.has(id));
+/** 模块名中文化：已知模块映射为中文名，未知则回退原值 */
+export function moduleLabel(module: string): string {
+  return MODULE_LABELS[module] || module;
 }

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import {
@@ -9,28 +9,35 @@ import {
   Form,
   Input,
   Select,
-  Tree,
   Tabs,
   Empty,
-  Popconfirm,
+  Table,
+  Switch,
+  Tag,
+  Checkbox,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { systemApi, SysDepartment } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
+import { notifyError } from '@/lib/request';
 import { PositionList } from './positions';
 
 const { TabPane } = Tabs;
+const { TextArea } = Input;
+
+function formatDate(v?: string | null) {
+  if (!v) return '-';
+  return new Date(v).toLocaleDateString('zh-CN');
+}
 
 export default function SystemDepartmentsPage() {
-  const { can } = usePermission();
-
   return (
-    <PageContainer title="组织架构">
+    <PageContainer >
       <Tabs defaultActiveTab="department">
         <TabPane key="department" title="部门管理">
-          <DepartmentTree />
+          <DepartmentManager />
         </TabPane>
         <TabPane key="position" title="岗位管理">
           <PositionList />
@@ -40,34 +47,33 @@ export default function SystemDepartmentsPage() {
   );
 }
 
-// ====== 部门管理 ======
-function DepartmentTree() {
+// ====== 部门管理（描述 / 启停 / 回收站 / 恢复）======
+function DepartmentManager() {
   const { can } = usePermission();
-  const { data: departments, loading, error, run: runFetch, setData: setDepartments } = useFetchState<SysDepartment[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { data: list, loading, error, run: runFetch } = useFetchState<SysDepartment[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const [createVisible, setCreateVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editItem, setEditItem] = useState<SysDepartment | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-  const [editItem, setEditItem] = useState<SysDepartment | null>(null);
-  const [isEdit, setIsEdit] = useState(false);
 
   const fetchData = async () => {
     await runFetch(async () => {
-      const res = await systemApi.listDepartments();
-      if (res.code === 0 && res.data) {
-        return res.data;
-      }
+      const res = await systemApi.listDepartments(showDeleted);
+      if (res.code === 0 && res.data) return res.data;
       throw new Error(res.message || '获取部门列表失败');
     });
   };
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [showDeleted]);
 
-  const treeData = buildTree(departments || []);
+  const activeList = (list || []).filter((d) => !d.deletedAt);
+  const recycleList = (list || []).filter((d) => d.deletedAt);
 
   const openCreate = () => {
     setIsEdit(false);
@@ -79,7 +85,7 @@ function DepartmentTree() {
   const openEdit = (item: SysDepartment) => {
     setIsEdit(true);
     setEditItem(item);
-    form.setFieldsValue({ name: item.name, parentId: item.parentId });
+    form.setFieldsValue({ name: item.name, parentId: item.parentId, description: item.description || '' });
     setEditVisible(true);
   };
 
@@ -88,7 +94,11 @@ function DepartmentTree() {
     setSubmitting(true);
     try {
       if (isEdit && editItem) {
-        const res = await systemApi.updateDepartment(editItem.id, values as any);
+        const res = await systemApi.updateDepartment(editItem.id, {
+          name: values.name,
+          parentId: values.parentId ?? null,
+          description: values.description || '',
+        });
         if (res.code === 0) {
           Message.success('更新成功');
           setEditVisible(false);
@@ -97,7 +107,11 @@ function DepartmentTree() {
           Message.error(res.message || '更新失败');
         }
       } else {
-        const res = await systemApi.createDepartment(values as any);
+        const res = await systemApi.createDepartment({
+          name: values.name,
+          parentId: values.parentId,
+          description: values.description || '',
+        });
         if (res.code === 0) {
           Message.success('创建成功');
           setCreateVisible(false);
@@ -107,99 +121,188 @@ function DepartmentTree() {
         }
       }
     } catch (e) {
-      Message.error('操作失败');
+      notifyError(e, '操作失败');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (item: SysDepartment) => {
-    try {
-      const res = await systemApi.deleteDepartment(item.id);
-      if (res.code === 0) {
-        Message.success('删除成功');
-        fetchData();
-      } else {
-        Message.error(res.message || '删除失败');
-      }
-    } catch (e) {
-      Message.error('删除失败');
-    }
+  // 启停部门（同步所属员工状态由后端/历史沿用，此处仅更新部门状态）
+  const handleStatusToggle = (dept: SysDepartment, next: boolean) => {
+    const action = next ? '启用' : '停用';
+    Modal.confirm({
+      title: `${action}部门`,
+      content: `确定要${action}部门「${dept.name}」吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const res = await systemApi.updateDepartment(dept.id, { status: next ? 'active' : 'inactive' });
+          if (res.code === 0) {
+            Message.success(`部门已${action}`);
+            fetchData();
+          } else {
+            Message.error(res.message || '操作失败');
+          }
+        } catch (e) {
+          notifyError(e, '操作失败');
+        }
+      },
+    });
   };
 
-  const parentOptions = (departments || [])
+  const handleDelete = (dept: SysDepartment) => {
+    Modal.confirm({
+      title: '移入回收站',
+      content: `确定将部门「${dept.name}」移入回收站吗？删除后可随时恢复。`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const res = await systemApi.deleteDepartment(dept.id);
+          if (res.code === 0) {
+            Message.success('已移至回收站');
+            fetchData();
+          } else {
+            Message.error(res.message || '删除失败');
+          }
+        } catch (e) {
+          notifyError(e, '删除失败');
+        }
+      },
+    });
+  };
+
+  const handleRestore = (dept: SysDepartment) => {
+    Modal.confirm({
+      title: '恢复部门',
+      content: `确定要恢复部门「${dept.name}」吗？恢复后部门将重新投入使用。`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const res = await systemApi.restoreDepartment(dept.id);
+          if (res.code === 0) {
+            Message.success('部门已恢复');
+            fetchData();
+          } else {
+            Message.error(res.message || '恢复失败');
+          }
+        } catch (e) {
+          notifyError(e, '恢复失败');
+        }
+      },
+    });
+  };
+
+  const parentOptions = (activeList)
     .filter((d) => !editItem || d.id !== editItem.id)
     .map((d) => ({ label: d.name, value: d.id }));
 
+  const columns = [
+    {
+      title: '部门名称',
+      dataIndex: 'name',
+      width: 200,
+    },
+    {
+      title: '职责描述',
+      dataIndex: 'description',
+      render: (v: string | null) => v || '-',
+    },
+    {
+      title: '在册人数',
+      dataIndex: 'employeeCount',
+      width: 100,
+      render: (v: number) => (v == null ? 0 : v),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      render: (_: any, row: SysDepartment) => {
+        if (row.deletedAt) {
+          return <Tag color="red">已销毁</Tag>;
+        }
+        return (
+          <Switch
+            size="small"
+            checked={row.status === 'active'}
+            checkedText="启用"
+            uncheckedText="停用"
+            onChange={(checked) => handleStatusToggle(row, Boolean(checked))}
+          />
+        );
+      },
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      width: 140,
+      render: (v: string) => formatDate(v),
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      width: 170,
+      render: (_: any, row: SysDepartment) => {
+        if (row.deletedAt) {
+          return (
+            <Button size="mini" type="text" status="success" onClick={() => handleRestore(row)}>
+              恢复
+            </Button>
+          );
+        }
+        return (
+          <Space>
+            <Button size="mini" type="text" onClick={() => openEdit(row)}>
+              编辑
+            </Button>
+            <Button size="mini" type="text" status="danger" onClick={() => handleDelete(row)}>
+              删除
+            </Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
   return (
-    <div className="flex gap-4 min-h-[400px]">
-      <div className="w-80 bg-bg-secondary rounded-md p-4 border border-border-2">
-        <div className="mb-3 flex justify-between items-center">
-          <span className="font-medium text-text-1">部门列表</span>
-          <Button type="primary" size="small" onClick={openCreate}>
+    <div>
+      <div className="mb-4 flex items-center justify-between bg-bg-secondary rounded-md p-4 border border-border-2">
+        <div className="flex items-center gap-6 text-sm text-text-1">
+          <span>
+            活跃部门：<span className="text-text-1 font-medium">{activeList.length}</span>
+          </span>
+          <Checkbox checked={showDeleted} onChange={setShowDeleted}>
+            显示回收站（已删除）
+          </Checkbox>
+        </div>
+        {can('department:manage') && (
+          <Button type="primary" onClick={openCreate}>
             新增部门
           </Button>
-        </div>
-        <DataState loading={loading} error={error} onRetry={fetchData} isEmpty={!departments || departments.length === 0}>
-          <Tree
-            treeData={treeData}
-            onSelect={(keys) => {
-              if (keys && keys.length > 0) {
-                setSelectedId(Number(keys[0]));
-              } else {
-                setSelectedId(null);
-              }
-            }}
-          />
-        </DataState>
-      </div>
-
-      <div className="flex-1">
-        {selectedId ? (
-          <div className="p-6 bg-bg-secondary rounded-md border border-border-2">
-            <div className="mb-4 flex justify-between">
-              <h3 className="m-0">
-                {(departments || []).find((d) => d.id === selectedId)?.name}
-              </h3>
-              <Space>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    const dept = (departments || []).find((d) => d.id === selectedId);
-                    if (dept) openEdit(dept);
-                  }}
-                >
-                  编辑
-                </Button>
-                <Popconfirm
-                  title="确定删除该部门？"
-                  content="删除后不可恢复"
-                  onOk={() => {
-                    const dept = (departments || []).find((d) => d.id === selectedId);
-                    if (dept) handleDelete(dept);
-                  }}
-                >
-                  <Button size="small" status="danger">
-                    删除
-                  </Button>
-                </Popconfirm>
-              </Space>
-            </div>
-            <div className="text-text-3">
-              <div>部门 ID：{selectedId}</div>
-              <div className="mt-2">
-                上级部门：                {(departments || []).find((d) => d.id === selectedId)?.parentId
-                  ? (departments || []).find(
-                      (d) => d.id === (departments || []).find((x) => x.id === selectedId)?.parentId,
-                    )?.name || '-'
-                  : '无（顶级部门）'}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <Empty description="请选择部门查看详情" />
         )}
       </div>
+
+      <DataState
+        loading={loading}
+        error={error}
+        onRetry={fetchData}
+        isEmpty={!list || list.length === 0}
+      >
+        {showDeleted && recycleList.length === 0 ? (
+          <Empty description="回收站暂无已删除部门" />
+        ) : (
+          <Table
+            rowKey="id"
+            columns={columns as any}
+            data={showDeleted ? recycleList : activeList}
+            pagination={false}
+            scroll={{ x: 900 }}
+          />
+        )}
+      </DataState>
 
       <Modal
         title={isEdit ? '编辑部门' : '新增部门'}
@@ -217,11 +320,10 @@ function DepartmentTree() {
             <Input placeholder="请输入部门名称" />
           </Form.Item>
           <Form.Item label="上级部门" field="parentId">
-            <Select
-              placeholder="请选择上级部门（不选为顶级部门）"
-              allowClear
-              options={parentOptions}
-            />
+            <Select placeholder="不选则为顶级部门" allowClear options={parentOptions} />
+          </Form.Item>
+          <Form.Item label="职责描述" field="description">
+            <TextArea placeholder="请输入部门主要职责描述" rows={3} />
           </Form.Item>
         </Form>
       </Modal>
@@ -230,7 +332,7 @@ function DepartmentTree() {
 }
 
 // ====== 工具函数 ======
-function buildTree(list: SysDepartment[]): any[] {
+export function buildTree(list: SysDepartment[]): any[] {
   const map = new Map<number, any>();
   list.forEach((item) => {
     map.set(item.id, { key: item.id, title: item.name, children: [] });

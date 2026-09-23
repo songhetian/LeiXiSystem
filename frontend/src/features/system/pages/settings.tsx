@@ -1,10 +1,11 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { Message, Card, Input, Button, Space, Spin } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { settingsApi, SystemSetting } from '@/services/settings';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const GROUP_LABELS: Record<string, string> = {
   general: '基础信息',
@@ -14,10 +15,17 @@ const GROUP_LABELS: Record<string, string> = {
 
 export default function SettingsPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
+
+  // SWR 缓存：禁用聚焦自动刷新，避免打断用户正在编辑的表单值
+  const cacheKey = `system:settings`;
+  const { data: res, loading, revalidate } = useCachedData<{
+    code: number;
+    message?: string;
+    data?: SystemSetting[];
+  }>(cacheKey, () => settingsApi.list(), { staleTime: 30_000, revalidateOnFocus: false });
+  const settings = res?.code === 0 && res.data ? res.data : [];
 
   const grouped = useMemo(() => {
     const map: Record<string, SystemSetting[]> = {};
@@ -27,26 +35,12 @@ export default function SettingsPage() {
     return map;
   }, [settings]);
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const res = await settingsApi.list();
-      if (res.code === 0 && res.data) {
-        setSettings(res.data);
-        setValues(Object.fromEntries(res.data.map((s) => [s.key, s.value])));
-      } else {
-        Message.error(res.message || '加载设置失败');
-      }
-    } catch (e) {
-      Message.error('加载设置失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 服务端数据就绪（首载或保存后 revalidate）时初始化表单值；
+  // 依赖服务端 res 引用（缓存内稳定），避免空数组字面量每次渲染生成新引用而触发死循环
   useEffect(() => {
-    fetchAll();
-  }, []);
+    if (!res || res.code !== 0 || !res.data) return;
+    setValues(Object.fromEntries(res.data.map((s) => [s.key, s.value])));
+  }, [res]);
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -65,7 +59,7 @@ export default function SettingsPage() {
       const res = await settingsApi.bulkUpdate(changed);
       if (res.code === 0) {
         Message.success('保存成功');
-        await fetchAll();
+        revalidate();
       } else {
         Message.error(res.message || '保存失败');
       }
@@ -77,9 +71,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <PageContainer
-      title="系统设置"
-      extra={
+    <PageContainer extra={
         <Button
           type="primary"
           loading={saving}

@@ -17,6 +17,7 @@ import StatusTag from '@/components/StatusTag';
 import { useCachedData } from '@/hooks/use-cached-data';
 import {
   attendanceApi,
+  AttendanceAuditParams,
   AttendanceAuditRow,
   AttendanceAuditResult,
 } from '@/services/attendance';
@@ -25,6 +26,7 @@ import { useDepartments } from '@/hooks/use-departments';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { formatDate, todayStr } from '@/lib/format';
 
 // 批次六 · 考勤申请聚合审计（对齐参考 CompensatoryApproval 的审批人审计信息层级）
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -75,7 +77,7 @@ export default function VacationAuditPage() {
   const { can } = usePermission();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [searchParams, setSearchParams] = useState<Record<string, any>>({});
+  const [searchParams, setSearchParams] = useState<Omit<AttendanceAuditParams, 'page' | 'pageSize'>>({});
   const { departments } = useDepartments();
 
   // 审计详情弹窗
@@ -169,7 +171,7 @@ export default function VacationAuditPage() {
       const res = await attendanceApi.getAuditList({ page: 1, pageSize: 10000, ...searchParams });
       const list = (res.data?.list ?? []) as AttendanceAuditRow[];
       if (!exportToExcel(
-        `考勤审计_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        `考勤审计_${todayStr()}.xlsx`,
         '考勤审计',
         [
           { title: '类型', value: (r: AttendanceAuditRow) => recordTypeMap[r.recordType] ?? r.recordType },
@@ -180,8 +182,8 @@ export default function VacationAuditPage() {
             title: '业务内容',
             value: (r: AttendanceAuditRow) =>
               r.recordType === 'leave'
-                ? `${r.businessTypeName} ${(r.startDate ?? '').slice(0, 10)}~${(r.endDate ?? '').slice(0, 10)} (${r.days}天)`
-                : `加班 ${(r.overtimeDate ?? '').slice(0, 10)} (${r.hours}小时)`,
+                ? `${r.businessTypeName} ${formatDate(r.startDate, 'YYYY-MM-DD', '')}~${formatDate(r.endDate, 'YYYY-MM-DD', '')} (${r.days}天)`
+                : `加班 ${formatDate(r.overtimeDate, 'YYYY-MM-DD', '')} (${r.hours}小时)`,
           },
           { title: '原因', dataIndex: 'reason' },
           { title: '提交时间', dataIndex: 'createdAt' },
@@ -207,8 +209,8 @@ export default function VacationAuditPage() {
       width: 220,
       render: (_: any, r: AttendanceAuditRow) =>
         r.recordType === 'leave'
-          ? `${r.businessTypeName || '请假'} ${(r.startDate ?? '').slice(0, 10)} ~ ${(r.endDate ?? '').slice(0, 10)} · ${r.days ?? '-'}天`
-          : `加班 ${(r.overtimeDate ?? '').slice(0, 10)} · ${r.hours ?? '-'}小时`,
+          ? `${r.businessTypeName || '请假'} ${formatDate(r.startDate, 'YYYY-MM-DD', '')} ~ ${formatDate(r.endDate, 'YYYY-MM-DD', '')} · ${r.days ?? '-'}天`
+          : `加班 ${formatDate(r.overtimeDate, 'YYYY-MM-DD', '')} · ${r.hours ?? '-'}小时`,
     },
     { title: '原因', dataIndex: 'reason', width: 180, ellipsis: true },
     { title: '提交时间', dataIndex: 'createdAt', width: 170 },
@@ -237,7 +239,7 @@ export default function VacationAuditPage() {
   const canDecide = current !== null && current.status === 'approving' && !!current.approvalInstanceId;
 
   return (
-    <PageContainer title="考勤申请审计">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
@@ -284,12 +286,12 @@ export default function VacationAuditPage() {
                 { label: '业务类型', value: current.businessTypeName || '-' },
                 ...(current.recordType === 'leave'
                   ? [
-                      { label: '开始日期', value: current.startDate ? current.startDate.slice(0, 10) : '-' },
-                      { label: '结束日期', value: current.endDate ? current.endDate.slice(0, 10) : '-' },
+                      { label: '开始日期', value: formatDate(current.startDate) },
+                      { label: '结束日期', value: formatDate(current.endDate) },
                       { label: '天数', value: `${current.days ?? '-'} 天` },
                     ]
                   : [
-                      { label: '加班日期', value: current.overtimeDate ? current.overtimeDate.slice(0, 10) : '-' },
+                      { label: '加班日期', value: formatDate(current.overtimeDate) },
                       { label: '加班时长', value: `${current.hours ?? '-'} 小时` },
                     ]),
                 { label: '申请原因', value: current.reason || '未填写' },

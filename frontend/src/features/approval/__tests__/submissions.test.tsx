@@ -19,7 +19,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-content">{children}</div>
     </div>
   ),
@@ -170,9 +170,10 @@ describe('ApprovalSubmissionsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 我的申请', () => {
+    it('mounts without page-title (顶部已统一用面包屑)', () => {
       render(<ApprovalSubmissionsPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('我的申请');
+      // 顶部不再有 page-title（统一由面包屑承担）
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('loads submissions on mount', async () => {

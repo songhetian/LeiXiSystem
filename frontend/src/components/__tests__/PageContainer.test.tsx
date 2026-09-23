@@ -69,6 +69,16 @@ describe('PageContainer', () => {
       render(<PageContainer title="空页面" />);
       expect(screen.getByTestId('page-title')).toBeInTheDocument();
     });
+
+    it('does not render header when title is omitted', () => {
+      render(
+        <PageContainer>
+          <div data-testid="child-content">Hello World</div>
+        </PageContainer>,
+      );
+      expect(screen.queryByTestId('page-title')).not.toBeInTheDocument();
+      expect(screen.getByTestId('child-content')).toBeInTheDocument();
+    });
   });
 
   describe('结构验证', () => {

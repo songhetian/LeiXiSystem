@@ -52,12 +52,7 @@ const mockArticleListResponse = {
 const mockCategoryListResponse = {
   code: 0,
   message: 'ok',
-  data: {
-    list: [mockCategory],
-    total: 1,
-    page: 1,
-    pageSize: 100,
-  },
+  data: [mockCategory],
 };
 
 describe('knowledgeApi', () => {
@@ -73,7 +68,7 @@ describe('knowledgeApi', () => {
         params: {},
       });
       expect(result.code).toBe(0);
-      expect(result.data!.list).toHaveLength(1);
+      expect(result.data!).toHaveLength(1);
     });
 
     it('createCategory sends POST request', async () => {
@@ -212,6 +207,25 @@ describe('knowledgeApi', () => {
       expect(mockedRequest.get).toHaveBeenCalledWith('/knowledge/articles/1/attachments');
       expect(result.code).toBe(0);
     });
+
+    it('uploadAttachment 以 multipart 上传并透传进度回调', async () => {
+      mockedRequest.post.mockResolvedValueOnce({
+        code: 0,
+        message: 'ok',
+        data: { ...mockAttachment, id: 9 },
+      });
+      const file = new File(['pdf'], '手册.pdf', { type: 'application/pdf' });
+      const onProgress = jest.fn();
+      const result = await knowledgeApi.uploadAttachment(1, file, onProgress);
+
+      const [url, formData, config] = mockedRequest.post.mock.calls[0] as any;
+      expect(url).toBe('/knowledge/articles/1/attachments/upload');
+      expect(formData).toBeInstanceOf(FormData);
+      expect(config.onUploadProgress).toBe(onProgress);
+      expect(config.headers['Content-Type']).toBe('multipart/form-data');
+      expect(result.code).toBe(0);
+      expect(result.data!.id).toBe(9);
+    });
   });
 
   describe('预览 - 正常用例', () => {
@@ -258,10 +272,10 @@ describe('knowledgeApi', () => {
       mockedRequest.get.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
-        data: { list: [], total: 0, page: 1, pageSize: 100 },
+        data: [],
       });
       const result = await knowledgeApi.getCategories();
-      expect(result.data!.list).toHaveLength(0);
+      expect(result.data!).toHaveLength(0);
     });
   });
 

@@ -3,14 +3,18 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import MyReimbursementPage from '@/features/expense/pages/my-list';
 import { reimbursementApi } from '@/services/reimbursement';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/reimbursement', () => ({
   reimbursementApi: {
     getTypes: jest.fn(),
+    getExpenseTypes: jest.fn(),
     getMyReimbursements: jest.fn(),
     getDetail: jest.fn(),
     createReimbursement: jest.fn(),
     submitApproval: jest.fn(),
+    cancelReimbursement: jest.fn(),
+    removeReimbursement: jest.fn(),
   },
 }));
 
@@ -19,7 +23,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -88,21 +92,6 @@ jest.mock('@/components/StatusTag', () => ({
   ),
 }));
 
-jest.mock('@/components/ModalForm', () => ({
-  __esModule: true,
-  default: ({ visible, title, fields, onOk, onCancel, loading }: any) => (
-    visible ? (
-      <div data-testid="modal-form" data-title={title} data-loading={loading}>
-        {fields?.map((f: any) => (
-          <div key={f.key} data-testid={`modal-field-${f.key}`}>{f.label}</div>
-        ))}
-        <button data-testid="modal-ok" onClick={onOk}>确定</button>
-        <button data-testid="modal-cancel" onClick={onCancel}>取消</button>
-      </div>
-    ) : null
-  ),
-}));
-
 const mockReimbursements = [
   {
     id: 1,
@@ -137,55 +126,55 @@ const mockReimbursements = [
 const mockTypes = [
   { id: 1, name: '差旅费', code: 'TRAVEL', status: 'active' },
   { id: 2, name: '餐饮费', code: 'MEAL', status: 'active' },
-  { id: 3, name: '交通费', code: 'TRANSPORT', status: 'active' },
 ];
+
+const mockExpenseTypes = [
+  { id: 1, name: '市内交通费', unit: '次', sortOrder: 0, status: 'active' },
+  { id: 2, name: '招待餐费', unit: '次', sortOrder: 1, status: 'active' },
+];
+
+const mockDetail = {
+  id: 1,
+  reimbursementNo: 'BX20260813123456',
+  title: '8月北京出差报销',
+  typeName: '差旅费',
+  totalAmount: 1500,
+  status: 'draft',
+  departmentName: '技术部',
+  applicantName: '张三',
+  description: '北京出差产生的交通和住宿费用',
+  createdAt: '2026-08-13T10:00:00+08:00',
+  items: [
+    { id: 1, itemType: '市内交通费', amount: 1000, expenseDate: '2026-08-10', description: '打车', attachmentUrl: '/uploads/reimbursement/a.png' },
+    { id: 2, itemType: '招待餐费', amount: 500, expenseDate: '2026-08-11', description: '客户用餐' },
+  ],
+  attachments: [
+    { id: 1, fileName: '发票汇总.pdf', fileUrl: '/uploads/reimbursement/b.pdf' },
+  ],
+};
 
 describe('MyReimbursementPage', () => {
   beforeEach(() => {
+    clearDataCache();
     jest.clearAllMocks();
-    (reimbursementApi.getTypes as jest.Mock).mockResolvedValue({
-      code: 0,
-      message: 'ok',
-      data: mockTypes,
-    });
+    (reimbursementApi.getTypes as jest.Mock).mockResolvedValue({ code: 0, data: mockTypes });
+    (reimbursementApi.getExpenseTypes as jest.Mock).mockResolvedValue({ code: 0, data: mockExpenseTypes });
     (reimbursementApi.getMyReimbursements as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
-      data: {
-        list: mockReimbursements,
-        total: 3,
-        page: 1,
-        pageSize: 20,
-      },
+      data: { list: mockReimbursements, total: 3, page: 1, pageSize: 20 },
     });
-    (reimbursementApi.getDetail as jest.Mock).mockResolvedValue({
-      code: 0,
-      message: 'ok',
-      data: {
-        ...mockReimbursements[0],
-        items: [
-          { id: 1, typeId: 1, typeName: '差旅费', amount: 1000, description: '交通费', date: '2026-08-10' },
-          { id: 2, typeId: 1, typeName: '差旅费', amount: 500, description: '住宿费', date: '2026-08-11' },
-        ],
-        description: '北京出差产生的交通和住宿费用',
-      },
-    });
-    (reimbursementApi.createReimbursement as jest.Mock).mockResolvedValue({
-      code: 0,
-      message: 'ok',
-      data: { id: 4 },
-    });
-    (reimbursementApi.submitApproval as jest.Mock).mockResolvedValue({
-      code: 0,
-      message: 'ok',
-      data: { id: 1, status: 'pending' },
-    });
+    (reimbursementApi.getDetail as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: mockDetail });
+    (reimbursementApi.createReimbursement as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 4 } });
+    (reimbursementApi.submitApproval as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 1, status: 'pending' } });
+    (reimbursementApi.cancelReimbursement as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 2, status: 'cancelled' } });
+    (reimbursementApi.removeReimbursement as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 1 } });
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 我的报销', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<MyReimbursementPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('我的报销');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('renders ProTable with reimbursement columns', async () => {
@@ -197,12 +186,12 @@ describe('MyReimbursementPage', () => {
       expect(screen.getByTestId('col-totalAmount')).toHaveTextContent('金额');
       expect(screen.getByTestId('col-status')).toHaveTextContent('状态');
       expect(screen.getByTestId('col-createdAt')).toHaveTextContent('创建时间');
+      expect(screen.getByTestId('col-actions')).toHaveTextContent('操作');
     });
 
-    it('fetches types and reimbursements on mount', async () => {
+    it('fetches reimbursements on mount', async () => {
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(reimbursementApi.getTypes).toHaveBeenCalled();
         expect(reimbursementApi.getMyReimbursements).toHaveBeenCalled();
       });
     });
@@ -213,7 +202,7 @@ describe('MyReimbursementPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       expect(screen.getByTestId('cell-1-title')).toHaveTextContent('8月北京出差报销');
-      expect(screen.getByTestId('cell-1-totalAmount')).toHaveTextContent('1500');
+      expect(screen.getByTestId('cell-1-totalAmount')).toContainHTML('1500');
     });
 
     it('renders status tags for each status', async () => {
@@ -237,62 +226,85 @@ describe('MyReimbursementPage', () => {
     it('renders search fields', async () => {
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(screen.getByTestId('search-area')).toBeInTheDocument();
+        expect(screen.getByTestId('search-keyword')).toHaveTextContent('关键词');
+        expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
       });
-      expect(screen.getByTestId('search-keyword')).toHaveTextContent('关键词');
-      expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
     });
 
     it('shows pagination info', async () => {
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(screen.getByTestId('pagination')).toBeInTheDocument();
+        expect(screen.getByTestId('page-total')).toHaveTextContent('3');
       });
-      expect(screen.getByTestId('page-total')).toHaveTextContent('3');
     });
   });
 
-  describe('新建报销', () => {
-    it('opens create modal when create button clicked', async () => {
-      const user = userEvent.setup();
+  describe('列表操作', () => {
+    it('draft 行展示 提交 与 删除，pending 行展示 撤销', async () => {
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
-      await user.click(screen.getByTestId('toolbar-create'));
-      expect(screen.getByTestId('modal-form')).toBeInTheDocument();
-      expect(screen.getByTestId('modal-form')).toHaveAttribute('data-title', '新建报销');
+      expect(screen.getAllByRole('button', { name: /提交/ }).length).toBe(1);
+      expect(screen.getAllByRole('button', { name: /删除/ }).length).toBe(1);
+      expect(screen.getAllByRole('button', { name: /撤销/ }).length).toBe(1);
     });
 
-    it('calls createReimbursement when modal ok clicked', async () => {
+    it('approved 行不展示操作按钮', async () => {
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      // approved 行（id=3）只有详情按钮（提交/撤销/删除均不渲染在有该状态的记录上需在该行内）
+      const row3 = screen.getByTestId('cell-3-actions');
+      expect(row3.textContent).not.toContain('提交');
+      expect(row3.textContent).not.toContain('撤销');
+      expect(row3.textContent).not.toContain('删除');
+    });
+
+    it('点击 提交 调用 submitApproval', async () => {
       const user = userEvent.setup();
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
-      await user.click(screen.getByTestId('toolbar-create'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await user.click(screen.getAllByRole('button', { name: /提交/ })[0]);
       await waitFor(() => {
-        expect(reimbursementApi.createReimbursement).toHaveBeenCalled();
+        expect(reimbursementApi.submitApproval).toHaveBeenCalledWith(1);
       });
     });
 
-    it('refreshes list after successful create', async () => {
+    it('点击 撤销 确认后调用 cancelReimbursement', async () => {
       const user = userEvent.setup();
       render(<MyReimbursementPage />);
       await waitFor(() => {
-        expect(reimbursementApi.getMyReimbursements).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
-      await user.click(screen.getByTestId('toolbar-create'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await user.click(screen.getAllByRole('button', { name: /撤销/ })[0]);
+      await screen.findByRole('button', { name: /确认/ });
+      await user.click(screen.getByRole('button', { name: /确认/ }));
       await waitFor(() => {
-        expect(reimbursementApi.getMyReimbursements).toHaveBeenCalledTimes(2);
+        expect(reimbursementApi.cancelReimbursement).toHaveBeenCalledWith(2);
+      });
+    });
+
+    it('点击 删除 确认后调用 removeReimbursement', async () => {
+      const user = userEvent.setup();
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      await user.click(screen.getAllByRole('button', { name: /删除/ })[0]);
+      await screen.findByRole('button', { name: /确认/ });
+      await user.click(screen.getByRole('button', { name: /确认/ }));
+      await waitFor(() => {
+        expect(reimbursementApi.removeReimbursement).toHaveBeenCalledWith(1);
       });
     });
   });
 
   describe('查看详情', () => {
-    it('opens detail modal when row clicked', async () => {
+    it('点击行调用 getDetail', async () => {
       const user = userEvent.setup();
       render(<MyReimbursementPage />);
       await waitFor(() => {
@@ -303,16 +315,56 @@ describe('MyReimbursementPage', () => {
         expect(reimbursementApi.getDetail).toHaveBeenCalledWith(1);
       });
     });
+
+    it('详情展示报销单号/明细/凭证/附件', async () => {
+      const user = userEvent.setup();
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      await user.click(screen.getByTestId('cell-1-title'));
+      await waitFor(() => {
+        expect(screen.getByText('BX20260813123456')).toBeInTheDocument();
+      });
+      expect(screen.getByText('市内交通费')).toBeInTheDocument();
+      expect(screen.getByText('发票汇总.pdf')).toBeInTheDocument();
+    });
+  });
+
+  describe('新建报销', () => {
+    it('点击新建报销打开完整表单', async () => {
+      const user = userEvent.setup();
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-create'));
+      expect(await screen.findByRole('button', { name: /正式提交/ })).toBeInTheDocument();
+    });
+
+    it('打开表单时加载一级类型与二级费用类型', async () => {
+      const user = userEvent.setup();
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-create'));
+      await waitFor(() => {
+        expect(reimbursementApi.getTypes).toHaveBeenCalled();
+        expect(reimbursementApi.getExpenseTypes).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('边界用例', () => {
-    it('shows loading state while fetching', () => {
-      let resolveFn: (value: any) => void;
+    it('shows loading state while fetching', async () => {
       (reimbursementApi.getMyReimbursements as jest.Mock).mockImplementation(
-        () => new Promise((resolve) => { resolveFn = resolve; }),
+        () => new Promise(() => {}),
       );
       render(<MyReimbursementPage />);
-      expect(screen.getByTestId('pro-table')).toHaveAttribute('data-loading', 'true');
+      await waitFor(() => {
+        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-loading', 'true');
+      });
     });
 
     it('handles empty list', async () => {
@@ -329,23 +381,6 @@ describe('MyReimbursementPage', () => {
   });
 
   describe('异常用例', () => {
-    it('handles amount mismatch error (code 7001)', async () => {
-      const user = userEvent.setup();
-      (reimbursementApi.createReimbursement as jest.Mock).mockResolvedValue({
-        code: 7001,
-        message: '明细金额合计与总金额不一致',
-      });
-      render(<MyReimbursementPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
-      });
-      await user.click(screen.getByTestId('toolbar-create'));
-      await user.click(screen.getByTestId('modal-ok'));
-      await waitFor(() => {
-        expect(reimbursementApi.createReimbursement).toHaveBeenCalled();
-      });
-    });
-
     it('handles permission error (code 5003)', async () => {
       (reimbursementApi.getMyReimbursements as jest.Mock).mockResolvedValue({
         code: 5003,

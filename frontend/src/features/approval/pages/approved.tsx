@@ -1,11 +1,12 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Table, Card, Button, Space, Select, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import StatusTag from '@/components/StatusTag';
 import { approvalApi, ApprovedItem } from '@/services/approval';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const instanceStatusMap: Record<string, { label: string; color: string }> = {
   pending: { label: '审批中', color: 'arcoblue' },
@@ -23,34 +24,26 @@ const { Option } = Select;
 
 export default function ApprovalApprovedPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ApprovedItem[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [actionFilter, setActionFilter] = useState<string | undefined>();
 
-  const fetchList = async (page = 1, pageSize = 20, action?: string) => {
-    setLoading(true);
-    try {
-      const result = await approvalApi.listMyApproved({ page, pageSize, status: action });
-      if (result.code === 0 && result.data) {
-        setData(result.data.list);
-        setPagination({
-          current: result.data.page,
-          pageSize: result.data.pageSize,
-          total: result.data.total,
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchList(1, 20, actionFilter);
-  }, [actionFilter]);
+  // SWR 缓存：翻页/筛选参数编入 cacheKey，同参数复用缓存
+  const cacheKey = `approval:approved:${pagination.current}:${pagination.pageSize}:${actionFilter ?? ''}`;
+  const { data: res, loading } = useCachedData<{
+    code: number;
+    data?: { list: ApprovedItem[]; page: number; pageSize: number; total: number };
+  }>(
+    cacheKey,
+    () => approvalApi.listMyApproved({ page: pagination.current, pageSize: pagination.pageSize, status: actionFilter }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchList(page, pageSize, actionFilter);
+    setPagination({ ...pageResult, current: page, pageSize });
   };
 
   const columns = [
@@ -104,7 +97,7 @@ export default function ApprovalApprovedPage() {
   ];
 
   return (
-    <PageContainer title="已办审批" subTitle="查看我审批过的所有申请">
+    <PageContainer>
       <Card style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 16 }}>
           <Space>
@@ -114,7 +107,10 @@ export default function ApprovalApprovedPage() {
               style={{ width: 140 }}
               allowClear
               value={actionFilter}
-              onChange={setActionFilter}
+              onChange={(v) => {
+                setActionFilter(v);
+                setPagination((p) => ({ ...p, current: 1 }));
+              }}
             >
               <Option value="approved">已同意</Option>
               <Option value="rejected">已驳回</Option>
@@ -125,11 +121,12 @@ export default function ApprovalApprovedPage() {
           columns={columns}
           data={data}
           rowKey="id"
+          scroll={{ x: true }}
           loading={loading}
           pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
+            current: pageResult.current,
+            pageSize: pageResult.pageSize,
+            total: pageResult.total,
             onChange: handlePageChange,
             showTotal: true,
           }}

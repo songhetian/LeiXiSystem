@@ -30,6 +30,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { PerformanceModule } from './performance/performance.module';
 import { FinanceModule } from './finance/finance.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { HelpdeskModule } from './helpdesk/helpdesk.module';
     PerformanceModule,
     FinanceModule,
     HelpdeskModule,
+    FilesModule,
   ],
   controllers: [HealthController],
   providers: [

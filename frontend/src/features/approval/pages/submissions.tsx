@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -142,7 +142,7 @@ export default function ApprovalSubmissionsPage() {
   ];
 
   return (
-    <PageContainer title="我的申请" subTitle="查看我发起的所有审批申请">
+    <PageContainer>
       <Card style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
@@ -168,6 +168,7 @@ export default function ApprovalSubmissionsPage() {
           columns={submissionColumns}
           data={submissionData}
           rowKey="id"
+          scroll={{ x: true }}
           loading={submissionLoading}
           pagination={{
             current: submissionPagination.current,

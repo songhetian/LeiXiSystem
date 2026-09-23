@@ -1,26 +1,48 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Space, Button, Tag, Form, Input, Radio, Checkbox, Select, Typography, Popconfirm } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
-import { systemApi, SysUser, SysRole, SysDepartment, SysPosition } from '@/services/system';
+import { systemApi, SysUser, SysRole } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
+import { useDepartments, usePositions } from '@/hooks/use-departments';
+import { useCachedData } from '@/hooks/use-cached-data';
 
-const { TextArea } = Input;
+interface UserListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: SysUser[]; page: number; pageSize: number; total: number };
+}
 
 export default function SystemUsersPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<SysUser[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
-  const [roles, setRoles] = useState<SysRole[]>([]);
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
-  const [positions, setPositions] = useState<SysPosition[]>([]);
+  const { departments } = useDepartments();
+  const { positions } = usePositions();
+
+  // SWR 缓存：搜索/翻页参数编入 cacheKey，同参数复用缓存
+  const cacheKey = `system:users:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<UserListEnvelope>(
+    cacheKey,
+    () => systemApi.listUsers({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
+
+  // 角色参考数据：共享缓存，跨组件去重
+  const { data: rolesRes } = useCachedData<{ code: number; data?: SysRole[] }>(
+    'system:roles',
+    () => systemApi.listRoles(),
+    { staleTime: 60_000 },
+  );
+  const roles = rolesRes?.code === 0 && rolesRes.data ? rolesRes.data : [];
 
   // 新建/编辑 Modal
   const [editVisible, setEditVisible] = useState(false);
@@ -34,56 +56,18 @@ export default function SystemUsersPage() {
   const [roleTarget, setRoleTarget] = useState<SysUser | null>(null);
   const [roleIds, setRoleIds] = useState<number[]>([]);
 
-  const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await systemApi.listUsers({ page, pageSize, ...params });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setPagination({ current: res.data.page, pageSize: res.data.pageSize, total: res.data.total });
-      } else {
-        setError(res.message || '获取用户列表失败');
-        Message.error(res.message || '获取用户列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取用户列表失败');
-      notifyError(e, '获取用户列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRoles = async () => {
-    const res = await systemApi.listRoles();
-    if (res.code === 0 && res.data) setRoles(res.data);
-  };
-
-  const fetchDepartments = async () => {
-    const res = await systemApi.listDepartments();
-    if (res.code === 0 && res.data) setDepartments(res.data);
-  };
-
-  const fetchPositions = async () => {
-    const res = await systemApi.listPositions();
-    if (res.code === 0 && res.data) setPositions(res.data);
-  };
-
-  useEffect(() => {
-    fetchList(1, 20, searchParams);
-    fetchRoles();
-    fetchDepartments();
-    fetchPositions();
-  }, []);
-
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchList(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchList(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
+  };
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    setPagination({ ...pageResult, current: page, pageSize });
   };
 
   const openCreate = () => {
@@ -132,7 +116,7 @@ export default function SystemUsersPage() {
       if (res.code === 0) {
         Message.success(editing ? '保存成功' : '创建成功');
         setEditVisible(false);
-        fetchList(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '保存失败');
       }
@@ -156,7 +140,7 @@ export default function SystemUsersPage() {
       if (res.code === 0) {
         Message.success('角色已更新');
         setRoleVisible(false);
-        fetchList(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '分配失败');
       }
@@ -170,7 +154,7 @@ export default function SystemUsersPage() {
       const res = await systemApi.deleteUser(record.id);
       if (res.code === 0) {
         Message.success('用户已删除');
-        fetchList(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -207,8 +191,8 @@ export default function SystemUsersPage() {
       width: 260,
       render: (_: any, record: SysUser) => (
         <Space>
-          <Button size="small" type="text" disabled={!can('system:manage')} onClick={() => openEdit(record)}>编辑</Button>
-          <Button size="small" type="text" disabled={!can('system:manage')} onClick={() => openAssignRoles(record)}>分配角色</Button>
+          <Button size="small" type="text" disabled={!can('system:user:manage')} onClick={() => openEdit(record)}>编辑</Button>
+          <Button size="small" type="text" disabled={!can('system:user:manage')} onClick={() => openAssignRoles(record)}>分配角色</Button>
           <Popconfirm
             title="确定删除该用户吗？"
             content={`删除后「${record.name}」将无法登录系统。`}
@@ -216,7 +200,7 @@ export default function SystemUsersPage() {
             cancelText="取消"
             onOk={() => handleDelete(record)}
           >
-            <Button size="small" type="text" status="danger" disabled={!can('system:manage')}>删除</Button>
+            <Button size="small" type="text" status="danger" disabled={!can('system:user:manage')}>删除</Button>
           </Popconfirm>
         </Space>
       ),
@@ -224,24 +208,24 @@ export default function SystemUsersPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建用户', type: 'primary', disabled: !can('system:manage'), onClick: openCreate },
+    { key: 'add', label: '新建用户', type: 'primary', disabled: !can('system:user:manage'), onClick: openCreate },
   ];
 
   return (
-    <PageContainer title="用户管理">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
         toolbar={toolbar}
-        pagination={pagination}
-        onPageChange={(page, pageSize) => fetchList(page, pageSize, searchParams)}
+        pagination={pageResult}
+        onPageChange={handlePageChange}
       />
 
       {/* 新建/编辑（含重置密码与角色分配） */}

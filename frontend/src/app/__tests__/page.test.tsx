@@ -7,7 +7,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <div data-testid="page-title">{title}</div>
+      {title && <div data-testid="page-title">{title}</div>}
       <div data-testid="page-action">{action}</div>
       {children}
     </div>
@@ -113,9 +113,9 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.getByTestId('page-container')).toBeInTheDocument());
   });
 
-  it('passes correct title to PageContainer', async () => {
+  it('不渲染冗余页面大标题（顶部已有全局面包屑）', async () => {
     render(<HomePage />);
-    await waitFor(() => expect(screen.getByTestId('page-title')).toHaveTextContent('工作台'));
+    await waitFor(() => expect(screen.queryByTestId('page-title')).toBeNull());
   });
 
   it('renders dashboard metric cards', async () => {

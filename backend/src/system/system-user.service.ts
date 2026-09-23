@@ -4,6 +4,7 @@ import { RedisService } from '../common/redis/redis.service';
 import { SettingsService } from '../settings/settings.service';
 import { validatePasswordStrength, PasswordStrengthLevel } from '../common/password-strength.util';
 import { ERROR_CODES } from '../common/error-codes';
+import { generateAutoCode } from '../common/code-gen.util';
 import * as bcrypt from 'bcryptjs';
 
 const DEPT_CACHE_KEY = 'sys:departments';
@@ -181,12 +182,19 @@ export class SystemUserService {
     });
   }
 
-  async createRole(params: { code: string; name: string; description?: string }) {
-    const existing = await this.prisma.role.findUnique({ where: { code: params.code } });
-    if (existing) {
-      throw new ConflictException({ code: 6201, message: '角色编码已存在' });
+  /**
+   * 新建角色。编码可留空，由后端自动生成（前缀 ROLE + 时间戳 + 随机），避免手填英文编码。
+   * 注意：系统预置角色（admin/employee 等）由种子脚本按固定编码写入，不受此处影响。
+   */
+  async createRole(params: { code?: string; name: string; description?: string }) {
+    const code = params.code || generateAutoCode('ROLE');
+    if (params.code) {
+      const existing = await this.prisma.role.findUnique({ where: { code } });
+      if (existing) {
+        throw new ConflictException({ code: 6201, message: '角色编码已存在' });
+      }
     }
-    return this.prisma.role.create({ data: params });
+    return this.prisma.role.create({ data: { ...params, code } });
   }
 
   async assignPermissions(roleId: number, permissionIds: number[]) {
@@ -277,9 +285,10 @@ export class SystemUserService {
     return { success: true };
   }
 
-  async listDepartments() {
+  async listDepartments(includeDeleted = false) {
+    const cacheKey = includeDeleted ? 'sys:departments:recycle' : DEPT_CACHE_KEY;
     if (this.redis.isEnabled) {
-      const cached = await this.redis.get(DEPT_CACHE_KEY);
+      const cached = await this.redis.get(cacheKey);
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -287,20 +296,40 @@ export class SystemUserService {
       }
     }
     const data = await this.prisma.department.findMany({
-      where: { deletedAt: null },
+      where: includeDeleted ? {} : { deletedAt: null },
       orderBy: { id: 'asc' },
       select: {
-        id: true, name: true, parentId: true, managerId: true,
+        id: true,
+        name: true,
+        parentId: true,
+        managerId: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        deletedAt: true,
         manager: { select: { id: true, name: true, employeeNo: true } },
+        _count: { select: { employees: { where: { status: 'active' } } } },
       },
     });
+    const result = data.map((d) => ({
+      id: d.id,
+      name: d.name,
+      parentId: d.parentId,
+      managerId: d.managerId,
+      description: d.description,
+      status: d.status,
+      createdAt: d.createdAt,
+      deletedAt: d.deletedAt,
+      manager: d.manager,
+      employeeCount: d._count.employees,
+    }));
     if (this.redis.isEnabled) {
-      await this.redis.set(DEPT_CACHE_KEY, JSON.stringify(data), DEPT_CACHE_TTL);
+      await this.redis.set(cacheKey, JSON.stringify(result), DEPT_CACHE_TTL);
     }
-    return data;
+    return result;
   }
 
-  async createDepartment(dto: { name: string; parentId?: number; managerId?: number }) {
+  async createDepartment(dto: { name: string; parentId?: number; managerId?: number; description?: string; status?: string }) {
     const exists = await this.prisma.department.findFirst({ where: { name: dto.name, deletedAt: null } });
     if (exists) throw new ConflictException({ code: 7101, message: '部门名称已存在' });
     if (dto.parentId) {
@@ -312,8 +341,14 @@ export class SystemUserService {
       if (!emp) throw new NotFoundException({ code: 7106, message: '负责人不存在' });
     }
     const result = await this.prisma.department.create({
-      data: { name: dto.name, parentId: dto.parentId, managerId: dto.managerId },
-      select: { id: true, name: true, parentId: true, managerId: true },
+      data: {
+        name: dto.name,
+        parentId: dto.parentId,
+        managerId: dto.managerId,
+        description: dto.description,
+        status: dto.status || 'active',
+      },
+      select: { id: true, name: true, parentId: true, managerId: true, description: true, status: true },
     });
     if (this.redis.isEnabled) {
       await this.redis.del(DEPT_CACHE_KEY);
@@ -321,7 +356,7 @@ export class SystemUserService {
     return result;
   }
 
-  async updateDepartment(id: number, dto: { name?: string; parentId?: number | null; managerId?: number | null }) {
+  async updateDepartment(id: number, dto: { name?: string; parentId?: number | null; managerId?: number | null; description?: string; status?: string }) {
     const dept = await this.prisma.department.findUnique({ where: { id, deletedAt: null } });
     if (!dept) throw new NotFoundException({ code: 7102, message: '部门不存在' });
     if (dto.name && dto.name !== dept.name) {
@@ -337,11 +372,18 @@ export class SystemUserService {
     }
     const result = await this.prisma.department.update({
       where: { id },
-      data: { name: dto.name, parentId: dto.parentId, managerId: dto.managerId },
-      select: { id: true, name: true, parentId: true, managerId: true },
+      data: {
+        name: dto.name,
+        parentId: dto.parentId,
+        managerId: dto.managerId,
+        description: dto.description,
+        status: dto.status,
+      },
+      select: { id: true, name: true, parentId: true, managerId: true, description: true, status: true },
     });
     if (this.redis.isEnabled) {
       await this.redis.del(DEPT_CACHE_KEY);
+      await this.redis.del('sys:departments:recycle');
     }
     return result;
   }
@@ -351,8 +393,8 @@ export class SystemUserService {
     if (!dept) throw new NotFoundException({ code: 7102, message: '部门不存在' });
     const children = await this.prisma.department.count({ where: { parentId: id, deletedAt: null } });
     if (children > 0) throw new ConflictException({ code: 7104, message: '该部门下有子部门，不能删除' });
-    const empCount = await this.prisma.employee.count({ where: { departmentId: id } });
-    if (empCount > 0) throw new ConflictException({ code: 7105, message: '该部门下有员工，不能删除' });
+    const empCount = await this.prisma.employee.count({ where: { departmentId: id, status: 'active' } });
+    if (empCount > 0) throw new ConflictException({ code: 7105, message: '该部门下有在职员工，不能删除' });
     await this.prisma.department.update({ where: { id }, data: { deletedAt: new Date() } });
     if (this.redis.isEnabled) {
       await this.redis.del(DEPT_CACHE_KEY);

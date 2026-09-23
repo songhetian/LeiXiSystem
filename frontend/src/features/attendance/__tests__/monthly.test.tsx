@@ -57,7 +57,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -171,9 +171,9 @@ describe('AttendanceMonthlyPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 考勤月报', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<AttendanceMonthlyPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('考勤月报');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('renders ProTable with monthly columns', async () => {

@@ -28,25 +28,27 @@ jest.mock('@arco-design/web-react', () => {
     />
   );
 
-  const Select = ({ value, onChange, placeholder, id, options = [] }: any) => (
+  const Select = ({ value, onChange, placeholder, id, options = [], showSearch, allowClear }: any) => (
     <select
       data-testid={`select-${id || 'default'}`}
-      value={value || ''}
+      data-show-search={String(!!showSearch)}
+      data-allow-clear={String(!!allowClear)}
+      value={value == null ? '' : value}
       onChange={(e) => onChange?.(e.target.value)}
     >
-      <option value="">{placeholder || '请选择'}</option>
       {options.map((opt: any) => (
         <option key={opt.value} value={opt.value}>{opt.label}</option>
       ))}
     </select>
   );
 
-  const Button = ({ children, onClick, type, htmlType, disabled }: any) => (
+  const Button = ({ children, onClick, type, htmlType, disabled, ...rest }: any) => (
     <button
       type={htmlType || 'button'}
       data-testid={`btn-${children}`}
       disabled={disabled}
       onClick={onClick}
+      {...rest}
     >
       {children}
     </button>
@@ -55,7 +57,15 @@ jest.mock('@arco-design/web-react', () => {
   const Card = ({ children, style }: any) => <div data-testid="card" style={style}>{children}</div>;
   const Grid = {
     Row: ({ children }: any) => <div data-testid="grid-row">{children}</div>,
-    Col: ({ children, span }: any) => <div data-testid="grid-col" data-span={span}>{children}</div>,
+    Col: ({ children, span, style }: any) => (
+      <div
+        data-testid="grid-col"
+        data-span={span}
+        data-style={style ? Object.entries(style).map(([k, v]) => `${k}:${v}`).join(';') : ''}
+      >
+        {children}
+      </div>
+    ),
   };
 
   const RangePicker = () => <div data-testid="date-range" />;
@@ -139,9 +149,114 @@ describe('SearchForm', () => {
       expect(screen.getByTestId('card')).toBeInTheDocument();
     });
 
-    it('uses grid layout for fields', () => {
+    it('uses a dedicated fields grid area', () => {
       render(<SearchForm fields={mockFields} onSearch={() => {}} />);
-      expect(screen.getByTestId('grid-row')).toBeInTheDocument();
+      expect(screen.getByTestId('search-fields')).toBeInTheDocument();
+    });
+  });
+
+  describe('月份类型', () => {
+    it('renders a month picker for month type fields', () => {
+      render(
+        <SearchForm
+          fields={[{ key: 'month', label: '月份', type: 'month' }]}
+          onSearch={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('date-picker')).toBeInTheDocument();
+    });
+  });
+
+  describe('展开/收起', () => {
+    const manyFields: SearchFieldConfig[] = [
+      { key: 'a', label: 'A', type: 'input' },
+      { key: 'b', label: 'B', type: 'input' },
+      { key: 'c', label: 'C', type: 'input' },
+      { key: 'd', label: 'D', type: 'input' },
+      { key: 'e', label: 'E', type: 'input' },
+    ];
+
+    it('collapses extra fields beyond column count by default', () => {
+      render(<SearchForm fields={manyFields} onSearch={() => {}} column={3} />);
+      // 默认只渲染前三项（column=3）
+      expect(screen.getByTestId('form-item-a')).toBeInTheDocument();
+      expect(screen.getByTestId('form-item-c')).toBeInTheDocument();
+      expect(screen.queryByTestId('form-item-d')).not.toBeInTheDocument();
+      expect(screen.getByTestId('toggle-collapse')).toBeInTheDocument();
+    });
+
+    it('renders all fields when collapsedCount not exceeded', () => {
+      render(<SearchForm fields={mockFields} onSearch={() => {}} column={4} />);
+      expect(screen.getByTestId('form-item-name')).toBeInTheDocument();
+      expect(screen.getByTestId('form-item-status')).toBeInTheDocument();
+      expect(screen.queryByTestId('toggle-collapse')).not.toBeInTheDocument();
+    });
+
+    it('expands to show all fields when collapsed, and collapses back', async () => {
+      const user = userEvent.setup();
+      render(<SearchForm fields={manyFields} onSearch={() => {}} column={3} />);
+      expect(screen.queryByTestId('form-item-d')).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId('toggle-collapse'));
+      expect(screen.getByTestId('form-item-d')).toBeInTheDocument();
+      expect(screen.getByTestId('form-item-e')).toBeInTheDocument();
+
+      await user.click(screen.getByTestId('toggle-collapse'));
+      expect(screen.queryByTestId('form-item-d')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('企业后台布局（字段栅格 + 右侧固定操作列）', () => {
+    it('下拉字段支持搜索（showSearch）与清空（allowClear）', () => {
+      render(<SearchForm fields={mockFields} onSearch={() => {}} />);
+      const selects = screen.getAllByTestId(/^select-/);
+      expect(selects.length).toBe(2); // 部门 + 状态两个下拉
+      for (const sel of selects) {
+        expect(sel).toHaveAttribute('data-show-search', 'true');
+        expect(sel).toHaveAttribute('data-allow-clear', 'true');
+      }
+    });
+
+    it('下拉字段首项为“全部”选项', () => {
+      render(<SearchForm fields={mockFields} onSearch={() => {}} />);
+      const departmentSel = screen.getByTestId('select-departmentId');
+      const options = Array.from(departmentSel.querySelectorAll('option')).map((o) => o.textContent);
+      expect(options[0]).toBe('全部');
+      // 业务选项仍在“全部”之后
+      expect(options).toContain('技术部');
+      expect(options).toContain('产品部');
+    });
+
+    it('字段区与操作区分离：操作按钮不再占满整行', () => {
+      const fourFields: SearchFieldConfig[] = [
+        { key: 'a', label: 'A', type: 'input' },
+        { key: 'b', label: 'B', type: 'input' },
+        { key: 'c', label: 'C', type: 'input' },
+        { key: 'd', label: 'D', type: 'input' },
+      ];
+      render(<SearchForm fields={fourFields} onSearch={() => {}} column={3} />);
+      // 字段网格 + 独立操作列各司其职
+      expect(screen.getByTestId('search-fields')).toBeInTheDocument();
+      expect(screen.getByTestId('search-actions')).toBeInTheDocument();
+      // 查询/重置按钮归属于操作列容器，而非散落在字段格内
+      const actions = screen.getByTestId('search-actions') as HTMLElement;
+      expect(actions.querySelector('[data-testid="btn-查询"]')).not.toBeNull();
+      expect(actions.querySelector('[data-testid="btn-重置"]')).not.toBeNull();
+    });
+
+    it('展开/收起按钮固定在操作列中', async () => {
+      const user = userEvent.setup();
+      const manyFields: SearchFieldConfig[] = [
+        { key: 'a', label: 'A', type: 'input' },
+        { key: 'b', label: 'B', type: 'input' },
+        { key: 'c', label: 'C', type: 'input' },
+        { key: 'd', label: 'D', type: 'input' },
+      ];
+      render(<SearchForm fields={manyFields} onSearch={() => {}} column={3} />);
+      const actions = screen.getByTestId('search-actions') as HTMLElement;
+      expect(actions.querySelector('[data-testid="toggle-collapse"]')).not.toBeNull();
+      await user.click(screen.getByTestId('toggle-collapse'));
+      expect(screen.getByTestId('form-item-d')).toBeInTheDocument();
     });
   });
 });

@@ -2,15 +2,21 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import EmployeeListPage from '@/features/employee/pages/list';
-import { employeeApi } from '@/services/employee';
+import { employeeApi, employeeTagApi } from '@/services/employee';
 import { systemApi } from '@/services/system';
+import { clearDataCache } from '@/hooks/use-cached-data';
+import { clearDictCache } from '@/hooks/use-dict';
 
 jest.mock('@/services/employee', () => ({
   employeeApi: {
     getList: jest.fn(),
+    getById: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     resign: jest.fn(),
+  },
+  employeeTagApi: {
+    list: jest.fn(),
   },
 }));
 
@@ -26,7 +32,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -90,6 +96,24 @@ jest.mock('@/components/StatusTag', () => ({
   ),
 }));
 
+jest.mock('@arco-design/web-react', () => {
+  const actual = jest.requireActual('@arco-design/web-react');
+  return {
+    ...actual,
+    Modal: ({ visible, title, onOk, onCancel, okText, cancelText, children }: any) => {
+      if (!visible) return null;
+      return (
+        <div role="dialog" data-testid="resign-modal">
+          <div data-testid="resign-title">{title}</div>
+          <div data-testid="resign-body">{children}</div>
+          <button data-testid="resign-ok" onClick={() => onOk && onOk()}>{okText}</button>
+          <button data-testid="resign-cancel" onClick={() => onCancel && onCancel()}>{cancelText}</button>
+        </div>
+      );
+    },
+  };
+});
+
 jest.mock('@/components/ModalForm', () => ({
   __esModule: true,
   default: ({ visible, title, fields, initialValues, onOk, onCancel, confirmLoading }: any) => {
@@ -102,6 +126,15 @@ jest.mock('@/components/ModalForm', () => ({
             <div key={f.key}>
               <span data-testid={`modal-field-${f.key}`}>{f.label}</span>
               {f.type === 'select' && f.options?.length > 0 && (
+                <div data-testid={`modal-options-${f.key}`}>
+                  {f.options.map((o: any) => (
+                    <span key={o.value} data-testid={`modal-option-${f.key}-${o.value}`}>
+                      {o.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {f.type === 'tags' && f.options?.length > 0 && (
                 <div data-testid={`modal-options-${f.key}`}>
                   {f.options.map((o: any) => (
                     <span key={o.value} data-testid={`modal-option-${f.key}-${o.value}`}>
@@ -128,6 +161,8 @@ const mockEmployees = [
 
 describe('EmployeeListPage', () => {
   beforeEach(() => {
+    clearDataCache();
+    clearDictCache();
     jest.clearAllMocks();
     (employeeApi.getList as jest.Mock).mockResolvedValue({
       code: 0,
@@ -155,12 +190,24 @@ describe('EmployeeListPage', () => {
         { id: 2, name: '产品经理' },
       ],
     });
+    (employeeTagApi.list as jest.Mock).mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: {
+        list: [
+          { id: 1, name: '优秀员工', color: '#3B82F6' },
+          { id: 2, name: '长期外派', color: '#16A34A' },
+        ],
+        total: 2,
+      },
+    });
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 员工管理', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<EmployeeListPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('员工管理');
+      // 页面已省略 title，不再显示「员工管理」大标题
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('renders ProTable with employee columns', async () => {
@@ -168,8 +215,8 @@ describe('EmployeeListPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('pro-table')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('col-employeeNo')).toHaveTextContent('工号');
       expect(screen.getByTestId('col-name')).toHaveTextContent('姓名');
+      expect(screen.queryByTestId('col-employeeNo')).not.toBeInTheDocument();
       expect(screen.getByTestId('col-departmentName')).toHaveTextContent('部门');
       expect(screen.getByTestId('col-positionName')).toHaveTextContent('职位');
       expect(screen.getByTestId('col-hireDate')).toHaveTextContent('入职日期');
@@ -189,8 +236,37 @@ describe('EmployeeListPage', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
-      expect(screen.getByTestId('cell-1-employeeNo')).toHaveTextContent('E001');
+      expect(screen.queryByTestId('cell-1-employeeNo')).not.toBeInTheDocument();
       expect(screen.getByTestId('cell-1-name')).toHaveTextContent('张三');
+    });
+
+    it('入职日期列将 ISO 时间格式化为 YYYY-MM-DD 展示', async () => {
+      (employeeApi.getList as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 9,
+              employeeNo: 'E009',
+              name: '赵六',
+              departmentName: '技术部',
+              positionName: '工程师',
+              hireDate: '2024-04-07T00:00:00.000Z',
+              phone: '',
+              status: 'active',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('cell-9-hireDate')).toHaveTextContent('2024-04-07');
+      });
+      expect(screen.getByTestId('cell-9-hireDate')).not.toHaveTextContent('T00:00:00');
     });
 
     it('renders status tag for status column', async () => {
@@ -217,28 +293,32 @@ describe('EmployeeListPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('search-area')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('search-name')).toHaveTextContent('姓名');
-      expect(screen.getByTestId('search-employeeNo')).toHaveTextContent('工号');
+      // 对齐企业后台：姓名检索 + 多维过滤（状态/职级/部门/岗位/入职时间）
+      expect(screen.getByTestId('search-keyword')).toHaveTextContent('姓名');
       expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
+      expect(screen.getByTestId('search-rating')).toHaveTextContent('职级');
+      expect(screen.getByTestId('search-departmentId')).toHaveTextContent('部门');
+      expect(screen.getByTestId('search-positionId')).toHaveTextContent('岗位');
+      expect(screen.getByTestId('search-hireDate')).toHaveTextContent('入职时间');
     });
 
     it('shows pagination info', async () => {
       render(<EmployeeListPage />);
       await waitFor(() => {
-        expect(screen.getByTestId('pagination')).toBeInTheDocument();
+        expect(screen.getByTestId('page-total')).toHaveTextContent('3');
       });
-      expect(screen.getByTestId('page-total')).toHaveTextContent('3');
     });
   });
 
   describe('边界用例', () => {
-    it('shows loading state while fetching', () => {
-      let resolveFn: (value: any) => void;
+    it('shows loading state while fetching', async () => {
       (employeeApi.getList as jest.Mock).mockImplementation(
-        () => new Promise((resolve) => { resolveFn = resolve; }),
+        () => new Promise(() => {}),
       );
       render(<EmployeeListPage />);
-      expect(screen.getByTestId('pro-table')).toHaveAttribute('data-loading', 'true');
+      await waitFor(() => {
+        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-loading', 'true');
+      });
     });
 
     it('handles empty employee list', async () => {
@@ -402,7 +482,9 @@ describe('EmployeeListPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       await user.click(screen.getByTestId('btn-edit-1'));
-      expect(screen.getByTestId('modal-field-employeeNo')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId('modal-field-employeeNo')).toBeInTheDocument();
+      });
     });
 
     it('calls employeeApi.update when confirming edit', async () => {
@@ -417,8 +499,118 @@ describe('EmployeeListPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       await user.click(screen.getByTestId('btn-edit-1'));
+      await waitFor(() => {
+        expect(screen.getByTestId('modal-ok')).toBeInTheDocument();
+      });
       await user.click(screen.getByTestId('modal-ok'));
       expect(employeeApi.update).toHaveBeenCalled();
+    });
+
+    it('编辑时通过 getById 获取完整数据，回显列表行未返回的字段（薪资/备注/技能）', async () => {
+      const user = userEvent.setup();
+      (employeeApi.getList as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 1,
+              employeeNo: 'E001',
+              name: '张三',
+              departmentId: 1,
+              positionId: 1,
+              hireDate: '2024-01-15',
+              phone: '13800138000',
+              status: 'active',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      // 列表行不返回薪资/备注/技能等字段，但 getById 返回完整数据
+      (employeeApi.getById as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          id: 1,
+          employeeNo: 'E001',
+          name: '张三',
+          departmentId: 1,
+          positionId: 1,
+          hireDate: '2024-01-15',
+          phone: '13800138000',
+          status: 'active',
+          salary: '36000',
+          remark: '备注X',
+          skills: '技能Y',
+          emergencyContact: '李四',
+          tags: [{ id: 1, name: '优秀员工' }],
+        },
+      });
+      (employeeApi.update as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 1 } });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-edit-1')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('btn-edit-1'));
+      await waitFor(() => {
+        expect(screen.getByTestId('modal-ok')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => {
+        expect(employeeApi.update).toHaveBeenCalled();
+      });
+      expect(employeeApi.getById).toHaveBeenCalledWith(1);
+      expect(employeeApi.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          salary: 36000,
+          remark: '备注X',
+          skills: '技能Y',
+          emergencyContact: '李四',
+          tagIds: [1],
+        }),
+      );
+    });
+
+    it('保存时将工资字符串转为 number 提交', async () => {
+      const user = userEvent.setup();
+      (employeeApi.getList as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 1,
+              employeeNo: 'E001',
+              name: '张三',
+              departmentName: '技术部',
+              positionName: '工程师',
+              hireDate: '2024-01-15',
+              phone: '13800138000',
+              status: 'active',
+              salary: '36000',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      (employeeApi.update as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 1 } });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-edit-1')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('btn-edit-1'));
+      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => {
+        expect(employeeApi.update).toHaveBeenCalled();
+      });
+      // 后端 updateSchema 要求 salary 为 number，避免字符串校验 400
+      expect(employeeApi.update).toHaveBeenCalledWith(1, expect.objectContaining({ salary: 36000 }));
     });
 
     it('refreshes list after successful edit', async () => {
@@ -430,7 +622,7 @@ describe('EmployeeListPage', () => {
       });
       render(<EmployeeListPage />);
       await waitFor(() => {
-        expect(employeeApi.getList).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('btn-edit-1')).toBeInTheDocument();
       });
       await user.click(screen.getByTestId('btn-edit-1'));
       await user.click(screen.getByTestId('modal-ok'));
@@ -441,7 +633,7 @@ describe('EmployeeListPage', () => {
   });
 
   describe('离职功能', () => {
-    it('点击离职打开确认弹窗，确认后调用 employeeApi.resign', async () => {
+    it('点击离职打开确认弹窗，填写离职原因后确认会随接口一并提交', async () => {
       const user = userEvent.setup();
       (employeeApi.resign as jest.Mock).mockResolvedValue({
         code: 0,
@@ -455,9 +647,15 @@ describe('EmployeeListPage', () => {
       await user.click(screen.getByTestId('btn-resign-1'));
       // 先只打开弹窗，不应立即调接口
       expect(employeeApi.resign).not.toHaveBeenCalled();
-      await user.click(screen.getByTestId('modal-ok'));
+      // 弹窗内包含离职原因输入框
+      expect(screen.getByTestId('resign-reason-input')).toBeInTheDocument();
+      await user.type(screen.getByTestId('resign-reason-input'), '个人发展方向调整');
+      await user.click(screen.getByTestId('resign-ok'));
       await waitFor(() => {
-        expect(employeeApi.resign).toHaveBeenCalledWith(1, expect.objectContaining({ resignDate: expect.any(String) }));
+        expect(employeeApi.resign).toHaveBeenCalledWith(1, {
+          resignDate: expect.any(String),
+          reason: '个人发展方向调整',
+        });
       });
     });
 
@@ -470,10 +668,10 @@ describe('EmployeeListPage', () => {
       });
       render(<EmployeeListPage />);
       await waitFor(() => {
-        expect(employeeApi.getList).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('btn-resign-1')).toBeInTheDocument();
       });
       await user.click(screen.getByTestId('btn-resign-1'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await user.click(screen.getByTestId('resign-ok'));
       await waitFor(() => {
         expect(employeeApi.getList).toHaveBeenCalledTimes(2);
       });
@@ -487,16 +685,109 @@ describe('EmployeeListPage', () => {
       });
       render(<EmployeeListPage />);
       await waitFor(() => {
-        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+        expect(screen.getByTestId('btn-resign-1')).toBeInTheDocument();
       });
       await user.click(screen.getByTestId('btn-resign-1'));
-      await user.click(screen.getByTestId('modal-ok'));
+      await user.click(screen.getByTestId('resign-ok'));
       await waitFor(() => {
         expect(employeeApi.resign).toHaveBeenCalled();
       });
       await waitFor(() => {
         expect(employeeApi.getList).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('员工标签', () => {
+    it('新增/编辑弹窗提供标签多选字段，选项来自 employeeTagApi', async () => {
+      const user = userEvent.setup();
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-add')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-add'));
+      // 弹窗中出现标签多选字段及其选项
+      expect(screen.getByTestId('modal-field-tags')).toHaveTextContent('标签');
+      expect(screen.getByTestId('modal-option-tags-1')).toHaveTextContent('优秀员工');
+      expect(screen.getByTestId('modal-option-tags-2')).toHaveTextContent('长期外派');
+    });
+
+    it('员工列表展示标签列及标签名', async () => {
+      (employeeApi.getList as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 5,
+              employeeNo: 'E005',
+              name: '钱七',
+              departmentName: '技术部',
+              positionName: '工程师',
+              hireDate: '2024-05-01',
+              phone: '',
+              status: 'active',
+              tags: [
+                { id: 1, name: '优秀员工', color: '#3B82F6' },
+                { id: 2, name: '长期外派', color: '#16A34A' },
+              ],
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('col-tags')).toHaveTextContent('标签');
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(1);
+      });
+      expect(screen.getByText('优秀员工')).toBeInTheDocument();
+      expect(screen.getByText('长期外派')).toBeInTheDocument();
+    });
+
+    it('编辑员工时回显已有标签，确认后随 tagIds 提交', async () => {
+      const user = userEvent.setup();
+      (employeeApi.getList as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 1,
+              employeeNo: 'E001',
+              name: '张三',
+              departmentName: '技术部',
+              positionName: '工程师',
+              hireDate: '2024-01-15',
+              phone: '13800138000',
+              status: 'active',
+              tags: [{ id: 1, name: '优秀员工', color: '#3B82F6' }],
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      (employeeApi.update as jest.Mock).mockResolvedValue({ code: 0, message: 'ok', data: { id: 1 } });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-edit-1')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('btn-edit-1'));
+      await user.click(screen.getByTestId('modal-ok'));
+      await waitFor(() => {
+        expect(employeeApi.update).toHaveBeenCalled();
+      });
+      // 弹窗 mock 以 initialValues 提交，编辑员工带既有标签时应回显为 id 数组并随 tagIds 传入
+      expect(employeeApi.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ tagIds: [1] }),
+      );
     });
   });
 });

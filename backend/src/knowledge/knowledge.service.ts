@@ -1,17 +1,17 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { FilesService } from '../files/files.service';
 import { ERROR_CODES } from '../common/error-codes';
 import { signPreviewUrl, verifyPreviewToken } from './engine/preview-sign';
 import { validateAttachment } from './engine/attachment-security.util';
-import { resolve, sep, isAbsolute } from 'path';
-import { existsSync, realpathSync } from 'fs';
 
 @Injectable()
 export class KnowledgeService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private readonly filesService?: FilesService,
   ) {}
 
   private readonly previewSecret = process.env.PREVIEW_SECRET || '';
@@ -47,6 +47,31 @@ export class KnowledgeService {
       throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_CATEGORY_NOT_FOUND, message: '分类不存在' });
     }
     await this.prisma.knowledgeCategory.delete({ where: { id } });
+    return { success: true };
+  }
+
+  /**
+   * 拖拽排序：按传入的 ids 顺序（从 0 递增）批量更新 sortOrder。
+   */
+  async reorderCategories(ids: number[]) {
+    if (ids.length === 0) return { success: true };
+
+    const existing = await this.prisma.knowledgeCategory.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    if (existing.length !== ids.length) {
+      throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_CATEGORY_NOT_FOUND, message: '部分分类不存在' });
+    }
+
+    await Promise.all(
+      ids.map((id, index) =>
+        this.prisma.knowledgeCategory.update({
+          where: { id },
+          data: { sortOrder: index },
+        }),
+      ),
+    );
     return { success: true };
   }
 
@@ -97,10 +122,12 @@ export class KnowledgeService {
   async createArticle(params: {
     categoryId: number;
     title: string;
+    summary?: string;
     content?: string;
+    status?: string;
     userId: number;
   }) {
-    const { categoryId, title, content, userId } = params;
+    const { categoryId, title, summary, content, status, userId } = params;
     const cat = await this.prisma.knowledgeCategory.findUnique({ where: { id: categoryId } });
     if (!cat) {
       throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_CATEGORY_NOT_FOUND, message: '分类不存在' });
@@ -109,7 +136,9 @@ export class KnowledgeService {
       data: {
         categoryId,
         title,
+        summary,
         content,
+        status: status || 'published',
         createdBy: userId,
       },
     });
@@ -118,6 +147,7 @@ export class KnowledgeService {
   async updateArticle(id: number, params: {
     categoryId?: number;
     title?: string;
+    summary?: string;
     content?: string;
     status?: string;
   }) {
@@ -201,6 +231,52 @@ export class KnowledgeService {
     }
     await this.prisma.knowledgeAttachment.delete({ where: { id } });
     return { success: true };
+  }
+
+  /**
+   * 上传知识库附件：二进制流先经 FilesService 落盘（本地磁盘 / OSS 由 FILE_STORAGE 决定），
+   * 校验通过后登记为文章附件。
+   */
+  async uploadAttachment(params: {
+    articleId: number;
+    buffer: Buffer;
+    fileName: string;
+    fileSize?: number;
+    mimeType?: string;
+  }) {
+    const article = await this.prisma.knowledgeArticle.findUnique({
+      where: { id: params.articleId },
+    });
+    if (!article) {
+      throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ARTICLE_NOT_FOUND, message: '文章不存在' });
+    }
+
+    const validation = validateAttachment({
+      fileName: params.fileName,
+      fileSize: params.fileSize,
+      mimeType: params.mimeType,
+    });
+    if (!validation.valid) {
+      throw new BadRequestException({
+        code: validation.errorCode ?? ERROR_CODES.KNOWLEDGE_ATTACHMENT_INVALID,
+        message: validation.message ?? '附件校验失败',
+      });
+    }
+
+    if (!this.filesService) {
+      throw new BadRequestException({ code: ERROR_CODES.INTERNAL_ERROR, message: '文件存储服务未就绪' });
+    }
+    const saved = await this.filesService.save(params.buffer, params.fileName, 'knowledge');
+
+    return this.prisma.knowledgeAttachment.create({
+      data: {
+        articleId: params.articleId,
+        fileName: validation.sanitizedFileName ?? params.fileName,
+        fileUrl: saved.url,
+        fileSize: params.fileSize,
+        mimeType: params.mimeType,
+      },
+    });
   }
 
   // ===== 预览签名 =====
@@ -314,14 +390,13 @@ export class KnowledgeService {
       }
     }
 
-    // 5. 解析文件路径
-    const filePath = this.resolveFilePath(att.fileUrl);
-    if (!existsSync(filePath)) {
-      throw new NotFoundException({ code: 5003, message: '文件不存在或已被删除' });
+    // 5. 按当前存储驱动（本地磁盘 / OSS）打开文件读流
+    if (!this.filesService) {
+      throw new BadRequestException({ code: ERROR_CODES.INTERNAL_ERROR, message: '文件存储服务未就绪' });
     }
-
+    const { stream } = await this.filesService.openStream(att.fileUrl);
     return {
-      filePath,
+      stream,
       fileName: att.fileName,
       mimeType: att.mimeType || 'application/octet-stream',
     };
@@ -348,47 +423,6 @@ export class KnowledgeService {
       }
     }
     return Array.from(perms);
-  }
-
-  // ===== 文件路径解析 =====
-  private resolveFilePath(fileUrl: string): string {
-    // 远程 URL 不支持直接下载
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      throw new BadRequestException({ code: ERROR_CODES.INTERNAL_ERROR, message: '不支持远程文件下载' });
-    }
-
-    const uploadsBase = resolve(process.cwd(), 'uploads');
-    const uploadsBaseWithSep = uploadsBase + sep;
-
-    // 解析为绝对路径并规范化 ".." 段
-    let filePath: string;
-    if (fileUrl.startsWith('/uploads/')) {
-      // 去掉前导斜杠，使其相对于 cwd 解析
-      filePath = resolve(process.cwd(), fileUrl.slice(1));
-    } else if (isAbsolute(fileUrl)) {
-      filePath = resolve(fileUrl);
-    } else {
-      filePath = resolve(process.cwd(), fileUrl);
-    }
-
-    // 安全检查：解析后的路径必须在 uploads 目录内，防止路径遍历
-    if (filePath !== uploadsBase && !filePath.startsWith(uploadsBaseWithSep)) {
-      throw new BadRequestException({ code: ERROR_CODES.INTERNAL_ERROR, message: '非法文件路径' });
-    }
-
-    // realpath 校验：防止符号链接逃逸
-    // 攻击者可能在 uploads 目录内创建指向外部的符号链接，前缀检查会通过但 createReadStream 会跟随链接
-    let realPath: string;
-    try {
-      realPath = realpathSync(filePath);
-    } catch {
-      throw new NotFoundException({ code: 5003, message: '文件不存在或已被删除' });
-    }
-    if (realPath !== uploadsBase && !realPath.startsWith(uploadsBaseWithSep)) {
-      throw new BadRequestException({ code: ERROR_CODES.INTERNAL_ERROR, message: '非法文件路径' });
-    }
-
-    return realPath;
   }
 
   // ===== 阅读统计 =====

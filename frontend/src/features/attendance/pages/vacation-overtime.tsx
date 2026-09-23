@@ -10,6 +10,7 @@ import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 export default function VacationOvertimePage() {
   const { can } = usePermission();
@@ -77,7 +78,7 @@ export default function VacationOvertimePage() {
       pending: '待提交', approving: '审批中', approved: '已通过', rejected: '已拒绝', cancelled: '已取消',
     };
     if (!exportToExcel(
-      `加班记录_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `加班记录_${todayStr()}.xlsx`,
       '加班记录',
       [
         { title: '加班日期', dataIndex: 'overtimeDate' },
@@ -175,7 +176,7 @@ export default function VacationOvertimePage() {
   ];
 
   return (
-    <PageContainer title="我的加班">
+    <PageContainer >
       <ProTable
         columns={overtimeColumns}
         data={overtimes}

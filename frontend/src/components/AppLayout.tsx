@@ -27,8 +27,11 @@ const MENU_ROUTES: Record<string, string> = {
   'broadcasts-public': '/broadcasts',
   'employee-list': '/employees',
   'employee-transactions': '/employees/transactions',
+  'employee-tags': '/employees/tags',
   'employee-timeline': '/employees/timeline',
   'employee-change-logs': '/employees/change-logs',
+  'performance-cycles': '/performance/cycles',
+  'okr-objectives': '/okr',
   'attendance-punch': '/attendance/punch',
   'attendance-shifts': '/attendance/shifts',
   'attendance-schedules': '/attendance/schedules',
@@ -148,7 +151,7 @@ export default function AppLayout({
         )}
         <div className="app-main">
           <AppHeader title={title} isMobile={isMobile} collapsed={!isMobile && collapsed} onMenuToggle={handleMenuToggle} />
-          {!isMobile && <PageTabs />}
+          <PageTabs />
           <main className="app-content">
             <ErrorBoundary>
               <KeepAliveHost activePath={pathname} alivePaths={alivePaths}>

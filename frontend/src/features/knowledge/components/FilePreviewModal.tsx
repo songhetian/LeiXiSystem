@@ -1,8 +1,9 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Modal, Button, Space } from '@arco-design/web-react';
 import { IconDownload } from '@arco-design/web-react/icon';
-import { getPreviewMode, formatFileSize, getFileExt } from '../preview';
+import { getPreviewMode, shouldUseViewer, formatFileSize, getFileExt } from '../preview';
 
 export interface PreviewFile {
   name: string;
@@ -10,6 +11,8 @@ export interface PreviewFile {
   size: number;
   /** 可直接渲染/下载的 URL（图片/视频/音频/PDF 为 objectURL） */
   url: string;
+  /** 原始文件二进制，供 @open-file-viewer 在线预览 Office 文档 */
+  blob?: Blob;
 }
 
 interface FilePreviewModalProps {
@@ -20,7 +23,9 @@ interface FilePreviewModalProps {
   onClose: () => void;
 }
 
-const OFFICE_UNSUPPORTED_HINT = '该 Office 文档需下载后使用本地应用查看';
+// Office 预览器只应在客户端挂载——@open-file-viewer 依赖浏览器 API（worker/媒体能力），
+// 且涉及的 CSS 仅随客户端加载，避免在 SSR/服务端导入时崩溃。
+const ViewerPreview = dynamic(() => import('./ViewerPreview'), { ssr: false });
 
 /** 非可预览类型的兜底下载卡片 */
 function DownloadFallback({ file, hint }: { file: PreviewFile; hint?: string }) {
@@ -46,11 +51,21 @@ function DownloadFallback({ file, hint }: { file: PreviewFile; hint?: string }) 
   );
 }
 
-/** 基于浏览器原生能力的内嵌文件预览模态，替代 @open-file-viewer */
+/** 文件预览模态：图片/视频/音频/PDF 用浏览器原生元素，Office 用 @open-file-viewer 在线渲染 */
 export default function FilePreviewModal({ file, title, visible = true, onClose }: FilePreviewModalProps) {
   const mode = getPreviewMode(file.name, file.mimeType);
 
   const content = (() => {
+    // Office 文档交由 @open-file-viewer 在线渲染
+    if (shouldUseViewer(mode) && file.blob) {
+      return (
+        <ViewerPreview
+          file={new File([file.blob], file.name, { type: file.mimeType })}
+          name={file.name}
+          mimeType={file.mimeType}
+        />
+      );
+    }
     switch (mode) {
       case 'image':
         return (
@@ -79,10 +94,9 @@ export default function FilePreviewModal({ file, title, visible = true, onClose 
             style={{ width: '100%', height: '65vh', border: 'none', background: '#fff' }}
           />
         );
-      case 'office':
       case 'unsupported':
       default:
-        return <DownloadFallback file={file} hint={mode === 'office' ? OFFICE_UNSUPPORTED_HINT : undefined} />;
+        return <DownloadFallback file={file} />;
     }
   })();
 

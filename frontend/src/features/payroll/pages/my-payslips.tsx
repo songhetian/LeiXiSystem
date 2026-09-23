@@ -1,16 +1,16 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Table, Descriptions, Tag, Space, Divider } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { payslipApi, Payslip, PayslipDetail, PayslipItem } from '@/services/payslip';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { SearchFieldConfig } from '@/components/SearchForm';
 
 const searchFields: SearchFieldConfig[] = [
-  { key: 'month', label: '月份', type: 'input', placeholder: 'YYYY-MM' },
+  { key: 'month', label: '月份', type: 'month', placeholder: '选择月份' },
 ];
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -18,10 +18,13 @@ const statusMap: Record<string, { label: string; color: string }> = {
   viewed: { label: '已查看', color: 'gray' },
 };
 
+interface PayslipListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: Payslip[]; page: number; pageSize: number; total: number };
+}
+
 export default function MyPayslipsPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Payslip[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
@@ -29,47 +32,30 @@ export default function MyPayslipsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [currentPayslip, setCurrentPayslip] = useState<PayslipDetail | null>(null);
 
-  const fetchData = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await payslipApi.getMyPayslips({
-        page,
-        pageSize,
-        ...params,
-      });
-      if (result.code === 0 && result.data) {
-        setData(result.data.list);
-        setPagination({
-          current: result.data.page,
-          pageSize: result.data.pageSize,
-          total: result.data.total,
-        });
-      }
-    } catch (e: any) {
-      setError(e?.message || '加载失败');
-      notifyError(e, '加载失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData(1, 20, searchParams);
-  }, []);
+  // SWR 缓存：参数编入 cacheKey，搜索/翻页即重新订阅；同参数复用缓存
+  const cacheKey = `payroll:my-payslips:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<PayslipListEnvelope>(
+    cacheKey,
+    () => payslipApi.getMyPayslips({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchData(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchData(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchData(page, pageSize, searchParams);
+    setPagination((p) => ({ ...p, current: page, pageSize }));
   };
 
   const handleViewDetail = async (record: Payslip) => {
@@ -81,7 +67,7 @@ export default function MyPayslipsPage() {
         setCurrentPayslip(result.data);
         if (result.data.status === 'unviewed') {
           await payslipApi.markAsViewed(record.id);
-          fetchData(pagination.current, pagination.pageSize, searchParams);
+          revalidate();
         }
       } else {
         Message.error(result.message || '获取明细失败');
@@ -206,18 +192,18 @@ export default function MyPayslipsPage() {
   };
 
   return (
-    <PageContainer title="我的工资条">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchData(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
-        pagination={pagination}
+        pagination={pageResult}
         onPageChange={handlePageChange}
         onRowClick={handleViewDetail}
       />

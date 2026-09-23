@@ -33,6 +33,36 @@ export class PayrollService {
     earlyDeductionPerTime: 50,
   };
 
+  /**
+   * 取某员工在指定计薪月的生效基础工资。
+   * 规则（CONTEXT.md）：发薪为「本月发上月」，薪资变更自带生效月。
+   * 取「生效月 ≤ 计薪月」的最新一条薪资调整（同一生效月按更新时间倒序取最新）；
+   * 无任何调整记录时回退员工当前薪资（初始工资），即默认次月生效。
+   */
+  async getEffectiveSalary(
+    employeeId: number,
+    month: string,
+    fallback: number,
+  ): Promise<number> {
+    try {
+      const adj = await this.prisma.salaryAdjustment.findFirst({
+        where: {
+          employeeId,
+          effectiveMonth: { lte: month },
+        },
+        orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
+      });
+      if (adj) {
+        return Number(adj.amount);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `读取薪资生效月失败，回退员工当前薪资：employeeId=${employeeId}, month=${month}`,
+      );
+    }
+    return fallback;
+  }
+
   async createRun(month: string, userId: number) {
     return this.lockService.withLock(`payroll:create:${month}`, LOCK_TTL_MS, async () => {
       const existing = await this.prisma.payrollRun.findUnique({ where: { month } });
@@ -65,7 +95,12 @@ export class PayrollService {
             amount: number;
           }> = [];
           for (const m of confirmedMonthlies) {
-            const basicSalary = Number(m.employee.salary);
+            // 取计薪月生效薪资（默认次月生效），无调整记录回退员工当前薪资
+            const basicSalary = await this.getEffectiveSalary(
+              m.employeeId,
+              month,
+              Number(m.employee.salary),
+            );
             const result = calculatePayroll(
               { name: m.employee.name, basicSalary },
               {

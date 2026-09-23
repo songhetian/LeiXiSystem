@@ -18,6 +18,13 @@ const mockPrisma: any = {
     findMany: jest.fn(),
     count: jest.fn(),
   },
+  employeeTagRelation: {
+    deleteMany: jest.fn(),
+    createMany: jest.fn(),
+  },
+  salaryAdjustment: {
+    create: jest.fn(),
+  },
   department: {
     findMany: jest.fn(),
   },
@@ -30,7 +37,14 @@ const mockPrisma: any = {
         update: jest.fn().mockImplementation((args: any) => mockPrisma.employee.update(args)),
       },
       employeeChangeLog: {
-        createMany: jest.fn(),
+        createMany: jest.fn().mockImplementation((args: any) => mockPrisma.employeeChangeLog.createMany(args)),
+      },
+      employeeTagRelation: {
+        deleteMany: jest.fn().mockImplementation((args: any) => mockPrisma.employeeTagRelation.deleteMany(args)),
+        createMany: jest.fn().mockImplementation((args: any) => mockPrisma.employeeTagRelation.createMany(args)),
+      },
+      salaryAdjustment: {
+        create: jest.fn().mockImplementation((args: any) => mockPrisma.salaryAdjustment.create(args)),
       },
     };
     return fn(tx);
@@ -64,6 +78,52 @@ describe('EmployeesService (敏感字段)', () => {
 
       expect(callArgs.select).toBeDefined();
       expect(callArgs.select.salary).not.toBe(true);
+    });
+
+    it('返回的列表项同时带扁平化 departmentName/positionName（于嵌套 department/position 之上派生）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      const raws = [
+        {
+          id: 1,
+          employeeNo: 'EMP0001',
+          name: '张伟',
+          departmentId: 3,
+          positionId: 5,
+          hireDate: new Date('2022-12-31T00:00:00.000Z'),
+          status: 'active',
+          rating: 1,
+          phone: null,
+          department: { id: 3, name: '技术部', parentId: null },
+          position: { id: 5, name: '工程师' },
+        },
+        {
+          id: 2,
+          employeeNo: 'EMP0002',
+          name: '王芳',
+          departmentId: null,
+          positionId: null,
+          hireDate: new Date('2024-04-07T00:00:00.000Z'),
+          status: 'active',
+          rating: 1,
+          phone: null,
+          department: null,
+          position: null,
+        },
+      ];
+      mockPrisma.employee.findMany.mockResolvedValue(raws);
+      mockPrisma.employee.count.mockResolvedValue(2);
+
+      const result = await service.list(1, { page: 1, pageSize: 20 });
+
+      expect(mockPrisma.employee.findMany).toHaveBeenCalled();
+      expect(result.list).toHaveLength(2);
+      expect(result.list[0]).toMatchObject({ departmentName: '技术部', positionName: '工程师' });
+      // 无部门/岗位时兜底为空字符串/占位，避免前端渲染 undefined
+      expect(result.list[1]).toMatchObject({ departmentName: '', positionName: '' });
+      // 原有嵌套结构保留（detail/详情页读取 department.name）
+      expect(result.list[0]).toHaveProperty('department');
+      expect(result.list[0].department.name).toBe('技术部');
+      expect(result).toMatchObject({ total: 2, page: 1, pageSize: 20 });
     });
   });
 
@@ -423,6 +483,153 @@ describe('EmployeesService (敏感字段)', () => {
       it('薪资为正数时应允许修改', async () => {
         await expect(service.update(1, { salary: 6000 }, 1)).resolves.toBeDefined();
       });
+
+      it('薪资变化时写入薪资调整留痕，生效月默认次月', async () => {
+        // 当前薪资 5000 → 改为 10000；mock 今天=2026-08-28 → 默认生效月 2026-09
+        const RealDate: any = Date;
+        const dateSpy = jest.spyOn(global, 'Date').mockImplementation(function (
+          this: Date,
+          ...args: any[]
+        ) {
+          return (args.length === 0
+            ? new RealDate(2026, 7, 28)
+            : new RealDate(...args)) as any;
+        });
+        mockPrisma.salaryAdjustment.create.mockResolvedValue({ id: 1 });
+
+        try {
+          await service.update(1, { salary: 10000 }, 1);
+        } finally {
+          dateSpy.mockRestore();
+        }
+
+        expect(mockPrisma.salaryAdjustment.create).toHaveBeenCalledWith({
+          data: {
+            employeeId: 1,
+            amount: 10000,
+            effectiveMonth: '2026-09',
+            remark: '默认次月生效（2026-09）',
+            changedBy: 1,
+          },
+        });
+        // 生效月不落入 employee.update 标量字段
+        const callArgs = mockPrisma.employee.update.mock.calls[0][0];
+        expect(callArgs.data.effectiveMonth).toBeUndefined();
+      });
+
+      it('传入指定的生效月时，按指定月写入（不进 employee.update）', async () => {
+        mockPrisma.salaryAdjustment.create.mockResolvedValue({ id: 1 });
+
+        await service.update(1, { salary: 12000, effectiveMonth: '2026-10' }, 1);
+
+        expect(mockPrisma.salaryAdjustment.create).toHaveBeenCalledWith({
+          data: {
+            employeeId: 1,
+            amount: 12000,
+            effectiveMonth: '2026-10',
+            remark: '指定生效月 2026-10',
+            changedBy: 1,
+          },
+        });
+        const callArgs = mockPrisma.employee.update.mock.calls[0][0];
+        expect(callArgs.data.effectiveMonth).toBeUndefined();
+      });
+
+      it('薪资未变化时不写入薪资调整留痕', async () => {
+        // 当前薪资 5000，未改薪资
+        mockPrisma.salaryAdjustment.create.mockResolvedValue({ id: 1 });
+
+        await service.update(1, { name: '李四' }, 1);
+
+        expect(mockPrisma.salaryAdjustment.create).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('员工-标签绑定', () => {
+    it('create 传入 tagIds 时，通过 tagRelations 嵌套创建关联', async () => {
+      mockPrisma.employee.findUnique.mockResolvedValue(null);
+      mockPrisma.employee.create.mockResolvedValue({ id: 1, name: '张三' });
+
+      await expect(service.create({
+        name: '张三',
+        departmentId: 1,
+        hireDate: '2026-01-01',
+        tagIds: [3, 5],
+      })).resolves.toBeDefined();
+
+      const callArgs = mockPrisma.employee.create.mock.calls[0][0];
+      expect(callArgs.data.tagRelations.create).toEqual([
+        { tagId: 3 },
+        { tagId: 5 },
+      ]);
+    });
+
+    it('update 传入 tagIds 时，先清空再重建标签关联（事务内）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      const mockEmployee = { id: 1, name: '张三', departmentId: 1, status: 'active', hireDate: new Date('2020-01-01') };
+      mockPrisma.employee.findUnique.mockResolvedValue(mockEmployee);
+      mockPrisma.employee.update.mockResolvedValue(mockEmployee);
+      mockPrisma.employeeTagRelation.createMany.mockResolvedValue({ count: 2 });
+
+      await service.update(1, { name: '李四', tagIds: [1, 2] }, 1);
+
+      expect(mockPrisma.employeeTagRelation.deleteMany).toHaveBeenCalledWith({
+        where: { employeeId: 1 },
+      });
+      expect(mockPrisma.employeeTagRelation.createMany).toHaveBeenCalledWith({
+        data: [
+          { employeeId: 1, tagId: 1 },
+          { employeeId: 1, tagId: 2 },
+        ],
+      });
+    });
+
+    it('update 未传 tagIds 时，不触碰标签关联（保持原有标签）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      const mockEmployee = { id: 1, name: '张三', departmentId: 1, status: 'active', hireDate: new Date('2020-01-01') };
+      mockPrisma.employee.findUnique.mockResolvedValue(mockEmployee);
+      mockPrisma.employee.update.mockResolvedValue(mockEmployee);
+
+      await service.update(1, { name: '李四' }, 1);
+
+      expect(mockPrisma.employeeTagRelation.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.employeeTagRelation.createMany).not.toHaveBeenCalled();
+    });
+
+    it('list 将 tagRelations 扁平化为 tags 数组（id/name/color）', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      const raws = [
+        {
+          id: 1,
+          employeeNo: 'EMP0001',
+          name: '张伟',
+          departmentId: 3,
+          positionId: null,
+          hireDate: new Date('2022-12-31T00:00:00.000Z'),
+          rating: 1,
+          phone: null,
+          status: 'active',
+          department: { id: 3, name: '技术部', parentId: null },
+          position: null,
+          tagRelations: [
+            { tag: { id: 3, name: '核心骨干', color: '#EF4444' } },
+            { tag: { id: 5, name: '试用期', color: '#16A34A' } },
+          ],
+        },
+      ];
+      mockPrisma.employee.findMany.mockResolvedValue(raws);
+      mockPrisma.employee.count.mockResolvedValue(1);
+
+      const result = await service.list(1, { page: 1, pageSize: 20 });
+
+      expect(result.list[0]).toMatchObject({
+        tags: [
+          { id: 3, name: '核心骨干', color: '#EF4444' },
+          { id: 5, name: '试用期', color: '#16A34A' },
+        ],
+      });
+      expect(mockPrisma.employee.findMany.mock.calls[0][0].select.tagRelations).toBeDefined();
     });
   });
 
@@ -494,6 +701,99 @@ describe('EmployeesService (敏感字段)', () => {
 
       const call = mockPrisma.employeeChangeLog.findMany.mock.calls[0][0];
       expect(call.where.employee.departmentId).toEqual({ in: [-1] });
+    });
+  });
+
+  describe('batchUpdate（批量调整部门/岗位/职级）', () => {
+    it('批量更新部门/岗位/职级并记录变更流水', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      mockPrisma.employee.findMany.mockResolvedValue([
+        { id: 1, departmentId: 1, status: 'active' },
+        { id: 2, departmentId: 1, status: 'active' },
+      ]);
+
+      const result = await (service as any).batchUpdate(1, {
+        ids: [1, 2],
+        data: { departmentId: 5, positionId: 8, rating: 3 },
+      });
+
+      expect(result).toEqual({ success: 2, skipped: 0 });
+      expect(mockPrisma.employee.findMany).toHaveBeenCalledWith({ where: { id: { in: [1, 2] } } });
+      // 每个员工都写入调整字段
+      const updateCalls = mockPrisma.employee.update.mock.calls;
+      expect(updateCalls.length).toBe(2);
+      for (const [args] of updateCalls) {
+        expect(args.data.departmentId).toBe(5);
+        expect(args.data.positionId).toBe(8);
+        expect(args.data.rating).toBe(3);
+      }
+    });
+
+    it('空选择抛参数校验错误（BadRequest）', async () => {
+      await expect(
+        (service as any).batchUpdate(1, { ids: [], data: { rating: 2 } }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('越权部门员工跳过，不影响本范围员工', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [1], selfEmployeeId: null });
+      mockPrisma.employee.findMany.mockResolvedValue([
+        { id: 1, departmentId: 1, status: 'active' },
+        { id: 2, departmentId: 2, status: 'active' },
+      ]);
+
+      const result = await (service as any).batchUpdate(1, { ids: [1, 2], data: { rating: 2 } });
+      expect(result).toEqual({ success: 1, skipped: 1 });
+      // 仅 1 个员工被更新
+      expect(mockPrisma.employee.update).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('resign（办理离职，可带离职原因）', () => {
+    const activeEmp = { id: 1, name: '张三', departmentId: 1, status: 'active', resignDate: null };
+
+    it('使用传入离职日期与原因，写入 status/resignDate 并记录离职原因变更流水', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      mockPrisma.employee.findUnique.mockResolvedValue(activeEmp);
+      mockPrisma.employee.update.mockResolvedValue({ ...activeEmp, status: 'resigned' });
+      mockPrisma.employeeChangeLog.createMany.mockResolvedValue({ count: 3 });
+
+      await service.resign(1, 999, { resignDate: '2026-08-27', reason: '个人发展方向' });
+
+      const updateArg = mockPrisma.employee.update.mock.calls[0][0];
+      expect(updateArg.where.id).toBe(1);
+      expect(updateArg.data.status).toBe('resigned');
+      expect(updateArg.data.resignDate).toEqual(new Date('2026-08-27'));
+
+      const createManyArg = mockPrisma.employeeChangeLog.createMany.mock.calls[0][0];
+      const logs = createManyArg.data;
+      expect(logs.some((l: any) => l.field === 'resignReason' && l.newValue === '个人发展方向')).toBe(true);
+      expect(logs.some((l: any) => l.field === 'status' && l.newValue === 'resigned')).toBe(true);
+    });
+
+    it('未传原因时不记录离职原因流水', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      mockPrisma.employee.findUnique.mockResolvedValue(activeEmp);
+      mockPrisma.employee.update.mockResolvedValue({ ...activeEmp, status: 'resigned' });
+      mockPrisma.employeeChangeLog.createMany.mockResolvedValue({ count: 2 });
+
+      await service.resign(1, 999, { resignDate: '2026-08-27' });
+
+      const createManyArg = mockPrisma.employeeChangeLog.createMany.mock.calls[0][0];
+      expect(createManyArg.data.some((l: any) => l.field === 'resignReason')).toBe(false);
+    });
+
+    it('未传日期时默认使用当天', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      mockPrisma.employee.findUnique.mockResolvedValue(activeEmp);
+      mockPrisma.employee.update.mockResolvedValue({ ...activeEmp, status: 'resigned' });
+
+      const before = new Date();
+      await service.resign(1, 999, {});
+      const after = new Date();
+      const resignDate = mockPrisma.employee.update.mock.calls[0][0].data.resignDate as Date;
+      expect(resignDate.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(resignDate.getTime()).toBeLessThanOrEqual(after.getTime());
     });
   });
 });

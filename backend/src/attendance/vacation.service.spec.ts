@@ -44,6 +44,8 @@ function createMockPrisma() {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     overtimeRecord: {
       create: jest.fn(),
@@ -826,6 +828,40 @@ describe('VacationService', () => {
       const result = await service.convertOvertimeToCompensatory({ ...baseParams, hours: 16 });
 
       expect(result.days).toBe('2');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // listLeaveRecords - 日期范围过滤
+  // ------------------------------------------------------------------
+  describe('listLeaveRecords - 日期范围过滤', () => {
+    beforeEach(() => {
+      dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+      prisma.leaveRecord.findMany.mockResolvedValue([]);
+      prisma.leaveRecord.count.mockResolvedValue(0);
+    });
+
+    it('按 startDate/endDate 区间重叠过滤请假（排班日历月视图依赖）', async () => {
+      await service.listLeaveRecords({ userId: 1, startDate: '2026-08-01', endDate: '2026-08-31' });
+
+      expect(prisma.leaveRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            startDate: { lte: '2026-08-31' },
+            endDate: { gte: '2026-08-01' },
+          }),
+        }),
+      );
+    });
+
+    it('未传日期范围时查询条件不含日期过滤', async () => {
+      await service.listLeaveRecords({ userId: 1, status: 'approved' });
+
+      expect(prisma.leaveRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'approved' }),
+        }),
+      );
     });
   });
 });

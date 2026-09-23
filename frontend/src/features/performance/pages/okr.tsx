@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker, Progress, InputNumber } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { okrApi, OkrObjective, OkrKeyResult } from '@/services/performance';
 import { employeeApi, Employee } from '@/services/employee';
-import { systemApi, type SysDepartment } from '@/services/system';
+import { systemApi } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { notifyError } from '@/lib/request';
+import { todayStr } from '@/lib/format';
 
 const FormItem = Form.Item;
 
@@ -39,13 +41,7 @@ interface Filters {
 export default function OkrPage() {
   const { can } = usePermission();
   const canManage = can('performance:manage');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<OkrObjective[]>([]);
   const [filters, setFilters] = useState<Filters>({ type: '', status: '', keyword: '' });
-
-  const [employeeMap, setEmployeeMap] = useState<Record<number, Employee>>({});
-  const [deptMap, setDeptMap] = useState<Record<number, string>>({});
 
   // 目标表单
   const [objModalVisible, setObjModalVisible] = useState(false);
@@ -61,76 +57,54 @@ export default function OkrPage() {
   // 展开查看关键结果
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const fetchList = useCallback(async (activeFilters = filters) => {
-    setLoading(true);
-    setError(null);
-    try {
+  // OKR 目标列表：筛选条件编入缓存键，变化即重新获取
+  const cacheKey = `performance:okr:${filters.type}:${filters.status}:${filters.keyword}`;
+  const { data: resData, loading, error, revalidate } = useCachedData<OkrObjective[]>(
+    cacheKey,
+    async () => {
       const res: any = await okrApi.listObjectives();
       let list = (res.data?.list ?? []) as OkrObjective[];
-      if (activeFilters.type !== '') list = list.filter((o) => o.type === activeFilters.type);
-      if (activeFilters.status !== '') list = list.filter((o) => o.status === activeFilters.status);
-      if (activeFilters.keyword) {
-        const kw = String(activeFilters.keyword).toLowerCase();
+      if (filters.type !== '') list = list.filter((o) => o.type === filters.type);
+      if (filters.status !== '') list = list.filter((o) => o.status === filters.status);
+      if (filters.keyword) {
+        const kw = String(filters.keyword).toLowerCase();
         list = list.filter((o) => o.title.toLowerCase().includes(kw));
       }
-      setData(list);
-    } catch (e: any) {
-      setError(e?.message || '获取 OKR 目标列表失败');
-      notifyError(e, '获取 OKR 目标列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return list;
+    },
+    { staleTime: 30_000 },
+  );
+  const data = resData ?? [];
 
-  useEffect(() => {
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 负责人名称映射
-  const fetchEmployees = useCallback(async () => {
-    try {
+  // 负责人名称映射：共享缓存参考数据
+  const { data: empMapData } = useCachedData<Record<number, Employee>>(
+    'system:employees-map',
+    async () => {
       const res = await employeeApi.getList({ page: 1, pageSize: 200 });
       const list = res.data?.list ?? [];
       const map: Record<number, Employee> = {};
       list.forEach((e) => { map[e.id] = e; });
-      setEmployeeMap(map);
-    } catch {
-      // 忽略负责人加载失败
-    }
-  }, []);
+      return map;
+    },
+    { staleTime: 60_000 },
+  );
+  const employeeMap = empMapData ?? {};
 
   // 部门名称映射
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await systemApi.listDepartments();
-      const list = (res.data ?? [] as any) as SysDepartment[];
-      const map: Record<number, string> = {};
-      list.forEach((d) => { map[d.id] = d.name; });
-      setDeptMap(map);
-    } catch {
-      // 忽略部门加载失败
-    }
-  }, []);
+  const { departments } = useDepartments();
+  const deptMap: Record<number, string> = useMemo(() => {
+    const map: Record<number, string> = {};
+    departments.forEach((d) => { map[d.id] = d.name; });
+    return map;
+  }, [departments]);
 
-  useEffect(() => {
-    fetchEmployees();
-    fetchDepartments();
-  }, [fetchEmployees, fetchDepartments]);
+  const handleFilterChange = (key: keyof Filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
-    setFilters((prev) => {
-      const next = { ...prev, [key]: value };
-      fetchList(next);
-      return next;
-    });
-  }, [fetchList]);
-
-  const handleReset = useCallback(() => {
-    const empty: Filters = { type: '', status: '', keyword: '' };
-    setFilters(empty);
-    fetchList(empty);
-  }, [fetchList]);
+  const handleReset = () => {
+    setFilters({ type: '', status: '', keyword: '' });
+  };
 
   const handleAddObjective = () => {
     if (!canManage) return;
@@ -154,7 +128,7 @@ export default function OkrPage() {
           const res = await okrApi.deleteObjective(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -188,7 +162,7 @@ export default function OkrPage() {
         Message.success(editingObj ? '修改成功' : '创建成功');
         setObjModalVisible(false);
         setEditingObj(null);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -242,7 +216,7 @@ export default function OkrPage() {
         setKrModalVisible(false);
         setEditingKr(null);
         setKrObjectiveId(null);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -271,7 +245,7 @@ export default function OkrPage() {
 
   const handleExport = () => {
     if (!exportToExcel(
-      `OKR目标_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `OKR目标_${todayStr()}.xlsx`,
       'OKR目标',
       [
         { title: '目标标题', dataIndex: 'title' },
@@ -293,7 +267,7 @@ export default function OkrPage() {
   const filteredCount = data.length;
 
   return (
-    <PageContainer title="OKR 目标">
+    <PageContainer >
       {/* 筛选栏 */}
       <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

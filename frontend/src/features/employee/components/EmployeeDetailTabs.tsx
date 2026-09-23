@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Tabs, Table, Timeline, Empty } from '@arco-design/web-react';
 import { attendanceApi, MonthlyRecord, VacationBalance } from '@/services/attendance';
 import { employeeApi, TimelineRecord } from '@/services/employee';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 interface EmployeeDetailTabsProps {
   employeeId: number;
@@ -30,33 +30,36 @@ const balanceColumns = [
 ];
 
 export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsProps) {
-  const [loading, setLoading] = useState(true);
-  const [monthly, setMonthly] = useState<MonthlyRecord[]>([]);
-  const [balances, setBalances] = useState<VacationBalance[]>([]);
-  const [timeline, setTimeline] = useState<TimelineRecord[]>([]);
+  // SWR 缓存：3 个详情接口各自订阅，同员工切换页签/重进复用缓存
+  const { data: mRes, loading: mLoading } = useCachedData<{
+    code: number;
+    data?: { list: MonthlyRecord[] };
+  }>(
+    `employee:detail:${employeeId}:monthly`,
+    () => attendanceApi.getMonthlyList({ employeeId, pageSize: 12 }),
+    { staleTime: 30_000 },
+  );
+  const { data: bRes, loading: bLoading } = useCachedData<{
+    code: number;
+    data?: { list: VacationBalance[] };
+  }>(
+    `employee:detail:${employeeId}:balances`,
+    () => attendanceApi.getBalanceList({ employeeId }),
+    { staleTime: 30_000 },
+  );
+  const { data: tRes, loading: tLoading } = useCachedData<{
+    code: number;
+    data?: { list: TimelineRecord[] };
+  }>(
+    `employee:detail:${employeeId}:timeline`,
+    () => employeeApi.getTimeline({ employeeId, pageSize: 20 }),
+    { staleTime: 30_000 },
+  );
+  const loading = mLoading || bLoading || tLoading;
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    Promise.all([
-      attendanceApi.getMonthlyList({ employeeId, pageSize: 12 }),
-      attendanceApi.getBalanceList({ employeeId }),
-      employeeApi.getTimeline({ employeeId, pageSize: 20 }),
-    ])
-      .then(([m, b, t]) => {
-        if (!active) return;
-        if (m.code === 0 && m.data) setMonthly(m.data.list ?? []);
-        if (b.code === 0 && b.data) setBalances(b.data.list ?? []);
-        if (t.code === 0 && t.data) setTimeline(t.data.list ?? []);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [employeeId]);
+  const monthly = mRes?.code === 0 && mRes.data ? mRes.data.list ?? [] : [];
+  const balances = bRes?.code === 0 && bRes.data ? bRes.data.list ?? [] : [];
+  const timeline = tRes?.code === 0 && tRes.data ? tRes.data.list ?? [] : [];
 
   const balanceRows = balances.map((b) => ({
     key: b.id,
@@ -80,7 +83,7 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
         ) : monthly.length === 0 ? (
           <Empty description="暂无考勤记录" />
         ) : (
-          <Table rowKey="id" columns={monthlyColumns as any} data={monthly} pagination={false} />
+          <Table rowKey="id" columns={monthlyColumns as any} data={monthly} scroll={{ x: true }} pagination={false} />
         )}
       </Tabs.TabPane>
       <Tabs.TabPane key="leave" title="假期">
@@ -89,7 +92,7 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
         ) : balanceRows.length === 0 ? (
           <Empty description="暂无假期额度" />
         ) : (
-          <Table rowKey="key" columns={balanceColumns as any} data={balanceRows} pagination={false} />
+          <Table rowKey="key" columns={balanceColumns as any} data={balanceRows} scroll={{ x: true }} pagination={false} />
         )}
       </Tabs.TabPane>
       <Tabs.TabPane key="timeline" title="履历">

@@ -38,6 +38,11 @@ import {
   updateCertRequestSchema,
 } from './dto/employee-tx.schemas';
 
+/** 归一化到当天 00:00:00（本地时区），用于日期差计算 */
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 @Injectable()
 export class EmployeeTxService {
   private readonly logger = new Logger(EmployeeTxService.name);
@@ -281,15 +286,30 @@ export class EmployeeTxService {
       }),
       this.prisma.contract.count({ where }),
     ]);
-    return { list, total, page, pageSize };
+    // 到期预警：距结束日期 ≤ 30 天且未终止/未过期的合同标记 expiringSoon
+    const today = startOfDay(new Date());
+    const enriched = list.map((c: any) => {
+      if (!c.endDate || c.status === 'terminated' || c.status === 'expired') {
+        return { ...c, daysToExpire: null, expiringSoon: false };
+      }
+      const daysToExpire = Math.floor((startOfDay(new Date(c.endDate)).getTime() - today.getTime()) / 86400000);
+      return { ...c, daysToExpire, expiringSoon: daysToExpire >= 0 && daysToExpire <= 30 };
+    });
+    return { list: enriched, total, page, pageSize };
   }
 
   async createContract(dto: any) {
     const valid = validateOrThrow(createContractSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
     if (!emp) throw new NotFoundException({ code: 9301, message: '员工不存在' });
+    const contractNo = valid.contractNo?.trim() || (await this.getNextContractNo());
     return this.prisma.contract.create({
-      data: { ...valid, startDate: new Date(valid.startDate), endDate: valid.endDate ? new Date(valid.endDate) : null },
+      data: {
+        ...valid,
+        contractNo,
+        startDate: new Date(valid.startDate),
+        endDate: valid.endDate ? new Date(valid.endDate) : null,
+      },
     });
   }
 
@@ -298,6 +318,60 @@ export class EmployeeTxService {
     if (!record) throw new NotFoundException({ code: 9301, message: '合同不存在' });
     const valid = validateOrThrow(updateContractSchema, dto);
     return this.prisma.contract.update({ where: { id }, data: valid });
+  }
+
+  /**
+   * 合同续签：将原合同置为 expired（renewalCount +1），基于原员工创建新合同。
+   */
+  async renewContract(id: number, dto: any) {
+    const record = await this.prisma.contract.findUnique({ where: { id } });
+    if (!record) throw new NotFoundException({ code: 9301, message: '合同不存在' });
+    // 员工由原合同继承，忽略客户端传入的 employeeId
+    const valid = validateOrThrow(createContractSchema, { ...dto, employeeId: record.employeeId });
+    const contractNo = valid.contractNo?.trim() || (await this.getNextContractNo());
+    return this.prisma.$transaction(async (tx) => {
+      await tx.contract.update({
+        where: { id },
+        data: { status: 'expired' },
+      });
+      const renewed = await tx.contract.create({
+        data: {
+          employeeId: record.employeeId,
+          contractNo,
+          type: valid.type,
+          startDate: new Date(valid.startDate),
+          endDate: valid.endDate ? new Date(valid.endDate) : null,
+          salary: valid.salary ?? 0,
+          position: valid.position ?? record.position,
+          attachmentUrl: valid.attachmentUrl ?? null,
+          remark: valid.remark ?? null,
+          renewalCount: (record.renewalCount ?? 0) + 1,
+          status: 'active',
+        },
+      });
+      return renewed;
+    });
+  }
+
+  /**
+   * 合同终止/解除：将合同置为 terminated，写入终止日期与操作说明。
+   */
+  async terminateContract(id: number, dto: any) {
+    const record = await this.prisma.contract.findUnique({ where: { id } });
+    if (!record) throw new NotFoundException({ code: 9301, message: '合同不存在' });
+    if (record.status === 'terminated' || record.status === 'expired') {
+      throw new BadRequestException({ code: 9302, message: '该合同已终止或已过期，不可重复操作' });
+    }
+    const terminationDate = dto?.terminationDate ? new Date(dto.terminationDate) : new Date();
+    return this.prisma.contract.update({
+      where: { id },
+      data: {
+        status: 'terminated',
+        terminationDate,
+        terminatedBy: dto?.terminatedBy ?? null,
+        remark: dto?.remark ?? record.remark,
+      },
+    });
   }
 
   async deleteContract(id: number) {
@@ -1226,6 +1300,30 @@ export class EmployeeTxService {
     return `EMP${String(nextVal).padStart(4, '0')}`;
   }
 
+  /**
+   * 生成合同编号：CT-YYYY-XXXX（按自然年 + 4 位序列，跨年自动归零）。
+   */
+  private async getNextContractNo(): Promise<string> {
+    const year = new Date().getFullYear();
+    const seqName = `contract_no_${year}`;
+    return this.prisma.$transaction(async (tx) => {
+      let seq = await tx.sequence.findUnique({ where: { name: seqName } });
+      if (!seq) {
+        seq = await tx.sequence.create({
+          data: { name: seqName, currentValue: 0, step: 1, description: `合同编号序列（${year}）` },
+        });
+      }
+      await tx.$executeRaw`
+        UPDATE sequences
+        SET current_value = LAST_INSERT_ID(current_value + step)
+        WHERE name = ${seqName}
+      `;
+      const result: any = await tx.$queryRaw`SELECT LAST_INSERT_ID() as next_val`;
+      const nextVal = result[0]?.next_val ?? (seq.currentValue || 0) + seq.step;
+      return `CT-${year}-${String(nextVal).padStart(4, '0')}`;
+    });
+  }
+
   private async handleOnboardingApproved(instanceId: number) {
     const onboarding = await this.prisma.onboarding.findFirst({
       where: { approvalInstanceId: instanceId },
@@ -1423,6 +1521,16 @@ export class EmployeeTxService {
       if (transfer.toSalary && transfer.employee.salary && !transfer.toSalary.equals(transfer.employee.salary)) {
         const diff = transfer.toSalary.minus(transfer.employee.salary);
         const effectiveMonth = transfer.effectiveDate.toISOString().slice(0, 7);
+        // 薪资生效月留痕：调动生效月为生效日期所在月，供后续计薪按「生效月 ≤ 计薪月」取数
+        await tx.salaryAdjustment.create({
+          data: {
+            employeeId: transfer.employeeId,
+            amount: Number(transfer.toSalary),
+            effectiveMonth,
+            remark: `调动调薪（${transfer.type}）：从 ${transfer.employee.salary} 调整为 ${transfer.toSalary}`,
+            changedBy: 0,
+          },
+        });
         const run = await tx.payrollRun.findUnique({ where: { month: effectiveMonth } });
         if (run) {
           await tx.payrollAdjustment.create({
@@ -1645,9 +1753,10 @@ export class EmployeeTxService {
     dateFrom?: string;
     dateTo?: string;
     employeeId?: number;
+    departmentId?: number;
     userId: number;
   }) {
-    const { page = 1, pageSize = 20, keyword, type, dateFrom, dateTo, employeeId, userId } = params;
+    const { page = 1, pageSize = 20, keyword, type, dateFrom, dateTo, employeeId, departmentId, userId } = params;
 
     // 1) 数据范围：可见员工 id 集合
     const scope = await this.dataScope.visibleScope(userId);
@@ -1730,6 +1839,7 @@ export class EmployeeTxService {
           status: e.status,
           hireDate: e.hireDate,
           resignDate: e.resignDate,
+          departmentId: e.departmentId,
           department: e.department?.name ?? null,
           position: e.position?.name ?? null,
         })),
@@ -1738,6 +1848,7 @@ export class EmployeeTxService {
           employeeId: t.employeeId,
           employeeName: t.employee.name,
           employeeNo: t.employee.employeeNo,
+          departmentId: t.employee?.departmentId ?? undefined,
           type: t.type,
           effectiveDate: t.effectiveDate,
           fromText: placeText(t.fromDepartmentId, t.fromPositionId),
@@ -1749,12 +1860,71 @@ export class EmployeeTxService {
           employeeId: r.employeeId,
           employeeName: r.employee?.name ?? '',
           employeeNo: (r.employee?.employeeNo as string) ?? '',
+          departmentId: r.employee?.departmentId ?? undefined,
           resignDate: r.resignDate,
           reason: r.reason || undefined,
         })),
       },
-      { keyword, type, dateFrom, dateTo, employeeId, page, pageSize },
+      { keyword, type, dateFrom, dateTo, employeeId, departmentId, page, pageSize },
     );
+  }
+
+  /**
+   * 各事务类型的「待处理」数（draft + pending），供员工事务页签徽标一次性展示。
+   * 证书、培训为无流程状态的存档记录，恒为 0，不发查询。
+   */
+  async getPendingCounts(userId: number) {
+    const scope = await this.dataScope.visibleScope(userId);
+
+    // 预计算可见范围（与 applyEmployeeScope / applyDepartmentScope 保持一致）
+    let employeeIds: number[] | null = null; // null = 全可见
+    let departmentIds: number[] | null = null;
+    if (!scope.all) {
+      if (scope.ids.length > 0) {
+        const employees = await this.prisma.employee.findMany({
+          where: { departmentId: { in: scope.ids } },
+          select: { id: true },
+        });
+        employeeIds = employees.map((e) => e.id);
+        departmentIds = scope.ids;
+      } else {
+        employeeIds = scope.selfEmployeeId ? [scope.selfEmployeeId] : [];
+        departmentIds = [];
+      }
+    }
+
+    const empScope = (w: any): any => {
+      if (employeeIds !== null) w.employeeId = { in: employeeIds };
+      return w;
+    };
+    const deptScope = (w: any): any => {
+      if (departmentIds !== null) w.departmentId = { in: departmentIds };
+      return w;
+    };
+
+    const pending = { in: ['draft', 'pending'] };
+    const [onboardings, resignations, probations, contracts, appeals, rewards, transfers] = await Promise.all([
+      this.prisma.onboarding.count({ where: deptScope({ status: pending }) }),
+      this.prisma.resignation.count({ where: empScope({ status: pending }) }),
+      this.prisma.probation.count({ where: empScope({ status: pending }) }),
+      // ContractStatus 无 pending，仅按 draft 统计
+      this.prisma.contract.count({ where: empScope({ status: { in: ['draft'] } }) }),
+      this.prisma.attendanceAppeal.count({ where: empScope({ status: pending }) }),
+      this.prisma.employeeReward.count({ where: empScope({ status: pending }) }),
+      this.prisma.employeeTransfer.count({ where: empScope({ status: pending }) }),
+    ]);
+
+    return {
+      onboardings,
+      resignations,
+      probations,
+      contracts,
+      'attendance-appeals': appeals,
+      certificates: 0,
+      rewards,
+      trainings: 0,
+      transfers,
+    };
   }
 
   private async applyEmployeeScope(where: any, userId: number) {

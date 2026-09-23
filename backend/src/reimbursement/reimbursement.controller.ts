@@ -57,6 +57,54 @@ export class ReimbursementController {
     return { code: 0, data };
   }
 
+  // ===== 二级费用类型（对齐老项目 expense_types）=====
+  @Get('expense-types')
+  @RequirePermission('reimbursement:view')
+  async listExpenseTypes() {
+    const data = await this.reimbursementService.listExpenseTypes();
+    return { code: 0, data };
+  }
+
+  @Get('expense-types/all')
+  @RequirePermission('reimbursement:manage')
+  async listAllExpenseTypes() {
+    const data = await this.reimbursementService.listAllExpenseTypes();
+    return { code: 0, data };
+  }
+
+  @Post('expense-types')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async createExpenseType(@Body() body: any) {
+    const data = await this.reimbursementService.createExpenseType({
+      name: body.name,
+      unit: body.unit,
+      sortOrder: body.sortOrder,
+    });
+    return { code: 0, data };
+  }
+
+  @Put('expense-types/:id')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async updateExpenseType(@Param('id') id: string, @Body() body: any) {
+    const data = await this.reimbursementService.updateExpenseType(parseInt(id), {
+      name: body.name,
+      unit: body.unit,
+      sortOrder: body.sortOrder,
+      status: body.status,
+    });
+    return { code: 0, data };
+  }
+
+  @Delete('expense-types/:id')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:manage')
+  async removeExpenseType(@Param('id') id: string) {
+    const data = await this.reimbursementService.removeExpenseType(parseInt(id));
+    return { code: 0, data };
+  }
+
   @Post()
   @HttpCode(200)
   @RequirePermission('reimbursement:view')
@@ -65,9 +113,11 @@ export class ReimbursementController {
       userId: req.user.id,
       typeCode: body.typeCode,
       title: body.title,
-      description: body.description,
+      remark: body.remark ?? body.description,
       totalAmount: body.totalAmount,
+      status: body.status,
       items: body.items,
+      attachments: body.attachments,
     });
     return { code: 0, data };
   }
@@ -78,12 +128,14 @@ export class ReimbursementController {
     @Req() req: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize }, { defaultPageSize: 10 });
     const data = await this.reimbursementService.listMine(
       req.user.id,
       pageNum,
       pageSizeNum,
+      status,
     );
     return { code: 0, data };
   }
@@ -116,6 +168,22 @@ export class ReimbursementController {
   @RequirePermission('reimbursement:view')
   async submit(@Param('id') id: string, @Req() req: any) {
     const data = await this.reimbursementService.submit(Number(id), req.user.id);
+    return { code: 0, data };
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:view')
+  async cancel(@Param('id') id: string, @Req() req: any) {
+    const data = await this.reimbursementService.cancel(Number(id), req.user.id);
+    return { code: 0, data };
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:view')
+  async remove(@Param('id') id: string, @Req() req: any) {
+    const data = await this.reimbursementService.remove(Number(id), req.user.id);
     return { code: 0, data };
   }
 

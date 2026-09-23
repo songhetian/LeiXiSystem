@@ -28,13 +28,22 @@ import { parsePagination } from '../common/pagination.util';
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误').optional().or(z.literal('').transform(() => undefined));
 
 const createSchema = z.object({
-  employeeNo: employeeNoSchema,
+  // 工号可自动生成（对齐老项目）：不传则由服务端生成 EMP + 递增序号
+  employeeNo: employeeNoSchema.optional(),
   name: z.string().min(1, '姓名必填'),
   departmentId: z.number().int().positive(),
   positionId: z.number().int().positive().optional(),
   phone: phoneSchema,
   hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式错误'),
   salary: z.number().nonnegative('金额不能为负').optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  emergencyContact: z.string().max(50).optional(),
+  emergencyPhone: z.string().max(20).optional(),
+  address: z.string().max(200).optional(),
+  education: z.string().max(20).optional(),
+  skills: z.string().optional(),
+  remark: z.string().optional(),
+  tagIds: z.array(z.number().int().positive()).optional(),
 });
 
 const updateSchema = z.object({
@@ -43,6 +52,15 @@ const updateSchema = z.object({
   positionId: z.number().int().positive().nullable().optional(),
   phone: phoneSchema,
   salary: z.number().nonnegative().optional(),
+  effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/, '生效月份格式错误（YYYY-MM）').optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  emergencyContact: z.string().max(50).nullable().optional(),
+  emergencyPhone: z.string().max(20).nullable().optional(),
+  address: z.string().max(200).nullable().optional(),
+  education: z.string().max(20).nullable().optional(),
+  skills: z.string().nullable().optional(),
+  remark: z.string().nullable().optional(),
+  tagIds: z.array(z.number().int().positive()).optional(),
 });
 
 const updateMyProfileSchema = z.object({
@@ -99,7 +117,7 @@ export class EmployeesController {
 
   @Get()
   @RequirePermission('employee:view')
-  async list(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string, @Query('positionId') positionId?: string, @Query('status') status?: string) {
+  async list(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string, @Query('positionId') positionId?: string, @Query('status') status?: string, @Query('rating') rating?: string, @Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const result = await this.employeesService.list((req as any).user.id, {
       page: pageNum,
@@ -108,6 +126,9 @@ export class EmployeesController {
       departmentId,
       positionId,
       status,
+      rating,
+      dateFrom,
+      dateTo,
     });
     return { code: 0, message: 'ok', data: result };
   }
@@ -154,8 +175,16 @@ export class EmployeesController {
   @Post(':id/resign')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async resign(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
-    const employee = await this.employeesService.resign(id, (req as any).user.id);
+  async resign(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: FastifyRequest) {
+    const schema = z.object({
+      resignDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      reason: z.string().max(255).optional(),
+    });
+    const parsed = schema.safeParse(body ?? {});
+    if (!parsed.success) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+    }
+    const employee = await this.employeesService.resign(id, (req as any).user.id, parsed.data);
     return { code: 0, message: 'ok', data: employee };
   }
 
@@ -165,6 +194,42 @@ export class EmployeesController {
   async restore(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
     const employee = await this.employeesService.restore(id, (req as any).user.id);
     return { code: 0, message: 'ok', data: employee };
+  }
+
+  @Post('batch-update-status')
+  @HttpCode(200)
+  @RequirePermission('employee:manage')
+  async batchUpdateStatus(@Body() body: unknown, @Req() req: FastifyRequest) {
+    const schema = z.object({
+      ids: z.array(z.number().int().positive()).min(1, '请选择员工'),
+      status: z.enum(['active', 'resigned']),
+    });
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+    }
+    const result = await this.employeesService.batchUpdateStatus((req as any).user.id, parsed.data);
+    return { code: 0, message: 'ok', data: result };
+  }
+
+  @Post('batch-update')
+  @HttpCode(200)
+  @RequirePermission('employee:manage')
+  async batchUpdate(@Body() body: unknown, @Req() req: FastifyRequest) {
+    const schema = z.object({
+      ids: z.array(z.number().int().positive()).min(1, '请选择员工'),
+      data: z.object({
+        departmentId: z.number().int().positive().optional(),
+        positionId: z.number().int().positive().nullish(),
+        rating: z.number().int().min(1).max(5).optional(),
+      }),
+    });
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+    }
+    const result = await this.employeesService.batchUpdate((req as any).user.id, parsed.data);
+    return { code: 0, message: 'ok', data: result };
   }
 
   @Get('export')

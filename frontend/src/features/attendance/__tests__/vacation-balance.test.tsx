@@ -15,7 +15,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-content">{children}</div>
     </div>
   ),
@@ -92,9 +92,9 @@ describe('VacationBalancePage', () => {
     });
   });
 
-  it('renders PageContainer with title 休假额度', () => {
+  it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
     render(<VacationBalancePage />);
-    expect(screen.getByTestId('page-title')).toHaveTextContent('休假额度');
+    expect(screen.queryByTestId('page-title')).toBeNull();
   });
 
   it('loads balances on mount', async () => {

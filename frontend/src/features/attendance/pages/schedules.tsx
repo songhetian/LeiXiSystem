@@ -1,80 +1,63 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Message, Modal, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { attendanceApi, Schedule, Shift, ScheduleCreateDto } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
+import { toDateOnly } from '@/lib/leave-days';
+
+interface ScheduleListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: Schedule[]; page: number; pageSize: number; total: number };
+}
 
 export default function SchedulesPage() {
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Schedule[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
-  const [shifts, setShifts] = useState<Shift[]>([]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
 
-  const fetchList = async (page = 1, pageSize = 20, params: Record<string, any> = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await attendanceApi.getScheduleList({ page, pageSize, ...params });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list);
-        setPagination({
-          current: res.data.page,
-          pageSize: res.data.pageSize,
-          total: res.data.total,
-        });
-      } else {
-        setError(res.message || '获取排班列表失败');
-        Message.error(res.message || '获取排班列表失败');
-      }
-    } catch (e: any) {
-      setError(e?.message || '获取排班列表失败');
-      notifyError(e, '获取排班列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // SWR 缓存：参数编入 cacheKey，搜索/翻页即重新订阅；同参数复用缓存
+  const cacheKey = `attendance:schedules:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
+  const { data: res, loading, error, revalidate } = useCachedData<ScheduleListEnvelope>(
+    cacheKey,
+    () => attendanceApi.getScheduleList({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? { current: res.data.page, pageSize: res.data.pageSize, total: res.data.total }
+    : pagination;
 
-  const fetchShifts = async () => {
-    try {
-      const res = await attendanceApi.getShiftList();
-      if (res.code === 0 && res.data) {
-        setShifts(res.data.list);
-      }
-    } catch (e) {
-      // ignore
-    }
-  };
-
-  useEffect(() => {
-    fetchShifts();
-    fetchList(1, 20, searchParams);
-  }, []);
+  // 班次下拉参考数据：共享缓存，跨组件去重
+  const { data: shiftsRes } = useCachedData<{ code: number; data?: { list: Shift[] } }>(
+    'attendance:shifts',
+    () => attendanceApi.getShiftList(),
+    { staleTime: 60_000 },
+  );
+  const shifts = shiftsRes?.code === 0 && shiftsRes.data ? shiftsRes.data.list : [];
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
-    fetchList(1, pagination.pageSize, values);
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handleReset = () => {
     setSearchParams({});
-    fetchList(1, pagination.pageSize, {});
+    setPagination((p) => ({ ...p, current: 1 }));
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    fetchList(page, pageSize, searchParams);
+    setPagination({ ...pageResult, current: page, pageSize });
   };
 
   const handleAdd = () => {
@@ -96,7 +79,7 @@ export default function SchedulesPage() {
           const res = await attendanceApi.deleteSchedule(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList(pagination.current, pagination.pageSize, searchParams);
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -113,7 +96,8 @@ export default function SchedulesPage() {
       const dto: ScheduleCreateDto = {
         employeeId: Number(values.employeeId),
         shiftId: Number(values.shiftId),
-        workDate: values.workDate,
+        // 后端 workDate 仅接受 YYYY-MM-DD，编辑回填的可能带 datetime 串，需归一化
+        workDate: toDateOnly(String(values.workDate ?? '')),
       };
       let res;
       if (editingSchedule) {
@@ -124,7 +108,7 @@ export default function SchedulesPage() {
       if (res.code === 0) {
         Message.success(editingSchedule ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList(pagination.current, pagination.pageSize, searchParams);
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -204,19 +188,19 @@ export default function SchedulesPage() {
   ];
 
   return (
-    <PageContainer title="排班管理">
+    <PageContainer >
       <ProTable
         columns={columns}
         data={data}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchList(pagination.current, pagination.pageSize, searchParams)}
+        onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}
         toolbar={toolbar}
-        pagination={pagination}
+        pagination={pageResult}
         onPageChange={handlePageChange}
       />
       <ModalForm

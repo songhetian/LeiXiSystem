@@ -25,6 +25,7 @@ import {
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
 import { exportToExcel } from '@/lib/excel';
+import { formatDate, todayStr } from '@/lib/format';
 
 interface ExceptionFilters {
   status: string;
@@ -41,9 +42,8 @@ function exceptionStatusLabel(status?: string): string {
 }
 
 /** 日期字段格式化：workDate 可能是 Date 序列化后的字符串 */
-function formatDate(d?: string | null): string {
-  if (!d) return '--';
-  return String(d).slice(0, 10);
+function fmtDate(d?: string | null): string {
+  return formatDate(d, 'YYYY-MM-DD', '--');
 }
 
 export default function ExceptionRulesPage() {
@@ -306,12 +306,12 @@ export default function ExceptionRulesPage() {
   // ================= 导出 =================
   const handleExportExceptions = () => {
     if (!exportToExcel(
-      `考勤异常记录_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `考勤异常记录_${todayStr()}.xlsx`,
       '异常记录',
       [
         { title: '记录ID', dataIndex: 'id' },
         { title: '员工ID', dataIndex: 'employeeId' },
-        { title: '工作日期', value: (r: ExceptionRecord) => formatDate(r.workDate) },
+        { title: '工作日期', value: (r: ExceptionRecord) => fmtDate(r.workDate) },
         { title: '异常类型', dataIndex: 'type' },
         { title: '异常描述', dataIndex: 'description' },
         { title: '状态', value: (r: ExceptionRecord) => exceptionStatusLabel(r.status) },
@@ -327,7 +327,7 @@ export default function ExceptionRulesPage() {
 
   const handleExportRules = () => {
     if (!exportToExcel(
-      `异常规则_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `异常规则_${todayStr()}.xlsx`,
       '异常规则',
       [
         { title: '规则名称', dataIndex: 'name' },
@@ -347,7 +347,7 @@ export default function ExceptionRulesPage() {
   // ================= 异常记录表格列 =================
   const exceptionColumns: TableColumnProps[] = [
     { title: '员工ID', dataIndex: 'employeeId', width: 90 },
-    { title: '工作日期', dataIndex: 'workDate', width: 120, render: (v) => formatDate(v) },
+    { title: '工作日期', dataIndex: 'workDate', width: 120, render: (v) => fmtDate(v) },
     { title: '异常类型', dataIndex: 'type', width: 130 },
     { title: '异常描述', dataIndex: 'description', ellipsis: true },
     {
@@ -515,7 +515,7 @@ export default function ExceptionRulesPage() {
   ];
 
   return (
-    <PageContainer title="考勤异常">
+    <PageContainer >
       <Tabs defaultActiveTab="exceptions" type="rounded" destroyOnHide>
         {/* -------- 异常记录 -------- */}
         <Tabs.TabPane key="exceptions" title={`异常记录 (${exceptionTotal})`}>

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import ShiftsPage from '@/features/attendance/pages/shifts';
 import { attendanceApi } from '@/services/attendance';
 import { useAuthStore } from '@/store/auth';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -19,14 +20,14 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
   ),
 }));
 
-jest.mock('@/components/ProTable', () => ({
+jest.mock('@arco-design/web-react', () => ({
   __esModule: true,
   default: ({ columns, data, rowKey, loading, searchFields, toolbar, pagination, onSearch, onRowClick }: any) => (
     <div data-testid="pro-table" data-loading={loading}>
@@ -136,6 +137,7 @@ const mockShifts = [
 
 describe('ShiftsPage', () => {
   beforeEach(() => {
+    clearDataCache();
     jest.clearAllMocks();
     mockUseAuthStore.mockReturnValue({
       user: { id: 1, username: 'admin', name: '管理员', permissions: ['attendance:view', 'attendance:manage'] },
@@ -158,9 +160,9 @@ describe('ShiftsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 班次管理', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<ShiftsPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('班次管理');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('fetches shift list on mount', async () => {

@@ -171,6 +171,8 @@ enum EmployeeStatus {
 model Department {
   id                  Int                   @id @default(autoincrement())
   name                String                @map("name") @db.VarChar(50)
+  description         String?               @map("description") @db.VarChar(255)
+  status              String                @default("active") @map("status") @db.VarChar(20)
   parentId            Int?                  @map("parent_id")
   parent              Department?           @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: SetNull)
   children            Department[]          @relation("DepartmentTree")
@@ -242,6 +244,8 @@ model Employee {
   trainingRecords      TrainingRecord[]
   transfers            EmployeeTransfer[]
   changeLogs           EmployeeChangeLog[]
+  tagRelations         EmployeeTagRelation[]
+  salaryAdjustments    SalaryAdjustment[]
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @updatedAt @map("updated_at")
 
@@ -292,6 +296,7 @@ model Shift {
   earlyThreshold      Int                @default(0) @map("early_threshold")
   useGlobalThreshold  Boolean            @default(true) @map("use_global_threshold")
   color               String             @default("#3B82F6") @map("color") @db.VarChar(7)
+  isRest              Boolean            @default(false) @map("is_rest")
   departmentId        Int?               @map("department_id")
   department          Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   description         String?            @map("description") @db.VarChar(200)
@@ -736,6 +741,22 @@ model PayrollAdjustment {
   @@map("payroll_adjustments")
 }
 
+/// 薪资调整留痕：每次改薪写一条，带生效月（YYYY-MM）。
+/// 计薪时取「生效月 ≤ 计薪月」的最新一条作为该月基础工资。
+model SalaryAdjustment {
+  id            Int      @id @default(autoincrement())
+  employeeId    Int      @map("employee_id")
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  amount        Decimal  @map("amount") @db.Decimal(10, 2)
+  effectiveMonth String   @map("effective_month") @db.VarChar(7)
+  remark        String?  @map("remark") @db.VarChar(255)
+  changedBy     Int      @map("changed_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, effectiveMonth])
+  @@map("salary_adjustments")
+}
+
 // ===== S11 · 工资条自助 + 通知 =====
 
 enum PayslipStatus {
@@ -781,6 +802,7 @@ model KnowledgeArticle {
   categoryId   Int                    @map("category_id")
   category     KnowledgeCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   title        String                 @db.VarChar(200)
+  summary      String?                @db.Text
   content      String?                @db.Text
   viewCount    Int                    @default(0) @map("view_count")
   status       String                 @default("published") @db.VarChar(20)
@@ -1121,8 +1143,24 @@ model ReimbursementType {
   @@map("reimbursement_types")
 }
 
+// 二级费用明细类型（对齐老项目 expense_types，如「市内交通费/招待餐费」）
+model ExpenseType {
+  id          Int             @id @default(autoincrement())
+  name        String          @db.VarChar(100)
+  unit        String?         @map("unit") @db.VarChar(50)
+  sortOrder   Int             @default(0) @map("sort_order")
+  status      String          @default("active") @db.VarChar(20)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("expense_types")
+}
+
 model Reimbursement {
   id                Int                @id @default(autoincrement())
+  // 报销单号：新增报销自动生成（BX+时间戳+随机）；旧数据可为 NULL，兼容已有行
+  reimbursementNo   String?            @unique @map("reimbursement_no") @db.VarChar(32)
   typeId            Int                @map("type_id")
   type              ReimbursementType  @relation(fields: [typeId], references: [id])
   typeCode          String             @map("type_code") @db.VarChar(50)
@@ -1135,6 +1173,7 @@ model Reimbursement {
   status            ReimbursementStatus @default(draft)
   approvalInstanceId Int?              @map("approval_instance_id")
   items             ReimbursementItem[]
+  attachments       ReimbursementAttachment[]
   payment           ReimbursementPayment?
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
@@ -1146,11 +1185,27 @@ model Reimbursement {
   @@map("reimbursements")
 }
 
+model ReimbursementAttachment {
+  id              Int           @id @default(autoincrement())
+  reimbursementId Int           @map("reimbursement_id")
+  reimbursement   Reimbursement @relation(fields: [reimbursementId], references: [id], onDelete: Cascade)
+  fileName        String        @map("file_name") @db.VarChar(255)
+  fileUrl         String        @map("file_url") @db.VarChar(500)
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([reimbursementId])
+  @@map("reimbursement_attachments")
+}
+
 model ReimbursementItem {
   id              Int           @id @default(autoincrement())
   reimbursementId Int           @map("reimbursement_id")
   reimbursement   Reimbursement @relation(fields: [reimbursementId], references: [id], onDelete: Cascade)
   name            String        @db.VarChar(200)
+  // 费用类型（二级费用类型名称，对齐老项目 item_type）；旧数据可为 NULL
+  itemType        String?       @map("item_type") @db.VarChar(100)
+  expenseDate     DateTime?     @map("expense_date") @db.Date
+  attachmentUrl   String?       @map("attachment_url") @db.VarChar(500)
   description     String?       @db.VarChar(500)
   amount          Decimal       @db.Decimal(12, 2)
   createdAt       DateTime      @default(now()) @map("created_at")
@@ -1329,6 +1384,9 @@ model Contract {
   terminationDate DateTime?      @map("termination_date") @db.Date
   salary          Decimal        @default(0) @map("salary") @db.Decimal(10, 2)
   position        String?        @map("position") @db.VarChar(100)
+  attachmentUrl   String?        @map("attachment_url") @db.VarChar(500)
+  renewalCount    Int            @default(0) @map("renewal_count")
+  terminatedBy    String?        @map("terminated_by") @db.VarChar(100)
   status          ContractStatus @default(active)
   remark          String?        @map("remark") @db.Text
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -1825,7 +1883,19 @@ model EmployeeTag {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  employees EmployeeTagRelation[]
+
   @@map("employee_tags")
+}
+
+model EmployeeTagRelation {
+  employeeId Int
+  tagId      Int
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tag        EmployeeTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, tagId])
+  @@map("employee_tag_relations")
 }
 
 // ===== 打卡定位（attendance-location） =====

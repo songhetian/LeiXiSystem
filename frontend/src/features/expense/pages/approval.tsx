@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Message,
@@ -17,7 +17,7 @@ import {
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
-import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'gray' },
@@ -27,11 +27,14 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   rejected: { label: '已驳回', color: 'red' },
 };
 
+interface ApprovalListEnvelope {
+  code: number;
+  message?: string;
+  data?: { list: Reimbursement[]; page?: number; pageSize?: number; total?: number };
+}
+
 export default function ExpenseApprovalPage() {
-  const { can } = usePermission();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<Reimbursement[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
   const [detailVisible, setDetailVisible] = useState(false);
@@ -42,28 +45,25 @@ export default function ExpenseApprovalPage() {
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchList = async (page = 1, pageSize = 20) => {
-    setLoading(true);
-    try {
-      const res = await reimbursementApi.getPendingApprovals({ page, pageSize });
-      if (res.code === 0 && res.data) {
-        setData(res.data.list || []);
-        setPagination({
-          current: res.data.page || 1,
-          pageSize: res.data.pageSize || 20,
-          total: res.data.total || 0,
-        });
+  // SWR 缓存：参数编入 cacheKey，翻页即重新订阅；同参数复用缓存
+  const cacheKey = `expense:approvals:${pagination.current}:${pagination.pageSize}`;
+  const { data: res, loading, revalidate } = useCachedData<ApprovalListEnvelope>(
+    cacheKey,
+    () => reimbursementApi.getPendingApprovals({ page: pagination.current, pageSize: pagination.pageSize }),
+    { staleTime: 30_000 },
+  );
+  const data = res?.code === 0 && res.data ? res.data.list : [];
+  const pageResult = res?.code === 0 && res.data
+    ? {
+        current: res.data.page || 1,
+        pageSize: res.data.pageSize || 20,
+        total: res.data.total || 0,
       }
-    } catch (e) {
-      Message.error('获取待审批列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+    : pagination;
 
-  useEffect(() => {
-    fetchList();
-  }, []);
+  const handlePageChange = (page: number, pageSize: number) => {
+    setPagination({ ...pageResult, current: page, pageSize });
+  };
 
   const openDetail = async (item: Reimbursement) => {
     setDetailVisible(true);
@@ -94,7 +94,7 @@ export default function ExpenseApprovalPage() {
         Message.success(actionType === 'approve' ? '已通过' : '已驳回');
         setActionType(null);
         setDetailVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -168,19 +168,20 @@ export default function ExpenseApprovalPage() {
   ];
 
   return (
-    <PageContainer title="报销审批">
+    <PageContainer >
       <Card className="rounded-md">
         <Table
           loading={loading}
           columns={columns as any}
           data={data}
+          scroll={{ x: true }}
           pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
+            current: pageResult.current,
+            pageSize: pageResult.pageSize,
+            total: pageResult.total,
             showTotal: true,
             sizeCanChange: true,
-            onChange: (page, pageSize) => fetchList(page, pageSize),
+            onChange: handlePageChange,
           }}
         />
       </Card>
@@ -251,7 +252,7 @@ export default function ExpenseApprovalPage() {
                       {currentItem.items.map((item, idx) => (
                         <tr key={idx} className="border-b border-border-2">
                           <td className="p-2">{item.description || '-'}</td>
-                          <td className="p-2">{item.date || '-'}</td>
+                          <td className="p-2">{item.expenseDate || '-'}</td>
                           <td className="p-2 text-right">¥{item.amount?.toFixed(2)}</td>
                         </tr>
                       ))}

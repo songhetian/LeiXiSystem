@@ -118,7 +118,8 @@ export interface Workflow {
 }
 
 export interface WorkflowCreateDto {
-  code: string;
+  /** 流程编码：可留空，由后端自动生成 */
+  code?: string;
   name: string;
   module: string;
   status?: string;
@@ -170,7 +171,8 @@ export interface ApprovalGroup {
 
 export interface GroupCreateDto {
   name: string;
-  code: string;
+  /** 组编码：可留空，由后端自动生成 */
+  code?: string;
   description?: string;
   memberIds?: number[];
 }

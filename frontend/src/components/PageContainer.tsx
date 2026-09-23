@@ -5,7 +5,7 @@ import { Typography, Breadcrumb } from '@arco-design/web-react';
 const Title = Typography.Title;
 
 export interface PageContainerProps {
-  title: string;
+  title?: string;
   subTitle?: string;
   breadcrumbs?: string[];
   action?: React.ReactNode;
@@ -34,15 +34,20 @@ export default function PageContainer({
           </Breadcrumb>
         </div>
       )}
-      <div className="page-header">
-        <div className="page-title-wrap">
-          <Title heading={3} style={{ margin: 0, fontWeight: 500, fontSize: 18, letterSpacing: '-0.01em', color: '#1d2129' }}>
-            {title}
-          </Title>
-          {subTitle && <div className="page-subtitle">{subTitle}</div>}
+      {/* 顶部已有全局面包屑时，可省略页面大标题（title 缺省则隐藏头部） */}
+      {title || subTitle || action ? (
+        <div className="page-header">
+          <div className="page-title-wrap">
+            {title && (
+              <Title heading={3} style={{ margin: 0, fontWeight: 500, fontSize: 18, letterSpacing: '-0.01em', color: '#1d2129' }}>
+                {title}
+              </Title>
+            )}
+            {subTitle && <div className="page-subtitle">{subTitle}</div>}
+          </div>
+          {action && <div className="page-action">{action}</div>}
         </div>
-        {action && <div className="page-action">{action}</div>}
-      </div>
+      ) : null}
 
       {extra && <div className="page-extra">{extra}</div>}
 

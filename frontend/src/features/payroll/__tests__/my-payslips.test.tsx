@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import MyPayslipsPage from '@/features/payroll/pages/my-payslips';
 import { payslipApi } from '@/services/payslip';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/payslip', () => ({
   payslipApi: {
@@ -17,7 +18,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-action">{action}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -128,6 +129,7 @@ const mockPayslipDetail = {
 
 describe('MyPayslipsPage', () => {
   beforeEach(() => {
+    clearDataCache();
     jest.clearAllMocks();
     (payslipApi.getMyPayslips as jest.Mock).mockResolvedValue({
       code: 0,
@@ -152,9 +154,9 @@ describe('MyPayslipsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('renders PageContainer with title 我的工资条', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
       render(<MyPayslipsPage />);
-      expect(screen.getByTestId('page-title')).toHaveTextContent('我的工资条');
+      expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
     it('renders ProTable with payslip columns', async () => {

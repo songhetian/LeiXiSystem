@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "ts-node --transpile-only src/main.ts",
+    "dev": "node --watch --require ts-node/register src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "test": "jest --runInBand",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
     "@fastify/helmet": "^11.0.0",
+    "@fastify/multipart": "^8.0.0",
     "@fastify/static": "^7.0.0",
     "@fastify/swagger": "^9.8.1",
     "@lei/shared": "workspace:*",
@@ -32,6 +33,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^10.4.22",
     "@prisma/client": "^6.19.3",
+    "ali-oss": "^6.23.0",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",

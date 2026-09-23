@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import SettingsPage from '@/features/system/pages/settings';
 import { settingsApi } from '@/services/settings';
 import { useAuthStore } from '@/store/auth';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/settings', () => ({
   settingsApi: {
@@ -22,7 +23,7 @@ jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
   default: ({ title, extra, children }: any) => (
     <div data-testid="page-container">
-      <h2 data-testid="page-title">{title}</h2>
+      {title && <h2 data-testid="page-title">{title}</h2>}
       <div data-testid="page-extra">{extra}</div>
       <div data-testid="page-content">{children}</div>
     </div>
@@ -70,6 +71,7 @@ const mockSettings = [
 describe('SettingsPage · 按钮级权限（T26）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (settingsApi.list as jest.Mock).mockResolvedValue({ code: 0, data: mockSettings });
   });
 

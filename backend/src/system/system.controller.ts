@@ -337,15 +337,15 @@ export class SystemController {
   @Get('departments')
   @HttpCode(200)
   @RequirePermission('department:manage')
-  async listDepartments() {
-    const data = await this.systemUserService.listDepartments();
+  async listDepartments(@Query('includeDeleted') includeDeleted?: string) {
+    const data = await this.systemUserService.listDepartments(includeDeleted === 'true');
     return { code: 0, data };
   }
 
   @Post('departments')
   @HttpCode(200)
   @RequirePermission('department:manage')
-  async createDepartment(@Body() body: { name: string; parentId?: number; managerId?: number }) {
+  async createDepartment(@Body() body: { name: string; parentId?: number; managerId?: number; description?: string; status?: string }) {
     const data = await this.systemUserService.createDepartment(body);
     return { code: 0, data };
   }
@@ -355,7 +355,13 @@ export class SystemController {
   @RequirePermission('department:manage')
   async updateDepartment(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { name?: string; parentId?: number | null; managerId?: number | null },
+    @Body() body: {
+      name?: string;
+      parentId?: number | null;
+      managerId?: number | null;
+      description?: string;
+      status?: string;
+    },
   ) {
     const data = await this.systemUserService.updateDepartment(id, body);
     return { code: 0, data };

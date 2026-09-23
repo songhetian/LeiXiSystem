@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Message, Modal, Button, Select, Input, Spin } from '@arco-design/web-react';
+import { useState } from 'react';
+import { Message, Modal, Button, Spin } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import SearchForm, { SearchFieldConfig } from '@/components/SearchForm';
 import { attendanceApi, Shift, ShiftCreateDto, ShiftUpdateDto } from '@/services/attendance';
-import { systemApi, type SysDepartment } from '@/services/system';
+import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import ShiftForm, { ShiftFormValues } from './ShiftForm';
 import { exportToExcel } from '@/lib/excel';
-import { notifyError } from '@/lib/request';
+import { todayStr } from '@/lib/format';
+
+const EMPTY_SHIFTS: Shift[] = [];
 
 /** 鲜艳色系推荐（与旧项目保持一致，供随机取色） */
 const VIBRANT_COLORS = [
@@ -27,25 +31,23 @@ interface Filters {
 export default function ShiftsPage() {
   const { can } = usePermission();
   const canManage = can('attendance:manage');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<Shift[]>([]);
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
+  const { departments } = useDepartments();
   const [filters, setFilters] = useState<Filters>({ departmentId: '', status: '', keyword: '' });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
 
-  const fetchList = useCallback(async (activeFilters = filters) => {
-    setLoading(true);
-    setError(null);
-    try {
+  // 班次列表：筛选条件编入缓存键，变化即重新获取
+  const cacheKey = `attendance:shifts:${filters.departmentId}:${filters.status}:${filters.keyword}`;
+  const { data: resData, loading, error, revalidate } = useCachedData<Shift[]>(
+    cacheKey,
+    async () => {
       const params: any = {};
-      if (activeFilters.departmentId === 'global') params.departmentId = '';
-      else if (activeFilters.departmentId) params.departmentId = Number(activeFilters.departmentId);
-      if (activeFilters.status !== '') params.isActive = activeFilters.status === 'active';
-      if (activeFilters.keyword) params.keyword = activeFilters.keyword;
+      if (filters.departmentId === 'global') params.departmentId = '';
+      else if (filters.departmentId) params.departmentId = Number(filters.departmentId);
+      if (filters.status !== '') params.isActive = filters.status === 'active';
+      if (filters.keyword) params.keyword = filters.keyword;
       const res: any = await attendanceApi.getShiftList();
       let list = (res.data?.list ?? res?.list ?? []) as Shift[];
       // 服务端若未支持筛选，则本地兜底过滤
@@ -60,45 +62,48 @@ export default function ShiftsPage() {
         const kw = String(params.keyword).toLowerCase();
         list = list.filter((s) => s.name.toLowerCase().includes(kw));
       }
-      setData(list);
-    } catch (e: any) {
-      setError(e?.message || '获取班次列表失败');
-      notifyError(e, '获取班次列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return list;
+    },
+    { staleTime: 30_000 },
+  );
+  const data = resData ?? EMPTY_SHIFTS;
 
-  useEffect(() => {
-    fetchList();
-  }, []);
-
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await systemApi.listDepartments();
-      if (res.code === 0 && res.data) setDepartments(res.data);
-    } catch {
-      // 忽略部门加载失败
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDepartments();
-  }, [fetchDepartments]);
-
-  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
-    setFilters((prev) => {
-      const next = { ...prev, [key]: value };
-      fetchList(next);
-      return next;
+  const handleSearch = (values: Record<string, any>) => {
+    setFilters({
+      departmentId: String(values.departmentId ?? ''),
+      status: String(values.status ?? ''),
+      keyword: String(values.keyword ?? ''),
     });
-  }, [fetchList]);
+  };
 
-  const handleReset = useCallback(() => {
-    const empty: Filters = { departmentId: '', status: '', keyword: '' };
-    setFilters(empty);
-    fetchList(empty);
-  }, [fetchList]);
+  const handleReset = () => {
+    setFilters({ departmentId: '', status: '', keyword: '' });
+  };
+
+  // 筛选字段（部门选项经 useDepartments 异步加载，内联构建以随数据刷新）
+  const searchFields: SearchFieldConfig[] = [
+    {
+      key: 'departmentId',
+      label: '所属部门',
+      type: 'select',
+      placeholder: '全部部门',
+      options: [
+        { value: 'global', label: '全公司通用' },
+        ...departments.map((d) => ({ value: String(d.id), label: d.name })),
+      ],
+    },
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      placeholder: '全部状态',
+      options: [
+        { value: 'active', label: '启用中' },
+        { value: 'disabled', label: '已禁用' },
+      ],
+    },
+    { key: 'keyword', label: '搜索', type: 'input', placeholder: '班次名称' },
+  ];
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -118,7 +123,7 @@ export default function ShiftsPage() {
       const res = await attendanceApi.updateShift(record.id, { isActive: !record.isActive });
       if (res.code === 0) {
         Message.success(record.isActive ? '已禁用该班次' : '已启用该班次');
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -136,7 +141,7 @@ export default function ShiftsPage() {
           const res = await attendanceApi.deleteShift(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchList();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -173,7 +178,7 @@ export default function ShiftsPage() {
       if (res.code === 0) {
         Message.success(editingShift ? '修改成功' : '创建成功');
         setModalVisible(false);
-        fetchList();
+        revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -192,7 +197,7 @@ export default function ShiftsPage() {
   // 导出当前（筛选后的）班次数据
   const handleExport = () => {
     if (!exportToExcel(
-      `班次管理_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `班次管理_${todayStr()}.xlsx`,
       '班次',
       [
         { title: '班次名称', dataIndex: 'name' },
@@ -217,52 +222,14 @@ export default function ShiftsPage() {
   const filteredCount = data.length;
 
   return (
-    <PageContainer title="班次管理">
-      {/* 筛选栏 */}
-      <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">所属部门</label>
-            <Select
-              value={filters.departmentId}
-              onChange={(v) => handleFilterChange('departmentId', String(v))}
-              style={{ width: '100%' }}
-              placeholder="全部部门"
-              allowClear
-            >
-              <Select.Option value="global">全公司通用</Select.Option>
-              {departments.map((d) => (
-                <Select.Option key={d.id} value={String(d.id)}>{d.name}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">状态</label>
-            <Select
-              value={filters.status}
-              onChange={(v) => handleFilterChange('status', String(v))}
-              style={{ width: '100%' }}
-              placeholder="全部状态"
-            >
-              <Select.Option value="active">启用中</Select.Option>
-              <Select.Option value="disabled">已禁用</Select.Option>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">搜索</label>
-            <Input
-              value={filters.keyword}
-              onChange={(v) => handleFilterChange('keyword', v)}
-              placeholder="班次名称"
-              allowClear
-              style={{ width: '100%' }}
-            />
-          </div>
-          <div className="flex items-end">
-            <Button style={{ width: '100%' }} onClick={handleReset}>重置筛选</Button>
-          </div>
-        </div>
-      </div>
+    <PageContainer >
+      {/* 筛选栏：Pro 标准 SearchForm（部门/状态/搜索），提交与重置驱动列表刷新 */}
+      <SearchForm
+        fields={searchFields}
+        initialValues={filters}
+        onSearch={handleSearch}
+        onReset={handleReset}
+      />
 
       {/* 工具栏 */}
       <div className="flex items-center justify-between mb-4">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, Tabs, Form, Input, Button, Message, Descriptions, Avatar } from '@arco-design/web-react';
@@ -61,7 +61,7 @@ export default function ProfilePage() {
   };
 
   return (
-      <PageContainer title="个人设置">
+      <PageContainer >
         <Tabs defaultActiveTab="profile">
           <Tabs.TabPane key="profile" title="个人信息">
             <Card loading={loading}>

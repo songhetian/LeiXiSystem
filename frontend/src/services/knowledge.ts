@@ -92,6 +92,13 @@ export interface ListResult<T> {
   };
 }
 
+/** 分类列表后端直接返回数组（非分页包裹），与文章列表结构不同 */
+export interface CategoryListResult {
+  code: number;
+  message?: string;
+  data?: KnowledgeCategory[];
+}
+
 export interface DetailResult<T> {
   code: number;
   message?: string;
@@ -99,7 +106,7 @@ export interface DetailResult<T> {
 }
 
 export const knowledgeApi = {
-  getCategories(params: CategoryListParams = {}): Promise<ListResult<KnowledgeCategory>> {
+  getCategories(params: CategoryListParams = {}): Promise<CategoryListResult> {
     return request.get('/knowledge/categories', { params });
   },
 
@@ -113,6 +120,11 @@ export const knowledgeApi = {
 
   deleteCategory(id: number): Promise<DetailResult<any>> {
     return request.delete(`/knowledge/categories/${id}`);
+  },
+
+  /** 拖拽排序：按 ids 顺序（从 0 递增）批量更新分类 sortOrder */
+  reorderCategories(ids: number[]): Promise<DetailResult<any>> {
+    return request.put('/knowledge/categories/reorder', { ids });
   },
 
   getArticles(params: ArticleListParams = {}): Promise<ListResult<KnowledgeArticle>> {
@@ -148,6 +160,20 @@ export const knowledgeApi = {
 
   deleteAttachment(articleId: number, attId: number): Promise<DetailResult<any>> {
     return request.delete(`/knowledge/articles/${articleId}/attachments/${attId}`);
+  },
+
+  /** 上传附件（multipart），onProgress 回调用于进度条展示（percent/loaded/total） */
+  uploadAttachment(
+    articleId: number,
+    file: File,
+    onProgress?: (e: { percent?: number; loaded: number; total?: number }) => void,
+  ): Promise<DetailResult<KnowledgeAttachment>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request.post(`/knowledge/articles/${articleId}/attachments/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress,
+    });
   },
 
   getPreviewUrl(attachmentId: number): Promise<DetailResult<PreviewUrlResult>> {

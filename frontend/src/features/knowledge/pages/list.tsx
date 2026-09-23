@@ -1,19 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Message, Modal, Descriptions, Tag, Divider, List, Button, Tree, Input, Empty, Spin, Badge } from '@arco-design/web-react';
-import { IconEye, IconSearch } from '@arco-design/web-react/icon';
+import { useState } from 'react';
+import {
+  Message,
+  Modal,
+  Tag,
+  Divider,
+  Button,
+  Input,
+  Empty,
+  Spin,
+  List,
+  Typography,
+} from '@arco-design/web-react';
+import { IconFolder, IconFile, IconLeft, IconSearch, IconEye } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
-import { notifyError } from '@/lib/request';
 import { knowledgeApi, KnowledgeArticle, KnowledgeCategory, KnowledgeAttachment } from '@/services/knowledge';
 import { sanitizeHtml } from '@/lib/sanitize';
-import { getKnowledgeView, CategoryTreeNode } from '../view';
+import { getKnowledgeFolders, getFolderArticles, FOLDER_UNCAT } from '../view';
 import FilePreviewModal, { PreviewFile } from '../components/FilePreviewModal';
+import { useCachedData } from '@/hooks/use-cached-data';
 
-const PAGE_SIZE = 20;
+/** 空回退引用（保持稳定，避免每次渲染生成新数组触发依赖 effect 死循环） */
+const EMPTY_CATEGORIES: KnowledgeCategory[] = [];
+const EMPTY_ARTICLES: KnowledgeArticle[] = [];
+
+const { Text } = Typography;
 
 /** 从 preview-url 返回的前端路由中提取预览 token，用于下载附件 blob */
-async function fetchAttachmentBlob(attachmentId: number): Promise<{ url: string; name: string; mimeType: string }> {
+async function fetchAttachmentBlob(attachmentId: number): Promise<{ blob: Blob; url: string; name: string; mimeType: string }> {
   const previewResult = await knowledgeApi.getPreviewUrl(attachmentId);
   if (previewResult.code !== 0 || !previewResult.data) {
     throw new Error(previewResult.message || '获取预览地址失败');
@@ -33,22 +48,23 @@ async function fetchAttachmentBlob(attachmentId: number): Promise<{ url: string;
       }
     }
   }
+  const blob = await res.blob();
   return {
-    url: URL.createObjectURL(await res.blob()),
+    blob,
+    url: URL.createObjectURL(blob),
     name,
     mimeType: res.headers.get('content-type') ?? '',
   };
 }
 
+/**
+ * 知识库浏览页：对齐旧项目的「文件夹/卡片」体验 ——
+ * 根视图展示分类文件夹卡片，点进分类后展示文章卡片网格，点开文章在预览弹窗查看正文与附件。
+ */
 export default function KnowledgeListPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [allArticles, setAllArticles] = useState<KnowledgeArticle[]>([]);
-  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
-  const [nodes, setNodes] = useState<CategoryTreeNode[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
+  // 当前所在文件夹：null=根视图；'uncat'=未分类；数字字符串=分类 id
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
-  const [page, setPage] = useState(1);
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -58,60 +74,46 @@ export default function KnowledgeListPage() {
   const [preview, setPreview] = useState<PreviewFile | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [catResult, artResult] = await Promise.all([
-        knowledgeApi.getCategories({ page: 1, pageSize: 100 }),
-        knowledgeApi.getArticles({ page: 1, pageSize: 200 }),
-      ]);
-      if (catResult.code === 0 && catResult.data) {
-        const raw: any = catResult.data;
-        setCategories(Array.isArray(raw) ? raw : raw?.list ?? []);
-      }
-      if (artResult.code === 0 && artResult.data) {
-        setAllArticles(artResult.data.list);
-      }
-    } catch (e: any) {
-      setError(e?.message || '加载失败');
-      notifyError(e, '加载失败');
-    } finally {
-      setLoading(false);
-    }
+  // 分类参考数据：共享缓存，跨组件去重
+  const { data: catsRes, loading: catLoading } = useCachedData<{ code: number; data?: KnowledgeCategory[] }>(
+    'knowledge:categories',
+    () => knowledgeApi.getCategories({ page: 1, pageSize: 100 }),
+    { staleTime: 60_000 },
+  );
+  const categories = catsRes?.code === 0 && catsRes.data ? catsRes.data : EMPTY_CATEGORIES;
+
+  // 文章列表
+  const { data: artsRes, loading: artLoading, error } = useCachedData<{ code: number; data?: { list: KnowledgeArticle[] } }>(
+    'knowledge:articles',
+    async () => {
+      const res = await knowledgeApi.getArticles({ page: 1, pageSize: 200 });
+      return { code: res.code, data: res.data ?? undefined };
+    },
+    { staleTime: 30_000 },
+  );
+  const allArticles = artsRes?.code === 0 && artsRes.data ? artsRes.data.list : EMPTY_ARTICLES;
+  const loading = catLoading || artLoading;
+
+  // 根视图文件夹 + 分类内文章
+  const folders = getKnowledgeFolders(categories, allArticles);
+  const folderArticles = activeFolder
+    ? getFolderArticles(categories, allArticles, activeFolder, keyword)
+    : [];
+
+  const folderName =
+    activeFolder === FOLDER_UNCAT
+      ? '未分类'
+      : categories.find((c) => String(c.id) === activeFolder)?.name ?? '';
+
+  const enterFolder = (key: string) => {
+    setActiveFolder(key);
+    setKeyword('');
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const { filteredArticles } = getKnowledgeView(categories, allArticles, activeCategoryId, keyword);
-
-  useEffect(() => {
-    const { nodes: n } = getKnowledgeView(categories, allArticles, activeCategoryId, keyword);
-    setNodes(n);
-  }, [categories, allArticles]);
-
-  // 切换分类/搜索时回到第一页
-  useEffect(() => {
-    setPage(1);
-  }, [activeCategoryId, keyword]);
-
-  const paged = filteredArticles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
-
-  const treeData = [
-    {
-      key: 'all',
-      title: '全部',
-      children: [
-        ...categories.map((c) => ({ key: String(c.id), title: c.name })),
-        { key: 'uncat', title: '未分类' },
-      ],
-    },
-  ];
-
-  const nodeCount = (key: string) => nodes.find((n) => n.key === key)?.count ?? 0;
+  const backToRoot = () => {
+    setActiveFolder(null);
+    setKeyword('');
+  };
 
   const handleOpenDetail = async (record: KnowledgeArticle) => {
     setDetailLoading(true);
@@ -147,6 +149,7 @@ export default function KnowledgeListPage() {
     try {
       const blob = await fetchAttachmentBlob(attachment.id);
       setPreview({
+        blob: blob.blob,
         url: blob.url,
         name: blob.name || attachment.fileName,
         mimeType: blob.mimeType || attachment.fileType,
@@ -166,182 +169,233 @@ export default function KnowledgeListPage() {
     });
   };
 
-  const renderDetailContent = () => {
-    if (!currentArticle) return null;
-
-    return (
-      <div>
-        <Descriptions
-          title="基本信息"
-          column={2}
-          data={[
-            { label: '标题', value: currentArticle.title },
-            { label: '分类', value: currentArticle.categoryName },
-            { label: '作者', value: currentArticle.authorName },
-            { label: '阅读量', value: currentArticle.viewCount },
-            { label: '创建时间', value: currentArticle.createdAt, span: 2 },
-          ]}
+  return (
+    <PageContainer>
+      {/* 顶部：返回/面包屑 + 搜索 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {activeFolder ? (
+            <>
+              <Button size="small" icon={<IconLeft />} onClick={backToRoot}>
+                返回
+              </Button>
+              <Text style={{ fontSize: 14, color: 'var(--lx-text-3)' }}>知识库</Text>
+              <Text style={{ color: 'var(--lx-text-4)' }}>/</Text>
+              <Text bold style={{ fontSize: 14 }}>
+                {folderName}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text bold style={{ fontSize: 15 }}>
+                知识库
+              </Text>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                共 {folders.length} 个分类 · {allArticles.length} 篇文档
+              </Text>
+            </>
+          )}
+        </div>
+        <Input.Search
+          allowClear
+          prefix={<IconSearch />}
+          placeholder={activeFolder ? '搜索分类内文档' : '进入分类后可按标题/摘要/正文搜索'}
+          style={{ width: 300 }}
+          value={keyword}
+          onChange={setKeyword}
+          onSearch={setKeyword}
+          disabled={!activeFolder}
         />
-        {currentArticle.summary && (
-          <>
-            <Divider />
-            <h4>摘要</h4>
-            <p>{currentArticle.summary}</p>
-          </>
-        )}
-        {currentArticle.content && (
-          <>
-            <Divider />
-            <h4>正文</h4>
-            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentArticle.content) }} style={{ lineHeight: 1.8 }} />
-          </>
-        )}
-        {attachments.length > 0 && (
-          <>
-            <Divider />
-            <h4>附件</h4>
-            <List
-              size="small"
-              dataSource={attachments}
-              render={(item) => (
-                <div
-                  key={item.id}
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 56 }}>
+          <Spin />
+        </div>
+      ) : error ? (
+        <Empty description={error} />
+      ) : activeFolder ? (
+        /* 分类内：文章卡片网格 */
+        folderArticles.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
+            {folderArticles.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => handleOpenDetail(item)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '20px 12px',
+                  background: 'var(--lx-bg-card)',
+                  border: '1px solid var(--lx-border-1)',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  transition: 'all var(--lx-transition-fast)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'var(--lx-shadow-card)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
+              >
+                <IconFile style={{ fontSize: 34, color: 'var(--lx-primary)' }} />
+                <Text
+                  ellipsis={{ rows: 2 }}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 4px',
-                    borderBottom: '1px solid var(--color-border-2)',
+                    width: '100%',
+                    textAlign: 'center',
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                    color: 'var(--lx-text-1)',
                   }}
                 >
-                  <div>
-                    <div>{item.fileName}</div>
-                    <div style={{ fontSize: 12, color: '#86909c' }}>{(item.fileSize / 1024).toFixed(1)} KB</div>
-                  </div>
-                  <Button
-                    size="mini"
-                    type="primary"
-                    icon={<IconEye />}
-                    loading={previewLoading}
-                    onClick={() => handlePreview(item)}
-                  >
-                    预览
-                  </Button>
-                </div>
-              )}
-            />
-          </>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <PageContainer title="知识库">
-      <div style={{ display: 'flex', gap: 16, minHeight: '70vh' }}>
-        {/* 左侧分类树 */}
-        <div
-          style={{
-            width: 220,
-            flexShrink: 0,
-            borderRight: '1px solid var(--color-border-2)',
-            paddingRight: 8,
-          }}
-        >
-          <Tree
-            treeData={treeData}
-            selectedKeys={[activeCategoryId]}
-            onSelect={(keys) => setActiveCategoryId(String(keys[0]))}
-            renderTitle={(node) => (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: 170 }}>
-                <span>{node.title}</span>
-                <Badge count={nodeCount(String(node._key))} />
+                  {item.title}
+                </Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {item.authorName || '—'} · {item.viewCount ?? 0} 阅
+                </Text>
               </div>
-            )}
-          />
-        </div>
-
-        {/* 右侧内容区 */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#1d2129' }}>
-              共 {filteredArticles.length} 篇
-            </div>
-            <Input.Search
-              allowClear
-              prefix={<IconSearch />}
-              placeholder="搜索标题 / 摘要 / 正文"
-              style={{ width: 280 }}
-              onChange={(val) => setKeyword(val)}
-              onSearch={(val) => setKeyword(val)}
-            />
+            ))}
           </div>
-
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-              <Spin />
-            </div>
-          ) : error ? (
-            <Empty description={error} />
-          ) : paged.length > 0 ? (
-            <List
-              bordered
-              dataSource={paged}
-              style={{ marginBottom: 16 }}
-              render={(item) => (
-                <List.Item
-                  key={item.id}
-                  actions={[<Tag color="arcoblue" key="views">{item.viewCount}</Tag>]}
-                  onClick={() => handleOpenDetail(item)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <List.Item.Meta
-                    title={<span>{item.title}</span>}
-                    description={
-                      <span
-                        style={{ color: '#86909c', fontSize: 13, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                      >
-                        {item.summary || '(无摘要)'} · {item.categoryName} · {item.authorName}
-                      </span>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          ) : (
-            <Empty description="当前分类下暂无文档" />
-          )}
-
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+        ) : (
+          <Empty description="当前分类下暂无文档" />
+        )
+      ) : (
+        /* 根视图：分类文件夹卡片网格 */
+        folders.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
+            {folders.map((folder) => (
+              <div
+                key={folder.key}
+                onClick={() => enterFolder(folder.key)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  minHeight: 128,
+                  padding: 20,
+                  background: 'var(--lx-bg-card)',
+                  border: '1px solid var(--lx-border-1)',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  transition: 'all var(--lx-transition-fast)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'var(--lx-shadow-card)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
               >
-                上一页
-              </Button>
-              <span style={{ alignSelf: 'center', margin: '0 12px', color: '#86909c' }}>
-                {page} / {totalPages}
-              </span>
-              <Button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-                下一页
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
+                <IconFolder style={{ fontSize: 42, color: 'var(--lx-primary)' }} />
+                <Text bold style={{ fontSize: 14, color: 'var(--lx-text-1)' }}>
+                  {folder.name}
+                </Text>
+                <Tag size="small" color="arcoblue" style={{ margin: 0 }}>
+                  {folder.count} 篇
+                </Tag>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty description="当前暂无分类与文档" />
+        )
+      )}
 
+      {/* 文章预览弹窗 */}
       <Modal
-        title="文章详情"
+        title={currentArticle?.title || '文章详情'}
         visible={detailVisible}
         onCancel={handleDetailCancel}
-        confirmLoading={detailLoading}
-        okText={null}
-        cancelText="关闭"
-        footer={null}
-        style={{ width: 720 }}
+        footer={
+          <Button type="primary" onClick={handleDetailCancel}>
+            关闭
+          </Button>
+        }
+        style={{ width: 760 }}
       >
-        {renderDetailContent()}
+        {currentArticle && (
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 12,
+                flexWrap: 'wrap',
+                color: 'var(--lx-text-3)',
+                fontSize: 13,
+                paddingBottom: 12,
+                borderBottom: '1px solid var(--lx-border-1)',
+                marginBottom: 16,
+              }}
+            >
+              <span>分类：{currentArticle.categoryName || '-'}</span>
+              <span>作者：{currentArticle.authorName || '-'}</span>
+              <span>阅读：{currentArticle.viewCount ?? 0}</span>
+              <span>创建：{currentArticle.createdAt}</span>
+            </div>
+
+            {currentArticle.summary && (
+              <>
+                <Text bold>摘要</Text>
+                <p style={{ color: 'var(--lx-text-2)', fontSize: 14, lineHeight: 1.7 }}>{currentArticle.summary}</p>
+              </>
+            )}
+
+            {currentArticle.content && (
+              <div
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentArticle.content) }}
+                style={{ lineHeight: 1.8, color: 'var(--lx-text-1)', fontSize: 14 }}
+              />
+            )}
+
+            {attachments.length > 0 && (
+              <>
+                <Divider />
+                <Text bold>附件</Text>
+                <List
+                  size="small"
+                  dataSource={attachments}
+                  render={(item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 4px',
+                        borderBottom: '1px solid var(--lx-border-1)',
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.fileName}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
+                          {(item.fileSize / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      <Button
+                        size="mini"
+                        type="primary"
+                        icon={<IconEye />}
+                        loading={previewLoading}
+                        onClick={() => handlePreview(item)}
+                      >
+                        预览
+                      </Button>
+                    </div>
+                  )}
+                />
+              </>
+            )}
+          </div>
+        )}
       </Modal>
 
       {preview && <FilePreviewModal file={preview} onClose={handlePreviewClose} />}

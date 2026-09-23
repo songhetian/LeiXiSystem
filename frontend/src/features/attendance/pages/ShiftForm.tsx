@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Form, Input, Select, InputNumber, Switch } from '@arco-design/web-react';
-import type { SysDepartment } from '@/services/system';
+import type { ReferenceItem } from '@/hooks/use-departments';
 
 const FormItem = Form.Item;
 
@@ -31,7 +31,7 @@ export interface ShiftFormValues {
 interface ShiftFormProps {
   visible: boolean;
   title: string;
-  departments: SysDepartment[];
+  departments: ReferenceItem[];
   initialValues: ShiftFormValues;
   confirmLoading?: boolean;
   onOk: (values: ShiftFormValues) => void | Promise<void>;

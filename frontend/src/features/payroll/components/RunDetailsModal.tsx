@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Modal, Table, Space, Button, Tag, Descriptions, Message } from '@arco-design/web-react';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
-import { payrollApi, PayrollRun, PayrollRunDetails, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
+import { useCachedData } from '@/hooks/use-cached-data';
+import { payrollApi, PayrollRun, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
 
 interface RunDetailsModalProps {
   run: PayrollRun;
@@ -63,41 +64,42 @@ function amountValue(n: number) {
 }
 
 export default function RunDetailsModal({ run, visible = false, onCancel, onChanged }: RunDetailsModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState<PayrollRunDetails | null>(null);
-  const [salaryItems, setSalaryItems] = useState<SalaryItem[]>([]);
   const [adjustVisible, setAdjustVisible] = useState(false);
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [adjustFormFields, setAdjustFormFields] = useState<FormFieldConfig[]>(adjustmentFields([]));
 
-  const fetchDetails = async () => {
-    if (!visible) return;
-    setLoading(true);
-    setDetails(null);
-    try {
-      const res = await payrollApi.getPayrollRunDetails(run.id);
-      if (res.code === 0 && res.data) setDetails(res.data);
-      else Message.error(res.message || '加载明细失败');
-    } catch {
-      Message.error('加载明细失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // SWR 缓存：批次明细，按 run.id 隔离
+  const { data: dRes, loading, revalidate } = useCachedData<
+    Awaited<ReturnType<typeof payrollApi.getPayrollRunDetails>>
+  >(
+    `payroll:run-details:${run.id}`,
+    () => (visible
+      ? payrollApi.getPayrollRunDetails(run.id)
+      : Promise.resolve({ code: 0, message: '', data: null } as unknown as Awaited<ReturnType<typeof payrollApi.getPayrollRunDetails>>)
+    ),
+    { staleTime: 30_000 },
+  );
+  const details = dRes?.code === 0 && dRes.data ? dRes.data : null;
 
-  useEffect(() => {
-    if (!visible) return;
-    fetchDetails();
-    payrollApi.getSalaryItems({ status: 'active' }).then((res) => {
-      if (res.code === 0 && res.data) setSalaryItems(res.data.list ?? []);
-    }).catch(() => {
-      // 工资项加载失败不回退，使用缺省调整项
-    });
-  }, [visible, run.id]);
+  // 工资项参考数据：跨组件共享缓存
+  const { data: sRes } = useCachedData<
+    Awaited<ReturnType<typeof payrollApi.getSalaryItems>>
+  >(
+    'payroll:salary-items:active',
+    () => (visible
+      ? payrollApi.getSalaryItems({ status: 'active' })
+      : Promise.resolve({ code: 0, message: '', data: { list: [], total: 0, page: 1, pageSize: 20 } } as Awaited<ReturnType<typeof payrollApi.getSalaryItems>>)
+    ),
+    { staleTime: 60_000 },
+  );
+  const salaryItems = sRes?.code === 0 && sRes.data ? sRes.data.list ?? [] : [];
 
+  // 工资项就绪后用默认项生成调整表单字段；依赖服务端 res 引用避免空数组字面量死循环
   useEffect(() => {
+    if (!sRes || sRes.code !== 0 || !sRes.data) return;
     setAdjustFormFields(adjustmentFields(salaryItems));
-  }, [salaryItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sRes]);
 
   const openAdjust = () => {
     const employees = details?.employees ?? [];
@@ -131,7 +133,7 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
         Message.success('调整成功');
         setAdjustVisible(false);
         onChanged?.();
-        fetchDetails();
+        revalidate();
       } else {
         Message.error(res.message || '调整失败');
       }
@@ -210,6 +212,7 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
         loading={loading}
         columns={columns as any}
         data={rows}
+        scroll={{ x: true }}
         pagination={false}
         expandedRowRender={expandedRowRender}
       />

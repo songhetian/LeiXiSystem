@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import {
@@ -133,9 +133,7 @@ export default function AttendanceSettingsPage() {
   );
 
   return (
-      <PageContainer
-        title="考勤设置"
-        extra={
+      <PageContainer extra={
           <Button type="primary" loading={saving} disabled={!canManage || loading} onClick={handleSave}>
             保存设置
           </Button>

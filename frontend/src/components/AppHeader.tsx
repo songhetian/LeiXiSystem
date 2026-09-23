@@ -34,6 +34,7 @@ const BREADCRUMB_MAP: Record<string, string[]> = {
   '/employees/transactions': ['员工管理', '员工事务'],
   '/employees/timeline': ['员工管理', '人员履历'],
   '/employees/change-logs': ['员工管理', '员工变动流水'],
+  '/employees/tags': ['员工管理', '员工标签'],
   '/attendance/shifts': ['考勤管理', '班次管理'],
   '/attendance/schedules': ['考勤管理', '排班管理'],
   '/attendance/daily': ['考勤管理', '考勤日报'],

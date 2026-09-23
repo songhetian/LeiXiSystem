@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -20,8 +20,8 @@ import {
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { employeeApi, Employee } from '@/services/employee';
-import { systemApi, SysDepartment, SysPosition } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
+import { useDepartments, usePositions } from '@/hooks/use-departments';
 import useFetchState from '@/hooks/use-fetch-state';
 import EmployeeDetailTabs from '@/features/employee/components/EmployeeDetailTabs';
 
@@ -40,9 +40,8 @@ export default function EmployeeDetailPage() {
   const [editVisible, setEditVisible] = useState(false);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
-
-  const [departments, setDepartments] = useState<SysDepartment[]>([]);
-  const [positions, setPositions] = useState<SysPosition[]>([]);
+  const { departments } = useDepartments();
+  const { positions } = usePositions();
 
   const [resignVisible, setResignVisible] = useState(false);
   const [resignForm] = Form.useForm();
@@ -61,24 +60,8 @@ export default function EmployeeDetailPage() {
     });
   };
 
-  const fetchDepartments = async () => {
-    try {
-      const res = await systemApi.listDepartments();
-      if (res.code === 0 && res.data) setDepartments(res.data);
-    } catch (e) {}
-  };
-
-  const fetchPositions = async () => {
-    try {
-      const res = await systemApi.listPositions();
-      if (res.code === 0 && res.data) setPositions(res.data);
-    } catch (e) {}
-  };
-
   useEffect(() => {
     fetchData();
-    fetchDepartments();
-    fetchPositions();
   }, [id]);
 
   const openEdit = () => {
@@ -138,7 +121,7 @@ export default function EmployeeDetailPage() {
   const statusInfo = employee ? STATUS_MAP[employee.status] || STATUS_MAP.active : STATUS_MAP.active;
 
   return (
-    <PageContainer title="员工详情">
+    <PageContainer >
       <Card className="rounded-md">
         <DataState loading={loading} error={error} onRetry={fetchData} isEmpty={!employee}>
           {employee && (

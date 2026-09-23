@@ -2,8 +2,8 @@ import { IsString, IsNotEmpty, IsOptional, IsArray, IsInt } from 'class-validato
 
 export class CreateRoleDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @IsString()
   @IsNotEmpty()

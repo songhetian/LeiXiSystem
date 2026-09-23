@@ -1954,13 +1954,14 @@
 .page-tabs-menu {
   position: fixed;
   z-index: 4000;
-  min-width: 150px;
+  width: 180px;
   padding: 5px;
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-1);
   border-radius: 8px;
   box-shadow: var(--lx-shadow-lg);
   animation: lx-menu-in 0.12s ease;
+  user-select: none;
 }
 
 @keyframes lx-menu-in {
@@ -2120,6 +2121,12 @@
   font-size: 13px !important;
   color: var(--lx-text-2) !important;
   border-bottom: 1px solid var(--lx-border-2) !important;
+  /* 防止窄列下中文被逐个压缩成垂直排列 */
+  white-space: nowrap;
+  min-width: 64px;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 斑马纹 */

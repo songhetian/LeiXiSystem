@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Tabs, Table, Button, Space, Modal, Input, Message, Tag, Card } from '@arco-design/web-react';
@@ -185,7 +185,7 @@ export default function ApprovalTodoPage() {
   ];
 
   return (
-    <PageContainer title="审批中心">
+    <PageContainer >
       <Tabs activeTab={activeTab} onChange={handleTabChange}>
         <TabPane key="todos" title="待办审批">
           <Card style={{ marginTop: 16 }}>
@@ -199,6 +199,7 @@ export default function ApprovalTodoPage() {
                 columns={todoColumns}
                 data={todoData?.list || []}
                 rowKey="id"
+                scroll={{ x: true }}
                 pagination={{
                   current: todoPagination.current,
                   pageSize: todoPagination.pageSize,
@@ -222,6 +223,7 @@ export default function ApprovalTodoPage() {
                 columns={submissionColumns}
                 data={submissionData?.list || []}
                 rowKey="id"
+                scroll={{ x: true }}
                 pagination={{
                   current: submissionPagination.current,
                   pageSize: submissionPagination.pageSize,

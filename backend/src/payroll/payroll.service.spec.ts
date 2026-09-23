@@ -27,6 +27,9 @@ function createMockPrisma() {
     payrollDetail: {
       create: jest.fn(),
     },
+    salaryAdjustment: {
+      findFirst: jest.fn(),
+    },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
     _mockTx: mockTx,
   };
@@ -212,6 +215,129 @@ describe('PayrollService', () => {
 
       await expect(service.createRun('2025-01', 1)).rejects.toThrow('DB error');
       expect(prisma.payrollRun.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getEffectiveSalary — 薪资生效月取数', () => {
+    let service: PayrollService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      const dataScope = createMockDataScope();
+      const payslipService = createMockPayslipService() as any;
+      const notificationService = createMockNotificationService() as any;
+      const lockService = createMockLockService() as any;
+      const eventEmitter = createMockEventEmitter();
+      _eventEmitter = eventEmitter;
+      service = new PayrollService(
+        prisma as any,
+        dataScope as any,
+        payslipService,
+        notificationService,
+        lockService,
+        eventEmitter as any,
+      );
+    });
+
+    it('无任何调整记录时回退员工当前薪资（初始工资）', async () => {
+      prisma.salaryAdjustment.findFirst.mockResolvedValue(null);
+      const salary = await service.getEffectiveSalary(1, '2025-09', 5000);
+      expect(salary).toBe(5000);
+      expect(prisma.salaryAdjustment.findFirst).toHaveBeenCalledWith({
+        where: { employeeId: 1, effectiveMonth: { lte: '2025-09' } },
+        orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
+      });
+    });
+
+    it('生效月 ≤ 计薪月的最新一条调整记录作为该月基础工资', async () => {
+      // 8月改薪，默认 9月 生效；计薪月 9月（10月发放）时应取这条
+      prisma.salaryAdjustment.findFirst.mockResolvedValue({
+        id: 2,
+        employeeId: 1,
+        amount: 10000,
+        effectiveMonth: '2025-09',
+      });
+      const salary = await service.getEffectiveSalary(1, '2025-09', 5000);
+      expect(salary).toBe(10000);
+    });
+
+    it('生效月晚于计薪月的调整不生效（次月生效边界）', async () => {
+      // 8月改薪默认 9月生效，计薪月 8月（9月发放）仍用旧薪资
+      prisma.salaryAdjustment.findFirst.mockResolvedValue(null);
+      const salary = await service.getEffectiveSalary(1, '2025-08', 5000);
+      expect(salary).toBe(5000);
+    });
+
+    it('读取异常时回退员工当前薪资，不抛错', async () => {
+      prisma.salaryAdjustment.findFirst.mockRejectedValue(new Error('db down'));
+      const salary = await service.getEffectiveSalary(1, '2025-09', 5000);
+      expect(salary).toBe(5000);
+    });
+  });
+
+  describe('createRun — 使用计薪月生效薪资', () => {
+    let service: PayrollService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      const dataScope = createMockDataScope();
+      const payslipService = createMockPayslipService() as any;
+      const notificationService = createMockNotificationService() as any;
+      const lockService = createMockLockService() as any;
+      const eventEmitter = createMockEventEmitter();
+      _eventEmitter = eventEmitter;
+      service = new PayrollService(
+        prisma as any,
+        dataScope as any,
+        payslipService,
+        notificationService,
+        lockService,
+        eventEmitter as any,
+      );
+    });
+
+    it('计薪月命中生效薪资时，基础工资按调整记录计算', async () => {
+      prisma.payrollRun.findUnique.mockResolvedValue(null);
+      prisma.attendanceMonthly.findMany.mockResolvedValue([
+        {
+          employeeId: 1,
+          workDays: 22,
+          absentDays: 0,
+          lateCount: 0,
+          leaveMinutes: 0,
+          overtimeHours: 0,
+          employee: { id: 1, name: '张三', salary: 5000 },
+        },
+      ]);
+      // 8月改薪 → 9月生效，10月发放 9月工资时取 10000
+      prisma.salaryAdjustment.findFirst.mockResolvedValue({
+        id: 2,
+        employeeId: 1,
+        amount: 10000,
+        effectiveMonth: '2025-09',
+      });
+      prisma._mockTx.payrollRun.create.mockResolvedValue({
+        id: 1,
+        month: '2025-09',
+        status: 'draft',
+      });
+      prisma._mockTx.payrollDetail.createMany.mockResolvedValue({ count: 1 });
+      prisma._mockTx.payrollRun.update.mockImplementation(async (args: any) => args.data);
+
+      await service.createRun('2025-09', 1);
+
+      expect(prisma.salaryAdjustment.findFirst).toHaveBeenCalledWith({
+        where: { employeeId: 1, effectiveMonth: { lte: '2025-09' } },
+        orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
+      });
+      // 基础工资为 10000（而非初始 5000），说明命中生效薪资
+      expect(prisma._mockTx.payrollDetail.createMany).toHaveBeenCalled();
+      const created = prisma._mockTx.payrollDetail.createMany.mock.calls[0][0].data;
+      const base = created.find((d: any) => d.itemCode === 'base');
+      expect(base).toBeDefined();
+      expect(base.amount).toBe(10000);
     });
   });
 

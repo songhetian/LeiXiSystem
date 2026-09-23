@@ -38,11 +38,15 @@ export class LeaveRecordsController {
   async list(
     @Query('employeeId') employeeId?: string,
     @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Req() req?: any,
   ) {
     const data = await this.vacationService.listLeaveRecords({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       status,
+      startDate,
+      endDate,
       userId: req.user.id,
     });
     return { code: 0, data };

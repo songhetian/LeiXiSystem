@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Message,
   Tabs,
@@ -13,8 +13,20 @@ import {
   Table,
   Tag,
   Popconfirm,
-  InputNumber,
+  Upload,
+  type TableColumnProps,
 } from '@arco-design/web-react';
+import {
+  IconUpload,
+  IconPlus,
+  IconEdit,
+  IconDelete,
+  IconDragDotVertical,
+  IconBook,
+  IconFilePdf,
+  IconFileImage,
+  IconFile,
+} from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import {
@@ -23,7 +35,6 @@ import {
   KnowledgeArticle,
   KnowledgeAttachment,
 } from '@/services/knowledge';
-import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
 
 const { TabPane } = Tabs;
@@ -35,140 +46,245 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   archived: { label: '已归档', color: 'orange' },
 };
 
-export default function KnowledgeAdminPage() {
-  const { can } = usePermission();
-
-  return (
-    <PageContainer title="知识库管理">
-      <Tabs defaultActiveTab="categories">
-        <TabPane key="categories" title="分类管理">
-          <CategoryManage />
-        </TabPane>
-        <TabPane key="articles" title="文章管理">
-          <ArticleManage />
-        </TabPane>
-      </Tabs>
-    </PageContainer>
-);
+/** 附件大小展示：B / KB / MB */
+function formatFileSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// ====== 分类管理 ======
+/** 时间展示：YYYY-MM-DD HH:mm */
+function formatDateTime(iso?: string) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 附件类型图标 */
+function getAttIcon(fileName: string) {
+  const ext = fileName.toLowerCase().split('.').pop() || '';
+  if (ext === 'pdf') {
+    return (
+      <span className="kb-att-icon pdf">
+        <IconFilePdf />
+      </span>
+    );
+  }
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    return (
+      <span className="kb-att-icon image">
+        <IconFileImage />
+      </span>
+    );
+  }
+  return (
+    <span className="kb-att-icon other">
+      <IconFile />
+    </span>
+  );
+}
+
+export default function KnowledgeAdminPage() {
+  return (
+    <PageContainer>
+      <div className="kb-hero">
+        <div className="kb-hero-left">
+          <div className="kb-hero-icon">
+            <IconBook />
+          </div>
+          <div>
+            <h2 className="kb-hero-title">知识库管理</h2>
+            <p className="kb-hero-desc">维护分类目录与文章内容，拖动分类即可调整顺序</p>
+          </div>
+        </div>
+        <div className="kb-hero-badge">
+          <IconDragDotVertical />
+          拖拽排序 · 附件上限 200MB
+        </div>
+      </div>
+
+      <div className="kb-tabs-wrap">
+        <Tabs defaultActiveTab="categories">
+          <TabPane key="categories" title="分类管理">
+            <CategoryManage />
+          </TabPane>
+          <TabPane key="articles" title="文章管理">
+            <ArticleManage />
+          </TabPane>
+        </Tabs>
+      </div>
+    </PageContainer>
+  );
+}
+
+// ===== 分类管理 =====
 function CategoryManage() {
-const { data: list, loading, error, run: runFetch, setData: setList } = useFetchState<KnowledgeCategory[]>([]);
-const [modalVisible, setModalVisible] = useState(false);
-const [isEdit, setIsEdit] = useState(false);
-const [editItem, setEditItem] = useState<KnowledgeCategory | null>(null);
-const [form] = Form.useForm();
-const [submitting, setSubmitting] = useState(false);
+  const { data: list, loading, error, run: runFetch, setData: setList } = useFetchState<KnowledgeCategory[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editItem, setEditItem] = useState<KnowledgeCategory | null>(null);
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
 
-const fetchList = async () => {
-  await runFetch(async () => {
-    const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
-    if (res.code === 0 && res.data) {
-      const data = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
-      return data;
+  // 拖拽排序：记录当前拖拽的分类 id
+  const dragId = useRef<number | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+
+  const fetchList = async () => {
+    await runFetch(async () => {
+      const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
+      if (res.code === 0 && res.data) {
+        return res.data;
+      }
+      throw new Error(res.message || '获取分类失败');
+    });
+  };
+
+  useEffect(() => {
+    fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openCreate = () => {
+    setIsEdit(false);
+    setEditItem(null);
+    form.resetFields();
+    setModalVisible(true);
+  };
+
+  const openEdit = (item: KnowledgeCategory) => {
+    setIsEdit(true);
+    setEditItem(item);
+    form.setFieldsValue({ name: item.name });
+    setModalVisible(true);
+  };
+
+  const handleSubmit = async () => {
+    const values = await form.validate();
+    setSubmitting(true);
+    try {
+      if (isEdit && editItem) {
+        const res = await knowledgeApi.updateCategory(editItem.id, values);
+        if (res.code === 0) {
+          Message.success('更新成功');
+          setModalVisible(false);
+          fetchList();
+        } else {
+          Message.error(res.message || '更新失败');
+        }
+      } else {
+        const res = await knowledgeApi.createCategory(values);
+        if (res.code === 0) {
+          Message.success('创建成功');
+          setModalVisible(false);
+          fetchList();
+        } else {
+          Message.error(res.message || '创建失败');
+        }
+      }
+    } catch (e) {
+      Message.error('操作失败');
+    } finally {
+      setSubmitting(false);
     }
-    throw new Error(res.message || '获取分类失败');
-  });
-};
+  };
 
-useEffect(() => {
-  fetchList();
-}, []);
-
-const openCreate = () => {
-  setIsEdit(false);
-  setEditItem(null);
-  form.resetFields();
-  setModalVisible(true);
-};
-
-const openEdit = (item: KnowledgeCategory) => {
-  setIsEdit(true);
-  setEditItem(item);
-  form.setFieldsValue({ name: item.name, sort: item.sort });
-  setModalVisible(true);
-};
-
-const handleSubmit = async () => {
-  const values = await form.validate();
-  setSubmitting(true);
-  try {
-    if (isEdit && editItem) {
-      const res = await knowledgeApi.updateCategory(editItem.id, values);
+  const handleDelete = async (item: KnowledgeCategory) => {
+    try {
+      const res = await knowledgeApi.deleteCategory(item.id);
       if (res.code === 0) {
-        Message.success('更新成功');
-        setModalVisible(false);
+        Message.success('删除成功');
         fetchList();
       } else {
-        Message.error(res.message || '更新失败');
+        Message.error(res.message || '删除失败');
       }
-    } else {
-      const res = await knowledgeApi.createCategory(values);
-      if (res.code === 0) {
-        Message.success('创建成功');
-        setModalVisible(false);
-        fetchList();
-      } else {
-        Message.error(res.message || '创建失败');
-      }
+    } catch (e) {
+      Message.error('删除失败');
     }
-  } catch (e) {
-    Message.error('操作失败');
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
-const handleDelete = async (item: KnowledgeCategory) => {
-  try {
-    const res = await knowledgeApi.deleteCategory(item.id);
-    if (res.code === 0) {
-      Message.success('删除成功');
+  // 拖拽完成后：本地重排 + 持久化顺序
+  const handleDrop = async (fromId: number, toId: number) => {
+    if (fromId === toId) return;
+    const current = list || [];
+    const fromIndex = current.findIndex((c) => c.id === fromId);
+    const toIndex = current.findIndex((c) => c.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const next = [...current];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setList(next);
+
+    try {
+      const res = await knowledgeApi.reorderCategories(next.map((c) => c.id));
+      if (res.code === 0) {
+        Message.success('排序已保存');
+      } else {
+        Message.error(res.message || '排序保存失败');
+        fetchList();
+      }
+    } catch (e) {
+      Message.error('排序保存失败');
       fetchList();
-    } else {
-      Message.error(res.message || '删除失败');
     }
-  } catch (e) {
-    Message.error('删除失败');
-  }
-};
-
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 80 },
-  { title: '分类名称', dataIndex: 'name' },
-  { title: '排序', dataIndex: 'sort', width: 80 },
-  {
-    title: '操作',
-    width: 180,
-    render: (_v: any, record: KnowledgeCategory) => (
-      <Space>
-        <Button size="mini" onClick={() => openEdit(record)}>
-          编辑
-        </Button>
-        <Popconfirm title="确定删除吗？" onOk={() => handleDelete(record)}>
-          <Button size="mini" status="danger">
-            删除
-          </Button>
-        </Popconfirm>
-      </Space>
-      ),
-    },
-  ];
+  };
 
   return (
     <div>
-      <div style={{ marginBottom: 16, textAlign: 'right' }}>
-        <Button type="primary" onClick={openCreate}>
+      <div className="kb-toolbar">
+        <div className="kb-hint">
+          <IconDragDotVertical />
+          拖动卡片可调整分类顺序
+        </div>
+        <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
           新增分类
         </Button>
       </div>
+
       <DataState loading={loading} error={error} onRetry={fetchList} isEmpty={!list || list.length === 0}>
-        <Table
-          columns={columns as any}
-          data={list || []}
-          pagination={false}
-        />
+        <div className="kb-cat-list">
+          {(list || []).map((cat) => (
+            <div
+              key={cat.id}
+              data-testid={`cat-${cat.id}`}
+              className={`kb-cat-item${draggingId === cat.id ? ' dragging' : ''}`}
+              draggable
+              onDragStart={() => {
+                dragId.current = cat.id;
+                setDraggingId(cat.id);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragId.current != null && dragId.current !== cat.id) {
+                  handleDrop(dragId.current, cat.id);
+                }
+              }}
+              onDragEnd={() => {
+                dragId.current = null;
+                setDraggingId(null);
+              }}
+            >
+              <span className="kb-cat-drag">
+                <IconDragDotVertical />
+              </span>
+              <span className="kb-cat-name">{cat.name}</span>
+              <div className="kb-cat-actions">
+                <Button size="mini" type="text" icon={<IconEdit />} onClick={() => openEdit(cat)}>
+                  编辑
+                </Button>
+                <Popconfirm title="确定删除该分类吗？删除后该分类下的文章也会被移除" onOk={() => handleDelete(cat)}>
+                  <Button size="mini" type="text" status="danger" icon={<IconDelete />}>
+                    删除
+                  </Button>
+                </Popconfirm>
+              </div>
+            </div>
+          ))}
+        </div>
       </DataState>
 
       <Modal
@@ -180,12 +296,9 @@ const columns = [
         okText="确定"
         cancelText="取消"
       >
-        <Form form={form} layout="vertical">
-          <Form.Item label="分类名称" field="name" rules={[{ required: true }]}>
+        <Form form={form} layout="vertical" style={{ paddingTop: 8 }}>
+          <Form.Item label="分类名称" field="name" rules={[{ required: true, message: '请输入分类名称' }]}>
             <Input placeholder="请输入分类名称" />
-          </Form.Item>
-          <Form.Item label="排序" field="sort">
-            <InputNumber style={{ width: '100%' }} min={0} defaultValue={0} />
           </Form.Item>
         </Form>
       </Modal>
@@ -193,7 +306,7 @@ const columns = [
   );
 }
 
-// ====== 文章管理 ======
+// ===== 文章管理 =====
 interface ArticleListResult {
   list: KnowledgeArticle[];
   page: number;
@@ -212,17 +325,15 @@ function ArticleManage() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
-  // 附件管理（对齐参考文章附件）
+  // 附件管理（编辑弹窗内，置顶展示）
   const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
   const [attLoading, setAttLoading] = useState(false);
-  const [addForm] = Form.useForm();
 
   const fetchCategories = async () => {
     try {
       const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
       if (res.code === 0 && res.data) {
-        const data = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
-        setCategories(data);
+        setCategories(res.data);
       }
     } catch (e) {}
   };
@@ -231,12 +342,11 @@ function ArticleManage() {
     await runFetch(async () => {
       const res = await knowledgeApi.getArticles({ page, pageSize });
       if (res.code === 0 && res.data) {
-        const list = (res.data as any).list || res.data || [];
         const result = {
-          list,
-          page: (res.data as any).page || 1,
-          pageSize: (res.data as any).pageSize || 20,
-          total: (res.data as any).total || 0,
+          list: res.data.list || [],
+          page: res.data.page || 1,
+          pageSize: res.data.pageSize || 20,
+          total: res.data.total || 0,
         };
         setPagination({
           current: result.page,
@@ -252,6 +362,7 @@ function ArticleManage() {
   useEffect(() => {
     fetchCategories();
     fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openCreate = () => {
@@ -260,7 +371,6 @@ function ArticleManage() {
     form.resetFields();
     form.setFieldsValue({ status: 'draft' });
     setAttachments([]);
-    addForm.resetFields();
     setModalVisible(true);
   };
 
@@ -275,7 +385,6 @@ function ArticleManage() {
       status: item.status,
     });
     setAttachments([]);
-    addForm.resetFields();
     fetchAttachments(item.id);
     setModalVisible(true);
   };
@@ -297,8 +406,15 @@ function ArticleManage() {
         const res = await knowledgeApi.createArticle(values);
         if (res.code === 0) {
           Message.success('创建成功');
-          setModalVisible(false);
-          fetchList();
+          if (res.data?.id) {
+            // 创建后停留在编辑态，弹窗底部即可立即上传附件
+            setIsEdit(true);
+            setEditItem(res.data as KnowledgeArticle);
+            setAttachments([]);
+          } else {
+            setModalVisible(false);
+            fetchList();
+          }
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -336,28 +452,6 @@ function ArticleManage() {
     }
   };
 
-  const handleAddAttachment = async () => {
-    if (!editItem) return;
-    try {
-      const values = await addForm.validate();
-      const res = await knowledgeApi.addAttachment(editItem.id, {
-        fileName: values.fileName,
-        fileUrl: values.fileUrl,
-        fileSize: values.fileSize ?? 0,
-        mimeType: values.mimeType,
-      });
-      if (res.code === 0) {
-        Message.success('添加成功');
-        addForm.resetFields();
-        fetchAttachments(editItem.id);
-      } else {
-        Message.error(res.message || '添加失败');
-      }
-    } catch (e) {
-      Message.error('添加失败');
-    }
-  };
-
   const handleDeleteAttachment = async (att: KnowledgeAttachment) => {
     if (!editItem) return;
     try {
@@ -373,48 +467,69 @@ function ArticleManage() {
     }
   };
 
-  const columns = [
-    { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '标题', dataIndex: 'title' },
-    {
-      title: '分类',
-      dataIndex: 'categoryId',
-      width: 120,
-      render: (v: number) => categories.find((c) => c.id === v)?.name || '-',
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (v: string) => {
-        const info = STATUS_MAP[v] || STATUS_MAP.draft;
-        return <Tag color={info.color}>{info.label}</Tag>;
+  const columns = useMemo<TableColumnProps<KnowledgeArticle>[]>(
+    () => [
+      {
+        title: '标题',
+        dataIndex: 'title',
+        render: (_v, record) => (
+          <div>
+            <div className="kb-art-title">{record.title}</div>
+            {record.summary ? <div className="kb-art-summary">{record.summary}</div> : null}
+          </div>
+        ),
       },
-    },
-    { title: '浏览量', dataIndex: 'viewCount', width: 100 },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180 },
-    {
-      title: '操作',
-      width: 180,
-      render: (_v: any, record: KnowledgeArticle) => (
-        <Space>
-          <Button size="mini" onClick={() => openEdit(record)}>
-            编辑
-          </Button>
-          <Popconfirm title="确定删除吗？" onOk={() => handleDelete(record)}>
-            <Button size="mini" status="danger">
-              删除
+      {
+        title: '分类',
+        dataIndex: 'categoryId',
+        width: 130,
+        render: (v) => {
+          const name = categories.find((c) => c.id === v)?.name || '-';
+          return <Tag color="arcoblue">{name}</Tag>;
+        },
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        width: 100,
+        render: (v) => {
+          const info = STATUS_MAP[v] || STATUS_MAP.draft;
+          return <Tag color={info.color}>{info.label}</Tag>;
+        },
+      },
+      { title: '浏览量', dataIndex: 'viewCount', width: 90 },
+      {
+        title: '创建时间',
+        dataIndex: 'createdAt',
+        width: 160,
+        render: (v) => <span style={{ color: 'var(--lx-text-3)' }}>{formatDateTime(v)}</span>,
+      },
+      {
+        title: '操作',
+        width: 170,
+        render: (_v, record) => (
+          <Space>
+            <Button size="mini" icon={<IconEdit />} onClick={() => openEdit(record)}>
+              编辑
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+            <Popconfirm title="确定删除吗？" onOk={() => handleDelete(record)}>
+              <Button size="mini" status="danger" icon={<IconDelete />}>
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [categories, listResult],
+  );
 
   return (
     <div>
-      <div style={{ marginBottom: 16, textAlign: 'right' }}>
-        <Button type="primary" onClick={openCreate}>
+      <div className="kb-toolbar">
+        <div className="kb-hint">共 {pagination.total} 篇文章</div>
+        <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
           新增文章
         </Button>
       </div>
@@ -425,8 +540,9 @@ function ArticleManage() {
         isEmpty={!listResult || listResult.list.length === 0}
       >
         <Table
-          columns={columns as any}
+          columns={columns}
           data={listResult?.list || []}
+          scroll={{ x: true }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -434,6 +550,7 @@ function ArticleManage() {
             showTotal: true,
             onChange: (page, pageSize) => fetchList(page, pageSize),
           }}
+          rowKey="id"
         />
       </DataState>
 
@@ -445,22 +562,77 @@ function ArticleManage() {
         confirmLoading={submitting}
         okText="确定"
         cancelText="取消"
-        style={{ width: 640 }}
+        style={{ width: 680 }}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item label="标题" field="title" rules={[{ required: true }]}>
+        <Form form={form} layout="vertical" style={{ paddingTop: 8 }}>
+          {isEdit && editItem && (
+            <Form.Item label="附件上传">
+              <div>
+                {attLoading ? (
+                  <div style={{ fontSize: 13, color: 'var(--lx-text-3)', padding: '12px 0' }}>加载附件中…</div>
+                ) : attachments.length > 0 ? (
+                  <div className="kb-att-list">
+                    {attachments.map((att) => (
+                      <div key={att.id} className="kb-att-item">
+                        {getAttIcon(att.fileName)}
+                        <span className="kb-att-name">{att.fileName}</span>
+                        <span className="kb-att-size">{formatFileSize(att.fileSize)}</span>
+                        <Button size="mini" type="text" status="danger" icon={<IconDelete />} onClick={() => handleDeleteAttachment(att)}>
+                          删除
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--lx-text-3)', padding: '12px 0' }}>暂无附件</div>
+                )}
+                <Upload
+                  drag
+                  multiple
+                  name="file"
+                  action={`/api/v1/knowledge/articles/${editItem.id}/attachments/upload`}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.jpg,.jpeg,.png,.gif,.webp"
+                  showUploadList
+                  onChange={(_fileList, file) => {
+                    if (file.status === 'done') {
+                      const resp = (file.response ?? {}) as { code?: number; message?: string };
+                      if (resp.code === 0) {
+                        Message.success('上传成功');
+                        fetchAttachments(editItem.id);
+                      } else {
+                        Message.error(resp.message || '上传失败');
+                      }
+                    } else if (file.status === 'error') {
+                      Message.error(`${file.name} 上传失败，请重试`);
+                    }
+                  }}
+                >
+                  <div className="kb-upload-zone">
+                    <span className="kb-upload-icon">
+                      <IconUpload />
+                    </span>
+                    <div className="kb-upload-main">点击或拖拽文件到此区域，可一次选择多个</div>
+                    <div className="kb-upload-sub">
+                      支持 PDF / Office / 图片 / 文本，单个文件不超过 <b>200MB</b>
+                    </div>
+                  </div>
+                </Upload>
+              </div>
+            </Form.Item>
+          )}
+          <Form.Item label="标题" field="title" rules={[{ required: true, message: '请输入文章标题' }]}>
             <Input placeholder="请输入文章标题" />
           </Form.Item>
-          <Form.Item label="分类" field="categoryId" rules={[{ required: true }]}>
+          <Form.Item label="分类" field="categoryId" rules={[{ required: true, message: '请选择分类' }]}>
             <Select
               placeholder="请选择分类"
               options={categories.map((c) => ({ label: c.name, value: c.id }))}
             />
           </Form.Item>
           <Form.Item label="摘要" field="summary">
-            <TextArea rows={2} placeholder="请输入摘要" />
+            <TextArea rows={2} placeholder="请输入摘要，将展示在文章列表与卡片中" />
           </Form.Item>
-          <Form.Item label="内容" field="content" rules={[{ required: true }]}>
+          <Form.Item label="内容" field="content" rules={[{ required: true, message: '请输入文章内容' }]}>
             <TextArea rows={6} placeholder="请输入文章内容" />
           </Form.Item>
           <Form.Item label="状态" field="status">
@@ -468,63 +640,10 @@ function ArticleManage() {
               options={[
                 { label: '草稿', value: 'draft' },
                 { label: '已发布', value: 'published' },
+                { label: '已归档', value: 'archived' },
               ]}
             />
           </Form.Item>
-
-          {isEdit && editItem && (
-            <Form.Item label="附件">
-              <div>
-                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
-                    {attLoading ? '加载中…' : attachments.length === 0 ? '暂无附件' : `共 ${attachments.length} 个附件`}
-                  </span>
-                </div>
-                {attachments.map((att) => (
-                  <div
-                    key={att.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '6px 8px',
-                      border: '1px solid var(--color-border-2)',
-                      borderRadius: 4,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Space>
-                      <Tag color="arcoblue">附件</Tag>
-                      <span style={{ fontSize: 13 }}>{att.fileName}</span>
-                    </Space>
-                    <Button
-                      size="mini"
-                      status="danger"
-                      onClick={() => handleDeleteAttachment(att)}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                ))}
-                <Form form={addForm} layout="inline" style={{ marginTop: 8 }}>
-                  <Form.Item field="fileName" rules={[{ required: true, message: '请输入文件名' }]} style={{ marginBottom: 8 }}>
-                    <Input placeholder="文件名，如 a.pdf" style={{ width: 180 }} />
-                  </Form.Item>
-                  <Form.Item field="fileUrl" rules={[{ required: true, message: '请输入文件地址' }]} style={{ marginBottom: 8 }}>
-                    <Input placeholder="文件地址" style={{ width: 220 }} />
-                  </Form.Item>
-                  <Form.Item field="fileSize" style={{ marginBottom: 8 }}>
-                    <InputNumber placeholder="大小(字节)" style={{ width: 140 }} />
-                  </Form.Item>
-                  <Form.Item style={{ marginBottom: 8 }}>
-                    <Button size="small" type="primary" onClick={handleAddAttachment}>
-                      添加附件
-                    </Button>
-                  </Form.Item>
-                </Form>
-              </div>
-            </Form.Item>
-          )}
         </Form>
       </Modal>
     </div>

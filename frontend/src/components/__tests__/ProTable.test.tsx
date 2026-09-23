@@ -18,13 +18,13 @@ jest.mock('@/components/SearchForm', () => ({
 }));
 
 jest.mock('@arco-design/web-react', () => {
-  const Table = ({ columns, data, loading, pagination }: any) => {
+  const Table = ({ columns, data, loading, pagination, scroll }: any) => {
     const onPageChange = pagination?.onChange;
     const current = pagination?.current || 1;
     const pageSize = pagination?.pageSize || 10;
 
     return (
-    <div data-testid="table" data-loading={loading}>
+    <div data-testid="table" data-loading={loading} data-scroll-x={String(scroll?.x)}>
       <table>
         <thead>
           <tr>
@@ -202,6 +202,10 @@ describe('ProTable', () => {
   });
 
   describe('结构验证', () => {
+    it('表格开启横向内容滚动（scroll.x=true），避免中文列被压缩逐字换行成竖向排列', () => {
+      render(<ProTable columns={mockColumns} data={mockData} rowKey="id" />);
+      expect(screen.getByTestId('table')).toHaveAttribute('data-scroll-x', 'true');
+    });
     it('search area above table', () => {
       render(
         <ProTable

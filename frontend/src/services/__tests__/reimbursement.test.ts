@@ -127,20 +127,22 @@ describe('reimbursementApi', () => {
       });
       const result = await reimbursementApi.createReimbursement({
         title: '8月北京出差报销',
+        typeCode: 'TRAVEL',
         totalAmount: 1500,
-        description: '出差费用',
+        remark: '出差费用',
         items: [
-          { typeId: 1, amount: 1000, description: '交通费', date: '2026-08-10' },
-          { typeId: 1, amount: 500, description: '住宿费', date: '2026-08-11' },
+          { itemType: '交通费', amount: 1000, expenseDate: '2026-08-10' },
+          { itemType: '住宿费', amount: 500, expenseDate: '2026-08-11' },
         ],
       });
       expect(mockedRequest.post).toHaveBeenCalledWith('/reimbursements', {
         title: '8月北京出差报销',
+        typeCode: 'TRAVEL',
         totalAmount: 1500,
-        description: '出差费用',
+        remark: '出差费用',
         items: [
-          { typeId: 1, amount: 1000, description: '交通费', date: '2026-08-10' },
-          { typeId: 1, amount: 500, description: '住宿费', date: '2026-08-11' },
+          { itemType: '交通费', amount: 1000, expenseDate: '2026-08-10' },
+          { itemType: '住宿费', amount: 500, expenseDate: '2026-08-11' },
         ],
       });
       expect(result.code).toBe(0);
@@ -237,8 +239,9 @@ describe('reimbursementApi', () => {
       });
       const result = await reimbursementApi.createReimbursement({
         title: '测试',
+        typeCode: 'TRAVEL',
         totalAmount: 1500,
-        items: [{ typeId: 1, amount: 1000, description: '测试', date: '2026-08-10' }],
+        items: [{ itemType: '交通费', amount: 1000, expenseDate: '2026-08-10' }],
       });
       expect(result.code).toBe(7001);
       expect(result.message).toBe('明细金额合计与总金额不一致');

@@ -10,6 +10,7 @@ import { attendanceApi, LeaveRecord, LeaveCreateDto, VacationBalance } from '@/s
 import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { todayStr } from '@/lib/format';
 
 const { Row, Col } = Grid;
 const { RangePicker } = DatePicker;
@@ -98,7 +99,7 @@ export default function VacationLeavePage() {
       pending: '待提交', approving: '审批中', approved: '已通过', rejected: '已拒绝', cancelled: '已取消',
     };
     if (!exportToExcel(
-      `请假记录_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `请假记录_${todayStr()}.xlsx`,
       '请假记录',
       [
         { title: '假期类型', value: (r: LeaveRecord) => (r as any).vacationType?.name ?? '-' },
@@ -202,7 +203,7 @@ export default function VacationLeavePage() {
   ];
 
   return (
-    <PageContainer title="我的请假">
+    <PageContainer >
       {balances.length > 0 && (
         <Row gutter={16} style={{ marginBottom: 16 }}>
           {balances.slice(0, 4).map((b) => {
