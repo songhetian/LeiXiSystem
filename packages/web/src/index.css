@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 语义色 token：亮 / 暗 两套 ===== */
+@layer base {
+  :root {
+    color-scheme: light;
+    /* 画布 / 面板：冷调灰底，发丝线结构 */
+    --page: 244 246 250;
+    --panel: 255 255 255;
+    --panel-soft: 249 250 252;
+    --fill: 243 245 249;
+    /* 描边 */
+    --line: 228 232 240;
+    --line-strong: 205 213 225;
+    /* 文本 */
+    --ink: 12 18 32;
+    --muted: 91 107 132;
+    --faint: 148 163 184;
+    /* 品牌柔和态（浅蓝底 + 深蓝字） */
+    --brand-soft: 239 245 255;
+    --brand-soft-2: 224 235 255;
+    --brand-ink: 26 80 180;
+    --ochre-soft: 252 247 235;
+    --ochre-ink: 141 94 24;
+    --brand-scrim: 26 55 120;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --page: 13 16 24;
+    --panel: 24 28 40;
+    --panel-soft: 30 35 50;
+    --fill: 34 39 55;
+    --line: 46 52 68;
+    --line-strong: 64 72 92;
+    --ink: 236 239 246;
+    --muted: 158 168 188;
+    --faint: 122 132 152;
+    --brand-soft: 26 42 84;
+    --brand-soft-2: 32 52 102;
+    --brand-ink: 172 199 255;
+    --ochre-soft: 50 42 28;
+    --ochre-ink: 224 180 120;
+    --brand-scrim: 20 35 80;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-page text-ink font-sans transition-[background-color,color] duration-200;
+  }
+
+  ::selection {
+    background: rgb(var(--brand-soft-2));
+    color: rgb(var(--brand-ink));
+  }
+
+  /* 统一焦点环：翡翠色、克制 */
+  :focus-visible {
+    outline: 2px solid theme('colors.brand.500');
+    outline-offset: 1px;
+  }
+
+  /* 精致滚动条 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--line-strong) / 0.8);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--muted) / 0.7);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* 细线面板：以发丝线代替厚重阴影，克制专业 */
+  .panel {
+    @apply rounded-lg border border-line bg-panel;
+  }
+}

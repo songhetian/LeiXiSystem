@@ -1,0 +1,421 @@
+// 数据库 Schema 地基 — 起点：认证与 RBAC 权限细分 + 部门数据隔离
+// 后续按批次补充：考勤/报销/薪资/质检/合同等模型
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 部门/组织树：数据隔离的主体（本部门+下属部门可见子树由 parentId 表达）
+model Department {
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
+  parentId  Int?
+  createdAt DateTime    @default(now())
+
+  parent    Department?  @relation("DeptTree", fields: [parentId], references: [id])
+  children  Department[] @relation("DeptTree")
+  users     User[]
+  leaves    Leave[]
+  reimburses Reimburse[] @relation("reimburseDepartment")
+  attendances Attendance[] @relation("attendanceDepartment")
+  overtimes  Overtime[] @relation("overtimeDepartment")
+  makeups    Makeup[]   @relation("makeupDepartment")
+  salaries Salary[] @relation("salaryDepartment")
+  shifts    WorkShift[] @relation("shiftDepartment")
+  schedules ShiftSchedule[] @relation("scheduleDepartment")
+  templateItems ScheduleTemplateItem[] @relation("templateDepartment")
+  exceptions AttendanceException[] @relation("exceptionDepartment")
+
+  @@map("departments")
+}
+
+// 班次：排班的可复用时间模板。departmentId=NULL 表示全公司通用；阈值可按班次覆盖。
+model WorkShift {
+  id                Int      @id @default(autoincrement())
+  name              String
+  startTime         String // HH:mm
+  endTime           String // HH:mm
+  workHours         Decimal  @db.Decimal(3, 1) // 工作时长（自动计算，含跨夜处理）
+  restDuration      Int      @default(0) // 休息时长（分钟）
+  lateThreshold     Int? // 迟到阈值（分钟）
+  earlyThreshold    Int? // 早退阈值（分钟）
+  useGlobalThreshold Boolean @default(false)
+  isActive          Boolean  @default(true)
+  departmentId      Int? // NULL = 全公司通用
+  description       String?
+  color             String   @default("#3B82F6")
+  createdAt         DateTime @default(now())
+
+  shiftDepartment Department? @relation("shiftDepartment", fields: [departmentId], references: [id])
+  schedules       ShiftSchedule[] @relation("scheduleShift")
+  templateItems   ScheduleTemplateItem[] @relation("templateShift")
+
+  @@map("work_shifts")
+}
+
+// 排班：某人生某天的班次。部门隔离防线——departmentId 冗余自被排班用户的部门。
+model ShiftSchedule {
+  id           Int      @id @default(autoincrement())
+  scheduleDate String // YYYY-MM-DD
+  isRestDay    Boolean  @default(false)
+  userId       Int
+  shiftId      Int?
+  departmentId Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scheduleUser       User        @relation("scheduleUser", fields: [userId], references: [id])
+  scheduleShift      WorkShift?  @relation("scheduleShift", fields: [shiftId], references: [id])
+  scheduleDepartment Department? @relation("scheduleDepartment", fields: [departmentId], references: [id])
+
+  @@unique([userId, scheduleDate])
+  @@map("shift_schedules")
+}
+
+// 周排班模板：把「某人某天(周几)的班次」固化为可复用模板，一键应用到指定周。
+// 应用于目标周时，把每个模板条目落在 目标周起始日 + (weekday-1) 的日期上（复用单条 upsert）。
+model ScheduleTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  items ScheduleTemplateItem[]
+
+  @@map("schedule_templates")
+}
+
+// 周排班模板条目：某员工在周几(1=周一..7=周日)的班次或休息。departmentId 冗余自被排班用户部门。
+model ScheduleTemplateItem {
+  id           Int     @id @default(autoincrement())
+  templateId   Int
+  userId       Int
+  weekday      Int // 1=周一 .. 7=周日
+  shiftId      Int?
+  isRestDay    Boolean @default(false)
+  departmentId Int?
+
+  template      ScheduleTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  itemUser      User             @relation("templateUser", fields: [userId], references: [id])
+  itemShift     WorkShift?       @relation("templateShift", fields: [shiftId], references: [id])
+  itemDepartment Department?     @relation("templateDepartment", fields: [departmentId], references: [id])
+
+  @@unique([templateId, userId, weekday])
+  @@map("schedule_template_items")
+}
+
+// 报销单：部门数据隔离（同请假模式）。金额用 DECIMAL(10,2) 保证货币精度
+model Reimburse {
+  id           Int      @id @default(autoincrement())
+  type         String // 报销类型：餐饮/交通/办公…
+  reason       String
+  amount       Decimal  @db.Decimal(10, 2) // 报销总额 = 分项之和（服务端计算）
+  status       String   @default("pending") // pending | approved | rejected
+  applicantId  Int
+  departmentId Int
+  categoryId   Int? // 主类别（取首条分项的类别，冗余便于列表展示）
+  createdAt    DateTime @default(now())
+
+  applicant  User       @relation("reimburseApplicant", fields: [applicantId], references: [id])
+  department Department @relation("reimburseDepartment", fields: [departmentId], references: [id])
+  category   ReimburseCategory? @relation("reimburseCategory", fields: [categoryId], references: [id])
+  items      ReimburseItem[]
+
+  @@map("reimburses")
+}
+
+// 报销类别：系统级配置（无部门隔离）。name 唯一，可停用。
+model ReimburseCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  isActive    Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  reimburses Reimburse[]       @relation("reimburseCategory")
+  items      ReimburseItem[]   @relation("itemCategory")
+
+  @@map("reimburse_categories")
+}
+
+// 报销分项：挂在报销单下，每项一个类别 + 金额 + 备注。
+// 创建报销时一次性提交，审批后不可增删。amount 由前端提交但总额在服务端重算。
+model ReimburseItem {
+  id          Int    @id @default(autoincrement())
+  reimburseId Int
+  categoryId  Int
+  amount      Decimal @db.Decimal(10, 2)
+  note        String?
+
+  reimburse Reimburse        @relation(fields: [reimburseId], references: [id], onDelete: Cascade)
+  category  ReimburseCategory @relation("itemCategory", fields: [categoryId], references: [id])
+
+  @@index([reimburseId])
+  @@map("reimburse_items")
+}
+
+// 薪资单：按月为员工录入的记录（无审批流）。部门数据隔离——记录挂在被发薪员工的部门下。
+// net 实发由服务端计算 = basic + bonus - deduction，不信任前端。
+model Salary {
+  id           Int     @id @default(autoincrement())
+  month        String // 薪资所属月份 YYYY-MM
+  basic        Decimal @db.Decimal(10, 2) // 基本工资
+  bonus        Decimal @db.Decimal(10, 2) @default(0) // 绩效/奖金
+  deduction    Decimal @db.Decimal(10, 2) @default(0) // 扣除
+  net          Decimal @db.Decimal(10, 2) // 实发 = basic + bonus - deduction
+  userId       Int // 被发薪员工
+  departmentId Int
+  createdAt    DateTime @default(now())
+
+  salaryUser       User       @relation("salaryUser", fields: [userId], references: [id])
+  salaryDepartment Department @relation("salaryDepartment", fields: [departmentId], references: [id])
+
+  @@map("salaries")
+}
+
+// 用户（含认证主体与档案引用）
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String // bcrypt hash
+  realName  String
+  email     String?  @unique
+  phone     String?
+  avatar    String?
+  status    String   @default("active") // active | disabled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  departmentId Int? // 所属部门（外键，见 Department）
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  roles       UserRole[]
+  leaves      Leave[]
+  reimburses  Reimburse[] @relation("reimburseApplicant")
+  attendances Attendance[] @relation("attendanceUser")
+  overtimes  Overtime[] @relation("overtimeApplicant")
+  makeups   Makeup[]   @relation("makeupApplicant")
+  salaries Salary[] @relation("salaryUser")
+  schedules ShiftSchedule[] @relation("scheduleUser")
+  templateItems ScheduleTemplateItem[] @relation("templateUser")
+  leaveQuotas LeaveQuota[] @relation("quotaUser")
+  exceptions AttendanceException[] @relation("exceptionUser")
+
+  @@map("users")
+}
+
+// 考勤打卡记录：无审批流，仅记录 date + 上下班时间(HH:mm) + 备注；部门数据隔离
+model Attendance {
+  id           Int      @id @default(autoincrement())
+  date         DateTime // 打卡日期（展示取 slice(0,10)）
+  checkIn      String? // HH:mm
+  checkOut     String? // HH:mm
+  note         String   @default("")
+  userId       Int
+  departmentId Int
+  createdAt    DateTime @default(now())
+
+  attendanceUser       User       @relation("attendanceUser", fields: [userId], references: [id])
+  attendanceDepartment Department @relation("attendanceDepartment", fields: [departmentId], references: [id])
+
+  @@map("attendances")
+}
+
+// 考勤异常：由扫描任务基于打卡 + 排班自动判定，支持人工确认/驳回。
+// 部门数据隔离——异常挂在所属员工的部门下；date 为扫描所属日期。
+model AttendanceException {
+  id           Int      @id @default(autoincrement())
+  type         String // late | early_leave | missing_punch | absent
+  date         String // YYYY-MM-DD
+  minutes      Int? // 迟到/早退分钟差；缺卡/缺勤为 null
+  status       String   @default("pending") // pending | confirmed | dismissed
+  remark       String? // 人工确认/驳回备注
+  userId       Int
+  departmentId Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  exceptionUser       User       @relation("exceptionUser", fields: [userId], references: [id])
+  exceptionDepartment Department @relation("exceptionDepartment", fields: [departmentId], references: [id])
+
+  @@unique([userId, date, type])
+  @@map("attendance_exceptions")
+}
+
+// 全局考勤设置（系统级单例，id 恒为 1）：计时阈值/异常判定/补卡策略/通知开关。
+// 无部门隔离、无审批流——公司统一配置。请假额度与加班限制字段留给后续切片。
+model WorkAttendanceSetting {
+  id                        Int     @id @default(1) // 单例主键，恒为 1
+  earlyClockInMinutes       Int     @default(5) // 上班打卡宽限（分钟）
+  lateClockOutMinutes       Int     @default(5) // 下班打卡宽限（分钟）
+  lateMinutes               Int     @default(0) // 迟到判定阈值（分钟）
+  earlyLeaveMinutes         Int     @default(0) // 早退判定阈值（分钟）
+  absentHours               Int     @default(4) // 缺勤判定阈值（小时）
+  allowMakeup               Boolean @default(true) // 是否允许补卡
+  makeupDeadlineDays        Int     @default(7) // 补卡申请截止（天）
+  requireApprovalForMakeup  Boolean @default(true) // 补卡是否需要审批
+  notifyOnLate              Boolean @default(true) // 迟到通知
+  notifyOnEarlyLeave        Boolean @default(true) // 早退通知
+  notifyOnAbsent            Boolean @default(true) // 缺勤通知
+  enableTimeCheck           Boolean @default(true) // 是否启用按时打卡判定
+  updatedAt                 DateTime @updatedAt
+
+  @@map("work_attendance_settings")
+}
+
+// 节假日（系统级配置）：具体日期独立建模，按年管理。date 全局唯一（法定/公司/调休）。
+// 不绑定 vacation_type，避免与后续切片 LeaveType 类别重叠。
+model WorkHoliday {
+  id        Int      @id @default(autoincrement())
+  year      Int // 所属年份（冗余自 date，便于按年筛选）
+  date      String   @unique // YYYY-MM-DD
+  name      String // 名称：国庆节 / 公司团建 / 调休…
+  type      String   @default("national") // national | company | rest
+  createdAt DateTime @default(now())
+
+  @@map("work_holidays")
+}
+
+// 请假类型（系统级配置）：分类及年度默认额度。不参与部门隔离。
+model LeaveType {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // 如：年假 / 事假 / 病假 / 婚假
+  unit        String  @default("day") // day | hour
+  allowance   Decimal @db.Decimal(5, 1) @default(0) // 年度默认额度
+  isActive    Boolean @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+
+  quotas LeaveQuota[] @relation("quotaType")
+
+  @@map("leave_types")
+}
+
+// 年度请假额度：某员工某年某类型的可用/已用额度（user × year × leaveType 唯一）。
+// remaining = allowance - used；部门隔离在路由层用员工 scope 过滤。
+model LeaveQuota {
+  id          Int     @id @default(autoincrement())
+  userId      Int
+  year        Int
+  leaveTypeId Int
+  allowance   Decimal @db.Decimal(5, 1) @default(0) // 该年初始/可用额度
+  used        Decimal @db.Decimal(5, 1) @default(0) // 该年已用
+  updatedAt   DateTime @updatedAt
+
+  quotaUser User       @relation("quotaUser", fields: [userId], references: [id])
+  quotaType LeaveType  @relation("quotaType", fields: [leaveTypeId], references: [id])
+
+  @@unique([userId, year, leaveTypeId])
+  @@map("leave_quotas")
+}
+
+// 请假单：部门数据隔离的第一个垂直切片（业务数据挂在部门下）
+model Leave {
+  id           Int      @id @default(autoincrement())
+  type         String // 事假/病假/年假…
+  reason       String
+  startAt      DateTime
+  endAt        DateTime
+  status       String   @default("pending") // pending | approved | rejected
+  applicantId  Int
+  departmentId Int
+  createdAt    DateTime @default(now())
+
+  applicant  User       @relation(fields: [applicantId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@map("leaves")
+}
+
+// 加班申请单：对齐旧版加班模块，含审批流（pending/approved/rejected）与调休统计
+model Overtime {
+  id           Int      @id @default(autoincrement())
+  date         DateTime // 加班日期 YYYY-MM-DD
+  startTime    String // HH:mm 开始
+  endTime      String // HH:mm 结束
+  hours        Float // 加班时长（小时）
+  reason       String
+  status       String   @default("pending") // pending | approved | rejected
+  applicantId  Int
+  departmentId Int
+  createdAt    DateTime @default(now())
+
+  applicant  User       @relation("overtimeApplicant", fields: [applicantId], references: [id])
+  department Department @relation("overtimeDepartment", fields: [departmentId], references: [id])
+
+  @@map("overtimes")
+}
+
+// 补卡申请单：员工忘打卡时发起，含审批流（pending/approved/rejected）
+model Makeup {
+  id           Int      @id @default(autoincrement())
+  recordDate   DateTime // 需补卡日期 YYYY-MM-DD
+  clockType    String // check_in | check_out
+  clockTime    String // 补卡时间 HH:mm
+  reason       String
+  status       String   @default("pending") // pending | approved | rejected
+  applicantId  Int
+  departmentId Int
+  createdAt    DateTime @default(now())
+
+  applicant  User       @relation("makeupApplicant", fields: [applicantId], references: [id])
+  department Department @relation("makeupDepartment", fields: [departmentId], references: [id])
+
+  @@map("makeups")
+}
+
+// 角色：菜单/页面级权限入口
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  users        UserRole[]
+  permissions  RolePermission[]
+  departmentId Int?
+
+  @@map("roles")
+}
+
+// 用户-角色 关联（多对多）
+model UserRole {
+  userId Int
+  roleId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// 权限点：动作级(增删改查/审核) + 页面级
+model Permission {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique // 如 leave_approve, user_create
+  name        String
+  type        String   @default("action") // menu | action
+  module      String
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+// 角色-权限 关联
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

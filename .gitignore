@@ -1,60 +1,32 @@
-# Dependencies
+# dependencies
 node_modules/
-package-lock.json
-yarn.lock
 
-# Build outputs
+# builds
 dist/
-dist-react/
-build/
-dist.zip
+dist-*/
+*.tsbuildinfo
 
-# Electron
-out/
-
-# Environment
+# env
 .env
-.env.local
-config/db-config.json
+.env.*
+!.env.example
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+# logs
+logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Test outputs
-tests/coverage/
-tests/results/
-*.test.log
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
 
+# test / coverage
+coverage/
 
-#打包文件
-dist-app/
-uploads/
-docs/
-electron/
-
-config/db-config.encrypted.json
-config/db-config.decrypted.json
-nul
-
-leixi.*
-*.md
-*.sh
-*.skill
-
+# legacy archive keeps references but ignores its own deps
+_legacy/node_modules/
 
 .agents/
 .trae/
-.iflow/

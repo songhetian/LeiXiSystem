@@ -1,0 +1,21 @@
+{
+  "name": "@leixi/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "共享类型与纯函数：统一响应信封、DTO、校验 schema 契约",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

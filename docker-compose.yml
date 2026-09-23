@@ -1,0 +1,62 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: leixi-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: leixi_system
+      MYSQL_USER: leixi
+      MYSQL_PASSWORD: leixi
+      TZ: Asia/Shanghai
+    ports:
+      - '3307:3306'
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: leixi-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# web (nginx static) + api (node) added in production profile
+  # api:
+  #   build:
+  #     context: ./packages/server
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: mysql://leixi:leixi@db:3306/leixi_system
+  #     REDIS_URL: redis://redis:6379
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # web:
+  #   build:
+  #     context: ./packages/web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - '8080:80'
+
+volumes:
+  db_data:
+  redis_data:
