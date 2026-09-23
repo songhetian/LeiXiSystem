@@ -1,0 +1,281 @@
+/* 考试结果页面样式优化 - 卡片式布局 */
+
+/* 容器 */
+.my-exam-results-container {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* 卡片标题 */
+.ant-card-head-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+/* 搜索和筛选区域 */
+.exam-results-controls {
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.exam-results-search {
+  flex: 1;
+  min-width: 300px;
+}
+
+.exam-results-filter,
+.exam-results-exam-filter {
+  width: 180px;
+}
+
+/* 卡片容器 */
+.exam-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+/* 考试卡片 */
+.exam-card {
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  background-color: white;
+}
+
+.exam-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* 合格卡片 - 绿色背景 */
+.exam-card.passed {
+  background-color: rgba(72, 187, 120, 0.1);
+  border-color: rgba(72, 187, 120, 0.3);
+}
+
+/* 不合格卡片 - 红色背景 */
+.exam-card.failed {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* 卡片头部 */
+.exam-card-header {
+  margin-bottom: 16px;
+}
+
+.exam-card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 8px 0;
+}
+
+.exam-card-plan {
+  font-size: 14px;
+  color: #718096;
+  margin: 0;
+}
+
+/* 卡片主体 */
+.exam-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exam-score {
+  display: flex;
+  flex-direction: column;
+}
+
+.score-label {
+  font-size: 14px;
+  color: #718096;
+  margin-bottom: 4px;
+}
+
+.score-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.exam-status {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.exam-status.passed {
+  background-color: rgba(72, 187, 120, 0.2);
+  color: #22543d;
+}
+
+.exam-status.failed {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #742a2a;
+}
+
+/* 分页 */
+.exam-results-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: #718096;
+}
+
+/* 模态框样式 */
+.exam-details-modal {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.exam-detail-card {
+  background-color: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.attempt-number {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.detail-status {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.detail-status.passed {
+  background-color: rgba(72, 187, 120, 0.2);
+  color: #22543d;
+}
+
+.detail-status.failed {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #742a2a;
+}
+
+.detail-body {
+  margin-bottom: 16px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.detail-label {
+  font-size: 14px;
+  color: #718096;
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.view-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.3);
+}
+
+.view-detail-btn:hover {
+  background: linear-gradient(135deg, #3182ce 0%, #2c5aa0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.4);
+}
+
+.view-detail-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.3);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .my-exam-results-container {
+    padding: 16px;
+  }
+
+  .exam-results-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .exam-results-search {
+    min-width: unset;
+  }
+
+  .exam-cards-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .exam-card {
+    padding: 16px;
+  }
+
+  .exam-card-title {
+    font-size: 16px;
+  }
+
+  .score-value {
+    font-size: 20px;
+  }
+
+  .exam-results-pagination {
+    flex-direction: column;
+    gap: 12px;
+  }
+}

@@ -1,0 +1,466 @@
+/* 考核分类管理 - 扁平化极简风格 */
+
+.exam-category-management {
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* 头部 */
+.exam-category-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.exam-category-header h1 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #111;
+}
+
+.exam-category-header p {
+    margin: 0;
+    font-size: 13px;
+    color: #888;
+}
+
+/* 操作栏 */
+.exam-category-toolbar {
+    background: white;
+    border-radius: 2px;
+    border: 1px solid #f0f0f0;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* 按钮样式 - 扁平化 */
+.btn-flat-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #1890ff;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-flat-primary:hover {
+    background: #40a9ff;
+}
+
+.btn-flat-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-flat-success {
+    padding: 8px 16px;
+    background: rgba(82, 196, 26, 0.1);
+    color: #52c41a;
+    border: none;
+    border-radius: 2px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-flat-success:hover {
+    background: #52c41a;
+    color: white;
+}
+
+.btn-flat-info {
+    padding: 8px 16px;
+    background: rgba(24, 144, 255, 0.1);
+    color: #1890ff;
+    border: none;
+    border-radius: 2px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-flat-info:hover {
+    background: #1890ff;
+    color: white;
+}
+
+.btn-secondary {
+    padding: 8px 16px;
+    background: white;
+    color: #333;
+    border: 1px solid #d9d9d9;
+    border-radius: 2px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    color: #1890ff;
+    border-color: #1890ff;
+}
+
+/* 搜索框 */
+.search-input-flat {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 2px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.search-input-flat:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 分类卡片网格 */
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+/* 分类卡片 - 扁平化 */
+.category-card-flat {
+    background: white;
+    border: 1px solid #f0f0f0;
+    border-radius: 2px;
+    padding: 20px;
+    transition: all 0.2s;
+    cursor: default;
+}
+
+.category-card-flat:hover {
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.category-card-flat.dragging {
+    border-color: #1890ff;
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
+    opacity: 0.8;
+}
+
+/* 卡片头部 */
+.card-header-flat {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.card-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.card-actions-flat {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.category-card-flat:hover .card-actions-flat {
+    opacity: 1;
+}
+
+/* 卡片操作按钮 */
+.card-action-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 2px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+}
+
+.card-action-btn.edit {
+    color: #1890ff;
+    background: rgba(24, 144, 255, 0.1);
+}
+
+.card-action-btn.edit:hover {
+    background: #1890ff;
+    color: white;
+}
+
+.card-action-btn.delete {
+    color: #ff4d4f;
+    background: rgba(255, 77, 79, 0.1);
+}
+
+.card-action-btn.delete:hover {
+    background: #ff4d4f;
+    color: white;
+}
+
+/* 卡片标题 */
+.card-title-flat {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+    margin: 0 0 8px 0;
+}
+
+/* 卡片描述 */
+.card-description-flat {
+    font-size: 13px;
+    color: #666;
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 卡片元信息 */
+.card-meta-flat {
+    font-size: 12px;
+    color: #888;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 12px;
+}
+
+.meta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 快捷操作按钮 */
+.quick-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.quick-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border: 1px solid #d9d9d9;
+    background: white;
+    color: #666;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-btn:hover {
+    color: #1890ff;
+    border-color: #1890ff;
+}
+
+/* 加载状态 */
+.loading-container-flat {
+    background: white;
+    border: 1px solid #f0f0f0;
+    border-radius: 2px;
+    padding: 48px;
+    text-align: center;
+}
+
+.spinner-flat {
+    width: 32px;
+    height: 32px;
+    border: 2px solid #f0f0f0;
+    border-top-color: #1890ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-text-flat {
+    color: #888;
+    font-size: 14px;
+}
+
+/* 空状态 */
+.empty-container-flat {
+    background: white;
+    border: 1px solid #f0f0f0;
+    border-radius: 2px;
+    padding: 48px;
+    text-align: center;
+}
+
+.empty-text-flat {
+    color: #ccc;
+    font-size: 14px;
+}
+
+/* 模态框样式优化 */
+.modal-overlay-flat {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal-content-flat {
+    background: white;
+    border-radius: 2px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header-flat {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal-title-flat {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+    margin: 0;
+}
+
+.modal-close-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 2px;
+    background: #f5f5f5;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+    background: #e8e8e8;
+    color: #111;
+}
+
+.modal-body-flat {
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.modal-footer-flat {
+    padding: 12px 24px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* 表单样式 */
+.form-group-flat {
+    margin-bottom: 20px;
+}
+
+.form-group-flat:last-child {
+    margin-bottom: 0;
+}
+
+.form-label-flat {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+}
+
+.form-input-flat,
+.form-textarea-flat,
+.form-select-flat {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 2px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.form-input-flat:focus,
+.form-textarea-flat:focus,
+.form-select-flat:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.form-hint-flat {
+    display: block;
+    margin-top: 6px;
+    color: #888;
+    font-size: 12px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .exam-category-management {
+        padding: 16px;
+    }
+
+    .category-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .toolbar-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-input-flat {
+        width: 100%;
+    }
+}

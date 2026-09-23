@@ -1,0 +1,460 @@
+/**
+ * 考核系统商务风格样式
+ * Business-oriented professional styling for assessment system
+ */
+
+/* ==================== 色彩方案 Color Scheme ==================== */
+:root {
+  /* 主色调 - Primary Colors */
+  --business-primary: #1a3a52;
+  --business-primary-light: #2c5f8d;
+  --business-primary-dark: #0f2537;
+
+  /* 辅助色 - Secondary Colors */
+  --business-accent: #e67e22;
+  --business-accent-light: #f39c12;
+  --business-accent-dark: #d35400;
+
+  /* 状态色 - Status Colors */
+  --business-success: #27ae60;
+  --business-warning: #f39c12;
+  --business-danger: #c0392b;
+  --business-info: #3498db;
+
+  /* 中性色 - Neutral Colors */
+  --business-bg: #f5f7fa;
+  --business-bg-light: #ffffff;
+  --business-bg-dark: #ecf0f1;
+  --business-border: #dce1e8;
+  --business-text: #2c3e50;
+  --business-text-light: #7f8c8d;
+  --business-text-muted: #95a5a6;
+
+  /* 阴影 - Shadows */
+  --business-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --business-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --business-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --business-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
+
+  /* 圆角 - Border Radius */
+  --business-radius-sm: 4px;
+  --business-radius: 6px;
+  --business-radius-lg: 8px;
+
+  /* 间距 - Spacing */
+  --business-spacing-xs: 8px;
+  --business-spacing-sm: 12px;
+  --business-spacing: 16px;
+  --business-spacing-md: 20px;
+  --business-spacing-lg: 24px;
+  --business-spacing-xl: 32px;
+}
+
+/* ==================== 全局样式 Global Styles ==================== */
+.assessment-business {
+  font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--business-text);
+  line-height: 1.6;
+}
+
+/* ==================== 卡片样式 Card Styles ==================== */
+.assessment-business .ant-card {
+  border-radius: var(--business-radius-lg);
+  box-shadow: var(--business-shadow);
+  border: 1px solid var(--business-border);
+  margin-bottom: var(--business-spacing-lg);
+  transition: all 0.3s ease;
+}
+
+.assessment-business .ant-card:hover {
+  box-shadow: var(--business-shadow-md);
+}
+
+.assessment-business .ant-card-head {
+  background: linear-gradient(135deg, var(--business-primary) 0%, var(--business-primary-light) 100%);
+  color: white;
+  border-bottom: none;
+  border-radius: var(--business-radius-lg) var(--business-radius-lg) 0 0;
+  padding: var(--business-spacing) var(--business-spacing-lg);
+}
+
+.assessment-business .ant-card-head-title {
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.assessment-business .ant-card-body {
+  padding: var(--business-spacing-lg);
+}
+
+/* ==================== 按钮样式 Button Styles ==================== */
+.assessment-business .ant-btn-primary {
+  background: var(--business-primary);
+  border-color: var(--business-primary);
+  border-radius: var(--business-radius);
+  font-weight: 500;
+  box-shadow: var(--business-shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.assessment-business .ant-btn-primary:hover {
+  background: var(--business-primary-light);
+  border-color: var(--business-primary-light);
+  box-shadow: var(--business-shadow);
+  transform: translateY(-1px);
+}
+
+.assessment-business .ant-btn-default {
+  border-color: var(--business-border);
+  border-radius: var(--business-radius);
+  color: var(--business-text);
+  transition: all 0.3s ease;
+}
+
+.assessment-business .ant-btn-default:hover {
+  border-color: var(--business-primary);
+  color: var(--business-primary);
+}
+
+.assessment-business .ant-btn-dangerous,
+.assessment-business .ant-btn-danger {
+  background: var(--business-danger);
+  border-color: var(--business-danger);
+  border-radius: var(--business-radius);
+}
+
+/* ==================== 表格样式 Table Styles ==================== */
+.assessment-business .ant-table {
+  border-radius: var(--business-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--business-shadow);
+}
+
+.assessment-business .ant-table-thead > tr > th {
+  background: var(--business-primary);
+  color: white;
+  font-weight: 600;
+  border-bottom: 2px solid var(--business-primary-dark);
+  padding: var(--business-spacing) var(--business-spacing-sm);
+}
+
+.assessment-business .ant-table-tbody > tr:hover > td {
+  background: var(--business-bg-dark);
+}
+
+.assessment-business .ant-table-tbody > tr > td {
+  padding: var(--business-spacing-sm);
+  border-bottom: 1px solid var(--business-border);
+}
+
+/* ==================== 表单样式 Form Styles ==================== */
+.assessment-business .ant-form-item-label > label {
+  color: var(--business-text);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.assessment-business .ant-input,
+.assessment-business .ant-input-number,
+.assessment-business .ant-select-selector,
+.assessment-business .ant-picker {
+  border-radius: var(--business-radius);
+  border-color: var(--business-border);
+  transition: all 0.3s ease;
+}
+
+.assessment-business .ant-input:focus,
+.assessment-business .ant-input-number:focus,
+.assessment-business .ant-select-focused .ant-select-selector,
+.assessment-business .ant-picker:focus {
+  border-color: var(--business-primary);
+  box-shadow: 0 0 0 2px rgba(26, 58, 82, 0.1);
+}
+
+.assessment-business .ant-input:hover,
+.assessment-business .ant-input-number:hover,
+.assessment-business .ant-select:hover .ant-select-selector,
+.assessment-business .ant-picker:hover {
+  border-color: var(--business-primary-light);
+}
+
+/* ==================== 标签样式 Tag Styles ==================== */
+.assessment-business .ant-tag {
+  border-radius: var(--business-radius-sm);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+}
+
+.assessment-business .ant-tag-success {
+  background: rgba(39, 174, 96, 0.1);
+  color: var(--business-success);
+}
+
+.assessment-business .ant-tag-processing {
+  background: rgba(52, 152, 219, 0.1);
+  color: var(--business-info);
+}
+
+.assessment-business .ant-tag-error {
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--business-danger);
+}
+
+.assessment-business .ant-tag-warning {
+  background: rgba(243, 156, 18, 0.1);
+  color: var(--business-warning);
+}
+
+/* ==================== 徽章样式 Badge Styles ==================== */
+.assessment-business .status-badge-draft {
+  background: var(--business-text-muted);
+  color: white;
+  padding: 4px 12px;
+  border-radius: var(--business-radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.assessment-business .status-badge-published {
+  background: var(--business-success);
+  color: white;
+  padding: 4px 12px;
+  border-radius: var(--business-radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.assessment-business .status-badge-archived {
+  background: var(--business-warning);
+  color: white;
+  padding: 4px 12px;
+  border-radius: var(--business-radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ==================== 拖拽区域样式 Drag-Drop Styles ==================== */
+.assessment-business .drag-drop-container {
+  background: var(--business-bg);
+  border: 2px dashed var(--business-border);
+  border-radius: var(--business-radius-lg);
+  padding: var(--business-spacing);
+  min-height: 400px;
+  transition: all 0.3s ease;
+}
+
+.assessment-business .drag-drop-container.dragging-over {
+  background: rgba(26, 58, 82, 0.05);
+  border-color: var(--business-primary);
+}
+
+.assessment-business .drag-item {
+  background: white;
+  border: 1px solid var(--business-border);
+  border-radius: var(--business-radius);
+  padding: var(--business-spacing);
+  margin-bottom: var(--business-spacing-sm);
+  box-shadow: var(--business-shadow-sm);
+  transition: all 0.3s ease;
+  cursor: move;
+}
+
+.assessment-business .drag-item:hover {
+  box-shadow: var(--business-shadow);
+  border-color: var(--business-primary-light);
+}
+
+.assessment-business .drag-item.dragging {
+  opacity: 0.5;
+  box-shadow: var(--business-shadow-md);
+  border-color: var(--business-primary);
+}
+
+/* ==================== 统计卡片样式 Statistics Card Styles ==================== */
+.assessment-business .stat-card {
+  background: white;
+  border-radius: var(--business-radius-lg);
+  padding: var(--business-spacing-lg);
+  box-shadow: var(--business-shadow);
+  border-left: 4px solid var(--business-primary);
+  transition: all 0.3s ease;
+}
+
+.assessment-business .stat-card:hover {
+  box-shadow: var(--business-shadow-md);
+  transform: translateY(-2px);
+}
+
+.assessment-business .stat-card-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--business-primary);
+  line-height: 1.2;
+  margin-bottom: var(--business-spacing-xs);
+}
+
+.assessment-business .stat-card-label {
+  font-size: 14px;
+  color: var(--business-text-light);
+  font-weight: 500;
+}
+
+/* ==================== 列表样式 List Styles ==================== */
+.assessment-business .exam-list-item {
+  background: white;
+  border-radius: var(--business-radius-lg);
+  padding: var(--business-spacing-lg);
+  margin-bottom: var(--business-spacing);
+  box-shadow: var(--business-shadow);
+  border: 1px solid var(--business-border);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.assessment-business .exam-list-item:hover {
+  box-shadow: var(--business-shadow-md);
+  border-color: var(--business-primary);
+  transform: translateY(-2px);
+}
+
+.assessment-business .exam-list-item-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--business-text);
+  margin-bottom: var(--business-spacing-xs);
+}
+
+.assessment-business .exam-list-item-meta {
+  color: var(--business-text-light);
+  font-size: 13px;
+}
+
+/* ==================== 进度条样式 Progress Styles ==================== */
+.assessment-business .ant-progress-line {
+  border-radius: var(--business-radius);
+}
+
+.assessment-business .ant-progress-bg {
+  background: linear-gradient(90deg, var(--business-primary) 0%, var(--business-primary-light) 100%);
+  border-radius: var(--business-radius);
+}
+
+/* ==================== 分页样式 Pagination Styles ==================== */
+.assessment-business .ant-pagination-item {
+  border-radius: var(--business-radius);
+  border-color: var(--business-border);
+}
+
+.assessment-business .ant-pagination-item-active {
+  background: var(--business-primary);
+  border-color: var(--business-primary);
+}
+
+.assessment-business .ant-pagination-item-active a {
+  color: white;
+}
+
+/* ==================== 模态框样式 Modal Styles ==================== */
+.assessment-business .ant-modal-content {
+  border-radius: var(--business-radius-lg);
+  box-shadow: var(--business-shadow-lg);
+}
+
+.assessment-business .ant-modal-header {
+  background: var(--business-primary);
+  border-radius: var(--business-radius-lg) var(--business-radius-lg) 0 0;
+  border-bottom: none;
+}
+
+.assessment-business .ant-modal-title {
+  color: white;
+  font-weight: 600;
+}
+
+.assessment-business .ant-modal-close-x {
+  color: white;
+}
+
+/* ==================== 响应式设计 Responsive Design ==================== */
+@media (max-width: 768px) {
+  .assessment-business .ant-card-body {
+    padding: var(--business-spacing);
+  }
+
+  .assessment-business .stat-card-value {
+    font-size: 24px;
+  }
+
+  .assessment-business .exam-list-item {
+    padding: var(--business-spacing);
+  }
+}
+
+/* ==================== 自定义滚动条 Custom Scrollbar ==================== */
+.assessment-business ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.assessment-business ::-webkit-scrollbar-track {
+  background: var(--business-bg-dark);
+  border-radius: var(--business-radius);
+}
+
+.assessment-business ::-webkit-scrollbar-thumb {
+  background: var(--business-text-muted);
+  border-radius: var(--business-radius);
+}
+
+.assessment-business ::-webkit-scrollbar-thumb:hover {
+  background: var(--business-text-light);
+}
+
+/* ==================== 动画效果 Animations ==================== */
+@keyframes business-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.assessment-business .fade-in {
+  animation: business-fade-in 0.3s ease;
+}
+
+/* ==================== 辅助类 Utility Classes ==================== */
+.assessment-business .text-primary {
+  color: var(--business-primary);
+}
+
+.assessment-business .text-success {
+  color: var(--business-success);
+}
+
+.assessment-business .text-warning {
+  color: var(--business-warning);
+}
+
+.assessment-business .text-danger {
+  color: var(--business-danger);
+}
+
+.assessment-business .bg-primary {
+  background-color: var(--business-primary);
+  color: white;
+}
+
+.assessment-business .bg-light {
+  background-color: var(--business-bg-light);
+}
+
+.assessment-business .border-primary {
+  border-color: var(--business-primary);
+}

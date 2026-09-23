@@ -1,0 +1,210 @@
+/* 考试结果页面样式优化 - 现代化设计 */
+
+/* 容器 */
+.exam-result-page {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* 主卡片 */
+.exam-result-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.exam-result-card .ant-card-head {
+  background-color: #ffffff;
+  border-radius: 16px 16px 0 0;
+  padding: 0 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.exam-result-card .ant-card-head-title {
+  color: #2d3748;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* 成绩卡片 */
+.score-summary-card {
+  margin-bottom: 24px !important;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.score-title {
+  font-size: 48px;
+  font-weight: 700;
+  margin: 0;
+  color: #2d3748;
+}
+
+.score-status-tag {
+  font-size: 18px !important;
+  padding: 8px 24px !important;
+  border-radius: 24px !important;
+  font-weight: 600;
+}
+
+/* 描述列表 */
+.score-descriptions .ant-descriptions-item-label {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.score-descriptions .ant-descriptions-item-content {
+  color: #2d3748;
+  font-weight: 500;
+}
+
+/* 图表卡片 */
+.charts-container {
+  width: 100%;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 24px;
+}
+
+.chart-card {
+  flex: 1;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  background-color: white;
+}
+
+.chart-card .ant-card-head {
+  background-color: #f8fafc;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.chart-card .ant-card-head-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.chart-container {
+  height: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 按钮区域 */
+.button-group {
+  margin-top: 24px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.result-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-view-details {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+}
+
+.btn-view-details:hover {
+  background: linear-gradient(135deg, #3182ce 0%, #2c5aa0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+.btn-back {
+  background-color: #f7fafc;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-back:hover {
+  background-color: #f0f9ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-retake {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+}
+
+.btn-retake:hover {
+  background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(72, 187, 120, 0.3);
+}
+
+/* 加载状态 */
+.loading-container {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.loading-spinner {
+  margin-bottom: 16px;
+}
+
+/* 空状态 */
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0 0 24px 0;
+  color: #718096;
+  font-size: 16px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .exam-result-page {
+    padding: 16px;
+  }
+
+  .charts-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .chart-container {
+    height: 250px;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .result-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .score-title {
+    font-size: 36px;
+  }
+
+  .exam-result-card .ant-card-head-title {
+    font-size: 20px;
+  }
+}
