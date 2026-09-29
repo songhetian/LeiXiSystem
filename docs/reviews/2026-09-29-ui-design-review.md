@@ -633,7 +633,7 @@ frontend/src/app/arco-overrides.css:1578  .header-search-kbd { font-size: 10px; 
 | C6 | 状态标签对比度不达 AA | ✅ | 新增 `--lx-*-text` 文字级语义色（浅色 4.67–7.10 / 暗色 5.32–7.84）；新增对比度回归闸门 |
 | C7 | 17 处交互元素键盘不可达 | ✅ | 17 处 `div/span`→`<button className="lx-clickable">`；补 `:focus-visible` 统一焦点环 |
 | C8 | 外壳零响应式 | ✅ | `globals.css` 补 `@media(max-width:767px)` token 降档；`arco-overrides.css` 改用 token + `100dvh` |
-| C9 | 未映射 Tailwind 色暗色失效 | ✅ | `tailwind.config.ts` 收窄调色板（清默认 gray/white/black），仅留 token 映射 |
+| C9 | 未映射 Tailwind 色暗色失效 | ✅ | `tailwind.config.ts` 收窄调色板：删除默认 `gray`/`black`，仅保留 `white`/`transparent`/`current`/`inherit` 四个必要基元（`white` 带注释，仅用于彩色底上的文字）|
 
 ### 🟡 重要问题（P1）
 
@@ -649,8 +649,8 @@ frontend/src/app/arco-overrides.css:1578  .header-search-kbd { font-size: 10px; 
 | W8 | z-index 混乱 | ✅ | 外壳改用 `--lx-z-*` 阶；`.drawer-mask` 用 `calc(var(--lx-z-fixed)-1)` |
 | W9 | 死文件 | ✅ | 删除 `ProTable.css`/`StatusTag.css`；`.lx-tag-*` 收敛到 `globals.css` 唯一来源 |
 | W10 | 动画简写误用 | ✅ | 新增纯缓动 `--lx-ease-standard`，`.dsh-*` 入场动画改用它（消除 150ms 误插延迟） |
-| W11 | 100vh 移动端裁切 | ✅ | `.app-layout`/登录页改 `100dvh`（保留 `100vh` 降级） |
-| W12 | hover-only/右键屏蔽等 | ✅ | 面包屑容器 hover 收窄到 `.breadcrumb-link`；`kbd` 10px→11px + `--lx-text-3`；`.page-tab` 补 `:active` 态 |
+| W11 | 100vh 移动端裁切 | ✅ | `.app-layout`/登录页改 `100dvh`；`ProtectedRoute.tsx` 的 `h-screen`→`min-h-dvh`（2026-09-29 续修补齐） |
+| W12 | hover-only/右键屏蔽等 | ✅ | `.breadcrumb-item:hover` 容器级误导变色**已移除**（仅 `.breadcrumb-link:hover` 表达可点击）；`kbd` 10px→11px + `--lx-text-3`；`.page-tab` 补 `:active` 态 |
 
 ### 🔵 建议（P2）
 
