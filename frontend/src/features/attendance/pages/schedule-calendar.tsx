@@ -412,33 +412,37 @@ export default function ScheduleCalendarPage() {
   const throttledSyncHScroll = useThrottle(syncHScroll, 80);
 
   useEffect(() => {
+    // 单次绑定：bind() 返回 cleanup，无论何时成功绑定，最终都由 useEffect 的
+    // cleanup 统一释放，避免 setTimeout 分支和即时分支各自添加 scroll 监听器
+    // 后无人 removeEventListener 造成的累积泄漏（用户每次切月份/筛选时触发）。
+    let cleanup: () => void = () => {};
+
     const bind = () => {
       const el = getHScrollEl();
-      if (!el) return false;
+      if (!el) return;
       const onScroll = () => throttledSyncHScroll();
       el.addEventListener('scroll', onScroll, { passive: true });
       syncHScroll();
-      return true;
-    };
-    // 数据、列数变化后表格可能尚未渲染，延迟绑定以确保拿到滚动容器
-    if (!bind()) {
-      const t = setTimeout(() => {
-        bind();
-        const ro = new ResizeObserver(syncHScroll);
-        const el = getHScrollEl();
-        if (el) ro.observe(el);
-      }, 60);
-      return () => {
-        clearTimeout(t);
+      const ro = new ResizeObserver(syncHScroll);
+      ro.observe(el);
+      cleanup = () => {
+        el.removeEventListener('scroll', onScroll);
+        ro.disconnect();
       };
-    }
-    const el = getHScrollEl();
-    const ro = new ResizeObserver(syncHScroll);
-    if (el) ro.observe(el);
-    return () => {
-      if (el) ro.disconnect();
     };
-  }, [syncHScroll, getHScrollEl, daysInMonth, filteredEmployees.length]);
+
+    if (!getHScrollEl()) {
+      // 数据/列数变化后表格可能尚未渲染，延迟绑定以确保拿到滚动容器
+      const t = setTimeout(bind, 60);
+      cleanup = () => {
+        clearTimeout(t);
+        cleanup();
+      };
+    } else {
+      bind();
+    }
+    return cleanup;
+  }, [syncHScroll, getHScrollEl, throttledSyncHScroll, daysInMonth, filteredEmployees.length]);
 
   /** 固定长条：按比例(0~1)跳转到表格横向位置 */
   const handleHSeek = useCallback(

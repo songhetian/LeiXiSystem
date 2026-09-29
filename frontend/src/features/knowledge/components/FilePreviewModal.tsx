@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Modal, Button, Space } from '@arco-design/web-react';
 import { IconDownload } from '@arco-design/web-react/icon';
@@ -55,6 +56,31 @@ function DownloadFallback({ file, hint }: { file: PreviewFile; hint?: string }) 
 export default function FilePreviewModal({ file, title, visible = true, onClose }: FilePreviewModalProps) {
   const mode = getPreviewMode(file.name, file.mimeType);
 
+  // 媒体资源释放：visible=false 或文件切换/组件卸载时暂停 video/audio，
+  // 并把 iframe src 切到 about:blank 强制 PDF viewer 销毁，避免内存泄漏与后台播放。
+  const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  useEffect(() => {
+    return () => {
+      const m = mediaRef.current;
+      if (m && 'pause' in m) {
+        m.pause();
+        m.removeAttribute('src');
+        m.load();
+      }
+      if (iframeRef.current) {
+        iframeRef.current.src = 'about:blank';
+      }
+    };
+  }, [file.url]);
+  useEffect(() => {
+    if (!visible) {
+      const m = mediaRef.current;
+      if (m && 'pause' in m) m.pause();
+      if (iframeRef.current) iframeRef.current.src = 'about:blank';
+    }
+  }, [visible]);
+
   const content = (() => {
     // Office 文档交由 @open-file-viewer 在线渲染
     if (shouldUseViewer(mode) && file.blob) {
@@ -75,23 +101,24 @@ export default function FilePreviewModal({ file, title, visible = true, onClose 
         );
       case 'video':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '65vh', background: '#000' }}>
-            <video controls src={file.url} style={{ maxWidth: '100%', maxHeight: '100%' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '65vh', background: 'var(--lx-bg-secondary)' }}>
+            <video ref={mediaRef as React.RefObject<HTMLVideoElement>} controls src={file.url} style={{ maxWidth: '100%', maxHeight: '100%' }} />
           </div>
         );
       case 'audio':
         return (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '30vh', background: 'var(--lx-bg-secondary)' }}>
-            <audio controls src={file.url} style={{ width: '80%' }} />
+            <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} controls src={file.url} style={{ width: '80%' }} />
           </div>
         );
       case 'pdf':
         return (
           <iframe
+            ref={iframeRef}
             key={file.url}
             src={`${file.url}#toolbar=1&navpanes=0`}
             title={file.name}
-            style={{ width: '100%', height: '65vh', border: 'none', background: '#fff' }}
+            style={{ width: '100%', height: '65vh', border: 'none', background: 'var(--lx-bg-secondary)' }}
           />
         );
       case 'unsupported':
