@@ -164,13 +164,13 @@ describe('payslipApi', () => {
   });
 
   describe('异常用例', () => {
-    it('handles payslip not found error (code 4004)', async () => {
+    it('handles payslip not found error (code 3011)', async () => {
       mockedRequest.get.mockResolvedValueOnce({
-        code: 4004,
+        code: 3011,
         message: '工资条不存在',
       });
       const result = await payslipApi.getMyPayslipDetail(999);
-      expect(result.code).toBe(4004);
+      expect(result.code).toBe(3011);
       expect(result.message).toBe('工资条不存在');
     });
 

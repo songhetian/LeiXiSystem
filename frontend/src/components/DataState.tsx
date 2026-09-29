@@ -44,7 +44,7 @@ function SkeletonList({ rows = 5 }: { rows?: number }) {
             alignItems: 'center',
             gap: '12px',
             padding: '10px 0',
-            borderBottom: i < rows - 1 ? '1px solid #f1f5f9' : 'none',
+            borderBottom: i < rows - 1 ? '1px solid var(--lx-border-2)' : 'none',
           }}
         >
           <Skeleton animation style={{ width: 32, height: 32, borderRadius: 6 }} />
@@ -83,7 +83,7 @@ export default function DataState({
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '48px 0', gap: 8 }}>
         <Spin size={20} />
-        <span style={{ color: '#86909c', fontSize: 14 }}>{loadingText}</span>
+        <span style={{ color: 'var(--lx-text-3)', fontSize: 14 }}>{loadingText}</span>
       </div>
     );
   }

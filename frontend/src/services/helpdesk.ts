@@ -34,6 +34,8 @@ export interface TicketListParams {
   status?: string;
   priority?: string;
   assigneeId?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface TicketCreateDto {
@@ -81,7 +83,7 @@ export type SlaUpdateDto = Partial<SlaCreateDto>;
 export interface ListResult<T> {
   code: number;
   message?: string;
-  data?: { list: T[]; total: number };
+  data?: { list: T[]; total: number; page?: number; pageSize?: number };
 }
 
 export interface ItemResult<T> {

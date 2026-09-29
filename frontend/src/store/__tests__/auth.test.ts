@@ -1,10 +1,20 @@
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/services/auth';
+import { clearDataCache } from '@/hooks/use-cached-data';
+import { clearDictCache } from '@/hooks/use-dict';
 
 jest.mock('@/services/auth', () => ({
   authApi: {
     me: jest.fn(),
   },
+}));
+
+jest.mock('@/hooks/use-cached-data', () => ({
+  clearDataCache: jest.fn(),
+}));
+
+jest.mock('@/hooks/use-dict', () => ({
+  clearDictCache: jest.fn(),
 }));
 
 describe('useAuthStore · 权限与会话（T26）', () => {
@@ -68,5 +78,21 @@ describe('useAuthStore · 权限与会话（T26）', () => {
     useAuthStore.getState().logout();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(document.cookie).not.toContain('access_token=abc123');
+  });
+
+  it('logout 清理共享数据缓存与词典缓存，避免换账号复用脏数据', () => {
+    useAuthStore.getState().setUser({ id: 1, username: 'a', name: 'A', permissions: [] });
+    useAuthStore.getState().logout();
+    expect(clearDataCache).toHaveBeenCalled();
+    expect(clearDictCache).toHaveBeenCalled();
+  });
+
+  it('clearUser 同样清理共享数据缓存与词典缓存', () => {
+    useAuthStore.getState().setUser({ id: 1, username: 'a', name: 'A', permissions: [] });
+    (clearDataCache as jest.Mock).mockClear();
+    (clearDictCache as jest.Mock).mockClear();
+    useAuthStore.getState().clearUser();
+    expect(clearDataCache).toHaveBeenCalled();
+    expect(clearDictCache).toHaveBeenCalled();
   });
 });

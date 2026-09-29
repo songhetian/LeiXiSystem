@@ -49,6 +49,18 @@ describe('formatDateTime', () => {
   it('输出 YYYY-MM-DD HH:mm', () => {
     expect(formatDateTime('2026-09-01T08:30:00.000Z')).toBe('2026-09-01 16:30');
   });
+
+  it('支持自定义空值占位符（如 -- 用于工单到期时间）', () => {
+    expect(formatDateTime(null, '--')).toBe('--');
+    expect(formatDateTime(undefined, '--')).toBe('--');
+    expect(formatDateTime('', '--')).toBe('--');
+  });
+
+  it('不会泄漏 ISO 原始串：UTC 午夜跨日时显示东八区次日', () => {
+    // 旧 bug：slice(0,16) 会直接截断 ISO 串输出 2026-09-01 00:00（UTC 视图）
+    // 修复后恒按北京时间：UTC 2026-09-01 16:00 → 北京 2026-09-02 00:00
+    expect(formatDateTime('2026-09-01T16:00:00.000Z')).toBe('2026-09-02 00:00');
+  });
 });
 
 describe('formatDateRange', () => {

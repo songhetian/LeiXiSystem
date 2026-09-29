@@ -39,7 +39,7 @@ export default function PageContainer({
         <div className="page-header">
           <div className="page-title-wrap">
             {title && (
-              <Title heading={3} style={{ margin: 0, fontWeight: 500, fontSize: 18, letterSpacing: '-0.01em', color: '#1d2129' }}>
+              <Title heading={3} className="page-title" style={{ margin: 0 }}>
                 {title}
               </Title>
             )}

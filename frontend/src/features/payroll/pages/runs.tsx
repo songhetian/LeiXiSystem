@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Message, Space, Button } from '@arco-design/web-react';
@@ -9,6 +9,7 @@ import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { payrollApi, PayrollRun } from '@/services/payroll';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 
 interface RunListEnvelope {
@@ -177,7 +178,7 @@ export default function PayrollRunsPage() {
     { title: '员工数', dataIndex: 'totalEmployees', width: 100 },
     { title: '总金额', dataIndex: 'totalAmount', width: 120 },
     { title: '创建人', dataIndex: 'createdByName', width: 120 },
-    { title: '创建时间', dataIndex: 'createdAt', width: 200 },
+    { title: '创建时间', dataIndex: 'createdAt', width: 200, render: (v: unknown) => formatDateTime(v) },
     {
       title: '操作',
       dataIndex: 'actions',

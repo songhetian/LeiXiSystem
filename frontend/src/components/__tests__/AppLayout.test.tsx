@@ -63,11 +63,19 @@ jest.mock('@arco-design/web-react/icon', () => {
   );
 });
 
+const mockPush = jest.fn();
+const mockPathname = { current: '/' };
+
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
-  usePathname: () => '/',
+  useRouter: () => ({ replace: jest.fn(), push: mockPush }),
+  usePathname: () => mockPathname.current,
   useSearchParams: () => new URLSearchParams(),
 }));
+
+beforeEach(() => {
+  mockPathname.current = '/';
+  mockPush.mockClear();
+});
 
 // AppLayout 现在调用 useSocket() 初始化实时连接；测试中置为空操作，避免真实建连
 jest.mock('@/hooks/use-socket', () => ({
@@ -144,6 +152,19 @@ describe('AppSider', () => {
     expect(screen.getByText(/打卡设备/i)).toBeInTheDocument();
   });
 
+  it('renders 考勤统计 under 考勤报表 and clicking emits attendance-statistics', async () => {
+    const user = userEvent.setup();
+    const onMenuClick = jest.fn();
+    render(<AppSider onMenuClick={onMenuClick} />);
+    await user.click(screen.getByText('考勤统计'));
+    expect(onMenuClick).toHaveBeenCalledWith('attendance-statistics');
+  });
+
+  it('hides 考勤统计 when attendance:view is absent', () => {
+    render(<AppSider permissions={['employee:view']} />);
+    expect(screen.queryByText('考勤统计')).not.toBeInTheDocument();
+  });
+
   it('marks the active menu item (activeKey)', () => {
     render(<AppSider activeKey="attendance-daily" />);
     const item = screen.getByText(/考勤日报/i).closest('.side-item');
@@ -193,6 +214,24 @@ describe('AppSider', () => {
     expect(screen.getByText('薪资管理')).toBeInTheDocument();
     expect(screen.getByText('系统设置')).toBeInTheDocument();
   });
+
+  it('activeKey 变化后自动展开其祖先菜单（高亮项不被折叠父级藏住）', () => {
+    const { rerender } = render(<AppSider activeKey="dashboard" />);
+    // 初始 activeKey 为工作台，考勤子菜单处于折叠态
+    expect(
+      screen.getByText('考勤管理').closest('.side-parent')!.nextElementSibling,
+    ).toHaveClass('collapsed');
+
+    // 切换 activeKey（页签/快捷键跳转）到考勤子项
+    rerender(<AppSider activeKey="attendance-daily" />);
+
+    // 祖先菜单应被自动展开，避免高亮项被折叠父级藏住
+    expect(
+      screen.getByText('考勤管理').closest('.side-parent')!.nextElementSibling,
+    ).not.toHaveClass('collapsed');
+    expect(screen.getByText(/考勤日报/i).closest('.side-children')).not.toHaveClass('collapsed');
+    expect(screen.getByText(/考勤日报/i).closest('.side-item')).toHaveClass('active');
+  });
 });
 
 describe('AppHeader', () => {
@@ -212,9 +251,16 @@ describe('AppHeader', () => {
     expect(screen.getByText(/首页/i)).toBeInTheDocument();
   });
 
-  it('renders dropdown for user menu', () => {
+  it('renders dropdowns for theme and user menu', () => {
     render(<AppHeader title="工作台" />);
-    expect(screen.getByTestId('dropdown')).toBeInTheDocument();
+    expect(screen.getAllByTestId('dropdown').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders 考勤管理 / 考勤统计 breadcrumb on /attendance/statistics', () => {
+    mockPathname.current = '/attendance/statistics';
+    render(<AppHeader title="考勤统计" />);
+    expect(screen.getByText('考勤管理')).toBeInTheDocument();
+    expect(screen.getAllByText('考勤统计').length).toBeGreaterThan(0);
   });
 });
 
@@ -259,5 +305,16 @@ describe('AppLayout', () => {
     );
     const item = screen.getByText(/考勤日报/i).closest('.side-item');
     expect(item).toHaveClass('active');
+  });
+
+  it('navigates to /attendance/statistics when 考勤统计 is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLayout>
+        <div>Content</div>
+      </AppLayout>,
+    );
+    await user.click(screen.getByText('考勤统计'));
+    expect(mockPush).toHaveBeenCalledWith('/attendance/statistics');
   });
 });

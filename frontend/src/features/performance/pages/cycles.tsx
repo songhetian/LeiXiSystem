@@ -252,7 +252,7 @@ export default function CyclesPage() {
               return (
                 <div
                   key={cycle.id}
-                  className="border-2 rounded-lg p-5 bg-surface transition-all hover:shadow-md"
+                  className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
                   style={{ borderColor: color, backgroundColor: `${color}10` }}
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -280,7 +280,7 @@ export default function CyclesPage() {
                     />
                   </div>
 
-                  <div className="space-y-1.5 text-sm text-text-2 mb-4">
+                  <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
                       <span>📅</span>
                       <span>{cycle.startDate} ~ {cycle.endDate}</span>

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Message } from '@arco-design/web-react';
+import EmployeeSelect from '@/components/EmployeeSelect';
 
 const FormItem = Form.Item;
 
@@ -35,7 +36,7 @@ const DEFAULT_COLOR_PRESETS = [
 export interface FormFieldConfig {
   key: string;
   label: string;
-  type: 'input' | 'select' | 'date' | 'month' | 'textarea' | 'colorPicker' | 'tags';
+  type: 'input' | 'select' | 'date' | 'month' | 'range' | 'textarea' | 'colorPicker' | 'tags' | 'employee' | 'monthDays';
   placeholder?: string;
   options?: FormFieldOption[];
   required?: boolean;
@@ -58,6 +59,8 @@ export interface ModalFormProps {
   width?: number | string;
   /** 表单列数：>1 时按网格排布（textarea/colorPicker 自动占整行） */
   columns?: number;
+  /** 字段变更回调：供父组件根据取值联动展示/隐藏字段 */
+  onValuesChange?: (key: string, value: any, values: Record<string, any>) => void;
 }
 
 export default function ModalForm({
@@ -72,6 +75,7 @@ export default function ModalForm({
   cancelText = '取消',
   width = 600,
   columns = 1,
+  onValuesChange,
 }: ModalFormProps) {
   // 未传 initialValues 时使用稳定哨兵，避免每次渲染生成新引用
   const initial = initialValues ?? EMPTY_INITIAL;
@@ -98,13 +102,15 @@ export default function ModalForm({
   }, [visible, initial]);
 
   const handleChange = (key: string, value: any) => {
-    setValues((prev) => ({ ...prev, [key]: value }));
+    const next = { ...values, [key]: value };
+    setValues(next);
+    onValuesChange?.(key, value, next);
     // 修正后清除对应字段的内联错误
     setErrors((prev) => {
       if (!(key in prev)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
+      const nextErrors = { ...prev };
+      delete nextErrors[key];
+      return nextErrors;
     });
   };
 
@@ -214,6 +220,19 @@ export default function ModalForm({
             onChange={(dateString: string) => handleChange(field.key, dateString)}
           />
         );
+      case 'range':
+        return (
+          <DatePicker.RangePicker
+            {...{ id: field.key }}
+            showTime
+            format="YYYY-MM-DD HH:mm"
+            style={{ width: '100%' }}
+            placeholder={field.placeholder ? field.placeholder.split(',').map((s) => s.trim()) : ['开始时间', '结束时间']}
+            value={value}
+            disabled={field.disabled}
+            onChange={(val: any) => handleChange(field.key, Array.isArray(val) ? val : undefined)}
+          />
+        );
       case 'textarea':
         return (
           <Input.TextArea
@@ -250,11 +269,11 @@ export default function ModalForm({
                       background: c,
                       cursor: 'pointer',
                       border: active
-                        ? '2px solid #2455D9'
-                        : '1px solid rgba(0,0,0,0.12)',
+                        ? '2px solid var(--lx-primary)'
+                        : '1px solid var(--lx-border-3)',
                       outline: 'none',
                       boxShadow: active
-                        ? '0 0 0 2px rgba(36,85,217,0.25)'
+                        ? '0 0 0 2px var(--lx-primary-weak)'
                         : undefined,
                     }}
                   />
@@ -269,6 +288,40 @@ export default function ModalForm({
               disabled={field.disabled}
               onChange={(val) => handleChange(field.key, val)}
             />
+          </div>
+        );
+      }
+      case 'employee':
+        return (
+          <EmployeeSelect
+            value={value}
+            placeholder={field.placeholder || '请选择员工'}
+            onChange={(val) => handleChange(field.key, val)}
+          />
+        );
+      case 'monthDays': {
+        // 12 个月额度：值形如 [4,4,4,4,4,4,5,5,5,5,5,5]
+        const arr: number[] =
+          Array.isArray(value) && value.length === 12 ? [...value] : new Array(12).fill(0);
+        return (
+          <div className="grid grid-cols-6 gap-x-2 gap-y-3">
+            {arr.map((v, i) => (
+              <div key={i} className="flex flex-col gap-1">
+                <span className="text-xs text-text-3">{i + 1} 月</span>
+                <Input
+                  id={i === 0 ? field.key : `${field.key}-${i}`}
+                  ref={i === 0 ? registerRef(field.key) : undefined}
+                  value={String(v ?? '')}
+                  disabled={field.disabled}
+                  onChange={(val) => {
+                    const num = Number(val);
+                    const next = [...arr];
+                    next[i] = Number.isFinite(num) && num >= 0 ? num : 0;
+                    handleChange(field.key, next);
+                  }}
+                />
+              </div>
+            ))}
           </div>
         );
       }
@@ -309,7 +362,7 @@ export default function ModalForm({
           }}
         >
           {fields.map((field) => {
-            const fullRow = columns > 1 && (field.type === 'textarea' || field.type === 'colorPicker');
+            const fullRow = columns > 1 && (field.type === 'textarea' || field.type === 'colorPicker' || field.type === 'monthDays');
             return (
               <FormItem
                 key={field.key}

@@ -243,6 +243,38 @@ describe('MyPayslipsPage', () => {
     });
   });
 
+  describe('时间展示', () => {
+    it('发放时间按北京时间格式化，不泄漏 ISO 原始串', async () => {
+      (payslipApi.getMyPayslips as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 9,
+              month: '2026-09',
+              status: 'viewed',
+              baseSalary: 1,
+              totalIncome: 1,
+              totalDeduction: 0,
+              netSalary: 1,
+              createdAt: '2026-09-28T10:36:44.000Z',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      render(<MyPayslipsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(1);
+      });
+      expect(screen.getByTestId('cell-9-createdAt')).toHaveTextContent('2026-09-28 18:36');
+      expect(screen.queryByText(/2026-09-28T10:36:44/)).toBeNull();
+    });
+  });
+
   describe('边界用例', () => {
     it('shows loading state while fetching', () => {
       let resolveFn: (value: any) => void;
@@ -267,9 +299,9 @@ describe('MyPayslipsPage', () => {
   });
 
   describe('异常用例', () => {
-    it('handles payslip not found error (code 4004)', async () => {
+    it('handles payslip not found error (code 3011)', async () => {
       (payslipApi.getMyPayslips as jest.Mock).mockResolvedValue({
-        code: 4004,
+        code: 3011,
         message: '工资条不存在',
       });
       render(<MyPayslipsPage />);

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import DepartmentsPage from '@/features/system/pages/departments';
 import { systemApi } from '@/services/system';
 import { Modal } from '@arco-design/web-react';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/system', () => ({
   systemApi: {
@@ -86,6 +87,8 @@ const deletedDepts = [
 describe('部门管理（描述/启停/回收站/恢复）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // 迁移到 useCachedData 后必须清空共享缓存，避免上一个用例残留数据串到下一个
+    clearDataCache();
     (systemApi.listDepartments as jest.Mock).mockImplementation((includeDeleted?: boolean) =>
       Promise.resolve({ code: 0, data: includeDeleted ? deletedDepts : activeDepts }),
     );

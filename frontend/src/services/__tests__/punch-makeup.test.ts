@@ -1,4 +1,4 @@
-import { punchMakeupApi } from '@/services/attendance';
+﻿import { punchMakeupApi } from '@/services/attendance';
 import request from '@/lib/request';
 
 jest.mock('@/lib/request');
@@ -8,7 +8,7 @@ const mockMakeupRecord = {
   id: 1,
   employeeId: 100,
   punchDate: '2026-08-15',
-  punchType: 'morning',
+  punchType: 'check_in',
   originalTime: '09:00:00',
   makeupTime: '08:55:00',
   reason: '地铁延误',
@@ -81,7 +81,7 @@ describe('punchMakeupApi', () => {
 
       const res = await punchMakeupApi.create({
         punchDate: '2026-08-15',
-        punchType: 'morning',
+        punchType: 'check_in',
         originalTime: '09:00',
         makeupTime: '08:55',
         reason: '地铁延误',
@@ -89,7 +89,7 @@ describe('punchMakeupApi', () => {
 
       expect(mockedRequest.post).toHaveBeenCalledWith('/attendance/punch/makeup', {
         punchDate: '2026-08-15',
-        punchType: 'morning',
+        punchType: 'check_in',
         originalTime: '09:00',
         makeupTime: '08:55',
         reason: '地铁延误',
@@ -139,3 +139,4 @@ describe('punchMakeupApi', () => {
     });
   });
 });
+

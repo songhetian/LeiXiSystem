@@ -9,7 +9,7 @@ import { employeeApi, EmployeeChangeLog, EmployeeChangeType, EmployeeChangeLogRe
 import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatDateTime } from '@/lib/format';
 import { notifyError } from '@/lib/request';
 
 // changeType 映射（后端 EmployeeChangeLog.changeType）
@@ -65,8 +65,8 @@ const columns: ProTableColumn[] = [
     width: 180,
     render: (_: unknown, r: EmployeeChangeLog) => (
       <div>
-        <div style={{ fontWeight: 500, color: '#1d2129' }}>{r.employee?.name ?? '-'}</div>
-        <div style={{ fontSize: 12, color: '#86909c' }}>{r.employee?.employeeNo ?? ''}</div>
+        <div style={{ fontWeight: 500, color: 'var(--lx-text-1)' }}>{r.employee?.name ?? '-'}</div>
+        <div style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>{r.employee?.employeeNo ?? ''}</div>
       </div>
     ),
   },
@@ -97,10 +97,10 @@ const columns: ProTableColumn[] = [
     ellipsis: true,
     render: (_: unknown, r: EmployeeChangeLog) => (
       <Space size={4}>
-        <span style={{ color: '#86909c' }}>{fmt(r.oldValue)}</span>
-        <span style={{ color: '#c9cdd4' }}>→</span>
+        <span style={{ color: 'var(--lx-text-3)' }}>{fmt(r.oldValue)}</span>
+        <span style={{ color: 'var(--lx-text-4)' }}>→</span>
         <Tooltip content={`${fieldLabel(r.field)}：${fmt(r.oldValue)} → ${fmt(r.newValue)}`}>
-          <span style={{ color: '#2455D9', fontWeight: 500 }}>{fmt(r.newValue)}</span>
+          <span style={{ color: 'var(--lx-primary)', fontWeight: 500 }}>{fmt(r.newValue)}</span>
         </Tooltip>
       </Space>
     ),
@@ -109,7 +109,7 @@ const columns: ProTableColumn[] = [
     title: '变动时间',
     dataIndex: 'createdAt',
     width: 170,
-    render: (value: string) => (value ? String(value).replace('T', ' ').slice(0, 19) : '—'),
+    render: (value: unknown) => formatDateTime(value, '—'),
   },
 ];
 
@@ -174,7 +174,7 @@ export default function EmployeeChangeLogsPage() {
           { title: '变动字段', value: (r: EmployeeChangeLog) => fieldLabel(r.field) },
           { title: '原值', value: (r: EmployeeChangeLog) => fmt(r.oldValue) },
           { title: '新值', value: (r: EmployeeChangeLog) => fmt(r.newValue) },
-          { title: '变动时间', value: (r: EmployeeChangeLog) => String(r.createdAt ?? '').replace('T', ' ').slice(0, 19) },
+          { title: '变动时间', value: (r: EmployeeChangeLog) => formatDateTime(r.createdAt, '—') },
         ],
         list,
       )) {

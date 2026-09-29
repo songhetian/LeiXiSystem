@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import AttendanceDailyPage from '@/features/attendance/pages/daily';
@@ -227,6 +227,29 @@ describe('AttendanceDailyPage', () => {
       await waitFor(() => {
         expect(attendanceApi.getDailyList).toHaveBeenCalledTimes(2);
       });
+    });
+
+    it('重算范围按北京时间当月首末日，不因时区偏移一天', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-09-28T03:00:00.000Z')); // 北京时间 2026-09-28 11:00
+      try {
+        (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({
+          code: 0,
+          data: { updated: 0 },
+        });
+        render(<AttendanceDailyPage />);
+        await act(async () => {
+          fireEvent.click(screen.getByTestId('toolbar-recalc'));
+        });
+        await waitFor(() => {
+          expect(attendanceApi.recalcDaily).toHaveBeenCalledWith({
+            startDate: '2026-09-01',
+            endDate: '2026-09-30',
+          });
+        });
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

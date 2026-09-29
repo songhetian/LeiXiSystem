@@ -1,8 +1,10 @@
 'use client';
 
 import { Avatar, Dropdown, Menu, Input } from '@arco-design/web-react';
-import { IconMore, IconMenu, IconRight, IconSearch, IconMenuFold, IconMenuUnfold } from '@arco-design/web-react/icon';
+import { IconMore, IconMenu, IconRight, IconSearch, IconMenuFold, IconMenuUnfold, IconSunFill, IconMoonFill, IconDesktop } from '@arco-design/web-react/icon';
 import { useAuthStore } from '@/store/auth';
+import { useThemeStore } from '@/store/theme';
+import type { ThemeMode } from '@/store/theme';
 import { useRouter, usePathname } from 'next/navigation';
 import { NotificationDropdown } from './NotificationDropdown';
 import { memo } from 'react';
@@ -39,8 +41,10 @@ const BREADCRUMB_MAP: Record<string, string[]> = {
   '/attendance/schedules': ['考勤管理', '排班管理'],
   '/attendance/daily': ['考勤管理', '考勤日报'],
   '/attendance/monthly': ['考勤管理', '考勤月报'],
+  '/attendance/statistics': ['考勤管理', '考勤统计'],
   '/attendance/vacation/balance': ['考勤管理', '休假额度'],
   '/attendance/vacation/leave': ['考勤管理', '请假记录'],
+  '/attendance/vacation/settings': ['考勤管理', '假期设置'],
   '/attendance/vacation/overtime': ['考勤管理', '加班记录'],
   '/attendance/vacation/audit': ['考勤管理', '考勤申请审计'],
   '/attendance/punch-makeup': ['考勤管理', '补卡申请'],
@@ -75,6 +79,8 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
   const { user, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
+  const themeMode = useThemeStore((s) => s.mode);
+  const setThemeMode = useThemeStore((s) => s.setMode);
 
   const breadcrumbs = BREADCRUMB_MAP[pathname] || [title];
 
@@ -98,6 +104,26 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
     </Menu>
   );
 
+  const themeMenu = (
+    <Menu
+      selectedKeys={[themeMode]}
+      onClickMenuItem={(key) => setThemeMode(key as ThemeMode)}
+    >
+      <Menu.Item key="system">
+        <IconDesktop style={{ marginRight: 8 }} />
+        跟随系统
+      </Menu.Item>
+      <Menu.Item key="light">
+        <IconSunFill style={{ marginRight: 8 }} />
+        浅色模式
+      </Menu.Item>
+      <Menu.Item key="dark">
+        <IconMoonFill style={{ marginRight: 8 }} />
+        深色模式
+      </Menu.Item>
+    </Menu>
+  );
+
   const userName = user?.name || user?.username || '用户';
   const userInitial = userName.charAt(0).toUpperCase();
 
@@ -113,8 +139,8 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
               aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
             >
               {collapsed
-                ? <IconMenuUnfold style={{ fontSize: 18, color: 'var(--lx-text-2)' }} />
-                : <IconMenuFold style={{ fontSize: 18, color: 'var(--lx-text-2)' }} />}
+                ? <IconMenuUnfold className="header-icon" />
+                : <IconMenuFold className="header-icon" />}
             </button>
           )}
           {isMobile && (
@@ -124,7 +150,7 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
               onClick={onMenuToggle}
               aria-label="菜单"
             >
-              <IconMenu style={{ fontSize: 18, color: 'var(--lx-text-2)' }} />
+              <IconMenu className="header-icon" />
             </button>
           )}
           <nav className="breadcrumb">
@@ -169,11 +195,21 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
               }}
               aria-label="搜索"
             >
-              <IconSearch style={{ fontSize: 14, color: 'var(--lx-text-3)' }} />
+              <IconSearch className="header-search-icon" />
               <span className="header-search-text">搜索页面...</span>
               <kbd className="header-search-kbd">Ctrl K</kbd>
             </button>
           )}
+
+          <Dropdown droplist={themeMenu} position="br">
+            <button type="button" className="header-search-trigger" aria-label="切换主题">
+              {themeMode === 'dark'
+                ? <IconMoonFill className="header-search-icon" />
+                : themeMode === 'system'
+                  ? <IconDesktop className="header-search-icon" />
+                  : <IconSunFill className="header-search-icon" />}
+            </button>
+          </Dropdown>
 
           <NotificationDropdown />
 
@@ -181,13 +217,13 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
 
           <Dropdown droplist={dropList} position="br">
             <div className="user-info">
-              <Avatar size={30} style={{ background: 'linear-gradient(135deg, #2455D9, #3a6ee8)', color: '#fff', fontWeight: 600, boxShadow: '0 2px 8px rgba(36, 85, 217, 0.25)' }}>
+              <Avatar size={30} className="header-user-avatar">
                 {userInitial}
               </Avatar>
               {!isMobile && (
                 <span className="user-name">{userName}</span>
               )}
-              {!isMobile && <IconMore style={{ fontSize: 12, color: 'var(--lx-text-3)' }} />}
+              {!isMobile && <IconMore className="header-more-icon" />}
             </div>
           </Dropdown>
         </div>

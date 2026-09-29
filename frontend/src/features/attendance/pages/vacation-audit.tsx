@@ -26,7 +26,7 @@ import { useDepartments } from '@/hooks/use-departments';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
-import { formatDate, todayStr } from '@/lib/format';
+import { formatDate, todayStr, formatDateTime } from '@/lib/format';
 
 // 批次六 · 考勤申请聚合审计（对齐参考 CompensatoryApproval 的审批人审计信息层级）
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -186,7 +186,7 @@ export default function VacationAuditPage() {
                 : `加班 ${formatDate(r.overtimeDate, 'YYYY-MM-DD', '')} (${r.hours}小时)`,
           },
           { title: '原因', dataIndex: 'reason' },
-          { title: '提交时间', dataIndex: 'createdAt' },
+          { title: '提交时间', value: (r: AttendanceAuditRow) => formatDateTime(r.createdAt) },
           { title: '状态', value: (r: AttendanceAuditRow) => statusMap[r.status]?.label ?? r.status },
         ],
         list,
@@ -213,7 +213,7 @@ export default function VacationAuditPage() {
           : `加班 ${formatDate(r.overtimeDate, 'YYYY-MM-DD', '')} · ${r.hours ?? '-'}小时`,
     },
     { title: '原因', dataIndex: 'reason', width: 180, ellipsis: true },
-    { title: '提交时间', dataIndex: 'createdAt', width: 170 },
+    { title: '提交时间', dataIndex: 'createdAt', width: 170, render: (v: unknown) => formatDateTime(v) },
     {
       title: '状态',
       dataIndex: 'status',
@@ -262,10 +262,10 @@ export default function VacationAuditPage() {
         footer={null}
       >
         {current && (
-          <div className="space-y-5">
+          <div className="flex flex-col gap-5">
             {/* 申请人基本身份 */}
             <div className="flex items-center gap-3 p-4 rounded-lg bg-gray-50">
-              <Avatar size={40} style={{ backgroundColor: '#2455D9', color: '#fff' }}>
+              <Avatar size={40} style={{ backgroundColor: 'var(--lx-primary)', color: '#fff' }}>
                 {current.employeeName?.charAt(0) || '?'}
               </Avatar>
               <div>

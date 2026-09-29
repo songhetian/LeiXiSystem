@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Tabs, Select, Button, Message, Spin, Tooltip } from '@arco-design/web-react';
@@ -139,8 +139,8 @@ export default function NotificationSettingsPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#1d2129' }}>{group.title}</div>
-            <div style={{ fontSize: 12, color: '#86909c', marginTop: 2 }}>{group.description}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--lx-text-1)' }}>{group.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--lx-text-3)', marginTop: 2 }}>{group.description}</div>
           </div>
           <Button
             type="primary"
@@ -168,9 +168,9 @@ export default function NotificationSettingsPage() {
                   justifyContent: 'space-between',
                 }}
               >
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#1d2129' }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--lx-text-1)' }}>{label}</span>
                 <Tooltip content={type}>
-                  <span style={{ fontSize: 11, color: '#c9cdd4' }}>{type}</span>
+                  <span style={{ fontSize: 11, color: 'var(--lx-text-4)' }}>{type}</span>
                 </Tooltip>
               </div>
               <Select
@@ -183,7 +183,7 @@ export default function NotificationSettingsPage() {
                   label: (
                     <span
                       style={
-                        isPseudoRole(r.label) ? { color: '#2455D9', fontWeight: 600 } : undefined
+                        isPseudoRole(r.label) ? { color: 'var(--lx-primary)', fontWeight: 600 } : undefined
                       }
                     >
                       {r.label}

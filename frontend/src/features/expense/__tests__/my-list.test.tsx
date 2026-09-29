@@ -356,6 +356,35 @@ describe('MyReimbursementPage', () => {
     });
   });
 
+  describe('时间展示', () => {
+    it('创建时间按北京时间格式化，不泄漏 ISO 原始串', async () => {
+      (reimbursementApi.getMyReimbursements as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: [
+            {
+              id: 9,
+              title: '时区校验单',
+              totalAmount: 1,
+              status: 'draft',
+              createdAt: '2026-09-28T10:36:44.000Z',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(1);
+      });
+      expect(screen.getByTestId('cell-9-createdAt')).toHaveTextContent('2026-09-28 18:36');
+      expect(screen.queryByText(/2026-09-28T10:36:44/)).toBeNull();
+    });
+  });
+
   describe('边界用例', () => {
     it('shows loading state while fetching', async () => {
       (reimbursementApi.getMyReimbursements as jest.Mock).mockImplementation(

@@ -36,6 +36,7 @@ import {
   KnowledgeAttachment,
 } from '@/services/knowledge';
 import useFetchState from '@/hooks/use-fetch-state';
+import { formatDateTime } from '@/lib/format';
 
 const { TabPane } = Tabs;
 const { TextArea } = Input;
@@ -52,15 +53,6 @@ function formatFileSize(bytes?: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-/** 时间展示：YYYY-MM-DD HH:mm */
-function formatDateTime(iso?: string) {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** 附件类型图标 */
@@ -340,7 +332,7 @@ function ArticleManage() {
 
   const fetchList = async (page = 1, pageSize = 20) => {
     await runFetch(async () => {
-      const res = await knowledgeApi.getArticles({ page, pageSize });
+      const res = await knowledgeApi.getArticles({ page, pageSize, includeUnpublished: true });
       if (res.code === 0 && res.data) {
         const result = {
           list: res.data.list || [],

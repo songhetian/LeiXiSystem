@@ -263,7 +263,7 @@ export default function LocationsPage() {
         style={{ width: 520 }}
         maskClosable={false}
       >
-        <div className="space-y-4 py-2">
+        <div className="flex flex-col gap-4 py-2">
           <div>
             <label className="block text-sm text-text-2 mb-1.5">名称</label>
             <Input value={name} onChange={(v) => setName(v)} placeholder="如：总部大楼 / 居家办公 / 客户现场" maxLength={100} />

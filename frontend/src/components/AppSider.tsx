@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, useEffect, memo } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@arco-design/web-react';
@@ -24,6 +24,7 @@ import {
   IconCustomerService,
 } from '@arco-design/web-react/icon';
 import { useAuthStore } from '@/store/auth';
+import { useSystemInfo } from '@/hooks/use-system-info';
 
 export interface MenuItemConfig {
   key: string;
@@ -77,6 +78,7 @@ const defaultMenuItems: MenuItemConfig[] = [
         children: [
           { key: 'attendance-daily', label: '考勤日报', permission: 'attendance:view' },
           { key: 'attendance-monthly', label: '考勤月报', permission: 'attendance:view' },
+          { key: 'attendance-statistics', label: '考勤统计', permission: 'attendance:view' },
         ],
       },
       {
@@ -86,6 +88,7 @@ const defaultMenuItems: MenuItemConfig[] = [
         children: [
           { key: 'attendance-vacation-balance', label: '休假额度', permission: 'attendance:view' },
           { key: 'attendance-vacation-leave', label: '请假记录', permission: 'attendance:view' },
+          { key: 'attendance-vacation-type-settings', label: '假期设置', permission: 'vacation:manage' },
           { key: 'attendance-vacation-overtime', label: '加班记录', permission: 'attendance:view' },
           { key: 'attendance-vacation-audit', label: '考勤申请审计', permission: 'attendance:view' },
           { key: 'attendance-punch-makeup', label: '补卡申请', permission: 'attendance:view' },
@@ -198,14 +201,14 @@ const defaultMenuItems: MenuItemConfig[] = [
   },
 ];
 
-/* 每个菜单分组的专属主题色，让侧边栏更富色彩、更易识别 */
+/* 每个菜单分组的专属主题色（CSS 变量，与全局 Token 一致） */
 const GROUP_ACCENT: Record<string, string> = {
-  常用: '#2455D9', // 主蓝
-  人事: '#14b8a6', // 青绿
-  流程: '#8b5cf6', // 紫
-  薪酬: '#f59e0b', // 琥珀
-  工具: '#6366f1', // 靛蓝
-  设置: '#ec4899', // 粉
+  常用: 'var(--lx-primary)',
+  人事: 'var(--lx-teal)',
+  流程: 'var(--lx-purple)',
+  薪酬: 'var(--lx-warning)',
+  工具: 'var(--lx-indigo)',
+  设置: 'var(--lx-pink)',
 };
 
 export interface AppSiderProps {
@@ -267,6 +270,7 @@ function AppSider({
   collapsed = false,
 }: AppSiderProps) {
   const { user, logout } = useAuthStore();
+  const { info: systemInfo } = useSystemInfo();
   const router = useRouter();
   const [logoutHover, setLogoutHover] = useState(false);
 
@@ -278,6 +282,17 @@ function AppSider({
   }, [activeKey, visibleItems]);
 
   const [openKeys, setOpenKeys] = useState<string[]>(derivedOpenKeys);
+
+  // activeKey 变化（页签切换 / 快捷键跳转）时，自动展开其祖先菜单，
+  // 否则高亮项会被折叠的父级藏住；只增不减，不干扰用户手动折叠操作。
+  useEffect(() => {
+    const ancestors = findAncestorKeys(visibleItems, activeKey) ?? [];
+    if (ancestors.length === 0) return;
+    setOpenKeys((prev) => {
+      const missing = ancestors.filter((key) => !prev.includes(key));
+      return missing.length === 0 ? prev : [...prev, ...missing];
+    });
+  }, [activeKey, visibleItems]);
 
   const handleLogout = () => {
     logout();
@@ -340,7 +355,7 @@ function AppSider({
             {item.icon && <span className="sp-icon">{item.icon}</span>}
             <span className="sp-label">{item.label}</span>
             <span className={`sp-arrow ${!isOpen ? 'collapsed' : ''}`}>
-              <IconDown style={{ fontSize: 11 }} />
+              <IconDown />
             </span>
           </button>
           {!collapsed && (
@@ -376,30 +391,17 @@ function AppSider({
 
   return (
     <aside
-      className={`app-sider ${isMobile ? 'lx-sider-drawer' : ''} ${collapsed && !isMobile ? 'collapsed' : ''}`}
-      style={{
-        width: collapsed && !isMobile ? 72 : 240,
-        minWidth: collapsed && !isMobile ? 72 : 240,
-        background: 'var(--lx-sider-gradient)',
-        borderRight: '1px solid var(--lx-sider-border)',
-        height: '100vh',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        transform: isMobile ? (visible ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-        position: isMobile ? 'fixed' : 'relative',
-        left: 0,
-        top: 0,
-        zIndex: isMobile ? 1030 : 10,
-        boxShadow: isMobile ? '0 8px 24px rgba(0,0,0,0.12)' : 'none',
-        transition: 'transform 200ms cubic-bezier(0.4, 0, 0.2, 1), width 200ms ease',
-      }}
+      className={`app-sider ${isMobile ? 'lx-sider-drawer' : ''} ${isMobile && visible ? 'visible' : ''} ${collapsed && !isMobile ? 'collapsed' : ''}`}
     >
       {/* Logo 区域 */}
       <div className="side-logo">
-        <div className="side-logo-icon">雷</div>
+        {systemInfo.logoUrl ? (
+          <img src={systemInfo.logoUrl} alt="系统 Logo" className="side-logo-icon side-logo-img" />
+        ) : (
+          <div className="side-logo-icon">{(systemInfo.name || '雷').charAt(0)}</div>
+        )}
         <div className="side-logo-text">
-          <div className="side-logo-title">雷犀管理系统</div>
+          <div className="side-logo-title">{systemInfo.name}</div>
           <div className="side-logo-sub">人事工作台</div>
         </div>
       </div>
@@ -416,16 +418,7 @@ function AppSider({
 
       {/* 底部用户区域 */}
       <div className="side-footer">
-        <Avatar
-          size={32}
-          style={{
-            background: 'linear-gradient(135deg, #2455D9, #3a6ee8)',
-            color: '#fff',
-            fontWeight: 600,
-            fontSize: 14,
-            boxShadow: '0 2px 8px rgba(36, 85, 217, 0.3)',
-          }}
-        >
+        <Avatar size={32} className="header-user-avatar">
           {initials}
         </Avatar>
         <div className="side-user-info">

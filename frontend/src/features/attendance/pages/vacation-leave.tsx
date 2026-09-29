@@ -1,19 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Message, Tag, Space, Button, Card, Statistic, Grid, DatePicker } from '@arco-design/web-react';
+import { Message, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
-import { attendanceApi, LeaveRecord, LeaveCreateDto, VacationBalance } from '@/services/attendance';
+import { attendanceApi, LeaveRecord, LeaveCreateDto } from '@/services/attendance';
 import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
 import { todayStr } from '@/lib/format';
+import { isMonthlyDays } from '@/lib/vacation-type';
 
-const { Row, Col } = Grid;
-const { RangePicker } = DatePicker;
+/** 请假表单的假期类型下拉项：monthlyDays 为 12 元素数组即月假 */
+interface VacationTypeOption {
+  id: number;
+  name: string;
+  monthlyDays: number[] | null;
+}
+
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1} 月`,
+}));
 
 export default function VacationLeavePage() {
   const { can } = usePermission();
@@ -26,8 +36,9 @@ export default function VacationLeavePage() {
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
   const [leaveModalLoading, setLeaveModalLoading] = useState(false);
 
-  const [balances, setBalances] = useState<VacationBalance[]>([]);
-  const [vacationTypes, setVacationTypes] = useState<{ id: number; name: string }[]>([]);
+  const [vacationTypes, setVacationTypes] = useState<VacationTypeOption[]>([]);
+  // 表单中当前选中的假期类型：月假类型需额外展示「抵扣月份」
+  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
 
   const fetchMyProfile = async () => {
     try {
@@ -38,14 +49,18 @@ export default function VacationLeavePage() {
     } catch (e) {}
   };
 
-  const fetchBalances = async () => {
+  // 仅用于申请请假表单的「假期类型」下拉选项
+  const fetchVacationTypes = async () => {
     try {
-      const res = await attendanceApi.getMyBalances(new Date().getFullYear());
+      const res = await attendanceApi.getMyBalances({ year: new Date().getFullYear() });
       if (res.code === 0 && res.data) {
-        setBalances(res.data);
         const types = [...new Set(res.data.map((b) => b.vacationType.id))].map((id) => {
           const b = res.data!.find((x) => x.vacationType.id === id)!;
-          return { id: b.vacationType.id, name: b.vacationType.name };
+          return {
+            id: b.vacationType.id,
+            name: b.vacationType.name,
+            monthlyDays: b.vacationType.monthlyDays ?? null,
+          };
         });
         setVacationTypes(types);
       }
@@ -56,12 +71,13 @@ export default function VacationLeavePage() {
     setLeaveLoading(true);
     setLeaveError(null);
     try {
-      const res = await attendanceApi.getMyLeaves();
+      const res = await attendanceApi.getMyLeaves({ page, pageSize });
       if (res.code === 0 && res.data) {
         const list = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
         const total = (res.data as any).total ?? list.length;
         setLeaves(list);
-        setLeavePagination({ current: 1, pageSize: 20, total });
+        // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
+        setLeavePagination({ current: page, pageSize, total });
       }
     } catch (e: any) {
       setLeaveError(e?.message || '获取请假记录失败');
@@ -74,7 +90,7 @@ export default function VacationLeavePage() {
   useEffect(() => {
     fetchMyProfile();
     fetchLeaves();
-    fetchBalances();
+    fetchVacationTypes();
   }, []);
 
   const getStatusTag = (status: string) => {
@@ -90,7 +106,13 @@ export default function VacationLeavePage() {
   };
 
   const handleAddLeave = () => {
+    setSelectedTypeId(null);
     setLeaveModalVisible(true);
+  };
+
+  const handleCloseLeaveModal = () => {
+    setLeaveModalVisible(false);
+    setSelectedTypeId(null);
   };
 
   // 导出请假记录到 Excel
@@ -131,14 +153,16 @@ export default function VacationLeavePage() {
         startDate: values.startDate,
         endDate: values.endDate,
         days,
+        ...(values.month ? { month: Number(values.month) } : {}),
         reason: values.reason,
       };
       const res = await attendanceApi.createLeave(dto);
       if (res.code === 0) {
         Message.success('申请已提交，请等待审批');
-        setLeaveModalVisible(false);
-        fetchLeaves();
-        fetchBalances();
+        handleCloseLeaveModal();
+        // 保留当前页，避免提交后列表跳回第 1 页
+        fetchLeaves(leavePagination.current, leavePagination.pageSize);
+        fetchVacationTypes();
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -154,7 +178,8 @@ export default function VacationLeavePage() {
       const res = await attendanceApi.submitLeave(id);
       if (res.code === 0) {
         Message.success('已提交审批');
-        fetchLeaves();
+        // 保留当前页，避免提交后列表跳回第 1 页
+        fetchLeaves(leavePagination.current, leavePagination.pageSize);
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -189,6 +214,8 @@ export default function VacationLeavePage() {
     },
   ];
 
+  const selectedType = vacationTypes.find((t) => t.id === selectedTypeId);
+
   const leaveFormFields: FormFieldConfig[] = [
     {
       key: 'vacationTypeId',
@@ -197,6 +224,19 @@ export default function VacationLeavePage() {
       required: true,
       options: vacationTypes.map((t) => ({ value: String(t.id), label: t.name })),
     },
+    // 月假不结转，只能抵扣当月，故必须显式选择抵扣月份
+    ...(isMonthlyDays(selectedType?.monthlyDays)
+      ? ([
+          {
+            key: 'month',
+            label: '抵扣月份',
+            type: 'select',
+            required: true,
+            placeholder: '请选择抵扣月份',
+            options: MONTH_OPTIONS,
+          },
+        ] as FormFieldConfig[])
+      : []),
     { key: 'startDate', label: '开始日期', type: 'input', required: true, placeholder: 'YYYY-MM-DD' },
     { key: 'endDate', label: '结束日期', type: 'input', required: true, placeholder: 'YYYY-MM-DD' },
     { key: 'reason', label: '请假原因', type: 'textarea', required: true, placeholder: '请输入原因' },
@@ -204,29 +244,6 @@ export default function VacationLeavePage() {
 
   return (
     <PageContainer >
-      {balances.length > 0 && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          {balances.slice(0, 4).map((b) => {
-            const remaining = Number(b.totalDays) - Number(b.usedDays);
-            return (
-              <Col span={6} key={b.id}>
-                <Card className="rounded-md">
-                  <Statistic
-                    title={b.vacationType.name}
-                    value={remaining}
-                    suffix="天"
-                    precision={1}
-                    style={{ fontSize: 14 }}
-                  />
-                  <div className="text-xs text-text-3 mt-1">
-                    剩余 {b.totalDays} 天 / 已用 {b.usedDays} 天                    </div>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
-      )}
-
       <ProTable
         columns={leaveColumns}
         data={leaves}
@@ -247,7 +264,10 @@ export default function VacationLeavePage() {
         title="申请请假"
         fields={leaveFormFields}
         onOk={handleLeaveSubmit}
-        onCancel={() => setLeaveModalVisible(false)}
+        onCancel={handleCloseLeaveModal}
+        onValuesChange={(key, value) => {
+          if (key === 'vacationTypeId') setSelectedTypeId(value ? Number(value) : null);
+        }}
         confirmLoading={leaveModalLoading}
         width={500}
       />

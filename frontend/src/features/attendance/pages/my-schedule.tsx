@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, Spin, Tag, Typography, Empty } from '@arco-design/web-react';
@@ -6,6 +6,7 @@ import { IconLeft, IconRight } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import { attendanceApi, type Schedule, type Shift } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { getContrastColor } from '@/lib/contrast';
 
 const { Text } = Typography;
 
@@ -28,21 +29,7 @@ function dateOnly(s?: string): string {
   return formatDate(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/** 计算底色文字颜色 */
-function getContrastColor(hex?: string): string {
-  if (!hex) return '#1d2129';
-  let c = hex.replace('#', '');
-  if (c.length === 3) c = c.split('').map((ch) => ch + ch).join('');
-  if (c.length !== 6) return '#1d2129';
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  if ([r, g, b].some(Number.isNaN)) return '#1d2129';
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.55 ? '#1d2129' : '#ffffff';
-}
-
-const DEFAULT_COLOR = 'rgba(22, 93, 255, 0.15)';
+const DEFAULT_COLOR = 'var(--lx-primary-weak)';
 
 export default function MySchedulePage() {
   const today = useMemo(() => new Date(), []);

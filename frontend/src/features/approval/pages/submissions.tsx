@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -143,8 +143,8 @@ export default function ApprovalSubmissionsPage() {
 
   return (
     <PageContainer>
-      <Card style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Card className="mt-4">
+        <div className="mb-4 flex items-center justify-between">
           <Space>
             <span className="text-text-2">状态筛选：</span>
             <Select

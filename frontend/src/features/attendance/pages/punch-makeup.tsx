@@ -7,16 +7,15 @@ import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/Pr
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { ConfirmButton } from '@/components/ConfirmButton';
-import { punchMakeupApi, PunchMakeupRecord } from '@/services/attendance';
+import { punchMakeupApi, PunchMakeupRecord, PunchMakeupType } from '@/services/attendance';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatDateTime } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
 
-const PUNCH_TYPE_OPTIONS = [
-  { label: '上班卡', value: 'morning' },
-  { label: '下班卡', value: 'evening' },
-  { label: '午休上班', value: 'noon_morning' },
-  { label: '午休下班', value: 'noon_evening' },
+// 值域必须与后端 punch-makeup-type.ts 一致（C3：上班卡=当日首次打卡，下班卡=当日最后一次打卡）
+const PUNCH_TYPE_OPTIONS: { label: string; value: PunchMakeupType }[] = [
+  { label: '上班卡', value: 'check_in' },
+  { label: '下班卡', value: 'check_out' },
 ];
 
 const STATUS_MAP: Record<string, { color: string; text: string }> = {
@@ -80,7 +79,7 @@ export default function PunchMakeupPage() {
           { title: '实际打卡时间', dataIndex: 'makeupTime' },
           { title: '补卡原因', dataIndex: 'reason' },
           { title: '状态', value: (r: PunchMakeupRecord) => STATUS_MAP[r.status]?.text ?? r.status },
-          { title: '创建时间', dataIndex: 'createdAt' },
+          { title: '创建时间', value: (r: PunchMakeupRecord) => formatDateTime(r.createdAt) },
         ],
         list,
       )) {
@@ -217,7 +216,7 @@ export default function PunchMakeupPage() {
         return <Tag color={info.color}>{info.text}</Tag>;
       },
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170 },
+    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v: unknown) => formatDateTime(v) },
     {
       title: '操作',
       dataIndex: 'actions',

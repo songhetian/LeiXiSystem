@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { authApi } from '@/services/auth';
+import { clearDataCache } from '@/hooks/use-cached-data';
+import { clearDictCache } from '@/hooks/use-dict';
 
 export interface User {
   id: number;
@@ -82,12 +84,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearUser: () => {
     clearMockUserFromStorage();
+    // 清理共享数据/词典缓存，避免换账号后复用上一账号的脏数据
+    clearDataCache();
+    clearDictCache();
     set({ user: null, isAuthenticated: false, isMockUser: false });
   },
 
   logout: () => {
     document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     clearMockUserFromStorage();
+    // 清理共享数据/词典缓存，避免换账号后复用上一账号的脏数据
+    clearDataCache();
+    clearDictCache();
     set({ user: null, isAuthenticated: false, isMockUser: false });
   },
 

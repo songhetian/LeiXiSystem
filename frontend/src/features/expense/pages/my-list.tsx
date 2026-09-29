@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Message, Modal, Descriptions, Table, Divider, Space, Button } from '@arco-design/web-react';
@@ -8,6 +8,7 @@ import StatusTag from '@/components/StatusTag';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 import ReimbursementForm, { resolveFileUrl } from '@/features/expense/components/ReimbursementForm';
 
 interface ReimbursementListEnvelope {
@@ -173,7 +174,7 @@ export default function MyReimbursementPage() {
       width: 120,
       render: (value: string) => value || '-',
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 200 },
+    { title: '创建时间', dataIndex: 'createdAt', width: 200, render: (v: unknown) => formatDateTime(v) },
     {
       title: '操作',
       dataIndex: 'actions',
@@ -246,7 +247,7 @@ export default function MyReimbursementPage() {
                 title: '凭证',
                 dataIndex: 'attachmentUrl',
                 width: 90,
-                render: (v: string) => (v ? <a href={resolveFileUrl(v)} target="_blank" rel="noopener noreferrer" style={{ color: '#2455D9' }}>查看</a> : '-'),
+                render: (v: string) => (v ? <a href={resolveFileUrl(v)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--lx-primary)' }}>查看</a> : '-'),
               },
             ]}
             pagination={false}
@@ -254,7 +255,7 @@ export default function MyReimbursementPage() {
             scroll={{ x: true }}
           />
         ) : (
-          <div style={{ color: 'var(--color-text-3)', padding: 8 }}>暂无明细</div>
+          <div style={{ color: 'var(--lx-text-3)', padding: 8 }}>暂无明细</div>
         )}
         {currentReimbursement.attachments && currentReimbursement.attachments.length > 0 && (
           <>
@@ -268,7 +269,7 @@ export default function MyReimbursementPage() {
                     href={resolveFileUrl(att.fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: '#2455D9', marginLeft: 4 }}
+                    style={{ color: 'var(--lx-primary)', marginLeft: 4 }}
                   >
                     {att.fileName}
                   </a>

@@ -10,8 +10,9 @@ import { useDepartments } from '@/hooks/use-departments';
 import { attendanceApi, DailyRecord, DailyListResult, DailyListParams } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
+import { Empty } from '@arco-design/web-react';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, getTzParts } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
   { key: 'employeeNo', label: '工号', type: 'input', placeholder: '请输入工号' },
@@ -118,11 +119,13 @@ export default function AttendanceDailyPage() {
   };
 
   const handleRecalc = async () => {
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-      .toISOString().split('T')[0];
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-      .toISOString().split('T')[0];
+    // 重算范围按【北京时间】当月首末日构造：new Date(y, m, 1).toISOString() 会先把
+    // 东八区月初零点换算成 UTC 再截断，得到的是上月末日（9/1 → '2026-08-31'），
+    // 月末同理丢掉最后一天（9/30 → '2026-09-29'）。这里直接拼北京时间的日期串。
+    const { Y, M } = getTzParts(new Date());
+    const lastDay = new Date(Date.UTC(Number(Y), Number(M), 0)).getUTCDate();
+    const startOfMonth = `${Y}-${M}-01`;
+    const endOfMonth = `${Y}-${M}-${String(lastDay).padStart(2, '0')}`;
 
     try {
       const result = await attendanceApi.recalcDaily({
@@ -191,6 +194,18 @@ export default function AttendanceDailyPage() {
         loading={loading}
         error={error}
         onRetry={revalidate}
+        emptyElement={
+          <Empty
+            description={
+              <div className="text-center">
+                <p className="text-text-2 text-sm">暂无日报数据</p>
+                <p className="text-text-3 text-xs mt-1">
+                  日报由打卡与排班生成，可点击右上角「重新计算」生成
+                </p>
+              </div>
+            }
+          />
+        }
         searchFields={searchFields}
         onSearch={handleSearch}
         onReset={handleReset}

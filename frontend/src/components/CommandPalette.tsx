@@ -40,6 +40,7 @@ const COMMANDS: CommandItem[] = [
   { id: 'attendance-punch', label: '打卡', path: '/attendance/punch', icon: <IconCalendar />, group: '考勤', keywords: '签到 打卡 clock' },
   { id: 'attendance-daily', label: '考勤日报', path: '/attendance/daily', icon: <IconCalendar />, group: '考勤', keywords: '日报 daily' },
   { id: 'attendance-monthly', label: '考勤月报', path: '/attendance/monthly', icon: <IconCalendar />, group: '考勤', keywords: '月报 monthly' },
+  { id: 'attendance-statistics', label: '考勤统计', path: '/attendance/statistics', icon: <IconCalendar />, group: '考勤', keywords: '统计 应休 已休 加班 statistics' },
   { id: 'attendance-vacation-leave', label: '请假申请', path: '/attendance/vacation/leave', icon: <IconCalendar />, group: '考勤', keywords: '请假 休假 leave' },
   { id: 'attendance-vacation-overtime', label: '加班申请', path: '/attendance/vacation/overtime', icon: <IconCalendar />, group: '考勤', keywords: '加班 overtime' },
   { id: 'attendance-vacation-audit', label: '考勤申请审计', path: '/attendance/vacation/audit', icon: <IconCalendar />, group: '考勤', keywords: '审计 审批 audit' },
@@ -182,7 +183,7 @@ export default function CommandPalette() {
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'rgba(15, 23, 42, 0.4)',
+              background: 'var(--lx-mask)',
               backdropFilter: 'blur(6px)',
               WebkitBackdropFilter: 'blur(6px)',
             }}
@@ -201,12 +202,12 @@ export default function CommandPalette() {
               width: '560px',
               maxWidth: '92vw',
               maxHeight: '60vh',
-              background: 'rgba(255, 255, 255, 0.95)',
+              background: 'var(--lx-glass-bg)',
               backdropFilter: 'blur(20px) saturate(180%)',
               WebkitBackdropFilter: 'blur(20px) saturate(180%)',
               borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.8)',
-              boxShadow: '0 20px 60px rgba(36, 85, 217, 0.15), 0 8px 24px rgba(0, 0, 0, 0.06)',
+              border: '1px solid var(--lx-glass-border)',
+              boxShadow: '0 20px 60px var(--lx-primary-weak), var(--lx-shadow-xl)',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
@@ -219,11 +220,11 @@ export default function CommandPalette() {
                 alignItems: 'center',
                 gap: '12px',
                 padding: '16px 20px',
-                borderBottom: '1px solid #e2e8f0',
+                borderBottom: '1px solid var(--lx-border-1)',
                 flexShrink: 0,
               }}
             >
-              <IconSearch style={{ fontSize: 20, color: '#94a3b8', flexShrink: 0 }} />
+              <IconSearch style={{ fontSize: 20, color: 'var(--lx-text-4)', flexShrink: 0 }} />
               <input
                 ref={inputRef}
                 type="text"
@@ -239,16 +240,16 @@ export default function CommandPalette() {
                   outline: 'none',
                   background: 'transparent',
                   fontSize: '16px',
-                  color: '#0f172a',
+                  color: 'var(--lx-text-1)',
                   fontFamily: 'inherit',
                 }}
               />
               <kbd
                 style={{
                   fontSize: '11px',
-                  color: '#94a3b8',
-                  background: '#f1f5f9',
-                  border: '1px solid #e2e8f0',
+                  color: 'var(--lx-text-4)',
+                  background: 'var(--lx-bg-hover)',
+                  border: '1px solid var(--lx-border-1)',
                   borderRadius: '4px',
                   padding: '2px 6px',
                   flexShrink: 0,
@@ -276,7 +277,7 @@ export default function CommandPalette() {
                   style={{
                     padding: '40px 20px',
                     textAlign: 'center',
-                    color: '#94a3b8',
+                    color: 'var(--lx-text-4)',
                     fontSize: '14px',
                   }}
                 >
@@ -289,7 +290,7 @@ export default function CommandPalette() {
                       style={{
                         padding: '8px 12px 4px',
                         fontSize: '11px',
-                        color: '#94a3b8',
+                        color: 'var(--lx-text-4)',
                         fontWeight: 500,
                         textTransform: 'uppercase',
                         letterSpacing: '0.8px',
@@ -316,7 +317,7 @@ export default function CommandPalette() {
                             borderRadius: '10px',
                             cursor: 'pointer',
                             transition: 'background 0.1s',
-                            background: isSelected ? 'rgba(36, 85, 217, 0.08)' : 'transparent',
+                            background: isSelected ? 'var(--lx-primary-bg)' : 'transparent',
                           }}
                           onMouseEnter={() => setSelectedIndex(idx)}
                         >
@@ -330,9 +331,9 @@ export default function CommandPalette() {
                               justifyContent: 'center',
                               fontSize: '16px',
                               flexShrink: 0,
-                              color: isSelected ? '#2455D9' : '#64748b',
-                              background: isSelected ? 'rgba(36, 85, 217, 0.1)' : '#f1f5f9',
-                              transition: 'all 0.15s',
+                              color: isSelected ? 'var(--lx-primary)' : 'var(--lx-text-3)',
+                              background: isSelected ? 'var(--lx-primary-bg)' : 'var(--lx-bg-hover)',
+                              transition: 'background-color 0.15s, color 0.15s',
                             }}
                           >
                             {cmd.icon}
@@ -341,7 +342,7 @@ export default function CommandPalette() {
                             style={{
                               flex: 1,
                               fontSize: '14px',
-                              color: isSelected ? '#2455D9' : '#334155',
+                              color: isSelected ? 'var(--lx-primary)' : 'var(--lx-text-2)',
                               fontWeight: isSelected ? 500 : 400,
                             }}
                           >
@@ -351,7 +352,7 @@ export default function CommandPalette() {
                             <kbd
                               style={{
                                 fontSize: '11px',
-                                color: '#94a3b8',
+                                color: 'var(--lx-text-4)',
                                 fontFamily: 'monospace',
                               }}
                             >
@@ -373,12 +374,12 @@ export default function CommandPalette() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '8px 16px',
-                borderTop: '1px solid #e2e8f0',
-                background: 'rgba(248, 250, 252, 0.6)',
+                borderTop: '1px solid var(--lx-border-1)',
+                background: 'var(--lx-bg-secondary)',
                 flexShrink: 0,
               }}
             >
-              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--lx-text-4)' }}>
                 <span>
                   <kbd style={{ fontFamily: 'monospace' }}>↑↓</kbd> 导航
                 </span>
@@ -389,7 +390,7 @@ export default function CommandPalette() {
                   <kbd style={{ fontFamily: 'monospace' }}>ESC</kbd> 关闭
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--lx-text-4)' }}>
                 <IconCommand style={{ fontSize: 12 }} />
                 <span>K</span>
               </div>

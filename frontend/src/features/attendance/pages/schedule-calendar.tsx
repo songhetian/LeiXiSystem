@@ -33,6 +33,7 @@ import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
 import { formatDate } from '@/lib/format';
 import { leaveDateKeys } from '@/lib/leave-days';
+import { getContrastColor } from '@/lib/contrast';
 import * as XLSX from 'xlsx';
 
 const { Text } = Typography;
@@ -40,7 +41,7 @@ const { Text } = Typography;
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
 /** 默认班次底色（当 shift.color 缺失时使用） */
-const DEFAULT_SHIFT_COLOR = 'rgba(22, 93, 255, 0.15)';
+const DEFAULT_SHIFT_COLOR = 'var(--lx-primary-weak)';
 
 /** 印章值：数字 = 班次 ID，'clear' = 清除排班 */
 type StampValue = number | 'clear';
@@ -87,25 +88,6 @@ function dateOnly(s?: string): string {
   const d = new Date(s);
   if (isNaN(d.getTime())) return s;
   return fmtDate(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/** 根据底色计算可读的文字颜色 */
-function getContrastColor(hex?: string): string {
-  if (!hex) return '#1d2129';
-  let c = hex.replace('#', '');
-  if (c.length === 3) {
-    c = c
-      .split('')
-      .map((ch) => ch + ch)
-      .join('');
-  }
-  if (c.length !== 6) return '#1d2129';
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  if ([r, g, b].some(Number.isNaN)) return '#1d2129';
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.55 ? '#1d2129' : '#ffffff';
 }
 
 /** 截取班次简称（最多 2 个字符） */
@@ -810,7 +792,7 @@ export default function ScheduleCalendarPage() {
         key: `d_${day}`,
         width: 52,
         align: 'center',
-        headerCellStyle: { background: isWeekend ? '#fff7f0' : undefined, padding: '4px 0' },
+        headerCellStyle: { background: isWeekend ? 'var(--lx-warning-light)' : undefined, padding: '4px 0' },
         onHeaderCell: () => ({
           onClick: () => handleHeaderClick(dateStr),
           style: { cursor: canManage ? 'pointer' : 'default', userSelect: 'none' },
@@ -837,7 +819,7 @@ export default function ScheduleCalendarPage() {
             return (
               <div
                 className="w-full h-full flex items-center justify-center"
-                style={{ background: '#fff7e8' }}
+                style={{ background: 'var(--lx-warning-light)' }}
               >
                 <Tag color="orange" size="small" style={{ margin: 0, fontSize: 11 }}>
                   请假

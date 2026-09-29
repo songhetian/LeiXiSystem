@@ -155,7 +155,7 @@ export default function TagsPage() {
               return (
                 <div
                   key={tag.id}
-                  className="bg-surface border border-border-1 rounded-md p-5 flex items-center justify-between transition-all hover:shadow-md"
+                  className="bg-surface border border-border-1 rounded-md p-5 flex items-center justify-between transition-shadow hover:shadow-md"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -191,7 +191,7 @@ export default function TagsPage() {
         style={{ width: 480 }}
         maskClosable={false}
       >
-        <div className="space-y-4 py-2">
+        <div className="flex flex-col gap-4 py-2">
           <div>
             <label className="block text-sm text-text-2 mb-1.5">标签名称</label>
             <Input
@@ -217,7 +217,7 @@ export default function TagsPage() {
                       borderRadius: 6,
                       background: c,
                       cursor: 'pointer',
-                      border: color.toLowerCase() === c.toLowerCase() ? '2px solid #2455D9' : '1px solid rgba(0,0,0,0.12)',
+                      border: color.toLowerCase() === c.toLowerCase() ? '2px solid var(--lx-primary)' : '1px solid var(--lx-border-3)',
                       outline: 'none',
                     }}
                   />

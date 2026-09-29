@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,6 +18,7 @@ import {
 import PageContainer from '@/components/PageContainer';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'gray' },
@@ -147,6 +148,7 @@ export default function ExpenseApprovalPage() {
       title: '申请时间',
       dataIndex: 'createdAt',
       width: 180,
+      render: (v: unknown) => formatDateTime(v),
     },
     {
       title: '操作',

@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Form, Input, Select, DatePicker, Button, Card } from '@arco-design/web-react';
 import { IconDown, IconUp } from '@arco-design/web-react/icon';
+import EmployeeSelect from '@/components/EmployeeSelect';
 
-const FormItem = Form.Item;
 const { RangePicker } = DatePicker;
 
 export interface SearchFieldOption {
@@ -15,7 +15,7 @@ export interface SearchFieldOption {
 export interface SearchFieldConfig {
   key: string;
   label: string;
-  type: 'input' | 'select' | 'date' | 'range' | 'month';
+  type: 'input' | 'select' | 'date' | 'range' | 'month' | 'employee';
   placeholder?: string;
   options?: SearchFieldOption[];
   span?: number;
@@ -51,19 +51,27 @@ export default function SearchForm({
   inlineActions = false,
 }: SearchFormProps) {
   const [values, setValues] = useState<Record<string, any>>(initialValues);
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // 防抖定时器用 ref 保存（不用 state），便于卸载清理
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expanded, setExpanded] = useState(false);
+
+  // 卸载时清理防抖定时器，避免组件销毁后仍触发 onSearch
+  useEffect(
+    () => () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    },
+    [],
+  );
 
   const handleChange = (key: string, value: any) => {
     const newValues = { ...values, [key]: value };
     setValues(newValues);
 
     if (debounceMs > 0) {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      const timer = setTimeout(() => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
         onSearch(newValues);
       }, debounceMs);
-      setDebounceTimer(timer);
     }
   };
 
@@ -72,7 +80,12 @@ export default function SearchForm({
   };
 
   const handleReset = () => {
-    setValues({});
+    // 先清掉残留的防抖回调，避免用重置前的值再发一次查询
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    setValues(initialValues);
     onReset?.();
   };
 
@@ -81,21 +94,6 @@ export default function SearchForm({
     if (!showToggle || expanded) return fields;
     return fields.slice(0, column);
   }, [fields, showToggle, expanded, column]);
-
-  // 日期类字段的快捷预设：以按钮形式排在输入框外侧（不进框）
-  const renderFieldControl = (field: SearchFieldConfig) => {
-    const hasPresets = !!field.presets && field.presets.length > 0;
-    const wrap = (control: React.ReactElement) =>
-      hasPresets ? (
-        <div className="lx-search-field-wrap">
-          {control}
-          {renderPresets(field)}
-        </div>
-      ) : (
-        control
-      );
-    return wrap;
-  };
 
   // 日期类字段的快捷预设：点击直接写入字段值
   const renderPresets = (field: SearchFieldConfig) => {
@@ -118,106 +116,112 @@ export default function SearchForm({
 
   const renderField = (field: SearchFieldConfig) => {
     const value = values[field.key];
-    const wrap = renderFieldControl(field);
+    const control = (() => {
+      switch (field.type) {
+        case 'select':
+          return (
+            <Select
+              id={field.key}
+              style={{ width: '100%' }}
+              placeholder={field.placeholder || '请选择'}
+              value={value}
+              showSearch
+              allowClear
+              options={[
+                { value: '', label: field.allLabel || field.placeholder || '全部' },
+                ...(field.options || []),
+              ]}
+              onChange={(val) => handleChange(field.key, val === '' ? undefined : val)}
+            />
+          );
+        case 'month':
+          return (
+            <DatePicker
+              style={{ width: '100%' }}
+              placeholder={field.placeholder || '请选择月份'}
+              value={value}
+              format={field.format || 'YYYY-MM'}
+              onChange={(dateString) => handleChange(field.key, dateString)}
+            />
+          );
+        case 'date':
+          return (
+            <DatePicker
+              style={{ width: '100%' }}
+              placeholder={field.placeholder || '请选择日期'}
+              value={value}
+              format={field.format || 'YYYY-MM-DD'}
+              onChange={(dateString) => handleChange(field.key, dateString)}
+            />
+          );
+        case 'range':
+          return (
+            <RangePicker
+              style={{ width: '100%' }}
+              placeholder={['开始日期', '结束日期']}
+              value={value}
+              format={field.format || 'YYYY-MM-DD'}
+              onChange={(dateStrings) => handleChange(field.key, dateStrings)}
+            />
+          );
+        case 'employee':
+          return (
+            <EmployeeSelect
+              value={value || undefined}
+              onChange={(val, emp) =>
+                handleChange(field.key, val && emp && !Array.isArray(emp) ? emp.name : undefined)
+              }
+              placeholder={field.placeholder || '搜索员工姓名或工号'}
+            />
+          );
+        case 'input':
+        default:
+          return <Input placeholder={field.placeholder || '请输入'} value={value} onChange={(val) => handleChange(field.key, val)} />;
+      }
+    })();
 
-    switch (field.type) {
-      case 'select':
-        return (
-          <Select
-            id={field.key}
-            style={{ width: '100%' }}
-            placeholder={field.placeholder || '请选择'}
-            value={value}
-            showSearch
-            allowClear
-            options={[
-              { value: '', label: field.allLabel || field.placeholder || '全部' },
-              ...(field.options || []),
-            ]}
-            onChange={(val) => handleChange(field.key, val === '' ? undefined : val)}
-          />
-        );
-      case 'month':
-        return wrap(
-          <DatePicker
-            style={{ width: '100%' }}
-            placeholder={field.placeholder || '请选择月份'}
-            value={value}
-            format={field.format || 'YYYY-MM'}
-            onChange={(dateString) => handleChange(field.key, dateString)}
-          />,
-        );
-      case 'date':
-        return wrap(
-          <DatePicker
-            style={{ width: '100%' }}
-            placeholder={field.placeholder || '请选择日期'}
-            value={value}
-            format={field.format || 'YYYY-MM-DD'}
-            onChange={(dateString) => handleChange(field.key, dateString)}
-          />,
-        );
-      case 'range':
-        return wrap(
-          <RangePicker
-            style={{ width: '100%' }}
-            placeholder={['开始日期', '结束日期']}
-            value={value}
-            format={field.format || 'YYYY-MM-DD'}
-            onChange={(dateStrings) => handleChange(field.key, dateStrings)}
-          />,
-        );
-      case 'input':
-      default:
-        return (
-          <Input
-            placeholder={field.placeholder || '请输入'}
-            value={value}
-            onChange={(val) => handleChange(field.key, val)}
-          />
-        );
-    }
+    return (
+      <div className="lx-search-field-wrap">
+        {control}
+        {renderPresets(field)}
+      </div>
+    );
   };
 
   return (
     <Card size="small" className="lx-search-card">
-      <Form layout="horizontal" onSubmit={handleSubmit}>
-        <div className={`lx-search-body${inlineActions ? ' lx-search-body-inline' : ''}`}>
-          {/* 字段区：按 column 列等宽栅格，自动换行 */}
-          <div
-            className="lx-search-fields"
-            data-testid="search-fields"
-            style={{ '--sf-cols': column } as React.CSSProperties}
-          >
-            {visibleFields.map((field) => (
-              <div className="lx-search-item" key={field.key}>
-                <FormItem label={field.label} field={field.key}>
-                  {renderField(field)}
-                </FormItem>
-              </div>
-            ))}
-          </div>
-          {/* 操作区：固定右侧首行，查询/重置/展开始终可见且不随字段换行漂移 */}
-          <div className="lx-search-actions" data-testid="search-actions">
-            <Button type="primary" htmlType="submit">
-              查询
+      {/* 自绘布局：每个字段 = flex(label + 控件)，避开 Arco FormItem 的 arco-col 栅格导致的
+          label 固定百分比压缩/错位问题 */}
+      <Form
+        layout="vertical"
+        className={inlineActions ? 'lx-search-form lx-search-form-inline' : 'lx-search-form'}
+        onSubmit={handleSubmit}
+      >
+        <div className="lx-search-fields" data-testid="search-fields">
+          {visibleFields.map((field) => (
+            <div className="lx-search-item" data-testid={`form-item-${field.key}`} key={field.key}>
+              <label className="lx-search-item-label" htmlFor={field.key}>
+                {field.label}
+              </label>
+              <div className="lx-search-item-control">{renderField(field)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="lx-search-actions" data-testid="search-actions">
+          <Button type="primary" htmlType="submit">
+            查询
+          </Button>
+          <Button onClick={handleReset}>重置</Button>
+          {showToggle && (
+            <Button type="text" data-testid="toggle-collapse" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? '收起' : '展开'}
+              {expanded ? (
+                <IconUp style={{ fontSize: 12, marginLeft: 4 }} />
+              ) : (
+                <IconDown style={{ fontSize: 12, marginLeft: 4 }} />
+              )}
             </Button>
-            <Button onClick={handleReset}>重置</Button>
-            {showToggle && (
-              <Button
-                type="text"
-                data-testid="toggle-collapse"
-                onClick={() => setExpanded((v) => !v)}
-              >
-                {expanded ? '收起' : '展开'}
-                {expanded ? (
-                  <IconUp style={{ fontSize: 12, marginLeft: 4 }} />
-                ) : (
-                  <IconDown style={{ fontSize: 12, marginLeft: 4 }} />
-                )}
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </Form>
     </Card>

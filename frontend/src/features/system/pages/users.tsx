@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Message, Modal, Space, Button, Tag, Form, Input, Radio, Checkbox, Select, Typography, Popconfirm } from '@arco-design/web-react';
@@ -10,6 +10,7 @@ import { systemApi, SysUser, SysRole } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 
 interface UserListEnvelope {
   code: number;
@@ -112,6 +113,7 @@ export default function SystemUsersPage() {
             roleIds: formValues.roleIds,
             departmentId: formValues.departmentId!,
             positionId: formValues.positionId,
+            status: formValues.status,
           });
       if (res.code === 0) {
         Message.success(editing ? '保存成功' : '创建成功');
@@ -184,7 +186,7 @@ export default function SystemUsersPage() {
           ? (value as { name: string }[]).map((r) => <Tag key={r.name} color="arcoblue" style={{ marginRight: 4 }}>{r.name}</Tag>)
           : <span style={{ color: 'var(--lx-text-3)' }}>未分配</span>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180 },
+    { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (v: unknown) => formatDateTime(v) },
     {
       title: '操作',
       dataIndex: 'actions',

@@ -352,7 +352,7 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
                     href={resolveFileUrl(item.attachmentUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: 12, color: 'var(--color-primary-6)' }}
+                    style={{ fontSize: 12, color: 'var(--lx-primary)' }}
                   >
                     预览
                   </a>
@@ -410,7 +410,7 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text type="secondary">
           合计金额:{' '}
-          <Text bold style={{ color: 'var(--color-primary-6)' }}>
+          <Text bold style={{ color: 'var(--lx-primary)' }}>
             ¥ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </Text>
         </Text>

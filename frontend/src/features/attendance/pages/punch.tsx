@@ -1,10 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Button, Message, Modal, Tag,
 } from '@arco-design/web-react';
+import {
+  IconCalendar,
+  IconFile,
+  IconThunderbolt,
+  IconDashboard,
+  IconRight,
+} from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { attendanceApi } from '@/services/attendance';
@@ -64,7 +71,6 @@ interface TodayPunchData {
 
 export default function PunchPage() {
   usePermission();
-  const router = useRouter();
   const { data: todayData, loading, error, run: runFetch } = useFetchState<TodayPunchData>();
   const [punching, setPunching] = useState(false);
 
@@ -220,39 +226,39 @@ export default function PunchPage() {
       <DataState loading={loading} error={error} onRetry={fetchToday}>
         <div className="max-w-5xl mx-auto">
           {/* ─── 顶部信息卡：日期 + 服务器时间 ─── */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 mb-4 flex justify-between items-center">
+          <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-5 mb-4 flex justify-between items-center">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-slate-800">考勤打卡</span>
+                <span className="text-lg font-semibold text-text-1">考勤打卡</span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">{formatDate(serverTime)} {getWeekday(serverTime)}</p>
+              <p className="text-xs text-text-4 mt-1">{formatDate(serverTime)} {getWeekday(serverTime)}</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-[#2455D9] font-mono leading-none tabular-nums">
+              <div className="text-2xl font-bold text-brand font-mono leading-none tabular-nums">
                 {hh}:{mm}:{ss}
               </div>
-              <div className="text-[10px] text-slate-400 mt-1">当前服务器时间</div>
+              <div className="text-[10px] text-text-4 mt-1">当前服务器时间</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {/* ─── 今日考勤状态 ─── */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-50">
+            <div className="flex flex-col gap-4">
+              <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-6">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-[#2455D9] rounded-full" />
-                    <h2 className="text-sm font-semibold text-slate-800">今日考勤状态</h2>
+                    <span className="w-1.5 h-4 bg-brand rounded-full" />
+                    <h2 className="text-sm font-semibold text-text-1">今日考勤状态</h2>
                   </div>
                   {shift && hasSchedule && !isRestDay ? (
                     <div className="flex items-center gap-2 text-xs">
                       <span
                         className="px-2 py-0.5 rounded text-white text-[11px]"
-                        style={{ background: shift.color || '#2455D9' }}
+                        style={{ background: shift.color || 'var(--lx-primary)' }}
                       >
                         {shift.name}
                       </span>
-                      <span className="text-slate-500">
+                      <span className="text-text-3">
                         {shift.startTime} - {shift.endTime}{shift.isNextDay ? '（次日）' : ''}
                       </span>
                     </div>
@@ -265,9 +271,9 @@ export default function PunchPage() {
 
                 {/* 三卡统计：上班 / 下班 / 计薪工时（对齐旧项目顺序） */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
-                    <div className="text-[11px] text-slate-400 mb-2">上班打卡</div>
-                    <div className={`text-lg font-bold tabular-nums ${hasClockedIn ? 'text-slate-800' : 'text-slate-300'}`}>
+                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
+                    <div className="text-[11px] text-text-4 mb-2">上班打卡</div>
+                    <div className={`text-lg font-bold tabular-nums ${hasClockedIn ? 'text-text-1' : 'text-text-4'}`}>
                       {formatHM(todayData?.firstPunch)}
                     </div>
                     {hasClockedIn && (
@@ -280,9 +286,9 @@ export default function PunchPage() {
                       </div>
                     )}
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
-                    <div className="text-[11px] text-slate-400 mb-2">下班打卡</div>
-                    <div className={`text-lg font-bold tabular-nums ${hasClockedOut ? 'text-slate-800' : 'text-slate-300'}`}>
+                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
+                    <div className="text-[11px] text-text-4 mb-2">下班打卡</div>
+                    <div className={`text-lg font-bold tabular-nums ${hasClockedOut ? 'text-text-1' : 'text-text-4'}`}>
                       {formatHM(todayData?.lastPunch)}
                     </div>
                     {hasClockedOut && (
@@ -295,9 +301,9 @@ export default function PunchPage() {
                       </div>
                     )}
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
-                    <div className="text-[11px] text-slate-400 mb-2">计薪工时</div>
-                    <div className="text-lg font-bold text-slate-800 tabular-nums">
+                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
+                    <div className="text-[11px] text-text-4 mb-2">计薪工时</div>
+                    <div className="text-lg font-bold text-text-1 tabular-nums">
                       {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
                     </div>
                     {todayData?.status === 'normal' && (
@@ -306,14 +312,14 @@ export default function PunchPage() {
                       </div>
                     )}
                     {!hasClockedOut && (
-                      <div className="mt-2 text-[10px] text-slate-300">下班后统计</div>
+                      <div className="mt-2 text-[10px] text-text-4">下班后统计</div>
                     )}
                   </div>
                 </div>
 
                 {/* 状态徽标（迟到/早退等） */}
                 {statusMeta && statusMeta.label !== '正常' && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-blue-600 text-xs border border-blue-100 bg-blue-50" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: `${statusMeta.color}22` }}>
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-xs border" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: `${statusMeta.color}22` }}>
                     <span className="w-2 h-2 rounded-full" style={{ background: statusMeta.color }} />
                     <span className="font-medium">系统提醒：您今日考勤状态为「{statusMeta.label}」</span>
                   </div>
@@ -321,13 +327,13 @@ export default function PunchPage() {
 
                 {/* 无排班 / 休息日 提示条 */}
                 {!hasSchedule && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-amber-700 border border-amber-200 bg-amber-50">
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-text-1 border border-warning bg-warning-light">
                     <span>⚠️</span>
                     <span className="font-medium">暂无排班，请先排班后再打卡</span>
                   </div>
                 )}
                 {isRestDay && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-emerald-700 border border-emerald-200 bg-emerald-50">
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-text-1 border border-success bg-success-light">
                     <span>🛌</span>
                     <span className="font-medium">休息日，无需打卡</span>
                   </div>
@@ -344,12 +350,12 @@ export default function PunchPage() {
                         loading={punching}
                         disabled={clockInBtn.disabled}
                         onClick={hasClockedIn ? undefined : handleClockIn}
-                        style={clockInBtn.disabled || hasClockedIn ? {} : { background: '#2455D9', borderColor: '#2455D9' }}
+                        style={clockInBtn.disabled || hasClockedIn ? {} : { background: 'var(--lx-primary)', borderColor: 'var(--lx-primary)' }}
                       >
                         {clockInBtn.text}
                       </Button>
                       {clockInHint && (
-                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockInAllowed === false ? 'text-slate-400' : 'text-[#2455D9]'}`}>
+                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockInAllowed === false ? 'text-text-4' : 'text-brand'}`}>
                           {clockInHint}
                         </div>
                       )}
@@ -362,53 +368,54 @@ export default function PunchPage() {
                         loading={punching}
                         disabled={clockOutBtn.disabled}
                         onClick={!hasClockedIn || hasClockedOut ? undefined : handleClockOut}
-                        style={clockOutBtn.disabled || !hasClockedIn || hasClockedOut ? {} : { background: '#4f46e5', borderColor: '#4f46e5' }}
+                        style={clockOutBtn.disabled || !hasClockedIn || hasClockedOut ? {} : { background: 'var(--lx-clock-out)', borderColor: 'var(--lx-clock-out)' }}
                       >
                         {clockOutBtn.text}
                       </Button>
                       {clockOutHint && (
-                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockOutAllowed === false ? 'text-slate-400' : 'text-[#4f46e5]'}`}>
+                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockOutAllowed === false ? 'text-text-4' : 'text-clock-out'}`}>
                           {clockOutHint}
                         </div>
                       )}
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* ─── 快捷自助功能 ─── */}
-            <div className="space-y-4">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-50">
-                  <span className="w-1.5 h-4 bg-[#4f46e5] rounded-full" />
-                  <h2 className="text-sm font-semibold text-slate-800">快捷自助功能</h2>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { icon: '📋', label: '打卡月报', path: '/attendance/monthly', bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3' },
-                    { icon: '🏖️', label: '在线请假', path: '/attendance/vacation/leave', bg: '#ecfdf5', border: '#a7f3d0', text: '#047857' },
-                    { icon: '⏰', label: '加班申请', path: '/attendance/vacation/overtime', bg: '#fdf4ff', border: '#f5d0fe', text: '#86198f' },
-                    { icon: '📊', label: '数据统计', path: '/attendance/daily', bg: '#fff7ed', border: '#fed7aa', text: '#9a3412' },
-                  ].map((item) => (
-                    <Button
-                      key={item.label}
-                      type="secondary"
-                      long
-                      onClick={() => router.push(item.path)}
-                      style={{ background: item.bg, borderColor: item.border, color: item.text }}
-                      className="!h-auto py-4 flex flex-col gap-2 items-center justify-center"
-                    >
-                      <span className="text-xl leading-none">{item.icon}</span>
-                      <span className="text-xs font-medium" style={{ color: item.text }}>{item.label}</span>
-                    </Button>
-                  ))}
+                {/* ─── 快捷自助功能（位于今日考勤状态下方） ─── */}
+                <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-6">
+                  <div className="flex items-center gap-2 mb-6 pb-4 border-b border-border-2">
+                    <span className="w-1.5 h-4 bg-clock-out rounded-full" />
+                    <h2 className="text-sm font-semibold text-text-1">快捷自助功能</h2>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {[
+                      { icon: <IconCalendar />, label: '打卡月报', path: '/attendance/monthly', tone: 'bg-quick-monthly' },
+                      { icon: <IconFile />, label: '在线请假', path: '/attendance/vacation/leave', tone: 'bg-quick-leave' },
+                      { icon: <IconThunderbolt />, label: '加班申请', path: '/attendance/vacation/overtime', tone: 'bg-quick-overtime' },
+                      { icon: <IconDashboard />, label: '数据统计', path: '/attendance/daily', tone: 'bg-quick-stats' },
+                    ].map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.path}
+                        prefetch
+                        className={`group flex items-center justify-between rounded-lg px-4 py-3 text-white transition-[filter] hover:brightness-95 active:brightness-90 ${item.tone}`}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <span className="text-base leading-none">{item.icon}</span>
+                          {item.label}
+                        </span>
+                        <span className="transition-colors opacity-90">
+                          <IconRight />
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="text-center text-slate-400 mt-4 text-xs">
+          <div className="text-center text-text-4 mt-4 text-xs">
             打卡时间精确到秒，班次内打卡自动判定迟到 / 早退
           </div>
         </div>
@@ -422,15 +429,15 @@ export default function PunchPage() {
         footer={null}
       >
         <div className="py-1">
-          <div className="mb-4 text-xs text-slate-400">
+          <div className="mb-4 text-xs text-text-4">
             请选择您今日的排班计划，提交后即可生效签到
           </div>
           {availableShifts.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-300">
+            <div className="py-10 text-center text-sm text-text-4">
               📋 暂无可用的班次
             </div>
           ) : (
-            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 max-h-[280px] overflow-y-auto pr-1">
               {availableShifts.map((s) => {
                 const active = selectedShiftId === s.id;
                 return (
@@ -440,33 +447,33 @@ export default function PunchPage() {
                     onClick={() => setSelectedShiftId(s.id)}
                     className={`w-full text-left pl-3 pr-3 py-3 rounded-md border-l-[3px] transition-colors duration-200 flex items-center gap-3 ${
                       active
-                        ? 'border-l-[#2455D9] border-t border-b border-r border-[#bfdbfe] bg-[#eef2fc]'
-                        : 'border-l-transparent border border-slate-200 bg-white hover:bg-slate-50'
+                        ? 'border-l-brand border-t border-b border-r border-brand-200 bg-brand-light'
+                        : 'border-l-transparent border border-border-1 bg-surface hover:bg-bg-secondary'
                     }`}
                   >
                     <span
                       className="w-3 h-3 rounded-full shrink-0 mt-0.5"
-                      style={{ background: s.color || '#2455D9' }}
+                      style={{ background: s.color || 'var(--lx-primary)' }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-medium text-slate-800">{s.name}</span>
+                        <span className="text-sm font-medium text-text-1">{s.name}</span>
                         {s.isNextDay && (
-                          <span className="text-[10px] px-1.5 py-px rounded-full bg-slate-100 text-slate-400 leading-none">
+                          <span className="text-[10px] px-1.5 py-px rounded-full bg-bg-hover text-text-4 leading-none">
                             跨天
                           </span>
                         )}
                       </div>
                       {s.description && (
-                        <div className="text-xs text-slate-400 mt-1 truncate">{s.description}</div>
+                        <div className="text-xs text-text-4 mt-1 truncate">{s.description}</div>
                       )}
                     </div>
-                    <span className="shrink-0 text-sm tabular-nums font-medium text-[#2455D9]">
+                    <span className="shrink-0 text-sm tabular-nums font-medium text-brand">
                       {s.startTime} – {s.endTime}
                     </span>
                     <span
                       className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[13px] leading-none ${
-                        active ? 'bg-[#2455D9] text-white' : 'bg-slate-100 text-transparent'
+                        active ? 'bg-brand text-white' : 'bg-bg-hover text-transparent'
                       }`}
                     >
                       ✓

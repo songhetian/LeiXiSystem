@@ -21,8 +21,8 @@ const columns: ProTableColumn[] = [
     width: 180,
     render: (_, r: TimelineRecord) => (
       <div>
-        <div style={{ fontWeight: 500, color: '#1d2129' }}>{r.employeeName}</div>
-        <div style={{ fontSize: 12, color: '#86909c' }}>{r.employeeNo}</div>
+        <div style={{ fontWeight: 500, color: 'var(--lx-text-1)' }}>{r.employeeName}</div>
+        <div style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>{r.employeeNo}</div>
       </div>
     ),
   },
@@ -50,7 +50,7 @@ const columns: ProTableColumn[] = [
     dataIndex: 'reason',
     ellipsis: true,
     render: (_, r: TimelineRecord) =>
-      r.reason ? <span style={{ color: '#4e5969' }}>{r.reason}</span> : <span style={{ color: '#c9cdd4' }}>—</span>,
+      r.reason ? <span style={{ color: 'var(--lx-text-2)' }}>{r.reason}</span> : <span style={{ color: 'var(--lx-text-4)' }}>—</span>,
   },
 ];
 

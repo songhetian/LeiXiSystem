@@ -232,9 +232,9 @@ describe('reimbursementApi', () => {
   });
 
   describe('异常用例', () => {
-    it('handles amount mismatch error (code 7001)', async () => {
+    it('handles amount mismatch error (code 4006)', async () => {
       mockedRequest.post.mockResolvedValueOnce({
-        code: 7001,
+        code: 4006,
         message: '明细金额合计与总金额不一致',
       });
       const result = await reimbursementApi.createReimbursement({
@@ -243,26 +243,26 @@ describe('reimbursementApi', () => {
         totalAmount: 1500,
         items: [{ itemType: '交通费', amount: 1000, expenseDate: '2026-08-10' }],
       });
-      expect(result.code).toBe(7001);
+      expect(result.code).toBe(4006);
       expect(result.message).toBe('明细金额合计与总金额不一致');
     });
 
-    it('handles reimbursement not found error (code 7002)', async () => {
+    it('handles reimbursement not found error (code 4009)', async () => {
       mockedRequest.get.mockResolvedValueOnce({
-        code: 7002,
+        code: 4009,
         message: '报销单不存在',
       });
       const result = await reimbursementApi.getDetail(999);
-      expect(result.code).toBe(7002);
+      expect(result.code).toBe(4009);
     });
 
-    it('handles status not allowed error (code 7003)', async () => {
+    it('handles status not allowed error (code 4010)', async () => {
       mockedRequest.post.mockResolvedValueOnce({
-        code: 7003,
-        message: '当前状态不允许提交审批',
+        code: 4010,
+        message: '当前状态不可操作',
       });
       const result = await reimbursementApi.submitApproval(1);
-      expect(result.code).toBe(7003);
+      expect(result.code).toBe(4010);
     });
 
     it('handles permission error (code 5003)', async () => {
@@ -274,13 +274,13 @@ describe('reimbursementApi', () => {
       expect(result.code).toBe(5003);
     });
 
-    it('handles not approver error (code 7004)', async () => {
+    it('handles not approver error (code 6313)', async () => {
       mockedRequest.post.mockResolvedValueOnce({
-        code: 7004,
-        message: '您不是当前审批人',
+        code: 6313,
+        message: '无审批权限',
       });
       const result = await reimbursementApi.approve(1, { comment: '同意' });
-      expect(result.code).toBe(7004);
+      expect(result.code).toBe(6313);
     });
   });
 });

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, Tabs, Form, Input, Button, Message, Descriptions, Avatar } from '@arco-design/web-react';
@@ -66,7 +66,7 @@ export default function ProfilePage() {
           <Tabs.TabPane key="profile" title="个人信息">
             <Card loading={loading}>
               <div className="flex items-center mb-6">
-                <Avatar size={64} style={{ backgroundColor: '#2455D9', color: '#fff' }}>
+                <Avatar size={64} style={{ backgroundColor: 'var(--lx-primary)', color: '#fff' }}>
                   {user?.name?.charAt(0) || 'U'}
                 </Avatar>
                 <div className="ml-4">

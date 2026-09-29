@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import EmployeeListPage from '@/features/employee/pages/list';
+import EmployeeListPage, { toEmployeeListQuery } from '@/features/employee/pages/list';
 import { employeeApi, employeeTagApi } from '@/services/employee';
 import { systemApi } from '@/services/system';
 import { clearDataCache } from '@/hooks/use-cached-data';
@@ -788,6 +788,33 @@ describe('EmployeeListPage', () => {
         1,
         expect.objectContaining({ tagIds: [1] }),
       );
+    });
+  });
+
+  describe('toEmployeeListQuery（搜索表单值 → 列表接口参数）', () => {
+    it('入职时间区间映射为 dateFrom/dateTo，并删除 hireDate 键', () => {
+      const query = toEmployeeListQuery({
+        hireDate: ['2026-01-01', '2026-03-01'],
+        status: 'active',
+      });
+      expect(query).toEqual({
+        dateFrom: '2026-01-01',
+        dateTo: '2026-03-01',
+        status: 'active',
+      });
+      expect('hireDate' in query).toBe(false);
+    });
+
+    it('非数组或缺省 hireDate 时不产生 dateFrom/dateTo', () => {
+      expect(toEmployeeListQuery({ status: 'active' })).toEqual({ status: 'active' });
+
+      const notArray = toEmployeeListQuery({ hireDate: '2026-01-01' });
+      expect(notArray.dateFrom).toBeUndefined();
+      expect(notArray.dateTo).toBeUndefined();
+
+      const incomplete = toEmployeeListQuery({ hireDate: ['2026-01-01', undefined] });
+      expect(incomplete.dateFrom).toBeUndefined();
+      expect(incomplete.dateTo).toBeUndefined();
     });
   });
 });

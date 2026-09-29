@@ -61,6 +61,7 @@ export interface SysUserCreateDto {
   roleIds?: number[];
   departmentId: number;
   positionId?: number;
+  status?: string;
 }
 
 export interface SysUserUpdateDto {

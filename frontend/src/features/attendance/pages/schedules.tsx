@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Message, Modal, Space, Button } from '@arco-design/web-react';
@@ -208,7 +208,7 @@ export default function SchedulesPage() {
         title={editingSchedule ? '编辑排班' : '新增排班'}
         fields={formFields}
         initialValues={editingSchedule ? {
-          employeeId: String(editingSchedule.employeeId),
+          employeeId: Number(editingSchedule.employeeId),
           shiftId: String(editingSchedule.shiftId),
           workDate: editingSchedule.workDate,
         } : {}}

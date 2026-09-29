@@ -193,6 +193,85 @@ describe('ProtectedRoute', () => {
       }
     });
 
+    // 深层管理页需要独立的管理权限，不能被父级 view 权限放行
+    const deepRouteCases = [
+      { path: '/attendance/vacation/settings', parentPerm: 'attendance:view', required: 'vacation:manage' },
+      { path: '/attendance/settings', parentPerm: 'attendance:view', required: 'attendance:manage' },
+      { path: '/attendance/devices', parentPerm: 'attendance:view', required: 'attendance:manage' },
+      { path: '/attendance/exception-rules', parentPerm: 'attendance:view', required: 'attendance:exception:view' },
+      { path: '/attendance/deduction-rules', parentPerm: 'attendance:view', required: 'attendance:deduction:view' },
+      { path: '/approval/settings', parentPerm: 'approval:todo:view', required: 'approval:workflow:manage' },
+      { path: '/approval/role-workflow', parentPerm: 'approval:todo:view', required: 'approval:workflow:manage' },
+      { path: '/approval/approvers', parentPerm: 'approval:todo:view', required: 'approval:manage' },
+      { path: '/expense/settings', parentPerm: 'reimbursement:view', required: 'reimbursement:manage' },
+      { path: '/expense/approval', parentPerm: 'reimbursement:view', required: 'reimbursement:approve' },
+      { path: '/knowledge/admin', parentPerm: 'knowledge:view', required: 'knowledge:manage' },
+      { path: '/system/roles', parentPerm: 'system:user:view', required: 'system:role:manage' },
+      { path: '/system/permissions', parentPerm: 'system:user:view', required: 'system:role:manage' },
+      { path: '/system/departments', parentPerm: 'system:user:view', required: 'department:manage' },
+      { path: '/system/positions', parentPerm: 'system:user:view', required: 'position:manage' },
+      { path: '/system/broadcasts', parentPerm: 'system:user:view', required: 'system:broadcast:manage' },
+      { path: '/system/logs', parentPerm: 'system:user:view', required: 'system:log:view' },
+      { path: '/notifications/settings', parentPerm: 'system:user:view', required: 'system:notification:settings' },
+      { path: '/okr', parentPerm: 'employee:view', required: 'okr:view' },
+      { path: '/helpdesk', parentPerm: 'employee:view', required: 'helpdesk:view' },
+      { path: '/performance/cycles', parentPerm: 'employee:view', required: 'performance:view' },
+      { path: '/finance/budgets', parentPerm: 'employee:view', required: 'finance:budget:view' },
+      { path: '/finance/expense-standards', parentPerm: 'employee:view', required: 'finance:expense-standard:view' },
+    ];
+
+    it('仅持父级 view 权限访问深层管理页时显示 403', () => {
+      for (const { path, parentPerm } of deepRouteCases) {
+        mockPathname = path;
+        (useAuthStore as unknown as jest.Mock).mockReturnValue(
+          mockAuthenticatedUser([parentPerm]),
+        );
+
+        const { unmount } = render(
+          <ProtectedRoute>
+            <div data-testid={`deep-${path}`}>{path}</div>
+          </ProtectedRoute>,
+        );
+
+        expect(screen.getByText('403')).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('持对应管理权限时可访问深层管理页', () => {
+      for (const { path, required } of deepRouteCases) {
+        mockPathname = path;
+        (useAuthStore as unknown as jest.Mock).mockReturnValue(
+          mockAuthenticatedUser([required]),
+        );
+
+        const { unmount } = render(
+          <ProtectedRoute>
+            <div data-testid={`deep-${path}`}>{path}</div>
+          </ProtectedRoute>,
+        );
+
+        expect(screen.getByTestId(`deep-${path}`)).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('无权限要求的公开页面不被限制', () => {
+      for (const path of ['/broadcasts', '/notifications', '/profile']) {
+        mockPathname = path;
+        (useAuthStore as unknown as jest.Mock).mockReturnValue(mockAuthenticatedUser([]));
+
+        const { unmount } = render(
+          <ProtectedRoute>
+            <div data-testid={`open-${path}`}>{path}</div>
+          </ProtectedRoute>,
+        );
+
+        expect(screen.getByTestId(`open-${path}`)).toBeInTheDocument();
+        unmount();
+      }
+    });
+
     it('所有权限映射路径 - 无权限时都显示 403', () => {
       const testCases = [
         { path: '/employees', perm: 'employee:view' },

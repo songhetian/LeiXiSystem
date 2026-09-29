@@ -359,6 +359,26 @@ export interface VacationType {
   id: number;
   code: string;
   name: string;
+  baseDays?: number;
+  enabled?: boolean;
+  sortOrder?: number;
+  carryOverRatio?: number | null;
+  carryOverMaxDays?: number | null;
+  seniorityRule?: { minYears?: number; maxYears?: number; days: number }[] | null;
+  /** 月假额度：12 个元素，依次对应 1~12 月的每日额度（单位天）；null/缺省表示非月假类型 */
+  monthlyDays?: number[] | null;
+}
+
+export interface VacationTypeCreateDto {
+  code: string;
+  name: string;
+  baseDays?: number;
+  enabled?: boolean;
+  sortOrder?: number;
+  carryOverRatio?: number | null;
+  carryOverMaxDays?: number | null;
+  seniorityRule?: { minYears?: number; maxYears?: number; days: number }[] | null;
+  monthlyDays?: number[] | null;
 }
 
 export interface VacationBalance {
@@ -366,9 +386,17 @@ export interface VacationBalance {
   employeeId: number;
   vacationTypeId: number;
   year: number;
+  /** 抵扣月份（1~12）；月假类型按月建额度，非月假为 0 表示全年额度 */
+  month: number;
   totalDays: number;
   usedDays: number;
   vacationType: VacationType;
+  employee?: {
+    id: number;
+    employeeNo: string;
+    name: string;
+    department?: { id: number; name: string } | null;
+  };
 }
 
 export interface BalanceListResult {
@@ -389,6 +417,8 @@ export interface LeaveRecord {
   startDate: string;
   endDate: string;
   days: number;
+  /** 抵扣月份（1~12），月假类型请假必填 */
+  month?: number | null;
   reason: string;
   status: 'pending' | 'approving' | 'approved' | 'rejected' | 'cancelled';
   vacationType?: VacationType;
@@ -405,6 +435,8 @@ export interface LeaveCreateDto {
   startDate: string;
   endDate: string;
   days: number;
+  /** 抵扣月份（1~12），月假类型必填 */
+  month?: number;
   reason: string;
 }
 
@@ -475,14 +507,53 @@ export interface OvertimeListResult {
   };
 }
 
+// ========== 考勤统计（月假，员工×月份） ==========
+
+export interface AttendanceStatRow {
+  employeeId: number;
+  employeeNo: string;
+  name: string;
+  departmentId: number | null;
+  departmentName: string;
+  /** 应休天数 */
+  totalDays: number;
+  /** 已休天数 */
+  usedDays: number;
+  /** 剩余天数 */
+  remainingDays: number;
+  /** 加班时长（小时） */
+  overtimeHours: number;
+}
+
+export interface AttendanceStatParams {
+  year?: number;
+  month?: number;
+  departmentId?: number;
+  employeeId?: number;
+  keyword?: string;
+}
+
+export interface AttendanceStatResult {
+  code: number;
+  message?: string;
+  data?: {
+    rows: AttendanceStatRow[];
+    total: number;
+  };
+}
+
 // ========== 补卡申请 ==========
+
+// 补卡类型值域与后端 punch-makeup-type.ts 保持一致：
+// 领域规则 C3 只有上班卡（当日首次打卡）/ 下班卡（当日最后一次打卡）两种。
+export type PunchMakeupType = 'check_in' | 'check_out';
 
 export interface PunchMakeupRecord {
   id: number;
   employeeId: number;
   employeeName?: string;
   punchDate: string;
-  punchType: string;
+  punchType: PunchMakeupType;
   originalTime?: string;
   makeupTime?: string;
   reason: string;
@@ -497,7 +568,7 @@ export interface PunchMakeupRecord {
 
 export interface MakeupCreateDto {
   punchDate: string;
-  punchType: string;
+  punchType: PunchMakeupType;
   originalTime?: string;
   makeupTime?: string;
   reason: string;
@@ -556,24 +627,16 @@ export interface PunchTodayResult {
 
 // ========== 考勤设置 ==========
 
+/**
+ * 考勤设置（仅含后端实际被业务消费的 5 项）。
+ * 其余预留项（年假/病假/加班/补卡开关/通知开关等）已从后端注册表与数据库清理。
+ */
 export interface AttendanceSettings {
   lateThreshold: number;
   earlyThreshold: number;
   earlyClockInMinutes: number;
-  lateClockOutMinutes: number;
-  absentHours: number;
-  maxAnnualLeaveDays: number;
-  maxSickLeaveDays: number;
-  requireProofForSickLeave: boolean;
-  requireApprovalForOvertime: boolean;
-  minOvertimeHours: number;
-  maxOvertimeHoursPerDay: number;
-  allowMakeup: boolean;
-  makeupDeadlineDays: number;
-  requireApprovalForMakeup: boolean;
-  notifyOnLate: boolean;
-  notifyOnEarlyLeave: boolean;
-  notifyOnAbsent: boolean;
+  makeupDaysLimit: number;
+  makeupMonthlyLimit: number;
 }
 
 // ========== API ==========
@@ -683,18 +746,31 @@ export const attendanceApi = {
     return request.delete(`/attendance/punch/devices/${id}`);
   },
   // 休假额度
-  getBalanceList(params?: { employeeId?: number; year?: number }): Promise<BalanceListResult> {
+  getBalanceList(params?: { employeeId?: number; year?: number; month?: number }): Promise<BalanceListResult> {
     return request.get('/vacation/balances', { params });
   },
-  getMyBalances(year?: number): Promise<{ code: number; message?: string; data?: VacationBalance[] }> {
-    return request.get('/vacation/balances/mine', { params: { year } });
+  getMyBalances(params?: { year?: number; month?: number }): Promise<{ code: number; message?: string; data?: VacationBalance[] }> {
+    return request.get('/vacation/balances/mine', { params });
+  },
+  // 假期类型设置
+  getVacationTypes(): Promise<{ code: number; message?: string; data?: VacationType[] }> {
+    return request.get('/vacation/types');
+  },
+  createVacationType(data: VacationTypeCreateDto): Promise<{ code: number; message?: string; data?: VacationType }> {
+    return request.post('/vacation/types', data);
+  },
+  updateVacationType(id: number, data: Partial<VacationTypeCreateDto>): Promise<{ code: number; message?: string; data?: VacationType }> {
+    return request.put(`/vacation/types/${id}`, data);
+  },
+  deleteVacationType(id: number): Promise<{ code: number; message?: string }> {
+    return request.delete(`/vacation/types/${id}`);
   },
   // 请假
   getLeaveList(params: LeaveListParams = {}): Promise<LeaveListResult> {
     return request.get('/leave-records', { params });
   },
-  getMyLeaves(): Promise<LeaveListResult> {
-    return request.get('/leave-records/mine');
+  getMyLeaves(params: { page?: number; pageSize?: number; vacationType?: string; status?: string } = {}): Promise<LeaveListResult> {
+    return request.get('/leave-records/mine', { params });
   },
   createLeave(data: LeaveCreateDto): Promise<{ code: number; message?: string; data?: LeaveRecord }> {
     return request.post('/leave-records', data);
@@ -714,6 +790,10 @@ export const attendanceApi = {
   },
   submitOvertime(id: number): Promise<{ code: number; message?: string }> {
     return request.post(`/overtime-records/${id}/submit`);
+  },
+  // 考勤统计（月假，员工×月份）
+  getAttendanceStatistics(params: AttendanceStatParams = {}): Promise<AttendanceStatResult> {
+    return request.get('/vacation/statistics', { params });
   },
   // 考勤申请聚合审计（批次六）
   getAuditList(params: AttendanceAuditParams): Promise<AttendanceAuditResult> {
@@ -747,10 +827,10 @@ export const punchMakeupApi = {
   detail(id: number): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
     return request.get(`/attendance/punch/makeup/${id}`) as any;
   },
-  create(data: { punchDate: string; punchType: string; originalTime?: string; makeupTime?: string; reason: string }): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
+  create(data: MakeupCreateDto): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
     return request.post('/attendance/punch/makeup', data) as any;
   },
-  update(id: number, data: { punchDate?: string; punchType?: string; originalTime?: string; makeupTime?: string; reason?: string }): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
+  update(id: number, data: { punchDate?: string; punchType?: PunchMakeupType; originalTime?: string; makeupTime?: string; reason?: string }): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
     return request.put(`/attendance/punch/makeup/${id}`, data) as any;
   },
   remove(id: number): Promise<{ code: number; message?: string; data?: { success: boolean } }> {

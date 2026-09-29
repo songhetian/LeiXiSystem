@@ -53,6 +53,8 @@ export interface ArticleListParams {
   categoryId?: number;
   keyword?: string;
   status?: string;
+  /** 管理端：包含未发布（草稿等）文章，后端仅对 knowledge:manage 用户生效 */
+  includeUnpublished?: boolean;
 }
 
 export interface CreateCategoryParams {

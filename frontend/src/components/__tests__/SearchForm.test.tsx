@@ -1,7 +1,24 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import SearchForm, { SearchFieldConfig } from '@/components/SearchForm';
+
+jest.mock('@/components/EmployeeSelect', () => {
+  return (props: any) => (
+    <select
+      data-testid={`employee-select-${props.placeholder || 'default'}`}
+      value={props.value == null ? '' : props.value}
+      onChange={(e) => {
+        // 模拟选中某个员工：回调 onChange(value, employee)
+        const emp = props.value == null ? { id: 1, name: '张三' } : undefined;
+        props.onChange?.(e.target.value || null, emp);
+      }}
+    >
+      <option value="">全部</option>
+      <option value="zhangsan">张三</option>
+    </select>
+  );
+});
 
 jest.mock('@arco-design/web-react', () => {
   const Form = ({ children, onSubmit, className }: any) => {
@@ -119,6 +136,23 @@ describe('SearchForm', () => {
       await user.click(screen.getByTestId('btn-重置'));
       expect(onReset).toHaveBeenCalled();
     });
+
+    it('employee 类型字段在选中员工后写入姓名并随查询提交', async () => {
+      const user = userEvent.setup();
+      const onSearch = jest.fn();
+      render(
+        <SearchForm
+          fields={[{ key: 'keyword', label: '姓名', type: 'employee' }]}
+          onSearch={onSearch}
+        />,
+      );
+      const select = screen.getByTestId('employee-select-搜索员工姓名或工号');
+      await user.selectOptions(select, 'zhangsan');
+
+      await user.click(screen.getByTestId('btn-查询'));
+      // EmployeeSelect 选中时把 emp.name（张三）写入字段值
+      expect(onSearch).toHaveBeenCalledWith(expect.objectContaining({ keyword: '张三' }));
+    });
   });
 
   describe('边界用例', () => {
@@ -152,6 +186,49 @@ describe('SearchForm', () => {
     it('uses a dedicated fields grid area', () => {
       render(<SearchForm fields={mockFields} onSearch={() => {}} />);
       expect(screen.getByTestId('search-fields')).toBeInTheDocument();
+    });
+  });
+
+  describe('重置与防抖', () => {
+    it('点击重置时还原 initialValues（而非清空）', async () => {
+      const user = userEvent.setup();
+      const onReset = jest.fn();
+      render(
+        <SearchForm
+          fields={mockFields}
+          onSearch={() => {}}
+          onReset={onReset}
+          initialValues={{ name: 'abc' }}
+        />,
+      );
+      const input = screen.getByTestId('input-default');
+      expect(input).toHaveValue('abc');
+
+      await user.clear(input);
+      await user.type(input, 'xyz');
+      expect(input).toHaveValue('xyz');
+
+      await user.click(screen.getByTestId('btn-重置'));
+      expect(onReset).toHaveBeenCalled();
+      expect(input).toHaveValue('abc');
+    });
+
+    it('debounceMs>0 时卸载组件后不再触发 onSearch（定时器已清理）', () => {
+      jest.useFakeTimers();
+      const onSearch = jest.fn();
+      const { unmount } = render(
+        <SearchForm fields={mockFields} onSearch={onSearch} debounceMs={300} />,
+      );
+
+      fireEvent.change(screen.getByTestId('input-default'), { target: { value: 'x' } });
+
+      unmount();
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      expect(onSearch).not.toHaveBeenCalled();
+      jest.useRealTimers();
     });
   });
 

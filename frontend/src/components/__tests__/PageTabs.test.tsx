@@ -57,11 +57,21 @@ describe('PageTabs 可访问性', () => {
     render(<PageTabs />);
     expect(screen.getByRole('button', { name: /更多操作/ })).toBeInTheDocument();
   });
+
+  it('进入 /attendance/statistics 时自动登记「考勤统计」页签', async () => {
+    mockPathname.current = '/attendance/statistics';
+    useTabsStore.setState({ tabs: [{ path: '/', label: '工作台' }] });
+    render(<PageTabs />);
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /考勤统计/ })).toBeInTheDocument();
+    });
+  });
 });
 
 describe('PageTabs 页签右键菜单', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPathname.current = '/';
     useTabsStore.setState({
       tabs: [
         { path: '/', label: '工作台' },

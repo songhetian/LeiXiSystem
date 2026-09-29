@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Form, Input, Button, Typography, Message, Alert } from '@arco-design/web-react';
 import { authApi } from '@/services/auth';
 import { useAuthStore } from '@/store/auth';
+import { useSystemInfo } from '@/hooks/use-system-info';
 
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
+  const { info: systemInfo } = useSystemInfo();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,38 +40,38 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #f5f7ff 0%, #eaf0ff 100%)' }}
+      className="lx-login-page min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
     >
       {/* 单一品牌蓝柔光，保持轻盈 */}
       <div
-        className="pointer-events-none absolute -top-[120px] -left-24 w-[380px] h-[380px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(36, 85, 217, 0.18), transparent 70%)', filter: 'blur(30px)' }}
+        className="lx-login-glow-1 pointer-events-none absolute -top-[120px] -left-24 w-[380px] h-[380px] rounded-full"
       />
       <div
-        className="pointer-events-none absolute -bottom-[140px] -right-[120px] w-[440px] h-[440px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(36, 85, 217, 0.10), transparent 70%)', filter: 'blur(34px)' }}
+        className="lx-login-glow-2 pointer-events-none absolute -bottom-[140px] -right-[120px] w-[440px] h-[440px] rounded-full"
       />
 
       <div
-        className="relative z-10 w-[420px] px-9 py-11 rounded-2xl bg-white lx-animate-slideUp"
-        style={{ boxShadow: '0 24px 70px rgba(36, 85, 217, 0.10), 0 2px 18px rgba(22, 30, 60, 0.04)' }}
+        className="lx-login-card relative z-10 w-[420px] px-9 py-11 rounded-2xl bg-white lx-animate-slideUp"
       >
         <div className="flex flex-col items-center mb-9">
-          <div
-            className="flex h-14 w-14 items-center justify-center rounded-xl text-[26px] font-semibold text-white"
-            style={{
-              background: 'linear-gradient(135deg, #2455D9, #3a6ee8)',
-              boxShadow: '0 8px 22px rgba(36,85,217,0.30)',
-            }}
-          >
-            雷
-          </div>
+          {systemInfo.logoUrl ? (
+            <img
+              src={systemInfo.logoUrl}
+              alt="系统 Logo"
+              className="h-14 w-14 object-contain rounded-[12px]"
+            />
+          ) : (
+            <div
+              className="lx-login-logo flex h-14 w-14 items-center justify-center rounded-xl text-[26px] font-semibold text-white"
+            >
+              {(systemInfo.name || '雷').charAt(0)}
+            </div>
+          )}
           <Typography.Title
             heading={4}
             style={{ textAlign: 'center', margin: '18px 0 0', fontWeight: 500 }}
           >
-            雷犀管理系统
+            {systemInfo.name}
           </Typography.Title>
           <div className="text-sm text-text-3 text-center mt-1.5">
             考勤 · 算薪 · 员工管理
@@ -117,7 +119,7 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 mt-8 text-xs text-text-3">
-        © 2026 雷犀管理系统 · 企业数字化平台
+        © 2026 {systemInfo.name} · 企业数字化平台
       </div>
     </div>
   );

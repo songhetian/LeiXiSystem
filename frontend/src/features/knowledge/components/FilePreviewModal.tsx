@@ -38,7 +38,7 @@ function DownloadFallback({ file, hint }: { file: PreviewFile; hint?: string }) 
         justifyContent: 'center',
         height: '60vh',
         gap: 16,
-        color: '#86909c',
+        color: 'var(--lx-text-3)',
       }}
     >
       <div style={{ fontSize: 48, opacity: 0.4 }}>.{getFileExt(file.name)}</div>

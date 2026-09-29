@@ -83,6 +83,8 @@ export interface ProTableProps {
   virtual?: boolean;
   /** 虚拟滚动时表格最大高度（px），配合 virtual 使用 */
   maxHeight?: number;
+  /** 自定义空态节点；不传时默认显示“暂无数据” */
+  emptyElement?: React.ReactNode;
 }
 
 export default function ProTable({
@@ -113,6 +115,7 @@ export default function ProTable({
   batchActions,
   virtual = false,
   maxHeight = 480,
+  emptyElement,
 }: ProTableProps) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [density, setDensity] = useState<TableDensity>('default');
@@ -378,8 +381,7 @@ export default function ProTable({
             onClick: () => handleRowClick(record),
             style: { cursor: onRowClick ? 'pointer' : 'default' } as React.CSSProperties,
           })}
-          noDataElement={<Empty description="暂无数据" />}
-          style={{ borderRadius: 0 }}
+          noDataElement={emptyElement ?? <Empty description="暂无数据" />}
           scroll={{
             x: true, // 按内容横向扩展，列不被压缩换行，杜绝中文逐字竖排
             ...(virtual ? { y: maxHeight } : {}),

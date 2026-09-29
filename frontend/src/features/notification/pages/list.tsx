@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import {
@@ -175,18 +175,18 @@ export default function NotificationsPage() {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '12px 4px',
-                  borderBottom: '1px solid var(--color-border-2)',
+                  borderBottom: '1px solid var(--lx-border-2)',
                   cursor: item.read ? 'default' : 'pointer',
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={item.read ? { color: '#86909c' } : { fontWeight: 600 }}>
+                  <span style={item.read ? { color: 'var(--lx-text-3)' } : { fontWeight: 600 }}>
                     {item.title}
                   </span>
                   {item.content ? (
-                    <div style={{ fontSize: 13, color: '#4e5969', marginTop: 2 }}>{item.content}</div>
+                    <div style={{ fontSize: 13, color: 'var(--lx-text-2)', marginTop: 2 }}>{item.content}</div>
                   ) : null}
-                  <div style={{ fontSize: 12, color: '#86909c', marginTop: 4 }}>{item.createdAt}</div>
+                  <div style={{ fontSize: 12, color: 'var(--lx-text-3)', marginTop: 4 }}>{item.createdAt}</div>
                 </div>
                 <Space>
                   <Tag color={typeMap[item.type]?.color || 'gray'}>

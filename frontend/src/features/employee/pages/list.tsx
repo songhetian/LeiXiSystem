@@ -15,7 +15,7 @@ import { exportToExcel } from '@/lib/excel';
 import { formatDate, todayStr } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
-  { key: 'keyword', label: '姓名', type: 'input', placeholder: '搜索姓名' },
+  { key: 'keyword', label: '姓名', type: 'employee', placeholder: '搜索员工姓名或工号' },
   {
     key: 'status',
     label: '状态',
@@ -50,6 +50,23 @@ const baseSearchFields: SearchFieldConfig[] = [
   },
   { key: 'hireDate', label: '入职时间', type: 'range', placeholder: '请选择入职时间范围' },
 ];
+
+/** 搜索表单值 → 列表接口参数（入职时间区间映射为 dateFrom/dateTo） */
+export function toEmployeeListQuery(values: Record<string, any>): EmployeeListParams {
+  const { hireDate, ...rest } = values;
+  const query: EmployeeListParams = { ...rest };
+  // 范围选择产出 [start, end]，两元素均为字符串时才映射为接口认识的 dateFrom/dateTo
+  if (
+    Array.isArray(hireDate) &&
+    hireDate.length === 2 &&
+    typeof hireDate[0] === 'string' &&
+    typeof hireDate[1] === 'string'
+  ) {
+    query.dateFrom = hireDate[0];
+    query.dateTo = hireDate[1];
+  }
+  return query;
+}
 
 function buildFormFields(
   departments: { id: number; name: string }[],
@@ -194,7 +211,7 @@ export default function EmployeeListPage() {
     : pagination;
 
   const handleSearch = (values: Record<string, any>) => {
-    setSearchParams(values);
+    setSearchParams(toEmployeeListQuery(values));
     setPagination((p) => ({ ...p, current: 1 }));
   };
 

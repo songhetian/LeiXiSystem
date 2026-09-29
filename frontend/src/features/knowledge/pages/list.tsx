@@ -172,17 +172,8 @@ export default function KnowledgeListPage() {
   return (
     <PageContainer>
       {/* 顶部：返回/面包屑 + 搜索 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           {activeFolder ? (
             <>
               <Button size="small" icon={<IconLeft />} onClick={backToRoot}>

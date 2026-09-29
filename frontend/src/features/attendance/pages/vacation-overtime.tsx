@@ -10,7 +10,7 @@ import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatDate } from '@/lib/format';
 
 export default function VacationOvertimePage() {
   const { can } = usePermission();
@@ -41,7 +41,8 @@ export default function VacationOvertimePage() {
         const list = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
         const total = (res.data as any).total ?? list.length;
         setOvertimes(list);
-        setOvertimePagination({ current: 1, pageSize: 20, total });
+        // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
+        setOvertimePagination({ current: page, pageSize, total });
       }
     } catch (e: any) {
       setOvertimeError(e?.message || '获取加班记录失败');
@@ -81,9 +82,10 @@ export default function VacationOvertimePage() {
       `加班记录_${todayStr()}.xlsx`,
       '加班记录',
       [
-        { title: '加班日期', dataIndex: 'overtimeDate' },
-        { title: '开始时间', dataIndex: 'startTime' },
-        { title: '结束时间', dataIndex: 'endTime' },
+        // 后端返回的是 Date 序列化后的 ISO 串，必须按北京时间格式化，避免 ISO 原始串泄漏到表格
+        { title: '加班日期', value: (r: OvertimeRecord) => formatDate(r.overtimeDate, 'YYYY-MM-DD') },
+        { title: '开始时间', value: (r: OvertimeRecord) => formatDate(r.startTime, 'YYYY-MM-DD HH:mm') },
+        { title: '结束时间', value: (r: OvertimeRecord) => formatDate(r.endTime, 'YYYY-MM-DD HH:mm') },
         { title: '时长(小时)', dataIndex: 'hours' },
         { title: '原因', dataIndex: 'reason' },
         { title: '状态', value: (r: OvertimeRecord) => statusMap[r.status] ?? r.status },
@@ -101,23 +103,24 @@ export default function VacationOvertimePage() {
     }
     setOvertimeModalLoading(true);
     try {
-      const [startH, startM] = values.startTime.split(':').map(Number);
-      const [endH, endM] = values.endTime.split(':').map(Number);
-      let hours = (endH * 60 + endM - startH * 60 - startM) / 60;
-      if (hours <= 0) hours += 24;
+      const [start, end] = values.timeRange as [string, string];
+      // 时长 = 结束 - 开始（支持跨天），精确到 0.1 小时
+      const deltaMs = new Date(end).getTime() - new Date(start).getTime();
+      const hours = Math.round((deltaMs / 3600000) * 10) / 10;
       const dto: OvertimeCreateDto = {
         employeeId: myEmployee.id,
-        overtimeDate: values.overtimeDate,
-        startTime: values.startTime,
-        endTime: values.endTime,
-        hours: Math.round(hours * 10) / 10,
+        overtimeDate: start.slice(0, 10),
+        startTime: start,
+        endTime: end,
+        hours,
         reason: values.reason,
       };
       const res = await attendanceApi.createOvertime(dto);
       if (res.code === 0) {
         Message.success('申请已提交，请等待审批');
         setOvertimeModalVisible(false);
-        fetchOvertimes();
+        // 保留当前页，避免提交后列表跳回第 1 页
+        fetchOvertimes(overtimePagination.current, overtimePagination.pageSize);
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -133,7 +136,8 @@ export default function VacationOvertimePage() {
       const res = await attendanceApi.submitOvertime(id);
       if (res.code === 0) {
         Message.success('已提交审批');
-        fetchOvertimes();
+        // 保留当前页，避免提交后列表跳回第 1 页
+        fetchOvertimes(overtimePagination.current, overtimePagination.pageSize);
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -143,9 +147,9 @@ export default function VacationOvertimePage() {
   };
 
   const overtimeColumns: ProTableColumn[] = [
-    { title: '加班日期', dataIndex: 'overtimeDate', width: 120 },
-    { title: '开始时间', dataIndex: 'startTime', width: 100 },
-    { title: '结束时间', dataIndex: 'endTime', width: 100 },
+    { title: '加班日期', dataIndex: 'overtimeDate', width: 120, render: (value: string) => formatDate(value, 'YYYY-MM-DD') },
+    { title: '开始时间', dataIndex: 'startTime', width: 140, render: (value: string) => formatDate(value, 'YYYY-MM-DD HH:mm') },
+    { title: '结束时间', dataIndex: 'endTime', width: 140, render: (value: string) => formatDate(value, 'YYYY-MM-DD HH:mm') },
     { title: '时长(小时)', dataIndex: 'hours', width: 100 },
     { title: '原因', dataIndex: 'reason', width: 200, ellipsis: true },
     {
@@ -169,9 +173,7 @@ export default function VacationOvertimePage() {
   ];
 
   const overtimeFormFields: FormFieldConfig[] = [
-    { key: 'overtimeDate', label: '加班日期', type: 'input', required: true, placeholder: 'YYYY-MM-DD' },
-    { key: 'startTime', label: '开始时间', type: 'input', required: true, placeholder: '如 18:00' },
-    { key: 'endTime', label: '结束时间', type: 'input', required: true, placeholder: '如 21:00' },
+    { key: 'timeRange', label: '加班时间', type: 'range', required: true, placeholder: '开始时间,结束时间' },
     { key: 'reason', label: '加班原因', type: 'textarea', placeholder: '请输入原因' },
   ];
 

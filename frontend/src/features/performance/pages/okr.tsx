@@ -28,8 +28,8 @@ const OBJ_STATUS_MAP: Record<string, string> = {
 
 /** 目标类型对应的卡片色 */
 const OBJ_TYPE_COLORS: Record<string, string> = {
-  personal: '#4ECDC4',
-  department: '#BB8FCE',
+  personal: '#14b8a6',
+  department: '#8b5cf6',
 };
 
 interface Filters {
@@ -98,8 +98,9 @@ export default function OkrPage() {
     return map;
   }, [departments]);
 
-  const handleFilterChange = (key: keyof Filters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  // Select 清空（allowClear）时 Arco 回调 undefined，必须归一化为空串，否则会变成字符串 "undefined"
+  const handleFilterChange = (key: keyof Filters, value?: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value ?? '' }));
   };
 
   const handleReset = () => {
@@ -275,7 +276,7 @@ export default function OkrPage() {
             <label className="block text-sm text-text-2 mb-1.5">目标类型</label>
             <Select
               value={filters.type}
-              onChange={(v) => handleFilterChange('type', String(v))}
+              onChange={(v) => handleFilterChange('type', v)}
               style={{ width: '100%' }}
               placeholder="全部类型"
               allowClear
@@ -289,7 +290,7 @@ export default function OkrPage() {
             <label className="block text-sm text-text-2 mb-1.5">状态</label>
             <Select
               value={filters.status}
-              onChange={(v) => handleFilterChange('status', String(v))}
+              onChange={(v) => handleFilterChange('status', v)}
               style={{ width: '100%' }}
               placeholder="全部状态"
               allowClear
@@ -339,16 +340,15 @@ export default function OkrPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.map((obj) => {
-              const color = OBJ_TYPE_COLORS[obj.type] || '#3B82F6';
+              const color = OBJ_TYPE_COLORS[obj.type] || '#2455D9';
               const progress = obj.progress ?? 0;
               const statusLabel = OBJ_STATUS_MAP[obj.status ?? ''] ?? obj.status;
-              const statusColor = obj.status === 'completed' ? '#16a34a' : '#f59e0b';
               const isExpanded = expandedId === obj.id;
               const krs = obj.keyResults ?? [];
               return (
                 <div
                   key={obj.id}
-                  className="border-2 rounded-lg p-5 bg-surface transition-all hover:shadow-md"
+                  className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
                   style={{ borderColor: color, backgroundColor: `${color}10` }}
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -362,8 +362,11 @@ export default function OkrPage() {
                           {OBJ_TYPE_MAP[obj.type] ?? obj.type}
                         </span>
                         <span
-                          className="inline-block px-2 py-0.5 rounded text-xs font-normal"
-                          style={{ background: `${statusColor}1c`, color: statusColor }}
+                          className={
+                            obj.status === 'completed'
+                              ? 'inline-block px-2 py-0.5 rounded text-xs font-normal bg-success-bg text-success'
+                              : 'inline-block px-2 py-0.5 rounded text-xs font-normal bg-warning-bg text-warning'
+                          }
                         >
                           {statusLabel}
                         </span>
@@ -376,7 +379,7 @@ export default function OkrPage() {
                     />
                   </div>
 
-                  <div className="space-y-1.5 text-sm text-text-2 mb-4">
+                  <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
                       <span>📆</span>
                       <span>{obj.period || '--'}</span>
@@ -407,7 +410,7 @@ export default function OkrPage() {
                       {isExpanded ? '▼' : '▶'} 关键结果（{krs.length}）
                     </Button>
                     {isExpanded && (
-                      <div className="mt-2 space-y-2">
+                      <div className="mt-2 flex flex-col gap-2">
                         {krs.length === 0 && (
                           <div className="text-center text-xs text-text-3 py-3 border border-dashed border-border-2 rounded">
                             暂无关键结果，点击下方「新增关键结果」添加

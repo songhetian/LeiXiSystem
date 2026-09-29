@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 import { Message, Modal, Button, Spin } from '@arco-design/web-react';
+import {
+  IconClockCircle,
+  IconCalendarClock,
+  IconPauseCircle,
+  IconExclamationCircle,
+  IconFile,
+} from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import SearchForm, { SearchFieldConfig } from '@/components/SearchForm';
 import { attendanceApi, Shift, ShiftCreateDto, ShiftUpdateDto } from '@/services/attendance';
@@ -229,6 +236,7 @@ export default function ShiftsPage() {
         initialValues={filters}
         onSearch={handleSearch}
         onReset={handleReset}
+        inlineActions
       />
 
       {/* 工具栏 */}
@@ -260,33 +268,37 @@ export default function ShiftsPage() {
               return (
                 <div
                   key={shift.id}
-                  className="border-2 rounded-lg p-5 bg-surface transition-all hover:shadow-md"
-                  style={{ borderColor: color, backgroundColor: `${color}10` }}
+                  className="dsh-panel shift-card"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-lg font-medium text-text-1">{shift.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-normal text-text-1 lx-text-truncate">{shift.name}</h3>
                       <div className="flex gap-2 mt-1.5 flex-wrap">
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
                           style={{
-                            background: isActive ? 'rgba(22,163,74,0.12)' : 'rgba(107,119,140,0.12)',
-                            color: isActive ? '#16a34a' : '#6b778c',
+                            background: isActive ? 'var(--lx-success-bg)' : 'var(--lx-bg-secondary)',
+                            color: isActive ? 'var(--lx-success)' : 'var(--lx-text-3)',
+                            border: `1px solid ${isActive ? 'transparent' : 'var(--lx-border-1)'}`,
                           }}
                         >
                           {isActive ? '启用中' : '已禁用'}
                         </span>
                         {shift.department ? (
                           <span
-                            className="inline-block px-2 py-0.5 rounded text-xs"
-                            style={{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' }}
+                            className="inline-block px-2 py-0.5 rounded text-xs font-normal lx-text-truncate"
+                            style={{
+                              background: 'var(--lx-purple-bg)',
+                              color: 'var(--lx-purple)',
+                              maxWidth: 120,
+                            }}
                           >
                             {shift.department.name}
                           </span>
                         ) : (
                           <span
-                            className="inline-block px-2 py-0.5 rounded text-xs"
-                            style={{ background: 'rgba(36,85,217,0.12)', color: '#2455D9' }}
+                            className="inline-block px-2 py-0.5 rounded text-xs font-normal"
+                            style={{ background: 'var(--lx-primary-bg)', color: 'var(--lx-primary)' }}
                           >
                             全公司
                           </span>
@@ -294,27 +306,27 @@ export default function ShiftsPage() {
                       </div>
                     </div>
                     <span
-                      className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: color, border: '1px solid rgba(0,0,0,0.08)' }}
+                      className="shrink-0 w-3.5 h-3.5 rounded-full"
+                      style={{ background: color, boxShadow: `0 0 0 3px ${color}22` }}
                       title={color}
                     />
                   </div>
 
-                  <div className="space-y-1.5 text-sm text-text-2 mb-4">
+                  <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
-                      <span>⏰</span>
+                      <IconClockCircle className="shift-meta-ic" />
                       <span>{shift.startTime} - {shift.endTime}{shift.isNextDay ? '（次日）' : ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>📊</span>
+                      <IconCalendarClock className="shift-meta-ic" />
                       <span>工作时长：{calcWorkHours(shift)} 小时</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>☕</span>
+                      <IconPauseCircle className="shift-meta-ic" />
                       <span>休息时长：{(shift.restDuration ?? 0) || '--'} 分钟</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>⚠️</span>
+                      <IconExclamationCircle className="shift-meta-ic" />
                       <span>
                         {shift.useGlobalThreshold !== false ? (
                           <span>迟到/早退阈值：(全局默认)</span>
@@ -324,37 +336,21 @@ export default function ShiftsPage() {
                       </span>
                     </div>
                     {shift.description && (
-                      <div className="flex items-start gap-2 mt-2 pt-2 border-t border-black/5">
-                        <span>📝</span>
+                      <div className="flex items-start gap-2 mt-2 pt-2 border-t border-border-1">
+                        <IconFile className="shift-meta-ic mt-0.5" />
                         <span className="text-xs text-text-3">{shift.description}</span>
                       </div>
                     )}
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      type="primary"
-                      size="small"
-                      style={{ flex: 1 }}
-                      disabled={!canManage}
-                      onClick={() => handleEdit(shift)}
-                    >
+                    <Button type="primary" size="small" disabled={!canManage} onClick={() => handleEdit(shift)}>
                       编辑
                     </Button>
-                    <Button
-                      size="small"
-                      style={{ flex: 1 }}
-                      disabled={!canManage}
-                      onClick={() => handleToggleActive(shift)}
-                    >
+                    <Button size="small" disabled={!canManage} onClick={() => handleToggleActive(shift)}>
                       {isActive ? '禁用' : '启用'}
                     </Button>
-                    <Button
-                      size="small"
-                      status="danger"
-                      disabled={!canManage}
-                      onClick={() => handleDelete(shift)}
-                    >
+                    <Button size="small" status="danger" disabled={!canManage} onClick={() => handleDelete(shift)}>
                       删除
                     </Button>
                   </div>

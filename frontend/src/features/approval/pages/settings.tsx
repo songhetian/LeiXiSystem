@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useCallback } from 'react';
 import {
@@ -363,7 +363,7 @@ export default function ApprovalSettingsPage() {
       >
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 260px', minHeight: 480 }}>
           {/* 左侧：节点列表 */}
-          <div style={{ borderRight: '1px solid var(--color-border-2)', padding: 16 }}>
+          <div style={{ borderRight: '1px solid var(--lx-border-2)', padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Text bold style={{ fontSize: 13 }}>节点列表</Text>
               <Button
@@ -387,7 +387,7 @@ export default function ApprovalSettingsPage() {
                       style={{
                         padding: '8px 10px',
                         borderRadius: 6,
-                        border: `1px solid ${isActive ? 'var(--color-primary-light-3)' : 'var(--color-border-2)'}`,
+                        border: `1px solid ${isActive ? 'var(--lx-primary-100)' : 'var(--lx-border-2)'}`,
                         backgroundColor: isActive ? 'var(--color-primary-light-1)' : 'var(--color-bg-2)',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
@@ -402,7 +402,7 @@ export default function ApprovalSettingsPage() {
                             width: 20,
                             height: 20,
                             borderRadius: '50%',
-                            backgroundColor: 'var(--color-primary-light-3)',
+                            backgroundColor: 'var(--lx-primary-100)',
                             color: 'var(--color-primary-5)',
                             fontSize: 11,
                             fontWeight: 600,
@@ -413,7 +413,7 @@ export default function ApprovalSettingsPage() {
                         <Text style={{ fontSize: 12, fontWeight: 500 }}>{node.name}</Text>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 26 }}>
-                        <Text style={{ fontSize: 11, color: 'var(--color-text-3)' }}>{meta.label}</Text>
+                        <Text style={{ fontSize: 11, color: 'var(--lx-text-3)' }}>{meta.label}</Text>
                       </div>
                       <div style={{ display: 'flex', gap: 2, marginTop: 6, paddingLeft: 26 }}>
                         <Button
@@ -517,7 +517,7 @@ export default function ApprovalSettingsPage() {
                           border: `1.5px solid ${
                             activeNodeKey === node.nodeKey
                               ? 'var(--color-primary-5)'
-                              : 'var(--color-border-2)'
+                              : 'var(--lx-border-2)'
                           }`,
                           cursor: 'pointer',
                           textAlign: 'center',
@@ -544,7 +544,7 @@ export default function ApprovalSettingsPage() {
                             {node.name}
                           </Text>
                         </div>
-                        <Text style={{ fontSize: 10, color: 'var(--color-text-3)' }}>
+                        <Text style={{ fontSize: 10, color: 'var(--lx-text-3)' }}>
                           {meta.label} · 第 {index + 1} 节点
                         </Text>
                       </div>
@@ -573,7 +573,7 @@ export default function ApprovalSettingsPage() {
           </div>
 
           {/* 右侧：节点配置 */}
-          <div style={{ borderLeft: '1px solid var(--color-border-2)', padding: 16 }}>
+          <div style={{ borderLeft: '1px solid var(--lx-border-2)', padding: 16 }}>
             <Text bold style={{ fontSize: 13, marginBottom: 12, display: 'block' }}>
               节点配置
             </Text>
@@ -607,7 +607,7 @@ export default function ApprovalSettingsPage() {
                   </Select>
                 </Form.Item>
 
-                <Text style={{ fontSize: 11, color: 'var(--color-text-3)' }}>
+                <Text style={{ fontSize: 11, color: 'var(--lx-text-3)' }}>
                   {getNodeTypeMeta(activeNode.type).desc}
                 </Text>
 
@@ -639,7 +639,7 @@ export default function ApprovalSettingsPage() {
                 <Divider style={{ margin: '4px 0' }} />
 
                 <div>
-                  <Text style={{ fontSize: 11, color: 'var(--color-text-3)', fontWeight: 500 }}>
+                  <Text style={{ fontSize: 11, color: 'var(--lx-text-3)', fontWeight: 500 }}>
                     高级配置
                   </Text>
                   <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Message,
   Modal,
@@ -20,17 +20,13 @@ import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { systemApi, SysDepartment } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
+import { formatDate } from '@/lib/format';
 import { PositionList } from './positions';
 
 const { TabPane } = Tabs;
 const { TextArea } = Input;
-
-function formatDate(v?: string | null) {
-  if (!v) return '-';
-  return new Date(v).toLocaleDateString('zh-CN');
-}
 
 export default function SystemDepartmentsPage() {
   return (
@@ -50,7 +46,6 @@ export default function SystemDepartmentsPage() {
 // ====== 部门管理（描述 / 启停 / 回收站 / 恢复）======
 function DepartmentManager() {
   const { can } = usePermission();
-  const { data: list, loading, error, run: runFetch } = useFetchState<SysDepartment[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
 
   const [createVisible, setCreateVisible] = useState(false);
@@ -60,17 +55,19 @@ function DepartmentManager() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = async () => {
-    await runFetch(async () => {
-      const res = await systemApi.listDepartments(showDeleted);
-      if (res.code === 0 && res.data) return res.data;
-      throw new Error(res.message || '获取部门列表失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [showDeleted]);
+  // SWR 共享缓存：以 showDeleted 编入 cacheKey，切换显示回收站时自动复用历史缓存/重新请求
+  const cacheKey = `system:departments:${showDeleted}`;
+  const fetcher = useMemo(
+    () => () =>
+      systemApi.listDepartments(showDeleted).then((res) => {
+        if (res.code === 0 && res.data) return res.data;
+        throw new Error(res.message || '获取部门列表失败');
+      }),
+    [showDeleted],
+  );
+  const { data: list, loading, error, revalidate } = useCachedData<SysDepartment[]>(cacheKey, fetcher, {
+    staleTime: 30_000,
+  });
 
   const activeList = (list || []).filter((d) => !d.deletedAt);
   const recycleList = (list || []).filter((d) => d.deletedAt);
@@ -102,7 +99,7 @@ function DepartmentManager() {
         if (res.code === 0) {
           Message.success('更新成功');
           setEditVisible(false);
-          fetchData();
+          revalidate();
         } else {
           Message.error(res.message || '更新失败');
         }
@@ -115,7 +112,7 @@ function DepartmentManager() {
         if (res.code === 0) {
           Message.success('创建成功');
           setCreateVisible(false);
-          fetchData();
+          revalidate();
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -140,7 +137,7 @@ function DepartmentManager() {
           const res = await systemApi.updateDepartment(dept.id, { status: next ? 'active' : 'inactive' });
           if (res.code === 0) {
             Message.success(`部门已${action}`);
-            fetchData();
+            revalidate();
           } else {
             Message.error(res.message || '操作失败');
           }
@@ -162,7 +159,7 @@ function DepartmentManager() {
           const res = await systemApi.deleteDepartment(dept.id);
           if (res.code === 0) {
             Message.success('已移至回收站');
-            fetchData();
+            revalidate();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -184,7 +181,7 @@ function DepartmentManager() {
           const res = await systemApi.restoreDepartment(dept.id);
           if (res.code === 0) {
             Message.success('部门已恢复');
-            fetchData();
+            revalidate();
           } else {
             Message.error(res.message || '恢复失败');
           }
@@ -288,7 +285,7 @@ function DepartmentManager() {
       <DataState
         loading={loading}
         error={error}
-        onRetry={fetchData}
+        onRetry={revalidate}
         isEmpty={!list || list.length === 0}
       >
         {showDeleted && recycleList.length === 0 ? (

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Tag } from '@arco-design/web-react';
@@ -7,6 +7,7 @@ import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { systemApi, OperationLog } from '@/services/system';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 
 interface LogListEnvelope {
   code: number;
@@ -57,7 +58,7 @@ export default function SystemLogsPage() {
       width: 80,
       render: (value: string) => <Tag color={value === 'success' ? 'green' : 'red'}>{value}</Tag>,
     },
-    { title: '时间', dataIndex: 'createdAt', width: 180 },
+    { title: '时间', dataIndex: 'createdAt', width: 180, render: (v: unknown) => formatDateTime(v) },
   ];
 
   return (

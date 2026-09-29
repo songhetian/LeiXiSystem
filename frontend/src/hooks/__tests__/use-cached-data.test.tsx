@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { useState } from 'react';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { useCachedData, clearDataCache } from '@/hooks/use-cached-data';
 
@@ -118,5 +119,71 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     });
     expect(screen.getByTestId('a-data')).toHaveTextContent('"done"');
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('revalidate() 不被在途请求吞掉：迟到返回的旧结果不覆盖新数据', async () => {
+    // 首次请求由测试手动控制 resolve 时机，使其长时间处于在途状态
+    let resolveFirst: (v: unknown) => void = () => {};
+    const firstPromise = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    fetcher.mockReturnValueOnce(firstPromise).mockResolvedValueOnce('new-data');
+
+    render(<Probe cacheKey="k7" fetcher={fetcher} label="a" staleTime={5000} />);
+
+    // 首次请求仍在途时手动刷新，必须发起第二次请求（不能复用旧的在途请求）
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('a-rv'));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('a-data')).toHaveTextContent('"new-data"');
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // 旧请求迟到返回，不得覆盖已展示的新数据
+    await act(async () => {
+      resolveFirst('old-data');
+    });
+    expect(screen.getByTestId('a-data')).toHaveTextContent('"new-data"');
+  });
+
+  it('切换 cacheKey 后，旧请求后返回不会覆盖新 key 的数据', async () => {
+    // 旧 key 的请求由测试手动控制 resolve 时机
+    let resolveOld: (v: unknown) => void = () => {};
+    const oldPromise = new Promise((resolve) => {
+      resolveOld = resolve;
+    });
+    const switchFetcher = jest.fn((key: string) =>
+      key === 'old' ? oldPromise : Promise.resolve('new-data'),
+    );
+
+    function Wrapper() {
+      const [key, setKey] = useState('old');
+      const { data } = useCachedData(key, () => switchFetcher(key), { staleTime: 0 });
+      return (
+        <div>
+          <span data-testid="switch-data">{data ? JSON.stringify(data) : 'null'}</span>
+          <button data-testid="switch-key" onClick={() => setKey('new')}>switch</button>
+        </div>
+      );
+    }
+
+    render(<Wrapper />);
+
+    // 切到 new key，等新数据渲染出来
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('switch-key'));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('switch-data')).toHaveTextContent('"new-data"');
+    });
+
+    // 此时旧请求才返回，不应覆盖已展示的新数据
+    await act(async () => {
+      resolveOld('old-data');
+    });
+    expect(screen.getByTestId('switch-data')).toHaveTextContent('"new-data"');
+    expect(switchFetcher).toHaveBeenCalledWith('old');
+    expect(switchFetcher).toHaveBeenCalledWith('new');
   });
 });

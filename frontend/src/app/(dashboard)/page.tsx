@@ -11,7 +11,6 @@ import {
   IconRefresh,
   IconCalendar,
   IconBook,
-  IconNotification,
   IconStorage,
   IconUser,
   IconEdit,
@@ -121,10 +120,10 @@ const NOTIFICATION_ITEMS = [
 
 const dotColor = (priority: string) => {
   switch (priority) {
-    case 'high': return '#f53f3f';
-    case 'medium': return '#ff7d00';
-    case 'low': return '#2455D9';
-    default: return '#86909c';
+    case 'high': return 'var(--lx-danger)';
+    case 'medium': return 'var(--lx-warning)';
+    case 'low': return 'var(--lx-primary)';
+    default: return 'var(--lx-text-3)';
   }
 };
 
@@ -218,7 +217,7 @@ export default function HomePage() {
       <div className="dsh-hero">
         <div>
           <h2 className="dsh-hero-title">{greeting()}，欢迎回来</h2>
-          <p className="dsh-hero-desc">今天也是元气满满的一天，专注工作，高效处理待办</p>
+          <p className="dsh-hero-desc">祝工作顺利 · 今日待办与全局动态已为您汇总</p>
         </div>
         <div className="dsh-hero-side">
           <span className="dsh-hero-chip">
@@ -237,7 +236,7 @@ export default function HomePage() {
               <Col xs={12} md={6} xl={4} key={m.label}>
                 <div
                   className="dsh-stat"
-                  style={{ padding: 16, background: '#fff', animationDelay: `${idx * 40}ms` }}
+                  style={{ padding: 16, background: 'var(--lx-bg-card)', animationDelay: `${idx * 40}ms` }}
                 >
                   <div className="dsh-stat-top">
                     <span className="dsh-stat-ic">
@@ -264,13 +263,14 @@ export default function HomePage() {
 
       {/* 快捷操作 */}
       <div style={{ marginBottom: 16 }}>
-        <div className="dsh-panel-head">
-          <h3 className="dsh-panel-title">快捷操作</h3>
-          <span className="dsh-panel-more">
-            更多 <IconRight style={{ fontSize: 12 }} />
-          </span>
-        </div>
-        <div className="dsh-quick-grid">
+        <div className="dsh-panel">
+          <div className="dsh-panel-head">
+            <h3 className="dsh-panel-title">快捷操作</h3>
+            <span className="dsh-panel-more">
+              更多 <IconRight style={{ fontSize: 12 }} />
+            </span>
+          </div>
+          <div className="dsh-quick-grid">
           {QUICK_ACTIONS.map((a, idx) => {
             const Icon = a.icon;
             return (
@@ -287,6 +287,7 @@ export default function HomePage() {
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
@@ -295,10 +296,7 @@ export default function HomePage() {
         <Col xs={24} lg={12}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">
-                <IconNotification style={{ color: 'var(--lx-primary)', marginRight: 6, verticalAlign: -2 }} />
-                待办事项
-              </h3>
+              <h3 className="dsh-panel-title">待办事项</h3>
               <span className="dsh-panel-more" onClick={() => router.push('/approval/todo')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
               </span>
@@ -330,10 +328,7 @@ export default function HomePage() {
         <Col xs={24} lg={12}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">
-                <IconNotification style={{ color: 'var(--lx-primary)', marginRight: 6, verticalAlign: -2 }} />
-                最新通知
-              </h3>
+              <h3 className="dsh-panel-title">最新通知</h3>
               <span className="dsh-panel-more" onClick={() => router.push('/notifications')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
               </span>
@@ -341,7 +336,7 @@ export default function HomePage() {
             <div>
               {NOTIFICATION_ITEMS.map((item) => (
                 <div className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
-                  <span className="dsh-feed-dot" style={{ background: item.type === 'system' ? BRAND_PRIMARY : '#00b42a' }} />
+                  <span className="dsh-feed-dot" style={{ background: item.type === 'system' ? BRAND_PRIMARY : 'var(--lx-success)' }} />
                   <div className="dsh-feed-main">
                     <div className="dsh-feed-title">{item.title}</div>
                     <div className="dsh-feed-meta">{item.time}</div>
@@ -365,17 +360,17 @@ export default function HomePage() {
             </div>
             <div className="dsh-kpi">
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: '#00b42a' }}>5</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>5</div>
                 <div className="dsh-kpi-label">正常出勤</div>
               </div>
               <div className="dsh-kpi-divider" />
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: '#ff7d00' }}>1</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-warning)' }}>1</div>
                 <div className="dsh-kpi-label">迟到</div>
               </div>
               <div className="dsh-kpi-divider" />
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: '#f53f3f' }}>0</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-danger)' }}>0</div>
                 <div className="dsh-kpi-label">缺勤</div>
               </div>
               <div className="dsh-kpi-divider" />
@@ -396,8 +391,8 @@ export default function HomePage() {
             </div>
             <div>
               {[
-                { label: '年假申请（2天）', color: '#00b42a', status: '已通过' },
-                { label: '加班申请（3小时）', color: '#ff7d00', status: '审批中' },
+                { label: '年假申请（2天）', color: 'var(--lx-success)', status: '已通过' },
+                { label: '加班申请（3小时）', color: 'var(--lx-warning)', status: '审批中' },
                 { label: '报销申请（交通费）', color: BRAND_PRIMARY, status: '待提交' },
               ].map((it) => (
                 <div className="dsh-feed-item" key={it.label}>
@@ -445,16 +440,12 @@ function OrgChart() {
   const maxDay = Math.max(1, ...trend.map((p) => p.present));
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div className="dsh-panel-head">
-        <h3 className="dsh-panel-title">组织管理看板</h3>
-      </div>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={10}>
-          <div className="dsh-panel">
-            <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">部门人力分布</h3>
-            </div>
+    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Col xs={24} lg={10}>
+        <div className="dsh-panel">
+          <div className="dsh-panel-head">
+            <h3 className="dsh-panel-title">部门人力分布</h3>
+          </div>
             {!loaded ? (
               <Empty description="加载中" />
             ) : depts.length === 0 ? (
@@ -472,7 +463,7 @@ function OrgChart() {
                         className="h-full rounded"
                         style={{
                           width: `${(d.count / maxDept) * 100}%`,
-                          background: `linear-gradient(90deg, #2455D9, #5e8bf5)`,
+                          background: `linear-gradient(90deg, var(--lx-primary), var(--lx-primary-400))`,
                         }}
                       />
                     </div>
@@ -512,6 +503,5 @@ function OrgChart() {
           </div>
         </Col>
       </Row>
-    </div>
   );
 }

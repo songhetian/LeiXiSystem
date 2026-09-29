@@ -35,12 +35,12 @@ const defaultStatusMap: Record<string, StatusConfig> = {
 };
 
 const COLOR_CLASSES: Record<string, string> = {
-  info: 'bg-info-bg text-brand',
-  success: 'bg-success-bg text-success',
-  warning: 'bg-warning-bg text-warning',
-  danger: 'bg-danger-bg text-danger',
-  purple: 'bg-purple-bg text-purple',
-  default: 'bg-border-2 text-text-3',
+  info: 'lx-tag-info',
+  success: 'lx-tag-success',
+  warning: 'lx-tag-warning',
+  danger: 'lx-tag-danger',
+  purple: 'lx-tag-purple',
+  default: 'lx-tag-default',
 };
 
 const COLOR_MAP: Record<string, string> = {

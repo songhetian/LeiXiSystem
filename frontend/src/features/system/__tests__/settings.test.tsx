@@ -12,6 +12,10 @@ jest.mock('@/services/settings', () => ({
     update: jest.fn(),
     bulkUpdate: jest.fn(),
     remove: jest.fn(),
+    // useSystemInfo 会读取系统信息，缺失该 mock 会抛 TypeError 导致用例失败
+    info: jest.fn(() => Promise.resolve({ code: 0, data: undefined })),
+    // 品牌 Logo 上传：页面渲染 <Upload> 时会调用
+    uploadLogo: jest.fn(() => Promise.resolve({ code: 0, data: { url: '' } })),
   },
 }));
 
@@ -51,6 +55,8 @@ jest.mock('@arco-design/web-react', () => ({
   ),
   Space: ({ children }: any) => <div>{children}</div>,
   Spin: () => null,
+  // 页面内的品牌 Logo 上传容器；返回可渲染结构，避免组件为 undefined 导致渲染报错
+  Upload: ({ children }: any) => <div>{children}</div>,
   Message: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
 }));
 
@@ -92,6 +98,21 @@ describe('SettingsPage · 按钮级权限（T26）', () => {
     render(<SettingsPage />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /保存更改/i })).toBeDisabled();
+    });
+  });
+
+  it('设置列表为空时仍渲染品牌卡片（系统名称 / Logo 不依赖已存在的设置项）', async () => {
+    // 全新部署：库中还没有任何设置项，但品牌配置仍应可编辑并保存（bulkUpdate 自带 upsert）
+    (settingsApi.list as jest.Mock).mockResolvedValue({ code: 0, data: [] });
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 1, username: 'admin', name: '管理员', permissions: ['system:setting:update'] },
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('系统品牌')).toBeInTheDocument();
+      expect(screen.getByText('暂无系统设置项')).toBeInTheDocument();
     });
   });
 });

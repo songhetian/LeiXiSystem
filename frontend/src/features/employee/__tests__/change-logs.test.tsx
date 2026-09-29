@@ -137,4 +137,14 @@ describe('员工变动流水页', () => {
     // 「变动字段」列：resignReason 应显示为「离职原因」
     expect(screen.getByTestId('cell-1-变动字段')).toHaveTextContent('离职原因');
   });
+
+  it('变动时间按北京时间格式化，不泄漏 UTC 原始串', async () => {
+    render(<EmployeeChangeLogsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('table-row')).toBeInTheDocument();
+    });
+    // mockRows[0].createdAt = '2026-08-27T10:00:00.000Z' → 北京时间 2026-08-27 18:00
+    expect(screen.getByTestId('cell-1-变动时间')).toHaveTextContent('2026-08-27 18:00');
+    expect(screen.queryByText(/2026-08-27T10:00:00/)).toBeNull();
+  });
 });

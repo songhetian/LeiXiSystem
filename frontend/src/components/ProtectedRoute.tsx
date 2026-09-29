@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth';
 
 /** 路由前缀到所需权限码的映射 */
 const ROUTE_PERMISSIONS: Record<string, string> = {
+  // 一级模块：只需「查看」权限
   '/employees': 'employee:view',
   '/attendance': 'attendance:view',
   '/approval': 'approval:todo:view',
@@ -16,6 +17,30 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
   '/reports': 'reports:view',
   '/system': 'system:user:view',
   '/settings': 'system:setting:view',
+  // 深层管理页：需要各自的「管理」权限，避免仅持父级 view 权限即可越权进入
+  '/attendance/vacation/settings': 'vacation:manage',
+  '/attendance/devices': 'attendance:manage',
+  '/attendance/settings': 'attendance:manage',
+  '/attendance/exception-rules': 'attendance:exception:view',
+  '/attendance/deduction-rules': 'attendance:deduction:view',
+  '/approval/settings': 'approval:workflow:manage',
+  '/approval/role-workflow': 'approval:workflow:manage',
+  '/approval/approvers': 'approval:manage',
+  '/expense/settings': 'reimbursement:manage',
+  '/expense/approval': 'reimbursement:approve',
+  '/knowledge/admin': 'knowledge:manage',
+  '/system/roles': 'system:role:manage',
+  '/system/permissions': 'system:role:manage',
+  '/system/departments': 'department:manage',
+  '/system/positions': 'position:manage',
+  '/system/broadcasts': 'system:broadcast:manage',
+  '/system/logs': 'system:log:view',
+  '/notifications/settings': 'system:notification:settings',
+  '/okr': 'okr:view',
+  '/helpdesk': 'helpdesk:view',
+  '/performance/cycles': 'performance:view',
+  '/finance/budgets': 'finance:budget:view',
+  '/finance/expense-standards': 'finance:expense-standard:view',
 };
 
 /** 根据当前路径匹配所需权限码（最长前缀匹配） */

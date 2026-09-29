@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import VacationBalancePage from '@/features/attendance/pages/vacation-balance';
 import { attendanceApi } from '@/services/attendance';
@@ -58,7 +58,21 @@ jest.mock('@arco-design/web-react', () => {
     <span data-testid="tag" data-color={color}>{children}</span>
   );
   const Message = { success: jest.fn(), error: jest.fn(), info: jest.fn(), warning: jest.fn() };
-  return { Tag, Message };
+  const Select = ({ value, options, onChange, placeholder }: any) => (
+    <select
+      data-testid="month-filter"
+      value={value ?? ''}
+      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
+    >
+      <option value="">{placeholder || '全部'}</option>
+      {(options || []).map((o: any) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+  return { Tag, Message, Select };
 });
 
 const mockBalances = [
@@ -67,6 +81,7 @@ const mockBalances = [
     employeeId: 1,
     vacationTypeId: 1,
     year: 2026,
+    month: 0,
     totalDays: 10,
     usedDays: 3,
     vacationType: { id: 1, code: 'annual', name: '年假' },
@@ -76,9 +91,40 @@ const mockBalances = [
     employeeId: 1,
     vacationTypeId: 2,
     year: 2026,
+    month: 0,
     totalDays: 15,
     usedDays: 0,
     vacationType: { id: 2, code: 'sick', name: '病假' },
+  },
+  {
+    id: 3,
+    employeeId: 1,
+    vacationTypeId: 3,
+    year: 2026,
+    month: 7,
+    totalDays: 4,
+    usedDays: 1,
+    vacationType: {
+      id: 3,
+      code: 'monthly',
+      name: '月假',
+      monthlyDays: [4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5],
+    },
+  },
+  {
+    id: 4,
+    employeeId: 1,
+    vacationTypeId: 3,
+    year: 2026,
+    month: 8,
+    totalDays: 5,
+    usedDays: 2,
+    vacationType: {
+      id: 3,
+      code: 'monthly',
+      name: '月假',
+      monthlyDays: [4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5],
+    },
   },
 ];
 
@@ -138,6 +184,33 @@ describe('VacationBalancePage', () => {
     render(<VacationBalancePage />);
     await waitFor(() => {
       expect(attendanceApi.getMyBalances).toHaveBeenCalled();
+    });
+  });
+
+  it('渲染月份列：非月假显示「全年」，月假显示对应月份', async () => {
+    render(<VacationBalancePage />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId('table-row').length).toBe(4);
+    });
+    const rows = screen.getAllByTestId('table-row');
+    expect(rows.filter((r) => r.textContent?.includes('全年')).length).toBe(2);
+    expect(rows.filter((r) => r.textContent?.includes('7 月')).length).toBe(1);
+    expect(rows.filter((r) => r.textContent?.includes('8 月')).length).toBe(1);
+  });
+
+  it('按月份筛选后仅保留该月的额度行', async () => {
+    render(<VacationBalancePage />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId('table-row').length).toBe(4);
+    });
+
+    fireEvent.change(screen.getByTestId('month-filter'), { target: { value: '8' } });
+
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('table-row');
+      expect(rows.length).toBe(1);
+      expect(rows[0]).toHaveTextContent('8 月');
+      expect(rows[0]).not.toHaveTextContent('7 月');
     });
   });
 });

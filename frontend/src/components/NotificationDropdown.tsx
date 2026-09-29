@@ -26,10 +26,10 @@ export function NotificationDropdown() {
         right: window.innerWidth - rect.right,
         width: 360,
         maxHeight: 420,
-        background: '#fff',
+        background: 'var(--lx-bg-card)',
         borderRadius: 8,
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-        border: '1px solid #f2f3f5',
+        boxShadow: 'var(--lx-shadow-dropdown)',
+        border: '1px solid var(--lx-border-2)',
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
@@ -148,7 +148,7 @@ export function NotificationDropdown() {
         aria-label="通知"
       >
         <Badge count={unread} offset={[-2, 2]}>
-          <IconNotification style={{ fontSize: 18, color: '#4e5969' }} />
+          <IconNotification style={{ fontSize: 18, color: 'var(--lx-text-2)' }} />
         </Badge>
       </button>
 
@@ -231,7 +231,7 @@ const styles = {
     background: 'transparent',
     fontFamily: 'inherit',
     borderRadius: 8,
-    color: '#4e5969',
+    color: 'var(--lx-text-2)',
   } as React.CSSProperties,
   panel: {
     position: 'absolute',
@@ -240,10 +240,10 @@ const styles = {
     marginTop: 8,
     width: 360,
     maxHeight: 420,
-    background: '#fff',
+    background: 'var(--lx-bg-card)',
     borderRadius: 8,
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-    border: '1px solid #f2f3f5',
+    boxShadow: 'var(--lx-shadow-dropdown)',
+    border: '1px solid var(--lx-border-2)',
     zIndex: 9999,
     display: 'flex',
     flexDirection: 'column',
@@ -254,12 +254,12 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '10px 12px',
-    borderBottom: '1px solid #f2f3f5',
+    borderBottom: '1px solid var(--lx-border-2)',
   } as React.CSSProperties,
   panelTitle: {
     fontSize: 14,
     fontWeight: 500,
-    color: '#1d2129',
+    color: 'var(--lx-text-1)',
   } as React.CSSProperties,
   panelBody: {
     flex: 1,
@@ -267,7 +267,7 @@ const styles = {
     maxHeight: 320,
   } as React.CSSProperties,
   panelFooter: {
-    borderTop: '1px solid #f2f3f5',
+    borderTop: '1px solid var(--lx-border-2)',
     padding: '8px 12px',
   } as React.CSSProperties,
 };

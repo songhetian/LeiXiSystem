@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Message, Modal, Table, Descriptions, Tag, Space, Divider } from '@arco-design/web-react';
@@ -7,6 +7,7 @@ import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { payslipApi, Payslip, PayslipDetail, PayslipItem } from '@/services/payslip';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatDateTime } from '@/lib/format';
 import { SearchFieldConfig } from '@/components/SearchForm';
 
 const searchFields: SearchFieldConfig[] = [
@@ -100,10 +101,10 @@ export default function MyPayslipsPage() {
       dataIndex: 'netSalary',
       width: 120,
       render: (value: number) => (
-        <span style={{ fontWeight: 600, color: '#00B42A' }}>{value}</span>
+        <span style={{ fontWeight: 600, color: 'var(--lx-success)' }}>{value}</span>
       ),
     },
-    { title: '发放时间', dataIndex: 'createdAt', width: 200 },
+    { title: '发放时间', dataIndex: 'createdAt', width: 200, render: (v: unknown) => formatDateTime(v) },
   ];
 
   const renderDetailContent = () => {
@@ -141,7 +142,7 @@ export default function MyPayslipsPage() {
           </div>
           <div>
             <Tag color="arcoblue">实发工资</Tag>
-            <span style={{ fontSize: 20, fontWeight: 700, marginLeft: 8, color: '#165DFF' }}>
+            <span style={{ fontSize: 20, fontWeight: 700, marginLeft: 8, color: 'var(--lx-primary)' }}>
               {currentPayslip.netSalary}
             </span>
           </div>

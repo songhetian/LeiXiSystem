@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import {
@@ -9,35 +9,30 @@ import {
   Spin,
   Form,
   InputNumber,
-  Switch,
   Grid,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { attendanceApi, AttendanceSettings } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const FormItem = Form.Item;
 const { Row, Col } = Grid;
 
-// 默认值：在接口返回前作为占位，避免 InputNumber/Switch 出现 undefined
+interface SettingsEnvelope {
+  code: number;
+  message?: string;
+  data?: AttendanceSettings;
+}
+
+// 默认值：在接口返回前作为占位，避免 InputNumber 出现 undefined
+// 仅含后端实际被业务消费的 5 项（打卡判定 + 补卡限制），其余预留项已清理
 const DEFAULT_SETTINGS: AttendanceSettings = {
-  lateThreshold: 5,
-  earlyThreshold: 5,
+  lateThreshold: 30,
+  earlyThreshold: 30,
   earlyClockInMinutes: 60,
-  lateClockOutMinutes: 60,
-  absentHours: 4,
-  maxAnnualLeaveDays: 15,
-  maxSickLeaveDays: 30,
-  requireProofForSickLeave: false,
-  requireApprovalForOvertime: true,
-  minOvertimeHours: 0.5,
-  maxOvertimeHoursPerDay: 4,
-  allowMakeup: true,
-  makeupDeadlineDays: 7,
-  requireApprovalForMakeup: false,
-  notifyOnLate: true,
-  notifyOnEarlyLeave: true,
-  notifyOnAbsent: true,
+  makeupDaysLimit: 30,
+  makeupMonthlyLimit: 3,
 };
 
 interface NumberFieldOptions {
@@ -51,36 +46,26 @@ export default function AttendanceSettingsPage() {
   const { can } = usePermission();
   const canManage = can('attendance:manage');
 
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState<AttendanceSettings>(DEFAULT_SETTINGS);
 
-  const fetchSettings = async () => {
-    setLoading(true);
-    try {
-      const res = await attendanceApi.getSettings();
-      if (res.code === 0 && res.data) {
-        setValues(res.data);
-      } else {
-        Message.error(res.message || '加载考勤设置失败');
-      }
-    } catch (e) {
-      Message.error('加载考勤设置失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // SWR 共享缓存。关闭聚焦重取：本页是可编辑表单，重取会覆盖用户未保存的改动。
+  const { data: res, loading, error, revalidate } = useCachedData<SettingsEnvelope>(
+    'attendance:settings',
+    () => attendanceApi.getSettings(),
+    { staleTime: 30_000, revalidateOnFocus: false },
+  );
+  // 业务错误/请求失败都不是空数据：必须显式报错，绝不能落到 DEFAULT_SETTINGS
+  // 表单上 —— 否则用户一保存就把默认值写回真实配置。
+  const errorText = error ?? (res && res.code !== 0 ? res.message || '加载考勤设置失败' : null);
 
+  // 拉取成功后同步进可编辑副本
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (res?.code === 0 && res.data) setValues(res.data);
+  }, [res]);
 
   const setNumber = (key: keyof AttendanceSettings, value: number | undefined) => {
     setValues((prev) => ({ ...prev, [key]: value ?? 0 }) as AttendanceSettings);
-  };
-
-  const setBoolean = (key: keyof AttendanceSettings, value: boolean) => {
-    setValues((prev) => ({ ...prev, [key]: value }) as AttendanceSettings);
   };
 
   const handleSave = async () => {
@@ -89,9 +74,8 @@ export default function AttendanceSettingsPage() {
       const res = await attendanceApi.updateSettings(values);
       if (res.code === 0) {
         Message.success('保存成功');
-        if (res.data) {
-          setValues(res.data);
-        }
+        // 重新拉取以刷新共享缓存，避免其他页面/切页后读到旧配置
+        await revalidate();
       } else {
         Message.error(res.message || '保存失败');
       }
@@ -104,7 +88,7 @@ export default function AttendanceSettingsPage() {
 
   const disabled = !canManage || saving;
 
-  // 数值字段渲染
+  // 数值字段渲染（横向网格，避免竖向堆叠）
   const numberField = (
     key: keyof AttendanceSettings,
     label: string,
@@ -125,16 +109,9 @@ export default function AttendanceSettingsPage() {
     </FormItem>
   );
 
-  // 开关字段渲染
-  const switchField = (key: keyof AttendanceSettings, label: string, extra: string) => (
-    <FormItem label={label} extra={extra}>
-      <Switch checked={values[key] as boolean} disabled={disabled} onChange={(v) => setBoolean(key, v)} />
-    </FormItem>
-  );
-
   return (
       <PageContainer extra={
-          <Button type="primary" loading={saving} disabled={!canManage || loading} onClick={handleSave}>
+          <Button type="primary" loading={saving} disabled={!canManage || loading || !!errorText} onClick={handleSave}>
             保存设置
           </Button>
         }
@@ -143,13 +120,23 @@ export default function AttendanceSettingsPage() {
           <div style={{ textAlign: 'center', padding: 48 }}>
             <Spin />
           </div>
+        ) : errorText ? (
+          <Card>
+            <Space direction="vertical" size={12}>
+              <span className="lx-settings-card-desc">{errorText}</span>
+              <Button onClick={() => revalidate()}>重试</Button>
+            </Space>
+          </Card>
         ) : (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             {/* 打卡规则 */}
             <Card title="打卡规则">
+              <p className="lx-settings-card-desc">
+                迟到 / 早退判定与提前打卡窗口，作用于每日打卡与签退。
+              </p>
               <Form layout="vertical">
                 <Row gutter={24}>
-                  <Col span={12}>
+                  <Col span={8}>
                     {numberField('lateThreshold', '迟到阈值（分钟）', '超过该分钟数视为迟到', {
                       min: 0,
                       max: 120,
@@ -157,7 +144,7 @@ export default function AttendanceSettingsPage() {
                       precision: 0,
                     })}
                   </Col>
-                  <Col span={12}>
+                  <Col span={8}>
                     {numberField('earlyThreshold', '早退阈值（分钟）', '提前下班超过该分钟数视为早退', {
                       min: 0,
                       max: 120,
@@ -165,82 +152,12 @@ export default function AttendanceSettingsPage() {
                       precision: 0,
                     })}
                   </Col>
-                  <Col span={12}>
+                  <Col span={8}>
                     {numberField('earlyClockInMinutes', '提前打卡分钟数（分钟）', '允许在上班时间前多少分钟打卡', {
                       min: 0,
                       max: 240,
                       step: 5,
                       precision: 0,
-                    })}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('lateClockOutMinutes', '延迟打卡分钟数（分钟）', '允许在下班时间后多少分钟打卡', {
-                      min: 0,
-                      max: 240,
-                      step: 5,
-                      precision: 0,
-                    })}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('absentHours', '缺勤小时数（小时）', '单日工时不足该值视为缺勤', {
-                      min: 0,
-                      max: 24,
-                      step: 0.5,
-                      precision: 1,
-                    })}
-                  </Col>
-                </Row>
-              </Form>
-            </Card>
-
-            {/* 休假规则 */}
-            <Card title="休假规则">
-              <Form layout="vertical">
-                <Row gutter={24}>
-                  <Col span={12}>
-                    {numberField('maxAnnualLeaveDays', '最大年假天数（天）', '员工每年可申请的年假上限', {
-                      min: 0,
-                      max: 365,
-                      step: 0.5,
-                      precision: 1,
-                    })}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('maxSickLeaveDays', '最大病假天数（天）', '员工每年可申请的病假上限', {
-                      min: 0,
-                      max: 365,
-                      step: 0.5,
-                      precision: 1,
-                    })}
-                  </Col>
-                  <Col span={24}>
-                    {switchField('requireProofForSickLeave', '病假需要证明', '开启后，申请病假需上传医院证明')}
-                  </Col>
-                </Row>
-              </Form>
-            </Card>
-
-            {/* 加班规则 */}
-            <Card title="加班规则">
-              <Form layout="vertical">
-                <Row gutter={24}>
-                  <Col span={24}>
-                    {switchField('requireApprovalForOvertime', '加班需要审批', '开启后，加班申请需经审批通过才计入')}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('minOvertimeHours', '最小加班小时数（小时）', '单次加班时长低于该值不予记录', {
-                      min: 0,
-                      max: 24,
-                      step: 0.5,
-                      precision: 1,
-                    })}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('maxOvertimeHoursPerDay', '每日最大加班小时数（小时）', '单日加班时长上限', {
-                      min: 0,
-                      max: 24,
-                      step: 0.5,
-                      precision: 1,
                     })}
                   </Col>
                 </Row>
@@ -249,38 +166,26 @@ export default function AttendanceSettingsPage() {
 
             {/* 补卡规则 */}
             <Card title="补卡规则">
+              <p className="lx-settings-card-desc">
+                员工补漏打卡的日期范围与每月次数上限。
+              </p>
               <Form layout="vertical">
                 <Row gutter={24}>
-                  <Col span={24}>
-                    {switchField('allowMakeup', '允许补卡', '开启后，员工可对漏打卡进行补卡')}
-                  </Col>
-                  <Col span={12}>
-                    {numberField('makeupDeadlineDays', '补卡截止天数（天）', '允许补卡的天数上限（自打卡日起）', {
-                      min: 0,
+                  <Col span={8}>
+                    {numberField('makeupDaysLimit', '补卡截止天数（天）', '允许补卡自打卡日起的天数上限', {
+                      min: 1,
                       max: 90,
                       step: 1,
                       precision: 0,
                     })}
                   </Col>
-                  <Col span={12}>
-                    {switchField('requireApprovalForMakeup', '补卡需要审批', '开启后，补卡申请需经审批通过才生效')}
-                  </Col>
-                </Row>
-              </Form>
-            </Card>
-
-            {/* 通知设置 */}
-            <Card title="通知设置">
-              <Form layout="vertical">
-                <Row gutter={24}>
                   <Col span={8}>
-                    {switchField('notifyOnLate', '迟到通知', '检测到迟到时推送通知')}
-                  </Col>
-                  <Col span={8}>
-                    {switchField('notifyOnEarlyLeave', '早退通知', '检测到早退时推送通知')}
-                  </Col>
-                  <Col span={8}>
-                    {switchField('notifyOnAbsent', '缺勤通知', '检测到缺勤时推送通知')}
+                    {numberField('makeupMonthlyLimit', '每月补卡次数上限（次）', '单月可发起的补卡次数上限', {
+                      min: 1,
+                      max: 30,
+                      step: 1,
+                      precision: 0,
+                    })}
                   </Col>
                 </Row>
               </Form>

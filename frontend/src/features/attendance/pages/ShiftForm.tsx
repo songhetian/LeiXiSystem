@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Form, Input, Select, InputNumber, Switch } from '@arco-design/web-react';
+import { IconRefresh } from '@arco-design/web-react/icon';
 import type { ReferenceItem } from '@/hooks/use-departments';
+import { getContrastColor } from '@/lib/contrast';
 
 const FormItem = Form.Item;
 
@@ -197,9 +199,9 @@ export default function ShiftForm({
         </div>
 
         {/* 阈值设置 */}
-        <div className="mb-2 rounded-lg border border-brand-bg bg-brand-bg/40 p-3">
+        <div className="shift-threshold-wrap">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-normal text-text-1">⏰ 阈值设置</span>
+            <span className="text-sm font-normal text-text-1">阈值设置</span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-text-3">
                 {useGlobalThreshold ? '使用全局设置' : '使用自定义'}
@@ -221,7 +223,7 @@ export default function ShiftForm({
             </div>
           </div>
           {useGlobalThreshold && (
-            <div className="text-xs text-text-3 bg-bg-page rounded px-3 py-2">
+            <div className="shift-threshold-tip">
               当前班次使用全局考勤设置中的迟到 / 早退阈值。
             </div>
           )}
@@ -256,29 +258,29 @@ export default function ShiftForm({
               placeholder="颜色代码，如 3B82F6"
             />
             <div
-              className="flex items-center justify-center h-10 w-10 rounded border border-border-2 cursor-pointer text-lg"
-              style={{ background: colorValue || '#3B82F6' }}
+              className="flex items-center justify-center h-9 w-11 rounded cursor-pointer transition-colors"
+              style={{ border: '1px solid var(--lx-border-2)', background: colorValue || '#3B82F6' }}
               onClick={randomColor}
               title="随机取色"
             >
-              🎲
+              <IconRefresh style={{ color: getContrastColor(colorValue || '#3B82F6') }} />
             </div>
-            <div className="flex flex-wrap gap-1 ml-1">
-              {VIBRANT_COLORS.map((c) => {
-                const active = String(colorValue).toLowerCase() === c.toLowerCase();
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={c}
-                    onClick={() => form.setFieldValue('color', c)}
-                    className={`h-6 w-6 rounded transition-all hover:scale-110 ${active ? 'ring-2 ring-brand ring-offset-1' : ''}`}
-                    style={{ background: c }}
-                    title={c}
-                  />
-                );
-              })}
-            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-3 shift-color-swatches">
+            {VIBRANT_COLORS.map((c) => {
+              const active = String(colorValue).toLowerCase() === c.toLowerCase();
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={c}
+                  onClick={() => form.setFieldValue('color', c)}
+                  className={`shift-swatch ${active ? 'shift-swatch-active' : ''}`}
+                  style={{ background: c }}
+                  title={c}
+                />
+              );
+            })}
           </div>
         </FormItem>
 

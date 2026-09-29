@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Spin, Empty } from '@arco-design/web-react';
 import StatusTag from '@/components/StatusTag';
 import { employeeApi, Employee, EmployeeChangeLog } from '@/services/employee';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatDateTime as formatDateTimeTz } from '@/lib/format';
 
 interface TimelineItem {
   key: string;
@@ -21,8 +21,9 @@ const TYPE_META: Record<TimelineItem['type'], { dot: string; label: string }> = 
 };
 
 function formatDateTime(v?: string | null): string {
-  if (!v) return '-';
-  return String(v).slice(0, 16).replace('T', ' ');
+  // 直接复用 lib/format 中的 formatDateTime，恒以北京时间渲染，
+  // 避免 slice(0,16) 截断 ISO 串导致 UTC 时间被误显示（差 8 小时）。
+  return formatDateTimeTz(v);
 }
 
 function formatSalary(v?: string | number): string {

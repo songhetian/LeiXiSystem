@@ -7,8 +7,9 @@ import type { ProTableColumn } from '@/components/ProTable';
 import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/services/helpdesk';
 import { systemApi, type SysUser } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatDateTime as formatDateTimeTz } from '@/lib/format';
 import { notifyError } from '@/lib/request';
 
 const TabPane = Tabs.TabPane;
@@ -34,13 +35,9 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   resolved: { label: '已关闭', color: 'green' },
 };
 
-/** 到期时间格式化（补足秒，避免后端省略秒） */
+/** 到期时间格式化：复用 lib/format 中的 formatDateTime，恒以北京时间渲染 */
 function formatDateTime(v?: string | null): string {
-  if (!v) return '--';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '--';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatDateTimeTz(v, '--');
 }
 
 export default function HelpdeskTicketsPage() {
@@ -48,10 +45,31 @@ export default function HelpdeskTicketsPage() {
   const canManage = can('helpdesk:manage');
 
   // ===== 工单 =====
-  const [ticketLoading, setTicketLoading] = useState(false);
-  const [tickets, setTickets] = useState<HelpdeskTicket[]>([]);
-  const [ticketError, setTicketError] = useState<string | null>(null);
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketPageSize, setTicketPageSize] = useState(10);
   const [ticketFilters, setTicketFilters] = useState<{ status: string; priority: string }>({ status: '', priority: '' });
+
+  // SWR 缓存：以 页码/大小/筛选条件 为 key，服务端分页
+  const ticketCacheKey = `helpdesk:tickets:${JSON.stringify({ page: ticketPage, pageSize: ticketPageSize, ...ticketFilters })}`;
+  const { data: ticketRes, loading: ticketLoading, error: ticketError, revalidate: revalidateTickets } =
+    useCachedData<{ code: number; message?: string; data?: { list: HelpdeskTicket[]; total: number } }>(
+      ticketCacheKey,
+      () =>
+        helpdeskApi.listTickets({
+          page: ticketPage,
+          pageSize: ticketPageSize,
+          status: ticketFilters.status || undefined,
+          priority: ticketFilters.priority || undefined,
+        }),
+      { staleTime: 30_000 },
+    );
+  const tickets = ticketRes?.data?.list ?? [];
+  const ticketTotal = ticketRes?.data?.total ?? 0;
+  const ticketErrorText = ticketError
+    ? ticketError
+    : ticketRes && ticketRes.code !== 0
+      ? ticketRes.message || '获取工单列表失败'
+      : null;
 
   // ===== 工单弹窗 =====
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
@@ -60,10 +78,6 @@ export default function HelpdeskTicketsPage() {
   const [ticketForm] = Form.useForm();
 
   // ===== SLA =====
-  const [slaLoading, setSlaLoading] = useState(false);
-  const [slas, setSlas] = useState<HelpdeskSla[]>([]);
-  const [slaError, setSlaError] = useState<string | null>(null);
-
   const [slaModalVisible, setSlaModalVisible] = useState(false);
   const [slaModalLoading, setSlaModalLoading] = useState(false);
   const [editingSla, setEditingSla] = useState<HelpdeskSla | null>(null);
@@ -85,57 +99,26 @@ export default function HelpdeskTicketsPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  // 工单列表
-  const fetchTickets = useCallback(async (filters = ticketFilters) => {
-    setTicketLoading(true);
-    setTicketError(null);
-    try {
-      const params: any = {};
-      if (filters.status) params.status = filters.status;
-      if (filters.priority) params.priority = filters.priority;
-      const res = await helpdeskApi.listTickets(params);
-      if (res.code === 0 && res.data) {
-        // 后端 listTickets 支持服务端筛选，无需本地兜底
-        setTickets(res.data.list);
-      } else {
-        setTicketError(res.message || '获取工单列表失败');
-      }
-    } catch (e: any) {
-      setTicketError(e?.message || '获取工单列表失败');
-    } finally {
-      setTicketLoading(false);
-    }
-  }, [ticketFilters]);
-  useEffect(() => {
-    fetchTickets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 工单列表由 useCachedData 按 cacheKey（页码/大小/筛选）自动拉取，无需手写加载范式
 
-  // SLA 列表
-  const fetchSlas = useCallback(async () => {
-    setSlaLoading(true);
-    setSlaError(null);
-    try {
-      const res = await helpdeskApi.listSlas();
-      if (res.code === 0 && res.data) {
-        setSlas(res.data.list);
-      } else {
-        setSlaError(res.message || '获取 SLA 列表失败');
-      }
-    } catch (e: any) {
-      setSlaError(e?.message || '获取 SLA 列表失败');
-    } finally {
-      setSlaLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    fetchSlas();
-  }, [fetchSlas]);
+  // SLA 列表：全量返回，走共享缓存
+  const { data: slaRes, loading: slaLoading, error: slaErrorObj, revalidate: revalidateSlas } =
+    useCachedData<{ code: number; message?: string; data?: { list: HelpdeskSla[]; total: number } }>(
+      'helpdesk:slas',
+      () => helpdeskApi.listSlas(),
+      { staleTime: 60_000 },
+    );
+  const slas = slaRes?.data?.list ?? [];
+  const slaErrorText = slaErrorObj
+    ? slaErrorObj
+    : slaRes && slaRes.code !== 0
+      ? slaRes.message || '获取 SLA 列表失败'
+      : null;
 
-  const handleFilterChange = (key: 'status' | 'priority', value: string) => {
-    const next = { ...ticketFilters, [key]: value };
-    setTicketFilters(next);
-    fetchTickets(next);
+  // Select 清空（allowClear）时 Arco 回调 undefined，必须归一化为空串，否则会变成字符串 "undefined" 发给服务端
+  const handleFilterChange = (key: 'status' | 'priority', value?: string) => {
+    setTicketFilters((prev) => ({ ...prev, [key]: value ?? '' }));
+    setTicketPage(1); // 筛选条件变化后回到第 1 页
   };
 
   // ===== 工单操作 =====
@@ -181,7 +164,7 @@ export default function HelpdeskTicketsPage() {
         if (res.code === 0) {
           Message.success('工单更新成功');
           setTicketModalVisible(false);
-          fetchTickets();
+          revalidateTickets();
         } else {
           Message.error(res.message || '更新工单失败');
         }
@@ -196,7 +179,8 @@ export default function HelpdeskTicketsPage() {
         if (res.code === 0) {
           Message.success('工单创建成功');
           setTicketModalVisible(false);
-          fetchTickets();
+          setTicketPage(1); // 新建工单排在最前，回到第 1 页便于查看
+          revalidateTickets();
         } else {
           Message.error(res.message || '创建工单失败');
         }
@@ -218,7 +202,7 @@ export default function HelpdeskTicketsPage() {
           const res = await helpdeskApi.resolveTicket(record.id);
           if (res.code === 0) {
             Message.success('工单已关闭');
-            fetchTickets();
+            revalidateTickets();
           } else {
             Message.error(res.message || '操作失败');
           }
@@ -239,7 +223,13 @@ export default function HelpdeskTicketsPage() {
           const res = await helpdeskApi.deleteTicket(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchTickets();
+            // 删除末页最后一条时回退到最后一个有效页，避免停留在空页
+            const lastPage = Math.max(1, Math.ceil((ticketTotal - 1) / ticketPageSize));
+            if (ticketPage > lastPage) {
+              setTicketPage(lastPage); // 缓存 key 变化即自动重新拉取
+            } else {
+              revalidateTickets();
+            }
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -297,7 +287,7 @@ export default function HelpdeskTicketsPage() {
       if (res.code === 0) {
         Message.success(editingSla ? 'SLA 更新成功' : 'SLA 创建成功');
         setSlaModalVisible(false);
-        fetchSlas();
+        revalidateSlas();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -318,7 +308,7 @@ export default function HelpdeskTicketsPage() {
           const res = await helpdeskApi.deleteSla(record.id);
           if (res.code === 0) {
             Message.success('删除成功');
-            fetchSlas();
+            revalidateSlas();
           } else {
             Message.error(res.message || '删除失败');
           }
@@ -329,8 +319,21 @@ export default function HelpdeskTicketsPage() {
     });
   };
 
-  // 导出工单
-  const handleExportTickets = () => {
+  // 导出工单：拉取符合当前筛选条件的全部工单（不受分页限制）
+  const handleExportTickets = async () => {
+    let list: HelpdeskTicket[] = [];
+    try {
+      const res = await helpdeskApi.listTickets({
+        page: 1,
+        pageSize: 10000,
+        status: ticketFilters.status || undefined,
+        priority: ticketFilters.priority || undefined,
+      });
+      list = res.data?.list ?? [];
+    } catch {
+      Message.error('导出失败');
+      return;
+    }
     if (!exportToExcel(
       `工单列表_${todayStr()}.xlsx`,
       '工单',
@@ -345,7 +348,7 @@ export default function HelpdeskTicketsPage() {
         { title: '到期时间', value: (t: HelpdeskTicket) => formatDateTime(t.dueAt) },
         { title: '创建时间', value: (t: HelpdeskTicket) => formatDateTime(t.createdAt) },
       ],
-      tickets,
+      list,
     )) {
       Message.info('当前没有可导出的工单数据');
     }
@@ -438,7 +441,7 @@ export default function HelpdeskTicketsPage() {
                 <label className="block text-sm text-text-2 mb-1.5">状态</label>
                 <Select
                   value={ticketFilters.status}
-                  onChange={(v) => handleFilterChange('status', String(v))}
+                  onChange={(v) => handleFilterChange('status', v)}
                   style={{ width: '100%' }}
                   placeholder="全部状态"
                   allowClear
@@ -451,7 +454,7 @@ export default function HelpdeskTicketsPage() {
                 <label className="block text-sm text-text-2 mb-1.5">优先级</label>
                 <Select
                   value={ticketFilters.priority}
-                  onChange={(v) => handleFilterChange('priority', String(v))}
+                  onChange={(v) => handleFilterChange('priority', v)}
                   style={{ width: '100%' }}
                   placeholder="全部优先级"
                   allowClear
@@ -465,9 +468,8 @@ export default function HelpdeskTicketsPage() {
                 <Button
                   style={{ width: '100%' }}
                   onClick={() => {
-                    const next = { status: '', priority: '' };
-                    setTicketFilters(next);
-                    fetchTickets(next);
+                    setTicketFilters({ status: '', priority: '' });
+                    setTicketPage(1);
                   }}
                 >
                   重置筛选
@@ -478,7 +480,7 @@ export default function HelpdeskTicketsPage() {
 
           {/* 工具栏 */}
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-2">共 {tickets.length} 个工单（按优先级：低/中/高/紧急）</span>
+            <span className="text-sm text-text-2">共 {ticketTotal} 个工单（按优先级：低/中/高/紧急）</span>
             <Space>
               <Button onClick={handleExportTickets}>导出 Excel</Button>
               <Button type="primary" disabled={!canManage} onClick={handleAddTicket}>新建工单</Button>
@@ -486,10 +488,10 @@ export default function HelpdeskTicketsPage() {
           </div>
 
           <Spin loading={ticketLoading} style={{ display: 'block' }}>
-            {ticketError ? (
+            {ticketErrorText ? (
               <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{ticketError}</p>
-                <Button onClick={() => fetchTickets()}>重试</Button>
+                <p className="text-text-3 mb-3">{ticketErrorText}</p>
+                <Button onClick={() => revalidateTickets()}>重试</Button>
               </div>
             ) : (
               <Table
@@ -497,7 +499,16 @@ export default function HelpdeskTicketsPage() {
                 data={tickets}
                 rowKey="id"
                 scroll={{ x: true }}
-                pagination={{ pageSize: 10, showTotal: true }}
+                pagination={{
+                  current: ticketPage,
+                  pageSize: ticketPageSize,
+                  total: ticketTotal,
+                  showTotal: true,
+                  onChange: (current, size) => {
+                    setTicketPage(current);
+                    setTicketPageSize(size);
+                  },
+                }}
                 stripe
                 style={{ borderRadius: 0 }}
               />
@@ -511,10 +522,10 @@ export default function HelpdeskTicketsPage() {
             <Button type="primary" disabled={!canManage} onClick={handleAddSla}>新建 SLA</Button>
           </div>
           <Spin loading={slaLoading} style={{ display: 'block' }}>
-            {slaError ? (
+            {slaErrorText ? (
               <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{slaError}</p>
-                <Button onClick={() => fetchSlas()}>重试</Button>
+                <p className="text-text-3 mb-3">{slaErrorText}</p>
+                <Button onClick={() => revalidateSlas()}>重试</Button>
               </div>
             ) : (
               <Table
