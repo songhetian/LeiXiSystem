@@ -23,6 +23,8 @@ import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoriesDto } from './dt
 import { CreateArticleDto, UpdateArticleDto } from './dto/article.dto';
 import { AddAttachmentDto } from './dto/attachment.dto';
 import { parsePagination } from '../common/pagination.util';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { RequestContext, AuthenticatedRequest } from '../types/fastify';
 
 @Controller('knowledge')
 @UseGuards(JwtAuthGuard)
@@ -90,7 +92,7 @@ export class KnowledgeController {
   @Get('articles')
   @HttpCode(200)
   async listArticles(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('categoryId') categoryId?: string,
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
@@ -112,7 +114,7 @@ export class KnowledgeController {
 
   @Get('articles/:id')
   @HttpCode(200)
-  async getArticle(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+  async getArticle(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
     const includeUnpublished = await this.canManage(req);
     const data = await this.knowledgeService.getArticleDetail(id, { includeUnpublished });
     return { code: 0, data };
@@ -122,7 +124,7 @@ export class KnowledgeController {
   @HttpCode(200)
   @UseGuards(PermissionGuard)
   @RequirePermission('knowledge:manage')
-  async createArticle(@Body() body: CreateArticleDto, @Req() req: any) {
+  async createArticle(@Body() body: CreateArticleDto, @Req() req: RequestContext) {
     const data = await this.knowledgeService.createArticle({
       categoryId: body.categoryId,
       title: body.title,
@@ -212,7 +214,7 @@ export class KnowledgeController {
   @RequirePermission('knowledge:manage')
   async uploadAttachment(
     @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const file = await req.file();
     if (!file) {
@@ -281,8 +283,8 @@ export class KnowledgePublicController {
   async downloadAttachment(
     @Param('id', ParseIntPipe) id: number,
     @Query('token') token: string,
-    @Req() req: any,
-    @Res() res: any,
+    @Req() req: FastifyRequest,
+    @Res() res: FastifyReply,
   ) {
     const cookieHeader: string | undefined = req.headers?.cookie;
     const { stream, fileName, mimeType } = await this.knowledgeService.downloadAttachment(

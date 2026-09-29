@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { HelpdeskService } from './helpdesk.service';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 // 工单创建校验
 const ticketCreateSchema = z.object({
@@ -66,7 +67,7 @@ export class HelpdeskTicketsController {
   @Post()
   @HttpCode(200)
   @RequirePermission('helpdesk:manage')
-  async create(@Body() body: unknown, @Req() req: any) {
+  async create(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = ticketCreateSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });

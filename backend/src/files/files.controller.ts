@@ -15,6 +15,7 @@ import { extname, basename } from 'path';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
+import type { AuthenticatedRequest } from '../types/fastify';
 
 const MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -44,7 +45,7 @@ export class FilesController {
   @HttpCode(200)
   // 上传/预览为已登录用户的基本能力，不绑定权限点（此前 file:upload 未注册导致任意角色 403）
   async upload(
-    @Req() req: FastifyRequest,
+    @Req() req: AuthenticatedRequest,
     @Query('bizType') bizType?: string,
   ) {
     const file = await req.file();

@@ -20,6 +20,7 @@ import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { StartInstanceDto } from './dto/start-instance.dto';
 import { ApprovalActionDto } from './dto/approval-action.dto';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('approval')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -103,7 +104,7 @@ export class ApprovalController {
   @Post('instances')
   @HttpCode(200)
   @RequirePermission('approval:submitted:view')
-  async startInstance(@Body() body: StartInstanceDto, @Req() req: any) {
+  async startInstance(@Body() body: StartInstanceDto, @Req() req: RequestContext) {
     const data = await this.approvalService.startInstance({
       workflowCode: body.workflowCode,
       title: body.title,
@@ -118,7 +119,7 @@ export class ApprovalController {
   @Get('instances/:id')
   @HttpCode(200)
   @RequirePermission('approval:submitted:view')
-  async getInstance(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+  async getInstance(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
     const data = await this.approvalService.getInstanceDetail(id, req.user.id);
     return { code: 0, data };
   }
@@ -130,7 +131,7 @@ export class ApprovalController {
   async approve(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: ApprovalActionDto,
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.approve({
       instanceId: id,
@@ -147,7 +148,7 @@ export class ApprovalController {
   async reject(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: ApprovalActionDto,
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.reject({
       instanceId: id,
@@ -163,7 +164,7 @@ export class ApprovalController {
   async withdraw(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: any,
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.withdraw({
       instanceId: id,
@@ -179,7 +180,7 @@ export class ApprovalController {
   async resubmit(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { formData?: Record<string, any> },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.resubmit({
       instanceId: id,
@@ -195,7 +196,7 @@ export class ApprovalController {
   async transfer(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { targetUserId: number; comment?: string },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.transfer({
       instanceId: id,
@@ -212,7 +213,7 @@ export class ApprovalController {
   async addSign(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { targetUserId: number; position: 'before' | 'after'; comment?: string },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.addSign({
       instanceId: id,
@@ -229,7 +230,7 @@ export class ApprovalController {
   @HttpCode(200)
   @RequirePermission('approval:todo:view')
   async listTodos(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -246,7 +247,7 @@ export class ApprovalController {
   @HttpCode(200)
   @RequirePermission('approval:submitted:view')
   async listMySubmissions(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -265,7 +266,7 @@ export class ApprovalController {
   @HttpCode(200)
   @RequirePermission('approval:todo:view')
   async listMyApproved(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,

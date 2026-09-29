@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { FinanceService } from './finance.service';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 // 预算校验：departmentId 为空时视为公司年度总预算
 const budgetSchema = z.object({
@@ -48,7 +49,7 @@ export class FinanceController {
   @Get('budgets')
   @RequirePermission('finance:budget:view')
   async listBudgets(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('year') year?: string,
     @Query('departmentId') departmentId?: string,
     @Query('category') category?: string,

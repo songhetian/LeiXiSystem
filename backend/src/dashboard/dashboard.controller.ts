@@ -2,6 +2,7 @@ import { Controller, Get, Req, UseGuards, Query } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DashboardService } from './dashboard.service';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard)
@@ -9,8 +10,8 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('stats')
-  async getStats(@Req() req: FastifyRequest) {
-    const stats = await this.dashboardService.getStats((req as any).user.id);
+  async getStats(@Req() req: RequestContext) {
+    const stats = await this.dashboardService.getStats(req.user.id);
     return { code: 0, data: stats };
   }
 

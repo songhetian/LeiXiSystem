@@ -7,6 +7,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { SchedulesService } from './schedules.service';
 import { parsePagination } from '../common/pagination.util';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 const scheduleItemSchema = z.object({
   employeeId: z.number().int().positive(),
@@ -25,31 +26,31 @@ export class SchedulesController {
   @Post()
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async create(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async create(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
-    const schedule = await this.schedulesService.create(parsed.data, (req as any).user.id);
+    const schedule = await this.schedulesService.create(parsed.data, req.user.id);
     return { code: 0, message: 'ok', data: schedule };
   }
 
   @Post('batch')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async batch(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async batch(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = batchSchema.safeParse(body);
     if (!parsed.success) {
       throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
-    const result = await this.schedulesService.batch(parsed.data.items, (req as any).user.id);
+    const result = await this.schedulesService.batch(parsed.data.items, req.user.id);
     return { code: 0, message: 'ok', data: result };
   }
 
   @Get()
   @RequirePermission('attendance:manage')
   async list(
-    @Req() req: FastifyRequest,
+    @Req() req: RequestContext,
     @Query('employeeId') employeeId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -57,7 +58,7 @@ export class SchedulesController {
     @Query('pageSize') pageSize?: string,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize }, { defaultPageSize: 100, maxPageSize: 200 });
-    const result = await this.schedulesService.list((req as any).user.id, {
+    const result = await this.schedulesService.list(req.user.id, {
       employeeId: employeeId ? Number(employeeId) : undefined,
       startDate,
       endDate,
@@ -70,12 +71,12 @@ export class SchedulesController {
   @Get('matrix')
   @RequirePermission('attendance:manage')
   async matrix(
-    @Req() req: FastifyRequest,
+    @Req() req: RequestContext,
     @Query('departmentId') departmentId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const result = await this.schedulesService.matrix((req as any).user.id, {
+    const result = await this.schedulesService.matrix(req.user.id, {
       departmentId: departmentId ? Number(departmentId) : undefined,
       startDate,
       endDate,
@@ -86,14 +87,14 @@ export class SchedulesController {
   @Get('my')
   @RequirePermission('attendance:view')
   async my(
-    @Req() req: FastifyRequest,
+    @Req() req: RequestContext,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize }, { defaultPageSize: 200, maxPageSize: 400 });
-    const result = await this.schedulesService.mySchedule((req as any).user.id, {
+    const result = await this.schedulesService.mySchedule(req.user.id, {
       startDate,
       endDate,
       page: pageNum,
@@ -108,21 +109,21 @@ export class SchedulesController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: unknown,
-    @Req() req: FastifyRequest,
+    @Req() req: RequestContext,
   ) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
-    const schedule = await this.schedulesService.update(id, parsed.data, (req as any).user.id);
+    const schedule = await this.schedulesService.update(id, parsed.data, req.user.id);
     return { code: 0, message: 'ok', data: schedule };
   }
 
   @Delete(':id')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
-    const result = await this.schedulesService.remove(id, (req as any).user.id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const result = await this.schedulesService.remove(id, req.user.id);
     return { code: 0, message: 'ok', data: result };
   }
 }

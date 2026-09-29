@@ -11,6 +11,7 @@ import { CreateRunDto } from './dto/create-run.dto';
 import { AdjustRunDto } from './dto/adjust-run.dto';
 import { parsePagination } from '../common/pagination.util';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 @ApiTags('薪资')
 @Controller('payroll')
@@ -71,11 +72,11 @@ export class PayrollController {
   async listRuns(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payrollService.listRuns({
-      userId: req.user.id,
+      userId: req!.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
     });
@@ -85,23 +86,23 @@ export class PayrollController {
   @Post('runs')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async createRun(@Body() body: CreateRunDto, @Req() req: any) {
-    const data = await this.payrollService.createRun(body.month, req.user.id);
+  async createRun(@Body() body: CreateRunDto, @Req() req: RequestContext) {
+    const data = await this.payrollService.createRun(body.month, req!.user.id);
     return { code: 0, data };
   }
 
   @Get('runs/:id/details')
   @HttpCode(200)
   @RequirePermission('payroll:view')
-  async details(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payrollService.getRunDetails(id, req.user.id);
+  async details(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.payrollService.getRunDetails(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('runs/:id/confirm')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async confirm(@Param('id', ParseIntPipe) id: number, @Body() body: ConfirmRunDto, @Req() req: any) {
+  async confirm(@Param('id', ParseIntPipe) id: number, @Body() body: ConfirmRunDto, @Req() req: RequestContext) {
     const parsed = confirmRunSchema.safeParse(body);
     if (!parsed.success) {
       // 参数校验失败统一用 4000；3008 仅用于业务规则「抽检不足 3 人」（payroll.service 内抛出），
@@ -109,30 +110,30 @@ export class PayrollController {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.errors[0].message });
     }
     const dto: ConfirmRunDto = parsed.data;
-    const data = await this.payrollService.confirmRun(id, req.user.id, dto.checkedEmployeeIds);
+    const data = await this.payrollService.confirmRun(id, req!.user.id, dto.checkedEmployeeIds);
     return { code: 0, data };
   }
 
   @Post('runs/:id/publish')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async publish(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payrollService.publishRun(id, req.user.id);
+  async publish(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.payrollService.publishRun(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('runs/:id/recall')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async recall(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payrollService.recallRun(id, req.user.id);
+  async recall(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.payrollService.recallRun(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('runs/:id/adjust')
   @HttpCode(200)
   @RequirePermission('payroll:manage')
-  async adjust(@Param('id', ParseIntPipe) id: number, @Body() body: AdjustRunDto, @Req() req: any) {
+  async adjust(@Param('id', ParseIntPipe) id: number, @Body() body: AdjustRunDto, @Req() req: RequestContext) {
     const data = await this.payrollService.addAdjustment(
       id,
       {
@@ -142,7 +143,7 @@ export class PayrollController {
         amount: Number(body.amount),
         reason: body.reason,
       },
-      req.user.id,
+      req!.user.id,
     );
     return { code: 0, data };
   }

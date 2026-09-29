@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CsrfService } from '../common/csrf.service';
 import { loginSchema, type LoginDto } from './dto/login.dto';
+import type { RequestContext } from '../types/fastify';
 
 @ApiTags('认证')
 @Controller('auth')
@@ -45,15 +46,15 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async me(@Req() req: FastifyRequest) {
-    const { user } = await this.authService.me((req as any).user.id);
+  async me(@Req() req: RequestContext) {
+    const { user } = await this.authService.me(req.user.id);
     return { code: 0, message: 'ok', data: { user } };
   }
 
   @Get('csrf-token')
   @UseGuards(JwtAuthGuard)
-  async getCsrfToken(@Req() req: FastifyRequest) {
-    const userId = (req as any).user.id;
+  async getCsrfToken(@Req() req: RequestContext) {
+    const userId = req.user.id;
     const token = await this.csrfService.generateToken(userId);
     return { code: 0, message: 'ok', data: { token } };
   }
@@ -61,20 +62,20 @@ export class AuthController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async changePassword(@Body() body: { oldPassword: string; newPassword: string }, @Req() req: FastifyRequest) {
+  async changePassword(@Body() body: { oldPassword: string; newPassword: string }, @Req() req: RequestContext) {
     if (!body.oldPassword || !body.newPassword) {
       throw new BadRequestException({ code: 4000, message: '参数不完整' });
     }
-    await this.authService.changePassword((req as any).user.id, body.oldPassword, body.newPassword);
+    await this.authService.changePassword(req.user.id, body.oldPassword, body.newPassword);
     return { code: 0, message: '修改成功' };
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  async logout(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
-    const userId = (req as any).user.id;
-    const token = (req as any).token;
+  async logout(@Req() req: RequestContext, @Res({ passthrough: true }) res: FastifyReply) {
+    const userId = req.user.id;
+    const token = req.token;
     if (token) {
       await this.authService.logout(token);
     }

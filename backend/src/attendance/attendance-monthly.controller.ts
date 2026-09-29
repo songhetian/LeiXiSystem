@@ -4,6 +4,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceMonthlyService } from './attendance-monthly.service';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('attendance/monthly')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -20,7 +21,7 @@ export class AttendanceMonthlyController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.monthlyService.list({
@@ -28,7 +29,7 @@ export class AttendanceMonthlyController {
       departmentId: departmentId ? parseInt(departmentId) : undefined,
       month,
       status,
-      userId: req.user.id,
+      userId: req!.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
     });
@@ -38,11 +39,11 @@ export class AttendanceMonthlyController {
   @Post('generate')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async generate(@Body() body: any, @Req() req: any) {
+  async generate(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.monthlyService.generate({
       employeeId: body.employeeId ? parseInt(body.employeeId) : undefined,
       month: body.month,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -50,16 +51,16 @@ export class AttendanceMonthlyController {
   @Post(':id/confirm')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async confirm(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.monthlyService.confirm(id, req.user.id);
+  async confirm(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.monthlyService.confirm(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post(':id/unconfirm')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async unconfirm(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.monthlyService.unconfirm(id, req.user.id);
+  async unconfirm(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.monthlyService.unconfirm(id, req!.user.id);
     return { code: 0, data };
   }
 }

@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceAuditService } from './attendance-audit.service';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 // 批次六 · 考勤申请聚合审计：聚合请假/加班申请，返回统一列表（含部门数据隔离）
 @ApiTags('考勤审计')
@@ -26,10 +27,10 @@ export class AttendanceAuditController {
     @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
-    const data = await this.auditService.list(req.user.id, {
+    const data = await this.auditService.list(req!.user.id, {
       page: pageNum,
       pageSize: pageSizeNum,
       status,

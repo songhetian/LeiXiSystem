@@ -19,6 +19,7 @@ import { PunchMakeupService } from './punch-makeup.service';
 import { parsePagination } from '../common/pagination.util';
 import { PUNCH_MAKEUP_TYPES } from './punch-makeup-type';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 // 入参校验：补卡类型必须落在全链路共用值域内，时间/日期必须是规范格式，
 // 否则 400 而不是把脏值写进 punch_makeups（脏值会让审批监听器写卡静默失效）。
@@ -71,7 +72,7 @@ export class PunchMakeupController {
     @Query('status') status?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.punchMakeupService.list({
@@ -81,25 +82,25 @@ export class PunchMakeupController {
       status,
       startDate,
       endDate,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
 
   @Get(':id')
   @HttpCode(200)
-  async detail(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.punchMakeupService.detail(id, req.user.id);
+  async detail(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.punchMakeupService.detail(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post()
   @HttpCode(200)
-  async create(@Body() body: unknown, @Req() req: any) {
+  async create(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = parseBody(makeupCreateSchema, body);
     const data = await this.punchMakeupService.create({
       ...parsed,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -109,24 +110,24 @@ export class PunchMakeupController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: unknown,
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const parsed = parseBody(makeupUpdateSchema, body);
-    const data = await this.punchMakeupService.update(id, req.user.id, parsed);
+    const data = await this.punchMakeupService.update(id, req!.user.id, parsed);
     return { code: 0, data };
   }
 
   @Delete(':id')
   @HttpCode(200)
-  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.punchMakeupService.remove(id, req.user.id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.punchMakeupService.remove(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post(':id/submit')
   @HttpCode(200)
-  async submit(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.punchMakeupService.submit(id, req.user.id);
+  async submit(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.punchMakeupService.submit(id, req!.user.id);
     return { code: 0, data };
   }
 }

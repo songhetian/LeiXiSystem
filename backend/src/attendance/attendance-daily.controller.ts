@@ -6,6 +6,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceDailyService } from './attendance-daily.service';
 import { AttendanceDailyRecalcService } from './attendance-daily-recalc.service';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @ApiTags('考勤日报')
 @Controller('attendance/daily')
@@ -27,7 +28,7 @@ export class AttendanceDailyController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.dailyService.list({
@@ -36,7 +37,7 @@ export class AttendanceDailyController {
       startDate,
       endDate,
       status,
-      userId: req.user.id,
+      userId: req!.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
     });
@@ -46,7 +47,7 @@ export class AttendanceDailyController {
   @Post('recalc')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async recalc(@Body() body: any, @Req() req: any) {
+  async recalc(@Body() body: any, @Req() req: RequestContext) {
     const startDate = body.startDate;
     const endDate = body.endDate;
     const startTime = Date.now();
@@ -54,7 +55,7 @@ export class AttendanceDailyController {
     const task = await this.recalcService.createTask({
       startDate,
       endDate,
-      userId: req.user.id,
+      userId: req!.user.id,
       triggerType: 'manual',
     });
 
@@ -63,7 +64,7 @@ export class AttendanceDailyController {
         employeeId: body.employeeId ? parseInt(body.employeeId) : undefined,
         startDate,
         endDate,
-        userId: req.user.id,
+        userId: req!.user.id,
       });
       const durationMs = Date.now() - startTime;
       await this.recalcService.completeTask(task.id, true, data.count, durationMs);

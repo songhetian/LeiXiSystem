@@ -14,6 +14,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceSettingsService } from './settings.service';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 // Zod schema for PUT /attendance/settings body – all fields optional (partial update)
 // 仅允许写到实际被业务消费的 5 项；其余预留项已清理
@@ -52,7 +53,7 @@ export class AttendanceSettingsController {
   @Put()
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async updateSettings(@Body() body: unknown, @Req() req: any) {
+  async updateSettings(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateSettingsSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({

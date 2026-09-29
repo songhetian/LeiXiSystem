@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ERROR_CODES } from '../common/error-codes';
 import { OkrService } from './okr.service';
+import type { RequestContext } from '../types/fastify';
 
 // OKR 目标校验
 const objectiveSchema = z.object({
@@ -54,7 +55,7 @@ export class OkrController {
   @Get('objectives')
   @RequirePermission('okr:view')
   async listObjectives(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('ownerId') ownerId?: string,
     @Query('type') type?: string,
   ) {
@@ -103,7 +104,7 @@ export class OkrController {
 
   @Get('objectives/:id/key-results')
   @RequirePermission('okr:view')
-  async listKeyResults(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+  async listKeyResults(@Req() req: RequestContext, @Param('id', ParseIntPipe) id: number) {
     const result = await this.okrService.listKeyResults(req.user.id, id);
     return { code: 0, message: 'ok', data: result };
   }

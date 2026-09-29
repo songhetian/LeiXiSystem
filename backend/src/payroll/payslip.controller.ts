@@ -4,6 +4,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PayslipService } from './payslip.service';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('payslips')
 @UseGuards(JwtAuthGuard)
@@ -15,11 +16,11 @@ export class PayslipController {
   async myPayslips(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payslipService.getMyPayslips(
-      req.user.id,
+      req!.user.id,
       pageNum,
       pageSizeNum,
     );
@@ -28,15 +29,15 @@ export class PayslipController {
 
   @Get('me/:id')
   @HttpCode(200)
-  async myPayslipDetail(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payslipService.getMyPayslipDetail(req.user.id, id);
+  async myPayslipDetail(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.payslipService.getMyPayslipDetail(req!.user.id, id);
     return { code: 0, data };
   }
 
   @Post('me/:id/view')
   @HttpCode(200)
-  async markViewed(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.payslipService.markAsViewed(req.user.id, id);
+  async markViewed(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.payslipService.markAsViewed(req!.user.id, id);
     return { code: 0, data };
   }
 
@@ -49,11 +50,11 @@ export class PayslipController {
     @Query('month') month?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.payslipService.listPayslips({
-      userId: req.user.id,
+      userId: req!.user.id,
       runId: runId ? parseInt(runId) : undefined,
       month,
       page: pageNum,

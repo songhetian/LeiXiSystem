@@ -24,6 +24,7 @@ import { EmployeeTxService } from './employee-tx.service';
 import { EmployeesService } from './employees.service';
 import { parsePagination } from '../common/pagination.util';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误').optional().or(z.literal('').transform(() => undefined));
 
@@ -50,8 +51,8 @@ export class EmployeeTxController {
   @Get('tx-pending-counts')
   @HttpCode(200)
   @RequirePermission('employee:view')
-  async getTxPendingCounts(@Req() req: any) {
-    const data = await this.txService.getPendingCounts(req.user.id);
+  async getTxPendingCounts(@Req() req: RequestContext) {
+    const data = await this.txService.getPendingCounts(req!.user.id);
     return { code: 0, data };
   }
 
@@ -64,14 +65,14 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('keyword') keyword?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listOnboarding({
       page: pageNum,
       pageSize: pageSizeNum,
       status, keyword,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -79,8 +80,8 @@ export class EmployeeTxController {
   @Post('onboarding')
   @HttpCode(200)
   @RequirePermission('onboarding:manage')
-  async createOnboarding(@Body() body: any, @Req() req: any) {
-    const data = await this.txService.createOnboarding(body, req.user.id);
+  async createOnboarding(@Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.createOnboarding(body, req!.user.id);
     return { code: 0, data };
   }
 
@@ -103,8 +104,8 @@ export class EmployeeTxController {
   @Post('onboarding/:id/submit')
   @HttpCode(200)
   @RequirePermission('onboarding:manage')
-  async submitOnboarding(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitOnboarding(id, req.user.id, body.workflowCode);
+  async submitOnboarding(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitOnboarding(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
@@ -117,7 +118,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listResignations({
@@ -125,7 +126,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       status,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -133,32 +134,32 @@ export class EmployeeTxController {
   @Post('resignations')
   @HttpCode(200)
   @RequirePermission('resignation:apply')
-  async createResignation(@Body() body: any, @Req() req: any) {
-    const data = await this.txService.createResignation(body, req.user.id);
+  async createResignation(@Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.createResignation(body, req!.user.id);
     return { code: 0, data };
   }
 
   @Put('resignations/:id')
   @HttpCode(200)
   @RequirePermission('resignation:apply')
-  async updateResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.updateResignation(id, body, req.user.id);
+  async updateResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.updateResignation(id, body, req!.user.id);
     return { code: 0, data };
   }
 
   @Delete('resignations/:id')
   @HttpCode(200)
   @RequirePermission('resignation:apply')
-  async deleteResignation(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.deleteResignation(id, req.user.id);
+  async deleteResignation(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.deleteResignation(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('resignations/:id/submit')
   @HttpCode(200)
   @RequirePermission('resignation:apply')
-  async submitResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitResignation(id, req.user.id, body.workflowCode);
+  async submitResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitResignation(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
@@ -171,7 +172,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listProbations({
@@ -179,7 +180,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       status,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -211,8 +212,8 @@ export class EmployeeTxController {
   @Post('probations/:id/submit')
   @HttpCode(200)
   @RequirePermission('probation:apply')
-  async submitProbation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitProbation(id, req.user.id, body.workflowCode);
+  async submitProbation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitProbation(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
@@ -226,7 +227,7 @@ export class EmployeeTxController {
     @Query('status') status?: string,
     @Query('employeeId') employeeId?: string,
     @Query('keyword') keyword?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listContracts({
@@ -235,7 +236,7 @@ export class EmployeeTxController {
       status,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       keyword,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -289,7 +290,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listAppeals({
@@ -297,7 +298,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       status,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -305,32 +306,32 @@ export class EmployeeTxController {
   @Post('appeals')
   @HttpCode(200)
   @RequirePermission('attendance:appeal:apply')
-  async createAppeal(@Body() body: any, @Req() req: any) {
-    const data = await this.txService.createAppeal(body, req.user.id);
+  async createAppeal(@Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.createAppeal(body, req!.user.id);
     return { code: 0, data };
   }
 
   @Put('appeals/:id')
   @HttpCode(200)
   @RequirePermission('attendance:appeal:apply')
-  async updateAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.updateAppeal(id, body, req.user.id);
+  async updateAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.updateAppeal(id, body, req!.user.id);
     return { code: 0, data };
   }
 
   @Delete('appeals/:id')
   @HttpCode(200)
   @RequirePermission('attendance:appeal:apply')
-  async deleteAppeal(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.deleteAppeal(id, req.user.id);
+  async deleteAppeal(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.deleteAppeal(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('appeals/:id/submit')
   @HttpCode(200)
   @RequirePermission('attendance:appeal:apply')
-  async submitAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitAppeal(id, req.user.id, body.workflowCode);
+  async submitAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitAppeal(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
@@ -343,7 +344,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('employeeId') employeeId?: string,
     @Query('keyword') keyword?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listCertificates({
@@ -351,7 +352,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       keyword,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -389,7 +390,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('type') type?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listRewards({
@@ -397,7 +398,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       type,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -406,14 +407,14 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('reward:view')
   async exportRewards(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Res() res: FastifyReply,
     @Query('type') type?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('departmentId') departmentId?: string,
   ) {
-    const buffer = await this.txService.exportRewards(req.user.id, {
+    const buffer = await this.txService.exportRewards(req!.user.id, {
       type,
       startDate,
       endDate,
@@ -451,8 +452,8 @@ export class EmployeeTxController {
   @Post('rewards/:id/submit')
   @HttpCode(200)
   @RequirePermission('reward:manage')
-  async submitReward(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitReward(id, req.user.id, body.workflowCode, { checkOwnership: false });
+  async submitReward(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitReward(id, req!.user.id, body.workflowCode, { checkOwnership: false });
     return { code: 0, data };
   }
 
@@ -460,14 +461,14 @@ export class EmployeeTxController {
   @Get('cert-requests')
   @HttpCode(200)
   @RequirePermission('cert_request:view')
-  async listCertRequests(@Query() query: any, @Req() req: any) {
+  async listCertRequests(@Query() query: any, @Req() req: RequestContext) {
     const data = await this.txService.listCertRequests({
       page: Number(query.page),
       pageSize: Number(query.pageSize),
       type: query.type,
       status: query.status,
       employeeId: query.employeeId ? Number(query.employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -475,56 +476,56 @@ export class EmployeeTxController {
   @Get('cert-requests/:id')
   @HttpCode(200)
   @RequirePermission('cert_request:view')
-  async getCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.getCertRequest(id, req.user.id, { checkOwnership: false });
+  async getCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.getCertRequest(id, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
   @Post('cert-requests')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async createCertRequest(@Body() body: any, @Req() req: any) {
-    const data = await this.txService.createCertRequest(body, req.user.id, { checkOwnership: false });
+  async createCertRequest(@Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.createCertRequest(body, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
   @Put('cert-requests/:id')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async updateCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.updateCertRequest(id, body, req.user.id, { checkOwnership: false });
+  async updateCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.updateCertRequest(id, body, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
   @Delete('cert-requests/:id')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async deleteCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.deleteCertRequest(id, req.user.id, { checkOwnership: false });
+  async deleteCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.deleteCertRequest(id, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
   @Post('cert-requests/:id/submit')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async submitCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitCertRequest(id, req.user.id, body.workflowCode, { checkOwnership: false });
+  async submitCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitCertRequest(id, req!.user.id, body.workflowCode, { checkOwnership: false });
     return { code: 0, data };
   }
 
   @Post('cert-requests/:id/complete')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async markCertRequestCompleted(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.markCertRequestCompleted(id, req.user.id);
+  async markCertRequestCompleted(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.markCertRequestCompleted(id, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('cert-requests/:id/cancel')
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
-  async cancelCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.cancelCertRequest(id, req.user.id, { checkOwnership: false });
+  async cancelCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.cancelCertRequest(id, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
@@ -537,7 +538,7 @@ export class EmployeeTxController {
     @Query('pageSize') pageSize?: string,
     @Query('category') category?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listTrainings({
@@ -545,7 +546,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       category,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -587,7 +588,7 @@ export class EmployeeTxController {
     @Query('dateTo') dateTo?: string,
     @Query('employeeId') employeeId?: string,
     @Query('departmentId') departmentId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.getTimeline({
@@ -596,7 +597,7 @@ export class EmployeeTxController {
       keyword, type, dateFrom, dateTo,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       departmentId: departmentId ? parseInt(departmentId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -610,7 +611,7 @@ export class EmployeeTxController {
     @Query('type') type?: string,
     @Query('status') status?: string,
     @Query('employeeId') employeeId?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.txService.listTransfers({
@@ -618,7 +619,7 @@ export class EmployeeTxController {
       pageSize: pageSizeNum,
       type, status,
       employeeId: employeeId ? parseInt(employeeId) : undefined,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -650,8 +651,8 @@ export class EmployeeTxController {
   @Post('transfers/:id/submit')
   @HttpCode(200)
   @RequirePermission('transfer:manage')
-  async submitTransfer(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitTransfer(id, req.user.id, body.workflowCode);
+  async submitTransfer(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitTransfer(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
@@ -659,35 +660,35 @@ export class EmployeeTxController {
   @Get('me/profile')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async getMyProfile(@Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async getMyProfile(@Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     return { code: 0, data: emp };
   }
 
   @Put('me/profile')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async updateMyProfile(@Body() body: unknown, @Req() req: any) {
+  async updateMyProfile(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateMyProfileSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
-    const data = await this.employeesService.updateMyProfile(req.user.id, parsed.data);
+    const data = await this.employeesService.updateMyProfile(req!.user.id, parsed.data);
     return { code: 0, data };
   }
 
   @Get('me/resignations')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async listMyResignations(@Query() query: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async listMyResignations(@Query() query: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) return { code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 } };
     const data = await this.txService.listResignations({
       page: Number(query.page),
       pageSize: Number(query.pageSize),
       status: query.status,
       employeeId: emp.id,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -695,33 +696,33 @@ export class EmployeeTxController {
   @Post('me/resignations')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async createMyResignation(@Body() body: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async createMyResignation(@Body() body: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
-    const data = await this.txService.createResignation({ ...body, employeeId: emp.id }, req.user.id);
+    const data = await this.txService.createResignation({ ...body, employeeId: emp.id }, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('me/resignations/:id/submit')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async submitMyResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitResignation(id, req.user.id, body.workflowCode);
+  async submitMyResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitResignation(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
   @Get('me/appeals')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async listMyAppeals(@Query() query: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async listMyAppeals(@Query() query: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) return { code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 } };
     const data = await this.txService.listAppeals({
       page: Number(query.page),
       pageSize: Number(query.pageSize),
       status: query.status,
       employeeId: emp.id,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -729,33 +730,33 @@ export class EmployeeTxController {
   @Post('me/appeals')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async createMyAppeal(@Body() body: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async createMyAppeal(@Body() body: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
-    const data = await this.txService.createAppeal({ ...body, employeeId: emp.id }, req.user.id);
+    const data = await this.txService.createAppeal({ ...body, employeeId: emp.id }, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('me/appeals/:id/submit')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async submitMyAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitAppeal(id, req.user.id, body.workflowCode);
+  async submitMyAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitAppeal(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
   @Get('me/rewards')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async listMyRewards(@Query() query: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async listMyRewards(@Query() query: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) return { code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 } };
     const data = await this.txService.listRewards({
       page: Number(query.page),
       pageSize: Number(query.pageSize),
       type: query.type,
       employeeId: emp.id,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -763,15 +764,15 @@ export class EmployeeTxController {
   @Get('me/trainings')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async listMyTrainings(@Query() query: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async listMyTrainings(@Query() query: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) return { code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 } };
     const data = await this.txService.listTrainings({
       page: Number(query.page),
       pageSize: Number(query.pageSize),
       category: query.category,
       employeeId: emp.id,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -779,8 +780,8 @@ export class EmployeeTxController {
   @Get('me/cert-requests')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async listMyCertRequests(@Query() query: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async listMyCertRequests(@Query() query: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) return { code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 } };
     const data = await this.txService.listCertRequests({
       page: Number(query.page),
@@ -788,7 +789,7 @@ export class EmployeeTxController {
       type: query.type,
       status: query.status,
       employeeId: emp.id,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -796,26 +797,26 @@ export class EmployeeTxController {
   @Post('me/cert-requests')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async createMyCertRequest(@Body() body: any, @Req() req: any) {
-    const emp = await this.txService.getEmployeeByUserId(req.user.id);
+  async createMyCertRequest(@Body() body: any, @Req() req: RequestContext) {
+    const emp = await this.txService.getEmployeeByUserId(req!.user.id);
     if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
-    const data = await this.txService.createCertRequest({ ...body, employeeId: emp.id }, req.user.id);
+    const data = await this.txService.createCertRequest({ ...body, employeeId: emp.id }, req!.user.id);
     return { code: 0, data };
   }
 
   @Post('me/cert-requests/:id/submit')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async submitMyCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
-    const data = await this.txService.submitCertRequest(id, req.user.id, body.workflowCode);
+  async submitMyCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
+    const data = await this.txService.submitCertRequest(id, req!.user.id, body.workflowCode);
     return { code: 0, data };
   }
 
   @Post('me/cert-requests/:id/cancel')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async cancelMyCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const data = await this.txService.cancelCertRequest(id, req.user.id);
+  async cancelMyCertRequest(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const data = await this.txService.cancelCertRequest(id, req!.user.id);
     return { code: 0, data };
   }
 }

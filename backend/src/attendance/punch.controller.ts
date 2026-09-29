@@ -6,6 +6,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PunchService } from './punch.service';
 import { ERROR_CODES } from '../common/error-codes';
+import type { RequestContext } from '../types/fastify';
 
 const selfScheduleSchema = z.object({
   shiftId: z.number().int().positive('班次ID必填'),
@@ -22,7 +23,7 @@ export class PunchController {
   @Post('clock-in')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async clockIn(@Req() req: any) {
+  async clockIn(@Req() req: RequestContext) {
     const data = await this.punchService.clockIn(req.user.id);
     return { code: 0, message: 'ok', data };
   }
@@ -30,14 +31,14 @@ export class PunchController {
   @Post('clock-out')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async clockOut(@Req() req: any) {
+  async clockOut(@Req() req: RequestContext) {
     const data = await this.punchService.clockOut(req.user.id);
     return { code: 0, message: 'ok', data };
   }
 
   @Get('today')
   @RequirePermission('attendance:view')
-  async today(@Req() req: any) {
+  async today(@Req() req: RequestContext) {
     const data = await this.punchService.getToday(req.user.id);
     return { code: 0, message: 'ok', data };
   }
@@ -45,7 +46,7 @@ export class PunchController {
   @Post('self-schedule')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async selfSchedule(@Req() req: any, @Body() body: unknown) {
+  async selfSchedule(@Req() req: RequestContext, @Body() body: unknown) {
     const parsed = selfScheduleSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });

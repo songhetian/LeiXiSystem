@@ -6,6 +6,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { VacationService } from './vacation.service';
 import { parsePagination } from '../common/pagination.util';
 import { beijingNow } from '../common/date.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('vacation')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -15,9 +16,9 @@ export class VacationController {
   @Get('me/balances')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  async getMyBalancesSelf(@Query('year') year?: string, @Req() req?: any) {
+  async getMyBalancesSelf(@Query('year') year?: string, @Req() req?: RequestContext) {
     const y = year ? parseInt(year) : undefined;
-    const data = await this.vacationService.getMyBalances(req.user.id, y);
+    const data = await this.vacationService.getMyBalances(req!.user.id, y);
     return { code: 0, data };
   }
 
@@ -29,11 +30,11 @@ export class VacationController {
     @Query('pageSize') pageSize?: string,
     @Query('vacationType') vacationType?: string,
     @Query('status') status?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.vacationService.listMyLeaveRecords(
-      req.user.id,
+      req!.user.id,
       pageNum,
       pageSizeNum,
       vacationType,
@@ -45,17 +46,17 @@ export class VacationController {
   @Get('balances/mine')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async getMyBalances(@Query('year') year?: string, @Req() req?: any) {
+  async getMyBalances(@Query('year') year?: string, @Req() req?: RequestContext) {
     const y = year ? parseInt(year) : undefined;
-    const data = await this.vacationService.getMyBalances(req.user.id, y);
+    const data = await this.vacationService.getMyBalances(req!.user.id, y);
     return { code: 0, data };
   }
 
   @Get('balances/changes/mine')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async getMyChanges(@Req() req?: any) {
-    const data = await this.vacationService.listMyChanges(req.user.id);
+  async getMyChanges(@Req() req?: RequestContext) {
+    const data = await this.vacationService.listMyChanges(req!.user.id);
     return { code: 0, data };
   }
 
@@ -65,13 +66,13 @@ export class VacationController {
   async getBalances(
     @Query('employeeId') employeeId?: string,
     @Query('year') year?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const y = year ? parseInt(year) : beijingNow().year;
     const data = await this.vacationService.listBalances({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       year: y,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data: data.list };
   }
@@ -79,13 +80,13 @@ export class VacationController {
   @Post('convert')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async convertOvertime(@Body() body: any, @Req() req: any) {
+  async convertOvertime(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.vacationService.convertOvertimeToCompensatory({
       employeeId: body.employeeId,
       overtimeId: body.overtimeId,
       vacationTypeId: body.vacationTypeId,
       hours: body.hours,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -93,12 +94,12 @@ export class VacationController {
   @Post('convert/mine')
   @HttpCode(200)
   @RequirePermission('attendance:view')
-  async convertOvertimeMine(@Body() body: any, @Req() req: any) {
+  async convertOvertimeMine(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.vacationService.convertOvertimeToCompensatoryMine({
       overtimeId: body.overtimeId,
       vacationTypeId: body.vacationTypeId,
       hours: body.hours,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -120,14 +121,14 @@ export class VacationController {
   @Post('balances/adjust')
   @HttpCode(200)
   @RequirePermission('vacation:balance:adjust')
-  async adjustBalance(@Body() body: any, @Req() req: any) {
+  async adjustBalance(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.vacationService.adjustBalance({
       employeeId: body.employeeId,
       vacationTypeId: body.vacationTypeId,
       year: body.year,
       changeDays: body.changeDays,
       reason: body.reason,
-      userId: req.user.id,
+      userId: req!.user.id,
     });
     return { code: 0, data };
   }
@@ -142,7 +143,7 @@ export class VacationController {
     @Query('changeType') changeType?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
     const data = await this.vacationService.listBalanceChanges({
@@ -150,7 +151,7 @@ export class VacationController {
       vacationTypeId: vacationTypeId ? parseInt(vacationTypeId) : undefined,
       year: year ? parseInt(year) : undefined,
       changeType,
-      userId: req.user.id,
+      userId: req!.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
     });
@@ -166,12 +167,12 @@ export class VacationController {
     @Query('departmentId') departmentId?: string,
     @Query('employeeId') employeeId?: string,
     @Query('keyword') keyword?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const y = year ? parseInt(year) : beijingNow().year;
     const m = month ? parseInt(month) : beijingNow().month;
     const data = await this.vacationService.getAttendanceStatistics({
-      userId: req.user.id,
+      userId: req!.user.id,
       year: y,
       month: m,
       departmentId: departmentId ? parseInt(departmentId) : undefined,
@@ -185,7 +186,7 @@ export class VacationController {
   @HttpCode(200)
   @RequirePermission('attendance:view')
   async exportLeaves(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Res() res: FastifyReply,
     @Query('status') status?: string,
     @Query('type') type?: string,
@@ -193,7 +194,7 @@ export class VacationController {
     @Query('endDate') endDate?: string,
     @Query('departmentId') departmentId?: string,
   ) {
-    const buffer = await this.vacationService.exportLeaveRecords(req.user.id, {
+    const buffer = await this.vacationService.exportLeaveRecords(req!.user.id, {
       status,
       type,
       startDate,

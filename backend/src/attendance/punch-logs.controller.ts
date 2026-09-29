@@ -7,6 +7,7 @@ import { PunchLogsService } from './punch-logs.service';
 import { PunchSyncService } from './punch-sync.service';
 import { punchImportSchema, type PunchImportDto } from './dto/punch-import.dto';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('attendance/punch')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -19,13 +20,13 @@ export class PunchLogsController {
   @Post('import')
   @HttpCode(200)
   @RequirePermission('attendance:manage')
-  async importCsv(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async importCsv(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = punchImportSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: 4000, message: parsed.error.errors[0].message });
     }
     const dto: PunchImportDto = parsed.data;
-    const result = await this.punchLogsService.importCsv(dto.csv, (req as any).user.id);
+    const result = await this.punchLogsService.importCsv(dto.csv, req.user.id);
     return { code: 0, message: 'ok', data: result };
   }
 
@@ -47,7 +48,7 @@ export class PunchLogsController {
   @Get()
   @RequirePermission('attendance:view')
   async list(
-    @Req() req: FastifyRequest,
+    @Req() req: RequestContext,
     @Query('employeeNo') employeeNo?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -56,7 +57,7 @@ export class PunchLogsController {
     @Query('pageSize') pageSize?: string,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
-    const result = await this.punchLogsService.list((req as any).user.id, {
+    const result = await this.punchLogsService.list(req.user.id, {
       employeeNo,
       startDate,
       endDate,

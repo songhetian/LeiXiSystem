@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ERROR_CODES } from '../common/error-codes';
 import { PerformanceService } from './performance.service';
+import type { RequestContext } from '../types/fastify';
 
 // 绩效周期状态校验
 const cycleStatusSchema = z.enum(['draft', 'active', 'closed']);
@@ -121,7 +122,7 @@ export class PerformanceController {
   @Get('goals')
   @RequirePermission('performance:view')
   async listGoals(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('cycleId') cycleId?: string,
     @Query('employeeId') employeeId?: string,
   ) {
@@ -170,7 +171,7 @@ export class PerformanceController {
   @Get('reviews')
   @RequirePermission('performance:view')
   async listReviews(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('cycleId') cycleId?: string,
     @Query('employeeId') employeeId?: string,
   ) {

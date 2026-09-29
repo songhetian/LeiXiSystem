@@ -24,6 +24,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { EmployeesService } from './employees.service';
 import { ERROR_CODES } from '../common/error-codes';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext, AuthenticatedRequest } from '../types/fastify';
 
 const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '手机号格式错误').optional().or(z.literal('').transform(() => undefined));
 
@@ -80,19 +81,19 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get('me')
-  async getMyProfile(@Req() req: FastifyRequest) {
-    const employee = await this.employeesService.getMyInfo((req as any).user.id);
+  async getMyProfile(@Req() req: RequestContext) {
+    const employee = await this.employeesService.getMyInfo(req.user.id);
     return { code: 0, data: employee };
   }
 
   @Patch('me/profile')
-  async updateMyProfile(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async updateMyProfile(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateMyProfileSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const employee = await this.employeesService.updateMyProfile(
-      (req as any).user.id,
+      req.user.id,
       parsed.data,
     );
     return { code: 0, message: 'ok', data: employee };
@@ -101,7 +102,7 @@ export class EmployeesController {
   @Post()
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async create(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async create(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -117,9 +118,9 @@ export class EmployeesController {
 
   @Get()
   @RequirePermission('employee:view')
-  async list(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string, @Query('positionId') positionId?: string, @Query('status') status?: string, @Query('rating') rating?: string, @Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string) {
+  async list(@Req() req: RequestContext, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string, @Query('positionId') positionId?: string, @Query('status') status?: string, @Query('rating') rating?: string, @Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
-    const result = await this.employeesService.list((req as any).user.id, {
+    const result = await this.employeesService.list(req.user.id, {
       page: pageNum,
       pageSize: pageSizeNum,
       keyword,
@@ -135,9 +136,9 @@ export class EmployeesController {
 
   @Get('change-logs')
   @RequirePermission('employee:view')
-  async listChangeLogs(@Req() req: FastifyRequest, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('changeType') changeType?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string) {
+  async listChangeLogs(@Req() req: RequestContext, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('changeType') changeType?: string, @Query('keyword') keyword?: string, @Query('departmentId') departmentId?: string) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
-    const result = await this.employeesService.listChangeLogs((req as any).user.id, {
+    const result = await this.employeesService.listChangeLogs(req.user.id, {
       page: pageNum,
       pageSize: pageSizeNum,
       changeType,
@@ -149,33 +150,33 @@ export class EmployeesController {
 
   @Get(':id')
   @RequirePermission('employee:view')
-  async detail(@Req() req: FastifyRequest, @Param('id', ParseIntPipe) id: number) {
-    const employee = await this.employeesService.detail((req as any).user.id, id);
+  async detail(@Req() req: RequestContext, @Param('id', ParseIntPipe) id: number) {
+    const employee = await this.employeesService.detail(req.user.id, id);
     return { code: 0, message: 'ok', data: employee };
   }
 
   @Get(':id/change-logs')
   @RequirePermission('employee:view')
-  async getChangeLogs(@Req() req: FastifyRequest, @Param('id', ParseIntPipe) id: number) {
-    const logs = await this.employeesService.getChangeLogs((req as any).user.id, id);
+  async getChangeLogs(@Req() req: RequestContext, @Param('id', ParseIntPipe) id: number) {
+    const logs = await this.employeesService.getChangeLogs(req.user.id, id);
     return { code: 0, message: 'ok', data: logs };
   }
 
   @Patch(':id')
   @RequirePermission('employee:manage')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: FastifyRequest) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
-    const employee = await this.employeesService.update(id, parsed.data, (req as any).user.id);
+    const employee = await this.employeesService.update(id, parsed.data, req.user.id);
     return { code: 0, message: 'ok', data: employee };
   }
 
   @Post(':id/resign')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async resign(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: FastifyRequest) {
+  async resign(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: RequestContext) {
     const schema = z.object({
       resignDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       reason: z.string().max(255).optional(),
@@ -184,22 +185,22 @@ export class EmployeesController {
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
-    const employee = await this.employeesService.resign(id, (req as any).user.id, parsed.data);
+    const employee = await this.employeesService.resign(id, req.user.id, parsed.data);
     return { code: 0, message: 'ok', data: employee };
   }
 
   @Post(':id/restore')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async restore(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
-    const employee = await this.employeesService.restore(id, (req as any).user.id);
+  async restore(@Param('id', ParseIntPipe) id: number, @Req() req: RequestContext) {
+    const employee = await this.employeesService.restore(id, req.user.id);
     return { code: 0, message: 'ok', data: employee };
   }
 
   @Post('batch-update-status')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async batchUpdateStatus(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async batchUpdateStatus(@Body() body: unknown, @Req() req: RequestContext) {
     const schema = z.object({
       ids: z.array(z.number().int().positive()).min(1, '请选择员工'),
       status: z.enum(['active', 'resigned']),
@@ -208,14 +209,14 @@ export class EmployeesController {
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
-    const result = await this.employeesService.batchUpdateStatus((req as any).user.id, parsed.data);
+    const result = await this.employeesService.batchUpdateStatus(req.user.id, parsed.data);
     return { code: 0, message: 'ok', data: result };
   }
 
   @Post('batch-update')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async batchUpdate(@Body() body: unknown, @Req() req: FastifyRequest) {
+  async batchUpdate(@Body() body: unknown, @Req() req: RequestContext) {
     const schema = z.object({
       ids: z.array(z.number().int().positive()).min(1, '请选择员工'),
       data: z.object({
@@ -228,14 +229,14 @@ export class EmployeesController {
     if (!parsed.success) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
-    const result = await this.employeesService.batchUpdate((req as any).user.id, parsed.data);
+    const result = await this.employeesService.batchUpdate(req.user.id, parsed.data);
     return { code: 0, message: 'ok', data: result };
   }
 
   @Get('export')
   @RequirePermission('employee:manage')
-  async exportExcel(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
-    const buffer = await this.employeesService.exportExcel((req as any).user.id);
+  async exportExcel(@Req() req: RequestContext, @Res() res: FastifyReply) {
+    const buffer = await this.employeesService.exportExcel(req.user.id);
     res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.header('Content-Disposition', `attachment; filename="employees_${Date.now()}.xlsx"`);
     res.send(buffer);
@@ -253,8 +254,8 @@ export class EmployeesController {
   @Post('import')
   @HttpCode(200)
   @RequirePermission('employee:manage')
-  async importExcel(@Req() req: FastifyRequest) {
-    const parts = (req as any).files();
+  async importExcel(@Req() req: AuthenticatedRequest) {
+    const parts = req.files();
     let buffer: Buffer | null = null;
     if (parts) {
       for await (const part of parts) {
@@ -267,7 +268,7 @@ export class EmployeesController {
       }
     }
     if (!buffer) throw new BadRequestException({ code: 4000, message: '请上传文件' });
-    const result = await this.employeesService.importExcel((req as any).user.id, buffer);
+    const result = await this.employeesService.importExcel(req.user.id, buffer);
     return { code: 0, message: '导入完成', data: result };
   }
 }

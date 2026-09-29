@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('reimbursements')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -108,7 +109,7 @@ export class ReimbursementController {
   @Post()
   @HttpCode(200)
   @RequirePermission('reimbursement:view')
-  async create(@Body() body: any, @Req() req: any) {
+  async create(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.reimbursementService.create({
       userId: req.user.id,
       typeCode: body.typeCode,
@@ -125,7 +126,7 @@ export class ReimbursementController {
   @Get('mine')
   @RequirePermission('reimbursement:view')
   async listMine(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
@@ -143,7 +144,7 @@ export class ReimbursementController {
   @Get('pending')
   @RequirePermission('reimbursement:view')
   async listPending(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -158,7 +159,7 @@ export class ReimbursementController {
 
   @Get(':id')
   @RequirePermission('reimbursement:view')
-  async getDetail(@Param('id') id: string, @Req() req: any) {
+  async getDetail(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.getDetail(Number(id), req.user.id);
     return { code: 0, data };
   }
@@ -166,7 +167,7 @@ export class ReimbursementController {
   @Post(':id/submit')
   @HttpCode(200)
   @RequirePermission('reimbursement:view')
-  async submit(@Param('id') id: string, @Req() req: any) {
+  async submit(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.submit(Number(id), req.user.id);
     return { code: 0, data };
   }
@@ -174,7 +175,7 @@ export class ReimbursementController {
   @Post(':id/cancel')
   @HttpCode(200)
   @RequirePermission('reimbursement:view')
-  async cancel(@Param('id') id: string, @Req() req: any) {
+  async cancel(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.cancel(Number(id), req.user.id);
     return { code: 0, data };
   }
@@ -182,7 +183,7 @@ export class ReimbursementController {
   @Delete(':id')
   @HttpCode(200)
   @RequirePermission('reimbursement:view')
-  async remove(@Param('id') id: string, @Req() req: any) {
+  async remove(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.remove(Number(id), req.user.id);
     return { code: 0, data };
   }
@@ -190,7 +191,7 @@ export class ReimbursementController {
   @Get('export')
   @RequirePermission('reimbursement:view')
   async exportExcel(
-    @Req() req: any,
+    @Req() req: RequestContext,
     @Res() res: FastifyReply,
     @Query('status') status?: string,
     @Query('type') type?: string,

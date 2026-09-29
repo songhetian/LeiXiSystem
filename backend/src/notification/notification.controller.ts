@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -17,10 +18,10 @@ export class NotificationController {
     @Query('pageSize') pageSize?: string,
     @Query('read') read?: string,
     @Query('type') type?: string,
-    @Req() req?: any,
+    @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
-    const data = await this.notificationService.list(req.user.id, {
+    const data = await this.notificationService.list(req!.user.id, {
       page: pageNum,
       pageSize: pageSizeNum,
       read: read === undefined ? undefined : read === 'true',
@@ -31,22 +32,22 @@ export class NotificationController {
 
   @Get('unread-count')
   @HttpCode(200)
-  async unreadCount(@Req() req: any) {
-    const data = await this.notificationService.unreadCount(req.user.id);
+  async unreadCount(@Req() req: RequestContext) {
+    const data = await this.notificationService.unreadCount(req!.user.id);
     return { code: 0, data };
   }
 
   @Post(':id/read')
   @HttpCode(200)
-  async markRead(@Param('id') id: string, @Req() req: any) {
-    const data = await this.notificationService.markRead(parseInt(id), req.user.id);
+  async markRead(@Param('id') id: string, @Req() req: RequestContext) {
+    const data = await this.notificationService.markRead(parseInt(id), req!.user.id);
     return { code: 0, data };
   }
 
   @Post('read-all')
   @HttpCode(200)
-  async readAll(@Req() req: any) {
-    const data = await this.notificationService.markAllRead(req.user.id);
+  async readAll(@Req() req: RequestContext) {
+    const data = await this.notificationService.markAllRead(req!.user.id);
     return { code: 0, data };
   }
 

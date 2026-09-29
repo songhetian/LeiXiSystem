@@ -27,6 +27,7 @@ import { CreateBroadcastDto, UpdateBroadcastDto } from './dto/broadcast.dto';
 import { CreateUserDto, UpdateUserDto, AssignUserRolesDto } from './dto/user.dto';
 import { CreateRoleDto, UpdateRoleDto, AssignRolePermissionsDto } from './dto/role.dto';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @ApiTags('系统管理')
 @Controller('system')
@@ -155,7 +156,7 @@ export class SystemController {
   @Post('broadcasts')
   @HttpCode(200)
   @RequirePermission('system:broadcast:manage')
-  async createBroadcast(@Body() body: CreateBroadcastDto, @Req() req: any) {
+  async createBroadcast(@Body() body: CreateBroadcastDto, @Req() req: RequestContext) {
     const data = await this.broadcastService.create({
       title: body.title,
       content: body.content,
@@ -185,7 +186,7 @@ export class SystemController {
   @RequirePermission('system:broadcast:manage')
   async publishBroadcast(
     @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.broadcastService.publish(id, req.user.id);
     return { code: 0, data };

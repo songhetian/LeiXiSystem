@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { parsePagination } from '../common/pagination.util';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('approval/groups')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -42,7 +43,7 @@ export class ApprovalGroupController {
   @RequirePermission('approval:manage')
   async create(
     @Body() body: { name: string; code?: string; description?: string; memberIds?: number[] },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const data = await this.approvalGroupService.create({
       ...body,

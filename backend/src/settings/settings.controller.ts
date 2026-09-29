@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { SettingsService } from './settings.service';
+import type { RequestContext } from '../types/fastify';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -46,7 +47,7 @@ export class SettingsController {
   async upsert(
     @Param('key') key: string,
     @Body() body: { value: string; label?: string; description?: string; group?: string },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const updated = await this.settings.upsert(
       key,
@@ -61,7 +62,7 @@ export class SettingsController {
   @RequirePermission('system:setting:update')
   async bulkUpsert(
     @Body() body: { items: Array<{ key: string; value: string; label?: string; description?: string; group?: string }> },
-    @Req() req: any,
+    @Req() req: RequestContext,
   ) {
     const updated = await this.settings.bulkUpsert(body.items ?? [], req.user?.id);
     return { code: 0, data: updated };
