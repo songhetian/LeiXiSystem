@@ -1,73 +1,108 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * 设计系统唯一真值来源 = `src/app/globals.css` 的 `--lx-*` token。
+ *
+ * 本配置**不再写任何字面量**（颜色 / 字号 / 间距 / 圆角 / 阴影 / 字重全部引用 CSS 变量），
+ * 否则同一语义名在两套系统里会取到不同值（曾出现 `w-sider`=216px 而实际侧栏 240px
+ * 这种"改 token 不生效"的陷阱）。
+ *
+ * 同时**收窄调色板**：只保留项目 token + white/transparent/current/inherit，
+ * 从源头杜绝 `bg-gray-50`、`bg-white/50` 这类不随主题变化的"越权取色"
+ * （它们在暗色模式下会变成刺眼的浅色块）。
+ */
 const config: Config = {
   content: [
     './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {
-      colors: {
-        brand: {
-          DEFAULT: 'var(--lx-primary)',
-          50: 'var(--lx-primary-50)',
-          100: 'var(--lx-primary-100)',
-          200: 'var(--lx-primary-200)',
-          300: 'var(--lx-primary-300)',
-          400: 'var(--lx-primary-400)',
-          500: 'var(--lx-primary-500)',
-          600: 'var(--lx-primary-600)',
-          700: 'var(--lx-primary-700)',
-          800: 'var(--lx-primary-800)',
-          900: 'var(--lx-primary-900)',
-          bg: 'var(--lx-primary-bg)',
-          weak: 'var(--lx-primary-weak)',
-          light: 'var(--lx-primary-light)',
-        },
-        success: {
-          DEFAULT: 'var(--lx-success)',
-          bg: 'var(--lx-success-bg)',
-          light: 'var(--lx-success-light)',
-        },
-        warning: {
-          DEFAULT: 'var(--lx-warning)',
-          bg: 'var(--lx-warning-bg)',
-          light: 'var(--lx-warning-light)',
-        },
-        danger: {
-          DEFAULT: 'var(--lx-danger)',
-          bg: 'var(--lx-danger-bg)',
-          light: 'var(--lx-danger-light)',
-        },
-        purple: {
-          DEFAULT: 'var(--lx-purple)',
-          bg: 'var(--lx-purple-bg)',
-        },
-        'clock-out': 'var(--lx-clock-out)',
-        'quick-monthly': 'var(--lx-quick-monthly)',
-        'quick-leave': 'var(--lx-quick-leave)',
-        'quick-overtime': 'var(--lx-quick-overtime)',
-        'quick-stats': 'var(--lx-quick-stats)',
-        info: {
-          DEFAULT: 'var(--lx-info)',
-          bg: 'var(--lx-info-bg)',
-        },
-        text: {
-          1: 'var(--lx-text-1)',
-          2: 'var(--lx-text-2)',
-          3: 'var(--lx-text-3)',
-          4: 'var(--lx-text-4)',
-        },
-        border: {
-          1: 'var(--lx-border-1)',
-          2: 'var(--lx-border-2)',
-          3: 'var(--lx-border-3)',
-        },
-        surface: 'var(--lx-bg-card)',
-        'bg-page': 'var(--lx-bg-page)',
-        'bg-hover': 'var(--lx-bg-hover)',
-        'bg-soft': 'var(--lx-bg-soft)',
-        'bg-secondary': 'var(--lx-bg-secondary)',
+    colors: {
+      inherit: 'inherit',
+      current: 'currentColor',
+      transparent: 'transparent',
+      // 仅用于彩色/渐变底上的文字（如品牌按钮、打卡按钮），不随主题切换
+      white: '#ffffff',
+
+      brand: {
+        DEFAULT: 'var(--lx-primary)',
+        50: 'var(--lx-primary-50)',
+        100: 'var(--lx-primary-100)',
+        200: 'var(--lx-primary-200)',
+        300: 'var(--lx-primary-300)',
+        400: 'var(--lx-primary-400)',
+        500: 'var(--lx-primary-500)',
+        600: 'var(--lx-primary-600)',
+        700: 'var(--lx-primary-700)',
+        800: 'var(--lx-primary-800)',
+        900: 'var(--lx-primary-900)',
+        bg: 'var(--lx-primary-bg)',
+        weak: 'var(--lx-primary-weak)',
+        light: 'var(--lx-primary-light)',
       },
+      success: {
+        DEFAULT: 'var(--lx-success)',
+        bg: 'var(--lx-success-bg)',
+        light: 'var(--lx-success-light)',
+        // 文字态（标签/文字用，保证 WCAG AA ≥4.5:1）
+        text: 'var(--lx-success-text)',
+      },
+      warning: {
+        DEFAULT: 'var(--lx-warning)',
+        bg: 'var(--lx-warning-bg)',
+        light: 'var(--lx-warning-light)',
+        text: 'var(--lx-warning-text)',
+      },
+      danger: {
+        DEFAULT: 'var(--lx-danger)',
+        bg: 'var(--lx-danger-bg)',
+        light: 'var(--lx-danger-light)',
+        text: 'var(--lx-danger-text)',
+      },
+      purple: {
+        DEFAULT: 'var(--lx-purple)',
+        bg: 'var(--lx-purple-bg)',
+        text: 'var(--lx-purple-text)',
+      },
+      info: {
+        DEFAULT: 'var(--lx-info)',
+        bg: 'var(--lx-info-bg)',
+        text: 'var(--lx-info-text)',
+      },
+      neutral: {
+        text: 'var(--lx-neutral-text)',
+        bg: 'var(--lx-neutral-tag-bg)',
+      },
+      'clock-out': 'var(--lx-clock-out)',
+      'quick-monthly': 'var(--lx-quick-monthly)',
+      'quick-leave': 'var(--lx-quick-leave)',
+      'quick-overtime': 'var(--lx-quick-overtime)',
+      'quick-stats': 'var(--lx-quick-stats)',
+
+      text: {
+        1: 'var(--lx-text-1)',
+        2: 'var(--lx-text-2)',
+        3: 'var(--lx-text-3)',
+        4: 'var(--lx-text-4)',
+        white: 'var(--lx-text-white)',
+      },
+      border: {
+        1: 'var(--lx-border-1)',
+        2: 'var(--lx-border-2)',
+        3: 'var(--lx-border-3)',
+      },
+      surface: 'var(--lx-bg-card)',
+      'bg-page': 'var(--lx-bg-page)',
+      'bg-hover': 'var(--lx-bg-hover)',
+      'bg-active': 'var(--lx-bg-active)',
+      'bg-soft': 'var(--lx-bg-soft)',
+      'bg-secondary': 'var(--lx-bg-secondary)',
+      'bg-tertiary': 'var(--lx-bg-tertiary)',
+
+      // 半透明遮罩（原来用 bg-white/50 这类不可换肤的写法，现改为 token）
+      'overlay-soft': 'var(--lx-overlay-soft)',
+      'overlay-strong': 'var(--lx-overlay-strong)',
+    },
+    extend: {
       fontFamily: {
         sans: [
           '-apple-system',
@@ -80,57 +115,65 @@ const config: Config = {
           'sans-serif',
         ],
       },
+      // 字号：与 globals.css 的 --lx-font-* 一一对应
       fontSize: {
-        xs: '12px',
-        sm: '13.5px',
-        base: '14px',
-        lg: '15px',
-        xl: '20px',
-        '2xl': '24px',
-        '3xl': '28px',
-        '4xl': '32px',
+        xs: 'var(--lx-font-xs)',
+        sm: 'var(--lx-font-sm)',
+        base: 'var(--lx-font-md)',
+        lg: 'var(--lx-font-lg)',
+        xl: 'var(--lx-font-xl)',
+        '2xl': 'var(--lx-font-2xl)',
+        '3xl': 'var(--lx-font-3xl)',
+        '4xl': 'var(--lx-font-4xl)',
       },
       fontWeight: {
-        normal: '400',
-        medium: '500',
+        normal: 'var(--lx-font-normal)',
+        medium: 'var(--lx-font-medium)',
+        semibold: 'var(--lx-font-semibold)',
       },
+      // 圆角：与 --lx-radius-* 对应
       borderRadius: {
-        sm: '6px',
-        md: '8px',
-        lg: '10px',
-        xl: '12px',
+        DEFAULT: 'var(--lx-radius-xs)',
+        '2xs': 'var(--lx-radius-2xs)',
+        xs: 'var(--lx-radius-xs)',
+        sm: 'var(--lx-radius-sm)',
+        md: 'var(--lx-radius-md)',
+        lg: 'var(--lx-radius-lg)',
+        xl: 'var(--lx-radius-xl)',
+        full: 'var(--lx-radius-full)',
       },
+      // 阴影：与 --lx-shadow-* 对应（暗色下 token 会换成黑色投影）
       boxShadow: {
-        sm: '0 1px 2px 0 rgba(16, 24, 40, 0.05)',
-        card: '0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04)',
-        'card-hover': '0 4px 12px rgba(16, 24, 40, 0.08)',
-        md: '0 1px 3px 0 rgba(16, 24, 40, 0.05), 0 1px 2px 0 rgba(16, 24, 40, 0.04)',
-        lg: '0 4px 8px rgba(16, 24, 40, 0.06)',
-        xl: '0 10px 20px rgba(16, 24, 40, 0.08)',
-        dropdown: '0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04)',
+        sm: 'var(--lx-shadow-sm)',
+        card: 'var(--lx-shadow-card)',
+        'card-hover': 'var(--lx-shadow-card-hover)',
+        md: 'var(--lx-shadow-md)',
+        lg: 'var(--lx-shadow-lg)',
+        xl: 'var(--lx-shadow-xl)',
+        dropdown: 'var(--lx-shadow-dropdown)',
       },
+      // 外壳尺寸：与布局 token 对应（注意 extend 保留默认 spacing，否则 p-4 等会失效）
       spacing: {
-        'sider': '216px',
-        'sider-collapsed': '64px',
-        'header': '56px',
+        sider: 'var(--lx-sider-width)',
+        'sider-collapsed': 'var(--lx-sider-collapsed-width)',
+        header: 'var(--lx-header-height)',
+        tabs: 'var(--lx-tabs-height)',
       },
       transitionTimingFunction: {
-        fast: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        base: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        slow: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        standard: 'var(--lx-ease-standard)',
       },
       transitionDuration: {
-        fast: '150ms',
-        base: '200ms',
-        slow: '300ms',
+        fast: 'var(--lx-duration-fast)',
+        base: 'var(--lx-duration-base)',
+        slow: 'var(--lx-duration-slow)',
       },
       zIndex: {
-        dropdown: '1000',
-        sticky: '1020',
-        fixed: '1030',
-        modal: '1040',
-        popover: '1050',
-        toast: '1060',
+        dropdown: 'var(--lx-z-dropdown)',
+        sticky: 'var(--lx-z-sticky)',
+        fixed: 'var(--lx-z-fixed)',
+        modal: 'var(--lx-z-modal)',
+        popover: 'var(--lx-z-popover)',
+        toast: 'var(--lx-z-toast)',
       },
     },
   },

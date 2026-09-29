@@ -24,8 +24,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // 不做 maximumScale / userScalable 限制：禁用缩放违反 WCAG 2.1 SC 1.4.4 (AA)。
+  // 文本必须可放大至 200% 而不丢失内容；iOS 聚焦自动放大改由输入框 16px 字号解决（见 globals.css）。
   themeColor: '#2455D9',
 };
 

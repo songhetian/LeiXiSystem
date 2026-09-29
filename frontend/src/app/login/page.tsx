@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Form, Input, Button, Typography, Message, Alert } from '@arco-design/web-react';
 import { authApi } from '@/services/auth';
 import { useAuthStore } from '@/store/auth';
@@ -40,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="lx-login-page min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
+      className="lx-login-page flex flex-col items-center justify-center relative"
     >
       {/* 单一品牌蓝柔光，保持轻盈 */}
       <div
@@ -51,14 +52,22 @@ export default function LoginPage() {
       />
 
       <div
-        className="lx-login-card relative z-10 w-[420px] px-9 py-11 rounded-2xl bg-white lx-animate-slideUp"
+        className="lx-login-card relative z-10 w-full max-w-[420px] mx-4 px-6 sm:px-9 py-11 rounded-xl bg-surface lx-animate-slideUp"
       >
         <div className="flex flex-col items-center mb-9">
           {systemInfo.logoUrl ? (
-            <img
+            /**
+             * 用 next/image 而非原生 <img>：自动写死 width/height，消除首屏布局抖动（CLS）。
+             * 用 unoptimized 是因为 Logo 由后台配置，可能是任意 OSS/外链地址，
+             * 无法预先列入 images.remotePatterns 白名单（产物仍是同一个 <img>，不影响观感）。
+             */
+            <Image
               src={systemInfo.logoUrl}
               alt="系统 Logo"
-              className="h-14 w-14 object-contain rounded-[12px]"
+              width={56}
+              height={56}
+              unoptimized
+              className="h-14 w-14 object-contain rounded-xl"
             />
           ) : (
             <div

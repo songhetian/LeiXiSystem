@@ -7,10 +7,13 @@ import { NextIntlClientProvider } from 'next-intl';
 import zhMessages from '@/messages/zh.json';
 import { useAuthStore } from '@/store/auth';
 import { useThemeStore, watchSystemTheme } from '@/store/theme';
+import { useArcoThemeTokens } from '@/lib/design-tokens';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const hydrate = useAuthStore((s) => s.hydrate);
   const initTheme = useThemeStore((s) => s.init);
+  // Arco 主题色/圆角/字号从 globals.css 的 --lx-* token 运行时读取，避免两处各写一份色值
+  const arcoTheme = useArcoThemeTokens();
 
   useEffect(() => {
     hydrate();
@@ -24,18 +27,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <ConfigProvider
         locale={zhCN}
         theme={{
-          primaryColor: '#2455D9',
-          successColor: '#22c55e',
-          dangerColor: '#ef4444',
-          warningColor: '#f59e0b',
-          infoColor: '#2455D9',
-          borderRadius: 10,
-          borderRadiusSM: 8,
-          borderRadiusXS: 6,
-          borderRadiusLG: 12,
-          fontSize: 14,
-          fontSizeSM: 12,
-          fontSizeHeading3: 18,
+          ...arcoTheme,
           wireframe: false,
         }}
       >

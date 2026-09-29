@@ -39,8 +39,22 @@
   --lx-warning: #f59e0b;
   --lx-warning-bg: rgba(245, 158, 11, 0.08);
   --lx-warning-light: #fffbeb;
-  --lx-info: #2455D9;
+  /* 信息态在 Arco 体系里即品牌蓝，这里显式做成别名（而非各写一份 #2455D9），
+     避免两处取值日后各自漂移 —— 若要真正区分"信息"与"品牌"，改这一行即可 */
+  --lx-info: var(--lx-primary);
   --lx-info-bg: rgba(36, 85, 217, 0.08);
+
+  /* ---- 语义色「文字态」（StatusTag / 文字型状态提示专用） ----
+     亮色语义色作为「图形色」用在图标/圆点上没问题，但作为 12px 文字叠在 8% 同色底上
+     对比度仅 2.0~3.8:1，不达 WCAG 2.1 SC 1.4.3 AA（小字需 ≥4.5:1）。
+     故文字态单独取深一档取值；改色只改这里，图形色不动。 */
+  --lx-success-text: #15803d;
+  --lx-warning-text: #b45309;
+  --lx-danger-text: #b91c1c;
+  --lx-purple-text: #6d28d9;
+  --lx-info-text: #1c46b8;
+  --lx-neutral-text: #475569;
+  --lx-neutral-tag-bg: #f1f5f9;
 
   /* ---- 丰富点缀色（菜单分组/标签/图标着色） ---- */
   --lx-purple: #8b5cf6;
@@ -55,8 +69,6 @@
   --lx-indigo-bg: rgba(99, 102, 241, 0.08);
   --lx-emerald: #10b981;
   --lx-emerald-bg: rgba(16, 185, 129, 0.08);
-  --lx-amber: #f59e0b;
-  --lx-amber-bg: rgba(245, 158, 11, 0.08);
 
   /* 打卡页专用语义色：下班签退按钮，与上班签到的品牌蓝区分 */
   --lx-clock-out: #4f46e5;
@@ -105,6 +117,20 @@
   --lx-glass-bg: rgba(255, 255, 255, 0.95);
   --lx-glass-border: rgba(255, 255, 255, 0.8);
 
+  /* ---- 应用外壳（顶栏 / 页签栏 / 侧栏抽屉遮罩）半透明玻璃底色 ----
+     必须走 token：暗色下若沿用浅色半透明，合成结果与浅色文字对比度仅 1.2~1.8:1 */
+  --lx-header-bg: rgba(255, 255, 255, 0.85);
+  --lx-tabs-bg: rgba(255, 255, 255, 0.7);
+  --lx-mobile-mask: rgba(15, 23, 42, 0.35);
+
+  /* ---- 半透明遮罩（进度遮罩 / 拖拽手柄，替代不可换肤的 bg-white/50 写法） ---- */
+  --lx-overlay-soft: rgba(255, 255, 255, 0.5);
+  --lx-overlay-strong: rgba(255, 255, 255, 0.8);
+
+  /* ---- 滚动条（浅底用暗滑块） ---- */
+  --lx-scrollbar: rgba(0, 0, 0, 0.1);
+  --lx-scrollbar-hover: rgba(0, 0, 0, 0.18);
+
   /* ---- 登录页专属（品牌渐变与柔光，属确认保留的设计意图） ---- */
   --lx-login-bg: linear-gradient(160deg, #f5f7ff 0%, #eaf0ff 100%);
   --lx-login-card-shadow: 0 24px 70px rgba(36, 85, 217, 0.1), 0 2px 18px rgba(22, 30, 60, 0.04);
@@ -128,20 +154,22 @@
   --lx-space-7: 36px;
   --lx-space-8: 48px;
 
-  /* ---- 字号 ---- */
+  /* ---- 字号 ----
+     与 tailwind.config.ts 的 fontSize 严格一一对应（Tailwind 侧已改为引用这些变量），
+     两侧不再各写一份字面量，避免"同一语义名两套取值"。 */
   --lx-font-xs: 12px;
   --lx-font-sm: 13px;
   --lx-font-md: 14px;
-  --lx-font-lg: 18px;
-  --lx-font-xl: 22px;
-  --lx-font-2xl: 26px;
-  --lx-font-3xl: 32px;
+  --lx-font-lg: 15px;
+  --lx-font-xl: 20px;
+  --lx-font-2xl: 24px;
+  --lx-font-3xl: 28px;
+  --lx-font-4xl: 32px;
 
   /* ---- 字重 ---- */
   --lx-font-normal: 400;
   --lx-font-medium: 500;
   --lx-font-semibold: 600;
-  --lx-font-bold: 600;
 
   /* ---- 行高 ---- */
   --lx-leading-tight: 1.3;
@@ -149,11 +177,12 @@
   --lx-leading-relaxed: 1.6;
 
   /* ---- 圆角 ---- */
+  --lx-radius-2xs: 2px;
   --lx-radius-xs: 4px;
   --lx-radius-sm: 6px;
   --lx-radius-md: 8px;
   --lx-radius-lg: 10px;
-  --lx-radius-xl: 14px;
+  --lx-radius-xl: 12px;
   --lx-radius-full: 9999px;
 
   /* ---- 表单控件统一基准宽度（一处修改，全站生效）---- */
@@ -161,10 +190,26 @@
   --lx-control-range-min-w: 240px;
   --lx-control-textarea-min-w: 240px;
 
-  /* ---- 过渡动画 ---- */
+  /* ---- 过渡动画 ----
+     --lx-transition-* 是「时长+缓动」复合值，只能整体用于 transition 简写；
+     单独需要时长时用 --lx-duration-*，需要缓动时用 --lx-ease-standard */
+  --lx-duration-fast: 150ms;
+  --lx-duration-base: 200ms;
+  --lx-duration-slow: 300ms;
   --lx-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --lx-transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --lx-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* 纯缓动函数 token（不可与上面的「时长+缓动」复合值混用，
+     混用会被 animation 简写解析成 delay —— 见 .dsh-* 入场动画） */
+  --lx-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- 焦点环（WCAG 2.2 SC 2.4.13 Focus Appearance：≥3:1 可见度）----
+     品牌蓝 #2455D9 的 35% 环在浅底上实测 ≥3.5:1；原实现用的是 Arco 默认蓝 #165DFF 的 10%（仅 1.15:1） */
+  --lx-focus-ring: 0 0 0 3px rgba(36, 85, 217, 0.35);
+  /* 键盘焦点轮廓色。必须与 --lx-focus-ring 同处定义：`outline: 2px solid var(--lx-focus-outline)`
+     在变量缺失时会「整条声明非法」→ outline-style 回落 none → 焦点轮廓彻底消失，
+     而 var() 不写兜底值时不会有任何编译期报错。 */
+  --lx-focus-outline: var(--lx-primary-600);
 
   /* ---- Z-index 层级 ---- */
   --lx-z-dropdown: 1000;
@@ -176,9 +221,14 @@
 
   /* ---- 布局 ---- */
   --lx-sider-width: 240px;
-  --lx-sider-collapsed-width: 64px;
+  --lx-sider-collapsed-width: 72px;
   --lx-header-height: 60px;
-  --lx-content-max-width: 1400px;
+  --lx-tabs-height: 42px;
+  /* 外壳内边距：移动端在下面的 @media 块中降档，arco-overrides.css 只引用不写死 */
+  --lx-header-padding-x: 28px;
+  --lx-tabs-padding-x: 12px;
+  --lx-content-padding: 24px 28px;
+  --lx-content-max-width: 1640px;
 
   /* ---- Arco CSS 变量桥接 ---- */
   --color-primary-1: var(--lx-primary-bg);
@@ -240,6 +290,23 @@
   --lx-glass-bg: rgba(21, 26, 40, 0.95);
   --lx-glass-border: rgba(255, 255, 255, 0.08);
 
+  /* 应用外壳半透明玻璃底色：暗色反转（否则浅色玻璃 + 浅色文字 = 不可读） */
+  --lx-header-bg: rgba(21, 26, 40, 0.85);
+  --lx-tabs-bg: rgba(16, 21, 39, 0.7);
+  --lx-mobile-mask: rgba(0, 0, 0, 0.55);
+
+  /* 半透明遮罩：暗色下反转为深色，否则暗色页面出现亮白遮罩块 */
+  --lx-overlay-soft: rgba(21, 26, 40, 0.5);
+  --lx-overlay-strong: rgba(21, 26, 40, 0.8);
+
+  /* 滚动条：暗底用亮滑块，否则黑色滑块在深色底上对比度仅 1.01:1（等于不可见） */
+  --lx-scrollbar: rgba(255, 255, 255, 0.18);
+  --lx-scrollbar-hover: rgba(255, 255, 255, 0.3);
+
+  /* 登录页：暗色下的深色渐变与柔光，避免"暗色用户看到浅色登录页"的主题断裂 */
+  --lx-login-bg: linear-gradient(160deg, #101527 0%, #0b0f1a 100%);
+  --lx-login-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 18px rgba(0, 0, 0, 0.35);
+
   /* 语义底色统一压暗 */
   --lx-primary-light: #18203a;
   --lx-success-light: #10261a;
@@ -252,13 +319,21 @@
   --lx-danger-bg: rgba(239, 68, 68, 0.16);
   --lx-warning-bg: rgba(245, 158, 11, 0.16);
   --lx-info-bg: rgba(36, 85, 217, 0.16);
+
+  /* 语义色「文字态」：深色底需反向提亮，才能在压暗的 16% 同色底上达标 */
+  --lx-success-text: #4ade80;
+  --lx-warning-text: #fbbf24;
+  --lx-danger-text: #f87171;
+  --lx-purple-text: #a78bfa;
+  --lx-info-text: #9db7f5;
+  --lx-neutral-text: #cbd5e1;
+  --lx-neutral-tag-bg: #222a3d;
   --lx-purple-bg: rgba(139, 92, 246, 0.16);
   --lx-teal-bg: rgba(20, 184, 166, 0.16);
   --lx-coral-bg: rgba(249, 115, 22, 0.16);
   --lx-pink-bg: rgba(236, 72, 153, 0.16);
   --lx-indigo-bg: rgba(99, 102, 241, 0.16);
   --lx-emerald-bg: rgba(16, 185, 129, 0.16);
-  --lx-amber-bg: rgba(245, 158, 11, 0.16);
 
   /* 打卡页快捷自助四入口：深色下提亮一档，与深色卡片拉开层次（仍配白字，对比度 ≥ 3:1） */
   --lx-quick-monthly: #3a6ee8;
@@ -285,6 +360,10 @@
   --lx-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.35);
   --lx-shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.5);
   --lx-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45);
+
+  /* 焦点环：深色底改用提亮后的品牌蓝，保证与深色卡片 ≥3:1 */
+  --lx-focus-ring: 0 0 0 3px rgba(125, 154, 224, 0.5);
+  --lx-focus-outline: var(--lx-primary-600);
 }
 
 /* ========================================
@@ -318,12 +397,40 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
+  background: var(--lx-scrollbar);
+  border-radius: var(--lx-radius-xs);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--lx-scrollbar-hover);
+}
+
+/* ========================================
+   焦点可见性（WCAG 2.2 SC 2.4.7 Focus Visible / SC 2.4.13 Focus Appearance）
+   原实现全站 focus-visible 定义数 = 0，自定义按钮全部依赖浏览器默认 outline，
+   而带 border-radius / overflow:hidden 的元素会把默认轮廓裁掉。这里统一收口。
+   ======================================== */
+
+:focus-visible {
+  outline: 2px solid var(--lx-focus-outline);
+  outline-offset: 2px;
+}
+
+/* 鼠标点击不显示轮廓，键盘导航才显示（:focus-visible 本身已具备该语义，
+   此处仅为兼容部分浏览器的 :focus 兜底行为） */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 这些控件自带 3px 品牌色焦点环（box-shadow），避免出现"双环" */
+.arco-input:focus-visible,
+.arco-textarea:focus-visible,
+.arco-input-tag:focus-visible,
+.arco-mentions:focus-visible,
+.arco-select-view:focus-visible,
+.arco-picker:focus-visible,
+.arco-pagination-jumper-input:focus-visible {
+  outline: none;
 }
 
 /* ========================================
@@ -453,16 +560,47 @@ html, body {
    状态标签（StatusTag）· 语义色体系
    ======================================== */
 
-.lx-tag-info { background: var(--lx-info-bg); color: var(--lx-info); }
-.lx-tag-success { background: var(--lx-success-bg); color: var(--lx-success); }
-.lx-tag-warning { background: var(--lx-warning-bg); color: var(--lx-warning); }
-.lx-tag-danger { background: var(--lx-danger-bg); color: var(--lx-danger); }
-.lx-tag-purple { background: var(--lx-purple-bg); color: var(--lx-purple); }
-.lx-tag-default { background: var(--lx-bg-secondary); color: var(--lx-text-3); border: 1px solid var(--lx-border-1); }
+/* 标签统一无边框（与 StatusTag.tsx 的 border-none 一致，消除"组件想表达无边框却渲染出边框"的矛盾）；
+   中性标签改用 --lx-neutral-tag-bg，保证无边框时也可见。
+   颜色一律走「文字态」语义色：亮色语义色在 8% 同色底上对比度仅 2.0~3.8:1，不达 WCAG SC 1.4.3 AA。 */
+.lx-tag-info { background: var(--lx-info-bg); color: var(--lx-info-text); }
+.lx-tag-success { background: var(--lx-success-bg); color: var(--lx-success-text); }
+.lx-tag-warning { background: var(--lx-warning-bg); color: var(--lx-warning-text); }
+.lx-tag-danger { background: var(--lx-danger-bg); color: var(--lx-danger-text); }
+.lx-tag-purple { background: var(--lx-purple-bg); color: var(--lx-purple-text); }
+.lx-tag-default { background: var(--lx-neutral-tag-bg); color: var(--lx-neutral-text); }
 
 /* ========================================
    响应式工具类
    ======================================== */
+
+/* 语义可点击容器：把 `<div onClick>` 换成 `<button>` 后抹平按钮默认样式，
+   视觉零变化但键盘可达（WCAG 2.1 SC 2.1.1 Keyboard / SC 4.1.2 Name,Role,Value）。
+   内联 style 仍可覆盖其中的任意一项。 */
+.lx-clickable {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.lx-clickable:active {
+  opacity: 0.92;
+}
+
+/* 仅供屏幕阅读器：视觉隐藏但保留可访问名称。
+   不要用 display:none / visibility:hidden —— 那会把内容一并从辅助技术树里移除。 */
+.lx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .lx-hidden { display: none !important; }
 .lx-block { display: block !important; }
@@ -504,11 +642,17 @@ html, body {
 .lx-mt-3 { margin-top: var(--lx-space-3) !important; }
 .lx-mt-4 { margin-top: var(--lx-space-4) !important; }
 .lx-mt-5 { margin-top: var(--lx-space-5) !important; }
+.lx-mt-6 { margin-top: var(--lx-space-6) !important; }
+.lx-mt-7 { margin-top: var(--lx-space-7) !important; }
+.lx-mt-8 { margin-top: var(--lx-space-8) !important; }
 .lx-mb-1 { margin-bottom: var(--lx-space-1) !important; }
 .lx-mb-2 { margin-bottom: var(--lx-space-2) !important; }
 .lx-mb-3 { margin-bottom: var(--lx-space-3) !important; }
 .lx-mb-4 { margin-bottom: var(--lx-space-4) !important; }
 .lx-mb-5 { margin-bottom: var(--lx-space-5) !important; }
+.lx-mb-6 { margin-bottom: var(--lx-space-6) !important; }
+.lx-mb-7 { margin-bottom: var(--lx-space-7) !important; }
+.lx-mb-8 { margin-bottom: var(--lx-space-8) !important; }
 
 /* ========================================
    移动端基础适配
@@ -516,24 +660,28 @@ html, body {
 
 @media (max-width: 767px) {
   :root {
+    /* 外壳尺寸降档：arco-overrides.css 只引用这些 token，故一套降档全站生效 */
     --lx-header-height: 52px;
-    --lx-font-sm: 13px;
-    --lx-font-md: 14px;
-    --lx-font-lg: 17px;
-    --lx-font-xl: 20px;
-    --lx-font-2xl: 22px;
+    --lx-tabs-height: 38px;
+    --lx-header-padding-x: 14px;
+    --lx-tabs-padding-x: 8px;
+    --lx-content-padding: 12px 14px;
     --lx-space-5: 16px;
     --lx-space-6: 20px;
     --lx-space-7: 28px;
     --lx-space-8: 36px;
   }
 
-  html, body {
-    font-size: 13px;
-  }
-
   body {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS 下聚焦 <16px 的表单控件会自动放大页面；既然已放开缩放禁用（WCAG SC 1.4.4），
+     就用字号而非禁用缩放来规避该行为 */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 
@@ -635,6 +783,17 @@ html, body {
   .lx-skeleton {
     animation: none;
   }
+
+  /* 上述规则只覆盖了自定义入场动画；这里把过渡、Arco 内建动画与模糊变化一并收口，
+     否则 hover 位移/背景过渡仍会动（WCAG 2.3.3 Animation from Interactions） */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ========================================
@@ -650,7 +809,7 @@ html, body {
   gap: 16px;
   padding: 20px 24px;
   margin-bottom: 16px;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-xl);
   background: linear-gradient(120deg, #2455D9 0%, #3a6ee8 100%);
   color: var(--lx-text-white);
   box-shadow: 0 4px 16px rgba(36, 85, 217, 0.18);
@@ -677,7 +836,7 @@ html, body {
 .kb-hero-icon {
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: var(--lx-radius-xl);
   background: rgba(255, 255, 255, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.24);
   display: flex;
@@ -694,7 +853,7 @@ html, body {
 }
 .kb-hero-desc {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   opacity: 0.82;
 }
 .kb-hero-badge {
@@ -704,20 +863,20 @@ html, body {
   gap: 8px;
   background: rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 999px;
+  border-radius: var(--lx-radius-full);
   padding: 6px 14px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   backdrop-filter: blur(4px);
 }
 .kb-hero-badge svg {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   opacity: 0.9;
 }
 
 /* Tab 容器卡片 */
 .kb-tabs-wrap {
   background: var(--lx-bg-card);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-xl);
   box-shadow: var(--lx-shadow-card);
   padding: 6px 20px 20px;
 }
@@ -725,7 +884,7 @@ html, body {
   border-bottom: 1px solid var(--lx-border-2);
 }
 .kb-tabs-wrap .arco-tabs-header-title {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   padding: 14px 4px 12px;
 }
 .kb-tabs-wrap .arco-tabs-header-title-active {
@@ -745,11 +904,11 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
 }
 .kb-hint svg {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-primary);
 }
 
@@ -764,7 +923,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-lg);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-1);
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -789,7 +948,7 @@ html, body {
   color: var(--lx-primary);
 }
 .kb-cat-name {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
   font-weight: 500;
   white-space: nowrap;
@@ -797,11 +956,11 @@ html, body {
   text-overflow: ellipsis;
 }
 .kb-cat-index {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-4);
   background: var(--lx-bg-secondary);
   border: 1px solid var(--lx-border-2);
-  border-radius: 6px;
+  border-radius: var(--lx-radius-sm);
   padding: 1px 7px;
   flex-shrink: 0;
 }
@@ -824,7 +983,7 @@ html, body {
 
 /* 文章：表格标题列 */
 .kb-art-title {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
   font-weight: 500;
   line-height: 1.45;
@@ -834,7 +993,7 @@ html, body {
   max-width: 380px;
 }
 .kb-art-summary {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-top: 2px;
   white-space: nowrap;
@@ -856,7 +1015,7 @@ html, body {
   gap: 10px;
   padding: 8px 12px;
   border: 1px solid var(--lx-border-1);
-  border-radius: 9px;
+  border-radius: var(--lx-radius-lg);
   background: var(--lx-bg-secondary);
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
@@ -867,7 +1026,7 @@ html, body {
 .kb-att-icon {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -880,14 +1039,14 @@ html, body {
 .kb-att-icon.other { background: var(--lx-primary-bg); color: var(--lx-primary); }
 .kb-att-name {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .kb-att-size {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   flex-shrink: 0;
 }
@@ -904,12 +1063,12 @@ html, body {
   display: inline-block;
 }
 .kb-upload-main {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
   margin-top: 8px;
 }
 .kb-upload-sub {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-top: 4px;
 }
@@ -958,7 +1117,7 @@ html, body {
 .lx-search-item-label {
   flex: 0 0 auto;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   line-height: 32px;
   color: var(--lx-text-3);
   font-weight: 400;
@@ -1052,11 +1211,12 @@ html, body {
   background: var(--lx-bg-card);
   padding: 0 10px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   line-height: 26px;
   color: var(--lx-text-3);
   cursor: pointer;
-  border-radius: 14px;
+  /* 28px 高的胶囊按钮：原 14px 即高度一半，等价全圆角 → 直接归到 full */
+  border-radius: var(--lx-radius-full);
   transition: color var(--lx-transition-fast), border-color var(--lx-transition-fast),
     background var(--lx-transition-fast);
 }
@@ -1088,10 +1248,10 @@ html, body {
 .lx-brand-logo {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-xl);
   background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
   color: #fff;
-  font-size: 20px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1116,7 +1276,7 @@ html, body {
   max-width: 340px;
 }
 .lx-brand-name-tip {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
 }
 @media (max-width: 640px) {
@@ -1128,6 +1288,11 @@ html, body {
 /* ===== 登录页 · 品牌渐变与柔光（设计意图保留，仅收口到 token/class） ===== */
 .lx-login-page {
   background: var(--lx-login-bg);
+  /* 100dvh：移动端 100vh 含地址栏高度，会把底部内容推出视口且无法滚动 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .lx-login-glow-1 {
   background: radial-gradient(circle, color-mix(in srgb, var(--lx-primary) 18%, transparent), transparent 70%);
@@ -1165,12 +1330,12 @@ html, body {
   min-width: 0;
 }
 .lx-settings-grid-label > span {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
   font-weight: 500;
 }
 .lx-settings-grid-desc {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-top: 2px;
   line-height: 1.4;
@@ -1182,8 +1347,8 @@ html, body {
 }
 .lx-settings-card-desc {
   color: var(--lx-text-3);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-normal);
   margin: 0 0 12px;
 }
 .lx-settings-empty {
@@ -1243,8 +1408,8 @@ html, body {
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  font-size: 12px;
-  border-radius: 4px;
+  font-size: var(--lx-font-xs);
+  border-radius: var(--lx-radius-xs);
   white-space: nowrap;
 }
 .ed-meta-no {
@@ -1267,7 +1432,7 @@ html, body {
 .ed-head-tenure {
   flex-shrink: 0;
   padding-top: 5px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-primary);
   text-align: right;
   white-space: nowrap;
@@ -1287,7 +1452,7 @@ html, body {
   width: 8px;
 }
 .ed-scroll::-webkit-scrollbar-thumb {
-  border-radius: 4px;
+  border-radius: var(--lx-radius-xs);
   background: var(--lx-border-2);
 }
 .ed-scroll::-webkit-scrollbar-thumb:hover {
@@ -1305,7 +1470,7 @@ html, body {
   display: flex;
   align-items: center;
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   font-weight: 600;
   color: var(--lx-text-1);
 }
@@ -1314,7 +1479,7 @@ html, body {
   width: 3px;
   height: 12px;
   margin-right: 8px;
-  border-radius: 2px;
+  border-radius: var(--lx-radius-2xs);
   background: var(--lx-primary);
 }
 .ed-grid {
@@ -1331,18 +1496,18 @@ html, body {
   padding-right: 8px;
 }
 .ed-k {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-bottom: 3px;
 }
 .ed-v {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
   word-break: break-word;
 }
 .ed-sal {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-primary);
   font-variant-numeric: tabular-nums;
@@ -1375,7 +1540,7 @@ html, body {
 .ed-tl-dot {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--lx-radius-2xs);
   margin-top: 7px;
   position: relative;
   z-index: 1;
@@ -1400,22 +1565,22 @@ html, body {
   gap: 12px;
 }
 .ed-tl-title {
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-1);
 }
 .ed-tl-date {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   font-variant-numeric: tabular-nums;
 }
 .ed-tl-detail {
   margin-top: 3px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
 }
 .ed-timeline-empty {
   padding: 4px 0;
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-3);
 }
 
@@ -1438,10 +1603,10 @@ html, body {
 .dsh-hero,
 .dsh-stat,
 .dsh-panel {
-  animation: dsh-rise 0.4s var(--lx-transition-fast) both;
+  animation: dsh-rise 0.4s var(--lx-ease-standard) both;
 }
 .dsh-quick-item {
-  animation: dsh-rise 0.34s var(--lx-transition-fast) both;
+  animation: dsh-rise 0.34s var(--lx-ease-standard) both;
 }
 
 /* 欢迎横幅 */
@@ -1477,7 +1642,7 @@ html, body {
 }
 .dsh-hero-desc {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
 }
 .dsh-hero-side {
@@ -1490,11 +1655,11 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-2);
   background: var(--lx-bg-secondary);
   border: 1px solid var(--lx-border-2);
-  border-radius: 999px;
+  border-radius: var(--lx-radius-full);
   padding: 5px 12px;
 }
 .dsh-hero-chip b {
@@ -1521,7 +1686,7 @@ html, body {
 .dsh-stat-ic {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1530,30 +1695,27 @@ html, body {
   font-size: 18px;
 }
 .dsh-stat-value {
-  font-size: 24px;
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   color: var(--lx-text-1);
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
 .dsh-stat-value .u {
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   font-weight: 400;
   color: var(--lx-text-3);
   margin-left: 3px;
 }
 .dsh-stat-label {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
 }
 
-/* 快捷操作入口（统一小卡网格） */
-.dsh-quick-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-  gap: 10px;
-}
+/* 快捷操作入口（统一小卡网格）
+   注意：这些类渲染为 <button>（保证键盘可达 WCAG SC 2.1.1），
+   故在规则内显式抹掉按钮默认样式，使其与原来的 <div> 视觉完全一致 */
 .dsh-quick-item {
   display: flex;
   flex-direction: column;
@@ -1567,17 +1729,25 @@ html, body {
   cursor: pointer;
   transition: border-color var(--lx-transition-base), background-color var(--lx-transition-base);
   color: var(--lx-text-2);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: center;
 }
 .dsh-quick-item:hover {
   border-color: var(--lx-primary-200);
   background: var(--lx-primary-light);
   color: var(--lx-primary);
 }
+/* 触屏无 hover：补 :active 点按反馈 */
+.dsh-quick-item:active {
+  transform: scale(0.98);
+}
 .dsh-quick-ic {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: var(--lx-font-xl);
   color: var(--lx-primary);
 }
 .dsh-quick-item:hover .dsh-quick-ic {
@@ -1592,15 +1762,15 @@ html, body {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--lx-radius-full);
   background: var(--lx-primary);
   color: var(--lx-text-white);
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   line-height: 1;
   font-weight: 400;
 }
 .dsh-quick-label {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   font-weight: 400;
   white-space: nowrap;
 }
@@ -1623,7 +1793,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   cursor: pointer;
   transition: color var(--lx-transition-fast);
@@ -1635,7 +1805,7 @@ html, body {
 /* 面板统一标题（所有区块共用一致的靛蓝竖条记号，形成整页统一节奏） */
 .dsh-panel-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-1);
   display: flex;
@@ -1645,13 +1815,13 @@ html, body {
   content: '';
   width: 3px;
   height: 12px;
-  border-radius: 2px;
+  border-radius: var(--lx-radius-2xs);
   background: var(--lx-primary);
   margin-right: 8px;
   flex-shrink: 0;
 }
 
-/* 待办/通知列表行 */
+/* 待办/通知列表行（可点击项渲染为 <button>，键盘可达） */
 .dsh-feed-item {
   display: flex;
   align-items: center;
@@ -1660,12 +1830,25 @@ html, body {
   border-bottom: 1px solid var(--lx-border-2);
   cursor: pointer;
   transition: background-color var(--lx-transition-fast);
+  /* 渲染为 <button> 时抹掉默认样式 */
+  width: 100%;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
 }
 .dsh-feed-item:last-child {
   border-bottom: none;
 }
 .dsh-feed-item:hover {
   background: var(--lx-bg-hover);
+}
+.dsh-feed-item:active {
+  background: var(--lx-bg-active);
 }
 .dsh-feed-dot {
   width: 8px;
@@ -1679,14 +1862,14 @@ html, body {
   min-width: 0;
 }
 .dsh-feed-title {
-  font-size: 13px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .dsh-feed-meta {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-top: 2px;
 }
@@ -1712,7 +1895,7 @@ html, body {
   letter-spacing: -0.02em;
 }
 .dsh-kpi-label {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   margin-top: 2px;
 }
@@ -1734,7 +1917,7 @@ html, body {
   box-shadow: var(--lx-shadow-card-hover);
 }
 .shift-meta-ic {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: var(--lx-text-4);
   flex-shrink: 0;
 }
@@ -1753,9 +1936,19 @@ html, body {
   cursor: pointer;
   padding: 0;
   transition: border-color var(--lx-transition-fast), box-shadow var(--lx-transition-fast);
+  /* 命中区扩到 28×28（WCAG SC 2.5.8 AA ≥24×24）；0.5px 内缩保证与相邻色块命中区不重叠 */
+  position: relative;
+}
+.shift-swatch::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
 }
 .shift-swatch:hover {
   border-color: color-mix(in srgb, var(--lx-text-1) 28%, transparent);
+}
+.shift-swatch:active {
+  transform: scale(0.94);
 }
 .shift-swatch-active {
   box-shadow: 0 0 0 2px var(--lx-bg-card), 0 0 0 4px var(--lx-primary);
@@ -1771,7 +1964,7 @@ html, body {
   background: var(--lx-bg-secondary);
 }
 .shift-threshold-tip {
-  font-size: 12px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-2);
