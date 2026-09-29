@@ -97,6 +97,21 @@ export class RealtimeGateway
         }
       }
 
+      // 单设备登录（Q16）：与 JwtAuthGuard 保持同一口径 —— 若 Redis 中登记的
+      // 当前会话 token 与握手 token 不一致，说明该 token 已被新设备顶替或改密失效，
+      // 必须拒绝建连，否则旧设备仍能持续接收通知推送。
+      // key 不存在时 fail-open，避免 Redis 重启后误踢全部在线用户。
+      if (this.redis.isEnabled) {
+        const activeToken = await this.redis.get(`user:session:${userId}`);
+        if (activeToken && activeToken !== token) {
+          this.logger.warn(
+            `Client ${client.id} session was replaced — disconnecting`,
+          );
+          client.disconnect();
+          return;
+        }
+      }
+
       // Stash for debugging / disconnect logging.
       (client.data as Record<string, unknown>).userId = userId;
       await client.join(`user:${userId}`);
@@ -158,6 +173,10 @@ export class RealtimeGateway
           userId: payload.userId,
           message: payload.message ?? '您的账号在其他设备登录，已被迫下线',
         });
+      // 仅发提示不强制断开时，旧设备的连接仍留在 user:<id> room，
+      // 会继续收到后续通知推送。这里主动断开既有连接。
+      // 该事件在 login 内同步发出、早于 HTTP 响应，新设备此时尚未建连，不会被误断。
+      this.server.in(`user:${payload.userId}`).disconnectSockets(true);
       this.logger.log(
         `Emitted kicked_out to user:${payload.userId}`,
       );

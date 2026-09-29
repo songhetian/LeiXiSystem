@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { beijingNow, beijingDateRangeFilter, beijingDateTimeStr } from '../common/date.util';
 import * as ExcelJS from 'exceljs';
 
 const MAX_EXPORT_COUNT = 10000;
@@ -53,9 +54,9 @@ export class OperationLogService {
       ];
     }
     if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate + 'T23:59:59');
+      // 按北京日历日的左闭右开区间过滤：createdAt 是真实时刻，
+      // 直接 new Date('YYYY-MM-DD') 得到的是 UTC 午夜 = 北京 08:00，区间会前移 8 小时。
+      where.createdAt = beijingDateRangeFilter(query.startDate, query.endDate);
     }
     return where;
   }
@@ -101,8 +102,12 @@ export class OperationLogService {
 
   /** 统计概览：总记录数、今日、按模块分布 */
   async getStats() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // createdAt 是真实时刻列，「今日」= 北京日历日当天 00:00 起。
+    // 不能用 beijingBusinessDate()（那是业务日 UTC 午夜，等价于北京 08:00），
+    // 否则北京时间 00:00~08:00 的操作日志会被排除在「今日」之外。
+    const { year, month, day } = beijingNow();
+    const today = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const todayStart = beijingDateRangeFilter(today, today)?.gte ?? new Date(0);
 
     const [total, todayCount, byModule] = await Promise.all([
       this.prisma.operationLog.count(),
@@ -195,7 +200,7 @@ export class OperationLogService {
       const deptName = deptId ? deptMap.get(deptId) || '' : '';
 
       sheet.addRow({
-        createdAt: log.createdAt ? log.createdAt.toISOString().replace('T', ' ').slice(0, 19) : '',
+        createdAt: beijingDateTimeStr(log.createdAt),
         operatorName: user?.realName || log.username || '',
         departmentName: deptName,
         module: log.module || '',

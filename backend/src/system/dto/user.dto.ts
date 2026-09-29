@@ -25,6 +25,11 @@ export class CreateUserDto {
   @IsInt()
   @IsOptional()
   positionId?: number;
+
+  // 状态（active / disabled），缺省为 active
+  @IsString()
+  @IsOptional()
+  status?: string;
 }
 
 export class UpdateUserDto {

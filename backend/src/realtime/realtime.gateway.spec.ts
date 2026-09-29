@@ -20,11 +20,13 @@ function createMockSocket(
   } as any;
 }
 
-/** Minimal Server shape: `to(room)` returns a stub with `emit`. */
+/** Minimal Server shape: `to(room)` returns a stub with `emit`, `in(room)` with `disconnectSockets`. */
 function createMockServer() {
   const emit = jest.fn();
   const to = jest.fn().mockReturnValue({ emit });
-  return { to, emit, _emit: emit } as any;
+  const disconnectSockets = jest.fn();
+  const inFn = jest.fn().mockReturnValue({ disconnectSockets });
+  return { to, in: inFn, emit, _emit: emit, disconnectSockets } as any;
 }
 
 describe('RealtimeGateway', () => {
@@ -203,6 +205,16 @@ describe('RealtimeGateway', () => {
       ).not.toThrow();
     });
 
+    it('强制断开该用户的既有连接，避免旧设备仅收到提示却继续接收推送', () => {
+      const disconnectSockets = jest.fn();
+      (gateway.server as any).in = jest.fn().mockReturnValue({ disconnectSockets });
+
+      gateway.handleSessionReplaced({ userId: 7, message: '您的账号在其他设备登录' });
+
+      expect(gateway.server.in).toHaveBeenCalledWith('user:7');
+      expect(disconnectSockets).toHaveBeenCalledWith(true);
+    });
+
     it('skips emission when payload has no userId', () => {
       gateway.handleSessionReplaced({ message: 'no-user' } as any);
       expect(gateway.server.to).not.toHaveBeenCalled();
@@ -256,14 +268,66 @@ describe('RealtimeGateway', () => {
       expect(client.join).toHaveBeenCalledWith('user:1');
     });
 
-    it('token 没有 jti 时跳过黑名单检查', async () => {
+    it('token 没有 jti 时跳过黑名单检查（仍走单设备会话校验）', async () => {
       const client = createMockSocket({ auth: { token: 'old.jwt' } });
       jwtService.verifyAsync.mockResolvedValue({ sub: 1, username: 'alice' });
 
       await gateway.handleConnection(client);
 
-      expect(redis.get).not.toHaveBeenCalled();
+      const keys = redis.get.mock.calls.map((c) => String(c[0]));
+      expect(keys.some((k) => k.startsWith('auth:blacklist:'))).toBe(false);
       expect(client.join).toHaveBeenCalledWith('user:1');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // handleConnection — 单设备登录会话校验（与 JwtAuthGuard 同一口径）
+  // ------------------------------------------------------------------
+  describe('单设备登录会话校验', () => {
+    let redis: { isEnabled: boolean; get: jest.Mock };
+
+    beforeEach(() => {
+      redis = { isEnabled: true, get: jest.fn() };
+      gateway = new RealtimeGateway(jwtService as any, redis as any);
+      gateway.server = createMockServer();
+    });
+
+    it('会话 token 与握手 token 不一致时断开（旧设备被踢下线后不得继续接收推送）', async () => {
+      const client = createMockSocket({ auth: { token: 'old.jwt' } });
+      jwtService.verifyAsync.mockResolvedValue({ sub: 1, username: 'alice', jti: 'jti-1' });
+      redis.get.mockImplementation((key: string) =>
+        Promise.resolve(key === 'user:session:1' ? 'new.jwt' : null),
+      );
+
+      await gateway.handleConnection(client);
+
+      expect(redis.get).toHaveBeenCalledWith('user:session:1');
+      expect(client.disconnect).toHaveBeenCalled();
+      expect(client.join).not.toHaveBeenCalled();
+    });
+
+    it('会话 token 与握手 token 一致时正常加入房间', async () => {
+      const client = createMockSocket({ auth: { token: 'same.jwt' } });
+      jwtService.verifyAsync.mockResolvedValue({ sub: 2, username: 'bob' });
+      redis.get.mockImplementation((key: string) =>
+        Promise.resolve(key === 'user:session:2' ? 'same.jwt' : null),
+      );
+
+      await gateway.handleConnection(client);
+
+      expect(client.join).toHaveBeenCalledWith('user:2');
+      expect(client.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('无会话记录时放行（Redis 重启后不误踢全部在线用户）', async () => {
+      const client = createMockSocket({ auth: { token: 'any.jwt' } });
+      jwtService.verifyAsync.mockResolvedValue({ sub: 3, username: 'carol' });
+      redis.get.mockResolvedValue(null);
+
+      await gateway.handleConnection(client);
+
+      expect(client.join).toHaveBeenCalledWith('user:3');
+      expect(client.disconnect).not.toHaveBeenCalled();
     });
   });
 

@@ -46,6 +46,13 @@ export interface JwtPayload {
  */
 const JWT_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
+/**
+ * 会话撤销哨兵：改密后写入 `user:session:{userId}`，与任何真实 JWT 都不可能相等，
+ * 使全部已签发 token 在 JwtAuthGuard 的会话校验处立即失效。
+ * 不能直接删除该 key —— 守卫对「无会话记录」（Redis 重启等）采取 fail-open。
+ */
+const REVOKED_SESSION = '__revoked__';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -84,6 +91,14 @@ export class AuthService {
         message: '用户名或密码错误',
       });
     }
+    // 停用（status != active）与软删除账号一律不得登录。
+    // 放在密码校验之后判断，避免用错误码探测账号是否存在。
+    if (user.deletedAt || user.status !== 'active') {
+      throw new ForbiddenException({
+        code: ERROR_CODES.AUTH_ACCOUNT_DISABLED,
+        message: '账号已停用，请联系管理员',
+      });
+    }
     // 成功清零计数
     await this.rateLimit.reset(username);
     const jti = randomUUID();
@@ -93,7 +108,8 @@ export class AuthService {
     // 单设备登录（Q16）：检查 Redis 中是否已有会话，如有则踢旧会话
     if (this.redis.isEnabled) {
       const existingToken = await this.redis.get(this.sessionKey(user.id));
-      if (existingToken && existingToken !== accessToken) {
+      // 撤销哨兵（改密后）不是真实会话，用户本人重新登录不应收到「被迫下线」提示
+      if (existingToken && existingToken !== REVOKED_SESSION && existingToken !== accessToken) {
         // 旧会话存在且 token 不同 → 发出 kicked_out 事件
         this.eventEmitter.emit('auth.session_replaced', {
           userId: user.id,
@@ -151,12 +167,12 @@ export class AuthService {
   async changePassword(userId: number, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException({
-      code: ERROR_CODES.AUTH_TOKEN_INVALID,
+      code: ERROR_CODES.AUTH_USER_NOT_FOUND,
       message: '用户不存在',
     });
     const ok = await bcrypt.compare(oldPassword, user.passwordHash);
     if (!ok) throw new ForbiddenException({
-      code: ERROR_CODES.DATA_NO_PERMISSION,
+      code: ERROR_CODES.AUTH_OLD_PASSWORD_WRONG,
       message: '原密码错误',
     });
     await this.validatePassword(newPassword, user.username);
@@ -164,7 +180,9 @@ export class AuthService {
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 
     if (this.redis.isEnabled) {
-      await this.redis.del(this.sessionKey(userId));
+      // 置为撤销哨兵而非删除：JwtAuthGuard 对无会话记录采取 fail-open，
+      // 只有写入一个与任何 JWT 都不相等的值，旧 token 才会立即被拒。
+      await this.redis.set(this.sessionKey(userId), REVOKED_SESSION, JWT_EXPIRES_IN_SECONDS);
     }
     return true;
   }

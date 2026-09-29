@@ -1,5 +1,7 @@
 import { BroadcastService } from './broadcast.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ERROR_CODES } from '../common/error-codes';
+import { messageOf } from '../common/error-messages';
 
 // Mock PrismaService
 function createMockPrisma() {
@@ -156,6 +158,24 @@ describe('BroadcastService - markRead 接收人校验', () => {
     expect(prisma.broadcastRead.upsert).not.toHaveBeenCalled();
   });
 
+  // 非接收人曾使用未注册码 6004（error-codes.ts 只登记到 6003）：
+  // 异常过滤器取不到中央文案，只能回退抛出 message，提示随调用点漂移。
+  // 归位为已登记的 6004 → 文案唯一真相源。
+  it('非接收人应返回已注册码 6004，且中央文案为「用户非该公告接收人」', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 5,
+      recipientType: 'user',
+      recipients: [{ recipientType: 'user', userId: 5 }],
+      status: 'published',
+    });
+
+    const err = await service.markRead(5, 999).catch((e) => e);
+    const payload = (err as any)?.getResponse?.() ?? (err as any)?.response ?? err;
+
+    expect(payload.code).toBe(ERROR_CODES.BROADCAST_NOT_RECIPIENT);
+    expect(messageOf(payload.code)).toBe('用户非该公告接收人');
+  });
+
   // ------------------------------------------------------------------
   // 公告不存在
   // ------------------------------------------------------------------
@@ -269,5 +289,71 @@ describe('BroadcastService - 公开查看链路（批次七）', () => {
     expect(callArg.where.status).toBe('published');
     expect(callArg.where.OR).toBeDefined();
     expect(callArg.include).toBeUndefined();
+  });
+});
+
+/**
+ * 公告发布时的通知投递对象必须是「可登录的启用账号」：
+ * 停用、待审批（pending）与软删除账号不应收到站内通知。
+ */
+describe('BroadcastService - 发布通知的接收人范围', () => {
+  let service: BroadcastService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let notificationService: { createMany: jest.Mock };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    notificationService = { createMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    service = new BroadcastService(prisma, notificationService as any);
+    prisma.broadcast.update.mockResolvedValue({ id: 1, status: 'published' });
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('recipientType=all 只取启用且未软删的账号', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 1, title: '全员公告', content: 'x', status: 'draft', recipientType: 'all', recipients: [],
+    });
+    prisma.user.findMany.mockResolvedValue([{ id: 7 }, { id: 8 }]);
+
+    await service.publish(1, 99);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'active', deletedAt: null },
+      }),
+    );
+    expect(notificationService.createMany).toHaveBeenCalledWith([7, 8], expect.anything());
+  });
+
+  it('recipientType=department 只取关联启用账号的员工', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 2, title: '部门公告', content: 'x', status: 'draft', recipientType: 'department',
+      recipients: [{ recipientType: 'department', departmentId: 10 }],
+    });
+    prisma.employee.findMany.mockResolvedValue([{ userId: 7 }]);
+
+    await service.publish(2, 99);
+
+    const where = prisma.employee.findMany.mock.calls[0][0].where;
+    expect(where.user).toEqual({ is: { status: 'active', deletedAt: null } });
+    expect(notificationService.createMany).toHaveBeenCalledWith([7], expect.anything());
+  });
+
+  it('recipientType=user 显式名单同样过滤掉停用/软删账号', async () => {
+    prisma.broadcast.findUnique.mockResolvedValue({
+      id: 3, title: '定向公告', content: 'x', status: 'draft', recipientType: 'user',
+      recipients: [{ recipientType: 'user', userId: 7 }, { recipientType: 'user', userId: 8 }],
+    });
+    prisma.user.findMany.mockResolvedValue([{ id: 7 }]);
+
+    await service.publish(3, 99);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [7, 8] }, status: 'active', deletedAt: null },
+      }),
+    );
+    expect(notificationService.createMany).toHaveBeenCalledWith([7], expect.anything());
   });
 });

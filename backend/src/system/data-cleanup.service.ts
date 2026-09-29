@@ -30,7 +30,8 @@ export class DataCleanupService {
     private operationLogService: OperationLogService,
   ) {}
 
-  @Cron('0 2 * * *')
+  // 低峰期清理：按北京时间 02:00 触发，避免容器 TZ=UTC 时错位到北京 10:00
+  @Cron('0 2 * * *', { timeZone: 'Asia/Shanghai' })
   async handleCron() {
     this.logger.log('开始执行历史数据定期清理定时任务');
     try {

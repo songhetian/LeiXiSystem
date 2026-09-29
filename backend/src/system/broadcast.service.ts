@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BroadcastRecipientType } from '@prisma/client';
-import { NotificationService } from '../notification/notification.service';
+import { NotificationClientInterface } from '../notification/notification-client.interface';
+import { ERROR_CODES } from '../common/error-codes';
 
 @Injectable()
 export class BroadcastService {
@@ -9,7 +10,7 @@ export class BroadcastService {
 
   constructor(
     private prisma: PrismaService,
-    private notificationService: NotificationService,
+    @Inject('NOTIFICATION_CLIENT') private notificationService: NotificationClientInterface,
   ) {}
 
   async list(params: {
@@ -319,7 +320,7 @@ export class BroadcastService {
         r => r.recipientType === 'user' && r.userId === userId,
       );
       if (!isUserRecipient) {
-        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+        throw new ForbiddenException({ code: ERROR_CODES.BROADCAST_NOT_RECIPIENT, message: '用户非该公告接收人' });
       }
       return;
     }
@@ -329,13 +330,13 @@ export class BroadcastService {
         .filter(r => r.recipientType === 'department' && r.departmentId != null)
         .map(r => r.departmentId as number);
       if (deptIds.length === 0) {
-        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+        throw new ForbiddenException({ code: ERROR_CODES.BROADCAST_NOT_RECIPIENT, message: '用户非该公告接收人' });
       }
       const employee = await this.prisma.employee.findFirst({
         where: { userId, departmentId: { in: deptIds } },
       });
       if (!employee) {
-        throw new ForbiddenException({ code: 6004, message: '用户非该公告接收人' });
+        throw new ForbiddenException({ code: ERROR_CODES.BROADCAST_NOT_RECIPIENT, message: '用户非该公告接收人' });
       }
       return;
     }
@@ -373,23 +374,36 @@ export class BroadcastService {
    * Resolves the concrete user IDs that should receive a broadcast, based on
    * the broadcast's `recipientType` and its stored recipient entries.
    *
-   * - `all`        → every user in the system
-   * - `department` → all users linked (via Employee.userId) to employees in
-   *                   the specified departments
-   * - `user`       → the explicitly listed user IDs
+   * - `all`        → every enabled user in the system
+   * - `department` → users linked (via Employee.userId) to employees in the
+   *                   specified departments, restricted to enabled accounts
+   * - `user`       → the explicitly listed user IDs, restricted to enabled accounts
+   *
+   * 停用（非 active）、待审批与软删除账号一律不投递，否则通知会落到无法登录的账号上。
    */
   private async resolveRecipientUserIds(
     bc: { recipientType: string; recipients: Array<{ recipientType: string; departmentId?: number | null; userId?: number | null }> },
   ): Promise<number[]> {
+    const enabledUserWhere = { status: 'active', deletedAt: null };
+
     if (bc.recipientType === 'all') {
-      const users = await this.prisma.user.findMany({ select: { id: true } });
+      const users = await this.prisma.user.findMany({
+        where: enabledUserWhere,
+        select: { id: true },
+      });
       return users.map(u => u.id);
     }
 
     if (bc.recipientType === 'user') {
-      return bc.recipients
+      const ids = bc.recipients
         .filter(r => r.recipientType === 'user' && r.userId != null)
         .map(r => r.userId as number);
+      if (ids.length === 0) return [];
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: ids }, ...enabledUserWhere },
+        select: { id: true },
+      });
+      return users.map(u => u.id);
     }
 
     if (bc.recipientType === 'department') {
@@ -398,7 +412,7 @@ export class BroadcastService {
         .map(r => r.departmentId as number);
       if (deptIds.length === 0) return [];
       const employees = await this.prisma.employee.findMany({
-        where: { departmentId: { in: deptIds }, userId: { not: null } },
+        where: { departmentId: { in: deptIds }, user: { is: enabledUserWhere } },
         select: { userId: true },
       });
       return employees.map(e => e.userId as number);

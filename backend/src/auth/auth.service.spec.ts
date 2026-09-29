@@ -1,5 +1,7 @@
 import { AuthService } from './auth.service';
 import { UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ERROR_CODES } from '../common/error-codes';
+import { messageOf } from '../common/error-messages';
 import * as bcrypt from 'bcryptjs';
 
 // Mock PrismaService
@@ -74,6 +76,8 @@ describe('AuthService - 单设备登录 (Q16)', () => {
     username: 'admin',
     passwordHash: bcrypt.hashSync('123456', 10),
     name: '管理员',
+    status: 'active',
+    deletedAt: null,
     roles: [
       {
         role: {
@@ -216,6 +220,37 @@ describe('AuthService - 单设备登录 (Q16)', () => {
     expect(redis.set).not.toHaveBeenCalled();
     expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
+
+  // ----------------------------------------------------------------
+  // login — 软删除账号不得登录（密码正确也不行）
+  // ----------------------------------------------------------------
+  it('软删除账号即使密码正确也不能登录', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...mockUser,
+      deletedAt: new Date('2026-09-01'),
+    });
+
+    await expect(service.login('admin', '123456')).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(rateLimit.reset).not.toHaveBeenCalled();
+  });
+
+  // ----------------------------------------------------------------
+  // login — 停用账号不得登录（密码正确也不行）
+  // ----------------------------------------------------------------
+  it('停用账号即使密码正确也不能登录', async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...mockUser, status: 'disabled' });
+
+    await expect(service.login('admin', '123456')).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(rateLimit.reset).not.toHaveBeenCalled();
+  });
 });
 
 describe('AuthService - changePassword 密码强度校验', () => {
@@ -253,6 +288,23 @@ describe('AuthService - changePassword 密码强度校验', () => {
     await expect(
       service.changePassword(1, 'wrongPass', 'newPass123'),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  /**
+   * 「原密码错误」曾复用 5003（=无权限访问该数据）。前端 axios 拦截器
+   * （frontend/src/lib/request.ts L58）对 5003 特意**不弹全局 toast**，
+   * 而修改密码页（profile/page.tsx）的 catch 又把它当校验错误吞掉，
+   * 于是原密码填错时用户得不到任何反馈（静默失败）。
+   */
+  it('原密码错误应返回专属码 5016「原密码错误」，而非被前端静默的 5003', async () => {
+    prisma.user.findUnique.mockResolvedValue(mockUser);
+
+    const err = await service.changePassword(1, 'wrongPass', 'newPass123').catch((e) => e);
+    const payload = (err as any)?.getResponse?.() ?? (err as any)?.response ?? err;
+
+    expect(payload.code).toBe(ERROR_CODES.AUTH_OLD_PASSWORD_WRONG);
+    expect(messageOf(payload.code)).toBe('原密码错误');
+    expect(payload.code).not.toBe(ERROR_CODES.DATA_NO_PERMISSION);
   });
 
   it('新密码太短（<8位）时失败', async () => {
@@ -328,10 +380,40 @@ describe('AuthService - changePassword 密码强度校验', () => {
     expect(prisma.user.update).toHaveBeenCalled();
   });
 
-  it('修改密码成功后清除 session', async () => {
+  it('修改密码后将会话置为撤销哨兵值，使已签发的 token 立即失效', async () => {
     prisma.user.findUnique.mockResolvedValue(mockUser);
     prisma.user.update.mockResolvedValue({ id: 1 });
     await service.changePassword(1, 'oldPass123', 'newPass123');
-    expect(redis.del).toHaveBeenCalledWith('user:session:1');
+    // 不能仅删除 key：JwtAuthGuard 对「无会话记录」采取 fail-open（Redis 重启不误踢全员），
+    // 必须写入一个与任何真实 JWT 都不相等的非空哨兵值，旧 token 才会在守卫处被拒。
+    const stored = (redis.set as jest.Mock).mock.calls.find(
+      (c) => c[0] === 'user:session:1',
+    )?.[1];
+    expect(stored).toEqual(expect.any(String));
+    expect(stored).not.toBe('');
+  });
+
+  it('改密后重新登录不会误报「被迫下线」', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...mockUser,
+      roles: [],
+      status: 'active',
+      deletedAt: null,
+    });
+    jwt.signAsync.mockResolvedValue('brand-new-token');
+    // 会话被改密置为撤销哨兵；用户自己重新登录不应收到「其他设备登录」提示
+    redis.get.mockResolvedValue('__revoked__');
+
+    await service.login('admin', 'oldPass123');
+
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+      'auth.session_replaced',
+      expect.anything(),
+    );
+    expect(redis.set).toHaveBeenCalledWith(
+      'user:session:1',
+      'brand-new-token',
+      expect.any(Number),
+    );
   });
 });

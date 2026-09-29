@@ -230,6 +230,7 @@ export class SystemController {
       roleIds: body.roleIds,
       departmentId: body.departmentId,
       positionId: body.positionId,
+      status: body.status,
     });
     return { code: 0, data };
   }
