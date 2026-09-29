@@ -30,6 +30,8 @@ function buildMockUser(userId: number, permissionCodes: string[]) {
     id: userId,
     username: `user${userId}`,
     realName: `用户${userId}`,
+    status: 'active',
+    deletedAt: null,
     roles: [
       {
         role: {
@@ -237,6 +239,8 @@ describe('PermissionCacheService', () => {
         id: 8,
         username: 'u8',
         realName: 'U8',
+        status: 'active',
+        deletedAt: null,
         roles: [
           { role: { permissions: [{ permission: { code: 'shared:view' } }, { permission: { code: 'role1:perm' } }] } },
           { role: { permissions: [{ permission: { code: 'shared:view' } }, { permission: { code: 'role2:perm' } }] } },
@@ -249,6 +253,32 @@ describe('PermissionCacheService', () => {
       expect(result.permissions).toHaveLength(3);
       expect(new Set(result.permissions).size).toBe(3);
       expect(result.permissions).toEqual(expect.arrayContaining(['shared:view', 'role1:perm', 'role2:perm']));
+    });
+  });
+
+  /**
+   * 账号被软删除或停用后，已签发的 JWT 不应继续生效。
+   * 缓存失效（invalidateUser）后的第一次回源必须能拦住这类账号，
+   * 否则「停用账号」在缓存 TTL 内仍可正常调用接口。
+   */
+  describe('停用/软删账号不得通过权限校验', () => {
+    it('回源查询带 deletedAt: null，软删账号视为 token 失效', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUserInfo(9)).rejects.toThrow(UnauthorizedException);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 9, deletedAt: null } }),
+      );
+    });
+
+    it('status 非 active 的停用账号视为 token 失效', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...buildMockUser(10, ['employee:view']),
+        status: 'disabled',
+      });
+
+      await expect(service.getUserInfo(10)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

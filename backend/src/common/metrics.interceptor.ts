@@ -12,7 +12,10 @@ export class MetricsInterceptor implements NestInterceptor {
     const start = process.hrtime.bigint();
     const req = context.switchToHttp().getRequest<FastifyRequest>();
     const method = req.method;
-    const route = (req.routerPath as string) || req.url || 'unknown';
+    // 取匹配到的路由模板（如 /api/v1/employees/:id）而非原始 URL，避免指标被 id 打散基数。
+    // 必须用 routeOptions.url：req.routerPath 在 Fastify 4.28 起已弃用
+    // （FSTDEP017，声明将于 fastify@5 移除），每次首访都会刷一条 DeprecationWarning。
+    const route = req.routeOptions?.url || req.url || 'unknown';
 
     return next.handle().pipe(
       tap({

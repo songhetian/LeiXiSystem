@@ -27,7 +27,9 @@ const notificationProviders = [
       useFactory: (...providers) => providers,
       inject: notificationProviders,
     },
+    // 跨模块投递边界（ADR-0013）：其他业务模块只允许注入该 token，禁止 import NotificationService
+    { provide: 'NOTIFICATION_CLIENT', useExisting: NotificationService },
   ],
-  exports: [NotificationService],
+  exports: [NotificationService, 'NOTIFICATION_CLIENT'],
 })
 export class NotificationModule {}

@@ -1,3 +1,9 @@
+/**
+ * 以 UTC（=生产容器时区）运行：开发机 GMT+8 下 `new Date('YYYY-MM-DD HH:mm')`
+ * 会"碰巧"得到正确结果，只有非北京时区才能暴露墙钟串解析偏移。
+ *
+ * @jest-environment ./jest-utc-environment
+ */
 import {
   calculateDateDiff,
   calculateTenure,
@@ -8,6 +14,14 @@ import {
   isDateNotTooFarFuture,
   isDateNotBeforeHireDate,
   calculateLeaveDays,
+  beijingNow,
+  beijingBusinessDate,
+  beijingDateTime,
+  parseBeijingDateTime,
+  monthRangeUtc,
+  beijingDateTimeStr,
+  beijingDateRangeFilter,
+  addMonthsUtc,
 } from './date.util';
 
 describe('DateUtil', () => {
@@ -200,6 +214,208 @@ describe('DateUtil', () => {
 
     it('跨月请假应该正确计算', () => {
       expect(calculateLeaveDays('2025-01-30', '2025-02-03')).toBe(5);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // 北京时间口径：断言全部基于「真实时刻(UTC)」，与运行机器时区无关，
+  // 因此能在 TZ=Asia/Shanghai 的宿主机与 TZ=UTC 的容器中给出一致结论。
+  // -----------------------------------------------------------------
+  describe('beijingNow', () => {
+    it('按北京时间取年月日（UTC 容器下不退回前一天）', () => {
+      // 北京 2026-08-15 01:00 === UTC 2026-08-14 17:00
+      expect(beijingNow(new Date('2026-08-14T17:00:00Z'))).toEqual({
+        year: 2026,
+        month: 8,
+        day: 15,
+      });
+    });
+
+    it('北京 23:59 仍取当天', () => {
+      // 北京 2026-08-15 23:59 === UTC 2026-08-15 15:59
+      expect(beijingNow(new Date('2026-08-15T15:59:00Z'))).toEqual({
+        year: 2026,
+        month: 8,
+        day: 15,
+      });
+    });
+  });
+
+  describe('beijingBusinessDate', () => {
+    it('北京 01:00 的业务日是当天，而非服务器本地日期的前一天', () => {
+      // 北京 2026-08-15 01:00 === UTC 2026-08-14 17:00
+      expect(beijingBusinessDate(new Date('2026-08-14T17:00:00Z')).toISOString()).toBe(
+        '2026-08-15T00:00:00.000Z',
+      );
+    });
+
+    it('北京 23:59 的业务日仍是当天', () => {
+      expect(beijingBusinessDate(new Date('2026-08-15T15:59:00Z')).toISOString()).toBe(
+        '2026-08-15T00:00:00.000Z',
+      );
+    });
+
+    it('跨年边界：北京 2027-01-01 00:30 归入新年度', () => {
+      // 北京 2027-01-01 00:30 === UTC 2026-12-31 16:30
+      expect(beijingBusinessDate(new Date('2026-12-31T16:30:00Z')).toISOString()).toBe(
+        '2027-01-01T00:00:00.000Z',
+      );
+    });
+  });
+
+  describe('beijingDateTime', () => {
+    const workDate = new Date('2026-08-15T00:00:00.000Z');
+
+    it('班次 09:00 → 北京 09:00（UTC 01:00），不受服务器时区影响', () => {
+      expect(beijingDateTime(workDate, '09:00').toISOString()).toBe('2026-08-15T01:00:00.000Z');
+    });
+
+    it('班次 22:00 → 北京 22:00（UTC 14:00）', () => {
+      expect(beijingDateTime(workDate, '22:00').toISOString()).toBe('2026-08-15T14:00:00.000Z');
+    });
+
+    it('跨天班次的结束 06:00 → 次日北京 06:00（UTC 当日 22:00）', () => {
+      expect(beijingDateTime(workDate, '06:00', 1).toISOString()).toBe(
+        '2026-08-15T22:00:00.000Z',
+      );
+    });
+
+    it('00:30 → 北京 00:30（UTC 前一日 16:30）', () => {
+      expect(beijingDateTime(workDate, '00:30').toISOString()).toBe('2026-08-14T16:30:00.000Z');
+    });
+  });
+
+  // 前端 RangePicker(format="YYYY-MM-DD HH:mm") 回传的是**无时区墙钟串**，
+  // 直接 new Date(str) 会按服务器本地时区解析；UTC 容器下整体偏 8 小时且可能跨日。
+  describe('parseBeijingDateTime', () => {
+    it('无时区墙钟串按北京时间解析：18:00 → UTC 10:00', () => {
+      expect(parseBeijingDateTime('2026-09-28 18:00')!.toISOString()).toBe(
+        '2026-09-28T10:00:00.000Z',
+      );
+    });
+
+    it('兼容 T 分隔与秒', () => {
+      expect(parseBeijingDateTime('2026-09-28T18:00:30')!.toISOString()).toBe(
+        '2026-09-28T10:00:30.000Z',
+      );
+    });
+
+    it('北京 00:30 落到 UTC 前一日 16:30，不跨错日', () => {
+      expect(parseBeijingDateTime('2026-09-28 00:30')!.toISOString()).toBe(
+        '2026-09-27T16:30:00.000Z',
+      );
+    });
+
+    it('带显式时区（Z / ±HH:mm）的串按原生语义解析，不做二次换算', () => {
+      expect(parseBeijingDateTime('2026-09-28T10:00:00Z')!.toISOString()).toBe(
+        '2026-09-28T10:00:00.000Z',
+      );
+      expect(parseBeijingDateTime('2026-09-28T18:00:00+08:00')!.toISOString()).toBe(
+        '2026-09-28T10:00:00.000Z',
+      );
+    });
+
+    it('非法或溢出输入返回 null', () => {
+      expect(parseBeijingDateTime('not-a-date')).toBeNull();
+      expect(parseBeijingDateTime('')).toBeNull();
+      expect(parseBeijingDateTime('2026-13-01 10:00')).toBeNull();
+      expect(parseBeijingDateTime('2026-02-30 10:00')).toBeNull();
+      expect(parseBeijingDateTime('2026-09-28 25:00')).toBeNull();
+    });
+  });
+
+  // 库中业务日一律以 UTC 午夜存储（由 new Date('YYYY-MM-DD') 写入），
+  // 因此月度区间必须用 Date.UTC 构造；`new Date(y, m-1, 1)` 会按宿主机本地时区
+  // 构造，在 GMT+8 开发机上区间整体前移 8 小时，`lte` 会漏掉当月最后一天。
+  describe('monthRangeUtc', () => {
+    it('YYYY-MM → 左闭右开的 UTC 区间，与宿主机时区无关', () => {
+      const { start, end } = monthRangeUtc('2026-09');
+      expect(start.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+      expect(end.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    });
+
+    it('12 月区间末端顺延到次年 1-01', () => {
+      const { start, end } = monthRangeUtc('2026-12');
+      expect(start.toISOString()).toBe('2026-12-01T00:00:00.000Z');
+      expect(end.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+    });
+
+    it('闰年 2 月区间覆盖 2-29（末端为 3-01）', () => {
+      const { end } = monthRangeUtc('2028-02');
+      expect(end.toISOString()).toBe('2028-03-01T00:00:00.000Z');
+      // 2-29 落在区间内
+      const feb29 = new Date('2028-02-29T00:00:00.000Z');
+      expect(feb29.getTime()).toBeGreaterThanOrEqual(monthRangeUtc('2028-02').start.getTime());
+      expect(feb29.getTime()).toBeLessThan(monthRangeUtc('2028-02').end.getTime());
+    });
+  });
+
+  describe('beijingDateTimeStr', () => {
+    it('按北京时间格式化，不会比真实时间少 8 小时', () => {
+      expect(beijingDateTimeStr(new Date('2026-09-28T10:36:44.000Z'))).toBe('2026-09-28 18:36:44');
+    });
+
+    it('北京时间凌晨的记录格式化为当天，不落到前一天', () => {
+      expect(beijingDateTimeStr(new Date('2026-09-30T17:30:00.000Z'))).toBe('2026-10-01 01:30:00');
+    });
+
+    it('空值返回空串，非法值不抛错', () => {
+      expect(beijingDateTimeStr(null)).toBe('');
+      expect(beijingDateTimeStr(undefined)).toBe('');
+      expect(beijingDateTimeStr('')).toBe('');
+      expect(beijingDateTimeStr('not-a-date')).toBe('');
+    });
+  });
+
+  describe('beijingDateRangeFilter', () => {
+    it('单日区间 = 北京时间当天 [00:00, 次日 00:00)', () => {
+      const range = beijingDateRangeFilter('2026-09-30', '2026-09-30');
+      expect(range!.gte!.toISOString()).toBe('2026-09-29T16:00:00.000Z');
+      expect(range!.lt!.toISOString()).toBe('2026-09-30T16:00:00.000Z');
+    });
+
+    it('支持单边传参；两边都不传返回 undefined', () => {
+      expect(beijingDateRangeFilter('2026-09-30', undefined)!.gte!.toISOString())
+        .toBe('2026-09-29T16:00:00.000Z');
+      expect(beijingDateRangeFilter(undefined, '2026-09-30')!.lt!.toISOString())
+        .toBe('2026-09-30T16:00:00.000Z');
+      expect(beijingDateRangeFilter(undefined, undefined)).toBeUndefined();
+    });
+
+    it('串里带了时间部分时仍按整天计算（不因时分秒缩小范围）', () => {
+      const range = beijingDateRangeFilter('2026-09-30 15:20:00', '2026-09-30 15:20:00');
+      expect(range!.gte!.toISOString()).toBe('2026-09-29T16:00:00.000Z');
+      expect(range!.lt!.toISOString()).toBe('2026-09-30T16:00:00.000Z');
+    });
+  });
+
+  // 月末加月必须收敛到目标月最后一天，不能溢出到下下月（1/31 + 1 月 ≠ 3/3）
+  describe('addMonthsUtc', () => {
+    it('一月末 + 1 个月收敛到 2 月末', () => {
+      expect(addMonthsUtc(new Date('2026-01-31T00:00:00.000Z'), 1).toISOString()).toBe(
+        '2026-02-28T00:00:00.000Z',
+      );
+    });
+
+    it('闰年 1/31 + 1 个月收敛到 2-29', () => {
+      expect(addMonthsUtc(new Date('2024-01-31T00:00:00.000Z'), 1).toISOString()).toBe(
+        '2024-02-29T00:00:00.000Z',
+      );
+    });
+
+    it('普通日期精确加月，跨年正确', () => {
+      expect(addMonthsUtc(new Date('2026-09-15T00:00:00.000Z'), 3).toISOString()).toBe(
+        '2026-12-15T00:00:00.000Z',
+      );
+      expect(addMonthsUtc(new Date('2026-11-15T00:00:00.000Z'), 3).toISOString()).toBe(
+        '2027-02-15T00:00:00.000Z',
+      );
+    });
+
+    it('八月末 + 6 个月收敛到次年 2 月末', () => {
+      expect(addMonthsUtc(new Date('2026-08-31T00:00:00.000Z'), 6).toISOString()).toBe(
+        '2027-02-28T00:00:00.000Z',
+      );
     });
   });
 });

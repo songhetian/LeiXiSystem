@@ -189,12 +189,14 @@ export class PermissionCacheService implements OnModuleDestroy {
 
   private async fetchFromDb(userId: number): Promise<CachedUserInfo> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, deletedAt: null },
       include: {
         roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
       },
     });
-    if (!user) {
+    // 软删除（where 过滤后为 null）与停用账号一律视为无效 token：
+    // 否则管理员停用/删除账号后，该账号仍可在缓存 TTL（最长 6 分钟）内继续调用接口。
+    if (!user || user.status !== 'active') {
       await this.writeCache(userId, null);
       throw new UnauthorizedException({
         code: ERROR_CODES.AUTH_TOKEN_INVALID,

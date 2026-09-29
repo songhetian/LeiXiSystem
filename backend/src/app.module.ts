@@ -12,7 +12,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { DataScopeModule } from './common/data-scope.module';
 import { CommonModule } from './common/common.module';
 import { LockModule } from './common/lock.module';
-import { PermissionCacheModule } from './common/permission-cache.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
 import { EmployeesModule } from './employees/employees.module';
@@ -53,7 +52,6 @@ import { FilesModule } from './files/files.module';
     CommonModule,
     RedisModule,
     LockModule,
-    PermissionCacheModule,
     AuthModule,
     EmployeesModule,
     AttendanceModule,

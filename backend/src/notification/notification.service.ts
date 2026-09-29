@@ -2,9 +2,11 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationProvider, NotificationChannel, NotificationChannels, ChannelStatus, NOTIFICATION_PROVIDERS } from './channels';
+import { NotificationClientInterface } from './notification-client.interface';
+import { ERROR_CODES } from '../common/error-codes';
 
 @Injectable()
-export class NotificationService {
+export class NotificationService implements NotificationClientInterface {
   private providerMap: Map<NotificationChannel, NotificationProvider>;
 
   constructor(
@@ -144,6 +146,21 @@ export class NotificationService {
   }
 
   /**
+   * 业务撤销/回滚时清理关联通知（跨模块调用入口，见 NotificationClientInterface）。
+   * 例：算薪批次撤回会删除工资条，此时必须同步删除「工资条已发布」通知，
+   * 否则用户点开通知会落到已不存在的单据。
+   */
+  async removeByRelated(
+    relatedType: string,
+    relatedId: number,
+  ): Promise<{ count: number }> {
+    const result = await this.prisma.notification.deleteMany({
+      where: { relatedType, relatedId },
+    });
+    return { count: result.count };
+  }
+
+  /**
    * 通知中心发送（批次八）：管理员按目标范围向用户批量发送站内通知。
    * - targetType=user       → 直接发送给指定 userIds
    * - targetType=department → 查询部门下启用用户再批量发送
@@ -161,20 +178,29 @@ export class NotificationService {
     const { title, content, type, targetType, departmentIds, userIds } = params;
 
     if (!title || !title.trim()) {
-      throw new BadRequestException({ code: 7003, message: '通知标题不能为空' });
+      throw new BadRequestException({
+        code: ERROR_CODES.NOTIFICATION_TITLE_REQUIRED,
+        message: '通知标题不能为空',
+      });
     }
 
     let targets: number[];
     if (targetType === 'user') {
       const ids = userIds ?? [];
       if (ids.length === 0) {
-        throw new BadRequestException({ code: 7004, message: '请选择接收人员' });
+        throw new BadRequestException({
+          code: ERROR_CODES.NOTIFICATION_RECIPIENT_REQUIRED,
+          message: '请选择接收人员',
+        });
       }
       targets = ids;
     } else if (targetType === 'department') {
       const deptIds = departmentIds ?? [];
       if (deptIds.length === 0) {
-        throw new BadRequestException({ code: 7004, message: '请选择接收部门' });
+        throw new BadRequestException({
+          code: ERROR_CODES.NOTIFICATION_DEPARTMENT_REQUIRED,
+          message: '请选择接收部门',
+        });
       }
       const users = await this.prisma.user.findMany({
         where: { departmentId: { in: deptIds }, status: 'active', deletedAt: null },

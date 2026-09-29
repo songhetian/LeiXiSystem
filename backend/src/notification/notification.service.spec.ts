@@ -5,6 +5,7 @@ import { EmailNotificationProvider } from './channels/email-notification.provide
 import { SmsNotificationProvider } from './channels/sms-notification.provider';
 
 import { BadRequestException } from '@nestjs/common';
+import { messageOf } from '../common/error-messages';
 
 const mockPrisma: any = {
   notification: {
@@ -40,6 +41,43 @@ describe('NotificationService', () => {
       mockEventEmitter,
       [inAppProvider, emailProvider, smsProvider],
     );
+  });
+
+  describe('send - 参数校验的错误码必须在中央表注册（未注册码在过滤器下无文案可言）', () => {
+    async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+      try {
+        await fn();
+      } catch (e: any) {
+        return e.getResponse?.() ?? e.response ?? e;
+      }
+      throw new Error('预期抛出异常，但未抛出');
+    }
+
+    it('标题为空：7003 已注册且文案为「通知标题不能为空」', async () => {
+      const payload = await catchPayload(() => service.send({ title: '   ', targetType: 'all' }));
+
+      expect(payload.code).toBe(7003);
+      expect(messageOf(payload.code)).toBe('通知标题不能为空');
+    });
+
+    it('指定人员但未选人：7004 已注册且文案为「请选择接收人员」', async () => {
+      const payload = await catchPayload(() =>
+        service.send({ title: '公告', targetType: 'user', userIds: [] }),
+      );
+
+      expect(payload.code).toBe(7004);
+      expect(messageOf(payload.code)).toBe('请选择接收人员');
+    });
+
+    it('指定部门但未选部门：不得与「请选择接收人员」共用 7004，否则中央文案会张冠李戴', async () => {
+      const payload = await catchPayload(() =>
+        service.send({ title: '公告', targetType: 'department', departmentIds: [] }),
+      );
+
+      expect(payload.code).not.toBe(7004);
+      expect(payload.code).toBe(7005);
+      expect(messageOf(payload.code)).toBe('请选择接收部门');
+    });
   });
 
   describe('create', () => {
