@@ -889,6 +889,7 @@ html, body {
   border-radius: var(--lx-radius-full);
   padding: 6px 14px;
   font-size: var(--lx-font-xs);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .kb-hero-badge svg {
@@ -1281,6 +1282,8 @@ html, body {
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+  /* color-mix 需 Chrome 111+/Safari 16.2+/Firefox 113+；老浏览器用既有分层阴影兜底 */
+  box-shadow: var(--lx-shadow-md);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--lx-primary) 22%, transparent);
 }
 .lx-brand-logo-img {
@@ -1318,10 +1321,13 @@ html, body {
   overflow-y: auto;
 }
 .lx-login-glow-1 {
+  /* 兜底用主题内的主色淡底（浅色 6% / 暗色 18%），老浏览器只是柔光弱一档，不会消失 */
+  background: radial-gradient(circle, var(--lx-bg-active), transparent 70%);
   background: radial-gradient(circle, color-mix(in srgb, var(--lx-primary) 18%, transparent), transparent 70%);
   filter: blur(30px);
 }
 .lx-login-glow-2 {
+  background: radial-gradient(circle, var(--lx-bg-active), transparent 70%);
   background: radial-gradient(circle, color-mix(in srgb, var(--lx-primary) 10%, transparent), transparent 70%);
   filter: blur(34px);
 }
@@ -1330,6 +1336,7 @@ html, body {
 }
 .lx-login-logo {
   background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  box-shadow: var(--lx-shadow-md);
   box-shadow: 0 8px 22px color-mix(in srgb, var(--lx-primary) 30%, transparent);
 }
 
@@ -1955,6 +1962,9 @@ html, body {
   width: 22px;
   height: 22px;
   border-radius: var(--lx-radius-sm);
+  /* color-mix 不被支持时若只写这一条，整条 border 会被判无效 → 色块直接没有描边，
+     与相邻色块糊在一起。故前置一条实色边框兜底（见同文件 100vh/100dvh 的同类写法）。 */
+  border: 1px solid var(--lx-border-3);
   border: 1px solid color-mix(in srgb, var(--lx-text-1) 10%, transparent);
   cursor: pointer;
   padding: 0;
@@ -1968,6 +1978,7 @@ html, body {
   inset: -3px;
 }
 .shift-swatch:hover {
+  border-color: var(--lx-text-3);
   border-color: color-mix(in srgb, var(--lx-text-1) 28%, transparent);
 }
 .shift-swatch:active {

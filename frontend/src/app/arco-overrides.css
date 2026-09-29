@@ -403,6 +403,8 @@
 
 /* ---- Modal 遮罩毛玻璃效果 ---- */
 .arco-modal-mask {
+  /* Safari 需 -webkit- 前缀（此前的写法在 Safari 上退化为无模糊） */
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   background-color: rgba(0, 0, 0, 0.35) !important;
 }
