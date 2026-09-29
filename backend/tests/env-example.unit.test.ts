@@ -26,4 +26,23 @@ describe('.env.example (T19.3)', () => {
     const content = readFileSync(ENV_EXAMPLE, 'utf-8');
     expect(content).toMatch(/^PREVIEW_SECRET=/m);
   });
+
+  it('PORT 示例为 4001（与 nginx 反代 / 健康检查 / 前端代理一致）', () => {
+    // main.ts 的兜底是 3001，示例若也写 3001 会诱导出「容器 4001 无监听」那类故障。
+    const content = readFileSync(ENV_EXAMPLE, 'utf-8');
+    expect(content).toMatch(/^PORT=4001$/m);
+    expect(content).not.toMatch(/^PORT=3001$/m);
+  });
+
+  it('声明 FILE_STORAGE 存储驱动开关（local / oss）', () => {
+    const content = readFileSync(ENV_EXAMPLE, 'utf-8');
+    expect(content).toMatch(/^FILE_STORAGE=/m);
+  });
+
+  it('CORS 示例含前端开发端口 4000（不是 Next 默认 3000）', () => {
+    const content = readFileSync(ENV_EXAMPLE, 'utf-8');
+    const match = content.match(/^CORS_ORIGIN=(.+)$/m);
+    expect(match).not.toBeNull();
+    expect(match![1]).toContain('http://localhost:4000');
+  });
 });

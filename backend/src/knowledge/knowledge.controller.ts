@@ -17,6 +17,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { PermissionCacheService } from '../common/permission-cache.service';
 import { KnowledgeService } from './knowledge.service';
 import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoriesDto } from './dto/category.dto';
 import { CreateArticleDto, UpdateArticleDto } from './dto/article.dto';
@@ -26,7 +27,16 @@ import { parsePagination } from '../common/pagination.util';
 @Controller('knowledge')
 @UseGuards(JwtAuthGuard)
 export class KnowledgeController {
-  constructor(private readonly knowledgeService: KnowledgeService) {}
+  constructor(
+    private readonly knowledgeService: KnowledgeService,
+    private readonly permCache: PermissionCacheService,
+  ) {}
+
+  /** 当前用户是否具备知识库管理权限（用于草稿预览/管理端列表） */
+  private async canManage(req: any): Promise<boolean> {
+    const perms = await this.permCache.getUserPermissions(req.user.id);
+    return perms.has('knowledge:manage');
+  }
 
   // ===== 分类 =====
   @Get('categories')
@@ -80,25 +90,31 @@ export class KnowledgeController {
   @Get('articles')
   @HttpCode(200)
   async listArticles(
+    @Req() req: any,
     @Query('categoryId') categoryId?: string,
     @Query('keyword') keyword?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('includeUnpublished') includeUnpublished?: string,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
+    // 未发布文章只能由具备 knowledge:manage 的用户显式拉取（管理端）
+    const withUnpublished = includeUnpublished === 'true' && (await this.canManage(req));
     const data = await this.knowledgeService.listArticles({
       categoryId: categoryId ? parseInt(categoryId) : undefined,
       keyword,
       page: pageNum,
       pageSize: pageSizeNum,
+      includeUnpublished: withUnpublished,
     });
     return { code: 0, data };
   }
 
   @Get('articles/:id')
   @HttpCode(200)
-  async getArticle(@Param('id', ParseIntPipe) id: number) {
-    const data = await this.knowledgeService.getArticleDetail(id);
+  async getArticle(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const includeUnpublished = await this.canManage(req);
+    const data = await this.knowledgeService.getArticleDetail(id, { includeUnpublished });
     return { code: 0, data };
   }
 

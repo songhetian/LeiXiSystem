@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 工单创建入参
 export interface HelpdeskTicketCreateDto {
@@ -67,30 +68,60 @@ export class HelpdeskService {
       return await this.findTicketById(ticket.id);
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new ConflictException({ code: 2001, message: '工单编号重复' });
+        throw new ConflictException({ code: ERROR_CODES.HELPDESK_TICKET_NO_CONFLICT, message: '工单编号重复' });
       }
       throw e;
     }
   }
 
-  // 工单列表：可按 status / priority / assigneeId 过滤，并附带 requester / assignee 关联
-  async listTickets(query: { status?: string; priority?: string; assigneeId?: number }) {
+  // 工单列表：可按 status / priority / assigneeId 过滤，服务端分页，并附带 requester / assignee 关联
+  async listTickets(query: {
+    status?: string;
+    priority?: string;
+    assigneeId?: number;
+    page?: number;
+    pageSize?: number;
+  }) {
     const where: Record<string, any> = {};
     if (query.status) where.status = query.status;
     if (query.priority) where.priority = query.priority;
     if (query.assigneeId !== undefined && query.assigneeId !== null) where.assigneeId = query.assigneeId;
 
-    const list = await this.prisma.helpdeskTicket.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
-    return { list: await this.enrichTicketPeople(list), total: list.length };
+    // 分页参数兜底：非法值（0 / 负数）回落默认，避免出现负数 skip
+    const page = query.page && query.page > 0 ? query.page : 1;
+    const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 10;
+
+    // count 与 findMany 共用同一 where，保证 total 与当前页口径一致
+    const [total, list] = await Promise.all([
+      this.prisma.helpdeskTicket.count({ where }),
+      this.prisma.helpdeskTicket.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        // 列表只取前端展示所需列；description 供工单编辑弹窗回填，故保留
+        select: {
+          id: true,
+          ticketNo: true,
+          title: true,
+          description: true,
+          category: true,
+          priority: true,
+          status: true,
+          requesterId: true,
+          assigneeId: true,
+          dueAt: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+    return { list: await this.enrichTicketPeople(list), total, page, pageSize };
   }
 
   // 查询单个工单（带关联人员信息）
   private async findTicketById(id: number) {
     const ticket = await this.prisma.helpdeskTicket.findUnique({ where: { id } });
-    if (!ticket) throw new NotFoundException({ code: 2001, message: '工单不存在' });
+    if (!ticket) throw new NotFoundException({ code: ERROR_CODES.HELPDESK_TICKET_NOT_FOUND, message: '工单不存在' });
     const enriched = await this.enrichTicketPeople([ticket]);
     return enriched[0];
   }
@@ -165,7 +196,7 @@ export class HelpdeskService {
       });
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new ConflictException({ code: 2001, message: 'SLA 名称已存在' });
+        throw new ConflictException({ code: ERROR_CODES.HELPDESK_SLA_NAME_EXISTS, message: 'SLA 名称已存在' });
       }
       throw e;
     }
@@ -173,7 +204,7 @@ export class HelpdeskService {
 
   async updateSla(id: number, dto: Partial<HelpdeskSlaUpsertDto>) {
     const sla = await this.prisma.helpdeskSla.findUnique({ where: { id } });
-    if (!sla) throw new NotFoundException({ code: 2001, message: 'SLA 不存在' });
+    if (!sla) throw new NotFoundException({ code: ERROR_CODES.HELPDESK_SLA_NOT_FOUND, message: 'SLA 不存在' });
     const data: Record<string, any> = {};
     for (const key of Object.keys(dto)) {
       if (dto[key as keyof HelpdeskSlaUpsertDto] !== undefined) {
@@ -184,7 +215,7 @@ export class HelpdeskService {
       return await this.prisma.helpdeskSla.update({ where: { id }, data });
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new ConflictException({ code: 2001, message: 'SLA 名称已存在' });
+        throw new ConflictException({ code: ERROR_CODES.HELPDESK_SLA_NAME_EXISTS, message: 'SLA 名称已存在' });
       }
       throw e;
     }
@@ -192,11 +223,11 @@ export class HelpdeskService {
 
   async removeSla(id: number) {
     const sla = await this.prisma.helpdeskSla.findUnique({ where: { id } });
-    if (!sla) throw new NotFoundException({ code: 2001, message: 'SLA 不存在' });
+    if (!sla) throw new NotFoundException({ code: ERROR_CODES.HELPDESK_SLA_NOT_FOUND, message: 'SLA 不存在' });
     // 如果 SLA 已被工单使用则不允许删除
     const used = await this.prisma.helpdeskTicket.count({ where: { slaId: id }, take: 1 });
     if (used > 0) {
-      throw new BadRequestException({ code: 2001, message: '该 SLA 已被工单使用，无法删除' });
+      throw new BadRequestException({ code: ERROR_CODES.HELPDESK_SLA_IN_USE, message: '该 SLA 已被工单使用，无法删除' });
     }
     await this.prisma.helpdeskSla.delete({ where: { id } });
     return { success: true };

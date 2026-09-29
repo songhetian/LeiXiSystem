@@ -21,24 +21,30 @@ export class ReimbursementListener {
           where: { approvalInstanceId: instanceId },
         });
         if (!reimbursement) return;
-        if (reimbursement.status === 'approved') return;
+        // 已 approved 时跳过状态流转校验，但仍需确保付款单存在；
+        // 否则「先打开详情把状态写成 approved」会导致付款单永久丢失。幂等由 existingPayment 承担。
+        const alreadyApproved = reimbursement.status === 'approved';
 
-        const validation = validateStateTransition(
-          reimbursement.status as ReimbursementStatus,
-          'approved',
-        );
-        if (!validation.valid) {
-          this.logger.warn(
-            `状态流转校验失败: reimbursementId=${reimbursement.id}, ${validation.message}`,
+        if (!alreadyApproved) {
+          const validation = validateStateTransition(
+            reimbursement.status as ReimbursementStatus,
+            'approved',
           );
-          return;
+          if (!validation.valid) {
+            this.logger.warn(
+              `状态流转校验失败: reimbursementId=${reimbursement.id}, ${validation.message}`,
+            );
+            return;
+          }
         }
 
         await this.prisma.$transaction(async (tx) => {
-          await tx.reimbursement.update({
-            where: { id: reimbursement.id },
-            data: { status: 'approved' },
-          });
+          if (!alreadyApproved) {
+            await tx.reimbursement.update({
+              where: { id: reimbursement.id },
+              data: { status: 'approved' },
+            });
+          }
 
           const existingPayment = await tx.reimbursementPayment.findUnique({
             where: { reimbursementId: reimbursement.id },

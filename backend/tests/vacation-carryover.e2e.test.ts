@@ -245,6 +245,7 @@ describe('假期余额跨年结转', () => {
           employeeId,
           vacationTypeId: annualLeaveTypeId,
           year: fromYear,
+          month: 0,
           totalDays: 10,
           usedDays: 5,
         },
@@ -254,10 +255,11 @@ describe('假期余额跨年结转', () => {
 
       const toYearBalance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: toYear,
+            month: 0,
           },
         },
       });
@@ -287,6 +289,7 @@ describe('假期余额跨年结转', () => {
           employeeId,
           vacationTypeId: compensatoryLeaveTypeId,
           year: fromYear,
+          month: 0,
           totalDays: 10,
           usedDays: 4,
         },
@@ -296,10 +299,11 @@ describe('假期余额跨年结转', () => {
 
       const toYearBalance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: compensatoryLeaveTypeId,
             year: toYear,
+            month: 0,
           },
         },
       });
@@ -321,6 +325,7 @@ describe('假期余额跨年结转', () => {
           employeeId,
           vacationTypeId: sickLeaveTypeId,
           year: fromYear,
+          month: 0,
           totalDays: 10,
           usedDays: 3,
         },
@@ -330,10 +335,11 @@ describe('假期余额跨年结转', () => {
 
       const toYearBalance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: sickLeaveTypeId,
             year: toYear,
+            month: 0,
           },
         },
       });
@@ -355,6 +361,7 @@ describe('假期余额跨年结转', () => {
           employeeId,
           vacationTypeId: annualLeaveTypeId,
           year: fromYear,
+          month: 0,
           totalDays: 10,
           usedDays: 10,
         },
@@ -364,10 +371,11 @@ describe('假期余额跨年结转', () => {
 
       const toYearBalance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: toYear,
+            month: 0,
           },
         },
       });
@@ -406,6 +414,7 @@ describe('假期余额跨年结转', () => {
           employeeId,
           vacationTypeId: testType.id,
           year: fromYear,
+          month: 0,
           totalDays: 15,
           usedDays: 5,
         },
@@ -415,10 +424,11 @@ describe('假期余额跨年结转', () => {
 
       const toYearBalance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: testType.id,
             year: toYear,
+            month: 0,
           },
         },
       });

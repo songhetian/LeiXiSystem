@@ -12,7 +12,13 @@ import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { validateStateTransition } from './reimbursement-state-machine';
 import { ERROR_CODES } from '../common/error-codes';
 import { generateAutoCode } from '../common/code-gen.util';
+import { sumReimbursementItems } from './reimbursement-items';
+import { fromCents, toCents } from '../common/money.util';
+import { beijingDateRangeFilter, beijingDateTimeStr } from '../common/date.util';
 import * as ExcelJS from 'exceljs';
+
+/** 创建报销单时允许客户端指定的状态：仅草稿与直接提交，其余审批态只能由审批流推进 */
+const CREATABLE_STATUSES: ReadonlyArray<'draft' | 'pending'> = ['draft', 'pending'];
 
 @Injectable()
 export class ReimbursementService {
@@ -45,7 +51,7 @@ export class ReimbursementService {
     if (params.code) {
       const existing = await this.prisma.reimbursementType.findUnique({ where: { code } });
       if (existing) {
-        throw new ConflictException({ code: 7010, message: '报销类型编码已存在' });
+        throw new ConflictException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_CODE_EXISTS, message: '报销类型编码已存在' });
       }
     }
     return this.prisma.reimbursementType.create({
@@ -66,7 +72,7 @@ export class ReimbursementService {
       where: { id },
     });
     if (!existing) {
-      throw new NotFoundException({ code: 7011, message: '报销类型不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_NOT_FOUND, message: '报销类型不存在' });
     }
     const data: any = {};
     if (params.name !== undefined) data.name = params.name;
@@ -80,13 +86,13 @@ export class ReimbursementService {
       where: { id },
     });
     if (!existing) {
-      throw new NotFoundException({ code: 7011, message: '报销类型不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_NOT_FOUND, message: '报销类型不存在' });
     }
     const usedCount = await this.prisma.reimbursement.count({
       where: { typeId: id },
     });
     if (usedCount > 0) {
-      throw new ConflictException({ code: 7012, message: '报销类型已被报销单占用，无法删除' });
+      throw new ConflictException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_IN_USE, message: '报销类型已被报销单占用，无法删除' });
     }
     await this.prisma.reimbursementType.delete({ where: { id } });
     return { success: true };
@@ -125,7 +131,7 @@ export class ReimbursementService {
   ) {
     const existing = await this.prisma.expenseType.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException({ code: 7011, message: '费用类型不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_NOT_FOUND, message: '费用类型不存在' });
     }
     const data: any = {};
     if (params.name !== undefined) data.name = params.name;
@@ -138,7 +144,7 @@ export class ReimbursementService {
   async removeExpenseType(id: number) {
     const existing = await this.prisma.expenseType.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException({ code: 7011, message: '费用类型不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_NOT_FOUND, message: '费用类型不存在' });
     }
     await this.prisma.expenseType.delete({ where: { id } });
     return { success: true };
@@ -147,16 +153,10 @@ export class ReimbursementService {
   // ===== 创建报销 =====
   /**
    * 报销单号自动生成（对齐老项目）：BX + 14位日期时间(YYYYMMDDHHmmss) + 3位随机数。
-   * 即使同一秒并发也几乎不重复，满足唯一索引约束。
+   * 时间戳按北京时间生成，UTC 容器下不会偏 8 小时（见 generateAutoCode）。
    */
   private generateReimbursementNo(): string {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const ts =
-      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
-      `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-    return `BX${ts}${rand}`;
+    return generateAutoCode('BX');
   }
 
   async create(params: {
@@ -178,14 +178,14 @@ export class ReimbursementService {
   }) {
     const user = await this.prisma.user.findUnique({ where: { id: params.userId } });
     if (!user) {
-      throw new NotFoundException({ code: 7002, message: '用户不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_USER_NOT_FOUND, message: '用户不存在' });
     }
 
     const type = await this.prisma.reimbursementType.findUnique({
       where: { code: params.typeCode },
     });
     if (!type) {
-      throw new NotFoundException({ code: 7003, message: '报销类型不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_TYPE_NOT_FOUND, message: '报销类型不存在' });
     }
 
     if (!params.items || params.items.length === 0) {
@@ -194,14 +194,22 @@ export class ReimbursementService {
     if (params.totalAmount < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '报销总金额不能为负' });
     }
+    // status 是审批态，只能由审批流推进。创建接口仅接受 draft（暂存）/pending（直接提交），
+    // 否则客户端注入 'approved' 即可凭空造出「已通过」报销单（无审批实例、无付款单），
+    // 绕过整条审批链，且会出现在列表与导出中。
+    if (params.status !== undefined && !CREATABLE_STATUSES.includes(params.status)) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '报销单状态非法' });
+    }
     for (const item of params.items) {
       if (item.amount < 0) {
         throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '报销明细金额不能为负' });
       }
     }
-    const itemsTotal = params.items.reduce((sum, item) => sum + item.amount, 0);
-    if (Math.abs(itemsTotal - params.totalAmount) > 0.01) {
-      throw new BadRequestException({ code: 7001, message: '明细金额合计与总金额不一致' });
+    const itemsTotal = sumReimbursementItems(params.items.map((item: any) => item.amount));
+    // 容差比较必须落在「分」的整数域：3.02 - 3.01 在 double 下是 0.010000000000000231，
+    // 直接用 > 0.01 会把合法输入误判为「合计不一致」。
+    if (Math.abs(toCents(itemsTotal) - toCents(params.totalAmount)) > 1) {
+      throw new BadRequestException({ code: ERROR_CODES.REIMBURSEMENT_AMOUNT_MISMATCH, message: '明细金额合计与总金额不一致' });
     }
 
     return this.createWithRetry({
@@ -209,7 +217,21 @@ export class ReimbursementService {
       user,
       params,
       itemsTotal,
+      departmentId: await this.resolveApplicantDepartmentId(params.userId),
     });
+  }
+
+  /**
+   * 申请人所属部门：报销单须落库 departmentId，否则
+   * (1) 部门经理导出（departmentId IN 可见范围）恒为空表；
+   * (2) 提交审批时不传部门 → 审批流「部门主管」节点取不到申请部门。
+   */
+  private async resolveApplicantDepartmentId(userId: number): Promise<number | null> {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId },
+      select: { departmentId: true },
+    });
+    return employee?.departmentId ?? null;
   }
 
   /** 写入报销单；单号在并发下命中唯一索引冲突（P2002）时重新生成并重试 */
@@ -218,8 +240,9 @@ export class ReimbursementService {
     user: any;
     params: any;
     itemsTotal: number;
+    departmentId: number | null;
   }) {
-    const { type, user, params, itemsTotal } = ctx;
+    const { type, user, params, itemsTotal, departmentId } = ctx;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         return await this.prisma.reimbursement.create({
@@ -232,6 +255,7 @@ export class ReimbursementService {
             totalAmount: itemsTotal,
             applicantId: params.userId,
             applicantName: user.realName,
+            departmentId,
             status: params.status ?? 'pending',
             items: {
               create: params.items.map((item: any) => {
@@ -242,7 +266,7 @@ export class ReimbursementService {
                   expenseDate: item.expenseDate ? new Date(item.expenseDate) : null,
                   description: item.description,
                   attachmentUrl: item.attachmentUrl ?? null,
-                  amount: item.amount,
+                  amount: fromCents(toCents(item.amount)),
                 };
               }),
             },
@@ -257,7 +281,7 @@ export class ReimbursementService {
         // 单号唯一冲突 → 重新生成单号并重试
       }
     }
-    throw new ConflictException({ code: 7013, message: '报销单号生成冲突，请重试' });
+    throw new ConflictException({ code: ERROR_CODES.REIMBURSEMENT_NO_CONFLICT, message: '报销单号生成冲突，请重试' });
   }
 
   // ===== 我的报销列表 =====
@@ -287,7 +311,7 @@ export class ReimbursementService {
       where: { id: userId },
       include: { roles: { include: { role: true } } },
     });
-    if (!user) throw new NotFoundException({ code: 7002, message: '用户不存在' });
+    if (!user) throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_USER_NOT_FOUND, message: '用户不存在' });
 
     const roleCodes = user.roles.map((ur) => ur.role.code);
     const isAdmin = roleCodes.includes('admin');
@@ -298,10 +322,9 @@ export class ReimbursementService {
     const where: any = { approvalInstanceId: { in: instanceIds } };
 
     if (!isAdmin && isDeptManager) {
-      const deptUserIds = await this.getDepartmentUserIds(userId);
-      if (deptUserIds.length > 0) {
-        where.applicantId = { in: deptUserIds };
-      }
+      // fail-closed：范围解析为空即 applicantId IN []（恒空），不得整条跳过过滤条件，
+      // 否则部门经理在「范围为空」时会看到全公司的待审批报销单。
+      where.applicantId = { in: await this.getDepartmentUserIds(userId) };
     }
 
     const [items, total] = await Promise.all([
@@ -318,14 +341,51 @@ export class ReimbursementService {
     return { items, total, page, pageSize };
   }
 
+  /**
+   * 本人可见部门（本部门 + 子部门）下的用户 ID。
+   *
+   * 部门来源必须与 DataScopeService 口径一致：用户-部门关联表 + User.departmentId
+   * + 本人作为负责人的部门。只读关联表会得到恒空集合（生产链路无写入点），
+   * 使部门过滤静默失效；用户归属同理必须按 User.departmentId 取。
+   */
   private async getDepartmentUserIds(userId: number): Promise<number[]> {
+    const deptIds = new Set<number>();
+
     const userDepts = await this.prisma.userDepartment.findMany({
       where: { userId },
       select: { departmentId: true },
     });
-    const deptIds = userDepts.map((d) => d.departmentId);
-    const allDeptIds = [...deptIds];
-    let frontier = deptIds;
+    userDepts.forEach((d) => deptIds.add(d.departmentId));
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { departmentId: true, employees: { select: { id: true } } },
+    });
+    if (user?.departmentId) deptIds.add(user.departmentId);
+
+    const employeeId = user?.employees?.[0]?.id;
+    if (employeeId) {
+      const managed = await this.prisma.department.findMany({
+        where: { managerId: employeeId },
+        select: { id: true },
+      });
+      managed.forEach((d) => deptIds.add(d.id));
+    }
+
+    if (deptIds.size === 0) return [];
+
+    const allDeptIds = await this.collectDepartmentSubtree(Array.from(deptIds));
+    const members = await this.prisma.user.findMany({
+      where: { departmentId: { in: allDeptIds } },
+      select: { id: true },
+    });
+    return members.map((m) => m.id);
+  }
+
+  /** 展开给定部门及其所有后代部门 */
+  private async collectDepartmentSubtree(rootDeptIds: number[]): Promise<number[]> {
+    const allDeptIds = [...rootDeptIds];
+    let frontier = rootDeptIds;
     while (frontier.length > 0) {
       const children = await this.prisma.department.findMany({
         where: { parentId: { in: frontier } },
@@ -335,12 +395,7 @@ export class ReimbursementService {
       allDeptIds.push(...ids);
       frontier = ids;
     }
-
-    const deptUsers = await this.prisma.userDepartment.findMany({
-      where: { departmentId: { in: allDeptIds } },
-      select: { userId: true },
-    });
-    return deptUsers.map((u) => u.userId);
+    return allDeptIds;
   }
 
   // ===== 报销详情 =====
@@ -354,7 +409,7 @@ export class ReimbursementService {
       },
     });
     if (!reim) {
-      throw new NotFoundException({ code: 7004, message: '报销单不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_NOT_FOUND, message: '报销单不存在' });
     }
 
     if (reim.applicantId !== userId) {
@@ -375,11 +430,21 @@ export class ReimbursementService {
           if (node && node.type === 'role' && node.roleCode && roleCodes.includes(node.roleCode)) {
             canView = true;
           }
+          // 组型审批人（审批组）同样应能打开自己正在审批的单据，
+          // 口径与 ApprovalService.canUserApprove 保持一致。
+          if (!canView && node && node.type === 'group' && node.approvalGroupId) {
+            const member = await this.prisma.approvalGroupMember.findUnique({
+              where: { groupId_userId: { groupId: node.approvalGroupId, userId } },
+            });
+            if (member) {
+              canView = true;
+            }
+          }
         }
       }
 
       if (!canView) {
-        throw new ForbiddenException({ code: 5003, message: '无权限查看' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限查看' });
       }
     }
 
@@ -392,7 +457,7 @@ export class ReimbursementService {
         if (approvalInstance.status === 'approved') {
           const validation = validateStateTransition(reim.status, 'approved');
           if (!validation.valid) {
-            throw new BadRequestException({ code: 4000, message: validation.message });
+            throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: validation.message });
           }
           await this.prisma.reimbursement.update({
             where: { id },
@@ -402,7 +467,7 @@ export class ReimbursementService {
         } else if (approvalInstance.status === 'rejected') {
           const validation = validateStateTransition(reim.status, 'rejected');
           if (!validation.valid) {
-            throw new BadRequestException({ code: 4000, message: validation.message });
+            throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: validation.message });
           }
           await this.prisma.reimbursement.update({
             where: { id },
@@ -420,35 +485,66 @@ export class ReimbursementService {
   async submit(id: number, userId: number) {
     const reim = await this.prisma.reimbursement.findUnique({ where: { id } });
     if (!reim) {
-      throw new NotFoundException({ code: 7004, message: '报销单不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_NOT_FOUND, message: '报销单不存在' });
     }
     if (reim.applicantId !== userId) {
-      throw new ForbiddenException({ code: 5003, message: '无权限操作' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限操作' });
     }
     if (reim.status !== 'pending' && reim.status !== 'draft') {
-      throw new BadRequestException({ code: 7005, message: '当前状态不可提交审批' });
+      throw new BadRequestException({ code: ERROR_CODES.REIMBURSEMENT_STATUS_INVALID, message: '当前状态不可提交审批' });
     }
     const submitValidation = validateStateTransition(reim.status, 'approving');
     if (!submitValidation.valid) {
-      throw new BadRequestException({ code: 4000, message: submitValidation.message });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: submitValidation.message });
     }
     if (reim.approvalInstanceId) {
-      throw new BadRequestException({ code: 7006, message: '已在审批中' });
+      throw new BadRequestException({ code: ERROR_CODES.REIMBURSEMENT_ALREADY_SUBMITTED, message: '已在审批中' });
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
-    const instance = await this.approvalClient.startInstance({
-      workflowCode: 'reimbursement',
-      title: reim.title,
-      formData: {
-        reimbursementId: reim.id,
-        totalAmount: reim.totalAmount.toString(),
-        type: reim.typeCode,
-      },
-      userId,
-      userName: user!.realName,
+    // 必须带上申请部门，否则审批路由引擎的「部门主管」节点取不到申请人部门，
+    // 该节点会在 buildApprovalChain 中被静默丢弃，报销绕过部门主管直接进入下一节点。
+    const departmentId = await this.resolveApplicantDepartmentId(userId);
+
+    // 并发提交防护：上面的判空（approvalInstanceId）只是读取快照，两个并发请求都会通过。
+    // 这里用带 approvalInstanceId:null 条件的原子占位作为 CAS，抢占失败的一方直接返回 4011，
+    // 避免同一张单据产生两个审批实例（孤儿实例会永久留在审批人待办里并被反复催办）。
+    const claimed = await this.prisma.reimbursement.updateMany({
+      where: { id, approvalInstanceId: null, status: { in: ['pending', 'draft'] } },
+      data: { status: 'approving' },
     });
+    if (claimed.count === 0) {
+      throw new ConflictException({
+        code: ERROR_CODES.REIMBURSEMENT_ALREADY_SUBMITTED,
+        message: '已在审批中',
+      });
+    }
+
+    let instance: { id: number };
+    try {
+      instance = await this.approvalClient.startInstance({
+        workflowCode: 'reimbursement',
+        title: reim.title,
+        formData: {
+          reimbursementId: reim.id,
+          totalAmount: reim.totalAmount.toString(),
+          type: reim.typeCode,
+        },
+        userId,
+        userName: user!.realName,
+        departmentId: departmentId ?? undefined,
+      });
+    } catch (err) {
+      // 实例创建失败必须撤销占位，否则单据被卡在 approving 且没有审批实例。
+      await this.prisma.reimbursement
+        .updateMany({
+          where: { id, approvalInstanceId: null },
+          data: { status: reim.status },
+        })
+        .catch(() => undefined);
+      throw err;
+    }
 
     const updated = await this.prisma.reimbursement.update({
       where: { id },
@@ -466,17 +562,26 @@ export class ReimbursementService {
   async cancel(id: number, userId: number) {
     const reim = await this.prisma.reimbursement.findUnique({ where: { id } });
     if (!reim) {
-      throw new NotFoundException({ code: 7004, message: '报销单不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_NOT_FOUND, message: '报销单不存在' });
     }
     if (reim.applicantId !== userId) {
-      throw new ForbiddenException({ code: 5003, message: '无权限操作' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限操作' });
     }
     if (!['pending', 'approving'].includes(reim.status)) {
-      throw new BadRequestException({ code: 7005, message: '当前状态不可撤销' });
+      throw new BadRequestException({ code: ERROR_CODES.REIMBURSEMENT_STATUS_INVALID, message: '当前状态不可撤销' });
     }
     const validation = validateStateTransition(reim.status, 'cancelled');
     if (!validation.valid) {
-      throw new BadRequestException({ code: 4000, message: validation.message });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: validation.message });
+    }
+    // 已挂在审批实例上的单据必须先撤回实例：只改本地状态会让审批实例永久停在
+    // pending —— 审批人待办残留一条已撤销的单据，且「审批超时提醒」每天继续催办。
+    if (reim.approvalInstanceId) {
+      await this.approvalClient.withdraw({
+        instanceId: reim.approvalInstanceId,
+        userId,
+        reason: '报销申请撤销',
+      });
     }
     await this.prisma.reimbursement.update({
       where: { id },
@@ -489,13 +594,13 @@ export class ReimbursementService {
   async remove(id: number, userId: number) {
     const reim = await this.prisma.reimbursement.findUnique({ where: { id } });
     if (!reim) {
-      throw new NotFoundException({ code: 7004, message: '报销单不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_NOT_FOUND, message: '报销单不存在' });
     }
     if (reim.applicantId !== userId) {
-      throw new ForbiddenException({ code: 5003, message: '无权限操作' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限操作' });
     }
     if (!['draft', 'cancelled', 'rejected'].includes(reim.status)) {
-      throw new BadRequestException({ code: 7005, message: '当前状态不可删除' });
+      throw new BadRequestException({ code: ERROR_CODES.REIMBURSEMENT_STATUS_INVALID, message: '当前状态不可删除' });
     }
     await this.prisma.reimbursement.delete({ where: { id } });
     return { success: true };
@@ -510,26 +615,29 @@ export class ReimbursementService {
   }): Promise<Buffer> {
     const scope = await this.dataScope.visibleScope(userId);
     const where: any = {};
+    // 数据范围与显式筛选都进 AND 数组求交集：departmentId 是收窄条件，
+    // 直接赋值会覆盖数据范围，造成经理越权导出范围外部门的报销数据。
+    const and: any[] = [];
 
     if (scope.selfEmployeeId) {
       const emp = await this.prisma.employee.findUnique({ where: { id: scope.selfEmployeeId } });
       if (emp) {
-        where.applicantId = emp.userId;
+        and.push({ applicantId: emp.userId });
       } else {
-        where.applicantId = -1;
+        and.push({ applicantId: -1 });
       }
     } else if (!scope.all) {
-      where.departmentId = { in: scope.ids };
+      and.push({ departmentId: { in: scope.ids } });
     }
 
     if (params.status) where.status = params.status;
     if (params.type) where.typeCode = params.type;
-    if (params.departmentId) where.departmentId = params.departmentId;
+    if (params.departmentId) and.push({ departmentId: params.departmentId });
     if (params.startDate || params.endDate) {
-      where.createdAt = {};
-      if (params.startDate) where.createdAt.gte = new Date(params.startDate);
-      if (params.endDate) where.createdAt.lte = new Date(new Date(params.endDate).getTime() + 86400000 - 1);
+      // createdAt 是真实时刻，日期筛选须按北京日历日的左闭右开区间
+      where.createdAt = beijingDateRangeFilter(params.startDate, params.endDate);
     }
+    if (and.length > 0) where.AND = and;
 
     const reimbursements = await this.prisma.reimbursement.findMany({
       where,
@@ -549,7 +657,7 @@ export class ReimbursementService {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('报销记录');
     sheet.columns = [
-      { header: '单号', key: 'id', width: 10 },
+      { header: '单号', key: 'reimbursementNo', width: 24 },
       { header: '申请人', key: 'applicantName', width: 12 },
       { header: '部门', key: 'department', width: 20 },
       { header: '类型', key: 'type', width: 15 },
@@ -570,13 +678,14 @@ export class ReimbursementService {
 
     reimbursements.forEach((r) => {
       sheet.addRow({
-        id: r.id,
+        // 单号是业务单号（BX…），历史数据可能为空，回退到主键避免出现空白单元格
+        reimbursementNo: r.reimbursementNo || String(r.id),
         applicantName: r.applicantName,
         department: r.departmentId ? deptMap.get(r.departmentId) || '' : '',
         type: r.type?.name || r.typeCode,
         totalAmount: r.totalAmount.toString(),
         status: statusMap[r.status] || r.status,
-        createdAt: r.createdAt ? r.createdAt.toISOString().split('T')[0] : '',
+        createdAt: beijingDateTimeStr(r.createdAt).slice(0, 10),
         description: r.description || '',
       });
     });

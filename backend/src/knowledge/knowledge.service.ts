@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { beijingBusinessDate } from '../common/date.util';
 import { signPreviewUrl, verifyPreviewToken } from './engine/preview-sign';
 import { validateAttachment } from './engine/attachment-security.util';
 
@@ -81,9 +82,13 @@ export class KnowledgeService {
     keyword?: string;
     page: number;
     pageSize: number;
+    includeUnpublished?: boolean;
   }) {
-    const { categoryId, keyword, page, pageSize } = params;
-    const where: any = { status: 'published', deletedAt: null };
+    const { categoryId, keyword, page, pageSize, includeUnpublished } = params;
+    // 未发布文章只对管理端（includeUnpublished）可见
+    const where: any = includeUnpublished
+      ? { deletedAt: null }
+      : { status: 'published', deletedAt: null };
     if (categoryId) where.categoryId = categoryId;
     if (keyword) where.title = { contains: keyword };
 
@@ -100,7 +105,9 @@ export class KnowledgeService {
     return { list, total, page, pageSize };
   }
 
-  async getArticleDetail(id: number) {
+  // 详情接口默认只返回已发布文章：列表已过滤 status='published'，详情若不过滤，
+  // 任何登录用户都能靠 id 猜到并读到草稿/下线文章。
+  async getArticleDetail(id: number, opts?: { includeUnpublished?: boolean }) {
     const article = await this.prisma.knowledgeArticle.findUnique({
       where: { id, deletedAt: null },
       include: {
@@ -108,7 +115,7 @@ export class KnowledgeService {
         attachments: true,
       },
     });
-    if (!article) {
+    if (!article || (!opts?.includeUnpublished && article.status !== 'published')) {
       throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ARTICLE_NOT_FOUND, message: '文章不存在' });
     }
     await this.prisma.knowledgeArticle.update({
@@ -227,7 +234,7 @@ export class KnowledgeService {
   async deleteAttachment(id: number) {
     const att = await this.prisma.knowledgeAttachment.findUnique({ where: { id } });
     if (!att) {
-      throw new NotFoundException({ code: 5003, message: '附件不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ATTACHMENT_NOT_FOUND, message: '附件不存在' });
     }
     await this.prisma.knowledgeAttachment.delete({ where: { id } });
     return { success: true };
@@ -288,7 +295,7 @@ export class KnowledgeService {
       where: { id: attachmentId },
     });
     if (!att) {
-      throw new NotFoundException({ code: 5003, message: '附件不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ATTACHMENT_NOT_FOUND, message: '附件不存在' });
     }
     const result = signPreviewUrl({
       fileUrl: att.fileUrl,
@@ -308,7 +315,7 @@ export class KnowledgeService {
   // ===== 预览 token 验证 =====
   verifyPreviewToken(token: string) {
     if (!token) {
-      throw new BadRequestException({ code: 5004, message: 'token 不能为空' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: 'token 不能为空' });
     }
     const result = verifyPreviewToken(token, this.previewSecret);
     if (!result.valid) {
@@ -365,12 +372,12 @@ export class KnowledgeService {
       include: { article: { select: { status: true } } },
     });
     if (!att) {
-      throw new NotFoundException({ code: 5003, message: '附件不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ATTACHMENT_NOT_FOUND, message: '附件不存在' });
     }
 
     // 3. IDOR 防护：如果通过预览 token 鉴权，校验 token 中的 fileUrl 与附件的 fileUrl 一致
     if (tokenFileUrl !== undefined && tokenFileUrl !== att.fileUrl) {
-      throw new ForbiddenException({ code: 5002, message: 'token 与请求的附件不匹配' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限访问该数据' });
     }
 
     // 4. JWT cookie 路径：权限校验 + published 状态校验
@@ -381,11 +388,11 @@ export class KnowledgeService {
       const isPublished = att.article?.status === 'published';
       if (isPublished) {
         if (!userPerms.includes('knowledge:view')) {
-          throw new ForbiddenException({ code: 5002, message: '无权限下载该附件' });
+          throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限访问该数据' });
         }
       } else {
         if (!userPerms.includes('knowledge:manage')) {
-          throw new ForbiddenException({ code: 5002, message: '无权限下载该附件' });
+          throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限访问该数据' });
         }
       }
     }
@@ -432,9 +439,8 @@ export class KnowledgeService {
       throw new NotFoundException({ code: ERROR_CODES.KNOWLEDGE_ARTICLE_NOT_FOUND, message: '文章不存在' });
     }
 
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days + 1);
-    startDate.setHours(0, 0, 0, 0);
+    // 统计起点按北京业务日回溯（date 列为业务日，以 UTC 午夜存储）
+    const startDate = new Date(beijingBusinessDate().getTime() - (days - 1) * 24 * 60 * 60 * 1000);
 
     const stats = await this.prisma.knowledgeArticleDailyStat.findMany({
       where: {
@@ -457,7 +463,9 @@ export class KnowledgeService {
       this.prisma.knowledgeCategory.count(),
       this.prisma.knowledgeArticle.aggregate({ _sum: { viewCount: true } }),
       this.prisma.knowledgeArticleDailyStat.aggregate({
-        where: { date: new Date() },
+        // date 列是 @db.Date（业务日），必须用业务日 00:00 等值匹配；
+        // 传 new Date()（带时分秒）在 MySQL 下与 DATE 列永远不相等，今日阅读量会恒为 0。
+        where: { date: beijingBusinessDate() },
         _sum: { viewCount: true },
       }),
     ]);
@@ -471,7 +479,8 @@ export class KnowledgeService {
   }
 
   private async incrementDailyStat(articleId: number) {
-    const todayStr = new Date().toISOString().split('T')[0];
+    // 按北京业务日归档：UTC 日期会让北京时间 00:00~08:00 的阅读落到前一天
+    const todayStr = beijingBusinessDate().toISOString().split('T')[0];
     await this.prisma.$executeRaw`
       INSERT INTO knowledge_article_daily_stats (article_id, date, view_count, unique_viewers)
       VALUES (${articleId}, ${todayStr}, 1, 1)

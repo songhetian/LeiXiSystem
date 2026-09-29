@@ -90,7 +90,7 @@ describe('S05 · 补卡申请接入审批流', () => {
         headers: { cookie: empCookie },
         payload: {
           punchDate: '2026-08-10',
-          punchType: 'checkin',
+          punchType: 'check_in',
           originalTime: '08:55:00',
           reason: '地铁延误',
         },
@@ -99,7 +99,7 @@ describe('S05 · 补卡申请接入审批流', () => {
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
       expect(body.data.status).toBe('pending');
-      expect(body.data.punchType).toBe('checkin');
+      expect(body.data.punchType).toBe('check_in');
     });
 
     it('GET /attendance/punch/makeup → 补卡申请列表', async () => {
@@ -155,7 +155,7 @@ describe('S05 · 补卡申请接入审批流', () => {
         method: 'POST',
         url: '/api/v1/attendance/punch/makeup',
         headers: { cookie: empCookie },
-        payload: { punchDate: '2026-08-11', punchType: 'checkout', originalTime: '18:05:00', reason: '临时加班' },
+        payload: { punchDate: '2026-08-11', punchType: 'check_out', originalTime: '18:05:00', reason: '临时加班' },
       });
       const id = JSON.parse(createRes.payload).data.id;
 
@@ -176,7 +176,7 @@ describe('S05 · 补卡申请接入审批流', () => {
         method: 'POST',
         url: '/api/v1/attendance/punch/makeup',
         headers: { cookie: empCookie },
-        payload: { punchDate: '2026-08-12', punchType: 'checkin', originalTime: '09:05:00', reason: '电梯故障' },
+        payload: { punchDate: '2026-08-12', punchType: 'check_in', originalTime: '09:05:00', reason: '电梯故障' },
       });
       makeupId = JSON.parse(res.payload).data.id;
     });

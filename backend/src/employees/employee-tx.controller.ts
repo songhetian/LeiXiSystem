@@ -697,7 +697,7 @@ export class EmployeeTxController {
   @UseGuards(JwtAuthGuard)
   async createMyResignation(@Body() body: any, @Req() req: any) {
     const emp = await this.txService.getEmployeeByUserId(req.user.id);
-    if (!emp) throw new BadRequestException({ code: 9101, message: '员工档案不存在' });
+    if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
     const data = await this.txService.createResignation({ ...body, employeeId: emp.id }, req.user.id);
     return { code: 0, data };
   }
@@ -731,7 +731,7 @@ export class EmployeeTxController {
   @UseGuards(JwtAuthGuard)
   async createMyAppeal(@Body() body: any, @Req() req: any) {
     const emp = await this.txService.getEmployeeByUserId(req.user.id);
-    if (!emp) throw new BadRequestException({ code: 9404, message: '员工档案不存在' });
+    if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
     const data = await this.txService.createAppeal({ ...body, employeeId: emp.id }, req.user.id);
     return { code: 0, data };
   }
@@ -798,7 +798,7 @@ export class EmployeeTxController {
   @UseGuards(JwtAuthGuard)
   async createMyCertRequest(@Body() body: any, @Req() req: any) {
     const emp = await this.txService.getEmployeeByUserId(req.user.id);
-    if (!emp) throw new BadRequestException({ code: 9801, message: '员工档案不存在' });
+    if (!emp) throw new BadRequestException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工档案不存在' });
     const data = await this.txService.createCertRequest({ ...body, employeeId: emp.id }, req.user.id);
     return { code: 0, data };
   }

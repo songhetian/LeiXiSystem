@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, HttpCode, UseGuards, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, Req, HttpCode, UseGuards, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { FinanceService } from './finance.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 预算校验：departmentId 为空时视为公司年度总预算
 const budgetSchema = z.object({
@@ -32,9 +33,9 @@ const expenseStandardSchema = z.object({
 });
 const updateExpenseStandardSchema = expenseStandardSchema.partial();
 
-// 通用：尝试解析失败时抛出参数校验错误
+// 通用：尝试解析失败时抛出参数校验错误（走通用参数校验码 4000，不再占用考勤域码段）
 function fail(message: string): never {
-  throw new BadRequestException({ code: 2001, message });
+  throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message });
 }
 
 @Controller('finance')
@@ -47,6 +48,7 @@ export class FinanceController {
   @Get('budgets')
   @RequirePermission('finance:budget:view')
   async listBudgets(
+    @Req() req: any,
     @Query('year') year?: string,
     @Query('departmentId') departmentId?: string,
     @Query('category') category?: string,
@@ -65,7 +67,7 @@ export class FinanceController {
     if (category !== undefined && category !== '') {
       where.category = category;
     }
-    const result = await this.financeService.listBudgets(where);
+    const result = await this.financeService.listBudgets(where, req.user.id);
     return { code: 0, message: 'ok', data: result };
   }
 
@@ -75,7 +77,7 @@ export class FinanceController {
   async createBudget(@Body() body: unknown) {
     const parsed = budgetSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const budget = await this.financeService.createBudget(parsed.data);
     return { code: 0, message: 'ok', data: budget };
@@ -87,7 +89,7 @@ export class FinanceController {
   async updateBudget(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateBudgetSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const budget = await this.financeService.updateBudget(id, parsed.data);
     return { code: 0, message: 'ok', data: budget };
@@ -122,7 +124,7 @@ export class FinanceController {
   async createExpenseStandard(@Body() body: unknown) {
     const parsed = expenseStandardSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const item = await this.financeService.createExpenseStandard(parsed.data);
     return { code: 0, message: 'ok', data: item };
@@ -134,7 +136,7 @@ export class FinanceController {
   async updateExpenseStandard(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateExpenseStandardSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const item = await this.financeService.updateExpenseStandard(id, parsed.data);
     return { code: 0, message: 'ok', data: item };

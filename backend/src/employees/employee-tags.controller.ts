@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { EmployeeTagsService } from './employee-tags.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 员工标签校验
 const tagSchema = z.object({
@@ -31,7 +32,7 @@ export class EmployeeTagsController {
   async create(@Body() body: unknown) {
     const parsed = tagSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const tag = await this.employeeTagsService.create(parsed.data);
     return { code: 0, message: 'ok', data: tag };
@@ -43,7 +44,7 @@ export class EmployeeTagsController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateTagSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const tag = await this.employeeTagsService.update(id, parsed.data);
     return { code: 0, message: 'ok', data: tag };

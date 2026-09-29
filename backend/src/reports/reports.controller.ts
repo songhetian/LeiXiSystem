@@ -3,12 +3,24 @@ import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { beijingNow } from '../common/date.util';
 import { createReadStream } from 'fs';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
+
+  /**
+   * 导出文件名中的日期后缀。
+   *
+   * 不能用 `new Date().toISOString().slice(0, 10)`：那是 UTC 日期，生产容器 TZ=UTC 时
+   * 北京时间 00:00~08:00 导出的文件名会退回【昨天】，与用户看到的日期不一致。
+   */
+  private exportDateSuffix(): string {
+    const { year, month, day } = beijingNow();
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
 
   @Get('attendance-monthly')
   @HttpCode(200)
@@ -139,13 +151,13 @@ export class ReportsController {
   ) {
     if (format === 'csv') {
       const csv = await this.reportsService.exportEmployeeListCsv(req.user.id);
-      const filename = `employee-list-${new Date().toISOString().slice(0, 10)}.csv`;
+      const filename = `employee-list-${this.exportDateSuffix()}.csv`;
       res.header('Content-Type', 'text/csv; charset=utf-8');
       res.header('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(csv);
     } else {
       const buffer = await this.reportsService.exportEmployeeListXlsx(req.user.id);
-      const filename = `employee-list-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const filename = `employee-list-${this.exportDateSuffix()}.xlsx`;
       res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.header('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);

@@ -1,5 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { DataScopeService } from '../common/data-scope.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // OKR 目标创建 DTO
 export interface OkrObjectiveCreateDto {
@@ -31,7 +33,10 @@ export interface OkrKeyResultUpdateDto extends Partial<Omit<OkrKeyResultCreateDt
 
 @Injectable()
 export class OkrService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dataScope: DataScopeService,
+  ) {}
 
   // ===== OKR 目标 =====
 
@@ -51,10 +56,29 @@ export class OkrService {
     });
   }
 
-  async listObjectives(ownerId?: number, type?: string) {
+  // ADR-0010：OKR 目标隔离
+  //   all    → 全量
+  //   部门范围 → 本部门及子部门的部门级 OKR（departmentId in 可见部门）
+  //   仅本人  → ownerId = 本人（显式查询他人直接返回空集，不查库）
+  async listObjectives(userId: number, ownerId?: number, type?: string) {
     const where: any = {};
     if (ownerId !== undefined) where.ownerId = ownerId;
     if (type !== undefined) where.type = type;
+
+    const scope = await this.dataScope.visibleScope(userId);
+    if (!scope.all) {
+      if (scope.selfEmployeeId !== undefined) {
+        if (ownerId !== undefined && ownerId !== scope.selfEmployeeId) {
+          return { list: [], total: 0 };
+        }
+        where.ownerId = scope.selfEmployeeId;
+      } else if (scope.ids.length > 0) {
+        where.departmentId = { in: scope.ids };
+      } else {
+        return { list: [], total: 0 };
+      }
+    }
+
     const list = await this.prisma.okrObjective.findMany({
       where,
       orderBy: { id: 'asc' },
@@ -66,7 +90,10 @@ export class OkrService {
   async updateObjective(id: number, dto: OkrObjectiveUpdateDto) {
     const objective = await this.prisma.okrObjective.findUnique({ where: { id } });
     if (!objective) {
-      throw new NotFoundException({ code: 2001, message: 'OKR 目标不存在' });
+      throw new NotFoundException({
+        code: ERROR_CODES.OKR_OBJECTIVE_NOT_FOUND,
+        message: 'OKR 目标不存在',
+      });
     }
     const data: Record<string, any> = {};
     for (const key of Object.keys(dto) as (keyof OkrObjectiveUpdateDto)[]) {
@@ -74,9 +101,13 @@ export class OkrService {
         data[key] = dto[key];
       }
     }
-    // 未显式传 progress 时，基于关键结果平均进度重算
+    // 未显式传 progress 时，基于关键结果平均进度重算；
+    // 目标下没有 KR 时重算结果为 null（进度只能来自手工填写），此时不得覆盖原值。
     if (data.progress === undefined) {
-      data.progress = await this.recalcObjectiveProgress(id);
+      const recalculated = await this.recalcObjectiveProgress(id);
+      if (recalculated !== null) {
+        data.progress = recalculated;
+      }
     }
     if (Object.keys(data).length === 0) {
       return objective;
@@ -87,7 +118,10 @@ export class OkrService {
   async removeObjective(id: number) {
     const objective = await this.prisma.okrObjective.findUnique({ where: { id } });
     if (!objective) {
-      throw new NotFoundException({ code: 2001, message: 'OKR 目标不存在' });
+      throw new NotFoundException({
+        code: ERROR_CODES.OKR_OBJECTIVE_NOT_FOUND,
+        message: 'OKR 目标不存在',
+      });
     }
     await this.prisma.okrObjective.delete({ where: { id } });
     return { success: true };
@@ -98,7 +132,10 @@ export class OkrService {
   async createKeyResult(dto: OkrKeyResultCreateDto) {
     const objective = await this.prisma.okrObjective.findUnique({ where: { id: dto.objectiveId } });
     if (!objective) {
-      throw new BadRequestException({ code: 2001, message: 'OKR 目标不存在' });
+      throw new BadRequestException({
+        code: ERROR_CODES.OKR_OBJECTIVE_NOT_FOUND,
+        message: 'OKR 目标不存在',
+      });
     }
     const initialValue = dto.initialValue ?? 0;
     const targetValue = dto.targetValue ?? 0;
@@ -119,10 +156,28 @@ export class OkrService {
     return kr;
   }
 
-  async listKeyResults(objectiveId: number) {
-    const objective = await this.prisma.okrObjective.findUnique({ where: { id: objectiveId } });
+  // ADR-0010：关键结果随其目标归属，目标不可见时按「不存在」处理，避免越权读取
+  async listKeyResults(userId: number, objectiveId: number) {
+    const objectiveWhere: any = { id: objectiveId };
+    const scope = await this.dataScope.visibleScope(userId);
+    if (!scope.all) {
+      if (scope.selfEmployeeId !== undefined) {
+        objectiveWhere.ownerId = scope.selfEmployeeId;
+      } else if (scope.ids.length > 0) {
+        objectiveWhere.departmentId = { in: scope.ids };
+      } else {
+        throw new NotFoundException({
+          code: ERROR_CODES.OKR_OBJECTIVE_NOT_FOUND,
+          message: 'OKR 目标不存在',
+        });
+      }
+    }
+    const objective = await this.prisma.okrObjective.findUnique({ where: objectiveWhere });
     if (!objective) {
-      throw new NotFoundException({ code: 2001, message: 'OKR 目标不存在' });
+      throw new NotFoundException({
+        code: ERROR_CODES.OKR_OBJECTIVE_NOT_FOUND,
+        message: 'OKR 目标不存在',
+      });
     }
     const list = await this.prisma.okrKeyResult.findMany({
       where: { objectiveId },
@@ -134,7 +189,10 @@ export class OkrService {
   async updateKeyResult(id: number, dto: OkrKeyResultUpdateDto) {
     const kr = await this.prisma.okrKeyResult.findUnique({ where: { id } });
     if (!kr) {
-      throw new NotFoundException({ code: 2001, message: '关键结果不存在' });
+      throw new NotFoundException({
+        code: ERROR_CODES.OKR_KEY_RESULT_NOT_FOUND,
+        message: '关键结果不存在',
+      });
     }
     const data: Record<string, any> = {};
     for (const key of Object.keys(dto) as (keyof OkrKeyResultUpdateDto)[]) {
@@ -172,11 +230,13 @@ export class OkrService {
     return Math.max(0, Math.min(100, Math.round(progress)));
   }
 
-  // 重算目标整体进度 = 关键结果进度的平均值
-  private async recalcObjectiveProgress(objectiveId: number): Promise<number> {
+  // 重算目标整体进度 = 关键结果进度的平均值。
+  // 目标下没有任何 KR 时返回 null 且不落库：该目标的进度只能来自手工填写，
+  // 若返回 0 并写库，改一次标题就会把用户填的进度静默清零。
+  private async recalcObjectiveProgress(objectiveId: number): Promise<number | null> {
     const krs = await this.prisma.okrKeyResult.findMany({ where: { objectiveId }, select: { progress: true } });
     if (krs.length === 0) {
-      return 0;
+      return null;
     }
     const sum = krs.reduce((acc, k) => acc + k.progress, 0);
     const progress = Math.round(sum / krs.length);

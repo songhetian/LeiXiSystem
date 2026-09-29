@@ -44,7 +44,11 @@ function createMockPayslipService() {
 }
 
 function createMockNotificationService() {
-  return { create: jest.fn().mockResolvedValue({}) };
+  return {
+    create: jest.fn().mockResolvedValue({}),
+    createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    removeByRelated: jest.fn().mockResolvedValue({ count: 0 }),
+  };
 }
 
 function createMockLockService() {
@@ -59,6 +63,7 @@ function createMockEventEmitter() {
 
 describe('PayrollService', () => {
   let _eventEmitter: ReturnType<typeof createMockEventEmitter>;
+  let _notificationService: ReturnType<typeof createMockNotificationService>;
   describe('createRun — 唯一约束竞态处理', () => {
     let service: PayrollService;
     let prisma: ReturnType<typeof createMockPrisma>;
@@ -337,7 +342,98 @@ describe('PayrollService', () => {
       const created = prisma._mockTx.payrollDetail.createMany.mock.calls[0][0].data;
       const base = created.find((d: any) => d.itemCode === 'base');
       expect(base).toBeDefined();
-      expect(base.amount).toBe(10000);
+      // 写库边界为定点 Decimal（@db.Decimal(12,2)），非浮点 number
+      expect(base.amount.toNumber()).toBe(10000);
+      expect(base.amount.toFixed(2)).toBe('10000.00');
+    });
+  });
+
+  describe('createRun — 金额定点化（写库边界 + 对账断言）', () => {
+    let service: PayrollService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      const dataScope = createMockDataScope();
+      const payslipService = createMockPayslipService() as any;
+      const notificationService = createMockNotificationService() as any;
+      const lockService = createMockLockService() as any;
+      const eventEmitter = createMockEventEmitter();
+      _eventEmitter = eventEmitter;
+      service = new PayrollService(
+        prisma as any,
+        dataScope as any,
+        payslipService,
+        notificationService,
+        lockService,
+        eventEmitter as any,
+      );
+    });
+
+    // 构造月报数据：指定员工数与薪资，其余字段取全勤
+    function monthly(employeeId: number, salary: number) {
+      return {
+        employeeId,
+        workDays: 22,
+        absentDays: 0,
+        lateCount: 0,
+        earlyCount: 0,
+        leaveMinutes: 0,
+        overtimeHours: 0,
+        employee: { id: employeeId, name: `员工${employeeId}`, salary },
+      };
+    }
+
+    it('明细与批次总额均以 Prisma.Decimal 定点写入', async () => {
+      prisma.payrollRun.findUnique.mockResolvedValue(null);
+      prisma.attendanceMonthly.findMany.mockResolvedValue([monthly(1, 8333.33)]);
+      prisma.salaryAdjustment.findFirst.mockResolvedValue(null);
+      prisma._mockTx.payrollRun.create.mockResolvedValue({ id: 1, month: '2025-09', status: 'draft' });
+      prisma._mockTx.payrollDetail.createMany.mockResolvedValue({ count: 8 });
+      prisma._mockTx.payrollRun.update.mockImplementation(async (args: any) => args.data);
+
+      await service.createRun('2025-09', 1);
+
+      const details = prisma._mockTx.payrollDetail.createMany.mock.calls[0][0].data;
+      for (const d of details) {
+        expect(d.amount).toBeInstanceOf(Prisma.Decimal);
+        // 定点写入：写入值的小数位不超过 2 位，杜绝 0.1+0.2 型漂移入库
+        expect(d.amount.decimalPlaces()).toBeLessThanOrEqual(2);
+      }
+      const runData = prisma._mockTx.payrollRun.update.mock.calls[0][0].data;
+      expect(runData.totalAmount).toBeInstanceOf(Prisma.Decimal);
+      // 批次总额 == 所有明细定点累加
+      const detailCents = details.reduce(
+        (acc: number, d: any) => acc + Math.round(d.amount.toNumber() * 100),
+        0,
+      );
+      expect(runData.totalAmount.toNumber()).toBe(detailCents / 100);
+      expect(runData.totalEmployees).toBe(1);
+    });
+
+    it('多员工时批次总额恒等于明细定点累加，不发生浮点漂移', async () => {
+      prisma.payrollRun.findUnique.mockResolvedValue(null);
+      // 8333.33/21.75/8 会产生无尽小数，正是浮点漂移的典型来源
+      prisma.attendanceMonthly.findMany.mockResolvedValue([
+        monthly(1, 8333.33),
+        monthly(2, 6666.67),
+        monthly(3, 9999.99),
+      ]);
+      prisma.salaryAdjustment.findFirst.mockResolvedValue(null);
+      prisma._mockTx.payrollRun.create.mockResolvedValue({ id: 7, month: '2025-09', status: 'draft' });
+      prisma._mockTx.payrollDetail.createMany.mockResolvedValue({ count: 24 });
+      prisma._mockTx.payrollRun.update.mockImplementation(async (args: any) => args.data);
+
+      await service.createRun('2025-09', 1);
+
+      const details = prisma._mockTx.payrollDetail.createMany.mock.calls[0][0].data;
+      const detailCents = details.reduce(
+        (acc: number, d: any) => acc + Math.round(d.amount.toNumber() * 100),
+        0,
+      );
+      const runData = prisma._mockTx.payrollRun.update.mock.calls[0][0].data;
+      expect(runData.totalAmount.toNumber()).toBe(detailCents / 100);
+      expect(runData.totalEmployees).toBe(3);
     });
   });
 
@@ -350,6 +446,7 @@ describe('PayrollService', () => {
       const dataScope = createMockDataScope();
       const payslipService = createMockPayslipService() as any;
       const notificationService = createMockNotificationService() as any;
+      _notificationService = notificationService;
       const lockService = createMockLockService() as any;
       const eventEmitter = createMockEventEmitter();
       _eventEmitter = eventEmitter;
@@ -400,11 +497,12 @@ describe('PayrollService', () => {
         count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn().mockResolvedValue({}),
       };
-      prisma.payrollRun.update = jest.fn().mockResolvedValue({
+      prisma._mockTx.payrollRun.update = jest.fn().mockResolvedValue({
         id: 9,
         month: '2026-08',
         status: 'recalled',
       });
+      prisma._mockTx.payslip = { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) };
 
       await service.recallRun(9, 1);
 
@@ -417,6 +515,91 @@ describe('PayrollService', () => {
           to: 'recalled',
         }),
       );
+    });
+
+    it('撤回已发布批次时同步清理「工资条已发布」通知（relatedType=payroll_run）', async () => {
+      prisma.payrollRun.findUnique = jest.fn().mockResolvedValue({
+        id: 9,
+        month: '2026-08',
+        status: 'published',
+      });
+      (prisma as any).payslip = {
+        count: jest.fn().mockResolvedValue(0),
+        deleteMany: jest.fn().mockResolvedValue({}),
+      };
+      prisma._mockTx.payrollRun.update = jest.fn().mockResolvedValue({
+        id: 9,
+        month: '2026-08',
+        status: 'recalled',
+      });
+      prisma._mockTx.payslip = { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) };
+
+      await service.recallRun(9, 1);
+
+      // 工资条已删除，遗留通知会指向不存在的单据，必须一并清理
+      expect(_notificationService.removeByRelated).toHaveBeenCalledWith('payroll_run', 9);
+    });
+
+    it('撤回时存在已查看工资条，抛「不可撤回」专属码 3012，而非 3005（员工无工资配置）', async () => {
+      prisma.payrollRun.findUnique = jest.fn().mockResolvedValue({
+        id: 9,
+        month: '2026-08',
+        status: 'published',
+      });
+      (prisma as any).payslip = {
+        count: jest.fn().mockResolvedValue(2),
+        deleteMany: jest.fn().mockResolvedValue({}),
+      };
+
+      await expect(service.recallRun(9, 1)).rejects.toMatchObject({
+        response: { code: 3012, message: '存在已查看的工资条，不可撤回' },
+      });
+    });
+
+    it('非草稿批次确认时抛「批次状态不允许此操作」3010，而非语义不符的 3003', async () => {
+      (prisma as any).payrollDetail.groupBy = jest.fn().mockResolvedValue([
+        { employeeId: 1 },
+        { employeeId: 2 },
+        { employeeId: 3 },
+      ]);
+      (prisma as any).payrollRun.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      prisma.payrollRun.findUnique = jest.fn().mockResolvedValue({
+        id: 5,
+        month: '2026-08',
+        status: 'confirmed',
+      });
+
+      await expect(service.confirmRun(5, 1, [1, 2, 3])).rejects.toMatchObject({
+        response: { code: 3010, message: '仅草稿状态可确认' },
+      });
+    });
+
+    it('撤回时状态变更与工资条删除必须同一事务，避免删条失败后残留可查工资条', async () => {
+      prisma.payrollRun.findUnique = jest.fn().mockResolvedValue({
+        id: 9,
+        month: '2026-08',
+        status: 'published',
+      });
+      // 事务外只允许读（count），不允许写
+      (prisma as any).payslip = { count: jest.fn().mockResolvedValue(0), deleteMany: jest.fn() };
+      prisma._mockTx.payrollRun.update = jest.fn().mockResolvedValue({
+        id: 9,
+        month: '2026-08',
+        status: 'recalled',
+      });
+      prisma._mockTx.payslip = { deleteMany: jest.fn().mockResolvedValue({ count: 3 }) };
+
+      await service.recallRun(9, 1);
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma._mockTx.payrollRun.update).toHaveBeenCalledWith({
+        where: { id: 9 },
+        data: expect.objectContaining({ status: 'recalled', recalledBy: 1 }),
+      });
+      expect(prisma._mockTx.payslip.deleteMany).toHaveBeenCalledWith({ where: { runId: 9 } });
+      // 事务外不能再删一次：否则事务回滚时工资条删除不可回滚，
+      // 会留下「批次仍是已发布、工资条却已被删」的反向错账
+      expect((prisma as any).payslip.deleteMany).not.toHaveBeenCalled();
     });
   });
 

@@ -6,6 +6,9 @@ function createMockPrisma() {
     user: {
       findUnique: jest.fn(),
     },
+    employee: {
+      findFirst: jest.fn(),
+    },
     userDepartment: {
       findMany: jest.fn(),
     },

@@ -34,6 +34,9 @@ function buildUserWithPerms(userId: number, username: string, permCodes: string[
     id: userId,
     username,
     realName: `用户${username}`,
+    // 缓存回源会校验账号是否启用，未启用账号一律视为无效 token
+    status: 'active',
+    deletedAt: null,
     roles: permCodes.map((code) => ({
       role: {
         permissions: [{ permission: { code } }],

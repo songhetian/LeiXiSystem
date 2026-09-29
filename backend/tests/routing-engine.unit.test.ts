@@ -122,6 +122,38 @@ describe('S09 · 审批路由引擎（纯函数）', () => {
     });
   });
 
+  describe('申请人确认节点（initiator）', () => {
+    const initiatorNode: WorkflowNode = {
+      id: 'me1',
+      name: '申请人确认',
+      type: 'initiator' as any,
+      order: 1,
+    };
+
+    it('应按 applicantUserId 解析出申请人本人为审批人', () => {
+      const result = resolveNextApprovers(initiatorNode, {
+        ...ctx,
+        applicantUserId: 5,
+      } as any);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe('initiator');
+      expect(result!.userId).toBe(5);
+    });
+
+    it('缺少申请人上下文时应跳过该节点', () => {
+      expect(resolveNextApprovers(initiatorNode, ctx)).toBeNull();
+    });
+
+    it('buildApprovalChain 不应静默丢弃申请人确认节点', () => {
+      const chain = buildApprovalChain([initiatorNode], {
+        ...ctx,
+        applicantUserId: 5,
+      } as any);
+      expect(chain.length).toBe(1);
+      expect(chain[0].nodeKey).toBe('me1');
+    });
+  });
+
   describe('条件运算符支持', () => {
     const baseNode: WorkflowNode = {
       id: 'test',

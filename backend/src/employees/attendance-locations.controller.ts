@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceLocationsService } from './attendance-locations.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 打卡定位校验
 const locationSchema = z.object({
@@ -35,7 +36,7 @@ export class AttendanceLocationsController {
   async create(@Body() body: unknown) {
     const parsed = locationSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const location = await this.attendanceLocationsService.create(parsed.data);
     return { code: 0, message: 'ok', data: location };
@@ -47,7 +48,7 @@ export class AttendanceLocationsController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateLocationSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const location = await this.attendanceLocationsService.update(id, parsed.data);
     return { code: 0, message: 'ok', data: location };

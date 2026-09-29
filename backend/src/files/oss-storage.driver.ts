@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { extname, basename } from 'path';
 import { randomBytes } from 'crypto';
 import { StorageDriver } from './storage-driver.interface';
+import { ERROR_CODES } from '../common/error-codes';
 import OSS from 'ali-oss';
 
 const SAFE_BIZ_TYPE = /^[\w-]{1,50}$/;
@@ -71,7 +72,10 @@ export class OssStorageDriver implements StorageDriver {
     const key = String(fileUrl).replace(/^\/+/, '');
     const result = await this.client.get(key);
     if (!result?.stream) {
-      throw new BadRequestException({ code: 5003, message: '文件不存在或已被删除' });
+      throw new BadRequestException({
+        code: ERROR_CODES.FILE_NOT_FOUND,
+        message: '文件不存在或已被删除',
+      });
     }
     return { stream: result.stream as import('stream').Readable };
   }

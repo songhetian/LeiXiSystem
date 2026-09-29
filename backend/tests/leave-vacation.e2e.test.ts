@@ -138,12 +138,35 @@ describe('S06 · 请假/加班/休假额度', () => {
     });
     compensatoryLeaveTypeId = compensatoryType.id;
 
+    // 月假类型：monthlyDays 为 12 元素数组（依次对应 1~12 月），前端据此判断
+    // 申请请假时是否需要展示「抵扣月份」下拉
+    const monthlyType = await prisma.vacationType.create({
+      data: {
+        code: 'monthly',
+        name: '月假',
+        baseDays: 0,
+        sortOrder: 3,
+        monthlyDays: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      },
+    });
+
     await prisma.vacationBalance.create({
       data: {
         employeeId: emp.id,
         vacationTypeId: annualType.id,
         year: 2026,
         totalDays: 5,
+        usedDays: 0,
+      },
+    });
+
+    await prisma.vacationBalance.create({
+      data: {
+        employeeId: emp.id,
+        vacationTypeId: monthlyType.id,
+        year: 2026,
+        month: 1,
+        totalDays: 1,
         usedDays: 0,
       },
     });
@@ -226,6 +249,11 @@ describe('S06 · 请假/加班/休假额度', () => {
       const annual = body.data.find((b: any) => b.vacationType.code === 'annual');
       expect(Number(annual.totalDays)).toBe(5);
       expect(Number(annual.usedDays)).toBe(0);
+
+      // 月假类型必须返回 monthlyDays（12 元素），否则前端无法判断是否需要选「抵扣月份」
+      const monthly = body.data.find((b: any) => b.vacationType.code === 'monthly');
+      expect(monthly).toBeDefined();
+      expect(monthly.vacationType.monthlyDays).toHaveLength(12);
     });
 
     it('加班审批后可兑换调休（按8小时=1天换算）', async () => {

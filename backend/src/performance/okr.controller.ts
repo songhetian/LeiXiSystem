@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, HttpCode, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { ERROR_CODES } from '../common/error-codes';
 import { OkrService } from './okr.service';
 
 // OKR 目标校验
@@ -44,7 +45,7 @@ export class OkrController {
   async createObjective(@Body() body: unknown) {
     const parsed = objectiveSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.okrService.createObjective(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -52,8 +53,13 @@ export class OkrController {
 
   @Get('objectives')
   @RequirePermission('okr:view')
-  async listObjectives(@Query('ownerId') ownerId?: string, @Query('type') type?: string) {
+  async listObjectives(
+    @Req() req: any,
+    @Query('ownerId') ownerId?: string,
+    @Query('type') type?: string,
+  ) {
     const result = await this.okrService.listObjectives(
+      req.user.id,
       ownerId !== undefined ? Number(ownerId) : undefined,
       type,
     );
@@ -66,7 +72,7 @@ export class OkrController {
   async updateObjective(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateObjectiveSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.okrService.updateObjective(id, parsed.data);
     return { code: 0, message: 'ok', data };
@@ -89,7 +95,7 @@ export class OkrController {
     // 传入参数校验，objectiveId 取路径中的 id；创建时 title 必填
     const parsed = keyResultSchema.omit({ objectiveId: true }).safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.okrService.createKeyResult({ ...parsed.data, objectiveId: id });
     return { code: 0, message: 'ok', data };
@@ -97,8 +103,8 @@ export class OkrController {
 
   @Get('objectives/:id/key-results')
   @RequirePermission('okr:view')
-  async listKeyResults(@Param('id', ParseIntPipe) id: number) {
-    const result = await this.okrService.listKeyResults(id);
+  async listKeyResults(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    const result = await this.okrService.listKeyResults(req.user.id, id);
     return { code: 0, message: 'ok', data: result };
   }
 
@@ -108,7 +114,7 @@ export class OkrController {
   async updateKeyResult(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateKeyResultSchema.omit({ objectiveId: true }).safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.okrService.updateKeyResult(id, parsed.data);
     return { code: 0, message: 'ok', data };

@@ -2,6 +2,7 @@ import { EmployeesService } from './employees.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { BadRequestException } from '@nestjs/common';
 import { ERROR_CODES } from '../common/error-codes';
+import { messageOf } from '../common/error-messages';
 import * as ExcelJS from 'exceljs';
 
 const mockPrisma: any = {
@@ -794,6 +795,22 @@ describe('EmployeesService (敏感字段)', () => {
       const resignDate = mockPrisma.employee.update.mock.calls[0][0].data.resignDate as Date;
       expect(resignDate.getTime()).toBeGreaterThanOrEqual(before.getTime());
       expect(resignDate.getTime()).toBeLessThanOrEqual(after.getTime());
+    });
+  });
+
+  describe('updateMyProfile（个人档案）错误码语义', () => {
+    it('未找到员工档案时应报「员工不存在」，不得复用 1004（员工已离职）', async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue(null);
+
+      let payload: any;
+      try {
+        await service.updateMyProfile(999, { phone: '13800000000' });
+      } catch (e: any) {
+        payload = e.getResponse?.() ?? e.response;
+      }
+
+      expect(payload.code).toBe(ERROR_CODES.EMPLOYEE_NOT_FOUND);
+      expect(messageOf(payload.code)).toBe('员工不存在');
     });
   });
 });

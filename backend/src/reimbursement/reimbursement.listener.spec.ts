@@ -159,4 +159,66 @@ describe('ReimbursementListener', () => {
       expect(prisma.reimbursementPayment.update).not.toHaveBeenCalled();
     });
   });
+
+  describe('handleApprovalApproved - 报销审批通过', () => {
+    it('状态已是 approved 但付款单不存在时，仍应创建付款单', async () => {
+      const reimbursement = {
+        id: 1,
+        status: 'approved',
+        totalAmount: 1000,
+        applicantId: 1,
+        approvalInstanceId: 100,
+      };
+
+      prisma.reimbursement.findFirst.mockResolvedValue(reimbursement);
+      prisma.reimbursementPayment.findUnique.mockResolvedValue(null);
+
+      await listener.handleApprovalApproved({
+        instanceId: 100,
+        workflowCode: 'reimbursement',
+      });
+
+      expect(prisma.reimbursementPayment.create).toHaveBeenCalledWith({
+        data: {
+          reimbursementId: 1,
+          amount: 1000,
+          status: 'pending',
+          createdBy: 1,
+        },
+      });
+      // 已是 approved，不应再重复写状态
+      expect(prisma.reimbursement.update).not.toHaveBeenCalled();
+    });
+
+    it('幂等：状态 approved 且付款单已存在时不重复创建', async () => {
+      const reimbursement = {
+        id: 1,
+        status: 'approved',
+        totalAmount: 1000,
+        applicantId: 1,
+        approvalInstanceId: 100,
+      };
+      const payment = { id: 1, reimbursementId: 1, amount: 1000, status: 'pending' };
+
+      prisma.reimbursement.findFirst.mockResolvedValue(reimbursement);
+      prisma.reimbursementPayment.findUnique.mockResolvedValue(payment);
+
+      await listener.handleApprovalApproved({
+        instanceId: 100,
+        workflowCode: 'reimbursement',
+      });
+
+      expect(prisma.reimbursementPayment.create).not.toHaveBeenCalled();
+      expect(prisma.reimbursement.update).not.toHaveBeenCalled();
+    });
+
+    it('非报销 workflowCode 直接返回', async () => {
+      await listener.handleApprovalApproved({
+        instanceId: 400,
+        workflowCode: 'other',
+      });
+
+      expect(prisma.reimbursement.findFirst).not.toHaveBeenCalled();
+    });
+  });
 });

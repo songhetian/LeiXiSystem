@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { Employee, EmployeeStatus, Prisma } from '@prisma/client';
 import { ERROR_CODES } from '../common/error-codes';
+import { beijingNow } from '../common/date.util';
 import * as ExcelJS from 'exceljs';
 
 // 员工聚合根服务（S03）：CRUD + 离职状态机 + 部门数据隔离（ADR-0010，经 DataScopeService 统一注入）
@@ -14,8 +15,13 @@ export class EmployeesService {
   ) {}
 
   // 薪资生效月：默认次月（发薪「本月发上月」，8 月改薪 → 9 月计薪月生效 → 10 月发放）
+  // 必须按北京时间取「当前年月」：UTC 容器在北京时间每月 1 日 00:00~08:00 仍停在上月末，
+  // 用本地时区 getter 会把生效月算成当月，导致提前一个月生效发薪。
   private nextEffectiveMonth(date = new Date()): string {
-    const d = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    const { year, month } = beijingNow(date);
+    // month 为 1-based 当前月，其 0-based 索引正好等于「下个月」的月份索引；
+    // 以本地时区构造再以本地 getter 读回，属自洽往返，与服务器时区无关。
+    const d = new Date(year, month, 1);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     return `${d.getFullYear()}-${mm}`;
   }
@@ -110,7 +116,7 @@ export class EmployeesService {
       where: { userId },
     });
     if (!employee) {
-      throw new NotFoundException({ code: 1004, message: '未找到员工档案' });
+      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '未找到员工档案' });
     }
 
     const ALLOWED_FIELDS = [
@@ -265,10 +271,10 @@ export class EmployeesService {
     // IDOR fix: verify the employee is in the caller's data scope
     if (scope.selfEmployeeId) {
       if (employee.id !== scope.selfEmployeeId) {
-        throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
       }
     } else if (!scope.all && !scope.ids.includes(employee.departmentId)) {
-      throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
     }
     if (dto.salary !== undefined && Number(dto.salary) < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '员工薪资不能为负' });
@@ -321,10 +327,10 @@ export class EmployeesService {
     const employee = await this.getActive(id);
     if (scope.selfEmployeeId) {
       if (employee.id !== scope.selfEmployeeId) {
-        throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
       }
     } else if (!scope.all && !scope.ids.includes(employee.departmentId)) {
-      throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
     }
     const resignDate = data.resignDate ? new Date(data.resignDate) : new Date();
     const dbData = {
@@ -360,10 +366,10 @@ export class EmployeesService {
     if (!employee) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     if (scope.selfEmployeeId) {
       if (employee.id !== scope.selfEmployeeId) {
-        throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
       }
     } else if (!scope.all && !scope.ids.includes(employee.departmentId)) {
-      throw new ForbiddenException({ code: 4030, message: '无权操作其他员工的数据' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作其他员工的数据' });
     }
     if (employee.status !== EmployeeStatus.resigned) {
       throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_NOT_RESIGNED, message: '员工未离职，不可恢复' });

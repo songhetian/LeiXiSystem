@@ -1,34 +1,23 @@
-import { calculatePayroll, round2, PayrollItem, AttendanceSnapshot, PayrollConfig } from './payroll-engine';
+import {
+  calculatePayroll,
+  assertPayrollBalanced,
+  PayrollItem,
+  AttendanceSnapshot,
+  PayrollConfig,
+} from './payroll-engine';
+// 金额定点工具已下沉到 common，本文件只验证算薪规则本身
+import { round2, toCents, sumCents } from '../../common/money.util';
 
-describe('round2', () => {
-  it('整数不变', () => {
-    expect(round2(100)).toBe(100);
+describe('assertPayrollBalanced — 明细定点累加对账', () => {
+  it('明细定点累加等于批次总额时通过（含浮点漂移场景）', () => {
+    expect(() => assertPayrollBalanced([0.1, 0.2], 0.3)).not.toThrow();
+    expect(() => assertPayrollBalanced([], 0)).not.toThrow();
+    expect(() => assertPayrollBalanced([5000, -100.005], 4899.99)).not.toThrow();
   });
 
-  it('正常四舍五入', () => {
-    expect(round2(1.234)).toBe(1.23);
-    expect(round2(1.235)).toBe(1.24);
-    expect(round2(1.236)).toBe(1.24);
-  });
-
-  it('经典浮点边界：1.005 应四舍五入为 1.01', () => {
-    expect(round2(1.005)).toBe(1.01);
-  });
-
-  it('经典浮点边界：0.1 + 0.2 = 0.30 应正确舍入', () => {
-    expect(round2(0.1 + 0.2)).toBe(0.3);
-  });
-
-  it('经典浮点边界：0.015 应四舍五入为 0.02', () => {
-    expect(round2(0.015)).toBe(0.02);
-  });
-
-  it('负数也正确舍入', () => {
-    expect(round2(-1.235)).toBe(-1.24);
-  });
-
-  it('零返回零', () => {
-    expect(round2(0)).toBe(0);
+  it('明细定点累加与批次总额不等时抛错（漏项或漂移未收敛）', () => {
+    expect(() => assertPayrollBalanced([1.005], 1)).toThrow(/算薪对账失败/);
+    expect(() => assertPayrollBalanced([100, 200], 400)).toThrow(/算薪对账失败/);
   });
 });
 
@@ -54,6 +43,26 @@ describe('calculatePayroll — 精度验证', () => {
       defaultConfig,
     );
     expect(result.total).toBe(4920);
+  });
+
+  it('total 恒等于明细的定点累加（不因浮点漂移而偏离）', () => {
+    const result = calculatePayroll(
+      { name: '张三', basicSalary: 8333.33 },
+      {
+        workDays: 21,
+        scheduledDays: 23,
+        absentDays: 2,
+        lateCount: 3,
+        earlyCount: 2,
+        noLeave: false,
+        overtimeHours: { weekday: 7, weekend: 2, holiday: 1 },
+      },
+      { ...defaultConfig, lateDeductionPerTime: 33.33, earlyDeductionPerTime: 16.67 },
+    );
+    const itemsCents = sumCents(result.items.map((i) => i.amount));
+    expect(toCents(result.total)).toBe(itemsCents);
+    expect(round2(result.total)).toBe(result.total);
+    expect(() => assertPayrollBalanced(result.items.map((i) => i.amount), result.total)).not.toThrow();
   });
 
   it('缺勤时基本工资不变，缺勤扣款单独列出', () => {

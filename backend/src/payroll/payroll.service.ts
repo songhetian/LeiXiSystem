@@ -1,11 +1,12 @@
-import { Injectable, ConflictException, NotFoundException, UnprocessableEntityException, BadRequestException, ForbiddenException, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, UnprocessableEntityException, BadRequestException, ForbiddenException, Logger, HttpException, HttpStatus, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { Prisma } from '@prisma/client';
-import { calculatePayroll, type PayrollConfig } from './engine/payroll-engine';
+import { calculatePayroll, assertPayrollBalanced, type PayrollConfig } from './engine/payroll-engine';
+import { fromCents, toCents } from '../common/money.util';
 import { PayslipService } from './payslip.service';
-import { NotificationService } from '../notification/notification.service';
+import { NotificationClientInterface } from '../notification/notification-client.interface';
 import { ERROR_CODES } from '../common/error-codes';
 import { DistributedLockService, LockAcquisitionError } from '../common/distributed-lock.service';
 import { EVENT_PAYROLL_STATUS_CHANGED } from '../common/events';
@@ -20,7 +21,7 @@ export class PayrollService {
     private prisma: PrismaService,
     private dataScope: DataScopeService,
     private payslipService: PayslipService,
-    private notificationService: NotificationService,
+    @Inject('NOTIFICATION_CLIENT') private notificationService: NotificationClientInterface,
     private lockService: DistributedLockService,
     private eventEmitter: EventEmitter2,
   ) {}
@@ -67,7 +68,7 @@ export class PayrollService {
     return this.lockService.withLock(`payroll:create:${month}`, LOCK_TTL_MS, async () => {
       const existing = await this.prisma.payrollRun.findUnique({ where: { month } });
       if (existing) {
-        throw new ConflictException({ code: 3001, message: '该月份算薪批次已存在' });
+        throw new ConflictException({ code: ERROR_CODES.PAYROLL_RUN_EXISTS, message: '该月份算薪批次已存在' });
       }
 
       const confirmedMonthlies = await this.prisma.attendanceMonthly.findMany({
@@ -76,7 +77,7 @@ export class PayrollService {
       });
 
       if (confirmedMonthlies.length === 0) {
-        throw new ConflictException({ code: 3002, message: '该月份考勤月报尚未确认' });
+        throw new ConflictException({ code: ERROR_CODES.PAYROLL_MONTHLY_NOT_CONFIRMED, message: '该月份考勤月报尚未确认' });
       }
 
       let run;
@@ -86,13 +87,14 @@ export class PayrollService {
             data: { month, status: 'draft' },
           });
 
-          let totalAmount = 0;
+          // 金额全程以「分」定点累加，写库边界统一转 Prisma.Decimal，杜绝浮点漂移
+          let totalCents = 0;
           const detailData: Array<{
             runId: number;
             employeeId: number;
             itemCode: string;
             itemName: string;
-            amount: number;
+            amount: Prisma.Decimal;
           }> = [];
           for (const m of confirmedMonthlies) {
             // 取计薪月生效薪资（默认次月生效），无调整记录回退员工当前薪资
@@ -125,11 +127,17 @@ export class PayrollService {
                 employeeId: m.employeeId,
                 itemCode: item.code,
                 itemName: item.name,
-                amount: item.amount,
+                amount: new Prisma.Decimal(fromCents(toCents(item.amount)).toFixed(2)),
               });
             }
-            totalAmount += result.total;
+            totalCents += toCents(result.total);
           }
+
+          // 对账断言：明细定点累加必须等于批次总额，不等即抛错回滚事务
+          assertPayrollBalanced(
+            detailData.map((d) => d.amount.toNumber()),
+            fromCents(totalCents),
+          );
 
           if (detailData.length > 0) {
             await tx.payrollDetail.createMany({ data: detailData });
@@ -139,7 +147,7 @@ export class PayrollService {
             where: { id: createdRun.id },
             data: {
               totalEmployees: confirmedMonthlies.length,
-              totalAmount: Math.round(totalAmount * 100) / 100,
+              totalAmount: new Prisma.Decimal(fromCents(totalCents).toFixed(2)),
             },
           });
 
@@ -150,7 +158,7 @@ export class PayrollService {
           err instanceof Prisma.PrismaClientKnownRequestError &&
           err.code === 'P2002'
         ) {
-          throw new ConflictException({ code: 3001, message: '该月份算薪批次已存在' });
+          throw new ConflictException({ code: ERROR_CODES.PAYROLL_RUN_EXISTS, message: '该月份算薪批次已存在' });
         }
         throw err;
       }
@@ -209,7 +217,7 @@ export class PayrollService {
   async getRunDetails(runId: number, userId: number) {
     const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
     if (!run) {
-      throw new NotFoundException({ code: 3004, message: '算薪批次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
     }
 
     const scope = await this.dataScope.visibleScope(userId);
@@ -242,19 +250,20 @@ export class PayrollService {
     const visibleDetails = details.filter((d) => isEmployeeVisible(d.employee));
     const visibleAdjustments = adjustments.filter((a) => isEmployeeVisible(a.employee));
 
-    const grouped = new Map<number, { employee: any; items: any[]; adjustments: any[]; total: number }>();
+    const grouped = new Map<number, { employee: any; items: any[]; adjustments: any[]; totalCents: number }>();
     for (const d of visibleDetails) {
       if (!grouped.has(d.employeeId)) {
-        grouped.set(d.employeeId, { employee: d.employee, items: [], adjustments: [], total: 0 });
+        grouped.set(d.employeeId, { employee: d.employee, items: [], adjustments: [], totalCents: 0 });
       }
       const g = grouped.get(d.employeeId)!;
       g.items.push({ code: d.itemCode, name: d.itemName, amount: Number(d.amount) });
-      g.total += Number(d.amount);
+      // 定点累加：先转整数分再相加，避免逐笔浮点累加漂移
+      g.totalCents += toCents(Number(d.amount));
     }
 
     for (const a of visibleAdjustments) {
       if (!grouped.has(a.employeeId)) {
-        grouped.set(a.employeeId, { employee: a.employee, items: [], adjustments: [], total: 0 });
+        grouped.set(a.employeeId, { employee: a.employee, items: [], adjustments: [], totalCents: 0 });
       }
       const g = grouped.get(a.employeeId)!;
       g.adjustments.push({
@@ -264,12 +273,12 @@ export class PayrollService {
         reason: a.reason,
         createdAt: a.createdAt,
       });
-      g.total += Number(a.amount);
+      g.totalCents += toCents(Number(a.amount));
     }
 
-    const employees = Array.from(grouped.values()).map((g) => ({
+    const employees = Array.from(grouped.values()).map(({ totalCents, ...g }) => ({
       ...g,
-      total: Math.round(g.total * 100) / 100,
+      total: fromCents(totalCents),
     }));
 
     return { run, employees };
@@ -278,7 +287,7 @@ export class PayrollService {
   async confirmRun(runId: number, userId: number, checkedEmployeeIds?: number[]) {
     return this.lockService.withLock(`payroll:confirm:${runId}`, LOCK_TTL_MS, async () => {
       if (!checkedEmployeeIds || checkedEmployeeIds.length < 3) {
-        throw new BadRequestException({ code: 3008, message: '确认前必须抽检至少3名员工对账' });
+        throw new BadRequestException({ code: ERROR_CODES.PAYROLL_CHECK_INSUFFICIENT, message: '确认前必须抽检至少3名员工对账' });
       }
 
       const validCount = await this.prisma.payrollDetail.groupBy({
@@ -286,7 +295,7 @@ export class PayrollService {
         where: { runId, employeeId: { in: checkedEmployeeIds } },
       });
       if (validCount.length !== checkedEmployeeIds.length) {
-        throw new BadRequestException({ code: 3009, message: '抽检员工ID不在本批次薪资明细中' });
+        throw new BadRequestException({ code: ERROR_CODES.PAYROLL_CHECK_EMPLOYEE_INVALID, message: '抽检员工ID不在本批次薪资明细中' });
       }
 
       await this.assertRunInScope(runId, userId);
@@ -305,9 +314,9 @@ export class PayrollService {
       if (updated.count === 0) {
         const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
         if (!run) {
-          throw new NotFoundException({ code: 3004, message: '算薪批次不存在' });
+          throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
         }
-        throw new ConflictException({ code: 3003, message: '仅草稿状态可确认' });
+        throw new ConflictException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅草稿状态可确认' });
       }
       const confirmedRun = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
       if (confirmedRun) {
@@ -335,9 +344,9 @@ export class PayrollService {
         if (runResult.count === 0) {
           const existing = await tx.payrollRun.findUnique({ where: { id: runId } });
           if (!existing) {
-            throw new NotFoundException({ code: 3004, message: '算薪批次不存在' });
+            throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
           }
-          throw new ConflictException({ code: 3003, message: '仅已确认状态可发布' });
+          throw new ConflictException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅已确认状态可发布' });
         }
         const r = await tx.payrollRun.findUnique({ where: { id: runId } });
         if (r) run = r;
@@ -386,28 +395,41 @@ export class PayrollService {
     return this.lockService.withLock(`payroll:recall:${runId}`, LOCK_TTL_MS, async () => {
       const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
       if (!run) {
-        throw new NotFoundException({ code: 3004, message: '算薪批次不存在' });
+        throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
       }
 
       await this.assertRunInScope(runId, userId);
 
       if (run.status !== 'published') {
-        throw new ConflictException({ code: 3003, message: '仅已发布状态可撤回' });
+        throw new ConflictException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅已发布状态可撤回' });
       }
 
       const viewedCount = await this.prisma.payslip.count({
         where: { runId, status: 'viewed' },
       });
       if (viewedCount > 0) {
-        throw new UnprocessableEntityException({ code: 3005, message: '存在已查看的工资条，不可撤回' });
+        // 「已查看工资条不可撤回」是撤回策略的专属失败原因，不能复用 3005
+        // （EMPLOYEE_NO_SALARY 员工无工资配置），否则前端无法据此给出正确提示。
+        throw new UnprocessableEntityException({ code: ERROR_CODES.PAYROLL_RECALL_VIEWED, message: '存在已查看的工资条，不可撤回' });
       }
 
-      const updated = await this.prisma.payrollRun.update({
-        where: { id: runId },
-        data: { status: 'recalled', recalledBy: userId, recalledAt: new Date() },
+      // 状态变更与工资条删除必须同事务提交（与 publishRun 对称）：
+      // 否则删条失败时批次已成 recalled、工资条却仍在库，listPayslips 不校验批次状态，
+      // 员工会继续查到一个「已撤回批次」的工资条。
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const rec = await tx.payrollRun.update({
+          where: { id: runId },
+          data: { status: 'recalled', recalledBy: userId, recalledAt: new Date() },
+        });
+
+        await tx.payslip.deleteMany({ where: { runId } });
+
+        return rec;
       });
 
-      await this.prisma.payslip.deleteMany({ where: { runId } });
+      // 工资条已删除，发布时发出的「工资条已发布」通知必须同步清理，
+      // 否则用户点开通知会落到已不存在的单据
+      await this.notificationService.removeByRelated('payroll_run', runId);
 
       this.emitPayrollStatusChanged(updated, 'published');
 
@@ -439,14 +461,14 @@ export class PayrollService {
     if (scope.selfEmployeeId) {
       const hasOthers = employees.some((e) => e.employeeId !== scope.selfEmployeeId);
       if (hasOthers) {
-        throw new ForbiddenException({ code: 4030, message: '无权操作包含非本人员工的算薪批次' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作包含非本人员工的算薪批次' });
       }
     } else if (scope.ids.length > 0) {
       const hasOutOfScope = employees.some(
         (e) => !e.employee?.departmentId || !scope.ids.includes(e.employee.departmentId),
       );
       if (hasOutOfScope) {
-        throw new ForbiddenException({ code: 4030, message: '无权操作包含非本部门员工的算薪批次' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作包含非本部门员工的算薪批次' });
       }
     }
   }
@@ -482,7 +504,7 @@ export class PayrollService {
   }) {
     const existing = await this.prisma.salaryItem.findUnique({ where: { code: data.code } });
     if (existing) {
-      throw new ConflictException({ code: 3006, message: '薪资项目编码已存在' });
+      throw new ConflictException({ code: ERROR_CODES.SALARY_ITEM_DUPLICATE, message: '薪资项目编码已存在' });
     }
     if (data.amount !== undefined && data.amount < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '薪资项目金额不能为负' });
@@ -513,7 +535,7 @@ export class PayrollService {
   }) {
     const item = await this.prisma.salaryItem.findUnique({ where: { id } });
     if (!item) {
-      throw new NotFoundException({ code: 3007, message: '薪资项目不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SALARY_ITEM_NOT_FOUND, message: '薪资项目不存在' });
     }
     if (data.amount !== undefined && data.amount < 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '薪资项目金额不能为负' });
@@ -537,7 +559,7 @@ export class PayrollService {
   async toggleSalaryItem(id: number, enabled: boolean) {
     const item = await this.prisma.salaryItem.findUnique({ where: { id } });
     if (!item) {
-      throw new NotFoundException({ code: 3007, message: '薪资项目不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SALARY_ITEM_NOT_FOUND, message: '薪资项目不存在' });
     }
     return this.prisma.salaryItem.update({
       where: { id },
@@ -554,21 +576,21 @@ export class PayrollService {
   }, userId: number) {
     const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
     if (!run) {
-      throw new NotFoundException({ code: 3004, message: '算薪批次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
     }
     if (run.status !== 'draft') {
-      throw new UnprocessableEntityException({ code: 3003, message: '仅草稿状态可添加调整项' });
+      throw new UnprocessableEntityException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅草稿状态可添加调整项' });
     }
 
     // IDOR fix: verify the employee is in the caller's data scope
     const scope = await this.dataScope.visibleScope(userId);
     if (scope.selfEmployeeId && scope.selfEmployeeId !== data.employeeId) {
-      throw new ForbiddenException({ code: 4030, message: '无权为其他员工添加调整项' });
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工添加调整项' });
     }
     if (!scope.all && scope.ids.length > 0) {
       const emp = await this.prisma.employee.findUnique({ where: { id: data.employeeId } });
       if (!emp || !scope.ids.includes(emp.departmentId)) {
-        throw new ForbiddenException({ code: 4030, message: '无权为其他员工添加调整项' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工添加调整项' });
       }
     }
 

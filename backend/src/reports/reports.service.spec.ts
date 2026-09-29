@@ -1,5 +1,7 @@
 import { ReportsService } from './reports.service';
 import { EmployeeStatus } from '@prisma/client';
+import { messageOf } from '../common/error-messages';
+import { ERROR_CODES } from '../common/error-codes';
 
 const mockPrisma: any = {
   employee: {
@@ -9,6 +11,27 @@ const mockPrisma: any = {
     findMany: jest.fn(),
   },
   department: {
+    findMany: jest.fn(),
+  },
+  attendanceMonthly: {
+    findMany: jest.fn(),
+  },
+  attendanceDaily: {
+    findMany: jest.fn(),
+  },
+  probation: {
+    findMany: jest.fn(),
+  },
+  payrollRun: {
+    findUnique: jest.fn(),
+  },
+  payrollDetail: {
+    findMany: jest.fn(),
+  },
+  recruitmentCost: {
+    findMany: jest.fn(),
+  },
+  trainingCost: {
     findMany: jest.fn(),
   },
 };
@@ -385,6 +408,88 @@ describe('ReportsService', () => {
       expect(result.summary.approveRate).toBe(0);
       expect(result.summary.avgDurationHours).toBe(0);
     });
+
+    it('createdAt 过滤按北京时间整日区间，不能用 UTC 午夜（否则首尾各偏 8 小时）', async () => {
+      mockPrisma.approvalInstance.findMany.mockResolvedValue([]);
+
+      await service.getApprovalEfficiency({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        userId: 1,
+      });
+
+      const where = mockPrisma.approvalInstance.findMany.mock.calls[0][0].where;
+      // createdAt 是真实时刻列：区间须为北京 2026-09-01 00:00 ~ 2026-10-01 00:00（右开）
+      expect(where.createdAt.gte.toISOString()).toBe('2026-08-31T16:00:00.000Z');
+      expect(where.createdAt.lt.toISOString()).toBe('2026-09-30T16:00:00.000Z');
+    });
+  });
+
+  // 同一控制器下的报表接口共用 startDate/endDate 语义：endDate 为**含端点**。
+  // @db.Date 列存 UTC 午夜，`lt: new Date(endDate)` 会把 endDate 当天整体排除。
+  describe('报表日期区间口径（endDate 含端点）', () => {
+    beforeEach(() => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+      mockPrisma.employee.findMany.mockResolvedValue([]);
+      mockPrisma.probation.findMany.mockResolvedValue([]);
+      mockPrisma.attendanceDaily.findMany.mockResolvedValue([]);
+    });
+
+    it('hiringTrend: 入职区间右端含 endDate 当天（lt 会丢掉末日入职）', async () => {
+      await service.getHiringTrend({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        userId: 1,
+      });
+
+      const hiredWhere = mockPrisma.employee.findMany.mock.calls[0][0].where;
+      expect(hiredWhere.hireDate).toEqual({
+        gte: new Date('2026-09-01'),
+        lte: new Date('2026-09-30'),
+      });
+    });
+
+    it('hiringTrend: 离职区间右端含 endDate 当天', async () => {
+      await service.getHiringTrend({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        userId: 1,
+      });
+
+      const resignedWhere = mockPrisma.employee.findMany.mock.calls[1][0].where;
+      expect(resignedWhere.resignDate).toEqual({
+        gte: new Date('2026-09-01'),
+        lte: new Date('2026-09-30'),
+      });
+    });
+
+    it('probationPassRate: probationEndDate 区间右端含 endDate 当天', async () => {
+      await service.getProbationPassRate({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        userId: 1,
+      });
+
+      const where = mockPrisma.probation.findMany.mock.calls[0][0].where;
+      expect(where.probationEndDate).toEqual({
+        gte: new Date('2026-09-01'),
+        lte: new Date('2026-09-30'),
+      });
+    });
+
+    it('attendanceAbnormal: 与上述接口同口径（workDate 右端含 endDate 当天）', async () => {
+      await service.getAttendanceAbnormal({
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        userId: 1,
+      });
+
+      const where = mockPrisma.attendanceDaily.findMany.mock.calls[0][0].where;
+      expect(where.workDate).toEqual({
+        gte: new Date('2026-09-01'),
+        lte: new Date('2026-09-30'),
+      });
+    });
   });
 
   describe('exportEmployeeList — 员工列表导出', () => {
@@ -452,6 +557,178 @@ describe('ReportsService', () => {
       expect(csv).toContain('张三');
       expect(csv).toContain('技术部');
       expect(csv).toContain('李四');
+    });
+  });
+
+  describe('数据可见范围与显式部门筛选（越权防护）', () => {
+    it('attendanceMonthly: 显式部门不应覆盖可见范围，应与其取交集', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [1, 2] });
+      mockPrisma.attendanceMonthly.findMany.mockResolvedValue([]);
+
+      await service.attendanceMonthly({ month: '2026-01', userId: 5, departmentId: 99 });
+
+      const where = mockPrisma.attendanceMonthly.findMany.mock.calls[0][0].where;
+      const employeeFilter = JSON.stringify(where.employee);
+      // 必须同时保留可见部门集合与显式部门，不能只留下 departmentId: 99
+      expect(employeeFilter).toContain('[1,2]');
+      expect(employeeFilter).toContain('99');
+    });
+
+    it('hiringTrend: 显式部门不应覆盖可见范围，应与其取交集', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [1, 2] });
+      mockPrisma.employee.findMany.mockResolvedValue([]);
+
+      await service.getHiringTrend({
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        userId: 5,
+        departmentId: 99,
+      });
+
+      const hiredWhere = mockPrisma.employee.findMany.mock.calls[0][0].where;
+      const filter = JSON.stringify(hiredWhere);
+      expect(filter).toContain('[1,2]');
+      expect(filter).toContain('99');
+    });
+
+    it('attendanceMonthly: 可见范围为空集合时，显式部门不能突破范围', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [] });
+      mockPrisma.attendanceMonthly.findMany.mockResolvedValue([]);
+
+      await service.attendanceMonthly({ month: '2026-01', userId: 5, departmentId: 99 });
+
+      const where = mockPrisma.attendanceMonthly.findMany.mock.calls[0][0].where;
+      expect(JSON.stringify(where.employee)).toContain('[]');
+      expect(JSON.stringify(where.employee)).toContain('99');
+    });
+
+    function mockLaborCostDeps() {
+      mockPrisma.payrollRun.findUnique.mockResolvedValue({ id: 7, month: '2026-01' });
+      mockPrisma.payrollDetail.findMany.mockResolvedValue([]);
+      mockPrisma.recruitmentCost.findMany.mockResolvedValue([]);
+      mockPrisma.trainingCost.findMany.mockResolvedValue([]);
+    }
+
+    it('laborCost: 显式部门不应覆盖可见范围，招聘/培训成本应与其取交集', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [1, 2] });
+      mockLaborCostDeps();
+
+      await service.laborCost({ month: '2026-01', userId: 5, departmentId: 99 });
+
+      const rcJson = JSON.stringify(mockPrisma.recruitmentCost.findMany.mock.calls[0][0].where);
+      const tcJson = JSON.stringify(mockPrisma.trainingCost.findMany.mock.calls[0][0].where);
+      // 必须同时保留可见部门集合与显式部门（交集），不能只留下 departmentId: 99
+      expect(rcJson).toContain('[1,2]');
+      expect(rcJson).toContain('99');
+      expect(tcJson).toContain('[1,2]');
+      expect(tcJson).toContain('99');
+    });
+
+    it('laborCost: 仅本人可见范围时不得返回全公司招聘/培训成本', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: false, ids: [], selfEmployeeId: 3 });
+      mockLaborCostDeps();
+
+      await service.laborCost({ month: '2026-01', userId: 5 });
+
+      const rcDept = mockPrisma.recruitmentCost.findMany.mock.calls[0][0].where.departmentId;
+      const tcDept = mockPrisma.trainingCost.findMany.mock.calls[0][0].where.departmentId;
+      // 无部门可见范围时不能不加限制地查全公司成本（undefined 即放开全部）
+      expect(rcDept).toEqual({ in: [] });
+      expect(tcDept).toEqual({ in: [] });
+    });
+
+    it('laborCost: 管理员（全量范围）显式部门仍可正常筛选', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+      mockLaborCostDeps();
+
+      await service.laborCost({ month: '2026-01', userId: 1, departmentId: 99 });
+
+      expect(mockPrisma.recruitmentCost.findMany.mock.calls[0][0].where.departmentId).toBe(99);
+      expect(mockPrisma.trainingCost.findMany.mock.calls[0][0].where.departmentId).toBe(99);
+    });
+  });
+
+  /**
+   * 全局异常过滤器会用 ERROR_MESSAGES[code] 的「中央文案」覆盖抛出的 message
+   * （all-exceptions.filter.ts L53-55）。因此错误码必须与文案一一对应：
+   * 复用报销域 4006（明细金额合计与总金额不一致）会让「非失败任务不可重试」
+   * 的提示变成一句与导出毫无关系的报错。
+   */
+  describe('retryTask — 错误码文案必须一一对应', () => {
+    it('非失败状态重试时，返回码的中央文案应为「只有失败的任务才能重试」', async () => {
+      mockPrisma.exportTask = {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, createdBy: 7, status: 'success' }),
+      };
+
+      let code: number | undefined;
+      try {
+        await service.retryTask(1, 7);
+      } catch (e: any) {
+        code = e.response?.code;
+      }
+
+      expect(code).toBeDefined();
+      expect(messageOf(code as number)).toBe('只有失败的任务才能重试');
+    });
+  });
+
+  /**
+   * 报表/导出域的报错必须落回 4301~4399 段：全局过滤器会用中央文案覆盖抛出 message，
+   * 复用报销域 4001~4005 会让用户看到「缺少参数/不支持的类型/不支持的格式」等
+   * 与「导出」无关的文案（4004/4005 只是文案恰好同字，语义仍在报销域）。
+   */
+  describe('导出任务错误码必须归属报表/导出域 4301~4399', () => {
+    async function captureCode(fn: () => Promise<unknown>): Promise<number> {
+      try {
+        await fn();
+      } catch (e: any) {
+        return (e.getResponse?.() ?? e.response ?? e).code;
+      }
+      throw new Error('预期抛错但未抛错');
+    }
+
+    it('缺少必要参数应返回 4302「缺少导出参数」', async () => {
+      const code = await captureCode(() =>
+        service.createExportTask({ type: '', format: '', userId: 7 }),
+      );
+      expect(code).toBe(ERROR_CODES.REPORT_PARAM_MISSING);
+      expect(messageOf(code)).toBe('缺少导出参数');
+    });
+
+    it('不支持的导出类型应返回 4303「不支持的导出类型」', async () => {
+      const code = await captureCode(() =>
+        service.createExportTask({ type: 'unknown-report', format: 'csv', userId: 7 }),
+      );
+      expect(code).toBe(ERROR_CODES.REPORT_TYPE_UNSUPPORTED);
+      expect(messageOf(code)).toBe('不支持的导出类型');
+    });
+
+    it('不支持的导出格式应返回 4304「不支持的导出格式」', async () => {
+      const code = await captureCode(() =>
+        service.createExportTask({ type: 'labor-cost', format: 'pdf', userId: 7 }),
+      );
+      expect(code).toBe(ERROR_CODES.REPORT_FORMAT_UNSUPPORTED);
+      expect(messageOf(code)).toBe('不支持的导出格式');
+    });
+
+    it('导出任务不存在应返回 4305「导出任务不存在」，而非报销域的 4004', async () => {
+      mockPrisma.exportTask = { findUnique: jest.fn().mockResolvedValue(null) };
+
+      const code = await captureCode(() => service.retryTask(999, 7));
+      expect(code).toBe(ERROR_CODES.REPORT_TASK_NOT_FOUND);
+      expect(messageOf(code)).toBe('导出任务不存在');
+    });
+
+    it('文件未就绪应返回 4306「导出文件未就绪」，而非报销域的 4005', async () => {
+      mockPrisma.exportTask = {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 1, createdBy: 7, status: 'pending', filePath: null }),
+      };
+
+      const code = await captureCode(() => service.getTaskFilePath(1, 7));
+      expect(code).toBe(ERROR_CODES.REPORT_FILE_NOT_READY);
+      expect(messageOf(code)).toBe('导出文件未就绪');
     });
   });
 });

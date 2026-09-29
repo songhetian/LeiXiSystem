@@ -6,8 +6,9 @@ import { Prisma, ExportTaskStatus, ProbationStatus, EmployeeStatus } from '@pris
 import * as ExcelJS from 'exceljs';
 import { join } from 'path';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import { calculateTenure, formatAvgTenure } from '../common/date.util';
+import { calculateTenure, formatAvgTenure, beijingDateRangeFilter } from '../common/date.util';
 import { createHash } from 'crypto';
+import { ERROR_CODES } from '../common/error-codes';
 
 type GroupByPeriod = 'month' | 'quarter' | 'year';
 
@@ -108,7 +109,8 @@ export class ReportsService {
     }
     if (departmentId) {
       if (where.employee && typeof where.employee === 'object') {
-        where.employee = { ...where.employee, departmentId };
+        // 显式部门需与可见范围取交集，不能覆盖
+        where.employee = { AND: [where.employee, { departmentId }] };
       } else {
         where.employee = { departmentId };
       }
@@ -229,7 +231,8 @@ export class ReportsService {
     }
     if (departmentId) {
       if (where.employee && typeof where.employee === 'object') {
-        where.employee = { ...where.employee, departmentId };
+        // 显式部门需与可见范围取交集，不能覆盖
+        where.employee = { AND: [where.employee, { departmentId }] };
       } else {
         where.employee = { departmentId };
       }
@@ -244,7 +247,8 @@ export class ReportsService {
       },
     });
 
-    const costWhereDeptIds = !scope.all && !scope.selfEmployeeId ? scope.ids : undefined;
+    // 可见部门集合：全量范围 → undefined（不限制）；仅本人 → []（无部门成本可见）
+    const costScopeDeptIds = scope.all ? undefined : scope.ids;
     const costStartDate = new Date(`${month}-01`);
     const costEndDate = new Date(new Date(`${month}-01`).setMonth(costStartDate.getMonth() + 1));
 
@@ -255,14 +259,20 @@ export class ReportsService {
       costDate: { gte: costStartDate, lt: costEndDate },
     };
 
-    if (costWhereDeptIds) {
-      recruitmentCostWhere.departmentId = { in: costWhereDeptIds };
-      trainingCostWhere.departmentId = { in: costWhereDeptIds };
-    }
-    if (departmentId) {
-      recruitmentCostWhere.departmentId = departmentId;
-      trainingCostWhere.departmentId = departmentId;
-    }
+    // 显式部门需与可见范围取交集，不能覆盖（否则越权看到范围外部门的招聘/培训成本）
+    const applyCostDeptFilter = (where: any) => {
+      if (departmentId !== undefined) {
+        if (costScopeDeptIds !== undefined) {
+          where.AND = [{ departmentId: { in: costScopeDeptIds } }, { departmentId }];
+        } else {
+          where.departmentId = departmentId;
+        }
+      } else if (costScopeDeptIds !== undefined) {
+        where.departmentId = { in: costScopeDeptIds };
+      }
+    };
+    applyCostDeptFilter(recruitmentCostWhere);
+    applyCostDeptFilter(trainingCostWhere);
 
     const [recruitmentCosts, trainingCosts] = await Promise.all([
       this.prisma.recruitmentCost.findMany({
@@ -539,21 +549,23 @@ export class ReportsService {
     const baseWhere: Prisma.EmployeeWhereInput = {};
     if (scope.selfEmployeeId) {
       baseWhere.id = scope.selfEmployeeId;
-    } else if (!scope.all) {
-      baseWhere.departmentId = { in: scope.ids };
     }
-    if (departmentId) {
-      baseWhere.departmentId = departmentId;
-    }
+    // 可见范围与显式部门需取交集，不能相互覆盖
+    const deptFilters: Prisma.EmployeeWhereInput[] = [];
+    if (!scope.all && !scope.selfEmployeeId) deptFilters.push({ departmentId: { in: scope.ids } });
+    if (departmentId) deptFilters.push({ departmentId });
+    if (deptFilters.length === 1) Object.assign(baseWhere, deptFilters[0]);
+    else if (deptFilters.length > 1) baseWhere.AND = deptFilters;
 
     const hiredWhere = {
       ...baseWhere,
-      hireDate: { gte: start, lt: end },
+      // @db.Date 列存 UTC 午夜，右端必须用 lte 才能含 endDate 当天（lt 会丢掉末日）
+      hireDate: { gte: start, lte: end },
     };
 
     const resignedWhere = {
       ...baseWhere,
-      resignDate: { gte: start, lt: end },
+      resignDate: { gte: start, lte: end },
       status: EmployeeStatus.resigned,
     };
 
@@ -722,7 +734,7 @@ export class ReportsService {
     const periodGroup = (groupBy === 'department' ? 'month' : groupBy || 'month') as GroupByPeriod;
 
     const baseWhere: any = {
-      probationEndDate: { gte: start, lt: end },
+      probationEndDate: { gte: start, lte: end },
     };
 
     if (scope.selfEmployeeId) {
@@ -732,7 +744,8 @@ export class ReportsService {
     }
     if (departmentId) {
       if (baseWhere.employee && typeof baseWhere.employee === 'object') {
-        baseWhere.employee = { ...baseWhere.employee, departmentId };
+        // 显式部门需与可见范围取交集，不能覆盖
+        baseWhere.employee = { AND: [baseWhere.employee, { departmentId }] };
       } else {
         baseWhere.employee = { departmentId };
       }
@@ -859,7 +872,8 @@ export class ReportsService {
     }
     if (departmentId) {
       if (baseWhere.employee && typeof baseWhere.employee === 'object') {
-        baseWhere.employee = { ...baseWhere.employee, departmentId };
+        // 显式部门需与可见范围取交集，不能覆盖
+        baseWhere.employee = { AND: [baseWhere.employee, { departmentId }] };
       } else {
         baseWhere.employee = { departmentId };
       }
@@ -1054,19 +1068,18 @@ export class ReportsService {
     const { startDate, endDate, groupBy, departmentId, userId } = params;
     const scope = await this.dataScope.visibleScope(userId);
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
+    // createdAt 是真实时刻列，必须按北京时间整日区间过滤：
+    // `new Date('YYYY-MM-DD')` 得到的是 UTC 午夜（= 北京 08:00），会让区间首尾各偏 8 小时。
     const baseWhere: Prisma.ApprovalInstanceWhereInput = {
-      createdAt: { gte: start, lte: end },
+      createdAt: beijingDateRangeFilter(startDate, endDate),
     };
 
-    if (!scope.all && !scope.selfEmployeeId) {
-      baseWhere.departmentId = { in: scope.ids };
-    }
-    if (departmentId) {
-      baseWhere.departmentId = departmentId;
-    }
+    // 可见范围与显式部门需取交集，不能相互覆盖
+    const deptFilters: Prisma.ApprovalInstanceWhereInput[] = [];
+    if (!scope.all && !scope.selfEmployeeId) deptFilters.push({ departmentId: { in: scope.ids } });
+    if (departmentId) deptFilters.push({ departmentId });
+    if (deptFilters.length === 1) Object.assign(baseWhere, deptFilters[0]);
+    else if (deptFilters.length > 1) baseWhere.AND = deptFilters;
 
     const instances = await this.prisma.approvalInstance.findMany({
       where: baseWhere,
@@ -1415,17 +1428,17 @@ export class ReportsService {
     const { type, format, month, userId } = params;
 
     if (!type || !format) {
-      throw new BadRequestException({ code: 4001, message: '缺少必要参数' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_PARAM_MISSING, message: '缺少导出参数' });
     }
 
     const validTypes = ['attendance-monthly', 'labor-cost'];
     if (!validTypes.includes(type)) {
-      throw new BadRequestException({ code: 4002, message: '不支持的导出类型' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_TYPE_UNSUPPORTED, message: '不支持的导出类型' });
     }
 
     const validFormats = ['csv', 'xlsx'];
     if (!validFormats.includes(format)) {
-      throw new BadRequestException({ code: 4003, message: '不支持的导出格式' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_FORMAT_UNSUPPORTED, message: '不支持的导出格式' });
     }
 
     const task = await this.prisma.exportTask.create({
@@ -1526,10 +1539,10 @@ export class ReportsService {
   async retryTask(taskId: number, userId: number) {
     const task = await this.prisma.exportTask.findUnique({ where: { id: taskId } });
     if (!task || task.createdBy !== userId) {
-      throw new BadRequestException({ code: 4004, message: '任务不存在' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_TASK_NOT_FOUND, message: '导出任务不存在' });
     }
     if (task.status !== ExportTaskStatus.failed) {
-      throw new BadRequestException({ code: 4006, message: '只有失败的任务才能重试' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_TASK_NOT_RETRYABLE, message: '只有失败的任务才能重试' });
     }
 
     await this.prisma.exportTask.update({
@@ -1556,7 +1569,7 @@ export class ReportsService {
   async getTaskStatus(taskId: number, userId: number) {
     const task = await this.prisma.exportTask.findUnique({ where: { id: taskId } });
     if (!task || task.createdBy !== userId) {
-      throw new BadRequestException({ code: 4004, message: '任务不存在' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_TASK_NOT_FOUND, message: '导出任务不存在' });
     }
     return {
       taskId: task.id,
@@ -1598,10 +1611,10 @@ export class ReportsService {
   async getTaskFilePath(taskId: number, userId: number) {
     const task = await this.prisma.exportTask.findUnique({ where: { id: taskId } });
     if (!task || task.createdBy !== userId) {
-      throw new BadRequestException({ code: 4004, message: '任务不存在' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_TASK_NOT_FOUND, message: '导出任务不存在' });
     }
     if (task.status !== ExportTaskStatus.completed || !task.filePath) {
-      throw new BadRequestException({ code: 4005, message: '文件未就绪' });
+      throw new BadRequestException({ code: ERROR_CODES.REPORT_FILE_NOT_READY, message: '导出文件未就绪' });
     }
     return { filePath: task.filePath, fileName: task.fileName! };
   }

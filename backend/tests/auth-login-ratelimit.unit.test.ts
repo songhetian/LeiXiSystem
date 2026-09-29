@@ -84,6 +84,9 @@ describe('T22.4 AuthService.login 接入登录限流', () => {
       username: 'alice',
       passwordHash: 'h',
       roles: [],
+      // 登录在密码校验后还会校验账号是否启用，mock 需带启用状态
+      status: 'active',
+      deletedAt: null,
     });
     const res = await svc.login('alice', 'right');
     expect(res.accessToken).toBe('tok');

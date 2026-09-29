@@ -4,6 +4,17 @@ import { join } from 'path';
 import { Readable } from 'stream';
 import { BadRequestException } from '@nestjs/common';
 import { FilesService } from './files.service';
+import { messageOf } from '../common/error-messages';
+
+/** 取出异常响应体，便于断言业务错误码 */
+async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+  try {
+    await fn();
+  } catch (e: any) {
+    return e.getResponse?.() ?? e.response ?? e;
+  }
+  throw new Error('预期抛出异常，但未抛出');
+}
 
 // 切换 OSS 驱动时避免真实实例化阿里云客户端
 jest.mock('ali-oss', () => ({
@@ -89,8 +100,14 @@ describe('FilesService - 通用文件上传（本地磁盘）', () => {
       expect(await streamToString(stream)).toBe('abc');
     });
 
-    it('文件不存在时抛出异常', async () => {
-      await expect(service.openStream('/uploads/reimbursement/nonexist.pdf')).rejects.toThrow();
+    it('文件不存在时抛 FILE_NOT_FOUND(5018)，不得复用 5003（前端对 5003 不弹 toast，会造成静默失败）', async () => {
+      const payload = await catchPayload(() =>
+        service.openStream('/uploads/reimbursement/nonexist.pdf'),
+      );
+
+      expect(payload.code).not.toBe(5003);
+      expect(payload.code).toBe(5018);
+      expect(messageOf(payload.code)).toBe('文件不存在或已被删除');
     });
 
     it('拒绝目录穿越路径', async () => {

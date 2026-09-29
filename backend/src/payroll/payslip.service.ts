@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { DataScopeService } from '../common/data-scope.service';
+import { fromCents, sumCents } from '../common/money.util';
+import { ERROR_CODES } from '../common/error-codes';
 
 type TxClient = Prisma.TransactionClient | PrismaService;
 
@@ -16,12 +18,14 @@ export class PayslipService {
     const db = tx || this.prisma;
     const run = await db.payrollRun.findUnique({
       where: { id: runId },
-      include: { details: true },
+      include: { details: true, adjustments: true },
     });
     if (!run) {
-      throw new NotFoundException({ code: 4001, message: '算薪批次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
     }
 
+    // 工资条 = 计算值 + 调整值（CONTEXT.md 业务规则）。
+    // 调整项必须与明细一并汇总，只取 details 会漏掉调整金额，导致工资条总额与批次明细对不上。
     const detailMap = new Map<number, any[]>();
     for (const d of run.details) {
       if (!detailMap.has(d.employeeId)) {
@@ -31,6 +35,19 @@ export class PayslipService {
         code: d.itemCode,
         name: d.itemName,
         amount: Number(d.amount),
+        // 供工资条前端按收入/扣款分组展示
+        type: Number(d.amount) < 0 ? 'deduction' : 'income',
+      });
+    }
+    for (const a of run.adjustments ?? []) {
+      if (!detailMap.has(a.employeeId)) {
+        detailMap.set(a.employeeId, []);
+      }
+      detailMap.get(a.employeeId)!.push({
+        code: a.itemCode,
+        name: a.reason || a.itemCode,
+        amount: Number(a.amount),
+        type: 'adjustment',
       });
     }
 
@@ -44,17 +61,18 @@ export class PayslipService {
       runId: number;
       employeeId: number;
       month: string;
-      totalAmount: number;
+      totalAmount: Prisma.Decimal;
       itemsJson: string;
     }> = [];
     for (const [employeeId, items] of detailMap) {
       if (existingIds.has(employeeId)) continue;
-      const total = items.reduce((s, i) => s + i.amount, 0);
+      // 定点累加：先转整数分再相加，写库边界统一转 Prisma.Decimal
+      const totalCents = sumCents(items.map((i) => i.amount));
       payslipData.push({
         runId,
         employeeId,
         month: run.month,
-        totalAmount: Math.round(total * 100) / 100,
+        totalAmount: new Prisma.Decimal(fromCents(totalCents).toFixed(2)),
         itemsJson: JSON.stringify(items),
       });
     }
@@ -89,19 +107,22 @@ export class PayslipService {
       where: { userId },
     });
     if (!employee) {
-      throw new NotFoundException({ code: 4004, message: '工资条不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYSLIP_NOT_FOUND, message: '工资条不存在' });
     }
 
     const payslip = await this.prisma.payslip.findUnique({
       where: { id: payslipId },
     });
     if (!payslip || payslip.employeeId !== employee.id) {
-      throw new NotFoundException({ code: 4004, message: '工资条不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYSLIP_NOT_FOUND, message: '工资条不存在' });
     }
 
+    const items = JSON.parse(payslip.itemsJson);
     return {
       ...payslip,
-      items: JSON.parse(payslip.itemsJson),
+      items,
+      // 调整项单独返回，供工资条页面独立区块展示（items 中仍保留，type=adjustment）
+      adjustments: items.filter((i: any) => i?.type === 'adjustment'),
     };
   }
 
@@ -110,14 +131,14 @@ export class PayslipService {
       where: { userId },
     });
     if (!employee) {
-      throw new NotFoundException({ code: 4004, message: '工资条不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYSLIP_NOT_FOUND, message: '工资条不存在' });
     }
 
     const payslip = await this.prisma.payslip.findUnique({
       where: { id: payslipId },
     });
     if (!payslip || payslip.employeeId !== employee.id) {
-      throw new NotFoundException({ code: 4004, message: '工资条不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.PAYSLIP_NOT_FOUND, message: '工资条不存在' });
     }
 
     if (payslip.status === 'viewed') {

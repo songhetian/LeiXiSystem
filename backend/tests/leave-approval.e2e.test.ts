@@ -124,6 +124,7 @@ describe('S06+S09 · 请假接入真实审批流', () => {
         employeeId: emp.id,
         vacationTypeId: annualType.id,
         year: 2026,
+        month: 0,
         totalDays: 10,
         usedDays: 0,
       },
@@ -196,10 +197,11 @@ describe('S06+S09 · 请假接入真实审批流', () => {
 
       const balance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: 2026,
+            month: 0,
           },
         },
       });
@@ -247,10 +249,11 @@ describe('S06+S09 · 请假接入真实审批流', () => {
 
       const balance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: 2026,
+            month: 0,
           },
         },
       });
@@ -278,10 +281,11 @@ describe('S06+S09 · 请假接入真实审批流', () => {
 
       const balance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: 2026,
+            month: 0,
           },
         },
       });
@@ -328,10 +332,11 @@ describe('S06+S09 · 请假接入真实审批流', () => {
 
       const balance = await prisma.vacationBalance.findUnique({
         where: {
-          employeeId_vacationTypeId_year: {
+          employeeId_vacationTypeId_year_month: {
             employeeId,
             vacationTypeId: annualLeaveTypeId,
             year: 2026,
+            month: 0,
           },
         },
       });

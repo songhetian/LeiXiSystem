@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { HelpdeskService } from './helpdesk.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 工单创建校验
 const ticketCreateSchema = z.object({
@@ -41,6 +42,8 @@ const ticketListSchema = z.object({
   status: z.string().max(20).optional(),
   priority: z.string().max(20).optional(),
   assigneeId: z.coerce.number().int().positive().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().optional(),
 });
 
 // ===== 工单路由 =====
@@ -54,7 +57,7 @@ export class HelpdeskTicketsController {
   async list(@Query() query: unknown) {
     const parsed = ticketListSchema.safeParse(query);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const result = await this.helpdeskService.listTickets(parsed.data);
     return { code: 0, message: 'ok', data: result };
@@ -66,7 +69,7 @@ export class HelpdeskTicketsController {
   async create(@Body() body: unknown, @Req() req: any) {
     const parsed = ticketCreateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const ticket = await this.helpdeskService.createTicket({
       ...parsed.data,
@@ -81,7 +84,7 @@ export class HelpdeskTicketsController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = ticketUpdateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const ticket = await this.helpdeskService.updateTicket(id, parsed.data);
     return { code: 0, message: 'ok', data: ticket };
@@ -123,7 +126,7 @@ export class HelpdeskSlasController {
   async create(@Body() body: unknown) {
     const parsed = slaSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const sla = await this.helpdeskService.createSla(parsed.data);
     return { code: 0, message: 'ok', data: sla };
@@ -135,7 +138,7 @@ export class HelpdeskSlasController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateSlaSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const sla = await this.helpdeskService.updateSla(id, parsed.data);
     return { code: 0, message: 'ok', data: sla };

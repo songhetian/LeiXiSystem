@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 打卡定位入参
 export interface AttendanceLocationUpsertDto {
@@ -37,7 +38,7 @@ export class AttendanceLocationsService {
 
   async update(id: number, dto: Partial<AttendanceLocationUpsertDto>) {
     const location = await this.prisma.attendanceLocation.findUnique({ where: { id } });
-    if (!location) throw new NotFoundException({ code: 2001, message: '打卡定位不存在' });
+    if (!location) throw new NotFoundException({ code: ERROR_CODES.ATTENDANCE_LOCATION_NOT_FOUND, message: '打卡定位不存在' });
     const data: Record<string, any> = {};
     for (const key of Object.keys(dto)) {
       if (dto[key as keyof AttendanceLocationUpsertDto] !== undefined) {
@@ -49,7 +50,7 @@ export class AttendanceLocationsService {
 
   async remove(id: number) {
     const location = await this.prisma.attendanceLocation.findUnique({ where: { id } });
-    if (!location) throw new NotFoundException({ code: 2001, message: '打卡定位不存在' });
+    if (!location) throw new NotFoundException({ code: ERROR_CODES.ATTENDANCE_LOCATION_NOT_FOUND, message: '打卡定位不存在' });
     await this.prisma.attendanceLocation.delete({ where: { id } });
     return { success: true };
   }

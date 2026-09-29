@@ -7,6 +7,8 @@
 // 规则：迟到/早退按次扣款
 // 规则：餐补按出勤天数；社保固定代扣
 
+import { toCents, fromCents, sumCents, round2 } from '../../common/money.util';
+
 export interface EmployeePayrollInput {
   name: string;
   basicSalary: number;
@@ -48,11 +50,21 @@ export interface PayrollResult {
   total: number;
 }
 
-export function round2(n: number): number {
-  if (!isFinite(n)) return 0;
-  const sign = n < 0 ? -1 : 1;
-  const abs = Math.abs(n);
-  return sign * Number(Math.round(Number(abs + 'e' + 2)) + 'e-' + 2);
+// ===== 金额一律走 common/money.util 的定点工具（整数分运算）=====
+// 算薪与报销共用同一套口径，避免跨模块各自实现导致对账口径漂移。
+
+/**
+ * 算薪对账断言：所有明细的定点累加必须等于批次总额。
+ * 不相等说明累加点出现浮点漂移或明细漏项，直接抛错阻断写库。
+ */
+export function assertPayrollBalanced(itemAmounts: number[], total: number): void {
+  const itemsCents = sumCents(itemAmounts);
+  const totalCents = toCents(total);
+  if (itemsCents !== totalCents) {
+    throw new Error(
+      `算薪对账失败：明细定点累加 ${fromCents(itemsCents)} ≠ 批次合计 ${fromCents(totalCents)}`,
+    );
+  }
 }
 
 export function calculatePayroll(
@@ -107,6 +119,7 @@ export function calculatePayroll(
     items.push({ code: 'social', name: '社保代扣', amount: round2(-cfg.socialSecurity) });
   }
 
-  const total = round2(items.reduce((s, i) => s + i.amount, 0));
+  // 合计走定点累加，保证 total 恒等于明细的定点累加（写库对账的前提）
+  const total = fromCents(sumCents(items.map((i) => i.amount)));
   return { employee: emp.name, items, total };
 }

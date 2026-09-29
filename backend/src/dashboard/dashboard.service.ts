@@ -1,17 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { beijingBusinessDate, beijingNow, monthRangeUtc } from '../common/date.util';
+import { ApprovalClientInterface } from '../approval/approval-client.interface';
 
-/** 本地日期转 `YYYY-MM-DD`（不使用 UTC，避免跨时区日期错位） */
-function localDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject('APPROVAL_CLIENT') private approvalClient: ApprovalClientInterface,
+  ) {}
 
   async getStats(userId: number) {
     const employee = await this.prisma.employee.findFirst({
@@ -23,31 +22,33 @@ export class DashboardService {
       where: { status: 'active' },
     });
 
-    const today = new Date();
-    // Prisma DateTime 字段必须传 Date，而非 `YYYY-MM-DD` 字符串
-    const todayStr = localDateStr(today);
+    // 考勤「今天」是北京业务日（生产容器 TZ=UTC，用服务器本地日期会在北京 00:00~08:00 退回前一天）
+    const todayWorkDate = beijingBusinessDate();
 
     const attendanceCount = await this.prisma.attendanceDaily.count({
-      where: { workDate: new Date(todayStr), status: { not: 'absent' } },
+      where: { workDate: todayWorkDate, status: { not: 'absent' } },
     });
 
     // 今日迟到：今日 attendanceDaily 中状态为迟到/迟到早退的条数
     const todayLateCount = await this.prisma.attendanceDaily.count({
-      where: { workDate: new Date(todayStr), status: { in: ['late', 'late_early'] } },
+      where: { workDate: todayWorkDate, status: { in: ['late', 'late_early'] } },
     });
 
-    // 本月加班：当月 overtimeMinutes 总和换算为小时（保留 1 位小数）
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    // 本月加班：当月 overtimeMinutes 总和换算为小时（保留 1 位小数）；月份同样以北京时间为准
+    const { year, month } = beijingNow();
+    const { start: monthStart, end: monthEnd } = monthRangeUtc(
+      `${year}-${String(month).padStart(2, '0')}`,
+    );
     const overtimeAgg = await this.prisma.attendanceDaily.aggregate({
       where: { workDate: { gte: monthStart, lt: monthEnd } },
       _sum: { overtimeMinutes: true },
     });
     const monthOvertimeHours = Math.round((((overtimeAgg._sum.overtimeMinutes ?? 0) / 60) * 10)) / 10;
 
-    const pendingApprovals = await this.prisma.approvalRecord.count({
-      where: { approverId: userId, status: 'pending' },
-    });
+    // 待审批数必须与待办列表（listTodos）同口径：建实例时写入的审批记录不带
+    // approverId（该字段只在加签/转交/实际处理时写入），旧的 count(approverId=userId)
+    // 对角色型/审批组型节点恒为 0，首页徽标长期不显示。
+    const pendingApprovals = await this.approvalClient.countPendingForUser(userId);
 
     return {
       employeeCount,
@@ -62,15 +63,14 @@ export class DashboardService {
 
   async getAttendanceTrend(days: number = 7) {
     const result: { date: string; present: number; absent: number; late: number; leave: number }[] = [];
-    const today = new Date();
+    const today = beijingBusinessDate();
 
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = localDateStr(d);
+      const workDate = new Date(today.getTime() - i * DAY_MS);
+      const dateStr = workDate.toISOString().slice(0, 10);
 
       const records = await this.prisma.attendanceDaily.findMany({
-        where: { workDate: new Date(dateStr) },
+        where: { workDate },
         select: { status: true },
       });
 

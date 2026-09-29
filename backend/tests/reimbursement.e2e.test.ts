@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { ERROR_CODES } from '../src/common/error-codes';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -212,7 +213,7 @@ describe('S13 · 报销', () => {
       });
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(400);
-      expect(body.code).toBe(7001);
+      expect(body.code).toBe(ERROR_CODES.REIMBURSEMENT_AMOUNT_MISMATCH);
     });
 
     it('应该能看到我的报销列表', async () => {

@@ -1,5 +1,8 @@
+/** @jest-environment ./jest-utc-environment */
+// 生产容器未设置 TZ（即 UTC），而业务口径一律按北京时间；本文件统一在 UTC 下运行。
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmployeeTxService } from './employee-tx.service';
+import { messageOf } from '../common/error-messages';
 
 function createMockPrisma() {
   const mockPrisma: any = {
@@ -13,6 +16,7 @@ function createMockPrisma() {
     },
     user: {
       findUnique: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
     },
     resignation: {
@@ -40,6 +44,13 @@ function createMockPrisma() {
     contract: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
+    },
+    certificateRequest: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
@@ -79,6 +90,10 @@ function createMockPrisma() {
       findMany: jest.fn(),
       deleteMany: jest.fn(),
     },
+    salaryAdjustment: {
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
     payrollRun: {
       findUnique: jest.fn(),
     },
@@ -113,6 +128,79 @@ function createMockDataScopeService() {
     visibleScope: jest.fn().mockResolvedValue({ all: true, ids: [], selfEmployeeId: null }),
   };
 }
+
+// 员工事务各域此前把「员工不存在」写成本域的记录码（9301/9501/9701/9801…），
+// 中央文案会把它覆盖成「合同不存在」「证书不存在」等完全不相干的实体名。
+describe('EmployeeTxService - 错误码语义（员工不存在不得复用本域记录码）', () => {
+  let service: EmployeeTxService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+    try {
+      await fn();
+    } catch (e: any) {
+      return e.getResponse?.() ?? e.response ?? e;
+    }
+    throw new Error('预期抛出异常，但未抛出');
+  }
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new EmployeeTxService(
+      prisma as any,
+      createMockApprovalService() as any,
+      createMockDataScopeService() as any,
+    );
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('个人档案：员工不存在时中央文案必须是「员工不存在」，而非「培训记录不存在」', async () => {
+    prisma.employee.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.updateMyProfile(7, { phone: '13800000000' }));
+
+    expect(payload.code).toBe(1002);
+    expect(messageOf(payload.code)).toBe('员工不存在');
+  });
+
+  it('证明申请：记录不存在时中央文案必须是「证明申请不存在」，而非「调岗调薪记录不存在」', async () => {
+    prisma.certificateRequest.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.getCertRequest(999));
+
+    expect(payload.code).toBe(9811);
+    expect(messageOf(payload.code)).toBe('证明申请不存在');
+  });
+
+  it('奖惩提交：非草稿状态必须有已注册文案（不得留裸码 9602）', async () => {
+    prisma.employeeReward.findUnique.mockResolvedValue({
+      id: 1,
+      status: 'pending',
+      approvalInstanceId: 5,
+      employee: { userId: 9 },
+    });
+
+    const payload = await catchPayload(() => service.submitReward(1, 9, 'reward'));
+
+    expect(payload.code).toBe(9602);
+    expect(messageOf(payload.code)).toBe('只有草稿状态可操作');
+  });
+
+  it('奖惩提交：已提交审批必须有已注册文案（不得留裸码 9603）', async () => {
+    prisma.employeeReward.findUnique.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      approvalInstanceId: 5,
+      employee: { userId: 9 },
+    });
+
+    const payload = await catchPayload(() => service.submitReward(1, 9, 'reward'));
+
+    expect(payload.code).toBe(9603);
+    expect(messageOf(payload.code)).toBe('已提交审批');
+  });
+});
 
 describe('EmployeeTxService - DTO 白名单校验', () => {
   let service: EmployeeTxService;
@@ -504,6 +592,39 @@ describe('EmployeeTxService - 审批撤回业务数据回滚', () => {
       expect(prisma.payrollAdjustment.deleteMany).toHaveBeenCalled();
     });
 
+    it('审批通过后撤回，必须同步回滚薪资留痕（否则计薪仍按已作废的调薪基数）', async () => {
+      const transferRecord = {
+        id: 1,
+        employeeId: 1,
+        fromDepartmentId: 1,
+        toDepartmentId: 2,
+        fromPositionId: 1,
+        toPositionId: 2,
+        fromSalary: 8000,
+        toSalary: 10000,
+        effectiveDate: new Date('2025-06-01'),
+        status: 'approved',
+        approvalInstanceId: 100,
+      };
+
+      prisma.employeeTransfer.findFirst.mockResolvedValue(transferRecord);
+      prisma.employee.findUnique.mockResolvedValue({ id: 1, salary: 10000, departmentId: 2, positionId: 2 });
+      prisma.payrollRun.findUnique.mockResolvedValue({ id: 1, month: '2025-06' });
+
+      await (service as any).handleApprovalWithdrawn({
+        instanceId: 100,
+        workflowCode: 'transfer',
+      });
+
+      expect(prisma.salaryAdjustment.deleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          employeeId: 1,
+          effectiveMonth: '2025-06',
+          remark: { startsWith: '调动调薪' },
+        }),
+      });
+    });
+
     it('pending 状态撤回，不修改员工信息', async () => {
       const transferRecord = {
         id: 1,
@@ -831,6 +952,43 @@ describe('EmployeeTxService - 合同管理增强（到期/续签/终止/附件�
       expect(called.data.contractNo).toMatch(/^CT-2026-0007$/);
     });
 
+    it('自动生成合同编号的年份按北京时间推导：北京 1/1 02:00（UTC 仍是上一年 12/31）应为 CT-2027-xxxx', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 1 });
+      prisma.contract.create.mockResolvedValue({ id: 1 });
+      prisma.sequence.findUnique.mockResolvedValue(null);
+      prisma.sequence.create.mockResolvedValue({ id: 1, name: 'contract_no_2027', currentValue: 0, step: 1 });
+      prisma.$queryRaw.mockResolvedValue([{ next_val: 1 }]);
+
+      const RealDate: any = Date;
+      const dateSpy = jest.spyOn(global, 'Date').mockImplementation(function (
+        this: Date,
+        ...args: any[]
+      ) {
+        return (args.length === 0
+          ? new RealDate('2026-12-31T18:00:00.000Z')
+          : new RealDate(...args)) as any;
+      });
+
+      try {
+        await service.createContract({
+          employeeId: 1,
+          type: 'fixed_term',
+          startDate: '2025-01-01',
+        } as any);
+      } finally {
+        dateSpy.mockRestore();
+      }
+
+      const called = prisma.contract.create.mock.calls[0][0] as any;
+      // 用本地年份会取到 2026（UTC 日期），合同编号年份与序列名都会错位一年
+      expect(called.data.contractNo).toMatch(/^CT-2027-/);
+      expect(prisma.sequence.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'contract_no_2027' }),
+        }),
+      );
+    });
+
     it('创建时显式传入 contractNo 则不再自动生成', async () => {
       prisma.employee.findUnique.mockResolvedValue({ id: 1 });
       prisma.contract.create.mockResolvedValue({ id: 1 });
@@ -871,5 +1029,68 @@ describe('EmployeeTxService - 合同管理增强（到期/续签/终止/附件�
         service.renewContract(99, { contractNo: 'CT2', type: 'fixed_term', startDate: '2026-09-01' } as any),
       ).rejects.toThrow(NotFoundException);
     });
+  });
+});
+
+describe('EmployeeTxService - 入职自动建试用期', () => {
+  let service: EmployeeTxService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    const approvalService = createMockApprovalService();
+    const dataScope = createMockDataScopeService();
+    service = new EmployeeTxService(prisma as any, approvalService as any, dataScope as any);
+
+    prisma.onboarding.findFirst.mockResolvedValue({
+      id: 1,
+      status: 'pending',
+      approvalInstanceId: 100,
+      name: '张三',
+      phone: '13800138000',
+      email: 'zhangsan@example.com',
+      departmentId: 5,
+      positionId: 6,
+      hireDate: new Date('2026-01-31T00:00:00.000Z'),
+      salary: 10000,
+      probationMonths: 1,
+    });
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({ id: 11 });
+    prisma.role.findFirst.mockResolvedValue(null);
+    prisma.employee.create.mockResolvedValue({ id: 21 });
+    prisma.probation.findFirst.mockResolvedValue(null);
+    prisma.sequence.findUnique.mockResolvedValue({ currentValue: 0, step: 1 });
+    prisma.$queryRaw.mockResolvedValue([{ next_val: 1 }]);
+  });
+
+  // 1/31 加 1 个月：setMonth 直接加会让 2 月溢出到 3/3，结束日必须收敛到当月最后一天
+  it('入职日为月末（1/31）时，试用期结束日应落在 2 月末而非溢出到 3/3', async () => {
+    await (service as any).handleOnboardingApproved(100);
+
+    const data = prisma.probation.create.mock.calls[0][0].data;
+    expect(data.probationStartDate.toISOString()).toBe('2026-01-31T00:00:00.000Z');
+    expect(data.probationEndDate.toISOString()).toBe('2026-02-28T00:00:00.000Z');
+  });
+
+  it('普通入职日（9/15）试用期 3 个月仍应精确加 3 个月', async () => {
+    prisma.onboarding.findFirst.mockResolvedValue({
+      id: 1,
+      status: 'pending',
+      approvalInstanceId: 100,
+      name: '李四',
+      phone: '13900139000',
+      email: 'lisi@example.com',
+      departmentId: 5,
+      positionId: 6,
+      hireDate: new Date('2026-09-15T00:00:00.000Z'),
+      salary: 10000,
+      probationMonths: 3,
+    });
+
+    await (service as any).handleOnboardingApproved(100);
+
+    const data = prisma.probation.create.mock.calls[0][0].data;
+    expect(data.probationEndDate.toISOString()).toBe('2026-12-15T00:00:00.000Z');
   });
 });

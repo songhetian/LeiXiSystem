@@ -1,4 +1,5 @@
 import { OssStorageDriver } from './oss-storage.driver';
+import { messageOf } from '../common/error-messages';
 
 /**
  * mock ali-oss：不在单测中发起真实 OSS 请求。
@@ -66,5 +67,22 @@ describe('OssStorageDriver - 阿里云 OSS 存储', () => {
     const res = await driver.readStream('/uploads/knowledge/2026xyz.pdf');
     expect(client.get).toHaveBeenCalledWith('uploads/knowledge/2026xyz.pdf');
     expect(res.stream).toBe(fakeStream);
+  });
+
+  it('readStream 取不到对象时抛 FILE_NOT_FOUND(5018)，不得复用 5003（前端不弹 5003 的 toast）', async () => {
+    const client = clientOf(driver);
+    client.get.mockResolvedValue({});
+
+    let payload: any;
+    try {
+      await driver.readStream('/uploads/knowledge/gone.pdf');
+      throw new Error('预期抛出异常，但未抛出');
+    } catch (e: any) {
+      payload = e.getResponse?.() ?? e.response ?? e;
+    }
+
+    expect(payload.code).not.toBe(5003);
+    expect(payload.code).toBe(5018);
+    expect(messageOf(payload.code)).toBe('文件不存在或已被删除');
   });
 });

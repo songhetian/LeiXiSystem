@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, createReadStream, existsSync } from 'fs';
 import { join, resolve, extname, basename, sep } from 'path';
 import { randomBytes } from 'crypto';
 import { StorageDriver } from './storage-driver.interface';
+import { ERROR_CODES } from '../common/error-codes';
 
 const SAFE_BIZ_TYPE = /^[\w-]{1,50}$/;
 
@@ -46,7 +47,10 @@ export class LocalStorageDriver implements StorageDriver {
       throw new BadRequestException({ code: 4000, message: '非法的文件路径' });
     }
     if (!existsSync(abs)) {
-      throw new BadRequestException({ code: 5003, message: '文件不存在或已被删除' });
+      throw new BadRequestException({
+        code: ERROR_CODES.FILE_NOT_FOUND,
+        message: '文件不存在或已被删除',
+      });
     }
     return { stream: createReadStream(abs) as import('stream').Readable };
   }

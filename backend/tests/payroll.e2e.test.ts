@@ -306,7 +306,7 @@ describe('S10 · 算薪引擎 + 批次', () => {
       expect(body.data.checkedAt).toBeDefined();
     });
 
-    it('重复确认应该返回 3003 错误', async () => {
+    it('重复确认应该返回 3010「批次状态不允许此操作」错误', async () => {
       const listRes = await inject(app, {
         method: 'GET',
         url: '/api/v1/payroll/runs?page=1&pageSize=10',
@@ -322,7 +322,7 @@ describe('S10 · 算薪引擎 + 批次', () => {
         payload: { checkedEmployeeIds: empIds },
       });
       const body = JSON.parse(res.body);
-      expect(body.code).toBe(3003);
+      expect(body.code).toBe(3010);
     });
   });
 

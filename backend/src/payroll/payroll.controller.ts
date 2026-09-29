@@ -10,6 +10,7 @@ import { ToggleSalaryItemDto } from './dto/toggle-salary-item.dto';
 import { CreateRunDto } from './dto/create-run.dto';
 import { AdjustRunDto } from './dto/adjust-run.dto';
 import { parsePagination } from '../common/pagination.util';
+import { ERROR_CODES } from '../common/error-codes';
 
 @ApiTags('薪资')
 @Controller('payroll')
@@ -103,7 +104,9 @@ export class PayrollController {
   async confirm(@Param('id', ParseIntPipe) id: number, @Body() body: ConfirmRunDto, @Req() req: any) {
     const parsed = confirmRunSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 3008, message: parsed.error.errors[0].message });
+      // 参数校验失败统一用 4000；3008 仅用于业务规则「抽检不足 3 人」（payroll.service 内抛出），
+      // 此前复用 3008 会让类型/必填错误被中央文案覆盖成「确认前必须抽检至少3名员工对账」。
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.errors[0].message });
     }
     const dto: ConfirmRunDto = parsed.data;
     const data = await this.payrollService.confirmRun(id, req.user.id, dto.checkedEmployeeIds);

@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, HttpCode, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { ERROR_CODES } from '../common/error-codes';
 import { PerformanceService } from './performance.service';
 
 // 绩效周期状态校验
@@ -77,7 +78,7 @@ export class PerformanceController {
   async createCycle(@Body() body: unknown) {
     const parsed = cycleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.createCycle(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -89,7 +90,7 @@ export class PerformanceController {
   async updateCycle(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateCycleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.updateCycle(id, parsed.data);
     return { code: 0, message: 'ok', data };
@@ -111,7 +112,7 @@ export class PerformanceController {
   async createGoal(@Body() body: unknown) {
     const parsed = goalSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.createGoal(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -119,8 +120,13 @@ export class PerformanceController {
 
   @Get('goals')
   @RequirePermission('performance:view')
-  async listGoals(@Query('cycleId') cycleId?: string, @Query('employeeId') employeeId?: string) {
+  async listGoals(
+    @Req() req: any,
+    @Query('cycleId') cycleId?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
     const result = await this.performanceService.listGoals(
+      req.user.id,
       cycleId !== undefined ? Number(cycleId) : undefined,
       employeeId !== undefined ? Number(employeeId) : undefined,
     );
@@ -133,7 +139,7 @@ export class PerformanceController {
   async updateGoal(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateGoalSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.updateGoal(id, parsed.data);
     return { code: 0, message: 'ok', data };
@@ -155,7 +161,7 @@ export class PerformanceController {
   async createReview(@Body() body: unknown) {
     const parsed = reviewSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.createReview(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -163,8 +169,13 @@ export class PerformanceController {
 
   @Get('reviews')
   @RequirePermission('performance:view')
-  async listReviews(@Query('cycleId') cycleId?: string, @Query('employeeId') employeeId?: string) {
+  async listReviews(
+    @Req() req: any,
+    @Query('cycleId') cycleId?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
     const result = await this.performanceService.listReviews(
+      req.user.id,
       cycleId !== undefined ? Number(cycleId) : undefined,
       employeeId !== undefined ? Number(employeeId) : undefined,
     );
@@ -177,7 +188,7 @@ export class PerformanceController {
   async updateReview(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateReviewSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.performanceService.updateReview(id, parsed.data);
     return { code: 0, message: 'ok', data };

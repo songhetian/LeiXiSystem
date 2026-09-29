@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmployeeStatus } from '@prisma/client';
 import { buildTimeline } from './timeline-builder';
-import { ApprovalService } from '../approval/approval.service';
+import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { DataScopeService } from '../common/data-scope.service';
 import { withEventRetry } from '../common/event-retry.util';
 import { ERROR_CODES } from '../common/error-codes';
@@ -12,7 +12,10 @@ import {
   isValidDate,
   isDateNotTooFarFuture,
   isDateNotBeforeHireDate,
+  beijingNow,
+  addMonthsUtc,
 } from '../common/date.util';
+import { allocateEmployeeNo } from './employee-no.util';
 import * as ExcelJS from 'exceljs';
 import {
   validateOrThrow,
@@ -49,7 +52,7 @@ export class EmployeeTxService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly approvalService: ApprovalService,
+    @Inject('APPROVAL_CLIENT') private readonly approvalService: ApprovalClientInterface,
     private readonly dataScope: DataScopeService,
   ) {}
 
@@ -65,7 +68,7 @@ export class EmployeeTxService {
 
   async updateMyProfile(userId: number, data: { phone?: string; emergencyContact?: string; emergencyPhone?: string }) {
     const emp = await this.prisma.employee.findUnique({ where: { userId } });
-    if (!emp) throw new NotFoundException({ code: 9701, message: '员工档案不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     const updateData: any = {};
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.emergencyContact !== undefined) updateData.emergencyContact = data.emergencyContact;
@@ -150,7 +153,7 @@ export class EmployeeTxService {
   async createResignation(dto: any, userId: number) {
     const valid = validateOrThrow(createResignationSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9101, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     if (emp.userId !== userId) throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     return this.prisma.resignation.create({ data: { ...valid, resignDate: new Date(valid.resignDate) } });
   }
@@ -219,7 +222,7 @@ export class EmployeeTxService {
   async createProbation(dto: any) {
     const valid = validateOrThrow(createProbationSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9201, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     return this.prisma.probation.create({
       data: {
         ...valid,
@@ -301,7 +304,7 @@ export class EmployeeTxService {
   async createContract(dto: any) {
     const valid = validateOrThrow(createContractSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9301, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     const contractNo = valid.contractNo?.trim() || (await this.getNextContractNo());
     return this.prisma.contract.create({
       data: {
@@ -360,7 +363,7 @@ export class EmployeeTxService {
     const record = await this.prisma.contract.findUnique({ where: { id } });
     if (!record) throw new NotFoundException({ code: 9301, message: '合同不存在' });
     if (record.status === 'terminated' || record.status === 'expired') {
-      throw new BadRequestException({ code: 9302, message: '该合同已终止或已过期，不可重复操作' });
+      throw new BadRequestException({ code: ERROR_CODES.CONTRACT_ALREADY_TERMINATED, message: '该合同已终止或已过期，不可重复操作' });
     }
     const terminationDate = dto?.terminationDate ? new Date(dto.terminationDate) : new Date();
     return this.prisma.contract.update({
@@ -401,7 +404,7 @@ export class EmployeeTxService {
   async createAppeal(dto: any, userId: number) {
     const valid = validateOrThrow(createAppealSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9401, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     if (emp.userId !== userId) throw new ForbiddenException({ code: 5003, message: '无权限操作' });
 
     if (!isValidDate(valid.appealDate)) {
@@ -496,7 +499,7 @@ export class EmployeeTxService {
   async createCertificate(dto: any) {
     const valid = validateOrThrow(createCertificateSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9501, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     const data: any = { ...valid };
     if (valid.issueDate) data.issueDate = new Date(valid.issueDate);
     if (valid.expireDate) data.expireDate = new Date(valid.expireDate);
@@ -616,7 +619,7 @@ export class EmployeeTxService {
   async createReward(dto: any) {
     const valid = validateOrThrow(createRewardSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9601, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     return this.prisma.employeeReward.create({
       data: { ...valid, rewardDate: new Date(valid.rewardDate), type: valid.type as any },
     });
@@ -642,8 +645,8 @@ export class EmployeeTxService {
       include: { employee: true },
     });
     if (!record) throw new NotFoundException({ code: 9601, message: '奖惩记录不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9602, message: '只有草稿状态可提交' });
-    if (record.approvalInstanceId) throw new BadRequestException({ code: 9603, message: '已提交审批' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.REWARD_PUNISHMENT_STATUS_INVALID, message: '只有草稿状态可提交' });
+    if (record.approvalInstanceId) throw new BadRequestException({ code: ERROR_CODES.REWARD_PUNISHMENT_ALREADY_SUBMITTED, message: '已提交审批' });
     if (options?.checkOwnership !== false && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -687,7 +690,7 @@ export class EmployeeTxService {
       where: { id },
       include: { employee: true },
     });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
     if (options?.checkOwnership !== false && userId !== undefined && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -697,7 +700,7 @@ export class EmployeeTxService {
   async createCertRequest(dto: any, userId?: number, options?: { checkOwnership?: boolean }) {
     const valid = validateOrThrow(createCertRequestSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9701, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     if (options?.checkOwnership !== false && userId !== undefined && emp.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -706,8 +709,8 @@ export class EmployeeTxService {
 
   async updateCertRequest(id: number, dto: any, userId?: number, options?: { checkOwnership?: boolean }) {
     const record = await this.prisma.certificateRequest.findUnique({ where: { id }, include: { employee: true } });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9802, message: '只有草稿状态可修改' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.CERT_REQUEST_STATUS_INVALID, message: '只有草稿状态可修改' });
     if (options?.checkOwnership !== false && userId !== undefined && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -717,7 +720,7 @@ export class EmployeeTxService {
 
   async deleteCertRequest(id: number, userId?: number, options?: { checkOwnership?: boolean }) {
     const record = await this.prisma.certificateRequest.findUnique({ where: { id }, include: { employee: true } });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
     if (options?.checkOwnership !== false && userId !== undefined && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -730,9 +733,9 @@ export class EmployeeTxService {
       where: { id },
       include: { employee: true },
     });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9802, message: '只有草稿状态可提交' });
-    if (record.approvalInstanceId) throw new BadRequestException({ code: 9803, message: '已提交审批' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.CERT_REQUEST_STATUS_INVALID, message: '只有草稿状态可提交' });
+    if (record.approvalInstanceId) throw new BadRequestException({ code: ERROR_CODES.CERT_REQUEST_ALREADY_SUBMITTED, message: '已提交审批' });
     if (options?.checkOwnership !== false && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
     }
@@ -758,9 +761,9 @@ export class EmployeeTxService {
 
   async markCertRequestCompleted(id: number, userId: number) {
     const record = await this.prisma.certificateRequest.findUnique({ where: { id } });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
     if (record.status !== 'approved') {
-      throw new BadRequestException({ code: 9804, message: '只有审批通过的证明申请可标记为已完成' });
+      throw new BadRequestException({ code: ERROR_CODES.CERT_REQUEST_NOT_APPROVED, message: '只有审批通过的证明申请可标记为已完成' });
     }
     return this.prisma.certificateRequest.update({
       where: { id },
@@ -773,9 +776,9 @@ export class EmployeeTxService {
       where: { id },
       include: { employee: true },
     });
-    if (!record) throw new NotFoundException({ code: 9801, message: '证明申请不存在' });
+    if (!record) throw new NotFoundException({ code: ERROR_CODES.CERT_REQUEST_NOT_FOUND, message: '证明申请不存在' });
     if (record.status !== 'draft' && record.status !== 'pending') {
-      throw new BadRequestException({ code: 9805, message: '只有草稿或待审批状态可取消' });
+      throw new BadRequestException({ code: ERROR_CODES.CERT_REQUEST_CANNOT_CANCEL, message: '只有草稿或待审批状态可取消' });
     }
     if (options?.checkOwnership !== false && record.employee.userId !== userId) {
       throw new ForbiddenException({ code: 5003, message: '无权限操作' });
@@ -806,7 +809,7 @@ export class EmployeeTxService {
   async createTraining(dto: any) {
     const valid = validateOrThrow(createTrainingSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9701, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     const data: any = { ...valid };
     if (valid.startDate) data.startDate = new Date(valid.startDate);
     if (valid.endDate) data.endDate = new Date(valid.endDate);
@@ -848,7 +851,7 @@ export class EmployeeTxService {
   async createTransfer(dto: any) {
     const valid = validateOrThrow(createTransferSchema, dto);
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
-    if (!emp) throw new NotFoundException({ code: 9801, message: '员工不存在' });
+    if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     return this.prisma.employeeTransfer.create({
       data: { ...valid, effectiveDate: new Date(valid.effectiveDate), type: valid.type as any },
     });
@@ -857,7 +860,7 @@ export class EmployeeTxService {
   async updateTransfer(id: number, dto: any) {
     const record = await this.prisma.employeeTransfer.findUnique({ where: { id } });
     if (!record) throw new NotFoundException({ code: 9801, message: '调岗调薪记录不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9802, message: '只有草稿状态可编辑' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.TRANSFER_STATUS_INVALID, message: '只有草稿状态可编辑' });
     const valid = validateOrThrow(updateTransferSchema, dto);
     return this.prisma.employeeTransfer.update({ where: { id }, data: valid });
   }
@@ -865,7 +868,7 @@ export class EmployeeTxService {
   async deleteTransfer(id: number) {
     const record = await this.prisma.employeeTransfer.findUnique({ where: { id } });
     if (!record) throw new NotFoundException({ code: 9801, message: '调岗调薪记录不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9802, message: '只有草稿状态可删除' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.TRANSFER_STATUS_INVALID, message: '只有草稿状态可删除' });
     await this.prisma.employeeTransfer.delete({ where: { id } });
     return { success: true };
   }
@@ -876,8 +879,8 @@ export class EmployeeTxService {
       include: { employee: true },
     });
     if (!record) throw new NotFoundException({ code: 9801, message: '调岗调薪记录不存在' });
-    if (record.status !== 'draft') throw new BadRequestException({ code: 9802, message: '只有草稿状态可提交' });
-    if (record.approvalInstanceId) throw new BadRequestException({ code: 9803, message: '已提交审批' });
+    if (record.status !== 'draft') throw new BadRequestException({ code: ERROR_CODES.TRANSFER_STATUS_INVALID, message: '只有草稿状态可提交' });
+    if (record.approvalInstanceId) throw new BadRequestException({ code: ERROR_CODES.TRANSFER_ALREADY_SUBMITTED, message: '已提交审批' });
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
@@ -1130,6 +1133,19 @@ export class EmployeeTxService {
 
         if (transfer.toSalary && transfer.fromSalary && transfer.effectiveDate) {
           const effectiveMonth = transfer.effectiveDate.toISOString().slice(0, 7);
+          // 薪资留痕必须同步回滚：审批通过时写过一条 salary_adjustments，
+          // 若撤回时只还原 employee.salary 而不删留痕，getEffectiveSalary 仍会取到
+          // 这条「生效月 ≤ 计薪月」的调动调薪，导致后续按已作废的薪资基数计薪。
+          await tx.salaryAdjustment.deleteMany({
+            where: {
+              employeeId: transfer.employeeId,
+              effectiveMonth,
+              amount: transfer.toSalary,
+              remark: { startsWith: '调动调薪' },
+            },
+          });
+          this.logger.log(`调岗审批撤回，已回滚薪资留痕: employeeId=${transfer.employeeId}, month=${effectiveMonth}`);
+
           const run = await tx.payrollRun.findUnique({ where: { month: effectiveMonth } });
           if (run) {
             await tx.payrollAdjustment.deleteMany({
@@ -1265,46 +1281,13 @@ export class EmployeeTxService {
     this.logger.log(`离职审批驳回，resignationId=${resignation.id}`);
   }
 
-  private async getNextEmployeeNo(tx: any): Promise<string> {
-    const seqName = 'employee_no';
-    let seq = await tx.sequence.findUnique({ where: { name: seqName } });
-
-    if (!seq) {
-      const latestEmp = await tx.employee.findFirst({
-        orderBy: { id: 'desc' },
-        select: { employeeNo: true },
-      });
-      const currentMax = latestEmp
-        ? parseInt(latestEmp.employeeNo.replace(/\D/g, ''), 10)
-        : 0;
-
-      seq = await tx.sequence.create({
-        data: {
-          name: seqName,
-          currentValue: currentMax,
-          step: 1,
-          description: '员工编号序列',
-        },
-      });
-    }
-
-    await tx.$executeRaw`
-      UPDATE sequences
-      SET current_value = LAST_INSERT_ID(current_value + step)
-      WHERE name = ${seqName}
-    `;
-
-    const result: any = await tx.$queryRaw`SELECT LAST_INSERT_ID() as next_val`;
-    const nextVal = result[0]?.next_val ?? seq.currentValue + seq.step;
-
-    return `EMP${String(nextVal).padStart(4, '0')}`;
-  }
-
   /**
    * 生成合同编号：CT-YYYY-XXXX（按自然年 + 4 位序列，跨年自动归零）。
    */
   private async getNextContractNo(): Promise<string> {
-    const year = new Date().getFullYear();
+    // 年份必须按北京时间取：UTC 容器在北京时间 1/1 00:00~08:00 仍是上一年 12/31，
+    // 用本地年份会让合同编号与序列名整体错位一年。
+    const year = beijingNow().year;
     const seqName = `contract_no_${year}`;
     return this.prisma.$transaction(async (tx) => {
       let seq = await tx.sequence.findUnique({ where: { name: seqName } });
@@ -1337,7 +1320,7 @@ export class EmployeeTxService {
         data: { status: 'approved' },
       });
 
-      const nextNo = await this.getNextEmployeeNo(tx);
+      const nextNo = await allocateEmployeeNo(tx);
 
       // 查找已有用户（手机号可能已注册，如离职返聘）
       let user = await tx.user.findUnique({ where: { username: onboarding.phone } });
@@ -1407,8 +1390,8 @@ export class EmployeeTxService {
       // 有试用期时，自动创建试用期记录
       if (onboarding.probationMonths > 0) {
         const probationStartDate = onboarding.hireDate;
-        const probationEndDate = new Date(onboarding.hireDate);
-        probationEndDate.setMonth(probationEndDate.getMonth() + onboarding.probationMonths);
+        // 加月必须收敛到目标月最后一天：setMonth 会让 1/31 + 1 月溢出成 3/3
+        const probationEndDate = addMonthsUtc(onboarding.hireDate, onboarding.probationMonths);
 
         // 幂等性判断：检查该员工是否已存在相同起止日期的试用期记录
         const existingProbation = await tx.probation.findFirst({
