@@ -127,6 +127,7 @@
 |---|---|
 | 后端模块内 4 层（Presentation/Application/Domain/Infrastructure）+ 依赖单向 | **ADR-0013** |
 | 跨模块只读数据 + 单 Prisma schema + 跨模块弱引用（快照不建 FK） | **ADR-0013** |
+| 共享基础设施模块（prisma/redis/files）provider 可跨模块注入；业务模块间协作走消费方接口 | **ADR-0013** |
 | 前端 features 与后端模块一一对应 + feature 间禁止互引 | **ADR-0014** |
 | 算薪消费已确认月报快照（payroll→attendance 只读） | ADR-0011 |
 | 部门数据隔离在 Service 层注入 | ADR-0010 |

@@ -8,7 +8,7 @@
 
 - 范围：只对齐 `feature-compare.md` 中标记为**简化 / 当前缺** 的行；`新增` 项参考没有，不跟进；`对齐` 项核对细节。
 - 样式：沿用当前系统样式（深蓝 `#2455D9`、Arco），**不采用旧项目视觉**。
-- 预览：文件预览以参考原生方案为主（浏览器原生 `img/video/iframe` + Office 在线，见批次九），已移除 `@open-file-viewer` 与 `pdfjs-dist` 依赖。
+- 预览：文件预览以参考原生方案为主（浏览器原生 `img/video/iframe`，图片/视频/音频/PDF 零依赖），Office 文档保留 `@open-file-viewer` 客户端渲染；仅移除 `preview/[id]` 路由与 `public/pdfjs` 静态资源（理由见 ADR-0015 修订记录）。
 
 ## 进度
 
@@ -59,7 +59,7 @@
 ### 批次九 · 知识库树形导航 + 文件原生预览对齐（✅ 已排定并完成）
 
 - [x] **知識库 Win11 树形导航**（对齐 / `Win11KnowledgeBase` + `KnowledgeFolderView`）：纯前端对齐——新增 `getKnowledgeView`（`buildCategoryNodes` 构建分类树节点 + 按 activeCategoryId 过滤，含 `uncat` 未分类/`all` 全部 + 关键字命中过滤，TDD red→green，`view.test.ts`）；重写知识库页 `list.tsx` 为**左侧分类树导航（Arco `Tree`，根=全部 + 各分类节点计数）+ 右侧文章 `List`**，支持分类/关键字筛选 + 分页。
-- [x] **文件预览对齐参考原生方案**（对齐 / `FilePreviewModal.jsx`）：新增 `getPreviewMode`（按扩展名/MIME 分类 `image`/`video`/`audio`/`pdf`/`office`/`unsupported`）与 `FilePreviewModal`（列表内嵌模态：`<img>`/`<video>`/`<iframe>`(pdf) + Office 在线预览，不支持则下载兜底，TDD `preview.test.ts`/`file-preview-modal.test.tsx`）；移除 `preview/[id]` 路由、`@open-file-viewer` 与 `pdfjs-dist` 依赖（package.json / next.config.mjs / public/pdfjs 清理）。
+- [x] **文件预览对齐参考原生方案**（对齐 / `FilePreviewModal.jsx`）：新增 `getPreviewMode`（按扩展名/MIME 分类 `image`/`video`/`audio`/`pdf`/`office`/`unsupported`）与 `FilePreviewModal`（列表内嵌模态：`<img>`/`<video>`/`<iframe>`(pdf) + Office 在线预览，不支持则下载兜底，TDD `preview.test.ts`/`file-preview-modal.test.tsx`）；移除 `preview/[id]` 路由与 `public/pdfjs` 静态资源（next.config.mjs 同步清理）；Office 文档保留 `@open-file-viewer` 客户端渲染，依赖未移除（见 ADR-0015 修订记录）。
 - 验收：前端 `tsc --noEmit` 通过；knowledge 4 套件 31/31 通过。
 
 ### 批次十 · 算薪批次明细 + 员工事务页核对（✅ 已排定并完成）
@@ -81,7 +81,8 @@
 
 ### 批次十三 · 生产构建验收（✅ 通过）
 
-- [x] **前端生产构建**：`pnpm build`（Next.js 14.2.35）通过——59 页全部生成，Lint/类型校验通过；`output: standalone` 的 symlink EPERM 提示为可选的 traced-files 复制，非致命。
+- [x] **前端生产构建**：`pnpm build`（Next.js 14.2.35）通过——59 页全部生成，Lint/类型校验通过。
+  - 修订（2026-09-25）：本条原记「`output: standalone` 的 symlink EPERM 提示为可选的 traced-files 复制，非致命」，属**误判**。该提示背后是 pnpm 布局下 standalone 追踪产出悬空符号链接的真实缺陷，容器内表现为 CrashLoop（先 `Cannot find module '/app/frontend/server.js'`，改对路径后转 `Cannot find module 'next'`）。定案见 `docs/adr/0017-migration-baseline-and-boot-chain.md` 增补第 1 条：`frontend/Dockerfile` 改用 **`next start`** + runner 侧 `pnpm install --frozen-lockfile --prod --filter @lei/frontend` 自解析模块，入口写 `node node_modules/next/dist/bin/next`（`.bin/next` 是 sh 包装脚本，直接交给 node 会报 `SyntaxError: missing ) after argument list`）。
 - [x] **后端生产构建**：`pnpm build`（`tsc -p tsconfig.json`）通过，无类型错误。
 - [x] **全量单测**：后端 `jest src` 42 套件 609 用例全绿；前端 `jest` 57 套件 556 用例全绿。（需真实 DB 的 e2e 除外，属既有环境依赖。）
 - [x] 结论：新建/变更（批次十一、十二）与既有功能均通过生产构建与单测，验收通过。

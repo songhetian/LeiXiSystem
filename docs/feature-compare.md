@@ -80,7 +80,7 @@
 |---|---|---|---|
 | 知识库 `/knowledge` | 公共知识库 `Win11KnowledgeBase` / `KnowledgeFolderView` | 参考：**Win11 文件夹/树形结构**展示文章；附件预览用 `FilePreviewModal`（**原生** iframe/img/video + Office 在线） | **对齐**（已改为左侧分类树导航 + 右侧文章列表：`getKnowledgeView` 构建分类树与内容过滤，前端 Arco `Tree` + `List`，关键字/分类筛选 + 分页） |
 | 知识库管理 `/knowledge/admin` | 知识库管理 `KnowledgeManagement` + 分类管理 `CategoryManagement` | 参考：文章增删改、分类管理 | **对齐**（分类管理 Tab + 文章管理 Tab：增删改 + 分页；文章编辑弹窗内嵌**附件管理**（列表/新增/删除，批次十二补 `deleteAttachment` + `DELETE /knowledge/articles/:id/attachments/:attId`）） |
-| 预览 `/knowledge/preview/[id]` | `FilePreviewModal.jsx` | 参考用**原生弹窗**，零第三方预览依赖 | **对齐**（已改为列表内嵌 `FilePreviewModal`：`getPreviewMode` 分类 image/video/audio/pdf/office/unsupported，原生 img/video/iframe + Office 在线，不支持则下载兜底；移除 `preview/[id]` 路由与 `@open-file-viewer`、`pdfjs-dist` 依赖） |
+| 预览 `/knowledge/preview/[id]` | `FilePreviewModal.jsx` | 参考用**原生弹窗**，零第三方预览依赖 | **对齐**（已改为列表内嵌 `FilePreviewModal`：`getPreviewMode` 分类 image/video/audio/pdf/office/unsupported，原生 img/video/iframe + Office 在线，不支持则下载兜底；移除 `preview/[id]` 路由；Office 仍用 `@open-file-viewer` 客户端渲染，依赖未移除，见 ADR-0015 修订记录） |
 
 ---
 
