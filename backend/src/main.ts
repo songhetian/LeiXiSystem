@@ -21,7 +21,11 @@ async function bootstrap() {
   // 安全头（Helmet）
   // 注意：styleSrc 的 'unsafe-inline' 是 Arco Design / Ant Design 系列的已知需求，
   //       scriptSrc 默认不含 'unsafe-inline'，生产环境下更严格。
-  await app.register(helmet as any, {
+  // ⚠️ 依赖约束：backend/package.json 把 fastify 精确锁在 4.28.1（与 @nestjs/platform-fastify
+  //    内置的那份一致）。此前写成 ^4.28.1 会让 pnpm 装出 4.28.1 + 4.29.1 两份，
+  //    @fastify/* 插件的模块增强只落在其中一份上，导致下面三处 register 必须写 `as any`。
+  //    锁成单版本后类型天然对齐，请勿改回范围写法。
+  await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
@@ -48,10 +52,10 @@ async function bootstrap() {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   });
 
-  await app.register(cookie as any);
+  await app.register(cookie);
 
   // multipart：通用文件上传（报销发票附件等），Fastify 4 内核解析；单文件上限 200MB
-  await app.register(multipart as any, { limits: { fileSize: 200 * 1024 * 1024 } });
+  await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
 
   app.enableCors({
     origin: (process.env.CORS_ORIGIN || 'http://localhost:8088,http://localhost:3000').split(','),
