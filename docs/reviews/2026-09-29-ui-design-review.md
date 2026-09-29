@@ -611,4 +611,65 @@ frontend/src/app/arco-overrides.css:1578  .header-search-kbd { font-size: 10px; 
 
 ---
 
-*本报告为只读审查结论，未对任何代码做修改。修复建议中的代码片段为示意，落地时请遵守项目 `AGENTS.md` 的 TDD 约定（改前端页面时同步补 `*.test.tsx` 断言）。*
+*报告最初为只读审查结论（未修改代码）。下方「八、修复进度追踪」记录了 2026-09-29 起的修复落地情况。修复建议中的代码片段为示意，落地时遵守项目 `AGENTS.md` 的 TDD 约定（改前端页面时同步补 `*.test.tsx` 断言）。*
+
+---
+
+## 八、修复进度追踪（2026-09-29 起）
+
+> 状态图例：✅ 已修复 ｜ 🟡 部分修复 ｜ ⏸ 评估后推迟（非遗漏，属结构性取舍）
+> 验证基线：`tsc --noEmit` 0 错误；前端 **80 套件 / 779 用例全绿**（含新增 22 个对比度回归闸门）；
+> 设计 token 对比度由 `frontend/src/app/__tests__/design-tokens-a11y.test.ts` 在 CI 内递归解 `var()`、覆盖明暗双主题守护，杜绝「暗色只覆盖 token 不覆盖主题化样式」回潮。
+
+### 🔴 关键问题（P0）
+
+| ID | 问题 | 状态 | 关键改动 |
+|---|---|---|---|
+| C1 | 暗色下顶栏/页签栏仍是浅色 | ✅ | `arco-overrides.css` 改用 `--lx-header-bg`/`--lx-tabs-bg`；`globals.css` 暗色块补双 token |
+| C2 | 暗色滚动条不可见 | ✅ | 新增 `--lx-scrollbar`/`--lx-scrollbar-hover`，暗色反转明度 |
+| C3 | 登录页不响应暗色 | ✅ | 卡片 `bg-white`→`bg-surface`；补 `--lx-login-bg` 暗色 token |
+| C4 | 登录卡片手机端裁切 | ✅ | 卡片 `w-[420px]`→`w-full max-w-[420px] mx-4`；去 `overflow-hidden`；Logo 改 `next/image` |
+| C5 | viewport 禁用缩放 | ✅ | `layout.tsx` 删 `maximumScale`/`userScalable`；移动端输入框 `font-size:16px` |
+| C6 | 状态标签对比度不达 AA | ✅ | 新增 `--lx-*-text` 文字级语义色（浅色 4.67–7.10 / 暗色 5.32–7.84）；新增对比度回归闸门 |
+| C7 | 17 处交互元素键盘不可达 | ✅ | 17 处 `div/span`→`<button className="lx-clickable">`；补 `:focus-visible` 统一焦点环 |
+| C8 | 外壳零响应式 | ✅ | `globals.css` 补 `@media(max-width:767px)` token 降档；`arco-overrides.css` 改用 token + `100dvh` |
+| C9 | 未映射 Tailwind 色暗色失效 | ✅ | `tailwind.config.ts` 收窄调色板（清默认 gray/white/black），仅留 token 映射 |
+
+### 🟡 重要问题（P1）
+
+| ID | 问题 | 状态 | 关键改动 |
+|---|---|---|---|
+| W1 | 焦点可见性近乎为零 | ✅ | 新增 `--lx-focus-ring`（品牌蓝 35%，浅 3.5:1+ / 暗 50%）；`:focus-visible { outline:2px solid var(--lx-focus-outline) }`；Arco 聚焦改用 token |
+| W2 | 点击目标 < 24px | ✅ | `.page-tab-close`/`.shift-swatch` 用 `::before` 扩展命中区（零观感变化） |
+| W3 | 搜索表单 label 悬空 | ✅ | `DatePicker`/`RangePicker` 经 `inputProps={{id}}` 落 id；`Input`/`EmployeeSelect` 补 `id` prop |
+| W4 | 表格行键盘不可达 | ✅ | `ProTable` 行加 roving tabindex + ↑↓ 导航 + Enter/Space 打开 + `.lx-sr-only` 提示 |
+| W5 | Tab 角色结构 + 右键菜单键盘 | ✅ | `role=tablist/tabpanel` + roving tabindex；菜单 `role=menu/menuitem` + 方向键/Escape + 焦点归还；去掉外层 `onContextMenu` 屏蔽 |
+| W6 | 双源真值 | ✅ | `tailwind.config.ts` 的 `colors/fontSize/spacing/borderRadius/boxShadow/zIndex/transitionDuration` 全部引用 CSS 变量 |
+| W7 | 字号 178 处硬编码 | ✅ | 13px/12px/11px/10px/14px/15px/20px/24px 批量归 `--lx-font-*` token |
+| W8 | z-index 混乱 | ✅ | 外壳改用 `--lx-z-*` 阶；`.drawer-mask` 用 `calc(var(--lx-z-fixed)-1)` |
+| W9 | 死文件 | ✅ | 删除 `ProTable.css`/`StatusTag.css`；`.lx-tag-*` 收敛到 `globals.css` 唯一来源 |
+| W10 | 动画简写误用 | ✅ | 新增纯缓动 `--lx-ease-standard`，`.dsh-*` 入场动画改用它（消除 150ms 误插延迟） |
+| W11 | 100vh 移动端裁切 | ✅ | `.app-layout`/登录页改 `100dvh`（保留 `100vh` 降级） |
+| W12 | hover-only/右键屏蔽等 | ✅ | 面包屑容器 hover 收窄到 `.breadcrumb-link`；`kbd` 10px→11px + `--lx-text-3`；`.page-tab` 补 `:active` 态 |
+
+### 🔵 建议（P2）
+
+| ID | 问题 | 状态 | 说明 |
+|---|---|---|---|
+| S1 | token 死项 ~30 | 🟡 部分 | 布局类死 token（`sider-width`/`header-height`/`content-max-width`/`sider-collapsed-width`）已改为被引用；删除 `--lx-amber*` 等纯重复项；残留 `--lx-font-3xl/4xl`、`--lx-z-dropdown/toast`、`--lx-shadow-sm`、`--lx-space-7/8` 为功能性保留或待清理 |
+| S2 | token 语义重复 | ✅ | 删除 `--lx-amber`/`--lx-amber-bg`/`--lx-font-bold`；保留 `--lx-info`≡`--lx-primary` 别名（信息态刻意等同主色） |
+| S3 | ConfigProvider 双源 | ✅ | 新增 `useArcoThemeTokens()` hook 运行时从 `:root` 读 `--lx-*`（MutationObserver 监听 `data-theme`），消除 TSX 硬编码色 |
+| S4 | 越阶 border-radius | ✅ | 全部归阶（新增 `--lx-radius-2xs`）；Tailwind 补 `DEFAULT` 映射；`rounded-2xl`/`rounded-[12px]` 改为 `rounded-xl` |
+| S5 | `!important` 66 处 | 🟡 评估后保留 | 工具类（`lx-mobile-*`）必须 `!important`；压制 Arco 默认样式的项属正常工程实践，未批量删除（删除需逐项运行时回归，收益低、风险高） |
+| S6 | 文件职责混乱（2152 行） | ⏸ 推迟 | 结构性拆分会引入大量风险且不影响功能/规范符合性，作为后续独立重构议题，不在本轮 UI 修复范围 |
+| S7 | 页面级样式堆全局 | ⏸ 推迟 | 同 S6，随文件拆分议题一并处理 |
+| S8 | content-max-width 未用 | ✅ | 已在 `arco-overrides.css:1968` 应用于内容区最大宽度（1640px） |
+| S9 | `<img>` 未用 next/image | ✅ | 登录 Logo 改 `next/image`（unoptimized 消 CLS） |
+| S10 | prefers-reduced-motion 不全 | ✅ | 新增全局 `transition-duration:0.01ms` 降级，覆盖 hover 过渡/Arco 动画 |
+
+### 收尾遗留决策（需用户拍板）
+
+1. **是否 `git push`**：本轮四批次 UI 修复 + 上一轮已在 `refactor-v2` 分支累计领先 `origin` 19 个提交，修复尚未落盘提交。建议按批次 `git commit` 后由你决定是否推送。
+2. **`.workbuddy/` 跟踪矛盾**：上一轮提交 `8a1ef35` 误扫入 102 个 `.workbuddy/` 文件（已跟踪+已忽略并存）。需决定 A) 从跟踪移除并加忽略 / B) 保留 / C) 另议。
+3. **S1 残留死 token 清理**：可顺手删除 `--lx-font-3xl/4xl`、`--lx-z-dropdown/toast`、`--lx-shadow-sm`、`--lx-space-7/8`，但属低风险收尾，可并入下一批。
+
