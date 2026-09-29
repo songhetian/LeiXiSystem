@@ -60,11 +60,6 @@
   background: var(--lx-bg-card);
 }
 
-.arco-card-hoverable:hover {
-  box-shadow: var(--lx-shadow-md);
-  border-color: var(--lx-border-3);
-}
-
 .arco-card-body {
   padding: var(--lx-space-4) var(--lx-space-5);
 }
@@ -91,32 +86,6 @@
   border-radius: var(--lx-radius-md);
   overflow: hidden;
   font-size: 13px;
-}
-
-.arco-table-th {
-  background: var(--lx-bg-secondary) !important;
-  border-bottom: 1px solid var(--lx-border-1) !important;
-  color: var(--lx-text-2) !important;
-  font-weight: var(--lx-font-normal) !important;
-  font-size: 12.5px !important;
-  padding: 10px 14px !important;
-}
-
-.arco-table-td {
-  border-bottom: 1px solid var(--lx-border-2) !important;
-  padding: 10px 14px !important;
-  font-size: 13px;
-  color: var(--lx-text-1);
-  font-weight: var(--lx-font-normal);
-}
-
-.arco-table-tr:hover .arco-table-td {
-  background: var(--lx-bg-hover) !important;
-}
-
-.arco-table-container {
-  border: 1px solid var(--lx-border-1);
-  border-radius: var(--lx-radius-md);
 }
 
 /* ---- 输入框 / 选择器 ---- */
@@ -147,6 +116,24 @@
 
 .arco-input-wrapper {
   border-radius: var(--lx-radius-sm);
+}
+
+/* ---- 表单控件统一基准宽度 ----
+   全站经 .arco-form-item-control 渲染的输入/下拉/日期/文本域统一最小宽度，
+   基准值由 --lx-control-* 变量集中定义（globals.css），改一处即全站生效。
+   表格内联编辑器与按钮组不在 .arco-form-item-control 内，不受影响。 */
+.arco-form-item-control .arco-input,
+.arco-form-item-control .arco-input-wrapper,
+.arco-form-item-control .arco-select-view,
+.arco-form-item-control .arco-picker {
+  min-width: var(--lx-control-min-w);
+}
+.arco-form-item-control .arco-picker-range {
+  min-width: var(--lx-control-range-min-w);
+}
+.arco-form-item-control .arco-textarea,
+.arco-form-item-control .arco-textarea-wrapper {
+  min-width: var(--lx-control-textarea-min-w);
 }
 
 /* ---- 表单 ---- */
@@ -200,27 +187,37 @@
   color: var(--lx-purple);
 }
 
+.arco-tag-arcoblue {
+  background: var(--lx-info-bg);
+  color: var(--lx-info);
+}
+
+.arco-tag-cyan {
+  background: var(--lx-teal-bg);
+  color: var(--lx-teal);
+}
+
+.arco-tag-orangered,
+.arco-tag-gold {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.arco-tag-gray {
+  background: var(--lx-bg-secondary);
+  color: var(--lx-text-2);
+}
+
+.arco-tag-lime {
+  background: var(--lx-success-bg);
+  color: var(--lx-success);
+}
+
 /* ---- 模态框 ---- */
 .arco-modal {
   border-radius: var(--lx-radius-lg);
   overflow: hidden;
   box-shadow: var(--lx-shadow-xl);
-}
-
-.arco-modal-header {
-  border-bottom: 1px solid var(--lx-border-2);
-  padding: var(--lx-space-4) var(--lx-space-5);
-  font-weight: var(--lx-font-medium);
-  font-size: 15px;
-}
-
-.arco-modal-body {
-  padding: var(--lx-space-5);
-}
-
-.arco-modal-footer {
-  border-top: 1px solid var(--lx-border-2);
-  padding: var(--lx-space-3) var(--lx-space-5);
 }
 
 /* ---- 菜单（侧边栏） ---- */
@@ -307,35 +304,9 @@
   font-weight: var(--lx-font-normal);
 }
 
-/* ---- 分页 ---- */
-.arco-pagination-item {
-  border-radius: var(--lx-radius-sm);
-  min-width: 28px;
-  height: 28px;
-  line-height: 28px;
-  font-size: 12.5px;
-  font-weight: var(--lx-font-normal);
-}
-
-.arco-pagination-item-active {
-  background: var(--lx-primary);
-  border-color: var(--lx-primary);
-}
-
 /* ---- 抽屉 ---- */
 .arco-drawer {
   border-radius: 0;
-  box-shadow: var(--lx-shadow-xl);
-}
-
-/* ---- 消息提示 / 通知 ---- */
-.arco-message {
-  border-radius: var(--lx-radius-md);
-  box-shadow: var(--lx-shadow-lg);
-}
-
-.arco-notification {
-  border-radius: var(--lx-radius-md);
   box-shadow: var(--lx-shadow-xl);
 }
 
@@ -347,13 +318,6 @@
 }
 
 /* ---- 下拉菜单 ---- */
-.arco-dropdown {
-  border-radius: var(--lx-radius-sm);
-  box-shadow: var(--lx-shadow-dropdown);
-  border: 1px solid var(--lx-border-1);
-  padding: 4px;
-}
-
 .arco-dropdown-item {
   border-radius: var(--lx-radius-xs);
   padding: 6px 12px;
@@ -361,55 +325,9 @@
   font-weight: var(--lx-font-normal);
 }
 
-/* ---- 空状态 ---- */
-.arco-empty {
-  padding: var(--lx-space-7) var(--lx-space-5);
-}
-
-.arco-empty-description {
-  font-size: 13px;
-  color: var(--lx-text-3);
-  font-weight: var(--lx-font-normal);
-}
-
 /* ---- Dropdown 用户菜单 ---- */
 .arco-dropdown-list {
   min-width: 160px;
-}
-
-/* ---- Grid 间距修正 ---- */
-.arco-row {
-  margin: 0 !important;
-}
-
-/* ---- Typography 标题 ---- */
-.arco-typography {
-  color: var(--lx-text-1);
-}
-
-.arco-typography-h1,
-.arco-typography-h2,
-.arco-typography-h3,
-.arco-typography-h4,
-.arco-typography-h5,
-.arco-typography-h6 {
-  font-weight: var(--lx-font-medium) !important;
-  letter-spacing: -0.01em;
-  color: var(--lx-text-1);
-}
-
-/* ---- Badge ---- */
-.arco-badge-dot {
-  background: var(--lx-danger);
-}
-
-.arco-badge-count {
-  font-weight: var(--lx-font-normal);
-}
-
-/* ---- Statistic 数字 ---- */
-.arco-statistic-value-content {
-  font-weight: var(--lx-font-medium) !important;
 }
 
 /* ---- Tabs ---- */
@@ -420,29 +338,6 @@
 
 .arco-tabs-header-title-active {
   font-weight: var(--lx-font-medium);
-}
-
-/* ---- Steps ---- */
-.arco-step-title {
-  font-weight: var(--lx-font-medium);
-  font-size: 13.5px;
-}
-
-/* ---- Descriptions ---- */
-.arco-descriptions-item-label {
-  font-weight: var(--lx-font-normal);
-  color: var(--lx-text-3);
-  font-size: 12.5px;
-}
-
-.arco-descriptions-item-content {
-  color: var(--lx-text-1);
-  font-size: 13px;
-}
-
-/* ---- Progress ---- */
-.arco-progress-inner {
-  border-radius: var(--lx-radius-full);
 }
 
 /* ---- Alert ---- */
@@ -469,32 +364,6 @@
 .arco-alert-error {
   background: var(--lx-danger-bg);
   color: var(--lx-danger);
-}
-
-/* ---- Popover ---- */
-.arco-popover {
-  border-radius: var(--lx-radius-md);
-  box-shadow: var(--lx-shadow-dropdown);
-  border: 1px solid var(--lx-border-1);
-}
-
-/* ---- Tooltip ---- */
-.arco-tooltip-content {
-  border-radius: var(--lx-radius-sm);
-  font-size: 12px;
-  font-weight: var(--lx-font-normal);
-}
-
-/* ---- Cascader / Transfer / Tree ---- */
-.arco-tree-node-title {
-  font-size: 13px;
-  font-weight: var(--lx-font-normal);
-}
-
-/* ---- List ---- */
-.arco-list-item {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--lx-border-2);
 }
 
 /* ---- Calendar ---- */
@@ -1002,20 +871,6 @@
 }
 
 /* ---- Pagination 分页选择器 ---- */
-.arco-pagination-item {
-  border-radius: var(--lx-radius-sm);
-  min-width: 28px;
-  height: 28px;
-  line-height: 28px;
-  font-size: 12.5px;
-  font-weight: var(--lx-font-normal);
-}
-
-.arco-pagination-item-active {
-  background: var(--lx-primary);
-  border-color: var(--lx-primary);
-}
-
 .arco-pagination-jumper-input {
   border-radius: var(--lx-radius-sm);
   border-color: var(--lx-border-1);
@@ -1215,6 +1070,12 @@
   flex-direction: column;
 }
 
+/* 折叠态宽度（图标窄栏） */
+.app-sider.collapsed {
+  width: 72px;
+  min-width: 72px;
+}
+
 /* ============ 折叠态（图标窄栏） ============ */
 .app-sider.collapsed .side-logo {
   justify-content: center;
@@ -1281,7 +1142,12 @@
   z-index: 1030;
   width: 240px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateX(-100%);
   transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lx-sider-drawer.visible {
+  transform: translateX(0);
 }
 
 .side-logo {
@@ -1307,6 +1173,20 @@
   font-weight: 600;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(36, 85, 217, 0.25);
+}
+
+/* 系统 Logo 图片（替代字块）：同尺寸圆角展示，object-fit 保持比例不拉伸 */
+.side-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: transparent;
+  object-fit: contain;
+  box-shadow: none;
+  font-size: unset;
+  font-weight: unset;
+  color: unset;
+  display: block;
 }
 
 .side-logo-text {
@@ -1371,7 +1251,7 @@
   padding: 8px 14px;
   color: var(--lx-sider-text);
   cursor: pointer;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   font-size: 13.5px;
   font-weight: 400;
   border-radius: 8px;
@@ -1447,7 +1327,7 @@
   cursor: pointer;
   font-size: 13.5px;
   font-weight: 400;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   border-radius: 8px;
   margin: 1px 0;
 }
@@ -1557,7 +1437,7 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   flex-shrink: 0;
   background: transparent;
   color: var(--lx-text-4);
@@ -1607,7 +1487,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
 }
 
 .menu-toggle-btn:hover {
@@ -1676,7 +1556,7 @@
   border-radius: 10px;
   background: var(--lx-bg-secondary);
   cursor: pointer;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   font-family: inherit;
 }
 
@@ -1721,7 +1601,7 @@
   padding: 4px 10px;
   border-radius: 10px;
   gap: 8px;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
 }
 
 .user-info:hover {
@@ -1732,6 +1612,30 @@
   font-size: 13px;
   color: var(--lx-text-1);
   font-weight: 500;
+}
+
+/* 顶栏图标（菜单折叠/搜索/更多）统一尺寸与颜色，替代内联 style */
+.header-icon {
+  font-size: 18px;
+  color: var(--lx-text-2);
+}
+
+.header-search-icon {
+  font-size: 14px;
+  color: var(--lx-text-3);
+}
+
+.header-more-icon {
+  font-size: 12px;
+  color: var(--lx-text-3);
+}
+
+/* 顶栏用户头像：品牌蓝渐变 */
+.header-user-avatar {
+  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(36, 85, 217, 0.25);
 }
 
 /* ========================================
@@ -1810,7 +1714,7 @@
   cursor: pointer;
   white-space: nowrap;
   border: 1px solid transparent;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   flex-shrink: 0;
   user-select: none;
 }
@@ -1865,7 +1769,7 @@
   font-family: inherit;
   cursor: pointer;
   color: var(--lx-text-4);
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   flex-shrink: 0;
 }
 
@@ -1894,7 +1798,7 @@
   font-family: inherit;
   cursor: pointer;
   color: var(--lx-text-3);
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
 }
 
 .page-tabs-more-btn:hover {
@@ -1916,7 +1820,7 @@
   cursor: pointer;
   color: var(--lx-text-3);
   padding: 0;
-  transition: all var(--lx-transition-fast);
+  transition: color var(--lx-transition-fast), background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
   box-shadow: var(--lx-shadow-card);
 }
 
@@ -2109,6 +2013,8 @@
   font-size: 13px !important;
   border-bottom: 1px solid var(--lx-border-1) !important;
   padding: 12px 16px !important;
+  /* 与 .arco-table-td 保持一致，避免表头折行导致与列体垂直错位 */
+  white-space: nowrap;
 }
 
 .arco-table-th:hover {
@@ -2124,6 +2030,11 @@
   /* 防止窄列下中文被逐个压缩成垂直排列 */
   white-space: nowrap;
   min-width: 64px;
+}
+
+/* 有 ellipsis 需求的列（ProTableColumn.ellipsis）才启用截断，列宽与表头保持一致 */
+.arco-table-td .arco-el-table-cell-wrap, 
+.arco-table-td .arco-ellipsis {
   max-width: 480px;
   overflow: hidden;
   text-overflow: ellipsis;

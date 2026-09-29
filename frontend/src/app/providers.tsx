@@ -6,13 +6,18 @@ import zhCN from '@arco-design/web-react/es/locale/zh-CN';
 import { NextIntlClientProvider } from 'next-intl';
 import zhMessages from '@/messages/zh.json';
 import { useAuthStore } from '@/store/auth';
+import { useThemeStore, watchSystemTheme } from '@/store/theme';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const hydrate = useAuthStore((s) => s.hydrate);
+  const initTheme = useThemeStore((s) => s.init);
 
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    initTheme();
+    const unsubscribe = watchSystemTheme();
+    return unsubscribe;
+  }, [hydrate, initTheme]);
 
   return (
     <NextIntlClientProvider locale="zh" messages={zhMessages}>
