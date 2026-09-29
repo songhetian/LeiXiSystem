@@ -293,7 +293,7 @@ function DepartmentManager() {
         ) : (
           <Table
             rowKey="id"
-            columns={columns as any}
+            columns={columns}
             data={showDeleted ? recycleList : activeList}
             pagination={false}
             scroll={{ x: 900 }}

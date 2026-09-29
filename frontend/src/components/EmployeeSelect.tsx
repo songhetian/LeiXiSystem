@@ -122,11 +122,11 @@ export default function EmployeeSelect({
   }, [value, isMultiple]);
 
   const selectProps: ArcoSelectProps = {
-    value: selectedValues as any,
-    onChange: handleChange as any,
+    value: selectedValues,
+    onChange: handleChange,
     showSearch: true,
     filterOption: false,
-    onSearch: handleSearch as any,
+    onSearch: handleSearch,
     placeholder,
     disabled,
     allowClear,

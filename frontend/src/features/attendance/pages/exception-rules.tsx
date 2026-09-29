@@ -251,7 +251,7 @@ export default function ExceptionRulesPage() {
       if (editingRule) {
         res = await exceptionApi.updateExceptionRule(editingRule.id, dto);
       } else {
-        res = await exceptionApi.createExceptionRule(dto as any);
+        res = await exceptionApi.createExceptionRule(dto);
       }
       if (res.code === 0) {
         Message.success(editingRule ? '修改成功' : '创建成功');

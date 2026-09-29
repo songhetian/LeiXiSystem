@@ -822,22 +822,22 @@ export const attendanceApi = {
 
 export const punchMakeupApi = {
   list(params: { page?: number; pageSize?: number; status?: string; startDate?: string; endDate?: string } = {}): Promise<MakeupListResult> {
-    return request.get('/attendance/punch/makeup', { params }) as any;
+    return request.get('/attendance/punch/makeup', { params });
   },
   detail(id: number): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
-    return request.get(`/attendance/punch/makeup/${id}`) as any;
+    return request.get(`/attendance/punch/makeup/${id}`);
   },
   create(data: MakeupCreateDto): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
-    return request.post('/attendance/punch/makeup', data) as any;
+    return request.post('/attendance/punch/makeup', data);
   },
   update(id: number, data: { punchDate?: string; punchType?: PunchMakeupType; originalTime?: string; makeupTime?: string; reason?: string }): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
-    return request.put(`/attendance/punch/makeup/${id}`, data) as any;
+    return request.put(`/attendance/punch/makeup/${id}`, data);
   },
   remove(id: number): Promise<{ code: number; message?: string; data?: { success: boolean } }> {
-    return request.delete(`/attendance/punch/makeup/${id}`) as any;
+    return request.delete(`/attendance/punch/makeup/${id}`);
   },
   submit(id: number): Promise<{ code: number; message?: string; data?: PunchMakeupRecord }> {
-    return request.post(`/attendance/punch/makeup/${id}/submit`) as any;
+    return request.post(`/attendance/punch/makeup/${id}/submit`);
   },
 };
 

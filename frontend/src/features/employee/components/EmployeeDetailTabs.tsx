@@ -84,7 +84,7 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
         ) : monthly.length === 0 ? (
           <Empty description="暂无考勤记录" />
         ) : (
-          <Table rowKey="id" columns={monthlyColumns as any} data={monthly} scroll={{ x: true }} pagination={false} />
+          <Table rowKey="id" columns={monthlyColumns} data={monthly} scroll={{ x: true }} pagination={false} />
         )}
       </Tabs.TabPane>
       <Tabs.TabPane key="leave" title="假期">
@@ -93,7 +93,7 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
         ) : balanceRows.length === 0 ? (
           <Empty description="暂无假期额度" />
         ) : (
-          <Table rowKey="key" columns={balanceColumns as any} data={balanceRows} scroll={{ x: true }} pagination={false} />
+          <Table rowKey="key" columns={balanceColumns} data={balanceRows} scroll={{ x: true }} pagination={false} />
         )}
       </Tabs.TabPane>
       <Tabs.TabPane key="timeline" title="履历">

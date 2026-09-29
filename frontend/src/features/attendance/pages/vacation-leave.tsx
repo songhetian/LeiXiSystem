@@ -131,7 +131,7 @@ export default function VacationLeavePage() {
       `请假记录_${todayStr()}.xlsx`,
       '请假记录',
       [
-        { title: '假期类型', value: (r: LeaveRecord) => (r as any).vacationType?.name ?? '-' },
+        { title: '假期类型', value: (r: LeaveRecord) => r.vacationType?.name ?? '-' },
         { title: '开始日期', dataIndex: 'startDate' },
         { title: '结束日期', dataIndex: 'endDate' },
         { title: '天数', dataIndex: 'days' },
@@ -196,7 +196,7 @@ export default function VacationLeavePage() {
   };
 
   const leaveColumns: ProTableColumn[] = [
-    { title: '假期类型', dataIndex: 'vacationTypeName', width: 120, render: (_: any, r: LeaveRecord) => (r as any).vacationType?.name || '-' },
+    { title: '假期类型', dataIndex: 'vacationTypeName', width: 120, render: (_: any, r: LeaveRecord) => r.vacationType?.name || '-' },
     { title: '开始日期', dataIndex: 'startDate', width: 120 },
     { title: '结束日期', dataIndex: 'endDate', width: 120 },
     { title: '天数', dataIndex: 'days', width: 80 },

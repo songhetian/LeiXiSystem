@@ -202,7 +202,7 @@ export default function ModalForm({
             style={{ width: '100%' }}
             placeholder={field.placeholder || '请选择生效月份'}
             value={value}
-            {...{ precision: 'month', format: 'YYYY-MM' } as any}
+            {...{ precision: 'month', format: 'YYYY-MM' }}
             disabled={field.disabled}
             onChange={(dateString: string) => handleChange(field.key, dateString)}
           />

@@ -402,10 +402,10 @@ export default function ProTable({
           data={data}
           rowKey={rowKey}
           loading={loading}
-          pagination={tablePagination as any}
+          pagination={tablePagination}
           border={bordered}
           stripe={false}
-          rowSelection={rowSelection as any}
+          rowSelection={rowSelection}
           size={density === 'default' ? 'default' : density}
           onRow={(record, index) => ({
             onClick: () => handleRowClick(record),

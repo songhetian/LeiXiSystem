@@ -9,9 +9,9 @@ import { notifyError } from '@/lib/request';
 import { formatDate } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
-import { buildTxColumns } from '../lib/tx-columns';
+import { buildTxColumns, type TxKey } from '../lib/tx-columns';
 
-const TX_TYPES = [
+const TX_TYPES: { key: TxKey; label: string }[] = [
   { key: 'onboardings', label: '入职办理' },
   { key: 'resignations', label: '离职申请' },
   { key: 'probations', label: '转正申请' },
@@ -22,6 +22,11 @@ const TX_TYPES = [
   { key: 'trainings', label: '培训记录' },
   { key: 'transfers', label: '调动记录' },
 ];
+
+/** Arco Tabs 的 onChange 只给到 string，此处按白名单收窄，避免直接断言 */
+function isTxKey(k: string): k is TxKey {
+  return TX_TYPES.some((t) => t.key === k);
+}
 
 /** 通用状态文案：按英文 value 映射，杜绝英文状态直出 */
 const STATUS_TEXT: Record<string, { text: string; color: string }> = {
@@ -66,7 +71,7 @@ function TabTitle({ label, count }: { label: string; count: number }) {
 const FormInput = Form.Item;
 
 export default function EmployeeTransactions() {
-  const [activeKey, setActiveKey] = useState('onboardings');
+  const [activeKey, setActiveKey] = useState<TxKey>('onboardings');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [modalVisible, setModalVisible] = useState(false);
@@ -266,7 +271,7 @@ export default function EmployeeTransactions() {
     };
 
     return [
-      ...buildTxColumns(activeKey as any, ctx),
+      ...buildTxColumns(activeKey, ctx),
       statusCol,
       {
         title: '操作',
@@ -537,7 +542,7 @@ export default function EmployeeTransactions() {
     <PageContainer>
       <Tabs
         activeTab={activeKey}
-        onChange={(k) => setActiveKey(k as string)}
+        onChange={(k) => { if (isTxKey(k)) setActiveKey(k); }}
         className="mb-4"
       >
         {TX_TYPES.map((t) => (

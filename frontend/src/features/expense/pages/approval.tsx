@@ -174,7 +174,7 @@ export default function ExpenseApprovalPage() {
       <Card className="rounded-md">
         <Table
           loading={loading}
-          columns={columns as any}
+          columns={columns}
           data={data}
           scroll={{ x: true }}
           pagination={{

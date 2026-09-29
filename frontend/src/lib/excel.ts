@@ -24,8 +24,14 @@ export interface ExportColumn<T = any> {
   value?: (row: T) => string | number | null | undefined;
 }
 
+/** 按 dataIndex 读字段：dataIndex 允许是「不在 keyof T 里」的路径串，故此处收窄一次再取值 */
+function readField(row: unknown, key: string): unknown {
+  if (typeof row !== 'object' || row === null) return undefined;
+  return (row as Record<string, unknown>)[key];
+}
+
 function cellValue<T>(col: ExportColumn<T>, row: T): string | number {
-  let v: any = col.value ? col.value(row) : col.dataIndex ? (row as any)[col.dataIndex] : undefined;
+  const v: unknown = col.value ? col.value(row) : col.dataIndex ? readField(row, String(col.dataIndex)) : undefined;
   if (v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))) return '';
   return sanitizeCell(String(v));
 }

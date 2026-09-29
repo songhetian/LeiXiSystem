@@ -14,7 +14,7 @@ import {
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
-import { attendanceApi } from '@/services/attendance';
+import { attendanceApi, type Shift } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
 
@@ -78,7 +78,8 @@ export default function PunchPage() {
 
   const [serverTime, setServerTime] = useState(new Date());
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
-  const [availableShifts, setAvailableShifts] = useState<{ id: number; name: string; startTime: string; endTime: string; isNextDay?: boolean; color?: string; description?: string }[]>([]);
+  // 直接复用服务层 Shift 类型，避免再抄一份局部形状（抄的那份与真实返回不完全兼容，只能靠 as any 压过去）
+  const [availableShifts, setAvailableShifts] = useState<Shift[]>([]);
   const [selectedShiftId, setSelectedShiftId] = useState<number | undefined>();
   const [scheduling, setScheduling] = useState(false);
 
@@ -102,7 +103,7 @@ export default function PunchPage() {
   const fetchAvailableShifts = async () => {
     try {
       const res = await attendanceApi.getAvailableShifts();
-      if (res.code === 0 && res.data) setAvailableShifts(res.data as any);
+      if (res.code === 0 && res.data) setAvailableShifts(res.data);
     } catch {
       // ignore
     }

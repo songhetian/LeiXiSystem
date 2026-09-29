@@ -210,7 +210,7 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
       <Table
         rowKey="key"
         loading={loading}
-        columns={columns as any}
+        columns={columns}
         data={rows}
         scroll={{ x: true }}
         pagination={false}

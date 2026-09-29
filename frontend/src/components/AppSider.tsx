@@ -238,7 +238,13 @@ function filterMenuItems(items: MenuItemConfig[], permissions?: string[]): MenuI
   return result;
 }
 
-function findAncestorKeys(items: MenuItemConfig[], activeKey: string): string[] {
+/**
+ * 找出 activeKey 的所有祖先菜单 key；未命中返回 null。
+ *
+ * 注意返回类型必须含 null：两个调用方都按 `?? []` 处理「未命中」，
+ * 此前签名写成 `string[]` 再 `return null as any`，等于把「未命中」这条路藏起来。
+ */
+function findAncestorKeys(items: MenuItemConfig[], activeKey: string): string[] | null {
   for (const item of items) {
     if (item.key === activeKey) return [];
     if (item.children) {
@@ -246,7 +252,7 @@ function findAncestorKeys(items: MenuItemConfig[], activeKey: string): string[] 
       if (childResult !== null) return [item.key, ...childResult];
     }
   }
-  return null as any;
+  return null;
 }
 
 function groupByGroup(items: MenuItemConfig[]): { group: string; items: MenuItemConfig[] }[] {
