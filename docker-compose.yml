@@ -70,6 +70,17 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-production}
+      # 监听端口：必须显式传入。main.ts 的兜底是 3001，而本文件/nginx/healthcheck/
+      # frontend 的 API_PROXY_TARGET 全部按 4001 对接，不传会导致容器起得来但
+      # 4001 无监听（nginx 502、健康检查永远不通过，frontend/nginx 因
+      # depends_on: service_healthy 永远不启动）。
+      PORT: ${PORT:-4001}
+      # 是否在容器启动时执行种子数据（幂等演示数据）。默认 false：
+      # 生产库一旦有真实数据，绝不能被种子脚本覆盖，需要时显式置 true。
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      # 文件存储驱动：local = 容器内磁盘（本地部署），oss = 阿里云 OSS（生产）。
+      # 必须显式传入，否则 .env.production 的 FILE_STORAGE=oss 不会生效。
+      FILE_STORAGE: ${FILE_STORAGE:-local}
       DATABASE_URL: "mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-leixin_v2}"
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
@@ -86,7 +97,9 @@ services:
     # ports:
     #   - "4102:4001"
     volumes:
-      - leixi-uploads:/app/uploads
+      # 挂到后端实际写入路径：local-storage.driver 用 resolve(process.cwd(), 'uploads')，
+      # 而容器 WORKDIR 是 /app/backend → 无此挂载时上传文件会落在容器可写层，重建即丢。
+      - leixi-uploads:/app/backend/uploads
     depends_on:
       mysql:
         condition: service_healthy
@@ -148,14 +161,18 @@ services:
       - "8088:80"
     volumes:
       - ./docker/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
-      - leixi-uploads:/usr/share/nginx/uploads:ro
+      # 注意：这里不再挂载 leixi-uploads。文件访问统一走后端
+      # /api/v1/files 接口（nginx.local.conf 并无 /uploads/ location），
+      # 挂载只会得到一个空目录。
     depends_on:
       frontend:
         condition: service_healthy
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      # 必须写 127.0.0.1：busybox wget 解析 localhost 会优先取 ::1，
+      # 而 nginx 的 `listen 80` 只监听 IPv4 0.0.0.0:80 → 容器永远 unhealthy。
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -7,10 +7,10 @@
     "============ 开发环境 ============": "",
     "dev": "pnpm -r --parallel dev",
     "dev:fast": "pnpm -r --parallel dev",
-    "dev:full": "pnpm --filter @lei/backend db:push && pnpm --filter @lei/backend db:seed && pnpm -r --parallel dev",
+    "dev:full": "pnpm --filter @lei/backend migrate && pnpm --filter @lei/backend db:seed && pnpm -r --parallel dev",
     "dev:frontend": "pnpm --filter @lei/frontend dev",
     "dev:backend": "pnpm --filter @lei/backend dev",
-    "dev:seed": "pnpm --filter @lei/backend db:push && pnpm --filter @lei/backend db:seed",
+    "dev:seed": "pnpm --filter @lei/backend migrate && pnpm --filter @lei/backend db:seed",
 
     "============ 构建 ============": "",
     "build": "pnpm -r build",

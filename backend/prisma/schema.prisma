@@ -415,15 +415,17 @@ enum BalanceChangeType {
 }
 
 model VacationType {
-  id              Int               @id @default(autoincrement())
-  code            String            @unique @db.VarChar(50)
-  name            String            @db.VarChar(100)
-  baseDays        Decimal           @default(0) @db.Decimal(5, 2)
-  enabled         Boolean           @default(true)
-  sortOrder       Int               @default(999) @map("sort_order")
-  carryOverMaxDays Int?             @map("carry_over_max_days")
-  carryOverRatio  Float?            @map("carry_over_ratio")
-  seniorityRule   Json?             @map("seniority_rule")
+  id               Int               @id @default(autoincrement())
+  code             String            @unique @db.VarChar(50)
+  name             String            @db.VarChar(100)
+  baseDays         Decimal           @default(0) @db.Decimal(5, 2)
+  enabled          Boolean           @default(true)
+  sortOrder        Int               @default(999) @map("sort_order")
+  carryOverMaxDays Int?              @map("carry_over_max_days")
+  carryOverRatio   Float?            @map("carry_over_ratio")
+  seniorityRule    Json?             @map("seniority_rule")
+  // 月假额度：按月可配置的 12 长度数组（[1~12月每天额度]，单位天），月假类型启用此字段
+  monthlyDays      Json?             @map("monthly_days")
   balances        VacationBalance[]
   leaveRecords    LeaveRecord[]
   createdAt       DateTime          @default(now()) @map("created_at")
@@ -439,13 +441,14 @@ model VacationBalance {
   vacationTypeId Int                    @map("vacation_type_id")
   vacationType  VacationType            @relation(fields: [vacationTypeId], references: [id], onDelete: Cascade)
   year          Int
+  month         Int                     @default(0)
   totalDays     Decimal                 @default(0) @db.Decimal(5, 2)
   usedDays      Decimal                 @default(0) @db.Decimal(5, 2)
   changes       VacationBalanceChange[]
   createdAt     DateTime                @default(now()) @map("created_at")
   updatedAt     DateTime                @updatedAt @map("updated_at")
 
-  @@unique([employeeId, vacationTypeId, year])
+  @@unique([employeeId, vacationTypeId, year, month])
   @@index([employeeId, year])
   @@map("vacation_balances")
 }
@@ -481,6 +484,8 @@ model LeaveRecord {
   startDate         DateTime           @map("start_date") @db.Date
   endDate           DateTime           @map("end_date") @db.Date
   days              Decimal            @db.Decimal(5, 2)
+  // 抵扣的假期月份（1~12），月假模式下请假需指定抵扣月份
+  month             Int?
   reason            String             @db.Text
   status            LeaveStatus        @default(pending)
   approvalInstanceId Int?              @map("approval_instance_id")

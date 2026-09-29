@@ -54,6 +54,9 @@ test-output.txt
 # ===== 生成的报表产物（测试/定时任务导出） =====
 backend/exports/
 
+# ===== 运行时上传产物（系统 Logo 等，运行时生成不入版本管理） =====
+backend/uploads/system/
+
 # ===== PWA 生成文件（构建时生成） =====
 frontend/public/workbox-*.js
 frontend/public/sw.js

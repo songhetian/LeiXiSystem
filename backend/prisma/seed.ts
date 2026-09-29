@@ -50,6 +50,7 @@ export const PERMISSIONS = [
 
   // ---- 假期管理（vacation）----
   { code: 'vacation:balance:adjust', name: '假期额度调整', module: 'vacation', type: 'api' },
+  { code: 'vacation:manage', name: '假期设置', module: 'vacation', type: 'api' },
 
   // ---- 考勤异常 / 扣款规则（attendance-exception）----
   { code: 'attendance:exception:view', name: '考勤异常查看', module: 'attendance', type: 'menu' },
@@ -298,6 +299,8 @@ export async function seedBusiness(prisma: PrismaClient) {
   // ---- 系统设置 ----
   const systemSettings = [
     { key: 'company_name', value: '雷犀科技', label: '公司名称', group: 'general', description: '显示在系统标题处的公司名称' },
+    { key: 'system.name', value: '雷犀管理系统', label: '系统名称', group: 'general', description: '登录页与侧边栏显示的系统名称' },
+    { key: 'system.logo', value: '', label: '系统 Logo', group: 'general', description: '登录页与侧边栏显示的 Logo 图片(相对路径或URL)' },
     { key: 'company_address', value: '北京市朝阳区科技园区A座', label: '公司地址', group: 'general', description: '公司办公地址' },
     { key: 'workday_per_week', value: '5', label: '每周工作日', group: 'attendance', description: '标准每周工作天数' },
     { key: 'default_work_start', value: '09:00', label: '默认上班时间', group: 'attendance', description: '默认班次的上班打卡时间' },
@@ -321,12 +324,14 @@ export async function seedBusiness(prisma: PrismaClient) {
   }
 
   // ---- 休假类型 + 额度 ----
+  // 年假为「年度型」：不配 monthlyDays（否则被 isMonthlyDays 判为月假，month=0 年度额度与跨年结转都不会生效），
+  // 额度取 baseDays，配 carryOverMaxDays 使其参与跨年结转。
   const vacationTypes = [
-    { code: 'annual', name: '年假', baseDays: 5 },
-    { code: 'sick', name: '病假', baseDays: 0 },
-    { code: 'personal', name: '事假', baseDays: 0 },
-    { code: 'compensatory', name: '调休', baseDays: 0 },
-  ];
+  { code: 'annual', name: '年假', baseDays: 10, carryOverMaxDays: 3 },
+  { code: 'sick', name: '病假', baseDays: 0 },
+  { code: 'personal', name: '事假', baseDays: 0 },
+  { code: 'compensatory', name: '调休', baseDays: 0 },
+];
   const vacTypeIds: Record<string, number> = {};
   for (const t of vacationTypes) {
     const vt = await prisma.vacationType.upsert({
@@ -340,12 +345,14 @@ export async function seedBusiness(prisma: PrismaClient) {
     where: { employeeNo: { in: ['E001', 'E002', 'E006', 'E013', 'E017', 'E024', 'E029'] } },
   });
   for (const emp of annualEmps) {
+    // 年假年度额度：单条 month=0（与 initializeYearBalances / calculateAnnualLeaveDays 口径一致）
     await prisma.vacationBalance.upsert({
       where: {
-        employeeId_vacationTypeId_year: {
+        employeeId_vacationTypeId_year_month: {
           employeeId: emp.id,
           vacationTypeId: vacTypeIds['annual'],
           year: 2026,
+          month: 0,
         },
       },
       update: {},
@@ -353,8 +360,9 @@ export async function seedBusiness(prisma: PrismaClient) {
         employeeId: emp.id,
         vacationTypeId: vacTypeIds['annual'],
         year: 2026,
-        totalDays: 5,
-        usedDays: 1,
+        month: 0,
+        totalDays: 10,
+        usedDays: 0,
       },
     });
   }
@@ -421,6 +429,10 @@ export async function seedBusiness(prisma: PrismaClient) {
         startDate: new Date(it.start),
         endDate: new Date(it.start),
         days: it.days,
+        // 演示假（年假/事假）均为年度型额度：按 createLeave 口径固定 month=0。
+        // 原先用本地 getMonth()+1 既与口径不符（年度型额度只认 month=0 那一行），
+        // 也会在负时区宿主机上把 UTC 午夜的月初日期串到上一个月。
+        month: 0,
         reason: '演示请假数据',
         status: it.status,
       },
@@ -472,13 +484,16 @@ export async function seedBusiness(prisma: PrismaClient) {
   }
 
   // ---- 员工编号序列初始化（幂等）----
-  const latestEmp = await prisma.employee.findFirst({
-    orderBy: { id: 'desc' },
+  // 取现有 EMP 工号的**最大值**（而非最后一条记录），避免与人工工号区间重叠
+  const empRows = await prisma.employee.findMany({
+    where: { employeeNo: { startsWith: 'EMP' } },
     select: { employeeNo: true },
   });
-  const currentMax = latestEmp
-    ? parseInt(latestEmp.employeeNo.replace(/\D/g, ''), 10)
-    : 0;
+  const currentMax = empRows.reduce((max, row) => {
+    const matched = /^EMP(\d+)$/.exec(row.employeeNo ?? '');
+    const value = matched ? parseInt(matched[1], 10) : 0;
+    return value > max ? value : max;
+  }, 0);
   await prisma.sequence.upsert({
     where: { name: 'employee_no' },
     update: {},

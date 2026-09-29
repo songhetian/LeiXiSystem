@@ -37,6 +37,7 @@ describe('prisma/seed.ts 权限点契约', () => {
       'system:user:manage', 'system:user:view',
       'training:manage', 'training:view', 'transfer:manage', 'transfer:view',
       'vacation:balance:adjust',
+      'vacation:manage',
     ];
     const set = new Set<string>(seedCodes);
     for (const c of used) {

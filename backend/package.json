@@ -9,9 +9,8 @@
     "test": "jest --runInBand",
     "migrate": "dotenv -e ../.env -- prisma migrate deploy",
     "migrate:dev": "dotenv -e ../.env -- prisma migrate dev",
-    "db:push": "dotenv -e ../.env -- prisma db push --accept-data-loss",
     "db:seed": "dotenv -e ../.env -- prisma db seed",
-    "db:reset": "dotenv -e ../.env -- prisma db push --force-reset && dotenv -e ../.env -- prisma db seed",
+    "db:reset": "dotenv -e ../.env -- prisma migrate reset --force",
     "test:e2e": "jest --config jest.e2e.config.js --runInBand"
   },
   "dependencies": {
@@ -61,8 +60,5 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
-  },
-  "prisma": {
-    "seed": "node --env-file=../.env --import tsx prisma/seed.ts"
   }
 }
