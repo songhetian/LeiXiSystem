@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import KnowledgeAdminPage from '@/features/knowledge/pages/admin';
 import { knowledgeApi } from '@/services/knowledge';
@@ -220,5 +220,62 @@ describe('知识库管理 - 文章管理（创建后出现上传区）', () => {
     await waitFor(() => expect(mockedApi.createArticle).toHaveBeenCalled());
     expect(await screen.findByTestId('upload-area')).toBeInTheDocument();
     expect(screen.getByText(/单个文件不超过/)).toBeInTheDocument();
+  });
+
+  it('删除附件需二次确认（Popconfirm），直接点击不删除（与分类/文章删除一致）', async () => {
+    mockedApi.getArticles.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: {
+        list: [
+          {
+            id: 5,
+            title: '文章A',
+            categoryId: 1,
+            categoryName: '公司制度',
+            viewCount: 0,
+            status: 'published',
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    });
+    mockedApi.getAttachments.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: [
+        {
+          id: 99,
+          articleId: 5,
+          fileName: 'manual.pdf',
+          fileType: 'pdf',
+          fileSize: 2048,
+          fileUrl: 'https://oss.example.com/manual.pdf',
+          createdAt: '',
+        },
+      ],
+    });
+    mockedApi.deleteAttachment.mockResolvedValue({ code: 0, message: 'ok' });
+
+    render(<KnowledgeAdminPage />);
+    await waitFor(() => expect(screen.getByTestId('article-row-5')).toBeInTheDocument());
+
+    // 打开编辑弹窗（会加载附件）
+    fireEvent.click(screen.getByText('编辑'));
+    const modal = await screen.findByTestId('modal-编辑文章');
+    await waitFor(() => expect(mockedApi.getAttachments).toHaveBeenCalledWith(5));
+
+    // 附件删除按钮被 Popconfirm 包裹：直接点击「删除」不应触发接口（限定在弹窗内，避免命中表格操作的确认）
+    const pop = await within(modal).findByTestId('popconfirm');
+    fireEvent.click(within(pop).getByText('删除'));
+    expect(mockedApi.deleteAttachment).not.toHaveBeenCalled();
+
+    // 确认后才真正删除
+    fireEvent.click(within(modal).getByTestId('popconfirm-ok'));
+    await waitFor(() => expect(mockedApi.deleteAttachment).toHaveBeenCalledWith(5, 99));
   });
 });

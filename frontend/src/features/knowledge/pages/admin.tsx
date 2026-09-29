@@ -28,6 +28,7 @@ import {
   IconFile,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import { notifyError } from '@/lib/request';
 import DataState from '@/components/DataState';
 import {
   knowledgeApi,
@@ -327,7 +328,10 @@ function ArticleManage() {
       if (res.code === 0 && res.data) {
         setCategories(res.data);
       }
-    } catch (e) {}
+    } catch (e) {
+      // 静默失败会让分类下拉变空，用户无法归类文章却不知原因 → 显式提示
+      notifyError(e, '知识分类加载失败，请刷新重试');
+    }
   };
 
   const fetchList = async (page = 1, pageSize = 20) => {
@@ -569,9 +573,11 @@ function ArticleManage() {
                         {getAttIcon(att.fileName)}
                         <span className="kb-att-name">{att.fileName}</span>
                         <span className="kb-att-size">{formatFileSize(att.fileSize)}</span>
-                        <Button size="mini" type="text" status="danger" icon={<IconDelete />} onClick={() => handleDeleteAttachment(att)}>
-                          删除
-                        </Button>
+                        <Popconfirm title="确定删除该附件吗？" onOk={() => handleDeleteAttachment(att)}>
+                          <Button size="mini" type="text" status="danger" icon={<IconDelete />}>
+                            删除
+                          </Button>
+                        </Popconfirm>
                       </div>
                     ))}
                   </div>

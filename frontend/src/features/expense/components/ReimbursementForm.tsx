@@ -64,7 +64,11 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
         reimbursementApi
           .getTypes()
           .then((res) => (res.code === 0 ? (res.data ?? []) : []))
-          .catch(() => []),
+          .catch((e) => {
+            // 静默降级会让「报销类型」下拉变空，用户无法提交却不知原因（保持空数组兜底 + 显式提示）
+            notifyError(e, '报销类型加载失败，请刷新重试');
+            return [];
+          }),
       [],
     ),
   );
@@ -75,7 +79,10 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
         reimbursementApi
           .getExpenseTypes()
           .then((res) => (res.code === 0 ? (res.data ?? []) : []))
-          .catch(() => []),
+          .catch((e) => {
+            notifyError(e, '费用类型加载失败，请刷新重试');
+            return [];
+          }),
       [],
     ),
   );

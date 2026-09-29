@@ -46,7 +46,9 @@ export default function VacationLeavePage() {
       if (res.code === 0 && res.data) {
         setMyEmployee(res.data);
       }
-    } catch (e) {}
+    } catch (e) {
+      notifyError(e, '个人信息加载失败');
+    }
   };
 
   // 仅用于申请请假表单的「假期类型」下拉选项
@@ -64,7 +66,10 @@ export default function VacationLeavePage() {
         });
         setVacationTypes(types);
       }
-    } catch (e) {}
+    } catch (e) {
+      // 静默失败会让「假期类型」下拉变空，用户无法提交却不知原因 → 显式提示
+      notifyError(e, '假期类型加载失败，请刷新重试');
+    }
   };
 
   const fetchLeaves = async (page = 1, pageSize = 20) => {

@@ -2,12 +2,17 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
 import { systemApi } from '@/services/system';
 import { clearDictCache } from '@/hooks/use-dict';
+import { notifyError } from '@/lib/request';
 
 jest.mock('@/services/system', () => ({
   systemApi: {
     listDepartments: jest.fn(),
     listPositions: jest.fn(),
   },
+}));
+
+jest.mock('@/lib/request', () => ({
+  notifyError: jest.fn(),
 }));
 
 const mockDepartments = [
@@ -60,6 +65,18 @@ describe('useDepartments', () => {
       expect(result.current.loading).toBe(false);
     });
     expect(result.current.departments).toEqual([]);
+  });
+
+  it('接口异常时显式提示（不再静默变空）', async () => {
+    (systemApi.listDepartments as jest.Mock).mockRejectedValue(new Error('network'));
+    renderHook(() => useDepartments());
+
+    await waitFor(() => {
+      expect(notifyError).toHaveBeenCalledWith(
+        expect.any(Error),
+        '部门数据加载失败，请刷新重试',
+      );
+    });
   });
 });
 
