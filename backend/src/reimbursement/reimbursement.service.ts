@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -22,6 +23,8 @@ const CREATABLE_STATUSES: ReadonlyArray<'draft' | 'pending'> = ['draft', 'pendin
 
 @Injectable()
 export class ReimbursementService {
+  private readonly logger = new Logger(ReimbursementService.name);
+
   constructor(
     private prisma: PrismaService,
     private dataScope: DataScopeService,
@@ -537,12 +540,17 @@ export class ReimbursementService {
       });
     } catch (err) {
       // 实例创建失败必须撤销占位，否则单据被卡在 approving 且没有审批实例。
-      await this.prisma.reimbursement
-        .updateMany({
+      try {
+        await this.prisma.reimbursement.updateMany({
           where: { id, approvalInstanceId: null },
           data: { status: reim.status },
-        })
-        .catch(() => undefined);
+        });
+      } catch (rollbackErr) {
+        // 回滚也失败：单据将卡在 approving，需要人工介入修复
+        this.logger.error(
+          `rollback failed for reimbursement ${id} after approval.create failed: ${rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr)}`,
+        );
+      }
       throw err;
     }
 

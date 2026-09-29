@@ -57,7 +57,11 @@ export class ApprovalService {
       if (cached) {
         try {
           return JSON.parse(cached);
-        } catch {}
+        } catch (err) {
+          // 缓存反序列化失败：值已损坏（序列化版本变更/Redis 注入），回退到 DB；
+          // warn 留痕，便于运维发现并清理脏缓存。
+          this.logger.warn(`workflow cache parse failed (id=${id}): ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     const workflow = await this.prisma.approvalWorkflow.findUnique({
@@ -256,7 +260,9 @@ export class ApprovalService {
       if (cached) {
         try {
           workflow = JSON.parse(cached);
-        } catch {}
+        } catch (err) {
+          this.logger.warn(`workflow cache parse failed (code=${workflowCode}): ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     if (!workflow) {

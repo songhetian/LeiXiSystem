@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { PermissionCacheService } from '../common/permission-cache.service';
@@ -16,6 +16,8 @@ const DEFAULT_PASSWORD_STRENGTH_LEVEL: PasswordStrengthLevel = 'medium';
 
 @Injectable()
 export class SystemUserService {
+  private readonly logger = new Logger(SystemUserService.name);
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
@@ -313,7 +315,9 @@ export class SystemUserService {
       if (cached) {
         try {
           return JSON.parse(cached);
-        } catch {}
+        } catch (err) {
+          this.logger.warn(`department cache parse failed (key=${cacheKey}): ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     const data = await this.prisma.department.findMany({
