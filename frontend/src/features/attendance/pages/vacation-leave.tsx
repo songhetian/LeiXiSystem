@@ -78,8 +78,10 @@ export default function VacationLeavePage() {
     try {
       const res = await attendanceApi.getMyLeaves({ page, pageSize });
       if (res.code === 0 && res.data) {
-        const list = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
-        const total = (res.data as any).total ?? list.length;
+        // 后端接口一致返回 {list,total,page,pageSize}；旧版可能返回裸数组，兜底保留。
+        const data = res.data;
+        const list = Array.isArray(data) ? data : (data.list ?? []);
+        const total = data.total ?? list.length;
         setLeaves(list);
         // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
         setLeavePagination({ current: page, pageSize, total });

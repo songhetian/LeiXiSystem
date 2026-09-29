@@ -49,12 +49,8 @@ export default function ExpenseStandardsPage() {
       if (filters.status) params.status = filters.status;
       if (filters.keyword) params.keyword = filters.keyword;
       const res = await financeApi.listExpenseStandards(params);
-      let list: ExpenseStandard[] = [];
-      if (res.code === 0) {
-        list = (res.data?.list ?? []) as ExpenseStandard[];
-      } else if (Array.isArray((res as any).data)) {
-        list = (res as any).data;
-      }
+      // ListResult<T>.data 类型为 {list,total,page,pageSize}，不再做数组兜底
+      let list: ExpenseStandard[] = res.code === 0 ? res.data?.list ?? [] : [];
       // 若后端未按条件过滤，则本地兜底
       if (filters.category) {
         const kw = String(filters.category).toLowerCase();

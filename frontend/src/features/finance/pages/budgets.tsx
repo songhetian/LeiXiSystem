@@ -51,12 +51,7 @@ export default function BudgetsPage() {
       else params.departmentId = null;
       if (category) params.category = category;
       const res = await financeApi.listBudgets(params);
-      let list: Budget[] = [];
-      if (res.code === 0) {
-        list = (res.data?.list ?? []) as Budget[];
-      } else if (Array.isArray((res as any).data)) {
-        list = (res as any).data;
-      }
+      let list: Budget[] = res.code === 0 ? res.data?.list ?? [] : [];
       // 若后端未按条件过滤，则本地兜底
       if (params.year !== undefined) list = list.filter((b) => b.year === params.year);
       if (depValue) list = list.filter((b) => (b.departmentId ?? null) === Number(depValue));

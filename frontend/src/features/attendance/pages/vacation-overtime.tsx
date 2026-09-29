@@ -38,8 +38,9 @@ export default function VacationOvertimePage() {
     try {
       const res = await attendanceApi.getMyOvertimes();
       if (res.code === 0 && res.data) {
-        const list = Array.isArray(res.data) ? res.data : (res.data as any).list || [];
-        const total = (res.data as any).total ?? list.length;
+        const data = res.data;
+        const list = Array.isArray(data) ? data : (data.list ?? []);
+        const total = data.total ?? list.length;
         setOvertimes(list);
         // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
         setOvertimePagination({ current: page, pageSize, total });
