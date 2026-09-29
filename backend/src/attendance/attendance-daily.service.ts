@@ -8,6 +8,12 @@ import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput, type MakeupRecordInpu
 import { AttendanceMonthlyService } from './attendance-monthly.service';
 import { beijingDateTime } from '../common/date.util';
 
+// 考勤业务日以 @db.Date（UTC 午夜）存储；补卡匹配键必须与 workDate 同用 UTC 口径，
+// 否则东八区凌晨的日期会错位一天。此处单一来源，避免建 map 与查 map 各写一份。
+function makeupMatchKey(employeeId: number, date: Date): string {
+  return `${employeeId}:${date.toISOString().slice(0, 10)}`;
+}
+
 @Injectable()
 export class AttendanceDailyService {
   constructor(
@@ -85,7 +91,7 @@ export class AttendanceDailyService {
     // punchDate 以 @db.Date（UTC 午夜）存储，键必须与 workDate 同用 UTC 口径对齐
     const makeupMap = new Map<string, typeof approvedMakeups>();
     for (const makeup of approvedMakeups) {
-      const key = `${makeup.employeeId}:${makeup.punchDate.toISOString().slice(0, 10)}`;
+      const key = makeupMatchKey(makeup.employeeId, makeup.punchDate);
       if (!makeupMap.has(key)) makeupMap.set(key, []);
       makeupMap.get(key)!.push(makeup);
     }
@@ -151,7 +157,7 @@ export class AttendanceDailyService {
       // 业务日以 UTC 午夜存储，判周末必须用 getUTCDay()：本地 getDay() 在负时区会读成前一天
       const isWeekend = workDate.getUTCDay() === 0 || workDate.getUTCDay() === 6;
       const dayMakeups: MakeupRecordInput[] = (
-        makeupMap.get(`${sched.employeeId}:${workDate.toISOString().slice(0, 10)}`) || []
+        makeupMap.get(makeupMatchKey(sched.employeeId, workDate)) || []
       ).map((m) => ({
         status: 'approved',
         punchTime: m.makeupTime ? this.formatTime(m.makeupTime) : '',

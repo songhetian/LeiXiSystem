@@ -1,4 +1,4 @@
-import { DataScopeService } from './data-scope.service';
+import { DataScopeService, scopeIsEmpty } from './data-scope.service';
 
 const mockPrisma: any = {
   user: {
@@ -114,5 +114,24 @@ describe('DataScopeService (缓存)', () => {
     expect(result.all).toBe(false);
     expect(result.ids).toEqual([]);
     expect(result.selfEmployeeId).toBe(100);
+  });
+});
+
+describe('scopeIsEmpty（无可见范围判定，fail-closed 单一来源）', () => {
+  it('全量权限不算空', () => {
+    expect(scopeIsEmpty({ all: true, ids: [] })).toBe(false);
+  });
+
+  it('有部门范围不算空', () => {
+    expect(scopeIsEmpty({ all: false, ids: [1, 2] })).toBe(false);
+  });
+
+  it('无全量、无部门、但有本人 → 不算空', () => {
+    expect(scopeIsEmpty({ all: false, ids: [], selfEmployeeId: 7 })).toBe(false);
+  });
+
+  it('无全量、无部门、无本人 → 判定为空（应 fail-closed 拒绝）', () => {
+    expect(scopeIsEmpty({ all: false, ids: [] })).toBe(true);
+    expect(scopeIsEmpty({ all: false, ids: [], selfEmployeeId: undefined })).toBe(true);
   });
 });

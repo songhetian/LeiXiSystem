@@ -1,6 +1,6 @@
 import { Injectable, Inject, UnprocessableEntityException, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DataScopeService } from '../common/data-scope.service';
+import { DataScopeService, scopeIsEmpty } from '../common/data-scope.service';
 import { Prisma } from '@prisma/client';
 import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { NotificationClientInterface } from '../notification/notification-client.interface';
@@ -131,7 +131,7 @@ export class VacationService {
     }
     // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
     // 不应静默放行为任意员工创建记录（否则构成横向越权）。
-    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+    if (scopeIsEmpty(scope)) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工创建记录' });
     }
 
@@ -640,7 +640,7 @@ export class VacationService {
     }
     // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
     // 不应静默放行为任意员工创建记录（否则构成横向越权）。
-    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+    if (scopeIsEmpty(scope)) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工创建记录' });
     }
 
@@ -881,7 +881,7 @@ export class VacationService {
     }
     // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
     // 不应静默放行为任意员工兑换调休（否则构成横向越权）。
-    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+    if (scopeIsEmpty(scope)) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工操作调休转换' });
     }
 
@@ -1255,7 +1255,7 @@ export class VacationService {
     }
     // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
     // 不应静默放行为任意员工调整额度（否则可自增他人假期余额，构成横向越权）。
-    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+    if (scopeIsEmpty(scope)) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权调整其他员工的假期余额' });
     }
 

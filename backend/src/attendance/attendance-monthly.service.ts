@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, ForbiddenException, BadRequestException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DataScopeService } from '../common/data-scope.service';
+import { DataScopeService, scopeIsEmpty } from '../common/data-scope.service';
 import { Prisma } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildMonthly, type DailyRecord } from './engine/monthly-engine';
@@ -219,7 +219,7 @@ export class AttendanceMonthlyService {
       }
       // 既无全量权限、又无部门范围、又未关联员工 → 无任何数据可见范围，
       // 不得静默放行为任意员工确认月报（否则构成横向越权）。
-      if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+      if (scopeIsEmpty(scope)) {
         throw new ForbiddenException({
           code: ERROR_CODES.DATA_NO_PERMISSION,
           message: '无权操作其他员工的记录',
@@ -319,7 +319,7 @@ export class AttendanceMonthlyService {
         }
       }
       // 同 confirm：无任何数据可见范围时不得放行（横向越权）。
-      if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+      if (scopeIsEmpty(scope)) {
         throw new ForbiddenException({
           code: ERROR_CODES.DATA_NO_PERMISSION,
           message: '无权操作其他员工的记录',

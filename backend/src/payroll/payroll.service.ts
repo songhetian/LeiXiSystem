@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, UnprocessableEntityException, BadRequestException, ForbiddenException, Logger, HttpException, HttpStatus, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
-import { DataScopeService } from '../common/data-scope.service';
+import { DataScopeService, scopeIsEmpty } from '../common/data-scope.service';
 import { Prisma } from '@prisma/client';
 import { calculatePayroll, assertPayrollBalanced, type PayrollConfig } from './engine/payroll-engine';
 import { fromCents, toCents } from '../common/money.util';
@@ -595,7 +595,7 @@ export class PayrollService {
     }
     // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
     // 不应静默放行为任意员工添加调整项（否则可为他人工资加钱，构成横向越权）。
-    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+    if (scopeIsEmpty(scope)) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工添加调整项' });
     }
 

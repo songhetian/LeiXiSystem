@@ -8,6 +8,15 @@ export interface DataScope {
   selfEmployeeId?: number;
 }
 
+/**
+ * 该 scope 是否「无任何可见范围」——既非全量、无部门范围、也未关联本人。
+ * 命中时应拒绝对具体员工的操作/查询（fail-closed），否则受限用户可横向越权。
+ * 单一来源：此前 vacation/payroll 等多处以三连布尔内联重复判断。
+ */
+export function scopeIsEmpty(scope: DataScope): boolean {
+  return !scope.all && scope.ids.length === 0 && !scope.selfEmployeeId;
+}
+
 const CACHE_TTL = 5 * 60;
 
 function cacheKey(userId: number) {
