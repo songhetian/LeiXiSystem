@@ -8,7 +8,7 @@ jest.mock('@arco-design/web-react', () => {
 
   const Typography = {
     Title: ({ heading, children, style }: any) => (
-      <h2 data-testid="page-title" style={style}>{children}</h2>
+      <h2 data-testid="page-title" data-heading={heading} style={style}>{children}</h2>
     ),
   };
 
@@ -82,6 +82,11 @@ describe('PageContainer', () => {
   });
 
   describe('结构验证', () => {
+    it('页面标题渲染为 <h1>（WCAG SC 1.3.1 / 2.4.6，全站每页唯一主标题）', () => {
+      render(<PageContainer title="员工管理">内容</PageContainer>);
+      expect(screen.getByTestId('page-title')).toHaveAttribute('data-heading', '1');
+    });
+
     it('has header section with title and action', () => {
       render(
         <PageContainer

@@ -87,6 +87,12 @@ export default function AppLayout({
   const { isMobile } = useResponsive();
   const [siderVisible, setSiderVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  // 当前激活页签在 tabs 中的下标：用于把 main[role=tabpanel] 关联到对应 tab（WCAG SC 4.1.2）。
+  // 与 PageTabs 的 `id={`page-tab-${index}`}` 对齐。
+  const activeTabIndex = useMemo(
+    () => tabs.findIndex((t) => t.path === pathname),
+    [tabs, pathname],
+  );
 
   useSocket();
 
@@ -135,6 +141,10 @@ export default function AppLayout({
       <RouteProgress />
       <CommandPalette />
       <div className="app-layout">
+        {/* 跳过块：键盘用户 Tab 首站即可越过侧栏/页签直达主内容（WCAG SC 2.4.1, A） */}
+        <a href="#app-tabpanel" className="lx-skip-link">
+          跳转到主内容
+        </a>
         {!isMobile && (
           <AppSider
             activeKey={activeMenu}
@@ -166,7 +176,14 @@ export default function AppLayout({
         <div className="app-main">
           <AppHeader title={title} isMobile={isMobile} collapsed={!isMobile && collapsed} onMenuToggle={handleMenuToggle} />
           <PageTabs />
-          <main className="app-content" id="app-tabpanel" role="tabpanel" aria-label="页面内容">
+          <main
+            className="app-content"
+            id="app-tabpanel"
+            role="tabpanel"
+            tabIndex={-1}
+            aria-labelledby={activeTabIndex >= 0 ? `page-tab-${activeTabIndex}` : undefined}
+            aria-label="页面内容"
+          >
             <ErrorBoundary>
               <KeepAliveHost activePath={pathname} alivePaths={alivePaths}>
                 {children}

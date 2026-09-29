@@ -75,6 +75,8 @@ describe('ProtectedRoute', () => {
       );
 
       expect(screen.getByText(/加载中/i)).toBeInTheDocument();
+      // 用 min-h-dvh 而非 100vh，避免移动端地址栏占高导致内容被推出视口（SC 1.4.10）
+      expect(screen.getByText(/加载中/i).closest('div')).toHaveClass('min-h-dvh');
     });
   });
 

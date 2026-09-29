@@ -1513,9 +1513,8 @@
   transition: color var(--lx-transition-fast);
 }
 
-.breadcrumb-item:hover {
-  color: var(--lx-primary);
-}
+/* 不在容器上做 hover 变色：.breadcrumb-item 是容器，只有内层 .breadcrumb-link 可点，
+   容器整体变蓝会给出「这里可点」的误导性暗示（可点击态仅由 .breadcrumb-link:hover 表达）。 */
 
 .breadcrumb-sep {
   font-size: var(--lx-font-xs);

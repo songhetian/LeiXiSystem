@@ -39,7 +39,9 @@ export default function PageContainer({
         <div className="page-header">
           <div className="page-title-wrap">
             {title && (
-              <Title heading={3} className="page-title" style={{ margin: 0 }}>
+              // 页面主标题作为该页唯一 <h1>（WCAG SC 1.3.1 / 2.4.6）：此前写死 heading={3}，
+              // 导致全站无 h1、标题层级从 h3 起跳。视觉字号由 .page-title 的 CSS 决定，与 heading 级别解耦。
+              <Title heading={1} className="page-title" style={{ margin: 0 }}>
                 {title}
               </Title>
             )}

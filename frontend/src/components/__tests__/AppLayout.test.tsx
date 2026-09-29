@@ -298,6 +298,32 @@ describe('AppLayout', () => {
     expect(panel).toHaveAttribute('id', 'app-tabpanel');
   });
 
+  it('提供「跳到主内容」跳过块，且主内容是有效的聚焦落点（SC 2.4.1, A）', () => {
+    render(
+      <AppLayout>
+        <div>Content</div>
+      </AppLayout>,
+    );
+    const skip = screen.getByRole('link', { name: /跳转到主内容/ });
+    expect(skip).toHaveAttribute('href', '#app-tabpanel');
+    expect(skip).toHaveClass('lx-skip-link');
+    // 跳过块的目标需可编程聚焦（tabIndex=-1），否则焦点不会真正落到 main
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('tabpanel 通过 aria-labelledby 关联当前激活页签（SC 4.1.2）', () => {
+    render(
+      <AppLayout>
+        <div>Content</div>
+      </AppLayout>,
+    );
+    const panel = screen.getByRole('tabpanel');
+    const labelledby = panel.getAttribute('aria-labelledby');
+    expect(labelledby).toBeTruthy();
+    const activeTab = screen.getByRole('tab', { selected: true });
+    expect(activeTab).toHaveAttribute('id', labelledby as string);
+  });
+
   it('移动端抽屉遮罩对辅助技术隐藏，且可用 Escape 关闭（SC 2.1.1）', async () => {
     const original = window.innerWidth;
     // jsdom 默认 1024px（走桌面分支），这里压到手机宽度触发抽屉

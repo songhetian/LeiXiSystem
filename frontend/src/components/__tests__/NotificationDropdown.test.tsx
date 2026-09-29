@@ -37,6 +37,31 @@ describe('NotificationDropdown（通知下拉面板）', () => {
     expect(mockedNotificationApi.unreadCount).toHaveBeenCalled();
   });
 
+  it('触发器暴露 aria-haspopup / aria-expanded / aria-controls（SC 4.1.2）', async () => {
+    render(<NotificationDropdown />);
+    const trigger = await screen.findByTestId('notification-trigger');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'true');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveAttribute('aria-controls', 'notification-panel-root');
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('Escape 关闭面板并把焦点归还触发器（SC 2.1.1 / 2.4.3）', async () => {
+    render(<NotificationDropdown />);
+    const trigger = await screen.findByTestId('notification-trigger');
+    fireEvent.click(trigger);
+    await waitFor(() =>
+      expect(screen.getByTestId('notification-panel')).toBeInTheDocument(),
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByTestId('notification-panel')).not.toBeInTheDocument(),
+    );
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+  });
+
   it('点击触发按钮展开后加载未读通知列表', async () => {
     render(<NotificationDropdown />);
     await waitFor(() => screen.getByTestId('notification-trigger'));

@@ -72,14 +72,16 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const hasPermission = !requiredPermission || permissions.includes(requiredPermission);
 
   const loadingScreen = (
-    <div className="flex justify-center items-center h-screen gap-2">
+    // min-h-dvh（动态视口高度）而非 h-screen(=100vh)：移动端地址栏会占用 100vh 高度，
+    // 导致内容被推出视口（WCAG SC 1.4.10 Reflow）
+    <div className="flex justify-center items-center min-h-dvh gap-2">
       <Spin size={40} />
       <span className="text-text-3 text-sm">加载中...</span>
     </div>
   );
 
   const forbiddenScreen = (
-    <div className="flex flex-col justify-center items-center h-screen gap-4">
+    <div className="flex flex-col justify-center items-center min-h-dvh gap-4">
       <div className="text-[72px] font-medium text-text-3 leading-none">403</div>
       <div className="text-base text-text-2">抱歉，您没有权限访问此页面</div>
       <div className="text-sm text-text-3 -mt-2">

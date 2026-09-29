@@ -15,6 +15,7 @@ export function NotificationDropdown() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   const updatePanelPosition = useCallback(() => {
@@ -30,7 +31,7 @@ export function NotificationDropdown() {
         borderRadius: 8,
         boxShadow: 'var(--lx-shadow-dropdown)',
         border: '1px solid var(--lx-border-2)',
-        zIndex: 9999,
+        zIndex: 'var(--lx-z-popover)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -99,6 +100,22 @@ export function NotificationDropdown() {
     };
   }, [open, throttledUpdatePanelPosition]);
 
+  // Escape 关闭浮层并把焦点归还触发器；打开时把焦点移入面板。
+  // 此前只实现了「点击外部关闭」，键盘用户打开后无法用 Escape 关闭（WCAG SC 2.1.1 / 2.4.3）。
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.querySelector<HTMLElement>('button')?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   const handleToggle = () => {
     setOpen((prev) => !prev);
   };
@@ -146,6 +163,9 @@ export function NotificationDropdown() {
         style={styles.trigger}
         onClick={handleToggle}
         aria-label="通知"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls="notification-panel-root"
       >
         <Badge count={unread} offset={[-2, 2]}>
           <IconNotification style={{ fontSize: 18, color: 'var(--lx-text-2)' }} />
@@ -153,7 +173,15 @@ export function NotificationDropdown() {
       </button>
 
       {open && typeof document !== 'undefined' && createPortal(
-        <div id="notification-panel-root" data-testid="notification-panel" style={panelStyle}>
+        <div
+          id="notification-panel-root"
+          data-testid="notification-panel"
+          ref={panelRef}
+          role="region"
+          aria-label="通知消息"
+          tabIndex={-1}
+          style={panelStyle}
+        >
           <div style={styles.panelHeader}>
             <span style={styles.panelTitle}>通知消息</span>
             <Button type="text" size="mini" onClick={handleMarkAllRead}>
@@ -244,7 +272,7 @@ const styles = {
     borderRadius: 8,
     boxShadow: 'var(--lx-shadow-dropdown)',
     border: '1px solid var(--lx-border-2)',
-    zIndex: 9999,
+    zIndex: 'var(--lx-z-popover)',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',

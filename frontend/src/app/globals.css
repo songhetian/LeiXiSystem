@@ -602,6 +602,29 @@ html, body {
   border: 0;
 }
 
+/* 「跳到主内容」跳过块（WCAG SC 2.4.1 Bypass Blocks, A）：
+   默认视觉隐藏，键盘 Tab 聚焦时浮出到左上角，让键盘用户一键越过侧栏/页签直达 main。 */
+.lx-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: var(--lx-z-toast);
+  padding: 8px 14px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-primary);
+  color: #fff;
+  font-size: var(--lx-font-sm);
+  line-height: 1.4;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 12px));
+  transition: transform var(--lx-transition-fast);
+}
+.lx-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--lx-focus-outline);
+  outline-offset: 2px;
+}
+
 .lx-hidden { display: none !important; }
 .lx-block { display: block !important; }
 .lx-flex { display: flex !important; }
