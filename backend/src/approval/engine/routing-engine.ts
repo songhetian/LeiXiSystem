@@ -2,7 +2,7 @@ export interface WorkflowNode {
   id: string | number;
   nodeKey?: string;
   name: string;
-  type: 'role' | 'user' | 'group' | 'department_manager' | 'start' | 'end';
+  type: 'role' | 'user' | 'group' | 'department_manager' | 'initiator' | 'start' | 'end';
   roleCode?: string;
   userId?: number;
   groupId?: number;
@@ -27,7 +27,7 @@ export interface Approver {
 }
 
 export interface ApproverCandidate {
-  type: 'role' | 'user' | 'group' | 'department_manager';
+  type: 'role' | 'user' | 'group' | 'department_manager' | 'initiator';
   roleCode?: string;
   userId?: number;
   groupId?: number;
@@ -36,6 +36,8 @@ export interface ApproverCandidate {
 export interface RoutingContext {
   applicantDepartmentId?: number;
   applicantRoleCodes?: string[];
+  /** 申请人 userId，用于解析「申请人确认」节点（type=initiator） */
+  applicantUserId?: number;
   formData?: Record<string, any>;
   roleUsers?: Record<string, number[]>;
   groups?: Record<number, number[]>;
@@ -112,6 +114,13 @@ export function resolveNextApprovers(
       }
       return null;
     }
+    case 'initiator': {
+      // 「申请人确认」节点由申请人本人审批；缺少申请人上下文时跳过，避免造出无人可办的节点
+      if (ctx.applicantUserId !== undefined && ctx.applicantUserId !== null) {
+        return { type: 'initiator', userId: ctx.applicantUserId };
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -157,6 +166,12 @@ export function resolveApproverList(
       const managerId = deptId !== undefined ? ctx.departmentManagers?.[deptId] : undefined;
       if (managerId !== undefined && managerId !== null) {
         userIds = [managerId];
+      }
+      break;
+    }
+    case 'initiator': {
+      if (ctx.applicantUserId !== undefined && ctx.applicantUserId !== null) {
+        userIds = [ctx.applicantUserId];
       }
       break;
     }

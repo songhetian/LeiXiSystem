@@ -31,6 +31,17 @@ export interface ApprovalClientInterface {
     comment?: string;
   }): Promise<void>;
 
+  /**
+   * Withdraws a pending approval instance on behalf of its applicant.
+   * Needed by consumer modules (e.g. reimbursement) that cancel a business
+   * document which is already attached to an in-flight approval instance.
+   */
+  withdraw(params: {
+    instanceId: number;
+    userId: number;
+    reason?: string;
+  }): Promise<void>;
+
   getInstanceStatus(
     instanceId: number,
   ): Promise<{ status: string; id: number; [key: string]: any } | null>;
@@ -43,4 +54,11 @@ export interface ApprovalClientInterface {
     userId: number,
     workflowCode: string,
   ): Promise<number[]>;
+
+  /**
+   * 与待办列表（listTodos）同口径的待办数量，供首页「待审批」徽标使用。
+   * 不可改用 approvalRecord.approverId 直接计数：建实例时写入的记录不带
+   * approverId（该字段只在加签/转交/实际处理时写入），按它统计恒为 0。
+   */
+  countPendingForUser(userId: number): Promise<number>;
 }

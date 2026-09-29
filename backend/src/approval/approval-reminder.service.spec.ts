@@ -10,6 +10,9 @@ const mockPrisma: any = {
   approvalGroupMember: {
     findMany: jest.fn(),
   },
+  department: {
+    findUnique: jest.fn(),
+  },
   notification: {
     count: jest.fn(),
   },
@@ -120,6 +123,115 @@ describe('ApprovalReminderService', () => {
         where: { groupId: 1 },
         select: { userId: true },
       });
+    });
+
+    it('应给「部门主管」节点的审批人（申请部门负责人）发送提醒', async () => {
+      const now = new Date();
+      const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+
+      mockSettingsService.get.mockRejectedValue(new Error('not found'));
+      mockPrisma.approvalInstance.findMany.mockResolvedValue([
+        {
+          id: 3,
+          title: '调岗申请-张三',
+          status: 'pending',
+          currentNodeKey: 'node3',
+          applicantId: 88,
+          departmentId: 5,
+          createdAt: fourDaysAgo,
+          records: [
+            {
+              id: 3,
+              nodeKey: 'node3',
+              status: 'pending',
+              node: { id: 3, type: 'department_manager' },
+            },
+          ],
+        },
+      ]);
+      mockPrisma.department.findUnique.mockResolvedValue({ manager: { userId: 501 } });
+      mockPrisma.notification.count.mockResolvedValue(0);
+      mockNotificationService.create.mockResolvedValue({ id: 3 });
+
+      const result = await service.checkOverdueAndNotify();
+
+      expect(result.remindedCount).toBe(1);
+      expect(result.instanceCount).toBe(1);
+      expect(mockPrisma.department.findUnique).toHaveBeenCalledWith({
+        where: { id: 5 },
+        select: { manager: { select: { userId: true } } },
+      });
+      expect(mockNotificationService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 501 }),
+      );
+    });
+
+    it('部门主管节点且申请部门未设置负责人时不发送提醒', async () => {
+      const now = new Date();
+      const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+
+      mockSettingsService.get.mockRejectedValue(new Error('not found'));
+      mockPrisma.approvalInstance.findMany.mockResolvedValue([
+        {
+          id: 4,
+          title: '调岗申请-李四',
+          status: 'pending',
+          currentNodeKey: 'node4',
+          applicantId: 89,
+          departmentId: 6,
+          createdAt: fourDaysAgo,
+          records: [
+            {
+              id: 4,
+              nodeKey: 'node4',
+              status: 'pending',
+              node: { id: 4, type: 'department_manager' },
+            },
+          ],
+        },
+      ]);
+      mockPrisma.department.findUnique.mockResolvedValue({ manager: null });
+
+      const result = await service.checkOverdueAndNotify();
+
+      expect(result.remindedCount).toBe(0);
+      expect(mockNotificationService.create).not.toHaveBeenCalled();
+    });
+
+    it('应给「申请人」节点的审批人（申请人本人）发送提醒', async () => {
+      const now = new Date();
+      const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+
+      mockSettingsService.get.mockRejectedValue(new Error('not found'));
+      mockPrisma.approvalInstance.findMany.mockResolvedValue([
+        {
+          id: 5,
+          title: '补卡申请-王五',
+          status: 'pending',
+          currentNodeKey: 'node5',
+          applicantId: 77,
+          departmentId: 5,
+          createdAt: fourDaysAgo,
+          records: [
+            {
+              id: 5,
+              nodeKey: 'node5',
+              status: 'pending',
+              node: { id: 5, type: 'initiator' },
+            },
+          ],
+        },
+      ]);
+      mockPrisma.notification.count.mockResolvedValue(0);
+      mockNotificationService.create.mockResolvedValue({ id: 5 });
+
+      const result = await service.checkOverdueAndNotify();
+
+      expect(result.remindedCount).toBe(1);
+      expect(result.instanceCount).toBe(1);
+      expect(mockNotificationService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 77 }),
+      );
     });
 
     it('同一天内同一用户只提醒一次', async () => {

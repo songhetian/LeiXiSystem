@@ -39,6 +39,7 @@ const mockPrisma: any = {
 const mockNotificationService: any = {
   create: jest.fn(),
   createMany: jest.fn(),
+  removeByRelated: jest.fn(),
 };
 
 const mockEventEmitter: any = {
@@ -107,7 +108,9 @@ describe('ApprovalService resubmit 次数限制', () => {
     try {
       await approvalService.resubmit({ instanceId: 1, userId: 1 });
     } catch (e: any) {
-      expect(e.response.code).toBe(6312);
+      // 6305 = APPROVAL_RESUBMIT_LIMIT（原误用 6312「审批实例状态无效」，
+      // 中央文案会把提示覆盖成「审批实例状态无效」，用户看不到真正的超限原因）
+      expect(e.response.code).toBe(6305);
       expect(e.response.message).toContain('3 次');
     }
   });
@@ -135,6 +138,40 @@ describe('ApprovalService resubmit 次数限制', () => {
 
     const updateArgs = mockPrisma.approvalInstance.update.mock.calls[0][0] as any;
     expect(updateArgs.data.resubmitCount).toEqual({ increment: 1 });
+  });
+
+  it('重新提交后必须重新通知首个审批节点的审批人，否则审批将无人处理', async () => {
+    mockPrisma.approvalInstance.findUnique.mockResolvedValue(mockInstance(0, 'rejected'));
+    mockPrisma.department.findMany.mockResolvedValue([]);
+    mockPrisma.approvalRecord.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.approvalRecord.createMany.mockResolvedValue({ count: 3 });
+    mockPrisma.approvalInstance.update.mockResolvedValue({
+      ...mockInstance(0, 'pending'),
+      id: 1,
+      currentNodeKey: 'approve1',
+    });
+    mockPrisma.approvalWorkflowNode.findUnique.mockResolvedValue({
+      id: 2,
+      nodeKey: 'approve1',
+      type: 'role',
+      roleCode: 'approver',
+    });
+    mockPrisma.userRole.findMany.mockResolvedValue([{ userId: 9 }]);
+    mockNotificationService.createMany.mockResolvedValue({ count: 1 });
+
+    await approvalService.resubmit({ instanceId: 1, userId: 1 });
+
+    expect(mockPrisma.approvalWorkflowNode.findUnique).toHaveBeenCalledWith({
+      where: { workflowId_nodeKey: { workflowId: 1, nodeKey: 'approve1' } },
+    });
+    expect(mockNotificationService.createMany).toHaveBeenCalledWith(
+      [9],
+      expect.objectContaining({
+        type: 'approval',
+        relatedId: 1,
+        relatedType: 'approval_instance',
+      }),
+    );
   });
 
   it('不同工作流可有不同的 maxResubmits', async () => {

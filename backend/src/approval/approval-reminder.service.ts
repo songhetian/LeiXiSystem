@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationService } from '../notification/notification.service';
+import { NotificationClientInterface } from '../notification/notification-client.interface';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
@@ -13,11 +13,12 @@ export class ApprovalReminderService {
 
   constructor(
     private prisma: PrismaService,
-    private notificationService: NotificationService,
+    @Inject('NOTIFICATION_CLIENT') private notificationService: NotificationClientInterface,
     private settingsService: SettingsService,
   ) {}
 
-  @Cron('0 9 * * *')
+  // 提醒语义是「上班后不久」：按北京时间 09:00 触发，避免容器 TZ=UTC 时错位到北京 17:00
+  @Cron('0 9 * * *', { timeZone: 'Asia/Shanghai' })
   async handleCron() {
     this.logger.log('开始执行审批超时提醒定时任务');
     try {
@@ -65,7 +66,10 @@ export class ApprovalReminderService {
       );
       if (!currentRecord) continue;
 
-      const approverIds = await this.getApproverIdsForNode(currentRecord.node);
+      const approverIds = await this.getApproverIdsForNode(currentRecord.node, {
+        applicantId: instance.applicantId,
+        applicantDepartmentId: instance.departmentId,
+      });
       for (const userId of approverIds) {
         if (!approverInstancesMap.has(userId)) {
           approverInstancesMap.set(userId, []);
@@ -136,11 +140,21 @@ export class ApprovalReminderService {
     }
   }
 
-  private async getApproverIdsForNode(node: {
-    type: string;
-    roleCode?: string | null;
-    approvalGroupId?: number | null;
-  }): Promise<number[]> {
+  /**
+   * 解析当前节点应提醒的审批人。
+   *
+   * role/group 型节点与实例无关；department_manager/initiator 型节点依赖实例
+   * 上下文（申请部门、申请人），必须传入 ctx，否则这类节点永远收不到超时提醒。
+   * 与 approval.service#notifyApproversForNode 保持同一套口径。
+   */
+  private async getApproverIdsForNode(
+    node: {
+      type: string;
+      roleCode?: string | null;
+      approvalGroupId?: number | null;
+    },
+    ctx: { applicantId?: number | null; applicantDepartmentId?: number | null } = {},
+  ): Promise<number[]> {
     if (node.type === 'role' && node.roleCode) {
       const userRoles = await this.prisma.userRole.findMany({
         where: { role: { code: node.roleCode } },
@@ -157,7 +171,32 @@ export class ApprovalReminderService {
       return members.map((m) => m.userId);
     }
 
+    if (node.type === 'department_manager') {
+      const managerUserId = await this.resolveDepartmentManagerUserId(
+        ctx.applicantDepartmentId,
+      );
+      return managerUserId === null ? [] : [managerUserId];
+    }
+
+    if (node.type === 'initiator') {
+      return ctx.applicantId === undefined || ctx.applicantId === null
+        ? []
+        : [ctx.applicantId];
+    }
+
     return [];
+  }
+
+  /** 申请部门的负责人 userId；部门为空或未设置负责人时返回 null。 */
+  private async resolveDepartmentManagerUserId(
+    departmentId?: number | null,
+  ): Promise<number | null> {
+    if (departmentId === undefined || departmentId === null) return null;
+    const dept = await this.prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { manager: { select: { userId: true } } },
+    });
+    return dept?.manager?.userId ?? null;
   }
 
   private getTodayStart(): Date {
