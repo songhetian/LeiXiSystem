@@ -4,7 +4,7 @@ import { DataScopeService } from '../common/data-scope.service';
 import { ERROR_CODES } from '../common/error-codes';
 import { Prisma } from '@prisma/client';
 import { buildDaily, type Shift as EngineShift } from './engine/attendance-engine';
-import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput } from './engine/daily-status-merger';
+import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput, type MakeupRecordInput } from './engine/daily-status-merger';
 import { AttendanceMonthlyService } from './attendance-monthly.service';
 import { beijingDateTime } from '../common/date.util';
 
@@ -72,6 +72,24 @@ export class AttendanceDailyService {
       leaveMap.get(key)!.push(leave);
     }
 
+    // 补卡审批只回写考勤日报、不写 punchLog，重算若不把这些已通过的补卡读回来一并归并，
+    // 次日 02:00 的全量重算就会把补卡效果覆盖掉（状态退回迟到/缺勤）。
+    const approvedMakeups = await this.prisma.punchMakeup.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        status: 'approved',
+        punchDate: { gte: new Date(startDate), lte: new Date(endDate) },
+      },
+    });
+
+    // punchDate 以 @db.Date（UTC 午夜）存储，键必须与 workDate 同用 UTC 口径对齐
+    const makeupMap = new Map<string, typeof approvedMakeups>();
+    for (const makeup of approvedMakeups) {
+      const key = `${makeup.employeeId}:${makeup.punchDate.toISOString().slice(0, 10)}`;
+      if (!makeupMap.has(key)) makeupMap.set(key, []);
+      makeupMap.get(key)!.push(makeup);
+    }
+
     // 批量查询所有打卡记录，避免 N+1（原先在循环内逐条查询）
     const employeeNos = [...new Set(schedules.map((s) => s.employee.employeeNo))];
     // 业务日是北京时间的日历日，而 punchTime 是真实时刻，窗口必须按 Asia/Shanghai 换算。
@@ -132,7 +150,13 @@ export class AttendanceDailyService {
 
       // 业务日以 UTC 午夜存储，判周末必须用 getUTCDay()：本地 getDay() 在负时区会读成前一天
       const isWeekend = workDate.getUTCDay() === 0 || workDate.getUTCDay() === 6;
-      const merged = mergeLeaveMakeupIntoDaily(result, dayLeaves, [], { isWeekend });
+      const dayMakeups: MakeupRecordInput[] = (
+        makeupMap.get(`${sched.employeeId}:${workDate.toISOString().slice(0, 10)}`) || []
+      ).map((m) => ({
+        status: 'approved',
+        punchTime: m.makeupTime ? this.formatTime(m.makeupTime) : '',
+      }));
+      const merged = mergeLeaveMakeupIntoDaily(result, dayLeaves, dayMakeups, { isWeekend });
 
       const firstPunch = merged.firstPunch
         ? this.combineDateTime(workDate, merged.firstPunch, sched.shift.isNextDay, false)

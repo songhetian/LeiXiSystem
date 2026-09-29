@@ -14,6 +14,9 @@ function createMockPrisma() {
     punchLog: {
       findMany: jest.fn(),
     },
+    punchMakeup: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     attendanceDaily: {
       upsert: jest.fn(),
       findMany: jest.fn(),
@@ -120,6 +123,67 @@ describe('AttendanceDailyService', () => {
       const where1 = prisma.attendanceDaily.upsert.mock.calls[0][0].where;
       const where2 = prisma.attendanceDaily.upsert.mock.calls[1][0].where;
       expect(where1).toEqual(where2);
+    });
+  });
+
+  describe('recalculate - 已通过补卡须参与状态归并', () => {
+    let service: AttendanceDailyService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    const schedule = {
+      id: 1,
+      employeeId: 1,
+      shiftId: 1,
+      workDate: new Date('2025-06-02'),
+      employee: { id: 1, employeeNo: 'EMP0001' },
+      shift: { id: 1, startTime: '09:00', endTime: '18:00', isNextDay: false },
+    };
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      const dataScope = createMockDataScope();
+      const monthlyService = createMockMonthlyService();
+      service = new AttendanceDailyService(prisma as any, dataScope as any, monthlyService as any);
+      prisma.schedule.findMany.mockResolvedValue([schedule]);
+      prisma.leaveRecord.findMany.mockResolvedValue([]);
+      prisma.attendanceDaily.upsert.mockResolvedValue({ id: 1 });
+    });
+
+    it('当日存在已通过补卡时，重算结果须标记为 makeup，不得被无补卡口径覆盖', async () => {
+      // 北京时间 09:16 的一次真实打卡 → 引擎判定迟到 16 分钟
+      prisma.punchLog.findMany.mockResolvedValue([
+        { employeeNo: 'EMP0001', punchTime: new Date('2025-06-02T01:16:00.000Z') },
+      ]);
+      prisma.punchMakeup.findMany.mockResolvedValue([
+        {
+          employeeId: 1,
+          punchDate: new Date('2025-06-02'),
+          status: 'approved',
+          makeupTime: new Date('2025-06-02T10:00:00.000Z'),
+        },
+      ]);
+
+      await service.recalculate({ startDate: '2025-06-02', endDate: '2025-06-02', userId: 1 });
+
+      const upsertCall = prisma.attendanceDaily.upsert.mock.calls[0][0];
+      // 未接入补卡时，mergeLeaveMakeupIntoDaily 收到的是硬编码 []，状态会被覆盖成 late
+      expect(upsertCall.update.status).toBe('makeup');
+    });
+
+    it('其他员工的补卡不得串到本员工日报上', async () => {
+      prisma.punchLog.findMany.mockResolvedValue([]);
+      prisma.punchMakeup.findMany.mockResolvedValue([
+        {
+          employeeId: 999,
+          punchDate: new Date('2025-06-02'),
+          status: 'approved',
+          makeupTime: new Date('2025-06-02T10:00:00.000Z'),
+        },
+      ]);
+
+      await service.recalculate({ startDate: '2025-06-02', endDate: '2025-06-02', userId: 1 });
+
+      expect(prisma.attendanceDaily.upsert.mock.calls[0][0].update.status).toBe('absent');
     });
   });
 

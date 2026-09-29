@@ -678,4 +678,33 @@ describe('PayrollService', () => {
       expect(result.employees[0].total).toBe(5000);
     });
   });
+
+  // ------------------------------------------------------------------
+  // addAdjustment — 零范围用户越权（{all:false, ids:[], selfEmployeeId:undefined}）
+  // 缺 fail-closed 守卫时会静默放行任意 employeeId，可为他人工资批次加钱。
+  // ------------------------------------------------------------------
+  describe('addAdjustment — 零范围用户不得越权添加调整项', () => {
+    it('零范围用户为任意员工加调整项：应抛 FORBIDDEN', async () => {
+      const prisma: any = createMockPrisma();
+      prisma.payrollAdjustment = { create: jest.fn() };
+      prisma.employee = { findUnique: jest.fn() };
+      prisma.payrollRun.findUnique.mockResolvedValue({ id: 1, status: 'draft' });
+      prisma.employee.findUnique.mockResolvedValue({ id: 10, departmentId: 5 });
+      const service = new PayrollService(
+        prisma as any,
+        { visibleScope: jest.fn().mockResolvedValue({ all: false, ids: [], selfEmployeeId: undefined }) } as any,
+        createMockPayslipService() as any,
+        createMockNotificationService() as any,
+        createMockLockService() as any,
+        createMockEventEmitter() as any,
+      );
+
+      await expect(
+        service.addAdjustment(1, { employeeId: 10, itemCode: 'bonus', amount: 100, reason: '测试' }, 1),
+      ).rejects.toMatchObject({
+        response: { code: 5003, message: '无权为其他员工添加调整项' },
+      });
+      expect(prisma.payrollAdjustment.create).not.toHaveBeenCalled();
+    });
+  });
 });

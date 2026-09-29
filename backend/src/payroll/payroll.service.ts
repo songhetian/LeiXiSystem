@@ -593,6 +593,11 @@ export class PayrollService {
         throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工添加调整项' });
       }
     }
+    // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
+    // 不应静默放行为任意员工添加调整项（否则可为他人工资加钱，构成横向越权）。
+    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工添加调整项' });
+    }
 
     const adjustment = await this.prisma.payrollAdjustment.create({
       data: {

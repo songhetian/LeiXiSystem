@@ -693,6 +693,7 @@ export class AttendanceApprovalListener {
         where: { id: daily.id },
         data: updateData,
         select: {
+          punchCount: true,
           lateMinutes: true,
           earlyMinutes: true,
           absentMinutes: true,

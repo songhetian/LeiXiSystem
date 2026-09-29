@@ -879,6 +879,11 @@ export class VacationService {
         throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工操作调休转换' });
       }
     }
+    // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
+    // 不应静默放行为任意员工兑换调休（否则构成横向越权）。
+    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工操作调休转换' });
+    }
 
     if (hours <= 0) {
       throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '兑换小时数必须大于0' });
@@ -1247,6 +1252,11 @@ export class VacationService {
       if (!emp || !scope.ids.includes(emp.departmentId)) {
         throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权调整其他员工的假期余额' });
       }
+    }
+    // 既无 admin/hr 全量权限、又无部门范围、又未关联员工 → 该用户无任何数据可见范围，
+    // 不应静默放行为任意员工调整额度（否则可自增他人假期余额，构成横向越权）。
+    if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权调整其他员工的假期余额' });
     }
 
     const changeDecimal = new Prisma.Decimal(changeDays);

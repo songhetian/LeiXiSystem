@@ -1474,4 +1474,49 @@ describe('VacationService', () => {
       expect(sheet.getRow(2).getCell(6).value).toBe('2026-10-02');
     });
   });
+
+  // ------------------------------------------------------------------
+  // 零范围用户越权写入：{all:false, ids:[], selfEmployeeId:undefined}
+  // 既无 admin/hr、又无部门范围、又未关联员工的用户，
+  // convertOvertimeToCompensatory / adjustBalance 缺少 createLeaveRecord 同款
+  // fail-closed 守卫时会静默放行任意 employeeId（横向越权）。
+  // ------------------------------------------------------------------
+  describe('convertOvertimeToCompensatory - 零范围用户不得越权兑换', () => {
+    it('零范围用户为任意员工兑换调休：应抛 FORBIDDEN', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: false, ids: [], selfEmployeeId: undefined });
+
+      await expect(
+        service.convertOvertimeToCompensatory({
+          employeeId: 1,
+          overtimeId: 1,
+          vacationTypeId: 1,
+          hours: 8,
+          userId: 1,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权为其他员工操作调休转换' },
+      });
+      expect(prisma._mockTx.overtimeRecord.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('adjustBalance - 零范围用户不得越权调整', () => {
+    it('零范围用户调整任意员工额度：应抛 FORBIDDEN', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: false, ids: [], selfEmployeeId: undefined });
+
+      await expect(
+        service.adjustBalance({
+          employeeId: 10,
+          vacationTypeId: 1,
+          year: 2025,
+          changeDays: 5,
+          reason: '测试',
+          userId: 1,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权调整其他员工的假期余额' },
+      });
+      expect(prisma._mockTx.vacationBalance.update).not.toHaveBeenCalled();
+    });
+  });
 });

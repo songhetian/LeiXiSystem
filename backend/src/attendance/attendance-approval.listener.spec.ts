@@ -471,6 +471,52 @@ describe('AttendanceApprovalListener - 补卡审批对考勤日报的影响', ()
     expect(prisma._mockTx.punchMakeup.updateMany).not.toHaveBeenCalled();
     expect(prisma._mockTx.attendanceDaily.update).not.toHaveBeenCalled();
   });
+
+  // 撤回/驳回的 select 必须与「通过」路径同样回传 punchCount：真实 Prisma 只回传
+  // select 里列出的字段，若漏掉 punchCount，recalcDailyStatus 会读到 undefined 并
+  // 恒判为缺勤，把「递减后还剩真实打卡」的一天错写成 absent。
+  it('撤回：递减后仍有真实打卡时不得写成缺勤（select 必须回传 punchCount）', async () => {
+    const approvedMakeup = {
+      id: 7,
+      employeeId: 2,
+      punchDate: new Date('2026-08-10'),
+      punchType: 'check_in',
+      makeupTime,
+      status: 'approved',
+    };
+    prisma.punchMakeup.findFirst.mockResolvedValue(approvedMakeup);
+    prisma._mockTx.punchMakeup.findUnique.mockResolvedValue(approvedMakeup);
+    // 当日共 2 次打卡：1 次来自本补卡、1 次真实打卡
+    prisma._mockTx.attendanceDaily.findUnique.mockResolvedValue(
+      baseDaily({ firstPunch: makeupTime, punchCount: 2, status: 'normal' }),
+    );
+
+    // 忠实还原 Prisma 的 select 语义：未出现在 select 中的字段不回传
+    prisma._mockTx.attendanceDaily.update.mockImplementation((args: any) => {
+      const after = {
+        punchCount: 1, // 2 - 1，仍剩 1 次真实打卡
+        lateMinutes: 0,
+        earlyMinutes: 0,
+        absentMinutes: 0,
+        leaveDays: new Prisma.Decimal(0),
+        status: 'normal',
+      };
+      const select = args.select ?? {};
+      if (Object.keys(select).length === 0) return Promise.resolve(after);
+      const projected: Record<string, unknown> = {};
+      for (const key of Object.keys(select)) {
+        if (select[key]) projected[key] = (after as any)[key];
+      }
+      return Promise.resolve(projected);
+    });
+
+    await listener.handleWithdrawn({ instanceId: 60, workflowCode: 'punch_makeup' });
+
+    const statusWrites = prisma._mockTx.attendanceDaily.update.mock.calls
+      .map((c: any[]) => c[0].data)
+      .filter((d: any) => d && d.status !== undefined);
+    expect(statusWrites).toEqual([]);
+  });
 });
 
 // ------------------------------------------------------------------

@@ -3,6 +3,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmployeeTxService } from './employee-tx.service';
 import { messageOf } from '../common/error-messages';
+import { ERROR_CODES } from '../common/error-codes';
 
 function createMockPrisma() {
   const mockPrisma: any = {
@@ -1092,5 +1093,85 @@ describe('EmployeeTxService - 入职自动建试用期', () => {
 
     const data = prisma.probation.create.mock.calls[0][0].data;
     expect(data.probationEndDate.toISOString()).toBe('2026-12-15T00:00:00.000Z');
+  });
+});
+
+// ------------------------------------------------------------------
+// getTimeline - 数据范围隔离
+// 显式传入 employeeId 时，原实现用 `employeeId ? { id: employeeId } : scopeWhere('id')`
+// 的二选一写法，会让 employeeId 分支彻底跳过 scope 过滤 → 任意持 transfer:view 的
+// 受限用户（含部门管理员）都能读取其他部门员工的完整履历（IDOR）。
+// ------------------------------------------------------------------
+describe('EmployeeTxService - getTimeline 数据范围隔离', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  const outOfScopeEmployee = {
+    id: 999,
+    name: '外部员工',
+    employeeNo: 'E999',
+    status: 'active',
+    hireDate: new Date('2020-01-01T00:00:00.000Z'),
+    resignDate: null,
+    departmentId: 2,
+    department: { id: 2, name: '其他部门' },
+    position: null,
+  };
+  const inScopeEmployee = {
+    id: 11,
+    name: '本部门员工',
+    employeeNo: 'E011',
+    status: 'active',
+    hireDate: new Date('2021-01-01T00:00:00.000Z'),
+    resignDate: null,
+    departmentId: 1,
+    department: { id: 1, name: '本部门' },
+    position: null,
+  };
+
+  function buildService(scope: any): EmployeeTxService {
+    prisma = createMockPrisma();
+    (prisma.employeeTransfer as any).findMany = jest.fn().mockResolvedValue([]);
+    (prisma.resignation as any).findMany = jest.fn().mockResolvedValue([]);
+    return new EmployeeTxService(
+      prisma as any,
+      createMockApprovalService() as any,
+      { visibleScope: jest.fn().mockResolvedValue(scope) } as any,
+    );
+  }
+
+  it('部门管理员查询非本部门员工履历：应抛 FORBIDDEN（不得放行）', async () => {
+    const service = buildService({ all: false, ids: [1], selfEmployeeId: null });
+    // 第一次 findMany 取可见员工集合，第二次取目标员工
+    prisma.employee.findMany
+      .mockResolvedValueOnce([{ id: 11, departmentId: 1 }])
+      .mockResolvedValueOnce([outOfScopeEmployee]);
+
+    await expect(
+      service.getTimeline({ employeeId: 999, userId: 7 }),
+    ).rejects.toMatchObject({
+      response: { code: ERROR_CODES.DATA_NO_PERMISSION },
+    });
+  });
+
+  it('部门管理员查询本部门员工履历：允许并返回该员工履历', async () => {
+    const service = buildService({ all: false, ids: [1], selfEmployeeId: null });
+    prisma.employee.findMany
+      .mockResolvedValueOnce([{ id: 11, departmentId: 1 }])
+      .mockResolvedValueOnce([inScopeEmployee]);
+
+    const result = await service.getTimeline({ employeeId: 11, userId: 7 });
+
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.list.every((r) => r.employeeId === 11)).toBe(true);
+  });
+
+  it('普通员工查询他人履历：应抛 FORBIDDEN', async () => {
+    const service = buildService({ all: false, ids: [], selfEmployeeId: 11 });
+
+    await expect(
+      service.getTimeline({ employeeId: 999, userId: 8 }),
+    ).rejects.toMatchObject({
+      response: { code: ERROR_CODES.DATA_NO_PERMISSION },
+    });
   });
 });

@@ -1757,6 +1757,18 @@ export class EmployeeTxService {
       return ids.length ? { [field]: { in: ids } } : { [field]: { in: [] } };
     };
 
+    // 显式传入的 employeeId 必须落在可见范围内：`employeeId ? { id } : scopeWhere('id')`
+    // 的二选一写法会让 employeeId 分支彻底跳过 scope 过滤，任意持 transfer:view 的受限用户
+    // （含部门管理员）都能读取其他部门员工的入职/调动/离职履历（横向越权 IDOR）。
+    if (employeeId && !scope.all) {
+      const allowed =
+        scope.selfEmployeeId === employeeId ||
+        (visibleEmployees ?? []).some((e) => e.id === employeeId);
+      if (!allowed) {
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他员工的记录' });
+      }
+    }
+
     // 2) 员工（入职 + 离职基准）
     const employeesQuery = {
       where: employeeId ? { id: employeeId } : scopeWhere('id'),
