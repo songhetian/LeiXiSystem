@@ -16,5 +16,5 @@
 | [step-1-data.md](./step-1-data.md) | 数据层 | 第 8 章 | 基本达成（87 表基线；共享校验层未按计划集中） |
 | [step-2-backend.md](./step-2-backend.md) | 后端移植 | 第 7.2 节 | 基本达成（DTO 未上收 shared；模块命名有差异） |
 | [step-3-frontend.md](./step-3-frontend.md) | 前端搭建 | 第 7.3 节 + 第 11 章 | 基本达成（**未采用 Refine**；2 个通用组件缺口） |
-| [step-4-punch-payroll.md](./step-4-punch-payroll.md) | 打卡机 + 算薪 | 第 6 章 | 代码就绪、**硬件阻塞**（XFace600 未到货）；3 人对账未做 |
+| [step-4-punch-payroll.md](./step-4-punch-payroll.md) | 打卡机 + 算薪 | 第 6 章 | 代码就绪、**硬件阻塞**（XFace600 未到货）；3 人对账样例基线已建立，真实批次复跑待上线时 |
 | [step-5-launch.md](./step-5-launch.md) | 收尾部署 | 9-5 | 部署编排就绪，**未上线**；KKFileView 项作废 |
