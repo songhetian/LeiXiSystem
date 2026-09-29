@@ -287,6 +287,44 @@ describe('AppLayout', () => {
     expect(screen.getByText('考勤管理')).toBeInTheDocument();
   });
 
+  it('内容区是 role=tabpanel 且 id 与页签的 aria-controls 对应（SC 4.1.2）', () => {
+    render(
+      <AppLayout>
+        <div>Content</div>
+      </AppLayout>,
+    );
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveClass('app-content');
+    expect(panel).toHaveAttribute('id', 'app-tabpanel');
+  });
+
+  it('移动端抽屉遮罩对辅助技术隐藏，且可用 Escape 关闭（SC 2.1.1）', async () => {
+    const original = window.innerWidth;
+    // jsdom 默认 1024px（走桌面分支），这里压到手机宽度触发抽屉
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    try {
+      render(
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>,
+      );
+      const user = userEvent.setup();
+      // 遮罩只在抽屉打开时存在
+      expect(document.querySelector('.drawer-mask')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '菜单' }));
+      const mask = document.querySelector('.drawer-mask') as HTMLElement;
+      expect(mask).toBeInTheDocument();
+      // 遮罩是纯装饰元素：不应出现在可访问性树里（键盘通路交给 Escape）
+      expect(mask).toHaveAttribute('aria-hidden', 'true');
+
+      await user.keyboard('{Escape}');
+      expect(document.querySelector('.drawer-mask')).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: original, configurable: true });
+    }
+  });
+
   it('renders children inside content', () => {
     render(
       <AppLayout>

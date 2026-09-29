@@ -274,8 +274,9 @@ export default function HomePage() {
           {QUICK_ACTIONS.map((a, idx) => {
             const Icon = a.icon;
             return (
-              <div
+              <button
                 key={a.path}
+                type="button"
                 className="dsh-quick-item"
                 style={{ animationDelay: `${idx * 30}ms` }}
                 onClick={() => router.push(a.path)}
@@ -284,7 +285,7 @@ export default function HomePage() {
                   <Icon />
                 </span>
                 <span className="dsh-quick-label">{a.label}</span>
-              </div>
+              </button>
             );
           })}
           </div>
@@ -297,13 +298,13 @@ export default function HomePage() {
           <div className="dsh-panel">
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">待办事项</h3>
-              <span className="dsh-panel-more" onClick={() => router.push('/approval/todo')}>
+              <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/todo')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
-              </span>
+              </button>
             </div>
             <div>
               {TODO_ITEMS.map((item) => (
-                <div className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
+                <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
                   <span className="dsh-feed-dot" style={{ background: dotColor(item.priority) }} />
                   <div className="dsh-feed-main">
                     <div className="dsh-feed-title">{item.title}</div>
@@ -320,7 +321,7 @@ export default function HomePage() {
                       {priorityText(item.priority)}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -329,19 +330,19 @@ export default function HomePage() {
           <div className="dsh-panel">
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">最新通知</h3>
-              <span className="dsh-panel-more" onClick={() => router.push('/notifications')}>
+              <button type="button" className="dsh-panel-more" onClick={() => router.push('/notifications')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
-              </span>
+              </button>
             </div>
             <div>
               {NOTIFICATION_ITEMS.map((item) => (
-                <div className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
+                <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
                   <span className="dsh-feed-dot" style={{ background: item.type === 'system' ? BRAND_PRIMARY : 'var(--lx-success)' }} />
                   <div className="dsh-feed-main">
                     <div className="dsh-feed-title">{item.title}</div>
                     <div className="dsh-feed-meta">{item.time}</div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -354,9 +355,9 @@ export default function HomePage() {
           <div className="dsh-panel">
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">本周考勤概览</h3>
-              <span className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
+              <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
                 查看详情 <IconRight style={{ fontSize: 12 }} />
-              </span>
+              </button>
             </div>
             <div className="dsh-kpi">
               <div className="dsh-kpi-item">
@@ -385,9 +386,9 @@ export default function HomePage() {
           <div className="dsh-panel">
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">我的申请进度</h3>
-              <span className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
+              <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
-              </span>
+              </button>
             </div>
             <div>
               {[

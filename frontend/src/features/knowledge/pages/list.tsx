@@ -219,8 +219,10 @@ export default function KnowledgeListPage() {
         folderArticles.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
             {folderArticles.map((item) => (
-              <div
+              <button
+                type="button"
                 key={item.id}
+                className="lx-clickable"
                 onClick={() => handleOpenDetail(item)}
                 style={{
                   display: 'flex',
@@ -253,7 +255,7 @@ export default function KnowledgeListPage() {
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {item.authorName || '—'} · {item.viewCount ?? 0} 阅
                 </Text>
-              </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -264,8 +266,10 @@ export default function KnowledgeListPage() {
         folders.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
             {folders.map((folder) => (
-              <div
+              <button
+                type="button"
                 key={folder.key}
+                className="lx-clickable"
                 onClick={() => enterFolder(folder.key)}
                 style={{
                   display: 'flex',
@@ -291,7 +295,7 @@ export default function KnowledgeListPage() {
                 <Tag size="small" color="arcoblue" style={{ margin: 0 }}>
                   {folder.count} 篇
                 </Tag>
-              </div>
+              </button>
             ))}
           </div>
         ) : (

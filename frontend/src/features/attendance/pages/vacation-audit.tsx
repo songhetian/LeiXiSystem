@@ -264,7 +264,7 @@ export default function VacationAuditPage() {
         {current && (
           <div className="flex flex-col gap-5">
             {/* 申请人基本身份 */}
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-gray-50">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary">
               <Avatar size={40} style={{ backgroundColor: 'var(--lx-primary)', color: '#fff' }}>
                 {current.employeeName?.charAt(0) || '?'}
               </Avatar>
@@ -327,7 +327,7 @@ export default function VacationAuditPage() {
                 </div>
               </div>
             ) : (
-              <div className="p-4 rounded-lg bg-gray-50 flex items-center justify-between">
+              <div className="p-4 rounded-lg bg-bg-secondary flex items-center justify-between">
                 <Tag color={current.status === 'approved' ? 'green' : 'red'} size="medium">
                   {statusMap[current.status]?.label || current.status}
                 </Tag>

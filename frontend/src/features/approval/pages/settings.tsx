@@ -383,16 +383,29 @@ export default function ApprovalSettingsPage() {
                   return (
                     <div
                       key={node.nodeKey}
-                      onClick={() => setActiveNodeKey(node.nodeKey)}
                       style={{
                         padding: '8px 10px',
                         borderRadius: 6,
                         border: `1px solid ${isActive ? 'var(--lx-primary-100)' : 'var(--lx-border-2)'}`,
                         backgroundColor: isActive ? 'var(--color-primary-light-1)' : 'var(--color-bg-2)',
-                        cursor: 'pointer',
                         transition: 'all 0.2s',
                       }}
                     >
+                      {/* 选中该节点用 <button> 承载，保证键盘可达（WCAG SC 2.1.1）；
+                          不给整张卡加 role="button"，以免与下方操作按钮形成「可聚焦后代嵌套」 */}
+                      <button
+                        type="button"
+                        className="lx-clickable"
+                        onClick={() => setActiveNodeKey(node.nodeKey)}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          padding: 0,
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <span
                           style={{
@@ -415,6 +428,7 @@ export default function ApprovalSettingsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 26 }}>
                         <Text style={{ fontSize: 11, color: 'var(--lx-text-3)' }}>{meta.label}</Text>
                       </div>
+                      </button>
                       <div style={{ display: 'flex', gap: 2, marginTop: 6, paddingLeft: 26 }}>
                         <Button
                           size="mini"
@@ -504,7 +518,9 @@ export default function ApprovalSettingsPage() {
                       }}
                     >
                       <div style={{ color: 'var(--color-border-3)', fontSize: 16, lineHeight: 1.5 }}>↓</div>
-                      <div
+                      <button
+                        type="button"
+                        className="lx-clickable"
                         onClick={() => setActiveNodeKey(node.nodeKey)}
                         style={{
                           width: 160,
@@ -547,7 +563,7 @@ export default function ApprovalSettingsPage() {
                         <Text style={{ fontSize: 10, color: 'var(--lx-text-3)' }}>
                           {meta.label} · 第 {index + 1} 节点
                         </Text>
-                      </div>
+                      </button>
                     </div>
                   );
                 })

@@ -98,6 +98,8 @@ export default function PageTabs() {
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 菜单触发元素：菜单关闭后把焦点还回去（WCAG 2.4.3 焦点顺序）
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [scrollable, setScrollable] = useState({ left: false, right: false });
 
@@ -144,8 +146,12 @@ export default function PageTabs() {
   const openMenu = useCallback((e: React.MouseEvent, tab: TabItem) => {
     e.preventDefault();
     e.stopPropagation();
+    // 右键事件挂在不可聚焦的 .page-tab-wrap 上，归还焦点要落到真正的页签按钮上
+    const wrapEl = e.currentTarget as HTMLElement;
+    triggerRef.current =
+      (wrapEl.querySelector<HTMLElement>('.page-tab') as HTMLElement | null) ?? wrapEl;
     // 菜单锚定在被点击页签的正下方（左对齐），并限制在视窗内避免被截断/遮挡
-    const wrap = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const wrap = wrapEl.getBoundingClientRect();
     const { x, y } = clampMenuPosition(
       { left: wrap.left, bottom: wrap.bottom },
       { width: window.innerWidth, height: window.innerHeight },
@@ -156,6 +162,7 @@ export default function PageTabs() {
 
   const openMoreMenu = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerRef.current = e.currentTarget as HTMLElement;
     const rect = e.currentTarget.getBoundingClientRect();
     const { y } = clampMenuPosition(
       { left: rect.right, bottom: rect.bottom },
@@ -168,6 +175,44 @@ export default function PageTabs() {
       tab: tabs.find((t) => t.path === pathname) ?? tabs[tabs.length - 1],
     });
   }, [tabs, pathname]);
+
+  // 菜单打开后把焦点移入首个可用项（键盘用户否则会「悬空」在触发按钮上）
+  useEffect(() => {
+    if (!menu) return;
+    const first = menuRef.current?.querySelector<HTMLElement>(
+      '[role="menuitem"]:not([disabled])',
+    );
+    first?.focus();
+  }, [menu]);
+
+  // 菜单键盘导航：方向键 / Home / End 移动，Escape 关闭并归还焦点
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu(null);
+      triggerRef.current?.focus?.();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // 不劫持 Tab：仅关闭菜单让焦点继续前进，避免焦点被困在浮层里
+      setMenu(null);
+      return;
+    }
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
+    );
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const move = (next: number) => {
+      e.preventDefault();
+      items[(next + items.length) % items.length]?.focus();
+    };
+    if (e.key === 'ArrowDown') move(current + 1);
+    else if (e.key === 'ArrowUp') move(current - 1);
+    else if (e.key === 'Home') move(0);
+    else if (e.key === 'End') move(items.length - 1);
+  }, []);
 
   // 点击空白处 / 滚动时关闭菜单
   useEffect(() => {
@@ -230,14 +275,36 @@ export default function PageTabs() {
   }, []);
 
   return (
-    <div className="page-tabs" onContextMenu={(e) => e.preventDefault()}>
+    // 注意：这里不再对整条页签栏 preventDefault，否则会屏蔽浏览器原生右键菜单
+    //（"在新标签打开""复制链接" 等标准能力）。自定义菜单只挂在页签元素上。
+    <div className="page-tabs">
       {scrollable.left && (
         <button className="page-tabs-nav-btn" onClick={() => scrollBy(-1)} aria-label="向左滚动">
           <IconLeft style={{ fontSize: 13 }} />
         </button>
       )}
-      <div className="page-tabs-scroll" ref={scrollRef}>
-        {tabs.map((tab) => {
+      <div
+        className="page-tabs-scroll"
+        ref={scrollRef}
+        role="tablist"
+        aria-label="已打开的页面"
+        onKeyDown={(e) => {
+          // APG Tabs 模式：Tab 键进入/离开整组页签，组内用方向键移动
+          if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+          const els = Array.from(
+            scrollRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [],
+          );
+          if (els.length === 0) return;
+          e.preventDefault();
+          const cur = els.indexOf(document.activeElement as HTMLElement);
+          const at = (i: number) => els[(i + els.length) % els.length];
+          if (e.key === 'ArrowRight') at(cur + 1)?.focus();
+          else if (e.key === 'ArrowLeft') at(cur - 1)?.focus();
+          else if (e.key === 'Home') els[0]?.focus();
+          else els[els.length - 1]?.focus();
+        }}
+      >
+        {tabs.map((tab, index) => {
           const active = tab.path === pathname;
           const closable = !CLOSEABLE.includes(tab.path);
           return (
@@ -250,7 +317,10 @@ export default function PageTabs() {
               <button
                 type="button"
                 role="tab"
+                id={`page-tab-${index}`}
                 aria-selected={active}
+                aria-controls="app-tabpanel"
+                tabIndex={active ? 0 : -1}
                 className={`page-tab ${active ? 'active' : ''} ${closable ? 'has-close' : ''}`}
                 onClick={() => {
                   if (!active) router.push(tab.path);
@@ -297,28 +367,43 @@ export default function PageTabs() {
       {menu &&
         createPortal(
           <>
-            <div className="page-tabs-menu-mask" onClick={closeMenu} />
+            <div className="page-tabs-menu-mask" onClick={closeMenu} aria-hidden="true" />
             <div
               className="page-tabs-menu"
               ref={menuRef}
+              role="menu"
+              aria-label="页签操作"
               style={{ left: menu.x, top: menu.y }}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={handleMenuKeyDown}
             >
               <div className="page-tabs-menu-title">
                 <IconBranch style={{ fontSize: 12 }} />
                 {menu.tab.label}
               </div>
-              <button className="page-tabs-menu-item" onClick={handleRefresh}>
+              <button
+                type="button"
+                role="menuitem"
+                className="page-tabs-menu-item"
+                onClick={handleRefresh}
+              >
                 <IconRefresh /> 刷新当前页
               </button>
               <button
+                type="button"
+                role="menuitem"
                 className="page-tabs-menu-item"
                 disabled={CLOSEABLE.includes(menu.tab.path)}
                 onClick={handleCloseOthers}
               >
                 <IconBranch /> 关闭其他
               </button>
-              <button className="page-tabs-menu-item" onClick={handleCloseAll}>
+              <button
+                type="button"
+                role="menuitem"
+                className="page-tabs-menu-item"
+                onClick={handleCloseAll}
+              >
                 <IconDelete /> 关闭所有
               </button>
             </div>

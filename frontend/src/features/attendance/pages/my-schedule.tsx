@@ -168,7 +168,7 @@ export default function MySchedulePage() {
                   )}
                   {isToday && (
                     <span
-                      className="text-[10px] rounded px-1 w-fit"
+                      className="text-xs rounded px-1 w-fit"
                       style={{
                         background: shift ? 'rgba(255,255,255,0.5)' : 'var(--lx-primary-bg)',
                         color: shift ? undefined : 'var(--lx-primary)',

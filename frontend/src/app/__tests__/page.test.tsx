@@ -138,6 +138,35 @@ describe('HomePage', () => {
     });
   });
 
+  it('快捷入口是语义 button（键盘可达，WCAG SC 2.1.1）', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('员工管理')).toBeInTheDocument());
+    const entry = screen.getByRole('button', { name: /员工管理/ });
+    expect(entry.tagName).toBe('BUTTON');
+    expect(entry).toHaveAttribute('type', 'button');
+  });
+
+  it('键盘 Enter 可触发快捷入口（与鼠标点击等价）', async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('员工管理')).toBeInTheDocument());
+    const entry = screen.getByRole('button', { name: /员工管理/ });
+    entry.focus();
+    expect(document.activeElement).toBe(entry);
+    await user.keyboard('{Enter}');
+    expect(mockPush).toHaveBeenCalledWith('/employees');
+  });
+
+  it('「查看全部 / 查看详情」入口是 button 而非仅 hover 可点的 span', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('待办事项')).toBeInTheDocument());
+    for (const name of [/查看全部/, /查看详情/]) {
+      const btns = screen.getAllByRole('button', { name });
+      expect(btns.length).toBeGreaterThan(0);
+      for (const b of btns) expect(b.tagName).toBe('BUTTON');
+    }
+  });
+
   it('navigates when a quick action card is clicked', async () => {
     const user = userEvent.setup();
     render(<HomePage />);

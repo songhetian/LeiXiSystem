@@ -26,6 +26,7 @@ const baseSearchFields: SearchFieldConfig[] = [
     options: [
       { value: 'normal', label: '正常' },
       { value: 'abnormal', label: '异常' },
+      { value: 'makeup', label: '补卡' },
       { value: 'leave', label: '请假' },
       { value: 'absent', label: '旷工' },
     ],
@@ -35,6 +36,7 @@ const baseSearchFields: SearchFieldConfig[] = [
 const statusMap: Record<string, { label: string; color: string }> = {
   normal: { label: '正常', color: 'green' },
   abnormal: { label: '异常', color: 'red' },
+  makeup: { label: '补卡', color: 'arcoblue' },
   leave: { label: '请假', color: 'arcoblue' },
   absent: { label: '旷工', color: 'orangered' },
 };

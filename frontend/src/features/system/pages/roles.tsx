@@ -323,10 +323,14 @@ export default function SystemRolesPage() {
                 const selectedCount = perms.filter((p) => permIds.includes(p.id)).length;
                 const active = selectedModule === m;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={m}
+                    className="lx-clickable"
                     onClick={() => handleModuleSelect(m)}
+                    aria-current={active ? 'true' : undefined}
                     style={{
+                      width: '100%',
                       padding: '9px 12px',
                       cursor: 'pointer',
                       display: 'flex',
@@ -334,6 +338,9 @@ export default function SystemRolesPage() {
                       alignItems: 'center',
                       fontSize: 14,
                       background: active ? 'var(--lx-primary-50)' : 'transparent',
+                      borderTop: 'none',
+                      borderRight: 'none',
+                      borderBottom: 'none',
                       borderLeft: active ? '3px solid var(--lx-primary-600)' : '3px solid transparent',
                       color: active ? 'var(--lx-primary-700)' : 'var(--lx-text-2)',
                     }}
@@ -349,7 +356,7 @@ export default function SystemRolesPage() {
                       {perms.length} 项
                     </Typography.Text>
                   </Space>
-                  </div>
+                  </button>
                 );
               })}
             </div>

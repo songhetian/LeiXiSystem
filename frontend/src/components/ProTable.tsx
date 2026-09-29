@@ -181,6 +181,32 @@ export default function ProTable({
     onRowClick?.(record);
   };
 
+  // ---- 行的键盘可达性（WCAG SC 2.1.1 Keyboard）----
+  // 行点击（进入详情/编辑）是后台最高频交互，但 <tr> 默认不可聚焦、不响应 Enter。
+  // 采用「roving tabindex」：整张表只保留一个可 Tab 到达的行（避免几十行把 Tab 序列撑爆，
+  // 那本身违反 SC 2.4.3 焦点顺序），表内用 ↑/↓ 移动焦点、Enter/Space 打开。
+  const [focusRowIndex, setFocusRowIndex] = useState(0);
+
+  const handleRowKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>, record: any) => {
+    if (!onRowClick) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleRowClick(record);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const row = e.currentTarget;
+      const sibling = (
+        e.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling
+      ) as HTMLElement | null;
+      // 只移动到同样是「可聚焦行」的兄弟节点上，跳过展开行等非交互行
+      if (sibling && sibling.hasAttribute('tabindex')) {
+        e.preventDefault();
+        sibling.focus();
+      }
+    }
+  };
+
   const toggleColumn = (key: string) => {
     setHiddenKeys((prev) => {
       const next = new Set(prev);
@@ -367,6 +393,10 @@ export default function ProTable({
       )}
 
       <DataState error={error} onRetry={onRetry}>
+        {/* 键盘用户看不到"行可点击"的鼠标暗示，用屏读可及但视觉隐藏的说明补上提示 */}
+        {onRowClick && (
+          <span className="lx-sr-only">表格行可用方向键上下移动，按回车键或空格键打开详情</span>
+        )}
         <Table
           columns={visibleColumns}
           data={data}
@@ -377,8 +407,17 @@ export default function ProTable({
           stripe={false}
           rowSelection={rowSelection as any}
           size={density === 'default' ? 'default' : density}
-          onRow={(record) => ({
+          onRow={(record, index) => ({
             onClick: () => handleRowClick(record),
+            // 行内键盘通路：roving tabindex + ↑↓ 移动 + Enter/Space 打开
+            ...(onRowClick
+              ? {
+                  tabIndex: index === focusRowIndex ? 0 : -1,
+                  onFocus: () => setFocusRowIndex(index),
+                  onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) =>
+                    handleRowKeyDown(e, record),
+                }
+              : {}),
             style: { cursor: onRowClick ? 'pointer' : 'default' } as React.CSSProperties,
           })}
           noDataElement={emptyElement ?? <Empty description="暂无数据" />}

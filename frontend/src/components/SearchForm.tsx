@@ -137,6 +137,9 @@ export default function SearchForm({
         case 'month':
           return (
             <DatePicker
+              // Arco Picker 不透传原生 id，需经 inputProps 落到真实 input 上，
+              // 否则外层 <label htmlFor> 悬空、屏幕阅读器不朗读字段名（WCAG SC 1.3.1 / 3.3.2）
+              inputProps={{ id: field.key }}
               style={{ width: '100%' }}
               placeholder={field.placeholder || '请选择月份'}
               value={value}
@@ -147,6 +150,7 @@ export default function SearchForm({
         case 'date':
           return (
             <DatePicker
+              inputProps={{ id: field.key }}
               style={{ width: '100%' }}
               placeholder={field.placeholder || '请选择日期'}
               value={value}
@@ -157,6 +161,7 @@ export default function SearchForm({
         case 'range':
           return (
             <RangePicker
+              inputProps={[{ id: field.key }, { id: `${field.key}-end` }]}
               style={{ width: '100%' }}
               placeholder={['开始日期', '结束日期']}
               value={value}
@@ -167,6 +172,7 @@ export default function SearchForm({
         case 'employee':
           return (
             <EmployeeSelect
+              id={field.key}
               value={value || undefined}
               onChange={(val, emp) =>
                 handleChange(field.key, val && emp && !Array.isArray(emp) ? emp.name : undefined)
@@ -176,7 +182,14 @@ export default function SearchForm({
           );
         case 'input':
         default:
-          return <Input placeholder={field.placeholder || '请输入'} value={value} onChange={(val) => handleChange(field.key, val)} />;
+          return (
+            <Input
+              id={field.key}
+              placeholder={field.placeholder || '请输入'}
+              value={value}
+              onChange={(val) => handleChange(field.key, val)}
+            />
+          );
       }
     })();
 

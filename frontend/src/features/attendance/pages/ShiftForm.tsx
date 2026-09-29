@@ -257,14 +257,16 @@ export default function ShiftForm({
               style={{ width: 110 }}
               placeholder="颜色代码，如 3B82F6"
             />
-            <div
-              className="flex items-center justify-center h-9 w-11 rounded cursor-pointer transition-colors"
+            <button
+              type="button"
+              className="lx-clickable flex items-center justify-center h-9 w-11 rounded cursor-pointer transition-colors"
               style={{ border: '1px solid var(--lx-border-2)', background: colorValue || '#3B82F6' }}
               onClick={randomColor}
+              aria-label="随机取色"
               title="随机取色"
             >
               <IconRefresh style={{ color: getContrastColor(colorValue || '#3B82F6') }} />
-            </div>
+            </button>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-3 shift-color-swatches">
             {VIBRANT_COLORS.map((c) => {

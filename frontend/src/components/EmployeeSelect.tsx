@@ -25,6 +25,8 @@ export interface EmployeeSelectProps {
   style?: React.CSSProperties;
   /** 自定义 className */
   className?: string;
+  /** 原生 id：配合外层 <label htmlFor> 使用，保证屏幕阅读器可朗读字段名（WCAG SC 1.3.1 / 3.3.2） */
+  id?: string;
 }
 
 interface OptionData {
@@ -43,6 +45,7 @@ export default function EmployeeSelect({
   allowClear = true,
   style,
   className,
+  id,
 }: EmployeeSelectProps) {
   const [options, setOptions] = useState<OptionData[]>([]);
   const [loading, setLoading] = useState(false);

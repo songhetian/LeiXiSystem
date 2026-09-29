@@ -765,7 +765,7 @@ export default function ScheduleCalendarPage() {
         render: (_v: unknown, record: Employee) => (
           <div>
             <div className="font-medium text-text-1">{record.name}</div>
-            <div className="text-[11px] text-text-3">{record.employeeNo}</div>
+            <div className="text-xs text-text-3">{record.employeeNo}</div>
           </div>
         ),
       },
@@ -780,7 +780,7 @@ export default function ScheduleCalendarPage() {
       cols.push({
         title: (
           <div className="flex flex-col items-center leading-tight">
-            <span className={`text-[10px] ${isWeekend ? 'text-danger' : 'text-text-3'}`}>
+            <span className={`text-xs ${isWeekend ? 'text-danger' : 'text-text-3'}`}>
               {WEEKDAY_LABELS[weekday]}
             </span>
             <span className={`text-sm font-medium ${isWeekend ? 'text-danger' : 'text-text-1'}`}>
@@ -841,7 +841,7 @@ export default function ScheduleCalendarPage() {
               </div>
             );
           }
-          return <span className="text-text-4 text-[11px]">-</span>;
+          return <span className="text-text-4 text-xs">-</span>;
         },
       });
     }
@@ -1029,7 +1029,7 @@ export default function ScheduleCalendarPage() {
         />
 
         {batchLoading && (
-          <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/50 z-[1001]">
+          <div className="fixed inset-0 flex flex-col items-center justify-center bg-overlay-soft z-[1001]">
             <Spin size={36} />
             <div className="mt-3 text-text-1">批量操作中...</div>
           </div>
@@ -1261,7 +1261,7 @@ function HSyncBar({ visible, scrollLeft, scrollWidth, clientWidth, onSeek }: HSy
       }}
     >
       <div
-        className="h-2 rounded-full bg-white/80 backdrop-blur border border-black/10 shadow-md flex items-center"
+        className="h-2 rounded-full bg-overlay-strong backdrop-blur border border-border-1 shadow-md flex items-center"
         style={{ width: 422, cursor: 'pointer' }}
       >
         <div

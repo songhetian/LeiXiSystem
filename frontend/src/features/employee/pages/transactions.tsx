@@ -421,7 +421,7 @@ export default function EmployeeTransactions() {
                   <Button>选择附件</Button>
                 </Upload>
                 {form.getFieldValue('attachmentUrl') ? (
-                  <div className="mt-1 text-xs text-gray-400">
+                  <div className="mt-1 text-xs text-text-3">
                     已上传：{String(form.getFieldValue('attachmentUrl')).split('/').pop()}
                   </div>
                 ) : null}

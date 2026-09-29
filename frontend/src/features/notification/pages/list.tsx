@@ -167,15 +167,23 @@ export default function NotificationsPage() {
           <List
             dataSource={data}
             render={(item) => (
-              <div
+              <button
+                type="button"
                 key={item.id}
+                className="lx-clickable"
                 onClick={() => handleReadOne(item)}
+                aria-label={item.read ? item.title : `${item.title}（未读，点击标记为已读）`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  width: '100%',
                   padding: '12px 4px',
                   borderBottom: '1px solid var(--lx-border-2)',
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
+                  background: 'none',
                   cursor: item.read ? 'default' : 'pointer',
                 }}
               >
@@ -194,7 +202,7 @@ export default function NotificationsPage() {
                   </Tag>
                   {!item.read && <Tag color="red">未读</Tag>}
                 </Space>
-              </div>
+              </button>
             )}
           />
         )}

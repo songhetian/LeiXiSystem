@@ -216,7 +216,12 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
           <div className="header-divider" />
 
           <Dropdown droplist={dropList} position="br">
-            <div className="user-info">
+            <button
+              type="button"
+              className="user-info"
+              aria-haspopup="menu"
+              aria-label={`账号菜单：${userName}`}
+            >
               <Avatar size={30} className="header-user-avatar">
                 {userInitial}
               </Avatar>
@@ -224,7 +229,7 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
                 <span className="user-name">{userName}</span>
               )}
               {!isMobile && <IconMore className="header-more-icon" />}
-            </div>
+            </button>
           </Dropdown>
         </div>
       </header>

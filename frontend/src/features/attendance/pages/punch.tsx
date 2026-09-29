@@ -237,7 +237,7 @@ export default function PunchPage() {
               <div className="text-2xl font-bold text-brand font-mono leading-none tabular-nums">
                 {hh}:{mm}:{ss}
               </div>
-              <div className="text-[10px] text-text-4 mt-1">当前服务器时间</div>
+              <div className="text-xs text-text-4 mt-1">当前服务器时间</div>
             </div>
           </div>
 
@@ -253,7 +253,7 @@ export default function PunchPage() {
                   {shift && hasSchedule && !isRestDay ? (
                     <div className="flex items-center gap-2 text-xs">
                       <span
-                        className="px-2 py-0.5 rounded text-white text-[11px]"
+                        className="px-2 py-0.5 rounded text-white text-xs"
                         style={{ background: shift.color || 'var(--lx-primary)' }}
                       >
                         {shift.name}
@@ -272,7 +272,7 @@ export default function PunchPage() {
                 {/* 三卡统计：上班 / 下班 / 计薪工时（对齐旧项目顺序） */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-[11px] text-text-4 mb-2">上班打卡</div>
+                    <div className="text-xs text-text-4 mb-2">上班打卡</div>
                     <div className={`text-lg font-bold tabular-nums ${hasClockedIn ? 'text-text-1' : 'text-text-4'}`}>
                       {formatHM(todayData?.firstPunch)}
                     </div>
@@ -287,7 +287,7 @@ export default function PunchPage() {
                     )}
                   </div>
                   <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-[11px] text-text-4 mb-2">下班打卡</div>
+                    <div className="text-xs text-text-4 mb-2">下班打卡</div>
                     <div className={`text-lg font-bold tabular-nums ${hasClockedOut ? 'text-text-1' : 'text-text-4'}`}>
                       {formatHM(todayData?.lastPunch)}
                     </div>
@@ -302,7 +302,7 @@ export default function PunchPage() {
                     )}
                   </div>
                   <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-[11px] text-text-4 mb-2">计薪工时</div>
+                    <div className="text-xs text-text-4 mb-2">计薪工时</div>
                     <div className="text-lg font-bold text-text-1 tabular-nums">
                       {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
                     </div>
@@ -312,7 +312,7 @@ export default function PunchPage() {
                       </div>
                     )}
                     {!hasClockedOut && (
-                      <div className="mt-2 text-[10px] text-text-4">下班后统计</div>
+                      <div className="mt-2 text-xs text-text-4">下班后统计</div>
                     )}
                   </div>
                 </div>
@@ -355,7 +355,7 @@ export default function PunchPage() {
                         {clockInBtn.text}
                       </Button>
                       {clockInHint && (
-                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockInAllowed === false ? 'text-text-4' : 'text-brand'}`}>
+                        <div className={`mt-2 text-center text-xs min-h-[16px] ${clockInAllowed === false ? 'text-text-4' : 'text-brand'}`}>
                           {clockInHint}
                         </div>
                       )}
@@ -373,7 +373,7 @@ export default function PunchPage() {
                         {clockOutBtn.text}
                       </Button>
                       {clockOutHint && (
-                        <div className={`mt-2 text-center text-[11px] min-h-[16px] ${clockOutAllowed === false ? 'text-text-4' : 'text-clock-out'}`}>
+                        <div className={`mt-2 text-center text-xs min-h-[16px] ${clockOutAllowed === false ? 'text-text-4' : 'text-clock-out'}`}>
                           {clockOutHint}
                         </div>
                       )}
@@ -459,7 +459,7 @@ export default function PunchPage() {
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-text-1">{s.name}</span>
                         {s.isNextDay && (
-                          <span className="text-[10px] px-1.5 py-px rounded-full bg-bg-hover text-text-4 leading-none">
+                          <span className="text-xs px-1.5 py-px rounded-full bg-bg-hover text-text-4 leading-none">
                             跨天
                           </span>
                         )}
@@ -472,7 +472,7 @@ export default function PunchPage() {
                       {s.startTime} – {s.endTime}
                     </span>
                     <span
-                      className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[13px] leading-none ${
+                      className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-sm leading-none ${
                         active ? 'bg-brand text-white' : 'bg-bg-hover text-transparent'
                       }`}
                     >

@@ -7,6 +7,7 @@ jest.mock('@/components/EmployeeSelect', () => {
   return (props: any) => (
     <select
       data-testid={`employee-select-${props.placeholder || 'default'}`}
+      data-id={props.id || ''}
       value={props.value == null ? '' : props.value}
       onChange={(e) => {
         // 模拟选中某个员工：回调 onChange(value, employee)
@@ -85,8 +86,13 @@ jest.mock('@arco-design/web-react', () => {
     ),
   };
 
-  const RangePicker = () => <div data-testid="date-range" />;
-  const DatePicker = (props: any) => <div data-testid="date-picker" />;
+  // Arco Picker 不透传原生 id，真实组件通过 inputProps 落到 input 上，这里如实模拟
+  const RangePicker = (props: any) => (
+    <div data-testid="date-range" data-input-id={props.inputProps?.[0]?.id || ''} />
+  );
+  const DatePicker = (props: any) => (
+    <div data-testid="date-picker" data-input-id={props.inputProps?.id || ''} />
+  );
   DatePicker.RangePicker = RangePicker;
 
   return { Form, Input, Select, Button, Card, Grid, DatePicker };
@@ -201,7 +207,7 @@ describe('SearchForm', () => {
           initialValues={{ name: 'abc' }}
         />,
       );
-      const input = screen.getByTestId('input-default');
+      const input = screen.getByTestId('input-name');
       expect(input).toHaveValue('abc');
 
       await user.clear(input);
@@ -220,7 +226,7 @@ describe('SearchForm', () => {
         <SearchForm fields={mockFields} onSearch={onSearch} debounceMs={300} />,
       );
 
-      fireEvent.change(screen.getByTestId('input-default'), { target: { value: 'x' } });
+      fireEvent.change(screen.getByTestId('input-name'), { target: { value: 'x' } });
 
       unmount();
       act(() => {
@@ -334,6 +340,47 @@ describe('SearchForm', () => {
       expect(actions.querySelector('[data-testid="toggle-collapse"]')).not.toBeNull();
       await user.click(screen.getByTestId('toggle-collapse'));
       expect(screen.getByTestId('form-item-d')).toBeInTheDocument();
+    });
+  });
+
+  describe('无障碍：label 与控件 id 绑定（WCAG SC 1.3.1 / 3.3.2 / 4.1.2）', () => {
+    // 回归背景：此前只有 Select 传了 id，日期/区间/员工/文本四类控件的 <label htmlFor>
+    // 全部悬空 —— 点击 label 无法聚焦控件，屏幕阅读器也不朗读字段名。
+    const allTypes: SearchFieldConfig[] = [
+      { key: 'kw', label: '关键词', type: 'input' },
+      { key: 'dept', label: '部门', type: 'select', options: [] },
+      { key: 'day', label: '日期', type: 'date' },
+      { key: 'span', label: '区间', type: 'range' },
+      { key: 'emp', label: '员工', type: 'employee' },
+      { key: 'mon', label: '月份', type: 'month' },
+    ];
+
+    it('五类控件的 label 均指向真实控件 id', () => {
+      render(<SearchForm fields={allTypes} onSearch={() => {}} expandable={false} />);
+
+      // 文本 / 下拉：id 直接落在原生控件上
+      expect(screen.getByTestId('input-kw')).toBeInTheDocument();
+      expect(screen.getByTestId('select-dept')).toBeInTheDocument();
+      // 日期 / 月份 / 区间：id 经 inputProps 落到 Arco Picker 的原生 input 上
+      const datePickers = screen.getAllByTestId('date-picker');
+      expect(datePickers.map((el) => el.getAttribute('data-input-id')).sort()).toEqual(['day', 'mon']);
+      expect(screen.getByTestId('date-range')).toHaveAttribute('data-input-id', 'span');
+      // 员工：id 透传给 EmployeeSelect
+      expect(screen.getByTestId('employee-select-搜索员工姓名或工号')).toHaveAttribute('data-id', 'emp');
+    });
+
+    it('每个 label 的 htmlFor 都能对应到一个存在的控件 id', () => {
+      const { container } = render(
+        <SearchForm fields={allTypes} onSearch={() => {}} expandable={false} />,
+      );
+      const labels = Array.from(container.querySelectorAll('label'));
+      expect(labels).toHaveLength(allTypes.length);
+      for (const label of labels) {
+        const htmlFor = label.getAttribute('for');
+        expect(htmlFor).toBeTruthy();
+        // 字段 key 本身必须出现在 label 的 for 上
+        expect(allTypes.map((f) => f.key)).toContain(htmlFor);
+      }
     });
   });
 });

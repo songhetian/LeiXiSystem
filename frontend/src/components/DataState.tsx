@@ -81,16 +81,23 @@ export default function DataState({
     }
 
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '48px 0', gap: 8 }}>
+      // role="status" + aria-live：异步加载态需要被屏幕阅读器播报（WCAG SC 4.1.3 Status Messages AA）。
+      // 全站此前仅 1 处有 aria-live，这里统一补上。
+      <div
+        role="status"
+        aria-live="polite"
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '48px 0', gap: 8 }}
+      >
         <Spin size={20} />
-        <span style={{ color: 'var(--lx-text-3)', fontSize: 14 }}>{loadingText}</span>
+        <span style={{ color: 'var(--lx-text-3)', fontSize: 'var(--lx-font-md)' }}>{loadingText}</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: '48px 0' }}>
+      // 加载失败同样需要播报，且用 assertive 让错误优先被读出
+      <div role="alert" aria-live="assertive" style={{ padding: '48px 0' }}>
         <Result
           status="error"
           title="加载失败"

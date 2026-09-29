@@ -18,7 +18,7 @@ jest.mock('@/components/SearchForm', () => ({
 }));
 
 jest.mock('@arco-design/web-react', () => {
-  const Table = ({ columns, data, loading, pagination, scroll }: any) => {
+  const Table = ({ columns, data, loading, pagination, scroll, onRow }: any) => {
     const onPageChange = pagination?.onChange;
     const current = pagination?.current || 1;
     const pageSize = pagination?.pageSize || 10;
@@ -35,7 +35,8 @@ jest.mock('@arco-design/web-react', () => {
         </thead>
         <tbody>
           {data.map((row: any, idx: number) => (
-            <tr key={idx} data-testid="table-row">
+            // 忠实模拟 Arco Table：把 onRow(record, index) 的返回值挂到 <tr> 上
+            <tr key={idx} data-testid="table-row" {...(onRow ? onRow(row, idx) : {})}>
               {columns.map((col: any) => (
                 <td key={col.dataIndex}>
                   {col.render ? col.render(row[col.dataIndex], row, idx) : row[col.dataIndex]}
@@ -265,5 +266,58 @@ describe('ProTable', () => {
       );
       expect(onPageChange).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ProTable 行的键盘可达性（WCAG SC 2.1.1 / 2.4.3）', () => {
+  const rows = [
+    { id: 1, name: '张三' },
+    { id: 2, name: '李四' },
+    { id: 3, name: '王五' },
+  ];
+  const cols = [
+    { title: '姓名', dataIndex: 'name' },
+  ];
+
+  it('未传 onRowClick 时行不可聚焦（不污染 Tab 序列）', () => {
+    render(<ProTable columns={cols} data={rows} rowKey="id" />);
+    for (const tr of screen.getAllByTestId('table-row')) {
+      expect(tr).not.toHaveAttribute('tabindex');
+    }
+    expect(screen.queryByText(/按回车键/)).not.toBeInTheDocument();
+  });
+
+  it('传 onRowClick 时整张表只有一行进入 Tab 序列（roving tabindex）', () => {
+    render(<ProTable columns={cols} data={rows} rowKey="id" onRowClick={() => {}} />);
+    const trs = screen.getAllByTestId('table-row');
+    expect(trs.filter((tr) => tr.getAttribute('tabindex') === '0')).toHaveLength(1);
+    expect(trs.filter((tr) => tr.getAttribute('tabindex') === '-1')).toHaveLength(2);
+  });
+
+  it('Enter / Space 触发 onRowClick，方向键在行间移动焦点', async () => {
+    const user = userEvent.setup();
+    const onRowClick = jest.fn();
+    render(<ProTable columns={cols} data={rows} rowKey="id" onRowClick={onRowClick} />);
+    const trs = screen.getAllByTestId('table-row');
+
+    trs[0].focus();
+    expect(document.activeElement).toBe(trs[0]);
+
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(trs[1]);
+
+    await user.keyboard('{Enter}');
+    expect(onRowClick).toHaveBeenCalledWith(rows[1]);
+
+    await user.keyboard(' ');
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+
+    await user.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(trs[0]);
+  });
+
+  it('为键盘用户提供屏读可及的「回车打开」提示', () => {
+    render(<ProTable columns={cols} data={rows} rowKey="id" onRowClick={() => {}} />);
+    expect(screen.getByText(/按回车键或空格键打开详情/)).toHaveClass('lx-sr-only');
   });
 });

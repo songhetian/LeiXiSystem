@@ -120,6 +120,16 @@ export default function AppLayout({
     setSiderVisible(false);
   }, []);
 
+  // 移动端抽屉：键盘用户无法点击遮罩关闭，补 Escape（WCAG SC 2.1.1 Keyboard）
+  useEffect(() => {
+    if (!isMobile || !siderVisible) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSider();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isMobile, siderVisible, closeSider]);
+
   return (
     <ProtectedRoute>
       <RouteProgress />
@@ -144,8 +154,10 @@ export default function AppLayout({
               onClose={closeSider}
             />
             {siderVisible && (
+              // 纯装饰性遮罩：关闭操作已由 Escape 键与侧栏内按钮提供键盘通路，故对辅助技术隐藏
               <div
                 className="drawer-mask"
+                aria-hidden="true"
                 onClick={closeSider}
               />
             )}
@@ -154,7 +166,7 @@ export default function AppLayout({
         <div className="app-main">
           <AppHeader title={title} isMobile={isMobile} collapsed={!isMobile && collapsed} onMenuToggle={handleMenuToggle} />
           <PageTabs />
-          <main className="app-content">
+          <main className="app-content" id="app-tabpanel" role="tabpanel" aria-label="页面内容">
             <ErrorBoundary>
               <KeepAliveHost activePath={pathname} alivePaths={alivePaths}>
                 {children}
