@@ -1,5 +1,6 @@
 import { ShiftsService } from './shifts.service';
 import { UnprocessableEntityException, NotFoundException, ConflictException } from '@nestjs/common';
+import { messageOf } from '../common/error-messages';
 
 function createMockPrisma() {
   return {
@@ -218,5 +219,55 @@ describe('ShiftsService', () => {
 
     await expect(service.remove(1)).rejects.toThrow();
     expect(prisma.shift.delete).not.toHaveBeenCalled();
+  });
+});
+
+// 捕获异常 payload：全局过滤器会用 ERROR_MESSAGES[code] 覆盖抛出 message
+async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+  try {
+    await fn();
+  } catch (e: any) {
+    return e.getResponse?.() ?? e.response ?? e;
+  }
+  throw new Error('预期抛出异常，但未抛出');
+}
+
+describe('ShiftsService - 2001 仅用于「时间冲突/名称重复」，其余语义须有专属码', () => {
+  let service: ShiftsService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ShiftsService(prisma);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('班次不存在：不得复用 2001，中央文案为「班次不存在」', async () => {
+    prisma.shift.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.update(999, { name: '不存在' }));
+
+    expect(payload.code).not.toBe(2001);
+    expect(messageOf(payload.code)).toBe('班次不存在');
+  });
+
+  it('班次被排班使用不可删除：不得复用 2001，中央文案为「该班次已被排班使用，无法删除」', async () => {
+    prisma.shift.findUnique.mockResolvedValue({ id: 1, name: '早班' });
+    prisma.schedule.count.mockResolvedValue(2);
+
+    const payload = await catchPayload(() => service.remove(1));
+
+    expect(payload.code).not.toBe(2001);
+    expect(messageOf(payload.code)).toBe('该班次已被排班使用，无法删除');
+  });
+
+  it('时间冲突仍使用 2001（回归保护）', async () => {
+    const payload = await catchPayload(() =>
+      service.create({ name: '坏班次', startTime: '09:00', endTime: '09:00', isNextDay: false }),
+    );
+
+    expect(payload.code).toBe(2001);
+    expect(messageOf(payload.code)).toBe('班次时间冲突或名称重复');
   });
 });

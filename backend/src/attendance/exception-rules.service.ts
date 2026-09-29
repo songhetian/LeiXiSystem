@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // ===== 异常规则（exception-rules） =====
 export interface ExceptionRuleCreateDto {
@@ -53,11 +54,11 @@ export class ExceptionRulesService {
     const thresholdMax = dto.thresholdMax ?? undefined;
     // 阈值下限不能超过上限（两者都填时校验）
     if (threshold !== undefined && thresholdMax !== undefined && threshold > thresholdMax) {
-      throw new BadRequestException({ code: 2001, message: '阈值（threshold）不能大于阈值上限（thresholdMax）' });
+      throw new BadRequestException({ code: ERROR_CODES.EXCEPTION_RULE_THRESHOLD_INVALID, message: '阈值（threshold）不能大于阈值上限（thresholdMax）' });
     }
     // 扣款分钟数不能为负
     if (dto.deductMinutes !== undefined && dto.deductMinutes < 0) {
-      throw new BadRequestException({ code: 2001, message: '扣款分钟数不能为负数' });
+      throw new BadRequestException({ code: ERROR_CODES.DEDUCTION_MINUTES_INVALID, message: '扣款分钟数不能为负数' });
     }
   }
 
@@ -75,7 +76,7 @@ export class ExceptionRulesService {
       return await this.prisma.attendanceExceptionRule.create({ data });
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new BadRequestException({ code: 2001, message: '存在重名或冲突的异常规则' });
+        throw new BadRequestException({ code: ERROR_CODES.EXCEPTION_RULE_CONFLICT, message: '存在重名或冲突的异常规则' });
       }
       throw e;
     }
@@ -91,7 +92,7 @@ export class ExceptionRulesService {
   async updateRule(id: number, dto: ExceptionRuleUpdateDto) {
     const rule = await this.prisma.attendanceExceptionRule.findUnique({ where: { id } });
     if (!rule) {
-      throw new NotFoundException({ code: 2001, message: '异常规则不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EXCEPTION_RULE_NOT_FOUND, message: '异常规则不存在' });
     }
     // 合并已有值后做阈值校验
     const merged = { ...rule, ...dto } as ExceptionRuleCreateDto;
@@ -109,7 +110,7 @@ export class ExceptionRulesService {
   async toggleRule(id: number) {
     const rule = await this.prisma.attendanceExceptionRule.findUnique({ where: { id } });
     if (!rule) {
-      throw new NotFoundException({ code: 2001, message: '异常规则不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EXCEPTION_RULE_NOT_FOUND, message: '异常规则不存在' });
     }
     const nextStatus = rule.status === 'enabled' ? 'disabled' : 'enabled';
     return await this.prisma.attendanceExceptionRule.update({
@@ -121,7 +122,7 @@ export class ExceptionRulesService {
   async removeRule(id: number) {
     const rule = await this.prisma.attendanceExceptionRule.findUnique({ where: { id } });
     if (!rule) {
-      throw new NotFoundException({ code: 2001, message: '异常规则不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EXCEPTION_RULE_NOT_FOUND, message: '异常规则不存在' });
     }
     await this.prisma.attendanceExceptionRule.delete({ where: { id } });
     return { success: true };
@@ -146,7 +147,7 @@ export class ExceptionRulesService {
   // 生成异常记录
   async createException(dto: ExceptionCreateDto) {
     if (dto.deductMinutes !== undefined && dto.deductMinutes < 0) {
-      throw new BadRequestException({ code: 2001, message: '扣款分钟数不能为负数' });
+      throw new BadRequestException({ code: ERROR_CODES.DEDUCTION_MINUTES_INVALID, message: '扣款分钟数不能为负数' });
     }
     const data: any = {
       employeeId: dto.employeeId,
@@ -164,7 +165,7 @@ export class ExceptionRulesService {
   async handleException(id: number, dto: ExceptionHandleDto) {
     const exception = await this.prisma.attendanceException.findUnique({ where: { id } });
     if (!exception) {
-      throw new NotFoundException({ code: 2001, message: '异常记录不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EXCEPTION_RECORD_NOT_FOUND, message: '异常记录不存在' });
     }
     const data: Record<string, any> = {
       status: dto.status,
@@ -179,7 +180,7 @@ export class ExceptionRulesService {
   async removeException(id: number) {
     const exception = await this.prisma.attendanceException.findUnique({ where: { id } });
     if (!exception) {
-      throw new NotFoundException({ code: 2001, message: '异常记录不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EXCEPTION_RECORD_NOT_FOUND, message: '异常记录不存在' });
     }
     await this.prisma.attendanceException.delete({ where: { id } });
     return { success: true };

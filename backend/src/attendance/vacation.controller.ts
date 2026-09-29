@@ -5,6 +5,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { VacationService } from './vacation.service';
 import { parsePagination } from '../common/pagination.util';
+import { beijingNow } from '../common/date.util';
 
 @Controller('vacation')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -66,7 +67,7 @@ export class VacationController {
     @Query('year') year?: string,
     @Req() req?: any,
   ) {
-    const y = year ? parseInt(year) : new Date().getFullYear();
+    const y = year ? parseInt(year) : beijingNow().year;
     const data = await this.vacationService.listBalances({
       employeeId: employeeId ? parseInt(employeeId) : undefined,
       year: y,
@@ -100,6 +101,20 @@ export class VacationController {
       userId: req.user.id,
     });
     return { code: 0, data };
+  }
+
+  /**
+   * 手动初始化年度假期额度（幂等，已存在的额度跳过）。
+   * 定时任务之外的人工入口：新部署、补录新员工、新增假期类型后立即生效。
+   */
+  @Post('balances/initialize')
+  @HttpCode(200)
+  @RequirePermission('vacation:manage')
+  async initializeBalances(@Body() body: any) {
+    const year = body?.year ? parseInt(String(body.year)) : beijingNow().year;
+    const employeeId = body?.employeeId ? parseInt(String(body.employeeId)) : undefined;
+    await this.vacationService.initializeYearBalances(year, employeeId);
+    return { code: 0, data: { year, employeeId: employeeId ?? null } };
   }
 
   @Post('balances/adjust')
@@ -138,6 +153,30 @@ export class VacationController {
       userId: req.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
+    });
+    return { code: 0, data };
+  }
+
+  @Get('statistics')
+  @HttpCode(200)
+  @RequirePermission('attendance:view')
+  async getStatistics(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('keyword') keyword?: string,
+    @Req() req?: any,
+  ) {
+    const y = year ? parseInt(year) : beijingNow().year;
+    const m = month ? parseInt(month) : beijingNow().month;
+    const data = await this.vacationService.getAttendanceStatistics({
+      userId: req.user.id,
+      year: y,
+      month: m,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
+      employeeId: employeeId ? parseInt(employeeId) : undefined,
+      keyword,
     });
     return { code: 0, data };
   }

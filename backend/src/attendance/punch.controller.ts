@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PunchService } from './punch.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 const selfScheduleSchema = z.object({
   shiftId: z.number().int().positive('班次ID必填'),
@@ -47,7 +48,7 @@ export class PunchController {
   async selfSchedule(@Req() req: any, @Body() body: unknown) {
     const parsed = selfScheduleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const data = await this.punchService.selfSchedule(req.user.id, parsed.data.shiftId);
     return { code: 0, message: 'ok', data };

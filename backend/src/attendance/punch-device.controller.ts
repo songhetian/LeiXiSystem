@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PunchDeviceService } from './punch-device.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 const createSchema = z.object({
   name: z.string().min(1, '设备名必填'),
@@ -41,7 +42,7 @@ export class PunchDeviceController {
   async create(@Body() body: unknown) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2007, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const device = await this.punchDeviceService.create(parsed.data);
     return { code: 0, message: 'ok', data: device };
@@ -67,7 +68,7 @@ export class PunchDeviceController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2007, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const device = await this.punchDeviceService.update(id, parsed.data);
     return { code: 0, message: 'ok', data: device };

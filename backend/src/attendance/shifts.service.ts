@@ -1,5 +1,6 @@
 import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 班次字段类型（对齐旧项目 work_shifts 表结构）
 export interface ShiftCreateDto {
@@ -58,7 +59,7 @@ export class ShiftsService {
   async update(id: number, dto: ShiftUpdateDto) {
     const shift = await this.prisma.shift.findUnique({ where: { id } });
     if (!shift) {
-      throw new NotFoundException({ code: 2001, message: '班次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SHIFT_NOT_FOUND, message: '班次不存在' });
     }
 
     const startTime = dto.startTime ?? shift.startTime;
@@ -90,11 +91,11 @@ export class ShiftsService {
   async remove(id: number) {
     const shift = await this.prisma.shift.findUnique({ where: { id } });
     if (!shift) {
-      throw new NotFoundException({ code: 2001, message: '班次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SHIFT_NOT_FOUND, message: '班次不存在' });
     }
     const used = await this.prisma.schedule.count({ where: { shiftId: id }, take: 1 });
     if (used > 0) {
-      throw new BadRequestException({ code: 2001, message: '该班次已被排班使用，无法删除' });
+      throw new BadRequestException({ code: ERROR_CODES.SHIFT_IN_USE, message: '该班次已被排班使用，无法删除' });
     }
     await this.prisma.shift.delete({ where: { id } });
     return { success: true };

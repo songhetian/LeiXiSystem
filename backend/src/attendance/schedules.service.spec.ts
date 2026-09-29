@@ -1,5 +1,6 @@
 import { SchedulesService } from './schedules.service';
 import { DataScopeService } from '../common/data-scope.service';
+import { messageOf } from '../common/error-messages';
 
 function createMockPrisma() {
   return {
@@ -8,6 +9,9 @@ function createMockPrisma() {
     },
     schedule: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
     },
     employee: {
@@ -109,10 +113,10 @@ describe('SchedulesService.matrix（部门×月份矩阵）', () => {
 
     const result = await service.matrix(9, { departmentId: 2, startDate: '2026-08-01', endDate: '2026-08-31' });
 
-    // 员工按部门过滤且仅在职
+    // 员工按部门过滤且仅在职（在职 = 正式 + 试用期，否则试用期员工排不了班也就无法打卡）
     expect(prisma.employee.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ departmentId: 2, status: 'active' }),
+        where: expect.objectContaining({ departmentId: 2, status: { in: ['active', 'probation'] } }),
       }),
     );
     // 排班按员工集合 + 日期范围过滤，携带班次
@@ -143,5 +147,59 @@ describe('SchedulesService.matrix（部门×月份矩阵）', () => {
     expect(prisma.schedule.findMany).not.toHaveBeenCalled();
     expect(result.employees).toEqual([]);
     expect(result.schedules).toEqual([]);
+  });
+});
+
+// 捕获异常 payload：全局过滤器会用 ERROR_MESSAGES[code] 覆盖抛出 message
+async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+  try {
+    await fn();
+  } catch (e: any) {
+    return e.getResponse?.() ?? e.response ?? e;
+  }
+  throw new Error('预期抛出异常，但未抛出');
+}
+
+describe('SchedulesService - 错误码语义（排班不存在不得复用 2002 排班重复）', () => {
+  let service: SchedulesService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  const dataScope = { visibleScope: jest.fn() } as unknown as { visibleScope: jest.Mock };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService);
+    dataScope.visibleScope.mockReset();
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('编辑时排班不存在：中央文案为「排班不存在」', async () => {
+    prisma.schedule.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.update(999, { shiftId: 1 }, 9));
+
+    expect(payload.code).not.toBe(2002);
+    expect(messageOf(payload.code)).toBe('排班不存在');
+  });
+
+  it('删除时排班不存在：中央文案为「排班不存在」', async () => {
+    prisma.schedule.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.remove(999, 9));
+
+    expect(payload.code).not.toBe(2002);
+    expect(messageOf(payload.code)).toBe('排班不存在');
+  });
+
+  it('引用的员工/班次不存在：不得复用 1002（中央文案会覆盖成「员工不存在」，班次不存在时提示误导）', async () => {
+    prisma.schedule.findUnique.mockResolvedValue({ id: 1, employeeId: 5, shiftId: 1 });
+    dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+    prisma.schedule.update.mockRejectedValue({ code: 'P2003' });
+
+    const payload = await catchPayload(() => service.update(1, { shiftId: 999 }, 9));
+
+    expect(payload.code).not.toBe(1002);
+    expect(payload.code).toBe(2019);
+    expect(messageOf(payload.code)).toBe('员工或班次不存在');
   });
 });

@@ -1,10 +1,12 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
+import { ERROR_CODES } from '../common/error-codes';
 import { Prisma } from '@prisma/client';
 import { buildDaily, type Shift as EngineShift } from './engine/attendance-engine';
 import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput } from './engine/daily-status-merger';
 import { AttendanceMonthlyService } from './attendance-monthly.service';
+import { beijingDateTime } from '../common/date.util';
 
 @Injectable()
 export class AttendanceDailyService {
@@ -72,16 +74,15 @@ export class AttendanceDailyService {
 
     // 批量查询所有打卡记录，避免 N+1（原先在循环内逐条查询）
     const employeeNos = [...new Set(schedules.map((s) => s.employee.employeeNo))];
-    const batchStart = new Date(startDate);
-    batchStart.setHours(0, 0, 0, 0);
-    const batchEnd = new Date(endDate);
-    batchEnd.setHours(23, 59, 59, 999);
-    batchEnd.setDate(batchEnd.getDate() + 1); // 考虑 isNextDay
+    // 业务日是北京时间的日历日，而 punchTime 是真实时刻，窗口必须按 Asia/Shanghai 换算。
+    // 右侧用「结束日 +2 天的 0 点」并配 lt：既覆盖 isNextDay 跨天班次，又避免漏掉 23:59 的打卡。
+    const batchStart = beijingDateTime(new Date(startDate), '00:00');
+    const batchEnd = beijingDateTime(new Date(endDate), '00:00', 2);
 
     const allPunches = await this.prisma.punchLog.findMany({
       where: {
         employeeNo: { in: employeeNos },
-        punchTime: { gte: batchStart, lte: batchEnd },
+        punchTime: { gte: batchStart, lt: batchEnd },
       },
       orderBy: { punchTime: 'asc' },
     });
@@ -101,16 +102,12 @@ export class AttendanceDailyService {
         isNextDay: sched.shift.isNextDay,
       };
 
-      let punchStart = new Date(workDate);
-      punchStart.setHours(0, 0, 0, 0);
-      let punchEnd = new Date(workDate);
-      punchEnd.setHours(23, 59, 59, 999);
-      if (sched.shift.isNextDay) {
-        punchEnd = new Date(punchEnd.getTime() + 24 * 60 * 60 * 1000);
-      }
+      // 与该业务日的北京时间窗口对齐；跨天班次顺延一整天，右侧用 lt 排他
+      const punchStart = beijingDateTime(workDate, '00:00');
+      const punchEnd = beijingDateTime(workDate, '00:00', sched.shift.isNextDay ? 2 : 1);
 
       const punches = (punchMap.get(sched.employee.employeeNo) || []).filter(
-        (p) => p.punchTime >= punchStart && p.punchTime <= punchEnd,
+        (p) => p.punchTime >= punchStart && p.punchTime < punchEnd,
       );
 
       const punchTimes = punches.map((p) => ({
@@ -133,7 +130,8 @@ export class AttendanceDailyService {
           isFullDay: this.isFullDayLeave(l, workDate),
         }));
 
-      const isWeekend = workDate.getDay() === 0 || workDate.getDay() === 6;
+      // 业务日以 UTC 午夜存储，判周末必须用 getUTCDay()：本地 getDay() 在负时区会读成前一天
+      const isWeekend = workDate.getUTCDay() === 0 || workDate.getUTCDay() === 6;
       const merged = mergeLeaveMakeupIntoDaily(result, dayLeaves, [], { isWeekend });
 
       const firstPunch = merged.firstPunch
@@ -201,7 +199,7 @@ export class AttendanceDailyService {
     }
     if (employeeId) {
       if (scope.selfEmployeeId && scope.selfEmployeeId !== employeeId) {
-        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他员工的记录' });
       }
       if (!scope.selfEmployeeId) {
         where.employeeId = employeeId;
@@ -236,20 +234,22 @@ export class AttendanceDailyService {
     return { list, total, page, pageSize };
   }
 
+  /** 格式化真实时刻为北京时间的 "HH:mm"（班次时刻同样按北京时间定义） */
   private formatTime(date: Date): string {
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Shanghai',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+    return `${pick('hour')}:${pick('minute')}`;
   }
 
   private combineDateTime(workDate: Date, timeStr: string, isNextDay: boolean, isLast: boolean): Date {
-    const [h, m] = timeStr.split(':').map(Number);
-    const d = new Date(workDate);
-    if (isNextDay && isLast && h < 12) {
-      d.setDate(d.getDate() + 1);
-    }
-    d.setHours(h, m, 0, 0);
-    return d;
+    const [h] = timeStr.split(':').map(Number);
+    const addDays = isNextDay && isLast && h < 12 ? 1 : 0;
+    return beijingDateTime(workDate, timeStr, addDays);
   }
 
   private calcDailyLeaveDays(leave: any, workDate: Date): number {

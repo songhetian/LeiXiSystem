@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Cron } from '@nestjs/schedule';
 import { AttendanceDailyService } from './attendance-daily.service';
+import { beijingBusinessDate } from '../common/date.util';
 
 @Injectable()
 export class AttendanceDailyRecalcService {
@@ -12,7 +13,8 @@ export class AttendanceDailyRecalcService {
     private readonly dailyService: AttendanceDailyService,
   ) {}
 
-  @Cron('0 0 2 * * *')
+  // 显式指定 Asia/Shanghai：容器 TZ 未设置时按 UTC 触发，凌晨 2 点会错位到北京 10 点。
+  @Cron('0 0 2 * * *', { timeZone: 'Asia/Shanghai' })
   async handleDailyRecalc() {
     this.logger.log('开始执行每日考勤日报定时重算');
     const result = await this.runDailyRecalc();
@@ -25,9 +27,10 @@ export class AttendanceDailyRecalcService {
 
   async runDailyRecalc() {
     const startTime = Date.now();
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    // 「昨天」必须以北京业务日（UTC 午夜）为基准回退一天：
+    // 定时任务按北京时间 02:00 触发，此时 UTC 容器里仍是前一天，用本地 getter 会多退一天。
+    const yesterday = beijingBusinessDate();
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
 
     const startDate = this.formatDate(yesterday);
     const endDate = this.formatDate(yesterday);
@@ -130,9 +133,9 @@ export class AttendanceDailyRecalcService {
   }
 
   private formatDate(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
 }

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { employeeNoSchema } from '@lei/shared';
 import { ERROR_CODES } from '../common/error-codes';
+import { beijingDateRangeFilter } from '../common/date.util';
 
 interface PunchLogRow {
   employeeNo: string;
@@ -79,11 +80,11 @@ export class PunchLogsService {
       where.employee = { departmentId: { in: scope.ids } };
     }
     if (query.employeeNo) where.employeeNo = query.employeeNo;
-    if (query.startDate || query.endDate) {
-      where.punchTime = {};
-      if (query.startDate) where.punchTime.gte = new Date(query.startDate + ' 00:00:00');
-      if (query.endDate) where.punchTime.lte = new Date(query.endDate + ' 23:59:59');
-    }
+    // punchTime 是真实时刻列，前端按北京时间业务日传 'YYYY-MM-DD'。
+    // 不能用 `new Date(str + ' 00:00:00')`：那按服务器本地时区解析，UTC 容器下
+    // 会把北京当日 00:00~08:00 的打卡排除、并混入次日凌晨的记录。
+    const punchRange = beijingDateRangeFilter(query.startDate, query.endDate);
+    if (punchRange) where.punchTime = punchRange;
     if (query.status) where.status = query.status;
 
     const [list, total] = await Promise.all([

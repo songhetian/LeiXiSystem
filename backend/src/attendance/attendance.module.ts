@@ -8,6 +8,8 @@ import { PunchLogsService } from './punch-logs.service';
 import { PunchSyncService } from './punch-sync.service';
 import { VacationService } from './vacation.service';
 import { VacationController } from './vacation.controller';
+import { VacationTypeService } from './vacation-type.service';
+import { VacationTypeController } from './vacation-type.controller';
 import { LeaveRecordsController } from './leave-records.controller';
 import { OvertimeRecordsController } from './overtime-records.controller';
 import { AttendanceDailyService } from './attendance-daily.service';
@@ -15,6 +17,7 @@ import { AttendanceDailyController } from './attendance-daily.controller';
 import { AttendanceMonthlyService } from './attendance-monthly.service';
 import { AttendanceMonthlyController } from './attendance-monthly.controller';
 import { AttendanceDailyRecalcService } from './attendance-daily-recalc.service';
+import { VacationBalanceSchedulerService } from './vacation-balance-scheduler.service';
 import { PunchMakeupService } from './punch-makeup.service';
 import { PunchMakeupController } from './punch-makeup.controller';
 import { PunchDeviceService } from './punch-device.service';
@@ -42,6 +45,7 @@ import { AttendanceAuditService } from './attendance-audit.service';
     SchedulesController,
     PunchLogsController,
     VacationController,
+    VacationTypeController,
     LeaveRecordsController,
     OvertimeRecordsController,
     AttendanceDailyController,
@@ -62,8 +66,10 @@ import { AttendanceAuditService } from './attendance-audit.service';
     PunchLogsService,
     PunchSyncService,
     VacationService,
+    VacationTypeService,
     AttendanceDailyService,
     AttendanceDailyRecalcService,
+    VacationBalanceSchedulerService,
     AttendanceMonthlyService,
     PunchMakeupService,
     PunchDeviceService,
@@ -81,6 +87,7 @@ import { AttendanceAuditService } from './attendance-audit.service';
     PunchLogsService,
     PunchSyncService,
     VacationService,
+    VacationTypeService,
     AttendanceDailyService,
     AttendanceDailyRecalcService,
     AttendanceMonthlyService,

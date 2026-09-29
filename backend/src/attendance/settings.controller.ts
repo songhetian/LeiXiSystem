@@ -13,26 +13,16 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AttendanceSettingsService } from './settings.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // Zod schema for PUT /attendance/settings body – all fields optional (partial update)
+// 仅允许写到实际被业务消费的 5 项；其余预留项已清理
 const updateSettingsSchema = z.object({
   lateThreshold: z.number().int().min(0).optional(),
   earlyThreshold: z.number().int().min(0).optional(),
   earlyClockInMinutes: z.number().int().min(0).optional(),
-  lateClockOutMinutes: z.number().int().min(0).optional(),
-  absentHours: z.number().min(0).optional(),
-  maxAnnualLeaveDays: z.number().int().min(0).optional(),
-  maxSickLeaveDays: z.number().int().min(0).optional(),
-  requireProofForSickLeave: z.boolean().optional(),
-  requireApprovalForOvertime: z.boolean().optional(),
-  minOvertimeHours: z.number().min(0).optional(),
-  maxOvertimeHoursPerDay: z.number().min(0).optional(),
-  allowMakeup: z.boolean().optional(),
-  makeupDeadlineDays: z.number().int().min(0).optional(),
-  requireApprovalForMakeup: z.boolean().optional(),
-  notifyOnLate: z.boolean().optional(),
-  notifyOnEarlyLeave: z.boolean().optional(),
-  notifyOnAbsent: z.boolean().optional(),
+  makeupDaysLimit: z.number().int().min(0).optional(),
+  makeupMonthlyLimit: z.number().int().min(0).optional(),
 });
 
 @Controller('attendance/settings')
@@ -66,7 +56,7 @@ export class AttendanceSettingsController {
     const parsed = updateSettingsSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException({
-        code: 2007,
+        code: ERROR_CODES.PARAM_INVALID,
         message: parsed.error.issues[0]?.message ?? '参数校验失败',
       });
     }

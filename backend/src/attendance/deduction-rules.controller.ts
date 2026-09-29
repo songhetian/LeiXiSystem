@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { DeductionRulesService } from './deduction-rules.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // 扣款规则校验
 const deductionRuleSchema = z.object({
@@ -38,7 +39,7 @@ export class DeductionRulesController {
   async create(@Body() body: unknown) {
     const parsed = deductionRuleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.deductionRulesService.create(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -50,7 +51,7 @@ export class DeductionRulesController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateRuleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.deductionRulesService.update(id, parsed.data);
     return { code: 0, message: 'ok', data };

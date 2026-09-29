@@ -60,6 +60,11 @@ export class AttendanceAuditService {
     const runLeave = query.recordType !== 'overtime';
     const runOvertime = query.recordType !== 'leave';
 
+    // 区间必须整体构造后再展开：若把 gte/lte 写成两次同名 key 的对象展开，
+    // 后者会覆盖前者，下界会被静默丢弃（只按结束日过滤）。
+    const leaveDateRange = this.buildDateRange(query.startDate, query.endDate);
+    const overtimeDateRange = this.buildDateRange(query.startDate, query.endDate);
+
     const [leaves, overtimes] = await Promise.all([
       runLeave
         ? this.prisma.leaveRecord.findMany({
@@ -71,10 +76,7 @@ export class AttendanceAuditService {
               ...(this.toNum(query.vacationTypeId) !== undefined
                 ? { vacationTypeId: this.toNum(query.vacationTypeId) }
                 : {}),
-              ...(query.startDate
-                ? { startDate: { gte: new Date(query.startDate) } }
-                : {}),
-              ...(query.endDate ? { startDate: { lte: new Date(query.endDate) } } : {}),
+              ...(leaveDateRange ? { startDate: leaveDateRange } : {}),
             },
             include: {
               employee: {
@@ -96,12 +98,7 @@ export class AttendanceAuditService {
                 ? { employeeId: scope.selfEmployeeId }
                 : { employee: employeeCond }),
               ...(status ? { status: status as OvertimeStatus } : {}),
-              ...(query.startDate
-                ? { overtimeDate: { gte: new Date(query.startDate) } }
-                : {}),
-              ...(query.endDate
-                ? { overtimeDate: { lte: new Date(query.endDate) } }
-                : {}),
+              ...(overtimeDateRange ? { overtimeDate: overtimeDateRange } : {}),
             },
             include: {
               employee: {
@@ -158,6 +155,22 @@ export class AttendanceAuditService {
     if (v === undefined || v === null || v === '') return undefined;
     const n = Number(v);
     return Number.isNaN(n) ? undefined : n;
+  }
+
+  /**
+   * 业务日区间：leaveRecord.startDate / overtimeRecord.overtimeDate 均为 @db.Date
+   * （UTC 午夜写入），故 'YYYY-MM-DD' 直接用 `new Date()` 解析即得对应业务日。
+   * gte/lte 组装在同一对象内，避免对象展开被同名 key 覆盖而丢下界。
+   */
+  private buildDateRange(
+    startDate?: string,
+    endDate?: string,
+  ): { gte?: Date; lte?: Date } | undefined {
+    if (!startDate && !endDate) return undefined;
+    const range: { gte?: Date; lte?: Date } = {};
+    if (startDate) range.gte = new Date(startDate);
+    if (endDate) range.lte = new Date(endDate);
+    return range;
   }
 
   private normalizeLeave(r: any): AttendanceAuditRow {

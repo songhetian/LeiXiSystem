@@ -24,6 +24,17 @@ describe('AttendanceSettingsService', () => {
   });
 
   // ------------------------------------------------------------------
+  // 当前注册表仅保留「真正被业务消费」的配置项：
+  //   - lateThreshold        (attendance.late_threshold,   private)
+  //   - earlyThreshold       (attendance.early_threshold,  private)
+  //   - earlyClockInMinutes  (attendance.early_clock_in_minutes, private)
+  //   - makeupDaysLimit      (attendance.makeup_days_limit, public)
+  //   - makeupMonthlyLimit   (attendance.makeup_monthly_limit, public)
+  // 其余 13 个预留项（补卡开关/通知/加班/年假病假等）无任何业务代码消费，
+  // 已于清理时从注册表移除。
+  // ------------------------------------------------------------------
+
+  // ------------------------------------------------------------------
   // getSettings: 返回所有考勤设置（带默认值）
   // ------------------------------------------------------------------
   describe('getSettings - 默认值', () => {
@@ -36,22 +47,8 @@ describe('AttendanceSettingsService', () => {
         lateThreshold: 30,
         earlyThreshold: 30,
         earlyClockInMinutes: 60,
-        lateClockOutMinutes: 120,
-        absentHours: 4,
-        maxAnnualLeaveDays: 10,
-        maxSickLeaveDays: 15,
-        requireProofForSickLeave: true,
-        requireApprovalForOvertime: true,
-        minOvertimeHours: 1,
-        maxOvertimeHoursPerDay: 4,
-        allowMakeup: true,
-        makeupDeadlineDays: 3,
         makeupMonthlyLimit: 3,
         makeupDaysLimit: 30,
-        requireApprovalForMakeup: true,
-        notifyOnLate: true,
-        notifyOnEarlyLeave: true,
-        notifyOnAbsent: true,
       });
 
       expect(prisma.systemSetting.findMany).toHaveBeenCalledWith({
@@ -67,48 +64,42 @@ describe('AttendanceSettingsService', () => {
     it('返回 SystemSetting 表中已存储的值，未覆盖的键保留默认值', async () => {
       prisma.systemSetting.findMany.mockResolvedValue([
         { group: 'attendance', key: 'attendance.late_threshold', value: '45', isPublic: false },
-        { group: 'attendance', key: 'attendance.absent_hours', value: '6', isPublic: false },
-        { group: 'attendance', key: 'attendance.allow_makeup', value: 'false', isPublic: false },
+        { group: 'attendance', key: 'attendance.makeup_days_limit', value: '15', isPublic: true },
       ]);
 
       const result = await service.getSettings();
 
       // 被覆盖的值
       expect(result.lateThreshold).toBe(45);
-      expect(result.absentHours).toBe(6);
-      expect(result.allowMakeup).toBe(false);
+      expect(result.makeupDaysLimit).toBe(15);
       // 未被覆盖的值保持默认
       expect(result.earlyThreshold).toBe(30);
       expect(result.earlyClockInMinutes).toBe(60);
-      expect(result.maxAnnualLeaveDays).toBe(10);
-      expect(result.notifyOnLate).toBe(true);
+      expect(result.makeupMonthlyLimit).toBe(3);
     });
 
-    it('正确解析 boolean 和 number 类型的存储值', async () => {
+    it('正确解析 number 类型的存储值', async () => {
       prisma.systemSetting.findMany.mockResolvedValue([
-        { group: 'attendance', key: 'attendance.require_proof_for_sick_leave', value: 'false', isPublic: false },
-        { group: 'attendance', key: 'attendance.min_overtime_hours', value: '2', isPublic: false },
-        { group: 'attendance', key: 'attendance.max_overtime_hours_per_day', value: '8', isPublic: false },
+        { group: 'attendance', key: 'attendance.early_clock_in_minutes', value: '90', isPublic: false },
+        { group: 'attendance', key: 'attendance.makeup_monthly_limit', value: '5', isPublic: true },
       ]);
 
       const result = await service.getSettings();
 
-      expect(result.requireProofForSickLeave).toBe(false);
-      expect(result.minOvertimeHours).toBe(2);
-      expect(result.maxOvertimeHoursPerDay).toBe(8);
-      expect(typeof result.requireProofForSickLeave).toBe('boolean');
-      expect(typeof result.minOvertimeHours).toBe('number');
+      expect(result.earlyClockInMinutes).toBe(90);
+      expect(result.makeupMonthlyLimit).toBe(5);
+      expect(typeof result.earlyClockInMinutes).toBe('number');
+      expect(typeof result.makeupMonthlyLimit).toBe('number');
     });
   });
 
   // ------------------------------------------------------------------
-  // getSettings: publicOnly 模式（未来公开端点）
+  // getSettings: publicOnly 模式（公开端点，如补卡服务）
   // ------------------------------------------------------------------
   describe('getSettings - publicOnly', () => {
     it('当 publicOnly=true 时仅返回 isPublic=true 的设置', async () => {
       prisma.systemSetting.findMany.mockResolvedValue([
-        { group: 'attendance', key: 'attendance.allow_makeup', value: 'false', isPublic: true },
-        { group: 'attendance', key: 'attendance.notify_on_late', value: 'false', isPublic: true },
+        { group: 'attendance', key: 'attendance.makeup_days_limit', value: '20', isPublic: true },
       ]);
 
       const result = await service.getSettings({ publicOnly: true });
@@ -119,28 +110,14 @@ describe('AttendanceSettingsService', () => {
       });
 
       // 公开设置被存储值覆盖
-      expect(result.allowMakeup).toBe(false);
-      expect(result.notifyOnLate).toBe(false);
+      expect(result.makeupDaysLimit).toBe(20);
       // 其他公开设置保留默认值
-      expect(result.notifyOnEarlyLeave).toBe(true);
-      expect(result.notifyOnAbsent).toBe(true);
-      expect(result.requireProofForSickLeave).toBe(true);
-      expect(result.requireApprovalForOvertime).toBe(true);
-      expect(result.requireApprovalForMakeup).toBe(true);
-      expect(result.makeupDeadlineDays).toBe(3);
       expect(result.makeupMonthlyLimit).toBe(3);
-      expect(result.makeupDaysLimit).toBe(30);
 
       // 非公开设置不包含在结果中
       expect(result.lateThreshold).toBeUndefined();
       expect(result.earlyThreshold).toBeUndefined();
       expect(result.earlyClockInMinutes).toBeUndefined();
-      expect(result.lateClockOutMinutes).toBeUndefined();
-      expect(result.absentHours).toBeUndefined();
-      expect(result.maxAnnualLeaveDays).toBeUndefined();
-      expect(result.maxSickLeaveDays).toBeUndefined();
-      expect(result.minOvertimeHours).toBeUndefined();
-      expect(result.maxOvertimeHoursPerDay).toBeUndefined();
     });
 
     it('当 publicOnly=true 且无存储值时返回公开设置的默认值', async () => {
@@ -148,16 +125,8 @@ describe('AttendanceSettingsService', () => {
 
       const result = await service.getSettings({ publicOnly: true });
 
-      expect(result.allowMakeup).toBe(true);
-      expect(result.makeupDeadlineDays).toBe(3);
-      expect(result.makeupMonthlyLimit).toBe(3);
       expect(result.makeupDaysLimit).toBe(30);
-      expect(result.requireApprovalForMakeup).toBe(true);
-      expect(result.notifyOnLate).toBe(true);
-      expect(result.notifyOnEarlyLeave).toBe(true);
-      expect(result.notifyOnAbsent).toBe(true);
-      expect(result.requireProofForSickLeave).toBe(true);
-      expect(result.requireApprovalForOvertime).toBe(true);
+      expect(result.makeupMonthlyLimit).toBe(3);
       // 非公开设置不包含
       expect(result.lateThreshold).toBeUndefined();
     });
@@ -172,7 +141,7 @@ describe('AttendanceSettingsService', () => {
       prisma.systemSetting.findMany.mockResolvedValue([]);
 
       await service.updateSettings(
-        { lateThreshold: 45, absentHours: 6 },
+        { lateThreshold: 45, makeupDaysLimit: 15 },
         1, // updatedBy
       );
 
@@ -195,42 +164,42 @@ describe('AttendanceSettingsService', () => {
       });
 
       expect(prisma.systemSetting.upsert).toHaveBeenCalledWith({
-        where: { key: 'attendance.absent_hours' },
+        where: { key: 'attendance.makeup_days_limit' },
         update: {
-          value: '6',
+          value: '15',
           updatedBy: 1,
         },
         create: {
           group: 'attendance',
-          key: 'attendance.absent_hours',
-          value: '6',
-          isPublic: false,
+          key: 'attendance.makeup_days_limit',
+          value: '15',
+          isPublic: true,
           updatedBy: 1,
         },
       });
     });
 
-    it('正确将 boolean 值序列化为字符串', async () => {
+    it('将 number 值正确序列化为字符串存储', async () => {
       prisma.systemSetting.upsert.mockResolvedValue({});
       prisma.systemSetting.findMany.mockResolvedValue([]);
 
       await service.updateSettings(
-        { allowMakeup: false, notifyOnLate: true },
+        { makeupMonthlyLimit: 5, makeupDaysLimit: 20 },
         2,
       );
 
       expect(prisma.systemSetting.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { key: 'attendance.allow_makeup' },
-          update: expect.objectContaining({ value: 'false' }),
-          create: expect.objectContaining({ value: 'false', isPublic: true }),
+          where: { key: 'attendance.makeup_monthly_limit' },
+          update: expect.objectContaining({ value: '5' }),
+          create: expect.objectContaining({ value: '5', isPublic: true }),
         }),
       );
       expect(prisma.systemSetting.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { key: 'attendance.notify_on_late' },
-          update: expect.objectContaining({ value: 'true' }),
-          create: expect.objectContaining({ value: 'true', isPublic: true }),
+          where: { key: 'attendance.makeup_days_limit' },
+          update: expect.objectContaining({ value: '20' }),
+          create: expect.objectContaining({ value: '20', isPublic: true }),
         }),
       );
     });
@@ -239,16 +208,16 @@ describe('AttendanceSettingsService', () => {
       prisma.systemSetting.upsert.mockResolvedValue({});
       // 模拟 upsert 后的查询返回更新后的值
       prisma.systemSetting.findMany.mockResolvedValue([
-        { group: 'attendance', key: 'attendance.late_threshold', value: '45', isPublic: false },
+        { group: 'attendance', key: 'attendance.makeup_days_limit', value: '20', isPublic: true },
       ]);
 
-      const result = await service.updateSettings({ lateThreshold: 45 }, 1);
+      const result = await service.updateSettings({ makeupDaysLimit: 20 }, 1);
 
       // 被更新的值
-      expect(result.lateThreshold).toBe(45);
+      expect(result.makeupDaysLimit).toBe(20);
       // 其他值保持默认
       expect(result.earlyThreshold).toBe(30);
-      expect(result.absentHours).toBe(4);
+      expect(result.makeupMonthlyLimit).toBe(3);
     });
 
     it('当未提供 updatedBy 时 upsert 仍能正常执行', async () => {
@@ -301,6 +270,18 @@ describe('AttendanceSettingsService', () => {
           create: expect.objectContaining({ updatedBy: userId }),
         }),
       );
+    });
+
+    it('忽略未注册（未知）的键，不触发 upsert', async () => {
+      prisma.systemSetting.upsert.mockResolvedValue({});
+      prisma.systemSetting.findMany.mockResolvedValue([]);
+
+      await service.updateSettings(
+        { absentHours: 6, allowMakeup: false } as any,
+        1,
+      );
+
+      expect(prisma.systemSetting.upsert).not.toHaveBeenCalled();
     });
   });
 });

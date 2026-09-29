@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ShiftsService } from './shifts.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '时间格式 HH:mm');
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色格式 #RRGGBB');
@@ -35,7 +36,7 @@ export class ShiftsController {
   async create(@Body() body: unknown) {
     const parsed = shiftSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const shift = await this.shiftsService.create(parsed.data);
     return { code: 0, message: 'ok', data: shift };
@@ -60,7 +61,7 @@ export class ShiftsController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateShiftSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const shift = await this.shiftsService.update(id, parsed.data);
     return { code: 0, message: 'ok', data: shift };

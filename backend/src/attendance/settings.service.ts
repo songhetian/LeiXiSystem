@@ -19,34 +19,21 @@ interface SettingDef {
 }
 
 /**
- * All attendance settings stored in the SystemSetting table under group 'attendance'.
+ * 考勤设置注册表（存于 SystemSetting 表 group='attendance'）。
  *
- * Public settings (visible to all authenticated users):
- *   - Policy flags that affect user behaviour (makeup, notifications, proof/approval requirements)
+ * 仅保留【真正被业务代码消费】的项：
+ *   - lateThreshold / earlyThreshold / earlyClockInMinutes → punch.service 打卡/签退判定
+ *   - makeupDaysLimit / makeupMonthlyLimit                  → punch-makeup.service 补卡限制
  *
- * Private settings (admin-only):
- *   - Thresholds, limits, and numeric configuration
+ * 其余 13 个预留项（年假/病假/加班规则/补卡开关/通知开关等）在系统中无任何业务
+ * 消费，已从注册表移除（见清理记录）。
  */
 const SETTING_DEFS: readonly SettingDef[] = [
   { key: 'attendance.late_threshold', camelCase: 'lateThreshold', defaultValue: 30, type: 'number', isPublic: false },
   { key: 'attendance.early_threshold', camelCase: 'earlyThreshold', defaultValue: 30, type: 'number', isPublic: false },
   { key: 'attendance.early_clock_in_minutes', camelCase: 'earlyClockInMinutes', defaultValue: 60, type: 'number', isPublic: false },
-  { key: 'attendance.late_clock_out_minutes', camelCase: 'lateClockOutMinutes', defaultValue: 120, type: 'number', isPublic: false },
-  { key: 'attendance.absent_hours', camelCase: 'absentHours', defaultValue: 4, type: 'number', isPublic: false },
-  { key: 'attendance.max_annual_leave_days', camelCase: 'maxAnnualLeaveDays', defaultValue: 10, type: 'number', isPublic: false },
-  { key: 'attendance.max_sick_leave_days', camelCase: 'maxSickLeaveDays', defaultValue: 15, type: 'number', isPublic: false },
-  { key: 'attendance.require_proof_for_sick_leave', camelCase: 'requireProofForSickLeave', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.require_approval_for_overtime', camelCase: 'requireApprovalForOvertime', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.min_overtime_hours', camelCase: 'minOvertimeHours', defaultValue: 1, type: 'number', isPublic: false },
-  { key: 'attendance.max_overtime_hours_per_day', camelCase: 'maxOvertimeHoursPerDay', defaultValue: 4, type: 'number', isPublic: false },
-  { key: 'attendance.allow_makeup', camelCase: 'allowMakeup', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.makeup_deadline_days', camelCase: 'makeupDeadlineDays', defaultValue: 3, type: 'number', isPublic: true },
-  { key: 'attendance.makeup_monthly_limit', camelCase: 'makeupMonthlyLimit', defaultValue: 3, type: 'number', isPublic: true },
   { key: 'attendance.makeup_days_limit', camelCase: 'makeupDaysLimit', defaultValue: 30, type: 'number', isPublic: true },
-  { key: 'attendance.require_approval_for_makeup', camelCase: 'requireApprovalForMakeup', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.notify_on_late', camelCase: 'notifyOnLate', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.notify_on_early_leave', camelCase: 'notifyOnEarlyLeave', defaultValue: true, type: 'boolean', isPublic: true },
-  { key: 'attendance.notify_on_absent', camelCase: 'notifyOnAbsent', defaultValue: true, type: 'boolean', isPublic: true },
+  { key: 'attendance.makeup_monthly_limit', camelCase: 'makeupMonthlyLimit', defaultValue: 3, type: 'number', isPublic: true },
 ];
 
 /** Quick lookup from camelCase → SettingDef */

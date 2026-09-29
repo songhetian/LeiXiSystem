@@ -2,12 +2,22 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { AttendanceDailyStatus } from '@prisma/client';
 import { DistributedLockService } from '../common/distributed-lock.service';
+import { beijingBusinessDate, beijingDateTime } from '../common/date.util';
+import { ERROR_CODES } from '../common/error-codes';
 
 // API 打卡服务（Q9/Q14）：上班/下班打卡，写 AttendanceDaily + PunchLog
 // 对齐旧项目 server/routes/attendance-clock.js 的迟到/早退判定逻辑
 @Injectable()
 export class PunchService {
   private readonly LOCK_TTL_MS = 30_000;
+
+  /**
+   * 夜班跨天签退的宽限窗口（小时）。
+   * 班次结束并不意味着员工立刻离岗：收尾、交接、睡过头都会让签退晚于结束时刻，
+   * 窗口内继续把打卡归属到「班次开始那天」；超过窗口视为新的一天，
+   * 避免昨天忘签退的人把今天的打卡算到昨天。
+   */
+  private readonly NIGHT_FALLBACK_GRACE_HOURS = 6;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,23 +42,18 @@ export class PunchService {
   }> {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
     if (!employee) {
-      throw new NotFoundException({ code: 1002, message: '员工不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     }
 
-    const today = this.today();
+    // 归属业务日（含跨天班次回退）在加锁前解析，锁 key 需要用它
+    const { workDate, schedule } = await this.resolveBusinessContext(employee.id);
 
     // 分布式锁串行化同一员工同天打卡，防并发双击产生的重复 PunchLog
-    const lockKey = `punch:in:${employee.id}:${today.toISOString()}`;
+    const lockKey = `punch:in:${employee.id}:${workDate.toISOString()}`;
     return this.lockService.withLock(lockKey, this.LOCK_TTL_MS, async () => {
-      // 今日排班（含班次信息），用于迟到判定
-      const schedule = await this.prisma.schedule.findFirst({
-        where: { employeeId: employee.id, workDate: today },
-        include: { shift: true },
-      });
-
       // 校验是否已打过上班卡
       const existing = await this.prisma.attendanceDaily.findUnique({
-        where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
+        where: { employeeId_workDate: { employeeId: employee.id, workDate } },
       });
       if (existing && existing.firstPunch) {
         throw new BadRequestException('今天已经打过上班卡了');
@@ -72,7 +77,8 @@ export class PunchService {
 
       if (shift) {
         shiftName = shift.name;
-        const shiftStart = this.combineTime(today, shift.startTime, shift.isNextDay);
+        // 班次开始固定落在业务日当天：isNextDay 只表示「结束时间跨天」
+        const shiftStart = beijingDateTime(workDate, shift.startTime);
         // 提前打卡窗口：now < 班次开始 - 提前窗口 时拒绝
         const advance = await this.resolveEarlyClockInMinutes();
         const earliest = new Date(shiftStart.getTime() - advance * 60 * 1000);
@@ -89,10 +95,10 @@ export class PunchService {
       }
 
       await this.prisma.attendanceDaily.upsert({
-        where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
+        where: { employeeId_workDate: { employeeId: employee.id, workDate } },
         create: {
           employeeId: employee.id,
-          workDate: today,
+          workDate,
           shiftId: schedule?.shiftId ?? null,
           scheduleId: schedule?.id ?? null,
           firstPunch: clockInTime,
@@ -137,16 +143,17 @@ export class PunchService {
   }> {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
     if (!employee) {
-      throw new NotFoundException({ code: 1002, message: '员工不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     }
 
-    const today = this.today();
+    // 归属业务日：夜班在次日凌晨签退时会回退到「昨日」，否则查不到上班记录
+    const { workDate, schedule } = await this.resolveBusinessContext(employee.id);
 
     // 分布式锁串行化同一员工同天打卡，防并发双击产生的重复 PunchLog
-    const lockKey = `punch:out:${employee.id}:${today.toISOString()}`;
+    const lockKey = `punch:out:${employee.id}:${workDate.toISOString()}`;
     return this.lockService.withLock(lockKey, this.LOCK_TTL_MS, async () => {
       const existing = await this.prisma.attendanceDaily.findUnique({
-        where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
+        where: { employeeId_workDate: { employeeId: employee.id, workDate } },
         include: { shift: true },
       });
 
@@ -167,10 +174,12 @@ export class PunchService {
       let status = existing.status as AttendanceDailyStatus;
       let earlyMinutes = existing.earlyMinutes;
 
-      if (existing.shift) {
-        const shift = existing.shift;
+      // 打卡记录已带班次时以它为准；否则回退到业务日排班的班次
+      const shift = existing.shift ?? schedule?.shift ?? null;
+      if (shift) {
         const earlyThreshold = await this.resolveEarlyThreshold(shift);
-        const shiftEnd = this.combineTime(today, shift.endTime, shift.isNextDay);
+        // 结束时间才跨天：isNextDay 时顺延 1 天
+        const shiftEnd = beijingDateTime(workDate, shift.endTime, shift.isNextDay ? 1 : 0);
 
         // ── 签退准入限制（对齐旧项目 AttendanceHome.checkClockOutTime）──
         // 未到「班次结束 - 早退阈值」时不允许签退
@@ -222,15 +231,15 @@ export class PunchService {
   async selfSchedule(userId: number, shiftId: number) {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
     if (!employee) {
-      throw new NotFoundException({ code: 1002, message: '员工不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     }
 
     const shift = await this.prisma.shift.findUnique({ where: { id: shiftId } });
     if (!shift) {
-      throw new NotFoundException({ code: 2001, message: '班次不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SHIFT_NOT_FOUND, message: '班次不存在' });
     }
 
-    const today = this.today();
+    const today = this.businessDate();
 
     // 查找今日排班
     let schedule = await this.prisma.schedule.findFirst({
@@ -276,23 +285,14 @@ export class PunchService {
   async getToday(userId: number) {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
     if (!employee) {
-      throw new NotFoundException({ code: 1002, message: '员工不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     }
 
-    const today = this.today();
-
-    // 今日排班（含班次）用于准入判定与休息日识别
-    const schedule = await this.prisma.schedule.findFirst({
-      where: { employeeId: employee.id, workDate: today },
-      include: {
-        shift: {
-          select: { id: true, name: true, startTime: true, endTime: true, isNextDay: true, color: true, isRest: true },
-        },
-      },
-    });
+    // 与打卡保持一致：夜班跨天时凌晨仍归属昨日业务日
+    const { workDate, schedule } = await this.resolveBusinessContext(employee.id);
 
     const record = await this.prisma.attendanceDaily.findUnique({
-      where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
+      where: { employeeId_workDate: { employeeId: employee.id, workDate } },
       include: {
         shift: { select: { id: true, name: true, startTime: true, endTime: true, isNextDay: true, color: true, isRest: true } },
         employee: { select: { id: true, employeeNo: true, name: true } },
@@ -300,17 +300,25 @@ export class PunchService {
     });
 
     const shift = record?.shift ?? schedule?.shift ?? null;
+    const now = new Date();
 
     return {
       ...(record ?? {}),
+      workDate,
       // 无记录时明确置 null，避免前端取 undefined
       firstPunch: record?.firstPunch ?? null,
       lastPunch: record?.lastPunch ?? null,
       shift,
       hasSchedule: !!schedule,
       isRestDay: shift ? shift.isRest === true : false,
-      clockIn: await this.computeClockInAdmission(shift, !!record?.firstPunch, new Date()),
-      clockOut: await this.computeClockOutAdmission(shift, !!record?.firstPunch, !!record?.lastPunch, new Date()),
+      clockIn: await this.computeClockInAdmission(shift, !!record?.firstPunch, now, workDate),
+      clockOut: await this.computeClockOutAdmission(
+        shift,
+        !!record?.firstPunch,
+        !!record?.lastPunch,
+        now,
+        workDate,
+      ),
     };
   }
 
@@ -323,13 +331,15 @@ export class PunchService {
     shift: { isRest?: boolean; startTime: string; isNextDay?: boolean } | null,
     alreadyClockedIn: boolean,
     now: Date,
+    workDate: Date,
   ): Promise<{ allowed: boolean; message: string }> {
     if (shift?.isRest) return { allowed: false, message: '今日为休息日，无需打卡' };
     if (!shift || !shift.startTime) return { allowed: false, message: '请先排班后再打卡' };
     if (alreadyClockedIn) return { allowed: false, message: '今天已经打过上班卡了' };
 
     const advance = await this.resolveEarlyClockInMinutes();
-    const shiftStart = this.combineTime(this.today(), shift.startTime, shift.isNextDay);
+    // 开始时间固定落在业务日当天
+    const shiftStart = beijingDateTime(workDate, shift.startTime);
     const earliest = new Date(shiftStart.getTime() - advance * 60 * 1000);
     if (now.getTime() < earliest.getTime()) {
       return { allowed: false, message: `需在上班前${advance}分钟内打卡` };
@@ -343,6 +353,7 @@ export class PunchService {
     hasClockedIn: boolean,
     alreadyClockedOut: boolean,
     now: Date,
+    workDate: Date,
   ): Promise<{ allowed: boolean; message: string }> {
     if (shift?.isRest) return { allowed: false, message: '今日为休息日' };
     if (!shift || !shift.endTime) return { allowed: false, message: '暂无排班' };
@@ -350,7 +361,8 @@ export class PunchService {
     if (alreadyClockedOut) return { allowed: false, message: '今天已经打过下班卡了' };
 
     const earlyThreshold = await this.resolveEarlyThreshold(shift);
-    const shiftEnd = this.combineTime(this.today(), shift.endTime, shift.isNextDay);
+    // 结束时间才跨天
+    const shiftEnd = beijingDateTime(workDate, shift.endTime, shift.isNextDay ? 1 : 0);
     const earliest = new Date(shiftEnd.getTime() - earlyThreshold * 60 * 1000);
     if (now.getTime() < earliest.getTime()) {
       const diffMin = Math.ceil((earliest.getTime() - now.getTime()) / 60000);
@@ -365,22 +377,58 @@ export class PunchService {
     return { allowed: true, message: '' };
   }
 
-  /** 服务器本地日期的 0 点（用于 workDate 匹配） */
-  private today(): Date {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+  /** 北京时间的「今日业务日」，以 UTC 午夜表示（与 workDate 存储口径一致） */
+  private businessDate(now: Date = new Date()): Date {
+    return beijingBusinessDate(now);
   }
 
-  /** 将 "HH:mm" 解析为指定日期上的 Date（可跨天） */
-  private combineTime(date: Date, timeStr: string, isNextDay = false): Date {
-    const [h, m] = timeStr.split(':').map(Number);
-    const d = new Date(date);
-    if (isNextDay) {
-      d.setDate(d.getDate() + 1);
+  /**
+   * 解析本次操作归属的「业务日 + 排班」。
+   *
+   * 默认取北京时间的今日业务日。但如果「昨日的跨天班次（isNextDay）此刻尚未结束、
+   * 或刚结束不久（宽限窗口内）」，且昨日的打卡记录已上班未下班、或今日根本无排班，
+   * 则回退到昨日 —— 夜班员工在次日凌晨签退/补签到时仍应落到班次开始那天，
+   * 否则会查不到记录而被误判为「请先打上班卡」。
+   */
+  private async resolveBusinessContext(
+    employeeId: number,
+    now: Date = new Date(),
+  ): Promise<{ workDate: Date; schedule: any | null }> {
+    const today = this.businessDate(now);
+    const prevDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+
+    const prevSchedule = await this.prisma.schedule.findFirst({
+      where: { employeeId, workDate: prevDate },
+      include: { shift: true },
+    });
+    if (prevSchedule?.shift?.isNextDay && prevSchedule.shift.endTime) {
+      const shiftEnd = beijingDateTime(prevDate, prevSchedule.shift.endTime, 1);
+      // 结束时刻之后仍需留出宽限窗口，否则「22:00~06:00」的夜班只有 06:00 前
+      // 那一小段能签退，06:01 签退就会被判成「今天没打上班卡」。
+      const fallbackUntil = new Date(
+        shiftEnd.getTime() + this.NIGHT_FALLBACK_GRACE_HOURS * 60 * 60 * 1000,
+      );
+      if (now.getTime() <= fallbackUntil.getTime()) {
+        const prevRecord = await this.prisma.attendanceDaily.findUnique({
+          where: { employeeId_workDate: { employeeId, workDate: prevDate } },
+          select: { firstPunch: true, lastPunch: true },
+        });
+        // 仅当昨日「已上班未下班」时才回退到昨日业务日。
+        // 旧实现附带 `|| !todaySchedule` 条件：当昨日已下班且今日无排班时也会回退到昨日，
+        // 导致 clockOut 查到昨日 lastPunch 已有值而误报「今天已经打过下班卡了」。
+        // 今日无排班时应让今日逻辑处理（clockIn 抛「请先排班后再打卡」、clockOut 抛「请先打上班卡」），
+        // 而不是错误地复用昨日已闭合的打卡记录。
+        if (prevRecord?.firstPunch && !prevRecord.lastPunch) {
+          return { workDate: prevDate, schedule: prevSchedule };
+        }
+      }
     }
-    d.setHours(h, m, 0, 0);
-    return d;
+
+    const schedule = await this.prisma.schedule.findFirst({
+      where: { employeeId, workDate: today },
+      include: { shift: true },
+    });
+    return { workDate: today, schedule };
   }
 
   /** 迟到阈值（分钟）：useGlobalThreshold 时读 SystemSetting，默认 30 */

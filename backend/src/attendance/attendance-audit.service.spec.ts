@@ -179,6 +179,33 @@ describe('AttendanceAuditService（批次六 · 考勤申请聚合审计）', ()
       );
     });
 
+    it('同时传开始/结束日期时，请假与加班的日期区间必须同时带 gte 与 lte（不得丢失下界）', async () => {
+      prisma.leaveRecord.findMany.mockResolvedValue([]);
+      prisma.overtimeRecord.findMany.mockResolvedValue([]);
+      await service.list(1, q({ startDate: '2026-08-01', endDate: '2026-08-31' }));
+
+      const leaveWhere = (prisma.leaveRecord.findMany.mock.calls[0][0] as any).where;
+      expect(leaveWhere.startDate).toEqual({
+        gte: new Date('2026-08-01'),
+        lte: new Date('2026-08-31'),
+      });
+
+      const overtimeWhere = (prisma.overtimeRecord.findMany.mock.calls[0][0] as any).where;
+      expect(overtimeWhere.overtimeDate).toEqual({
+        gte: new Date('2026-08-01'),
+        lte: new Date('2026-08-31'),
+      });
+    });
+
+    it('仅传开始日期时保留单边下界 gte', async () => {
+      prisma.leaveRecord.findMany.mockResolvedValue([]);
+      prisma.overtimeRecord.findMany.mockResolvedValue([]);
+      await service.list(1, q({ startDate: '2026-08-01' }));
+
+      const leaveWhere = (prisma.leaveRecord.findMany.mock.calls[0][0] as any).where;
+      expect(leaveWhere.startDate).toEqual({ gte: new Date('2026-08-01') });
+    });
+
     it('分页：按分页切片并返回 total', async () => {
       prisma.leaveRecord.findMany.mockResolvedValue([leaveRow]);
       prisma.overtimeRecord.findMany.mockResolvedValue([

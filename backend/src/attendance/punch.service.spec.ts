@@ -1,6 +1,8 @@
 import { PunchService } from './punch.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LockAcquisitionError } from '../common/distributed-lock.service';
+import { ERROR_CODES } from '../common/error-codes';
+import { messageOf } from '../common/error-messages';
 
 // Mock 分布式锁：默认直接执行 fn，可用 toHaveBeenCalledWith 断言调用
 function createMockLockService() {
@@ -17,6 +19,11 @@ function createMockPrisma() {
     },
     schedule: {
       findFirst: jest.fn(),
+      update: jest.fn(),
+      create: jest.fn(),
+    },
+    shift: {
+      findUnique: jest.fn(),
     },
     attendanceDaily: {
       findUnique: jest.fn(),
@@ -576,4 +583,272 @@ describe('PunchService', () => {
       expect(prisma.attendanceDaily.update).toHaveBeenCalled();
     });
   });
+
+  // =================================================================
+  // 跨天班次（isNextDay）与北京时间业务日
+  // 全部用显式 UTC 时刻设定假时钟，保证在任意服务器时区（含 UTC 容器）下结论一致
+  // =================================================================
+  describe('跨天班次与北京时间业务日', () => {
+    const employee = { id: 1, employeeNo: 'E001', name: '张三', userId: 10 };
+    const nightShift = {
+      id: 6,
+      name: '夜班',
+      startTime: '22:00',
+      endTime: '06:00',
+      isNextDay: true,
+      lateThreshold: 30,
+      earlyThreshold: 30,
+      useGlobalThreshold: false,
+      isRest: false,
+    };
+    const prevDay = new Date('2026-08-15');
+    const nightSchedule = { id: 200, employeeId: 1, shiftId: 6, workDate: prevDay, shift: nightShift };
+
+    // -----------------------------------------------------------------
+    // N1. isNextDay 只作用于「结束时间」：夜班当天 22:00 应能正常上班打卡
+    // -----------------------------------------------------------------
+    it('夜班当天 22:00 可正常上班打卡（isNextDay 不影响班次开始）', async () => {
+      jest.setSystemTime(new Date('2026-08-15T14:00:00Z')); // 北京 2026-08-15 22:00
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      prisma.schedule.findFirst.mockResolvedValue(nightSchedule);
+      prisma.attendanceDaily.findUnique.mockResolvedValue(null);
+      prisma.attendanceDaily.upsert.mockResolvedValue({});
+      prisma.punchLog.create.mockResolvedValue({});
+
+      const result = await service.clockIn(10);
+
+      expect(result.status).toBe('normal');
+      expect(result.shiftName).toBe('夜班');
+      expect(prisma.attendanceDaily.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            employeeId_workDate: {
+              employeeId: 1,
+              workDate: new Date('2026-08-15T00:00:00.000Z'),
+            },
+          },
+        }),
+      );
+    });
+
+    // -----------------------------------------------------------------
+    // N2. 夜班次日凌晨签退：应回退到「昨日」业务日，否则查不到记录被判未打上班卡
+    // -----------------------------------------------------------------
+    it('夜班次日凌晨签退回退到昨日业务日', async () => {
+      jest.setSystemTime(new Date('2026-08-15T22:00:00Z')); // 北京 2026-08-16 06:00
+      const firstPunch = new Date('2026-08-15T14:00:00Z'); // 北京 2026-08-15 22:00
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      prisma.schedule.findFirst.mockImplementation(async ({ where }: any) =>
+        where.workDate.getTime() === prevDay.getTime() ? nightSchedule : null,
+      );
+      prisma.attendanceDaily.findUnique.mockImplementation(async ({ where }: any) => {
+        if (where.employeeId_workDate?.workDate?.getTime() !== prevDay.getTime()) return null;
+        return {
+          id: 99,
+          employeeId: 1,
+          firstPunch,
+          lastPunch: null,
+          status: 'normal',
+          earlyMinutes: 0,
+          shiftId: 6,
+          shift: nightShift,
+        };
+      });
+      prisma.attendanceDaily.update.mockResolvedValue({});
+      prisma.punchLog.create.mockResolvedValue({});
+
+      const result = await service.clockOut(10);
+
+      expect(result.status).toBe('normal');
+      expect(prisma.attendanceDaily.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 99 } }),
+      );
+      expect(prisma.punchLog.create).toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------
+    // N2b. 夜班签退常在班次结束之后才发生（收尾/交接/睡过头），
+    //      只要昨日记录仍「已上班未下班」，就不能把打卡落到今天而报「请先打上班卡」
+    // -----------------------------------------------------------------
+    it('夜班在班次结束之后签退，仍回退到昨日业务日而非报未打上班卡', async () => {
+      jest.setSystemTime(new Date('2026-08-15T22:30:00Z')); // 北京 2026-08-16 06:30（班次 06:00 结束之后）
+      const firstPunch = new Date('2026-08-15T14:00:00Z'); // 北京 2026-08-15 22:00
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      prisma.schedule.findFirst.mockImplementation(async ({ where }: any) =>
+        where.workDate.getTime() === prevDay.getTime() ? nightSchedule : null,
+      );
+      prisma.attendanceDaily.findUnique.mockImplementation(async ({ where }: any) => {
+        if (where.employeeId_workDate?.workDate?.getTime() !== prevDay.getTime()) return null;
+        return {
+          id: 99,
+          employeeId: 1,
+          firstPunch,
+          lastPunch: null,
+          status: 'normal',
+          earlyMinutes: 0,
+          shiftId: 6,
+          shift: nightShift,
+        };
+      });
+      prisma.attendanceDaily.update.mockResolvedValue({});
+      prisma.punchLog.create.mockResolvedValue({});
+
+      const result = await service.clockOut(10);
+
+      expect(result.status).toBe('normal');
+      expect(prisma.attendanceDaily.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 99 } }),
+      );
+    });
+
+    // -----------------------------------------------------------------
+    // N2c. 夜班已下班、今日无排班、仍在 fallback 窗口内：
+    //      不应回退到昨日（昨日 lastPunch 已存在 → 误报「今天已经打过下班卡了」）。
+    //      正确行为：返回今日业务日，clockOut 因今日无打卡记录而抛「请先打上班卡」。
+    //      旧实现的 bug：`!todaySchedule` 条件让分支错误地回退到昨日。
+    // -----------------------------------------------------------------
+    it('夜班已下班且今日无排班时，clockOut 应报「请先打上班卡」而非「今天已经打过下班卡了」', async () => {
+      jest.setSystemTime(new Date('2026-08-15T22:30:00Z')); // 北京 2026-08-16 06:30（班次 06:00 结束之后，仍在 fallback 内）
+      const firstPunch = new Date('2026-08-15T14:00:00Z'); // 北京 2026-08-15 22:00 上班
+      const lastPunch = new Date('2026-08-15T22:00:00Z'); // 北京 2026-08-16 06:00 下班（已签退）
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      // 今日无排班
+      prisma.schedule.findFirst.mockImplementation(async ({ where }: any) =>
+        where.workDate.getTime() === prevDay.getTime() ? nightSchedule : null,
+      );
+      prisma.attendanceDaily.findUnique.mockImplementation(async ({ where }: any) => {
+        if (where.employeeId_workDate?.workDate?.getTime() === prevDay.getTime()) {
+          return {
+            id: 99,
+            employeeId: 1,
+            firstPunch,
+            lastPunch,
+            status: 'normal',
+            earlyMinutes: 0,
+            shiftId: 6,
+            shift: nightShift,
+          };
+        }
+        // 今日无打卡记录
+        return null;
+      });
+      prisma.attendanceDaily.update.mockResolvedValue({});
+      prisma.punchLog.create.mockResolvedValue({});
+
+      // 期望：今日无打卡记录 → 抛「请先打上班卡」
+      // 旧 bug 行为：回退到昨日，发现 lastPunch 已有值 → 抛「今天已经打过下班卡了」
+      await expect(service.clockOut(10)).rejects.toThrow('请先打上班卡');
+    });
+
+    // -----------------------------------------------------------------
+    // N3. 业务日必须按北京时间取：UTC 容器下 00:00~08:00 不能退回前一天
+    // -----------------------------------------------------------------
+    it('业务日按北京时间取，而非服务器本地时区', async () => {
+      jest.setSystemTime(new Date('2026-08-15T17:30:00Z')); // 北京 2026-08-16 01:30
+      const nextDay = new Date('2026-08-16');
+      const dawnShift = {
+        ...nightShift,
+        id: 7,
+        name: '凌晨班',
+        startTime: '01:00',
+        endTime: '09:00',
+        isNextDay: false,
+      };
+      const dawnSchedule = { id: 300, employeeId: 1, shiftId: 7, workDate: nextDay, shift: dawnShift };
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      prisma.schedule.findFirst.mockImplementation(async ({ where }: any) =>
+        where.workDate.getTime() === nextDay.getTime() ? dawnSchedule : null,
+      );
+      prisma.attendanceDaily.findUnique.mockResolvedValue(null);
+      prisma.attendanceDaily.upsert.mockResolvedValue({});
+      prisma.punchLog.create.mockResolvedValue({});
+
+      await service.clockIn(10);
+
+      expect(prisma.attendanceDaily.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            employeeId_workDate: {
+              employeeId: 1,
+              workDate: new Date('2026-08-16T00:00:00.000Z'),
+            },
+          },
+        }),
+      );
+    });
+
+    // -----------------------------------------------------------------
+    // N4. getToday 在夜班次日凌晨同样应看到昨日的记录与班次
+    // -----------------------------------------------------------------
+    it('夜班次日凌晨 getToday 返回昨日打卡记录与班次', async () => {
+      jest.setSystemTime(new Date('2026-08-15T22:00:00Z')); // 北京 2026-08-16 06:00
+      const firstPunch = new Date('2026-08-15T14:00:00Z');
+      prisma.employee.findFirst.mockResolvedValue(employee);
+      prisma.schedule.findFirst.mockImplementation(async ({ where }: any) =>
+        where.workDate.getTime() === prevDay.getTime() ? nightSchedule : null,
+      );
+      prisma.attendanceDaily.findUnique.mockImplementation(async ({ where }: any) => {
+        if (where.employeeId_workDate?.workDate?.getTime() !== prevDay.getTime()) return null;
+        return {
+          id: 99,
+          employeeId: 1,
+          workDate: prevDay,
+          firstPunch,
+          lastPunch: null,
+          punchCount: 1,
+          lateMinutes: 0,
+          earlyMinutes: 0,
+          status: 'normal',
+          shiftId: 6,
+          shift: nightShift,
+        };
+      });
+
+      const result = await service.getToday(10);
+
+      expect(result.firstPunch).toEqual(firstPunch);
+      expect(result.shift?.name).toBe('夜班');
+      expect(result.hasSchedule).toBe(true);
+      expect(result.clockIn.allowed).toBe(false); // 已打过上班卡
+      expect(result.clockOut.allowed).toBe(true); // 班次结束 06:00（跨天）已到
+    });
+  });
 });
+
+// =================================================================
+// selfSchedule —— 「班次不存在」必须用专属码 SHIFT_NOT_FOUND(2010)。
+// 旧实现复用 SHIFT_ERROR(2001)，其中央文案为「班次时间冲突或名称重复」，
+// 会把「班次不存在」覆盖成与事实无关的提示（与 shifts.service.spec.ts
+// 中「班次不存在：不得复用 2001」是同一约定）。
+// =================================================================
+describe('PunchService - selfSchedule 班次不存在须用专属码', () => {
+  let service: PunchService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new PunchService(prisma, createMockLockService() as any);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('班次不存在时使用 SHIFT_NOT_FOUND(2010)，中央文案为「班次不存在」', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 1, employeeNo: 'E001', name: '张三', userId: 10 });
+    prisma.shift.findUnique.mockResolvedValue(null);
+
+    const payload = await catchPayload(() => service.selfSchedule(10, 999));
+
+    expect(payload.code).toBe(ERROR_CODES.SHIFT_NOT_FOUND);
+    expect(messageOf(payload.code)).toBe('班次不存在');
+  });
+});
+
+// 捕获异常 payload：全局过滤器会用 ERROR_MESSAGES[code] 覆盖抛出 message
+async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
+  try {
+    await fn();
+  } catch (e: any) {
+    return e.getResponse?.() ?? e.response ?? e;
+  }
+  throw new Error('预期抛出异常，但未抛出');
+}

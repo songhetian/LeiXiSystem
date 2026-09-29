@@ -6,6 +6,7 @@ import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { SchedulesService } from './schedules.service';
 import { parsePagination } from '../common/pagination.util';
+import { ERROR_CODES } from '../common/error-codes';
 
 const scheduleItemSchema = z.object({
   employeeId: z.number().int().positive(),
@@ -27,7 +28,7 @@ export class SchedulesController {
   async create(@Body() body: unknown, @Req() req: FastifyRequest) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
-      throw new UnprocessableEntityException({ code: 2001, message: '参数校验失败' });
+      throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const schedule = await this.schedulesService.create(parsed.data, (req as any).user.id);
     return { code: 0, message: 'ok', data: schedule };
@@ -39,7 +40,7 @@ export class SchedulesController {
   async batch(@Body() body: unknown, @Req() req: FastifyRequest) {
     const parsed = batchSchema.safeParse(body);
     if (!parsed.success) {
-      throw new UnprocessableEntityException({ code: 2001, message: '参数校验失败' });
+      throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const result = await this.schedulesService.batch(parsed.data.items, (req as any).user.id);
     return { code: 0, message: 'ok', data: result };
@@ -111,7 +112,7 @@ export class SchedulesController {
   ) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new UnprocessableEntityException({ code: 2001, message: '参数校验失败' });
+      throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
     }
     const schedule = await this.schedulesService.update(id, parsed.data, (req as any).user.id);
     return { code: 0, message: 'ok', data: schedule };

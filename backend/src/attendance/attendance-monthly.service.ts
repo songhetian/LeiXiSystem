@@ -5,9 +5,14 @@ import { Prisma } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildMonthly, type DailyRecord } from './engine/monthly-engine';
 import { ERROR_CODES } from '../common/error-codes';
+import { monthRangeUtc } from '../common/date.util';
 import { DistributedLockService, LockAcquisitionError } from '../common/distributed-lock.service';
 
 const LOCK_TTL_MS = 120_000;
+
+// 日报以「天」记录请假（leaveDays Decimal），月报以「分钟」汇总（leaveMinutes Int）：
+// 口径 8 小时 = 1 天（与 S06 调休换算一致）。
+const MINUTES_PER_WORK_DAY = 480;
 
 @Injectable()
 export class AttendanceMonthlyService {
@@ -32,9 +37,8 @@ export class AttendanceMonthlyService {
     return this.lockService.withLock(lockKey, LOCK_TTL_MS, async () => {
       const scope = await this.dataScope.visibleScope(userId);
 
-      const [year, monthNum] = month.split('-').map(Number);
-      const startDate = new Date(year, monthNum - 1, 1);
-      const endDate = new Date(year, monthNum, 0);
+      // 业务日（workDate）以 UTC 午夜存储，月区间必须用 Date.UTC 构造
+      const { start: startDate, end: endDate } = monthRangeUtc(month);
 
       const existingConfirmed = await this.prisma.attendanceMonthly.findFirst({
         where: {
@@ -56,7 +60,7 @@ export class AttendanceMonthlyService {
       }
 
       const dailyWhere: Prisma.AttendanceDailyWhereInput = {
-        workDate: { gte: startDate, lte: endDate },
+        workDate: { gte: startDate, lt: endDate },
       };
       if (employeeId) dailyWhere.employeeId = employeeId;
       if (scope.selfEmployeeId) {
@@ -81,7 +85,9 @@ export class AttendanceMonthlyService {
           lateMinutes: d.lateMinutes,
           earlyMinutes: d.earlyMinutes,
           overtimeMinutes: d.overtimeMinutes,
-          leaveMinutes: 0,
+          // 请假天数 → 分钟：此前硬编码 0，导致月报「请假时长」恒 0，
+          // 算薪 noLeave 恒为 true，有请假的员工照样拿全勤奖
+          leaveMinutes: Math.round(Number(d.leaveDays ?? 0) * MINUTES_PER_WORK_DAY),
         });
       }
 
@@ -97,6 +103,8 @@ export class AttendanceMonthlyService {
               workDays: monthlyResult.workDays,
               lateCount: monthlyResult.lateCount,
               earlyCount: monthlyResult.earlyCount,
+              totalLateMinutes: monthlyResult.totalLateMinutes,
+              totalEarlyMinutes: monthlyResult.totalEarlyMinutes,
               absentDays: monthlyResult.absentDays,
               leaveMinutes: monthlyResult.leaveMinutes,
               overtimeHours: monthlyResult.overtimeHours,
@@ -106,6 +114,8 @@ export class AttendanceMonthlyService {
               workDays: monthlyResult.workDays,
               lateCount: monthlyResult.lateCount,
               earlyCount: monthlyResult.earlyCount,
+              totalLateMinutes: monthlyResult.totalLateMinutes,
+              totalEarlyMinutes: monthlyResult.totalEarlyMinutes,
               absentDays: monthlyResult.absentDays,
               leaveMinutes: monthlyResult.leaveMinutes,
               overtimeHours: monthlyResult.overtimeHours,
@@ -207,6 +217,14 @@ export class AttendanceMonthlyService {
           });
         }
       }
+      // 既无全量权限、又无部门范围、又未关联员工 → 无任何数据可见范围，
+      // 不得静默放行为任意员工确认月报（否则构成横向越权）。
+      if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+        throw new ForbiddenException({
+          code: ERROR_CODES.DATA_NO_PERMISSION,
+          message: '无权操作其他员工的记录',
+        });
+      }
 
       const updated = await this.prisma.attendanceMonthly.updateMany({
         where: { id, status: 'draft' },
@@ -300,6 +318,13 @@ export class AttendanceMonthlyService {
           });
         }
       }
+      // 同 confirm：无任何数据可见范围时不得放行（横向越权）。
+      if (!scope.all && scope.ids.length === 0 && !scope.selfEmployeeId) {
+        throw new ForbiddenException({
+          code: ERROR_CODES.DATA_NO_PERMISSION,
+          message: '无权操作其他员工的记录',
+        });
+      }
 
       const updated = await this.prisma.attendanceMonthly.updateMany({
         where: { id, status: 'confirmed' },
@@ -354,8 +379,9 @@ export class AttendanceMonthlyService {
   }
 
   async checkMonthlyConfirmed(employeeId: number, workDate: Date): Promise<boolean> {
-    const year = workDate.getFullYear();
-    const month = String(workDate.getMonth() + 1).padStart(2, '0');
+    // 业务日以 UTC 午夜存储，取年月必须用 getUTC*：本地 getter 在负时区会退回前一天/上一月
+    const year = workDate.getUTCFullYear();
+    const month = String(workDate.getUTCMonth() + 1).padStart(2, '0');
     const monthStr = `${year}-${month}`;
 
     const monthly = await this.prisma.attendanceMonthly.findUnique({
@@ -383,10 +409,11 @@ export class AttendanceMonthlyService {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const startYear = start.getFullYear();
-    const startMonth = start.getMonth();
-    const endYear = end.getFullYear();
-    const endMonth = end.getMonth();
+    // startDate/endDate 为 'YYYY-MM-DD'（UTC 午夜），月份区间必须用 getUTC*
+    const startYear = start.getUTCFullYear();
+    const startMonth = start.getUTCMonth();
+    const endYear = end.getUTCFullYear();
+    const endMonth = end.getUTCMonth();
 
     const months: string[] = [];
     let curYear = startYear;

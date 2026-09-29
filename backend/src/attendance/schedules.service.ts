@@ -1,6 +1,8 @@
 import { Injectable, ConflictException, UnprocessableEntityException, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
+import { ERROR_CODES } from '../common/error-codes';
+import { ACTIVE_EMPLOYEE_STATUSES } from '../common/employee-status';
 
 // 排班聚合（S04）：员工×日期×班次，uk(employee, workDate)；重复 → 2002（含批量原子性）
 @Injectable()
@@ -23,7 +25,10 @@ export class SchedulesService {
       });
     } catch (e: any) {
       if (e.code === 'P2003') {
-        throw new UnprocessableEntityException({ code: 1002, message: '员工或班次不存在' });
+        throw new UnprocessableEntityException({
+          code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
+          message: '员工或班次不存在',
+        });
       }
       throw e;
     }
@@ -51,7 +56,10 @@ export class SchedulesService {
       return { count };
     } catch (e: any) {
       if (e.code === 'P2003') {
-        throw new UnprocessableEntityException({ code: 1002, message: '员工或班次不存在' });
+        throw new UnprocessableEntityException({
+          code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
+          message: '员工或班次不存在',
+        });
       }
       throw e;
     }
@@ -70,7 +78,7 @@ export class SchedulesService {
     }
     if (query.employeeId) {
       if (scope.selfEmployeeId && scope.selfEmployeeId !== Number(query.employeeId)) {
-        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他员工的记录' });
       }
       if (!scope.selfEmployeeId) {
         where.employeeId = Number(query.employeeId);
@@ -104,7 +112,7 @@ export class SchedulesService {
       throw new ForbiddenException({ code: 5003, message: '无权查看该部门排班' });
     }
 
-    const employeeWhere: any = { status: 'active' };
+    const employeeWhere: any = { status: { in: ACTIVE_EMPLOYEE_STATUSES } };
     if (selfEmployeeId) {
       // 本人：仅返回本人矩阵
       employeeWhere.id = selfEmployeeId;
@@ -171,7 +179,7 @@ export class SchedulesService {
   async update(id: number, dto: { employeeId?: number; shiftId?: number; workDate?: string }, userId: number) {
     const schedule = await this.prisma.schedule.findUnique({ where: { id } });
     if (!schedule) {
-      throw new NotFoundException({ code: 2002, message: '排班不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SCHEDULE_NOT_FOUND, message: '排班不存在' });
     }
 
     const targetEmployeeId = dto.employeeId ?? schedule.employeeId;
@@ -189,7 +197,10 @@ export class SchedulesService {
         throw new ConflictException({ code: 2002, message: '该员工当日已排班' });
       }
       if (e.code === 'P2003') {
-        throw new UnprocessableEntityException({ code: 1002, message: '员工或班次不存在' });
+        throw new UnprocessableEntityException({
+          code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
+          message: '员工或班次不存在',
+        });
       }
       throw e;
     }
@@ -198,7 +209,7 @@ export class SchedulesService {
   async remove(id: number, userId: number) {
     const schedule = await this.prisma.schedule.findUnique({ where: { id } });
     if (!schedule) {
-      throw new NotFoundException({ code: 2002, message: '排班不存在' });
+      throw new NotFoundException({ code: ERROR_CODES.SCHEDULE_NOT_FOUND, message: '排班不存在' });
     }
     await this.assertInScope(schedule.employeeId, userId);
 

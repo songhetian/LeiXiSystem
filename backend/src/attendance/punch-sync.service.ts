@@ -1,6 +1,7 @@
 import { Injectable, BadGatewayException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseXFaceRecords, buildLastSyncTimeCursor, filterNewRecords, XFaceRecord } from './engine/xface-adapter';
+import { ACTIVE_EMPLOYEE_STATUSES } from '../common/employee-status';
 import { Cron } from '@nestjs/schedule';
 
 @Injectable()
@@ -183,7 +184,7 @@ export class PunchSyncService {
 
   private async getValidEmployeeNos(nos: string[]): Promise<Set<string>> {
     const emps = await this.prisma.employee.findMany({
-      where: { employeeNo: { in: nos }, status: 'active' },
+      where: { employeeNo: { in: nos }, status: { in: ACTIVE_EMPLOYEE_STATUSES } },
       select: { employeeNo: true },
     });
     return new Set(emps.map(e => e.employeeNo));
@@ -225,7 +226,8 @@ export class PunchSyncService {
     }
   }
 
-  @Cron('0 30 0 * * *')
+  // 长子任务语义：按北京时间 00:30 触发，避免容器 TZ=UTC 时错位到北京 08:30
+  @Cron('0 30 0 * * *', { timeZone: 'Asia/Shanghai' })
   async handleDailyFullSync() {
     this.logger.log('定时任务：开始每日00:30完整性校验同步');
     try {

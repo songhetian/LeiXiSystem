@@ -18,6 +18,11 @@ export class CreateLeaveRecordDto {
   @IsNumber()
   days!: number;
 
+  // 抵扣的假期月份（1~12），月假模式下必填
+  @IsInt()
+  @IsOptional()
+  month?: number;
+
   @IsString()
   @IsNotEmpty()
   reason!: string;

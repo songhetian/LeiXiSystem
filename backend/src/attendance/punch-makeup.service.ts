@@ -3,18 +3,22 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
-import { ApprovalService } from '../approval/approval.service';
+import { ERROR_CODES } from '../common/error-codes';
+import { beijingBusinessDate, beijingDateTime } from '../common/date.util';
+import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { AttendanceSettingsService } from './settings.service';
+import { PUNCH_MAKEUP_TYPE_LABELS, PunchMakeupType } from './punch-makeup-type';
 
 @Injectable()
 export class PunchMakeupService {
   constructor(
     private prisma: PrismaService,
     private dataScope: DataScopeService,
-    private approvalService: ApprovalService,
+    @Inject('APPROVAL_CLIENT') private approvalService: ApprovalClientInterface,
     private settingsService: AttendanceSettingsService,
   ) {}
 
@@ -38,7 +42,7 @@ export class PunchMakeupService {
     }
     if (employeeId) {
       if (scope.selfEmployeeId && scope.selfEmployeeId !== employeeId) {
-        throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+        throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他员工的记录' });
       }
       if (!scope.selfEmployeeId) {
         where.employeeId = employeeId;
@@ -80,11 +84,11 @@ export class PunchMakeupService {
       });
       if (scope.selfEmployeeId) {
         if (makeup.employeeId !== scope.selfEmployeeId) {
-          throw new ForbiddenException({ code: 4030, message: '无权查看其他员工的记录' });
+          throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他员工的记录' });
         }
       } else if (!scope.all) {
         if (!emp || !scope.ids.includes(emp.departmentId)) {
-          throw new ForbiddenException({ code: 4030, message: '无权查看其他部门的记录' });
+          throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看其他部门的记录' });
         }
       }
     }
@@ -94,7 +98,7 @@ export class PunchMakeupService {
   async create(params: {
     userId: number;
     punchDate: string;
-    punchType: string;
+    punchType: PunchMakeupType;
     originalTime?: string;
     makeupTime?: string;
     reason: string;
@@ -109,24 +113,25 @@ export class PunchMakeupService {
     const settings = await this.settingsService.getSettings({ publicOnly: true });
     const daysLimit = Number(settings.makeupDaysLimit) || 30;
 
+    // punchDate 由 'YYYY-MM-DD' 解析而来（UTC 午夜），「今天」也必须用北京时间的
+    // 业务日同口径；用服务器本地 setHours 会在 UTC 容器里把北京 00:00~08:00 退回前一天，
+    // 导致当天补卡被误判为「不能补未来日期的卡」
     const punchDateObj = new Date(params.punchDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    punchDateObj.setHours(0, 0, 0, 0);
+    const today = beijingBusinessDate();
 
     const diffTime = today.getTime() - punchDateObj.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays > daysLimit) {
       throw new BadRequestException({
-        code: 2110,
+        code: ERROR_CODES.MAKEUP_DATE_OUT_OF_RANGE,
         message: `只能补最近 ${daysLimit} 天内的卡，当前补卡日期已超出范围`,
       });
     }
 
-    if (punchDateObj > today) {
+    if (punchDateObj.getTime() > today.getTime()) {
       throw new BadRequestException({
-        code: 2111,
+        code: ERROR_CODES.MAKEUP_FUTURE_DATE,
         message: '不能补未来日期的卡',
       });
     }
@@ -137,8 +142,8 @@ export class PunchMakeupService {
       punchType: params.punchType,
       reason: params.reason,
     };
-    if (params.originalTime) data.originalTime = new Date(`${params.punchDate} ${params.originalTime}`);
-    if (params.makeupTime) data.makeupTime = new Date(`${params.punchDate} ${params.makeupTime}`);
+    if (params.originalTime) data.originalTime = beijingDateTime(punchDateObj, params.originalTime);
+    if (params.makeupTime) data.makeupTime = beijingDateTime(punchDateObj, params.makeupTime);
 
     const makeup = await this.prisma.punchMakeup.create({ data });
     return makeup;
@@ -146,9 +151,9 @@ export class PunchMakeupService {
 
   async update(id: number, userId: number, params: {
     punchDate?: string;
-    punchType?: string;
-    originalTime?: string;
-    makeupTime?: string;
+    punchType?: PunchMakeupType;
+    originalTime?: string | null;
+    makeupTime?: string | null;
     reason?: string;
   }) {
     const makeup = await this.prisma.punchMakeup.findUnique({ where: { id } });
@@ -171,23 +176,21 @@ export class PunchMakeupService {
       const daysLimit = Number(settings.makeupDaysLimit) || 30;
 
       const punchDateObj = new Date(params.punchDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      punchDateObj.setHours(0, 0, 0, 0);
+      const today = beijingBusinessDate();
 
       const diffTime = today.getTime() - punchDateObj.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays > daysLimit) {
         throw new BadRequestException({
-          code: 2110,
+          code: ERROR_CODES.MAKEUP_DATE_OUT_OF_RANGE,
           message: `只能补最近 ${daysLimit} 天内的卡，当前补卡日期已超出范围`,
         });
       }
 
-      if (punchDateObj > today) {
+      if (punchDateObj.getTime() > today.getTime()) {
         throw new BadRequestException({
-          code: 2111,
+          code: ERROR_CODES.MAKEUP_FUTURE_DATE,
           message: '不能补未来日期的卡',
         });
       }
@@ -198,14 +201,16 @@ export class PunchMakeupService {
       data.punchDate = new Date(params.punchDate);
     }
     if (params.punchType !== undefined) data.punchType = params.punchType;
+    // 业务日优先取本次传入的新日期，未传则沿用原记录的业务日；时间一律按北京时间解析
+    const businessDate = params.punchDate !== undefined ? new Date(params.punchDate) : makeup.punchDate;
     if (params.originalTime !== undefined) {
       data.originalTime = params.originalTime
-        ? new Date(`${params.punchDate || makeup.punchDate.toISOString().split('T')[0]} ${params.originalTime}`)
+        ? beijingDateTime(businessDate, params.originalTime)
         : null;
     }
     if (params.makeupTime !== undefined) {
       data.makeupTime = params.makeupTime
-        ? new Date(`${params.punchDate || makeup.punchDate.toISOString().split('T')[0]} ${params.makeupTime}`)
+        ? beijingDateTime(businessDate, params.makeupTime)
         : null;
     }
     if (params.reason !== undefined) data.reason = params.reason;
@@ -259,19 +264,21 @@ export class PunchMakeupService {
     const settings = await this.settingsService.getSettings({ publicOnly: true });
     const monthlyLimit = Number(settings.makeupMonthlyLimit) || 3;
 
+    // punchDate 以 UTC 午夜存储，故月份区间也必须用同一表示（UTC），
+    // 否则在 UTC+8 主机上会把月末最后一天算到区间外，导致当月次数少统计
     const punchDate = new Date(makeup.punchDate);
-    const year = punchDate.getFullYear();
-    const month = punchDate.getMonth();
+    const year = punchDate.getUTCFullYear();
+    const month = punchDate.getUTCMonth();
 
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
+    const monthStart = new Date(Date.UTC(year, month, 1));
+    const monthEnd = new Date(Date.UTC(year, month + 1, 1));
 
     const monthlyCount = await this.prisma.punchMakeup.count({
       where: {
         employeeId: makeup.employeeId,
         punchDate: {
           gte: monthStart,
-          lte: monthEnd,
+          lt: monthEnd,
         },
         status: {
           in: ['approving', 'approved', 'rejected'],
@@ -281,7 +288,7 @@ export class PunchMakeupService {
 
     if (monthlyCount >= monthlyLimit) {
       throw new BadRequestException({
-        code: 2112,
+        code: ERROR_CODES.MAKEUP_MONTHLY_LIMIT,
         message: `当月补卡次数已达上限（${monthlyLimit}次），请下月再申请`,
       });
     }
@@ -290,7 +297,7 @@ export class PunchMakeupService {
 
     const instance = await this.approvalService.startInstance({
       workflowCode: 'punch_makeup',
-      title: `补卡申请 - ${emp.name} - ${makeup.punchType}`,
+      title: `补卡申请 - ${emp.name} - ${PUNCH_MAKEUP_TYPE_LABELS[makeup.punchType as PunchMakeupType] ?? makeup.punchType}`,
       formData: {
         makeupId: makeup.id,
         punchDate: makeup.punchDate.toISOString().split('T')[0],
@@ -333,17 +340,10 @@ export class PunchMakeupService {
       comment,
     });
 
-    const updated = await this.prisma.punchMakeup.update({
-      where: { id },
-      data: {
-        status: 'approved',
-        approverId: userId,
-        approvedAt: new Date(),
-        approvalNote: comment,
-      },
-    });
-
-    return updated;
+    // 终审状态迁移与「补卡写入考勤日报」统一由 approval.approved 监听器完成，
+    // 服务层不得抢先改写状态：监听器以「approving → approved」条件更新作为一次性
+    // 令牌，若此处先把状态改成 approved，监听器将抢不到令牌而直接返回，补卡永远不落库。
+    return (await this.prisma.punchMakeup.findUnique({ where: { id } }))!;
   }
 
   async reject(id: number, userId: number, comment?: string) {

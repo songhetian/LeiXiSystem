@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ExceptionRulesService } from './exception-rules.service';
+import { ERROR_CODES } from '../common/error-codes';
 
 // ===== 异常规则校验 =====
 const exceptionRuleSchema = z.object({
@@ -40,7 +41,7 @@ export class ExceptionRulesController {
   async create(@Body() body: unknown) {
     const parsed = exceptionRuleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.exceptionRulesService.createRule(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -52,7 +53,7 @@ export class ExceptionRulesController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = updateRuleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.exceptionRulesService.updateRule(id, parsed.data);
     return { code: 0, message: 'ok', data };
@@ -116,7 +117,7 @@ export class ExceptionsController {
   async create(@Body() body: unknown) {
     const parsed = exceptionCreateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.exceptionRulesService.createException(parsed.data);
     return { code: 0, message: 'ok', data };
@@ -129,7 +130,7 @@ export class ExceptionsController {
   async handle(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = exceptionHandleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 2001, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: parsed.error.issues[0]?.message ?? '参数校验失败' });
     }
     const data = await this.exceptionRulesService.handleException(id, parsed.data);
     return { code: 0, message: 'ok', data };

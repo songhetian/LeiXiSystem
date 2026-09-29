@@ -63,6 +63,7 @@ export class LeaveRecordsController {
         startDate: body.startDate,
         endDate: body.endDate,
         days: Number(body.days),
+        month: body.month,
         reason: body.reason,
       },
       req.user.id,
