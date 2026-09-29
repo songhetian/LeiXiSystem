@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import useFocusTrap from '@/hooks/use-focus-trap';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   IconDashboard,
@@ -81,6 +82,8 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 自绘浮层没有 Arco Modal 那套焦点管理，靠 hook 补齐（打开收焦点 / Tab 循环 / 关闭还焦点）
+  const panelRef = useFocusTrap<HTMLDivElement>(open);
   const listRef = useRef<HTMLDivElement>(null);
 
   // 全局快捷键监听
@@ -99,12 +102,11 @@ export default function CommandPalette() {
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [open]);
 
-  // 打开时聚焦输入框
+  // 打开时重置查询与选中项（焦点交给 useFocusTrap，避免两处各聚焦一次）
   useEffect(() => {
     if (open) {
       setQuery('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
@@ -195,6 +197,10 @@ export default function CommandPalette() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="命令面板"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleKeyDown}
             style={{
