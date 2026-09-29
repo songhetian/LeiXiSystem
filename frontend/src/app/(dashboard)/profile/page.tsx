@@ -66,7 +66,7 @@ export default function ProfilePage() {
           <Tabs.TabPane key="profile" title="个人信息">
             <Card loading={loading}>
               <div className="flex items-center mb-6">
-                <Avatar size={64} style={{ backgroundColor: 'var(--lx-primary)', color: '#fff' }}>
+                <Avatar size={64} style={{ backgroundColor: 'var(--lx-primary)', color: 'var(--lx-text-white)' }}>
                   {user?.name?.charAt(0) || 'U'}
                 </Avatar>
                 <div className="ml-4">

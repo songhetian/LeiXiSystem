@@ -70,6 +70,7 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
   }));
 
   const timelineItems = timeline.map((r) => ({
+    id: r.id,
     color: 'green' as const,
     time: r.occurredAt,
     content: `${r.detailText}${r.fromText ? `：${r.fromText} → ${r.toText ?? ''}` : ''}`,
@@ -102,8 +103,8 @@ export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsPro
           <Empty description="暂无履历记录" />
         ) : (
           <Timeline>
-            {timelineItems.map((it, i) => (
-              <Timeline.Item key={i} label={it.time}>{it.content}</Timeline.Item>
+            {timelineItems.map((it) => (
+              <Timeline.Item key={it.id} label={it.time}>{it.content}</Timeline.Item>
             ))}
           </Timeline>
         )}

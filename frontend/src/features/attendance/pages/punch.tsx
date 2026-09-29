@@ -19,11 +19,13 @@ import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
 
 // 状态 → 中文徽标（对齐旧项目 getStatusBadge 语义）
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  normal: { label: '正常', color: '#16a34a', bg: '#ecfdf5' },
-  late: { label: '迟到', color: '#dc2626', bg: '#fef2f2' },
-  early: { label: '早退', color: '#ea580c', bg: '#fff7ed' },
-  late_early: { label: '迟到且早退', color: '#e11d48', bg: '#fff1f2' },
+// 用语义色 token：-text 保证 WCAG AA 对比度、-bg 随明暗主题切换，
+// 避免硬编码浅底（#ecfdf5 等）在暗色下失真、文字对比不足。
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  normal: { label: '正常', color: 'var(--lx-success-text)', bg: 'var(--lx-success-bg)', border: 'var(--lx-success)' },
+  late: { label: '迟到', color: 'var(--lx-danger-text)', bg: 'var(--lx-danger-bg)', border: 'var(--lx-danger)' },
+  early: { label: '早退', color: 'var(--lx-warning-text)', bg: 'var(--lx-warning-bg)', border: 'var(--lx-warning)' },
+  late_early: { label: '迟到且早退', color: 'var(--lx-danger-text)', bg: 'var(--lx-danger-bg)', border: 'var(--lx-danger)' },
 };
 
 // 仅时分（HH:mm），用于打卡时间展示
@@ -319,7 +321,7 @@ export default function PunchPage() {
 
                 {/* 状态徽标（迟到/早退等） */}
                 {statusMeta && statusMeta.label !== '正常' && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-xs border" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: `${statusMeta.color}22` }}>
+                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-xs border" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>
                     <span className="w-2 h-2 rounded-full" style={{ background: statusMeta.color }} />
                     <span className="font-medium">系统提醒：您今日考勤状态为「{statusMeta.label}」</span>
                   </div>

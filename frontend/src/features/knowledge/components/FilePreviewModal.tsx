@@ -69,7 +69,7 @@ export default function FilePreviewModal({ file, title, visible = true, onClose 
     switch (mode) {
       case 'image':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '65vh', background: '#f7f8fa', overflow: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '65vh', background: 'var(--lx-bg-secondary)', overflow: 'auto' }}>
             <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%' }} />
           </div>
         );
@@ -81,7 +81,7 @@ export default function FilePreviewModal({ file, title, visible = true, onClose 
         );
       case 'audio':
         return (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '30vh', background: '#f7f8fa' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '30vh', background: 'var(--lx-bg-secondary)' }}>
             <audio controls src={file.url} style={{ width: '80%' }} />
           </div>
         );

@@ -306,7 +306,7 @@ export default function ModalForm({
         return (
           <div className="grid grid-cols-6 gap-x-2 gap-y-3">
             {arr.map((v, i) => (
-              <div key={i} className="flex flex-col gap-1">
+              <div key={`month-${i + 1}`} className="flex flex-col gap-1">
                 <span className="text-xs text-text-3">{i + 1} 月</span>
                 <Input
                   id={i === 0 ? field.key : `${field.key}-${i}`}

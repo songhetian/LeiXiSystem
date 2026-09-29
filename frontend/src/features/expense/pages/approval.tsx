@@ -245,14 +245,14 @@ export default function ExpenseApprovalPage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-border-2">
-                        <th className="text-left p-2">费用名称</th>
-                        <th className="text-left p-2">日期</th>
-                        <th className="text-right p-2">金额</th>
+                        <th scope="col" className="text-left p-2">费用名称</th>
+                        <th scope="col" className="text-left p-2">日期</th>
+                        <th scope="col" className="text-right p-2">金额</th>
                       </tr>
                     </thead>
                     <tbody>
                       {currentItem.items.map((item, idx) => (
-                        <tr key={idx} className="border-b border-border-2">
+                        <tr key={item.id ?? idx} className="border-b border-border-2">
                           <td className="p-2">{item.description || '-'}</td>
                           <td className="p-2">{item.expenseDate || '-'}</td>
                           <td className="p-2 text-right">¥{item.amount?.toFixed(2)}</td>

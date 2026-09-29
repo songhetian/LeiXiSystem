@@ -374,7 +374,7 @@ export default function OkrPage() {
                     </div>
                     <span
                       className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: color, border: '1px solid rgba(0,0,0,0.08)' }}
+                      style={{ background: color, border: '1px solid var(--lx-border-2)' }}
                       title={obj.type}
                     />
                   </div>

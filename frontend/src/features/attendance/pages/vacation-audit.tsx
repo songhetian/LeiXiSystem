@@ -265,7 +265,7 @@ export default function VacationAuditPage() {
           <div className="flex flex-col gap-5">
             {/* 申请人基本身份 */}
             <div className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary">
-              <Avatar size={40} style={{ backgroundColor: 'var(--lx-primary)', color: '#fff' }}>
+              <Avatar size={40} style={{ backgroundColor: 'var(--lx-primary)', color: 'var(--lx-text-white)' }}>
                 {current.employeeName?.charAt(0) || '?'}
               </Avatar>
               <div>

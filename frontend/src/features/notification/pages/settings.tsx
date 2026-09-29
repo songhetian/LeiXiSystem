@@ -123,9 +123,9 @@ export default function NotificationSettingsPage() {
     <Tabs.TabPane key={group.key} title={group.title}>
       <div
         style={{
-          background: '#fff',
+          background: 'var(--lx-bg-card)',
           borderRadius: 8,
-          border: '1px solid var(--lx-border, #e5e6eb)',
+          border: '1px solid var(--lx-border-2)',
           overflow: 'hidden',
         }}
       >

@@ -257,15 +257,17 @@ export default function ShiftForm({
               style={{ width: 110 }}
               placeholder="颜色代码，如 3B82F6"
             />
+            {/* 兜底色用品牌主色 hex（#2455D9 = --lx-primary-600），而非 Tailwind 默认蓝 #3B82F6；
+                getContrastColor 需要具体 hex 才能算相对亮度，故此处保留与 token 同值的字面量 */}
             <button
               type="button"
               className="lx-clickable flex items-center justify-center h-9 w-11 rounded cursor-pointer transition-colors"
-              style={{ border: '1px solid var(--lx-border-2)', background: colorValue || '#3B82F6' }}
+              style={{ border: '1px solid var(--lx-border-2)', background: colorValue || '#2455D9' }}
               onClick={randomColor}
               aria-label="随机取色"
               title="随机取色"
             >
-              <IconRefresh style={{ color: getContrastColor(colorValue || '#3B82F6') }} />
+              <IconRefresh style={{ color: getContrastColor(colorValue || '#2455D9') }} />
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-3 shift-color-swatches">
