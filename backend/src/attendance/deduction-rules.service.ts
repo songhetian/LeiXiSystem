@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorCode } from '../common/error.util';
 
 // 扣款规则字段类型（对齐 DeductionRule 模型）
 export interface DeductionRuleCreateDto {
@@ -23,14 +24,14 @@ export class DeductionRulesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: DeductionRuleCreateDto) {
-    const data: any = {
+    const data = {
       ...dto,
       enabled: dto.enabled ?? true,
     };
     try {
       return await this.prisma.deductionRule.create({ data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new BadRequestException({ code: ERROR_CODES.DEDUCTION_RULE_CONFLICT, message: '存在重名或冲突的扣款规则' });
       }
       throw e;
@@ -49,20 +50,15 @@ export class DeductionRulesService {
     if (!rule) {
       throw new NotFoundException({ code: ERROR_CODES.DEDUCTION_RULE_NOT_FOUND, message: '扣款规则不存在' });
     }
-    const data: Record<string, any> = {};
-    for (const key of Object.keys(dto)) {
-      if ((dto as any)[key] !== undefined) {
-        data[key] = (dto as any)[key];
-      }
-    }
-    try {
-      return await this.prisma.deductionRule.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
-        throw new BadRequestException({ code: ERROR_CODES.DEDUCTION_RULE_CONFLICT, message: '存在重名或冲突的扣款规则' });
-      }
-      throw e;
-    }
+    // Prisma 会忽略值为 undefined 的字段，故可直接传 DTO（无需手工剔除未提供字段）
+    return await this.prisma.deductionRule
+      .update({ where: { id }, data: dto })
+      .catch((e: { code?: string }) => {
+        if (e.code === 'P2002') {
+          throw new BadRequestException({ code: ERROR_CODES.DEDUCTION_RULE_CONFLICT, message: '存在重名或冲突的扣款规则' });
+        }
+        throw e;
+      });
   }
 
   async remove(id: number) {

@@ -79,7 +79,7 @@ export class VacationTypeController {
         message: parsed.error.issues[0]?.message ?? '参数校验失败',
       });
     }
-    const data = await this.vacationTypeService.update(Number(id), parsed.data as any);
+    const data = await this.vacationTypeService.update(Number(id), parsed.data);
     return { code: 0, message: 'ok', data };
   }
 

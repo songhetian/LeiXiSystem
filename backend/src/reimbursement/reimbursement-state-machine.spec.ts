@@ -75,7 +75,8 @@ describe('ReimbursementStateMachine', () => {
 
     describe('错误消息', () => {
       it('应包含当前状态和目标状态的中文描述', () => {
-        const result = validateStateTransition('draft', 'paid' as any);
+        // draft → approved 非法（draft 只能到 approving/cancelled/pending）
+        const result = validateStateTransition('draft', 'approved');
         expect(result.valid).toBe(false);
         expect(result.message).toContain('草稿');
       });

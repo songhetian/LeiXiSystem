@@ -137,7 +137,7 @@ export function validateAttachment(params: ValidateAttachmentParams): ValidateAt
     };
   }
 
-  if (!ALLOWED_EXTENSIONS.includes(ext as any)) {
+  if (!(ALLOWED_EXTENSIONS as readonly string[]).includes(ext)) {
     return {
       valid: false,
       errorCode: ERROR_CODES.KNOWLEDGE_ATTACHMENT_INVALID,

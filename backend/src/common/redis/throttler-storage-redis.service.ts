@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import { RedisService } from './redis.service';
+import { errorMessage } from '../error.util';
 
 interface ThrottlerStorageRecord {
   totalHits: number;
@@ -84,8 +85,8 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
         isBlocked,
         timeToBlockExpire,
       };
-    } catch (err: any) {
-      this.logger.warn(`限流 Redis 操作失败，降级到内存存储: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`限流 Redis 操作失败，降级到内存存储: ${errorMessage(err)}`);
       return this.incrementMemory(key, ttl, limit, blockDuration);
     }
   }
@@ -104,11 +105,12 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
       const keyStr = `throttler:${key}`;
       const now = Date.now();
 
-      const scores = await client.zrange(keyStr, 0, -1 as any);
-      const hits = (scores as string[]).map(Number).filter((t) => t > now - 60000);
+      // ioredis 6 的 zrange 重载把 stop 声明为 string | Buffer（接受 '-1' 这种索引写法）
+      const scores = await client.zrange(keyStr, 0, '-1');
+      const hits = scores.map(Number).filter((t) => t > now - 60000);
       return hits;
-    } catch (err: any) {
-      this.logger.warn(`限流 Redis 读取失败，降级到内存存储: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`限流 Redis 读取失败，降级到内存存储: ${errorMessage(err)}`);
       return this.getRecordMemory(key);
     }
   }
@@ -134,8 +136,8 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
       pipeline.zadd(keyStr, now, now.toString());
       pipeline.pexpire(keyStr, ttlMs);
       await pipeline.exec();
-    } catch (err: any) {
-      this.logger.warn(`限流 Redis 写入失败，降级到内存存储: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`限流 Redis 写入失败，降级到内存存储: ${errorMessage(err)}`);
       this.addRecordMemory(key, ttl);
     }
   }
@@ -153,8 +155,8 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
         return;
       }
       await client.del(`throttler:${key}`, `throttler:${key}:blocked`);
-    } catch (err: any) {
-      this.logger.warn(`限流 Redis 重置失败: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`限流 Redis 重置失败: ${errorMessage(err)}`);
       this.memoryStore.delete(key);
     }
   }

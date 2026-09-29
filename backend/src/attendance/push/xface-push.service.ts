@@ -5,6 +5,7 @@
 //   行可能带表名前缀（ATTLOG\t... / OPTIONS\t...），也可能裸行（table 由 query 指定）。
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { errorCode } from '../../common/error.util';
 
 /** 解析后的 ATTLOG（打卡流水）记录 */
 export interface CdataAttlogRecord {
@@ -155,9 +156,9 @@ export class XFacePushService {
             inserted++;
           }
         });
-      } catch (e: any) {
+      } catch (e) {
         // 并发场景下唯一约束冲突 → 视为已存在，跳过
-        if (e?.code === 'P2002') {
+        if (errorCode(e) === 'P2002') {
           this.logger.warn(
             `PUSH 入库命中唯一约束（并发重复），deviceSn=${deviceSn}，跳过 ${newRecords.length} 条`,
           );

@@ -1,6 +1,7 @@
 /** @jest-environment ./jest-utc-environment */
 // 生产容器未设置 TZ（即 UTC），而业务口径一律按北京时间；本文件统一在 UTC 下运行。
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { EmployeeTxService } from './employee-tx.service';
 import { messageOf } from '../common/error-messages';
 import { ERROR_CODES } from '../common/error-codes';
@@ -86,6 +87,10 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+    },
+    attendanceDaily: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     payrollAdjustment: {
       findMany: jest.fn(),
@@ -1172,6 +1177,120 @@ describe('EmployeeTxService - getTimeline 数据范围隔离', () => {
       service.getTimeline({ employeeId: 999, userId: 8 }),
     ).rejects.toMatchObject({
       response: { code: ERROR_CODES.DATA_NO_PERMISSION },
+    });
+  });
+});
+
+// 申诉审批通过后需要重算 attendance_daily.status。此前 employees 侧自带一份简版实现，
+// 缺了「打卡次数为 0 → 缺勤」「打卡 > 4 次 → 异常」两条口径（attendance-approval.listener
+// 已修过同类 bug），会把缺勤日洗成 normal。此处锁定与引擎/监听器一致的唯一口径。
+describe('EmployeeTxService - 申诉审批通过后的日报状态重算（口径须与考勤监听器一致）', () => {
+  let service: EmployeeTxService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  const appeal = {
+    id: 7,
+    employeeId: 3,
+    appealType: 'absent',
+    appealDate: new Date('2026-09-10T00:00:00.000Z'),
+    status: 'pending',
+    approvalInstanceId: 200,
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new EmployeeTxService(
+      prisma as any,
+      createMockApprovalService() as any,
+      createMockDataScopeService() as any,
+    );
+    prisma.attendanceAppeal.findFirst.mockResolvedValue(appeal);
+  });
+
+  it('缺勤申诉通过：当天打卡次数为 0，清零缺勤分钟后仍应判为 absent（不得洗成 normal）', async () => {
+    prisma.attendanceDaily.findUnique.mockResolvedValue({
+      id: 11,
+      employeeId: 3,
+      workDate: new Date('2026-09-10T00:00:00.000Z'),
+      punchCount: 0,
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      absentMinutes: 480,
+      leaveDays: new Prisma.Decimal(0),
+      status: 'absent',
+    });
+
+    await (service as any).handleApprovalApproved({ instanceId: 200, workflowCode: 'attendance_appeal' });
+
+    expect(prisma.attendanceDaily.update).toHaveBeenCalledWith({
+      where: { id: 11 },
+      data: { absentMinutes: 0 },
+    });
+  });
+
+  it('迟到申诉通过：当天确有打卡，清零迟到分钟后应改判 normal', async () => {
+    prisma.attendanceAppeal.findFirst.mockResolvedValue({ ...appeal, appealType: 'late' });
+    prisma.attendanceDaily.findUnique.mockResolvedValue({
+      id: 12,
+      employeeId: 3,
+      workDate: new Date('2026-09-10T00:00:00.000Z'),
+      punchCount: 2,
+      lateMinutes: 25,
+      earlyMinutes: 0,
+      absentMinutes: 0,
+      leaveDays: new Prisma.Decimal(0),
+      status: 'late',
+    });
+
+    await (service as any).handleApprovalApproved({ instanceId: 200, workflowCode: 'attendance_appeal' });
+
+    expect(prisma.attendanceDaily.update).toHaveBeenCalledWith({
+      where: { id: 12 },
+      data: { lateMinutes: 0, status: 'normal' },
+    });
+  });
+
+  it('单日打卡 5 次（>4）视为异常：申诉通过后应为 abnormal 而非 normal', async () => {
+    prisma.attendanceAppeal.findFirst.mockResolvedValue({ ...appeal, appealType: 'late' });
+    prisma.attendanceDaily.findUnique.mockResolvedValue({
+      id: 13,
+      employeeId: 3,
+      workDate: new Date('2026-09-10T00:00:00.000Z'),
+      punchCount: 5,
+      lateMinutes: 10,
+      earlyMinutes: 0,
+      absentMinutes: 0,
+      leaveDays: new Prisma.Decimal(0),
+      status: 'late',
+    });
+
+    await (service as any).handleApprovalApproved({ instanceId: 200, workflowCode: 'attendance_appeal' });
+
+    expect(prisma.attendanceDaily.update).toHaveBeenCalledWith({
+      where: { id: 13 },
+      data: { lateMinutes: 0, status: 'abnormal' },
+    });
+  });
+
+  it('休假当天（leaveDays > 0）：申诉通过后应保持 leave，不得被判成 leave 之外的其它状态', async () => {
+    prisma.attendanceAppeal.findFirst.mockResolvedValue({ ...appeal, appealType: 'late' });
+    prisma.attendanceDaily.findUnique.mockResolvedValue({
+      id: 14,
+      employeeId: 3,
+      workDate: new Date('2026-09-10T00:00:00.000Z'),
+      punchCount: 0,
+      lateMinutes: 30,
+      earlyMinutes: 0,
+      absentMinutes: 0,
+      leaveDays: new Prisma.Decimal(1),
+      status: 'leave',
+    });
+
+    await (service as any).handleApprovalApproved({ instanceId: 200, workflowCode: 'attendance_appeal' });
+
+    expect(prisma.attendanceDaily.update).toHaveBeenCalledWith({
+      where: { id: 14 },
+      data: { lateMinutes: 0 },
     });
   });
 });

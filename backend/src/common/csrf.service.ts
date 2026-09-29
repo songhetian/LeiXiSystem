@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from './redis/redis.service';
 import { randomBytes, timingSafeEqual } from 'crypto';
+import { errorMessage } from './error.util';
 
 const CSRF_TOKEN_TTL_SECONDS = 24 * 60 * 60;
 const CSRF_KEY_PREFIX = 'csrf:';
@@ -35,8 +36,8 @@ export class CsrfService {
           .ltrim(key, 0, MAX_TOKENS_PER_USER - 1)
           .expire(key, CSRF_TOKEN_TTL_SECONDS)
           .exec();
-      } catch (err: any) {
-        this.logger.error(`存储 CSRF token 失败 [user=${userId}]: ${err.message}`);
+      } catch (err) {
+        this.logger.error(`存储 CSRF token 失败 [user=${userId}]: ${errorMessage(err)}`);
       }
     }
     return token;
@@ -61,8 +62,8 @@ export class CsrfService {
         }
       }
       return false;
-    } catch (err: any) {
-      this.logger.error(`CSRF 校验异常 [user=${userId}]: ${err.message}`);
+    } catch (err) {
+      this.logger.error(`CSRF 校验异常 [user=${userId}]: ${errorMessage(err)}`);
       return true;
     }
   }
@@ -71,8 +72,8 @@ export class CsrfService {
     if (this.redis.isEnabled) {
       try {
         await this.redis.del(CSRF_KEY_PREFIX + userId);
-      } catch (err: any) {
-        this.logger.error(`失效 CSRF token 失败 [user=${userId}]: ${err.message}`);
+      } catch (err) {
+        this.logger.error(`失效 CSRF token 失败 [user=${userId}]: ${errorMessage(err)}`);
       }
     }
   }

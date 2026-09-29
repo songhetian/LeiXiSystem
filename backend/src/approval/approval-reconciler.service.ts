@@ -71,7 +71,7 @@ export class ApprovalReconcilerService {
         instanceId: inst.id,
         workflowId: inst.workflowId,
         workflowCode: inst.workflowCode,
-        module: (inst.workflow as any)?.module,
+        module: inst.workflow?.module,
         status: inst.status,
         applicantId: inst.applicantId,
         title: inst.title,

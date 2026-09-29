@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { errorCode } from '../common/error.util';
 
 @Injectable()
 export class PunchDeviceService {
@@ -15,8 +16,8 @@ export class PunchDeviceService {
   }) {
     try {
       return await this.prisma.punchDevice.create({ data: dto });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2007, message: '设备编号已存在' });
       }
       throw e;
@@ -62,8 +63,8 @@ export class PunchDeviceService {
 
     try {
       return await this.prisma.punchDevice.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2007, message: '设备编号已存在' });
       }
       throw e;

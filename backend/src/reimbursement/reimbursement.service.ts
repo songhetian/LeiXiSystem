@@ -17,6 +17,7 @@ import { sumReimbursementItems } from './reimbursement-items';
 import { fromCents, toCents } from '../common/money.util';
 import { beijingDateRangeFilter, beijingDateTimeStr } from '../common/date.util';
 import * as ExcelJS from 'exceljs';
+import { errorCode } from '../common/error.util';
 
 /** 创建报销单时允许客户端指定的状态：仅草稿与直接提交，其余审批态只能由审批流推进 */
 const CREATABLE_STATUSES: ReadonlyArray<'draft' | 'pending'> = ['draft', 'pending'];
@@ -279,8 +280,8 @@ export class ReimbursementService {
           },
           include: { items: true, attachments: true },
         });
-      } catch (err: any) {
-        if (err?.code !== 'P2002') throw err;
+      } catch (err) {
+        if (errorCode(err) !== 'P2002') throw err;
         // 单号唯一冲突 → 重新生成单号并重试
       }
     }
@@ -699,6 +700,6 @@ export class ReimbursementService {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 }

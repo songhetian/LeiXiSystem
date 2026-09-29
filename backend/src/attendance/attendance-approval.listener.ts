@@ -2,9 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { withEventRetry } from '../common/event-retry.util';
-import { Prisma, AttendanceDailyStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { isMonthlyDays } from './vacation-monthly';
 import { getOvertimeToLeaveHours, overtimeHoursToLeaveDays } from './overtime-conversion';
+import { resolveDailyStatus } from './daily-status';
 
 @Injectable()
 export class AttendanceApprovalListener {
@@ -194,7 +195,7 @@ export class AttendanceApprovalListener {
       if (claimed.count === 0) return;
 
       if (current.status === 'approved') {
-        await this.refundLeaveBalance(tx as any, current);
+        await this.refundLeaveBalance(tx, current);
       }
     });
   }
@@ -219,13 +220,13 @@ export class AttendanceApprovalListener {
       if (claimed.count === 0) return;
 
       if (current.status === 'approved') {
-        await this.refundLeaveBalance(tx as any, current);
+        await this.refundLeaveBalance(tx, current);
       }
     });
   }
 
   private async refundLeaveBalance(
-    tx: any,
+    tx: Prisma.TransactionClient,
     record: {
       id: number;
       employeeId: number;
@@ -391,7 +392,7 @@ export class AttendanceApprovalListener {
       if (claimed.count === 0) return;
 
       if (current.status === 'approved' && current.isCompensated) {
-        await this.revertOvertimeCompensatory(tx as any, current);
+        await this.revertOvertimeCompensatory(tx, current);
       }
     });
   }
@@ -415,13 +416,13 @@ export class AttendanceApprovalListener {
       if (claimed.count === 0) return;
 
       if (current.status === 'approved' && current.isCompensated) {
-        await this.revertOvertimeCompensatory(tx as any, current);
+        await this.revertOvertimeCompensatory(tx, current);
       }
     });
   }
 
   private async revertOvertimeCompensatory(
-    tx: any,
+    tx: Prisma.TransactionClient,
     record: { id: number; employeeId: number; hours: Prisma.Decimal; overtimeDate: Date },
   ) {
     // 扣回的一次性令牌：只有确实处于「已兑换」状态的加班才能被扣回，
@@ -540,7 +541,7 @@ export class AttendanceApprovalListener {
           },
         });
 
-        const newStatus = this.recalcDailyStatus(refreshed as any);
+        const newStatus = resolveDailyStatus(refreshed);
         if (newStatus !== daily.status) {
           await tx.attendanceDaily.update({
             where: { id: daily.id },
@@ -702,7 +703,7 @@ export class AttendanceApprovalListener {
         },
       });
 
-      const newStatus = this.recalcDailyStatus(refreshed as any);
+      const newStatus = resolveDailyStatus(refreshed);
       if (newStatus !== daily.status) {
         await tx.attendanceDaily.update({
           where: { id: daily.id },
@@ -710,28 +711,5 @@ export class AttendanceApprovalListener {
         });
       }
     }
-  }
-
-  private recalcDailyStatus(daily: {
-    punchCount: number;
-    lateMinutes: number;
-    earlyMinutes: number;
-    absentMinutes: number;
-    leaveDays: Prisma.Decimal;
-    status: string;
-  }): AttendanceDailyStatus {
-    if (daily.leaveDays && daily.leaveDays.gt(0)) return AttendanceDailyStatus.leave;
-    if (daily.absentMinutes && daily.absentMinutes > 0) return AttendanceDailyStatus.absent;
-    // 撤回/驳回补卡后打卡次数会归零，而 absent_minutes 全库无人写正值
-    // （引擎 upsert 不写该列），故缺勤只能由 punchCount 推导，否则会被洗成 normal。
-    if (!daily.punchCount || daily.punchCount <= 0) return AttendanceDailyStatus.absent;
-    // 与引擎 buildDaily 同口径：单日打卡 > 4 次视为异常
-    if (daily.punchCount > 4) return AttendanceDailyStatus.abnormal;
-    const hasLate = daily.lateMinutes > 0;
-    const hasEarly = daily.earlyMinutes > 0;
-    if (hasLate && hasEarly) return AttendanceDailyStatus.late_early;
-    if (hasLate) return AttendanceDailyStatus.late;
-    if (hasEarly) return AttendanceDailyStatus.early;
-    return AttendanceDailyStatus.normal;
   }
 }

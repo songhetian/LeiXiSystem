@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorCode } from '../common/error.util';
 
 // 员工标签入参
 export interface EmployeeTagUpsertDto {
@@ -27,8 +28,8 @@ export class EmployeeTagsService {
           sortOrder: dto.sortOrder ?? 0,
         },
       });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_TAG_NAME_EXISTS, message: '标签名称已存在' });
       }
       throw e;
@@ -46,8 +47,8 @@ export class EmployeeTagsService {
     }
     try {
       return await this.prisma.employeeTag.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_TAG_NAME_EXISTS, message: '标签名称已存在' });
       }
       throw e;

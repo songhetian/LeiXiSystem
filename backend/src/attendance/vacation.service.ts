@@ -1,7 +1,7 @@
 import { Injectable, Inject, UnprocessableEntityException, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService, scopeIsEmpty } from '../common/data-scope.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, $Enums } from '@prisma/client';
 import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { NotificationClientInterface } from '../notification/notification-client.interface';
 import { ERROR_CODES } from '../common/error-codes';
@@ -24,6 +24,16 @@ import * as ExcelJS from 'exceljs';
 const BALANCE_LOCK_TTL_MS = 5 * 60 * 1000;
 /** 跨年结转流水的 referenceType，用于重复执行的幂等判定 */
 const CARRY_OVER_REFERENCE_TYPE = 'vacation_carry_over';
+
+/**
+ * 年假按工龄规则的单项（`VacationType.seniorityRule` JSON 列的数组元素）。
+ * 之前以 `any` 读取，`rule.minYears` / `rule.days` 拼写错误无法在编译期发现。
+ */
+export interface SeniorityRuleItem {
+  minYears?: number;
+  maxYears?: number;
+  days: number;
+}
 
 @Injectable()
 export class VacationService {
@@ -482,7 +492,7 @@ export class VacationService {
         where.employeeId = employeeId;
       }
     }
-    if (status) where.status = status as any;
+    if (status) where.status = status as $Enums.LeaveStatus;
     // 区间重叠过滤：请假区间 [startDate, endDate] 与查询区间相交
     // startDate/endDate 为 @db.Date，需补全为完整 ISO-8601 时间戳，否则 Prisma 无法解析纯日期字符串
     if (startDate) where.endDate = { gte: new Date(`${startDate} 00:00:00`) };
@@ -524,7 +534,7 @@ export class VacationService {
       where.employee = { departmentId: params.departmentId };
     }
 
-    if (params.status) where.status = params.status as any;
+    if (params.status) where.status = params.status as $Enums.LeaveStatus;
     if (params.type) {
       where.vacationType = { code: params.type };
     }
@@ -583,7 +593,7 @@ export class VacationService {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 
   async listMyLeaveRecords(
@@ -601,7 +611,7 @@ export class VacationService {
       where.vacationType = { code: vacationType };
     }
     if (status) {
-      where.status = status as any;
+      where.status = status as $Enums.LeaveStatus;
     }
 
     const [list, total] = await Promise.all([
@@ -830,7 +840,7 @@ export class VacationService {
         where.employeeId = employeeId;
       }
     }
-    if (status) where.status = status as any;
+    if (status) where.status = status as $Enums.OvertimeStatus;
 
     const [list, total] = await Promise.all([
       this.prisma.overtimeRecord.findMany({
@@ -1039,7 +1049,7 @@ export class VacationService {
 
   async calculateAnnualLeaveDays(
     employee: { hireDate: Date | string },
-    vacationType?: { seniorityRule?: any; baseDays: string | number | Prisma.Decimal },
+    vacationType?: { seniorityRule?: Prisma.JsonValue; baseDays: string | number | Prisma.Decimal },
   ): Promise<Prisma.Decimal> {
     if (!vacationType) {
       const annualType = await this.prisma.vacationType.findUnique({
@@ -1051,7 +1061,7 @@ export class VacationService {
       vacationType = annualType;
     }
 
-    const seniorityRule = vacationType.seniorityRule as any;
+    const seniorityRule = vacationType.seniorityRule as SeniorityRuleItem[] | null;
     if (!seniorityRule || !Array.isArray(seniorityRule) || seniorityRule.length === 0) {
       return new Prisma.Decimal(vacationType.baseDays);
     }
@@ -1345,7 +1355,7 @@ export class VacationService {
     }
 
     if (changeType) {
-      where.changeType = changeType as any;
+      where.changeType = changeType as $Enums.BalanceChangeType;
     }
 
     const [list, total] = await Promise.all([

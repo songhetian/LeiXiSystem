@@ -214,6 +214,6 @@ export class OperationLogService {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 }

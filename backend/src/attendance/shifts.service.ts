@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, UnprocessableEntityException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorCode } from '../common/error.util';
 
 // 班次字段类型（对齐旧项目 work_shifts 表结构）
 export interface ShiftCreateDto {
@@ -40,8 +41,8 @@ export class ShiftsService {
     };
     try {
       return await this.prisma.shift.create({ data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2001, message: '班次名称已存在' });
       }
       throw e;
@@ -80,8 +81,8 @@ export class ShiftsService {
 
     try {
       return await this.prisma.shift.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2001, message: '班次名称已存在' });
       }
       throw e;

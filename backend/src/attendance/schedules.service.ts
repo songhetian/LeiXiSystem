@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { ERROR_CODES } from '../common/error-codes';
 import { ACTIVE_EMPLOYEE_STATUSES } from '../common/employee-status';
+import { errorCode } from '../common/error.util';
 
 // 排班聚合（S04）：员工×日期×班次，uk(employee, workDate)；重复 → 2002（含批量原子性）
 @Injectable()
@@ -23,8 +24,8 @@ export class SchedulesService {
         create: { employeeId: dto.employeeId, shiftId: dto.shiftId, workDate },
         update: { shiftId: dto.shiftId },
       });
-    } catch (e: any) {
-      if (e.code === 'P2003') {
+    } catch (e) {
+      if (errorCode(e) === 'P2003') {
         throw new UnprocessableEntityException({
           code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
           message: '员工或班次不存在',
@@ -54,8 +55,8 @@ export class SchedulesService {
         return n;
       });
       return { count };
-    } catch (e: any) {
-      if (e.code === 'P2003') {
+    } catch (e) {
+      if (errorCode(e) === 'P2003') {
         throw new UnprocessableEntityException({
           code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
           message: '员工或班次不存在',
@@ -192,11 +193,11 @@ export class SchedulesService {
 
     try {
       return await this.prisma.schedule.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2002, message: '该员工当日已排班' });
       }
-      if (e.code === 'P2003') {
+      if (errorCode(e) === 'P2003') {
         throw new UnprocessableEntityException({
           code: ERROR_CODES.SCHEDULE_TARGET_NOT_FOUND,
           message: '员工或班次不存在',

@@ -12,10 +12,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RoleWorkflowService } from './role-workflow.service';
-import { buildApprovalChain, type WorkflowNode, type RoutingContext } from './engine/routing-engine';
+import { Prisma, $Enums } from '@prisma/client';
+import { buildApprovalChain, type WorkflowNode, type NodeCondition, type RoutingContext } from './engine/routing-engine';
 import { NotificationClientInterface } from '../notification/notification-client.interface';
 import { ERROR_CODES } from '../common/error-codes';
 import { generateAutoCode } from '../common/code-gen.util';
+import { errorCode } from '../common/error.util';
 
 const WORKFLOW_CACHE_TTL = 30 * 60;
 
@@ -102,7 +104,7 @@ export class ApprovalService {
           code: params.code || generateAutoCode('WF'),
           name: params.name,
           module: params.module,
-          status: params.status as any || 'draft',
+          status: params.status as $Enums.ApprovalWorkflowStatus || 'draft',
           maxResubmits: params.maxResubmits ?? 3,
           nodes: {
             create: params.nodes.map((n) => ({
@@ -120,8 +122,8 @@ export class ApprovalService {
         },
         include: { nodes: { orderBy: { order: 'asc' } } },
       });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 6301, message: '审批流编码已存在' });
       }
       throw e;
@@ -151,10 +153,10 @@ export class ApprovalService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const updateData: any = {};
+      const updateData: Prisma.ApprovalWorkflowUpdateInput = {};
       if (params.name !== undefined) updateData.name = params.name;
       if (params.module !== undefined) updateData.module = params.module;
-      if (params.status !== undefined) updateData.status = params.status as any;
+      if (params.status !== undefined) updateData.status = params.status as $Enums.ApprovalWorkflowStatus;
       if (params.maxResubmits !== undefined) updateData.maxResubmits = params.maxResubmits;
 
       if (params.nodes) {
@@ -285,14 +287,14 @@ export class ApprovalService {
     const engineNodes: WorkflowNode[] = workflow.nodes.map((n) => ({
       id: n.nodeKey,
       name: n.name,
-      type: n.type as any,
+      type: n.type as WorkflowNode['type'],
       roleCode: n.roleCode || undefined,
       order: n.order,
       condition:
         n.conditionField && n.conditionOperator
           ? {
               field: n.conditionField,
-              operator: n.conditionOperator as any,
+              operator: n.conditionOperator as NodeCondition['operator'],
               value: n.conditionValue || '',
             }
           : undefined,
@@ -372,8 +374,8 @@ export class ApprovalService {
       }
 
       return instance;
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.APPROVAL_INSTANCE_CONFLICT, message: '审批实例创建冲突' });
       }
       throw e;
@@ -492,12 +494,12 @@ export class ApprovalService {
     const engineNodes: WorkflowNode[] = instance.workflow.nodes.map((n) => ({
       id: n.nodeKey,
       name: n.name,
-      type: n.type as any,
+      type: n.type as WorkflowNode['type'],
       roleCode: n.roleCode || undefined,
       order: n.order,
       condition:
         n.conditionField && n.conditionOperator
-          ? { field: n.conditionField, operator: n.conditionOperator as any, value: n.conditionValue || '' }
+          ? { field: n.conditionField, operator: n.conditionOperator as NodeCondition['operator'], value: n.conditionValue || '' }
           : undefined,
     }));
 
@@ -1292,9 +1294,9 @@ export class ApprovalService {
 
   // ===== 我已审批（已办）=====
   async listMyApproved(userId: number, query: { page: number; pageSize: number; status?: string }) {
-    const where: any = {
+    const where: Prisma.ApprovalRecordWhereInput = {
       approverId: userId,
-      status: { in: ['approved', 'rejected'] },
+      status: { in: [$Enums.ApprovalRecordStatus.approved, $Enums.ApprovalRecordStatus.rejected] },
     };
 
     const [records, total] = await Promise.all([
@@ -1323,7 +1325,7 @@ export class ApprovalService {
       nodeName: r.nodeName,
       title: r.instance.title,
       workflowCode: r.instance.workflowCode,
-      workflowName: (r.instance as any).workflow?.name || '',
+      workflowName: r.instance.workflow?.name || '',
       applicantName: r.instance.applicantName,
       instanceStatus: r.instance.status,
       action: r.status,
@@ -1390,12 +1392,12 @@ export class ApprovalService {
     });
   }
 
-  async createCommentTemplate(data: { name: string; content: string; type: string; sortOrder?: number }) {
-    return this.prisma.approvalCommentTemplate.create({ data: data as any });
+  async createCommentTemplate(data: { name: string; content: string; type: $Enums.ApprovalCommentType; sortOrder?: number }) {
+    return this.prisma.approvalCommentTemplate.create({ data });
   }
 
-  async updateCommentTemplate(id: number, data: { name?: string; content?: string; type?: string; sortOrder?: number }) {
-    return this.prisma.approvalCommentTemplate.update({ where: { id }, data: data as any });
+  async updateCommentTemplate(id: number, data: { name?: string; content?: string; type?: $Enums.ApprovalCommentType; sortOrder?: number }) {
+    return this.prisma.approvalCommentTemplate.update({ where: { id }, data });
   }
 
   async deleteCommentTemplate(id: number) {

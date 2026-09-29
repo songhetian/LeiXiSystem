@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { RedisService } from './redis/redis.service';
 import { ERROR_CODES } from './error-codes';
 import { MetricsService } from './metrics.service';
+import { errorMessage } from './error.util';
 
 export class LockAcquisitionError extends Error {
   readonly code = ERROR_CODES.LOCK_ACQUISITION_FAILED;
@@ -59,8 +60,8 @@ export class DistributedLockService {
       const success = result === 'OK';
       this.metrics?.recordLockAcquire(resource, success);
       return success;
-    } catch (err: any) {
-      this.logger.warn(`获取锁失败 [${resource}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`获取锁失败 [${resource}]: ${errorMessage(err)}`);
       const success = !failClosed;
       this.metrics?.recordLockAcquire(resource, success);
       return success;
@@ -74,8 +75,8 @@ export class DistributedLockService {
       const client = this.redis.getClient();
       const result = await client.eval(UNLOCK_SCRIPT, 1, key, ownerId);
       return result === 1;
-    } catch (err: any) {
-      this.logger.warn(`释放锁失败 [${resource}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`释放锁失败 [${resource}]: ${errorMessage(err)}`);
       return false;
     }
   }
@@ -114,13 +115,12 @@ export class DistributedLockService {
             this.logger.warn(`锁续期失败，锁已不属于当前持有者 [${resource}]`);
             stopRenewal();
           }
-        } catch (err: any) {
-          this.logger.warn(`锁续期异常 [${resource}]: ${err.message}`);
+        } catch (err) {
+          this.logger.warn(`锁续期异常 [${resource}]: ${errorMessage(err)}`);
         }
       }, renewalIntervalMs);
-      if ((renewalTimer as any).unref) {
-        (renewalTimer as any).unref();
-      }
+      // setInterval 返回 NodeJS.Timeout，带 unref()：不阻止进程退出
+      renewalTimer.unref();
     }
 
     try {

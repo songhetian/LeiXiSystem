@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { parseXFaceRecords, buildLastSyncTimeCursor, filterNewRecords, XFaceRecord } from './engine/xface-adapter';
 import { ACTIVE_EMPLOYEE_STATUSES } from '../common/employee-status';
 import { Cron } from '@nestjs/schedule';
+import { errorStatus, errorMessage } from '../common/error.util';
 
 @Injectable()
 export class PunchSyncService {
@@ -61,9 +62,9 @@ export class PunchSyncService {
         const newRecords = await this.syncFromDevice(defaultDeviceNo, '');
         totalNew = newRecords.length;
         return { newCount: totalNew, source: 'api' };
-      } catch (e: any) {
-        if (e.status === 502) throw e;
-        throw new BadGatewayException({ code: 2006, message: `打卡设备连接失败: ${e.message}` });
+      } catch (e) {
+        if (errorStatus(e) === 502) throw e;
+        throw new BadGatewayException({ code: 2006, message: `打卡设备连接失败: ${errorMessage(e)}` });
       }
     }
 
@@ -81,15 +82,15 @@ export class PunchSyncService {
           device.apiKey ?? undefined,
         );
         totalNew += newRecords.length;
-      } catch (e: any) {
-        this.logger.error(`同步设备 ${device.deviceNo} 失败: ${e.message}`);
+      } catch (e) {
+        this.logger.error(`同步设备 ${device.deviceNo} 失败: ${errorMessage(e)}`);
         await this.prisma.punchSyncState.upsert({
           where: { deviceNo: device.deviceNo },
-          update: { lastError: e.message },
+          update: { lastError: errorMessage(e) },
           create: {
             deviceNo: device.deviceNo,
             lastSyncTime: new Date(0),
-            lastError: e.message,
+            lastError: errorMessage(e),
           },
         });
       }
@@ -177,8 +178,8 @@ export class PunchSyncService {
       }
 
       return await response.json();
-    } catch (e: any) {
-      throw new BadGatewayException({ code: 2006, message: `打卡设备连接失败: ${e.message}` });
+    } catch (e) {
+      throw new BadGatewayException({ code: 2006, message: `打卡设备连接失败: ${errorMessage(e)}` });
     }
   }
 
@@ -221,8 +222,8 @@ export class PunchSyncService {
     try {
       const result = await this.syncNow();
       this.logger.log(`定时任务：同步完成，新增 ${result.newCount} 条记录`);
-    } catch (e: any) {
-      this.logger.error(`定时任务：同步失败 - ${e.message}`);
+    } catch (e) {
+      this.logger.error(`定时任务：同步失败 - ${errorMessage(e)}`);
     }
   }
 
@@ -233,8 +234,8 @@ export class PunchSyncService {
     try {
       const result = await this.syncNow();
       this.logger.log(`每日完整性校验完成，新增 ${result.newCount} 条记录`);
-    } catch (e: any) {
-      this.logger.error(`每日完整性校验失败 - ${e.message}`);
+    } catch (e) {
+      this.logger.error(`每日完整性校验失败 - ${errorMessage(e)}`);
     }
   }
 }

@@ -59,7 +59,7 @@ function getCondition(node: WorkflowNode): NodeCondition | undefined {
   if (node.conditionField && node.conditionOperator && node.conditionValue !== undefined) {
     return {
       field: node.conditionField,
-      operator: node.conditionOperator as any,
+      operator: node.conditionOperator as NodeCondition['operator'],
       value: node.conditionValue,
     };
   }

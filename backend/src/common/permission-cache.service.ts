@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
 import { ERROR_CODES } from './error-codes';
 import { MetricsService } from './metrics.service';
+import { errorMessage } from './error.util';
 
 export interface CachedUserInfo {
   id: number;
@@ -94,9 +95,9 @@ export class PermissionCacheService implements OnModuleDestroy {
       let userInfo: CachedUserInfo;
       try {
         userInfo = await this.fetchFromDb(userId);
-      } catch (err: any) {
+      } catch (err) {
         if (err instanceof UnauthorizedException) throw err;
-        this.logger.error(`从 DB 加载用户权限失败 [user=${userId}]: ${err.message}`);
+        this.logger.error(`从 DB 加载用户权限失败 [user=${userId}]: ${errorMessage(err)}`);
         const stale = await this.loadStaleFromMemory(userId);
         if (stale) {
           this.logger.warn(`DB 不可用，使用内存缓存降级 [user=${userId}]`);
@@ -121,8 +122,8 @@ export class PermissionCacheService implements OnModuleDestroy {
     if (this.redis.isEnabled) {
       try {
         await this.redis.del(key);
-      } catch (err: any) {
-        this.logger.warn(`Redis 删除缓存失败 [user=${userId}]: ${err.message}`);
+      } catch (err) {
+        this.logger.warn(`Redis 删除缓存失败 [user=${userId}]: ${errorMessage(err)}`);
       }
     }
     this.memoryCache.delete(userId);
@@ -175,8 +176,8 @@ export class PermissionCacheService implements OnModuleDestroy {
     if (this.redis.isEnabled) {
       try {
         await this.redis.set(this.cacheKey(userId), payload, ttl);
-      } catch (err: any) {
-        this.logger.warn(`写入 Redis 缓存失败 [user=${userId}]: ${err.message}`);
+      } catch (err) {
+        this.logger.warn(`写入 Redis 缓存失败 [user=${userId}]: ${errorMessage(err)}`);
       }
     } else {
       this.evictOldestIfNeeded();

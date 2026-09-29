@@ -5,6 +5,7 @@ import { Employee, EmployeeStatus, Prisma } from '@prisma/client';
 import { ERROR_CODES } from '../common/error-codes';
 import { beijingNow } from '../common/date.util';
 import * as ExcelJS from 'exceljs';
+import { errorCode, errorMessage } from '../common/error.util';
 
 // 员工聚合根服务（S03）：CRUD + 离职状态机 + 部门数据隔离（ADR-0010，经 DataScopeService 统一注入）
 @Injectable()
@@ -74,8 +75,8 @@ export class EmployeesService {
               : {}),
           },
         });
-      } catch (err: any) {
-        if (explicitNo || err?.code !== 'P2002') throw err;
+      } catch (err) {
+        if (explicitNo || errorCode(err) !== 'P2002') throw err;
         employeeNo = await this.generateEmployeeNo();
       }
     }
@@ -88,6 +89,8 @@ export class EmployeesService {
       include: {
         department: { select: { id: true, name: true, parentId: true } },
         position: { select: { id: true, name: true } },
+        // 邮箱归属 User 模型，随档案一并返回，供「个人资料」页展示（此前前端只能 as any 读）
+        user: { select: { email: true } },
       },
     });
     if (!employee) {
@@ -106,8 +109,6 @@ export class EmployeesService {
       phone?: string;
       address?: string;
       email?: string;
-      bankAccount?: string;
-      bankName?: string;
       emergencyContact?: string;
       emergencyPhone?: string;
     },
@@ -119,37 +120,47 @@ export class EmployeesService {
       throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '未找到员工档案' });
     }
 
-    const ALLOWED_FIELDS = [
-      'phone',
-      'email',
-      'address',
-      'emergencyContact',
-      'emergencyPhone',
-      'bankAccount',
-      'bankName',
-    ];
+    // Employee 表可自助修改的字段白名单（禁改薪资/部门/职位/状态等敏感项）。
+    // ⚠️ 此前白名单误写了 Employee 表并不存在的 `email` / `bankAccount` / `bankName`：
+    // 由于入口处用 `as any` 赋值，编译期无感，但提交这些字段时 Prisma 会抛
+    // PrismaClientValidationError（HTTP 500）。现按真实表结构调整：
+    // `email` 归属 User 模型（与报表导出 `e.user?.email`、入职登记同源），单独更新。
+    const ALLOWED_FIELDS = ['phone', 'address', 'emergencyContact', 'emergencyPhone'] as const;
 
-    const updateData: any = {};
+    const updateData: Prisma.EmployeeUpdateInput = {};
     for (const field of ALLOWED_FIELDS) {
-      if ((data as any)[field] !== undefined) {
-        updateData[field] = (data as any)[field];
+      const value = data[field];
+      if (value !== undefined) {
+        updateData[field] = value;
       }
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.employee.update({
-        where: { id: employee.id },
-        data: updateData,
-        include: {
-          department: { select: { id: true, name: true, parentId: true } },
-          position: { select: { id: true, name: true } },
-        },
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        if (data.email !== undefined) {
+          await tx.user.update({ where: { id: userId }, data: { email: data.email } });
+        }
+        const result = await tx.employee.update({
+          where: { id: employee.id },
+          data: updateData,
+          include: {
+            department: { select: { id: true, name: true, parentId: true } },
+            position: { select: { id: true, name: true } },
+            user: { select: { email: true } },
+          },
+        });
+        await this.recordChangeLogsWithTx(tx, employee.id, employee, updateData, userId, 'self_update');
+        return result;
       });
-      await this.recordChangeLogsWithTx(tx, employee.id, employee, updateData, userId, 'self_update');
-      return result;
-    });
 
-    return updated;
+      return updated;
+    } catch (e) {
+      // User.email 唯一索引冲突 → 明确的业务冲突，而非 500
+      if (errorCode(e) === 'P2002') {
+        throw new ConflictException({ code: ERROR_CODES.EMPLOYEE_EMAIL_EXISTS, message: '该邮箱已被其他账号使用' });
+      }
+      throw e;
+    }
   }
 
   async list(userId: number, query: {
@@ -609,7 +620,8 @@ export class EmployeesService {
 
     for (const [field, newValue] of Object.entries(updateData)) {
       if (newValue === undefined) continue;
-      const oldValue = (oldEmployee as any)[field];
+      // 字段名来自 updateData 的键（已收敛为 Prisma 入参类型），按索引读取旧值
+      const oldValue = (oldEmployee as Record<string, unknown>)[field];
       const oldStr = this.valueToString(oldValue);
       const newStr = this.valueToString(newValue);
       if (oldStr !== newStr) {
@@ -671,12 +683,15 @@ export class EmployeesService {
       });
     });
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 
   async importExcel(userId: number, buffer: Buffer): Promise<{ success: number; failed: number; errors: string[] }> {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer as any);
+    // exceljs 的 index.d.ts 首行 `declare interface Buffer extends ArrayBuffer {}` 在全局
+    // 覆盖了 Node 的 Buffer 类型，两边结构不兼容；此处按 load 的入参类型精确断言，
+    // 而不是 `as any`（运行期 exceljs 确实接受 Node Buffer）。
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     const sheet = workbook.worksheets[0];
     if (!sheet) throw new BadRequestException({ code: 4000, message: 'Excel 为空' });
 
@@ -725,9 +740,9 @@ export class EmployeesService {
           },
         });
         success++;
-      } catch (e: any) {
+      } catch (e) {
         failed++;
-        errors.push(`第 ${row.number} 行：${e.message || '导入失败'}`);
+        errors.push(`第 ${row.number} 行：${errorMessage(e) || '导入失败'}`);
       }
     }
     return { success, failed, errors };
@@ -767,6 +782,6 @@ export class EmployeesService {
     exampleRow.alignment = { vertical: 'middle' };
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 }

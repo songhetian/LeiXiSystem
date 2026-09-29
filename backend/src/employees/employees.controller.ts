@@ -68,8 +68,6 @@ const updateMyProfileSchema = z.object({
   phone: phoneSchema,
   address: z.string().optional(),
   email: z.string().email('邮箱格式错误').optional(),
-  bankAccount: z.string().optional(),
-  bankName: z.string().optional(),
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
 });

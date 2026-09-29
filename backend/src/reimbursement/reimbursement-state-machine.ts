@@ -10,7 +10,9 @@ const validTransitions: Record<ReimbursementStatus, ReimbursementStatus[]> = {
   draft: ['approving', 'cancelled', 'pending'],
   pending: ['approving', 'cancelled', 'draft'],
   approving: ['approved', 'rejected', 'cancelled', 'draft'],
-  approved: ['paid' as any, 'cancelled', 'draft'],
+  // 注：付款状态是独立字段（Reimbursement.paymentStatus），不在本状态机的值域内。
+  // 此前这里误列 `'paid' as any`，既是无效状态又靠 any 绕过类型检查，已移除。
+  approved: ['cancelled', 'draft'],
   rejected: ['approving'],
   cancelled: ['approving'],
 };
@@ -59,8 +61,7 @@ export function assertValidStateTransition(
 ): void {
   const result = validateStateTransition(currentState, targetState);
   if (!result.valid) {
-    const error = new Error(result.message);
-    (error as any).code = errorCode;
-    throw error;
+    // 附带业务错误码，供上层过滤器读取（Object.assign 避免 `(error as any).code`）
+    throw Object.assign(new Error(result.message), { code: errorCode });
   }
 }

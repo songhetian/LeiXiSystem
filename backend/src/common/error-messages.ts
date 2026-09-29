@@ -12,6 +12,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ERROR_CODES.EMPLOYEE_TAG_NOT_FOUND]: '员工标签不存在',
   [ERROR_CODES.EMPLOYEE_TAG_NAME_EXISTS]: '标签名称已存在',
   [ERROR_CODES.ATTENDANCE_LOCATION_NOT_FOUND]: '打卡定位不存在',
+  [ERROR_CODES.EMPLOYEE_EMAIL_EXISTS]: '该邮箱已被其他账号使用',
 
   // 考勤域 2001~2099
   [ERROR_CODES.SHIFT_ERROR]: '班次时间冲突或名称重复',

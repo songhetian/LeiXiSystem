@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { calculateTenure, formatAvgTenure, beijingDateRangeFilter } from '../common/date.util';
 import { createHash } from 'crypto';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorMessage } from '../common/error.util';
 
 type GroupByPeriod = 'month' | 'quarter' | 'year';
 
@@ -64,8 +65,8 @@ export class ReportsService {
         return JSON.parse(cached) as T;
       }
       return null;
-    } catch (e: any) {
-      this.logger.warn(`读取缓存失败 [${key}]: ${e.message}`);
+    } catch (e) {
+      this.logger.warn(`读取缓存失败 [${key}]: ${errorMessage(e)}`);
       return null;
     }
   }
@@ -74,8 +75,8 @@ export class ReportsService {
     if (!this.redis.isEnabled) return;
     try {
       await this.redis.set(key, JSON.stringify(value), ttlSeconds);
-    } catch (e: any) {
-      this.logger.warn(`写入缓存失败 [${key}]: ${e.message}`);
+    } catch (e) {
+      this.logger.warn(`写入缓存失败 [${key}]: ${errorMessage(e)}`);
     }
   }
 
@@ -88,8 +89,8 @@ export class ReportsService {
         await client.del(...keys);
         this.logger.log(`清除报表缓存: ${keys.length} 个 key`);
       }
-    } catch (e: any) {
-      this.logger.warn(`清除缓存失败: ${e.message}`);
+    } catch (e) {
+      this.logger.warn(`清除缓存失败: ${errorMessage(e)}`);
     }
   }
 
@@ -448,20 +449,25 @@ export class ReportsService {
       where.departmentId = { in: scope.ids };
     }
 
+    // ⚠️ Employee 表没有 gender 列（性别只在 Onboarding 上）——此前 select 里写了
+    // `gender: true` 并用 `as any` 掩盖，运行期会抛 PrismaClientValidationError（HTTP 500）。
+    // 前端从未消费该维度，故移除；若日后需要「性别结构」，须先给 Employee 加列（走迁移）。
     const employees = await this.prisma.employee.findMany({
       where,
       select: {
-        id: true, education: true, departmentId: true,
+        id: true,
+        education: true,
+        departmentId: true,
         department: { select: { id: true, name: true } },
-        hireDate: true, status: true, gender: true,
-      } as any,
-    }) as any[];
+        hireDate: true,
+        status: true,
+      },
+    });
 
     const total = employees.length;
 
     const byDept: Record<string, { name: string; count: number }> = {};
     const byEducation: Record<string, number> = {};
-    const byGender: Record<string, number> = { male: 0, female: 0, unknown: 0 };
     const tenureBuckets = [
       { name: '0-1年', min: 0, max: 1, count: 0 },
       { name: '1-3年', min: 1, max: 3, count: 0 },
@@ -490,12 +496,6 @@ export class ReportsService {
 
       if (emp.status === EmployeeStatus.probation) onProbation++;
 
-      if (emp.gender === 'male' || emp.gender === 'female') {
-        byGender[emp.gender]++;
-      } else {
-        byGender.unknown++;
-      }
-
       const tenure = calculateTenure(emp.hireDate, now);
       totalTenureDays += tenure.totalDays;
       totalTenureMonths += tenure.totalMonths;
@@ -513,7 +513,6 @@ export class ReportsService {
       total,
       byDepartment: Object.values(byDept),
       byEducation: Object.entries(byEducation).map(([name, count]) => ({ name, count })),
-      byGender: Object.entries(byGender).map(([name, count]) => ({ name, count })),
       byTenure: tenureBuckets.map((b) => ({ name: b.name, count: b.count })),
       onProbation,
       avgTenure: {
@@ -1289,7 +1288,7 @@ export class ReportsService {
       ws.addRow(d);
     }
     const buf = await wb.xlsx.writeBuffer();
-    return Buffer.from(buf as any);
+    return Buffer.from(buf);
   }
 
   async exportLaborCostXlsx(params: { month: string; userId: number; departmentId?: number }): Promise<Buffer> {
@@ -1311,7 +1310,7 @@ export class ReportsService {
       ws.addRow(d);
     }
     const buf = await wb.xlsx.writeBuffer();
-    return Buffer.from(buf as any);
+    return Buffer.from(buf);
   }
 
   /** 查询当前用户数据范围内可见的员工，供员工列表导出使用 */
@@ -1338,8 +1337,8 @@ export class ReportsService {
         department: { select: { name: true } },
         position: { select: { name: true } },
         user: { select: { email: true, status: true } },
-      } as any,
-    }) as any;
+      },
+    });
   }
 
   private static employeeStatusText(status: string): string {
@@ -1391,7 +1390,7 @@ export class ReportsService {
       });
     }
     const buf = await wb.xlsx.writeBuffer();
-    return Buffer.from(buf as any);
+    return Buffer.from(buf);
   }
 
   async exportEmployeeListCsv(userId: number): Promise<string> {
@@ -1511,7 +1510,7 @@ export class ReportsService {
           downloadUrl,
         },
       });
-    } catch (e: any) {
+    } catch (e) {
       const task = await this.prisma.exportTask.findUnique({ where: { id: taskId } });
       if (!task) return;
 
@@ -1530,7 +1529,7 @@ export class ReportsService {
         where: { id: taskId },
         data: {
           status: ExportTaskStatus.failed,
-          errorMsg: e.message || 'export failed',
+          errorMsg: errorMessage(e) || 'export failed',
         },
       }).catch(() => {});
     }

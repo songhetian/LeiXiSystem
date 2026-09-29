@@ -4,6 +4,7 @@ import { DataScopeService } from '../common/data-scope.service';
 import { employeeNoSchema } from '@lei/shared';
 import { ERROR_CODES } from '../common/error-codes';
 import { beijingDateRangeFilter } from '../common/date.util';
+import { errorCode } from '../common/error.util';
 
 interface PunchLogRow {
   employeeNo: string;
@@ -60,8 +61,8 @@ export class PunchLogsService {
         return n;
       });
       return { count };
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: 2003, message: '打卡记录重复（已全部回滚）' });
       }
       throw e;

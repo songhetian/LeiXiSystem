@@ -32,10 +32,17 @@ const mockPrisma: any = {
   position: {
     findMany: jest.fn(),
   },
+  // email 归属 User 模型，个人资料修改会走 user.update
+  user: {
+    update: jest.fn(),
+  },
   $transaction: jest.fn(async (fn: any) => {
     const tx = {
       employee: {
         update: jest.fn().mockImplementation((args: any) => mockPrisma.employee.update(args)),
+      },
+      user: {
+        update: jest.fn().mockImplementation((args: any) => mockPrisma.user.update(args)),
       },
       employeeChangeLog: {
         createMany: jest.fn().mockImplementation((args: any) => mockPrisma.employeeChangeLog.createMany(args)),
@@ -188,17 +195,14 @@ describe('EmployeesService (敏感字段)', () => {
   });
 
   describe('updateMyProfile', () => {
+    // 与 Employee 真实表结构一致（无 email / bankAccount / bankName / idCard 列）
     const mockEmployee = {
       id: 1,
       userId: 1,
       employeeNo: 'E001',
       name: '张三',
       phone: '13800138000',
-      email: 'zhangsan@example.com',
       address: '北京市朝阳区',
-      idCard: '110101199001011234',
-      bankAccount: '6222021234567890123',
-      bankName: '工商银行',
       emergencyContact: '李四',
       emergencyPhone: '13900139000',
       departmentId: 1,
@@ -223,11 +227,15 @@ describe('EmployeesService (敏感字段)', () => {
       expect(updateData.phone).toBe('13900139001');
     });
 
-    it('应允许修改 email 字段', async () => {
+    it('应允许修改 email 字段（写入 User 模型，而非 Employee）', async () => {
       await service.updateMyProfile(1, { email: 'new@example.com' });
-      expect(mockPrisma.employee.update).toHaveBeenCalled();
+      // Employee 表无 email 列：若写入 employee.update 会触发 PrismaClientValidationError
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { email: 'new@example.com' },
+      });
       const updateData = mockPrisma.employee.update.mock.calls[0][0].data;
-      expect(updateData.email).toBe('new@example.com');
+      expect(updateData.email).toBeUndefined();
     });
 
     it('应允许修改 address 字段', async () => {
@@ -251,18 +259,20 @@ describe('EmployeesService (敏感字段)', () => {
       expect(updateData.emergencyPhone).toBe('13700137000');
     });
 
-    it('应允许修改 bankAccount 字段', async () => {
-      await service.updateMyProfile(1, { bankAccount: '6222029999999999999' });
+    // 回归：Employee 表并无 bankAccount/bankName 列，写入会让 Prisma 抛
+    // PrismaClientValidationError（HTTP 500）——白名单必须保持与真实表结构一致。
+    it('不应把 bankAccount 传给 employee.update（Employee 表无该列）', async () => {
+      await service.updateMyProfile(1, { bankAccount: '6222029999999999999' } as never);
       expect(mockPrisma.employee.update).toHaveBeenCalled();
       const updateData = mockPrisma.employee.update.mock.calls[0][0].data;
-      expect(updateData.bankAccount).toBe('6222029999999999999');
+      expect(updateData.bankAccount).toBeUndefined();
     });
 
-    it('应允许修改 bankName 字段', async () => {
-      await service.updateMyProfile(1, { bankName: '建设银行' });
+    it('不应把 bankName 传给 employee.update（Employee 表无该列）', async () => {
+      await service.updateMyProfile(1, { bankName: '建设银行' } as never);
       expect(mockPrisma.employee.update).toHaveBeenCalled();
       const updateData = mockPrisma.employee.update.mock.calls[0][0].data;
-      expect(updateData.bankName).toBe('建设银行');
+      expect(updateData.bankName).toBeUndefined();
     });
 
     it('不应允许修改 idCard 敏感字段（白名单过滤）', async () => {
@@ -314,25 +324,25 @@ describe('EmployeesService (敏感字段)', () => {
       expect(updateData.hireDate).toBeUndefined();
     });
 
-    it('应同时修改多个可修改字段', async () => {
+    it('应同时修改多个可修改字段（email 落 User，其余落 Employee）', async () => {
       await service.updateMyProfile(1, {
         phone: '13900139001',
         email: 'new@example.com',
         address: '上海市浦东新区',
         emergencyContact: '王五',
         emergencyPhone: '13700137000',
-        bankAccount: '6222029999999999999',
-        bankName: '建设银行',
       });
       expect(mockPrisma.employee.update).toHaveBeenCalled();
       const updateData = mockPrisma.employee.update.mock.calls[0][0].data;
       expect(updateData.phone).toBe('13900139001');
-      expect(updateData.email).toBe('new@example.com');
       expect(updateData.address).toBe('上海市浦东新区');
       expect(updateData.emergencyContact).toBe('王五');
       expect(updateData.emergencyPhone).toBe('13700137000');
-      expect(updateData.bankAccount).toBe('6222029999999999999');
-      expect(updateData.bankName).toBe('建设银行');
+      expect(updateData.email).toBeUndefined();
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { email: 'new@example.com' },
+      });
     });
 
     it('混合传入可修改和不可修改字段时，只更新白名单内的字段', async () => {

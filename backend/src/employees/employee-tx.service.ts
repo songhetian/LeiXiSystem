@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { OnEvent } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { EmployeeStatus } from '@prisma/client';
+import { EmployeeStatus, Prisma, $Enums } from '@prisma/client';
 import { buildTimeline } from './timeline-builder';
 import { ApprovalClientInterface } from '../approval/approval-client.interface';
 import { DataScopeService } from '../common/data-scope.service';
@@ -16,6 +16,7 @@ import {
   addMonthsUtc,
 } from '../common/date.util';
 import { allocateEmployeeNo } from './employee-no.util';
+import { resolveDailyStatus } from '../attendance/daily-status';
 import * as ExcelJS from 'exceljs';
 import {
   validateOrThrow,
@@ -613,7 +614,7 @@ export class EmployeeTxService {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 
   async createReward(dto: any) {
@@ -621,7 +622,7 @@ export class EmployeeTxService {
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
     if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     return this.prisma.employeeReward.create({
-      data: { ...valid, rewardDate: new Date(valid.rewardDate), type: valid.type as any },
+      data: { ...valid, rewardDate: new Date(valid.rewardDate), type: valid.type as $Enums.RewardPunishmentType },
     });
   }
 
@@ -853,7 +854,7 @@ export class EmployeeTxService {
     const emp = await this.prisma.employee.findUnique({ where: { id: valid.employeeId } });
     if (!emp) throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
     return this.prisma.employeeTransfer.create({
-      data: { ...valid, effectiveDate: new Date(valid.effectiveDate), type: valid.type as any },
+      data: { ...valid, effectiveDate: new Date(valid.effectiveDate), type: valid.type as $Enums.TransferType },
     });
   }
 
@@ -985,27 +986,123 @@ export class EmployeeTxService {
   }
 
   private async handleGenericWithdrawn(instanceId: number, workflowCode: string) {
-    const modelMap: Record<string, string> = {
-      attendance_appeal: 'attendanceAppeal',
-      cert_request: 'certificateRequest',
-    };
-    const model = modelMap[workflowCode];
-    if (!model) return;
+    // 通用撤回仅覆盖出勤申诉 / 证明申请；其余 workflow 走各自的专用处理器
+    if (workflowCode !== 'attendance_appeal' && workflowCode !== 'cert_request') return;
 
-    const record = await (this.prisma as any)[model].findFirst({
-      where: { approvalInstanceId: instanceId },
-    });
+    const record = await this.findApprovalLinkedRecord(this.prisma, workflowCode, instanceId);
     if (!record) return;
     if (record.status !== 'pending' && record.status !== 'approved') return;
 
     await this.prisma.$transaction(async (tx) => {
-      await (tx as any)[model].update({
-        where: { id: record.id },
-        data: { status: 'draft', approvalInstanceId: null },
-      });
+      await this.resetApprovalLinkedToDraft(tx, workflowCode, record.id);
     });
 
     this.logger.log(`${workflowCode} 审批撤回: id=${record.id}, instanceId=${instanceId}`);
+  }
+
+  /**
+   * 按 workflowCode 定位「审批实例所关联的业务记录」。
+   *
+   * 此前用 `(client as any)[modelName].findFirst(...)` 动态下标：模型名写错、字段改名
+   * 都只在运行期炸。改为显式 switch 后，表名与字段名在编译期即可校验。
+   * 与撤回/重提交两处共用同一份映射，避免口径漂移。
+   */
+  private findApprovalLinkedRecord(
+    client: Prisma.TransactionClient,
+    workflowCode: string,
+    instanceId: number,
+  ): Promise<{ id: number; status: string } | null> {
+    switch (workflowCode) {
+      case 'resignation':
+        return client.resignation.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'onboarding':
+        return client.onboarding.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'probation':
+        return client.probation.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'transfer':
+        return client.employeeTransfer.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'attendance_appeal':
+        return client.attendanceAppeal.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'reward_punishment':
+        return client.employeeReward.findFirst({ where: { approvalInstanceId: instanceId } });
+      case 'cert_request':
+        return client.certificateRequest.findFirst({ where: { approvalInstanceId: instanceId } });
+      default:
+        return Promise.resolve(null);
+    }
+  }
+
+  /** 审批撤回：关联记录退回草稿并解绑审批实例（仅出勤申诉 / 证明申请两类走通用撤回） */
+  private async resetApprovalLinkedToDraft(
+    client: Prisma.TransactionClient,
+    workflowCode: string,
+    id: number,
+  ): Promise<void> {
+    if (workflowCode === 'attendance_appeal') {
+      await client.attendanceAppeal.update({
+        where: { id },
+        data: { status: $Enums.AttendanceAppealStatus.draft, approvalInstanceId: null },
+      });
+    } else if (workflowCode === 'cert_request') {
+      await client.certificateRequest.update({
+        where: { id },
+        data: { status: $Enums.CertRequestStatus.draft, approvalInstanceId: null },
+      });
+    }
+  }
+
+  /** 审批重新提交：把关联业务记录标记为审批中 */
+  private async markApprovalLinkedPending(
+    client: Prisma.TransactionClient,
+    workflowCode: string,
+    id: number,
+  ): Promise<void> {
+    switch (workflowCode) {
+      case 'resignation':
+        await client.resignation.update({
+          where: { id },
+          data: { status: $Enums.ResignationStatus.pending },
+        });
+        break;
+      case 'onboarding':
+        await client.onboarding.update({
+          where: { id },
+          data: { status: $Enums.OnboardingStatus.pending },
+        });
+        break;
+      case 'probation':
+        await client.probation.update({
+          where: { id },
+          data: { status: $Enums.ProbationStatus.pending },
+        });
+        break;
+      case 'transfer':
+        await client.employeeTransfer.update({
+          where: { id },
+          data: { status: $Enums.TransferStatus.pending },
+        });
+        break;
+      case 'attendance_appeal':
+        await client.attendanceAppeal.update({
+          where: { id },
+          data: { status: $Enums.AttendanceAppealStatus.pending },
+        });
+        break;
+      case 'reward_punishment':
+        await client.employeeReward.update({
+          where: { id },
+          data: { status: $Enums.RewardPunishmentStatus.pending },
+        });
+        break;
+      case 'cert_request':
+        await client.certificateRequest.update({
+          where: { id },
+          data: { status: $Enums.CertRequestStatus.pending },
+        });
+        break;
+      default:
+        break;
+    }
   }
 
   private async handleOnboardingWithdrawn(instanceId: number) {
@@ -1206,29 +1303,12 @@ export class EmployeeTxService {
 
     await withEventRetry(
       async () => {
-        const modelMap: Record<string, string> = {
-          resignation: 'resignation',
-          onboarding: 'onboarding',
-          probation: 'probation',
-          transfer: 'employeeTransfer',
-          attendance_appeal: 'attendanceAppeal',
-          reward_punishment: 'employeeReward',
-          cert_request: 'certificateRequest',
-        };
-        const model = modelMap[workflowCode];
-        if (!model) return;
-
-        const record = await (this.prisma as any)[model].findFirst({
-          where: { approvalInstanceId: instanceId },
-        });
+        const record = await this.findApprovalLinkedRecord(this.prisma, workflowCode, instanceId);
         if (!record) return;
         if (record.status === 'pending') return;
 
         await this.prisma.$transaction(async (tx) => {
-          await (tx as any)[model].update({
-            where: { id: record.id },
-            data: { status: 'pending' },
-          });
+          await this.markApprovalLinkedPending(tx, workflowCode, record.id);
         });
 
         this.logger.log(`${workflowCode} 审批重提交: id=${record.id}, instanceId=${instanceId}`);
@@ -1577,7 +1657,7 @@ export class EmployeeTxService {
         },
       });
       if (daily) {
-        const updateData: any = {};
+        const updateData: Prisma.AttendanceDailyUpdateInput = {};
         if (appeal.appealType === 'late') {
           updateData.lateMinutes = 0;
         } else if (appeal.appealType === 'early') {
@@ -1586,8 +1666,15 @@ export class EmployeeTxService {
           updateData.absentMinutes = 0;
         }
 
-        const merged = { ...daily, ...updateData };
-        const newStatus = this.recalcDailyStatus(merged as any);
+        // 以「打补丁后」的口径判定新状态（原实现用 { ...daily, ...updateData } 合并，
+        // 类型上会把字段放大成 number | XxxFieldUpdateOperationsInput，故改为显式取值）
+        const newStatus = resolveDailyStatus({
+          punchCount: daily.punchCount,
+          lateMinutes: appeal.appealType === 'late' ? 0 : daily.lateMinutes,
+          earlyMinutes: appeal.appealType === 'early' ? 0 : daily.earlyMinutes,
+          absentMinutes: appeal.appealType === 'absent' ? 0 : daily.absentMinutes,
+          leaveDays: daily.leaveDays,
+        });
         if (newStatus !== daily.status) {
           updateData.status = newStatus;
         }
@@ -1711,23 +1798,6 @@ export class EmployeeTxService {
     this.logger.log(`证明申请审批驳回，requestId=${record.id}`);
   }
 
-  private recalcDailyStatus(daily: {
-    lateMinutes: number;
-    earlyMinutes: number;
-    absentMinutes: number;
-    leaveDays: any;
-    status: string;
-  }): string {
-    if (daily.leaveDays && daily.leaveDays.gt && daily.leaveDays.gt(0)) return 'leave';
-    if (daily.absentMinutes && daily.absentMinutes > 0) return 'absent';
-    const hasLate = daily.lateMinutes > 0;
-    const hasEarly = daily.earlyMinutes > 0;
-    if (hasLate && hasEarly) return 'late_early';
-    if (hasLate) return 'late';
-    if (hasEarly) return 'early';
-    return 'normal';
-  }
-
   async getTimeline(params: {
     page?: number;
     pageSize?: number;
@@ -1777,7 +1847,7 @@ export class EmployeeTxService {
         position: { select: { id: true, name: true } },
       },
     };
-    const employees = await this.prisma.employee.findMany(employeesQuery as any);
+    const employees = await this.prisma.employee.findMany(employeesQuery);
 
     // 3) 调动/晋升/晋级（已生效记录）
     const transferWhere: any = { status: { in: ['approved', 'completed'] } };

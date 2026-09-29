@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorCode } from '../common/error.util';
 
 // 工单创建入参
 export interface HelpdeskTicketCreateDto {
@@ -66,8 +67,8 @@ export class HelpdeskService {
     try {
       const ticket = await this.prisma.helpdeskTicket.create({ data });
       return await this.findTicketById(ticket.id);
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.HELPDESK_TICKET_NO_CONFLICT, message: '工单编号重复' });
       }
       throw e;
@@ -194,8 +195,8 @@ export class HelpdeskService {
           enabled: dto.enabled ?? true,
         },
       });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.HELPDESK_SLA_NAME_EXISTS, message: 'SLA 名称已存在' });
       }
       throw e;
@@ -213,8 +214,8 @@ export class HelpdeskService {
     }
     try {
       return await this.prisma.helpdeskSla.update({ where: { id }, data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new ConflictException({ code: ERROR_CODES.HELPDESK_SLA_NAME_EXISTS, message: 'SLA 名称已存在' });
       }
       throw e;

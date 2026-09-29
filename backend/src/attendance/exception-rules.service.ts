@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
+import { errorCode } from '../common/error.util';
 
 // ===== 异常规则（exception-rules） =====
 export interface ExceptionRuleCreateDto {
@@ -71,11 +72,11 @@ export class ExceptionRulesService {
       deductMinutes: dto.deductMinutes ?? 0,
       status: dto.status ?? 'enabled',
       sortOrder: dto.sortOrder ?? 0,
-    } as any;
+    };
     try {
       return await this.prisma.attendanceExceptionRule.create({ data });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new BadRequestException({ code: ERROR_CODES.EXCEPTION_RULE_CONFLICT, message: '存在重名或冲突的异常规则' });
       }
       throw e;
@@ -97,13 +98,8 @@ export class ExceptionRulesService {
     // 合并已有值后做阈值校验
     const merged = { ...rule, ...dto } as ExceptionRuleCreateDto;
     this.validateRule(merged, true);
-    const data: Record<string, any> = {};
-    for (const key of Object.keys(dto)) {
-      if ((dto as any)[key] !== undefined) {
-        data[key] = (dto as any)[key];
-      }
-    }
-    return await this.prisma.attendanceExceptionRule.update({ where: { id }, data });
+    // Prisma 忽略值为 undefined 的字段，可直接传 DTO（无需手工剔除未提供字段）
+    return await this.prisma.attendanceExceptionRule.update({ where: { id }, data: dto });
   }
 
   // 启停：status 在 enabled / disabled 之间切换

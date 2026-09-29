@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Cron } from '@nestjs/schedule';
 import { AttendanceDailyService } from './attendance-daily.service';
 import { beijingBusinessDate } from '../common/date.util';
+import { errorMessage } from '../common/error.util';
 
 @Injectable()
 export class AttendanceDailyRecalcService {
@@ -68,18 +69,18 @@ export class AttendanceDailyRecalcService {
       });
 
       return { success: true, recordCount: result.count, durationMs, taskId: task.id };
-    } catch (e: any) {
+    } catch (e) {
       const durationMs = Date.now() - startTime;
       await this.prisma.attendanceDailyRecalcTask.update({
         where: { id: task.id },
         data: {
           status: 'failed',
-          errorMessage: e.message || String(e),
+          errorMessage: errorMessage(e) || String(e),
           durationMs,
           finishedAt: new Date(),
         },
       });
-      return { success: false, error: e.message || String(e), durationMs, taskId: task.id };
+      return { success: false, error: errorMessage(e) || String(e), durationMs, taskId: task.id };
     }
   }
 

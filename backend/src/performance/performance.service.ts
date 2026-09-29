@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService, DataScope } from '../common/data-scope.service';
 import { ERROR_CODES } from '../common/error-codes';
 import { $Enums } from '@prisma/client';
+import { errorCode } from '../common/error.util';
 
 // 绩效周期状态类型
 type CycleStatus = $Enums.PerformanceCycleStatus;
@@ -80,8 +81,8 @@ export class PerformanceService {
       return await this.prisma.performanceCycle.create({
         data: { ...dto, status: status as CycleStatus },
       });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+    } catch (e) {
+      if (errorCode(e) === 'P2002') {
         throw new BadRequestException({
           code: ERROR_CODES.PERFORMANCE_CYCLE_NAME_EXISTS,
           message: '绩效周期名称已存在',

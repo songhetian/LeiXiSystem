@@ -105,10 +105,12 @@ describe('ReportsService', () => {
       expect(activeOneMonthAgo).toBe(false);
     });
 
-    it('应包含 byGender 性别统计维度', async () => {
+    // Employee 表没有 gender 列（性别只登记在 Onboarding 上）。此前 select 里写了
+    // `gender: true` 并用 `as any` 掩盖，运行期会抛 PrismaClientValidationError → HTTP 500，
+    // 而前端从未消费 byGender。这里锁定「不得再查不存在的列、不再返回该维度」。
+    it('不得查询 Employee 上不存在的列（gender/email 等），否则整个报表 500', async () => {
       mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
 
-      const now = new Date();
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
@@ -120,7 +122,6 @@ describe('ReportsService', () => {
           department: { id: 1, name: '技术部' },
           hireDate: oneYearAgo,
           status: EmployeeStatus.active,
-          gender: 'male',
         },
         {
           id: 2,
@@ -129,7 +130,41 @@ describe('ReportsService', () => {
           department: { id: 1, name: '技术部' },
           hireDate: oneYearAgo,
           status: EmployeeStatus.active,
-          gender: 'female',
+        },
+      ]);
+
+      const result = await service.employeeStructure(1);
+
+      const callArgs = mockPrisma.employee.findMany.mock.calls[0][0];
+      expect(callArgs.select.gender).toBeUndefined();
+      expect(callArgs.select.email).toBeUndefined();
+      expect(callArgs.select.bankAccount).toBeUndefined();
+      expect(callArgs.select.bankName).toBeUndefined();
+      expect(result.byGender).toBeUndefined();
+    });
+
+    it('结构维度只含真实存在的列：总人数 / 部门 / 学历 / 工龄', async () => {
+      mockDataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+      mockPrisma.employee.findMany.mockResolvedValue([
+        {
+          id: 1,
+          education: '本科',
+          departmentId: 1,
+          department: { id: 1, name: '技术部' },
+          hireDate: oneYearAgo,
+          status: EmployeeStatus.active,
+        },
+        {
+          id: 2,
+          education: '硕士',
+          departmentId: 1,
+          department: { id: 1, name: '技术部' },
+          hireDate: oneYearAgo,
+          status: EmployeeStatus.active,
         },
         {
           id: 3,
@@ -138,37 +173,17 @@ describe('ReportsService', () => {
           department: { id: 2, name: '产品部' },
           hireDate: oneYearAgo,
           status: EmployeeStatus.active,
-          gender: 'male',
-        },
-        {
-          id: 4,
-          education: '博士',
-          departmentId: 2,
-          department: { id: 2, name: '产品部' },
-          hireDate: oneYearAgo,
-          status: EmployeeStatus.active,
-          gender: null,
         },
       ]);
 
       const result = await service.employeeStructure(1);
 
-      const callArgs = mockPrisma.employee.findMany.mock.calls[0][0];
-      expect(callArgs.select.gender).toBe(true);
-
-      expect(result.byGender).toBeDefined();
-      expect(Array.isArray(result.byGender)).toBe(true);
-
-      const maleItem = result.byGender.find((g: any) => g.name === 'male');
-      const femaleItem = result.byGender.find((g: any) => g.name === 'female');
-      const unknownItem = result.byGender.find((g: any) => g.name === 'unknown');
-
-      expect(maleItem).toBeDefined();
-      expect(maleItem.count).toBe(2);
-      expect(femaleItem).toBeDefined();
-      expect(femaleItem.count).toBe(1);
-      expect(unknownItem).toBeDefined();
-      expect(unknownItem.count).toBe(1);
+      expect(result.total).toBe(3);
+      expect(result.byDepartment).toHaveLength(2);
+      expect(result.byDepartment.find((d: any) => d.name === '技术部').count).toBe(2);
+      expect(result.byEducation.find((e: any) => e.name === '本科').count).toBe(2);
+      expect(result.byEducation.find((e: any) => e.name === '硕士').count).toBe(1);
+      expect(Array.isArray(result.byTenure)).toBe(true);
     });
 
     it('总人数统计应正确', async () => {

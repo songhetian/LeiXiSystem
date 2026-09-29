@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import type { JwtModuleOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -17,9 +18,15 @@ import { CsrfService } from '../common/csrf.service';
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      useFactory: (config: ConfigService): JwtModuleOptions => ({
         secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '8h') as any },
+        signOptions: {
+          // expiresIn 的官方类型是 number | ms.StringValue（模板字面量，如 '8h'/'30m'）；
+          // 环境变量运行期才可信，这里按目标类型收窄一次，避免签发不带到期的 token。
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '8h') as NonNullable<
+            JwtModuleOptions['signOptions']
+          >['expiresIn'],
+        },
       }),
     }),
     SettingsModule,

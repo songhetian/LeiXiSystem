@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, ForbiddenException, BadRequestException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService, scopeIsEmpty } from '../common/data-scope.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, $Enums } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildMonthly, type DailyRecord } from './engine/monthly-engine';
 import { ERROR_CODES } from '../common/error-codes';
@@ -81,7 +81,7 @@ export class AttendanceMonthlyService {
         }
         grouped.get(d.employeeId)!.push({
           workDate: d.workDate.toISOString().slice(0, 10),
-          status: d.status as any,
+          status: d.status as $Enums.AttendanceDailyStatus,
           lateMinutes: d.lateMinutes,
           earlyMinutes: d.earlyMinutes,
           overtimeMinutes: d.overtimeMinutes,
@@ -174,7 +174,7 @@ export class AttendanceMonthlyService {
       }
     }
     if (month) where.month = month;
-    if (status) where.status = status as any;
+    if (status) where.status = status as $Enums.AttendanceMonthlyStatus;
 
     const [list, total] = await Promise.all([
       this.prisma.attendanceMonthly.findMany({

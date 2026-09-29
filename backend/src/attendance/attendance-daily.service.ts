@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { ERROR_CODES } from '../common/error-codes';
-import { Prisma } from '@prisma/client';
+import { Prisma, $Enums } from '@prisma/client';
 import { buildDaily, type Shift as EngineShift } from './engine/attendance-engine';
 import { mergeLeaveMakeupIntoDaily, type LeaveRecordInput, type MakeupRecordInput } from './engine/daily-status-merger';
 import { AttendanceMonthlyService } from './attendance-monthly.service';
@@ -187,7 +187,7 @@ export class AttendanceDailyService {
           earlyMinutes: merged.earlyMinutes,
           overtimeMinutes: merged.overtimeMinutes,
           leaveDays: merged.leaveDays,
-          status: merged.status as any,
+          status: merged.status as $Enums.AttendanceDailyStatus,
         },
         update: {
           shiftId: sched.shiftId,
@@ -199,7 +199,7 @@ export class AttendanceDailyService {
           earlyMinutes: merged.earlyMinutes,
           overtimeMinutes: merged.overtimeMinutes,
           leaveDays: merged.leaveDays,
-          status: merged.status as any,
+          status: merged.status as $Enums.AttendanceDailyStatus,
         },
       });
       count++;
@@ -246,7 +246,7 @@ export class AttendanceDailyService {
     if (startDate && endDate) {
       where.workDate = { gte: new Date(startDate), lte: new Date(endDate) };
     }
-    if (status) where.status = status as any;
+    if (status) where.status = status as $Enums.AttendanceDailyStatus;
 
     const [list, total] = await Promise.all([
       this.prisma.attendanceDaily.findMany({

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import Redis from 'ioredis';
+import { errorMessage } from '../error.util';
 
 const DEFAULT_KEY_PREFIX = 'leixi:';
 
@@ -43,8 +44,8 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) return null;
     try {
       return await this.client.ping();
-    } catch (err: any) {
-      this.logger.warn(`Redis ping 失败: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis ping 失败: ${errorMessage(err)}`);
       return null;
     }
   }
@@ -53,8 +54,8 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) return 0;
     try {
       return await this.client.incr(key);
-    } catch (err: any) {
-      this.logger.warn(`Redis incr 失败 [${key}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis incr 失败 [${key}]: ${errorMessage(err)}`);
       return 0;
     }
   }
@@ -63,8 +64,8 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) return;
     try {
       await this.client.expire(key, seconds);
-    } catch (err: any) {
-      this.logger.warn(`Redis expire 失败 [${key}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis expire 失败 [${key}]: ${errorMessage(err)}`);
     }
   }
 
@@ -72,8 +73,8 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) return null;
     try {
       return await this.client.get(key);
-    } catch (err: any) {
-      this.logger.warn(`Redis get 失败 [${key}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis get 失败 [${key}]: ${errorMessage(err)}`);
       return null;
     }
   }
@@ -86,8 +87,8 @@ export class RedisService implements OnModuleDestroy {
       } else {
         await this.client.set(key, value);
       }
-    } catch (err: any) {
-      this.logger.warn(`Redis set 失败 [${key}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis set 失败 [${key}]: ${errorMessage(err)}`);
     }
   }
 
@@ -95,8 +96,8 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) return;
     try {
       await this.client.del(key);
-    } catch (err: any) {
-      this.logger.warn(`Redis del 失败 [${key}]: ${err.message}`);
+    } catch (err) {
+      this.logger.warn(`Redis del 失败 [${key}]: ${errorMessage(err)}`);
     }
   }
 

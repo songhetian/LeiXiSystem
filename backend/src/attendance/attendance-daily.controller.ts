@@ -7,6 +7,7 @@ import { AttendanceDailyService } from './attendance-daily.service';
 import { AttendanceDailyRecalcService } from './attendance-daily-recalc.service';
 import { parsePagination } from '../common/pagination.util';
 import type { RequestContext } from '../types/fastify';
+import { errorMessage } from '../common/error.util';
 
 @ApiTags('考勤日报')
 @Controller('attendance/daily')
@@ -69,9 +70,9 @@ export class AttendanceDailyController {
       const durationMs = Date.now() - startTime;
       await this.recalcService.completeTask(task.id, true, data.count, durationMs);
       return { code: 0, data: { count: data.count, taskId: task.id } };
-    } catch (e: any) {
+    } catch (e) {
       const durationMs = Date.now() - startTime;
-      await this.recalcService.completeTask(task.id, false, 0, durationMs, e.message);
+      await this.recalcService.completeTask(task.id, false, 0, durationMs, errorMessage(e));
       throw e;
     }
   }

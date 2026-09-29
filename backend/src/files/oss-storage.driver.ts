@@ -37,7 +37,7 @@ export class OssStorageDriver implements StorageDriver {
       });
     }
 
-    this.client = new (OSS as any)({
+    this.client = new OSS({
       region,
       bucket,
       accessKeyId,
