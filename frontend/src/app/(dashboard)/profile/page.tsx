@@ -85,9 +85,8 @@ export default function ProfilePage() {
                     { label: '部门', value: employee.department?.name || '-' },
                     { label: '职位', value: employee.position?.name || '-' },
                     { label: '入职日期', value: employee.hireDate || '-' },
-                    // TODO: Employee 模型当前未含 email 字段（仅 User 模型有）；
-                    // 待后端 me 接口透传 user.email 后改为 user?.email，去掉 as any。
-                    { label: '邮箱', value: (employee as { email?: string }).email || '-' },
+                    // 邮箱归属 User 模型，后端 me 接口已随档案返回 user.email
+                    { label: '邮箱', value: employee.user?.email || '-' },
                     { label: '电话', value: employee.phone || '-' },
                   ]}
                 />

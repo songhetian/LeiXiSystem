@@ -16,6 +16,8 @@ export interface Employee {
   positionId?: number | null;
   position?: { id: number; name: string } | null;
   positionName?: string;
+  /** 邮箱归属 User 模型（Employee 表无该列），后端 me 接口随档案一并返回 */
+  user?: { email: string | null } | null;
   hireDate: string;
   resignDate?: string;
   phone?: string | null;
