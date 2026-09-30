@@ -326,17 +326,19 @@ export async function seedBusiness(prisma: PrismaClient) {
   // ---- 休假类型 + 额度 ----
   // 年假为「年度型」：不配 monthlyDays（否则被 isMonthlyDays 判为月假，month=0 年度额度与跨年结转都不会生效），
   // 额度取 baseDays，配 carryOverMaxDays 使其参与跨年结转。
+  // isPaid：有薪假不取消全勤奖（年假/病假/调休），无薪假取消（事假）。
+  // 缺省 false，故此处必须显式标出有薪类型，否则全勤奖会被年假误取消。
   const vacationTypes = [
-  { code: 'annual', name: '年假', baseDays: 10, carryOverMaxDays: 3 },
-  { code: 'sick', name: '病假', baseDays: 0 },
-  { code: 'personal', name: '事假', baseDays: 0 },
-  { code: 'compensatory', name: '调休', baseDays: 0 },
+  { code: 'annual', name: '年假', baseDays: 10, carryOverMaxDays: 3, isPaid: true },
+  { code: 'sick', name: '病假', baseDays: 0, isPaid: true },
+  { code: 'personal', name: '事假', baseDays: 0, isPaid: false },
+  { code: 'compensatory', name: '调休', baseDays: 0, isPaid: true },
 ];
   const vacTypeIds: Record<string, number> = {};
   for (const t of vacationTypes) {
     const vt = await prisma.vacationType.upsert({
       where: { code: t.code },
-      update: {},
+      update: { isPaid: t.isPaid },
       create: t,
     });
     vacTypeIds[t.code] = vt.id;

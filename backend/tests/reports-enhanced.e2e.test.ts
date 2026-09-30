@@ -90,6 +90,7 @@ describe('S15 · 报表中心增强（异步导出 + Excel）', () => {
         absentDays: 0,
         leaveMinutes: 0,
         overtimeHours: 10,
+        overtimeWeekdayHours: 10,
         status: 'confirmed',
         confirmedBy: admin.id,
         confirmedAt: new Date(),

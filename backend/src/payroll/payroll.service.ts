@@ -111,11 +111,13 @@ export class PayrollService {
                 absentDays: Number(m.absentDays),
                 lateCount: m.lateCount,
                 earlyCount: m.earlyCount,
-                noLeave: m.leaveMinutes === 0,
+                // 全勤奖只被「无薪假」取消：有薪假（年假/病假等）不影响全勤
+                noLeave: Number(m.unpaidLeaveMinutes) === 0,
+                // 加班按日类型分桶取 1.5 / 2 / 3 倍；此处不得再退化成单一桶
                 overtimeHours: {
-                  weekday: Number(m.overtimeHours),
-                  weekend: 0,
-                  holiday: 0,
+                  weekday: Number(m.overtimeWeekdayHours),
+                  weekend: Number(m.overtimeWeekendHours),
+                  holiday: Number(m.overtimeHolidayHours),
                 },
               },
               this.payrollConfig,

@@ -87,3 +87,43 @@ export function buildDaily(punchLogs: PunchLog[], shift: Shift): DailyResult {
     status,
   };
 }
+
+/**
+ * 休息日 / 法定节假日**没有排班**时的到岗记录。
+ *
+ * 日报原本只按排班循环生成，因此「周末/节假日到岗但没排班」根本不会产生日报，
+ * 加班费也就无从计算（漏发）。此函数为这类日子提供基础结果：
+ *  - 没有班次可比对，故不判定迟到/早退；
+ *  - 加班时长取首末打卡之间的跨度；只有一次打卡时跨度为 0（无法判定工作时长），记 0。
+ * 实际的计薪加班时长还需经 min(已批加班申请, 本结果) 封顶，见 overtime-cap.ts。
+ */
+export function buildRestDayDaily(punchLogs: PunchLog[]): DailyResult {
+  if (!punchLogs.length) {
+    return {
+      punchCount: 0,
+      firstPunch: null,
+      lastPunch: null,
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      overtimeMinutes: 0,
+      status: 'absent',
+    };
+  }
+
+  const times = punchLogs
+    .map((p) => ({ ...p, min: toMin(p.time) }))
+    .sort((a, b) => a.min - b.min);
+
+  const first = times[0];
+  const last = times[times.length - 1];
+
+  return {
+    punchCount: times.length,
+    firstPunch: toHM(first.min),
+    lastPunch: toHM(last.min),
+    lateMinutes: 0,
+    earlyMinutes: 0,
+    overtimeMinutes: last.min > first.min ? last.min - first.min : 0,
+    status: 'normal',
+  };
+}

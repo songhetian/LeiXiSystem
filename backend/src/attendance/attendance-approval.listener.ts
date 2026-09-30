@@ -5,7 +5,9 @@ import { withEventRetry } from '../common/event-retry.util';
 import { Prisma } from '@prisma/client';
 import { isMonthlyDays } from './vacation-monthly';
 import { getOvertimeToLeaveHours, overtimeHoursToLeaveDays } from './overtime-conversion';
-import { resolveDailyStatus } from './daily-status';
+import { resolveDailyStatus, type DailyStatusInput } from './daily-status';
+import { dayTypeFlags } from './engine/workday-calendar';
+import { loadHolidayCalendar } from './holiday-calendar';
 
 @Injectable()
 export class AttendanceApprovalListener {
@@ -541,7 +543,12 @@ export class AttendanceApprovalListener {
           },
         });
 
-        const newStatus = resolveDailyStatus(refreshed);
+        const newStatus = await this.resolveDailyStatusInTx(
+          tx,
+          record.employeeId,
+          record.punchDate,
+          refreshed,
+        );
         if (newStatus !== daily.status) {
           await tx.attendanceDaily.update({
             where: { id: daily.id },
@@ -703,7 +710,12 @@ export class AttendanceApprovalListener {
         },
       });
 
-      const newStatus = resolveDailyStatus(refreshed);
+      const newStatus = await this.resolveDailyStatusInTx(
+        tx,
+        record.employeeId,
+        record.punchDate,
+        refreshed,
+      );
       if (newStatus !== daily.status) {
         await tx.attendanceDaily.update({
           where: { id: daily.id },
@@ -711,5 +723,25 @@ export class AttendanceApprovalListener {
         });
       }
     }
+  }
+
+  /**
+   * 重算日报状态 —— 与「日报生成」共用 `resolveDailyStatus` 唯一口径。
+   *
+   * 休息日/法定节假日标记与当日已批补卡数必须一并喂进去：否则周末行会被重算洗成
+   * 缺勤（虚增月报缺勤天数、多扣薪），补卡行的 makeup 标记也会被抹掉。
+   */
+  private async resolveDailyStatusInTx(
+    tx: any,
+    employeeId: number,
+    workDate: Date,
+    daily: DailyStatusInput,
+  ) {
+    const calendar = await loadHolidayCalendar(tx, workDate, workDate);
+    const { isWeekend, isHoliday } = dayTypeFlags(workDate, calendar);
+    const makeupCount = await tx.punchMakeup.count({
+      where: { employeeId, punchDate: workDate, status: 'approved' },
+    });
+    return resolveDailyStatus({ ...daily, isWeekend, isHoliday, makeupCount });
   }
 }

@@ -419,6 +419,9 @@ model VacationType {
   code             String            @unique @db.VarChar(50)
   name             String            @db.VarChar(100)
   baseDays         Decimal           @default(0) @db.Decimal(5, 2)
+  // 有薪假（年假/病假/婚假等）不取消全勤奖；无薪假（事假等）取消。
+  // 默认 false = 保守口径：未配置的假期类型一律按无薪处理，避免多发全勤奖。
+  isPaid           Boolean           @default(false) @map("is_paid")
   enabled          Boolean           @default(true)
   sortOrder        Int               @default(999) @map("sort_order")
   carryOverMaxDays Int?              @map("carry_over_max_days")
@@ -593,7 +596,14 @@ model AttendanceDaily {
   earlyMinutes     Int                    @default(0) @map("early_minutes")
   absentMinutes    Int                    @default(0) @map("absent_minutes")
   overtimeMinutes  Int                    @default(0) @map("overtime_minutes")
+  // 加班按「日类型」拆分：休息日 2 倍、法定节假日 3 倍必须分别归集，
+  // 否则算薪只能按平日 1.5 倍统一计发（曾有的缺陷）。overtimeMinutes 保留为三者之和。
+  overtimeWeekdayMinutes Int              @default(0) @map("overtime_weekday_minutes")
+  overtimeWeekendMinutes Int              @default(0) @map("overtime_weekend_minutes")
+  overtimeHolidayMinutes Int              @default(0) @map("overtime_holiday_minutes")
   leaveDays        Decimal                @default(0) @map("leave_days") @db.Decimal(5, 2)
+  // 其中属于「无薪假」的天数：全勤奖只被无薪假取消（有薪假除外，见 CONTEXT.md）
+  unpaidLeaveDays  Decimal                @default(0) @map("unpaid_leave_days") @db.Decimal(5, 2)
   status           AttendanceDailyStatus  @default(normal)
   makeupReason     String?                @map("makeup_reason") @db.VarChar(255)
   operatedBy       Int?                   @map("operated_by")
@@ -649,7 +659,13 @@ model AttendanceMonthly {
   totalEarlyMinutes Int                 @default(0) @map("total_early_minutes")
   absentDays     Decimal                @default(0) @map("absent_days") @db.Decimal(5, 1)
   leaveMinutes   Int                    @default(0) @map("leave_minutes")
+  // 其中属于「无薪假」的分钟数（口径同日报：8 小时 = 480 分钟 = 1 天）
+  unpaidLeaveMinutes Int                @default(0) @map("unpaid_leave_minutes")
   overtimeHours  Decimal                @default(0) @map("overtime_hours") @db.Decimal(6, 2)
+  // 加班小时按日类型拆分，供算薪取 1.5 / 2 / 3 倍；overtimeHours 保留为三者之和
+  overtimeWeekdayHours Decimal          @default(0) @map("overtime_weekday_hours") @db.Decimal(6, 2)
+  overtimeWeekendHours Decimal          @default(0) @map("overtime_weekend_hours") @db.Decimal(6, 2)
+  overtimeHolidayHours Decimal          @default(0) @map("overtime_holiday_hours") @db.Decimal(6, 2)
   status         AttendanceMonthlyStatus @default(draft)
   confirmedBy    Int?                   @map("confirmed_by")
   confirmedAt    DateTime?              @map("confirmed_at")
@@ -660,6 +676,31 @@ model AttendanceMonthly {
   @@index([month])
   @@index([status])
   @@map("attendance_monthly")
+}
+
+/// 节假日 / 调休工作日日历。
+/// 加班倍率与日报状态都依赖「当天到底算工作日、休息日还是法定节假日」，
+/// 而这一信息无法从日期本身推出（法定节假日逐年公布、存在调休上班的周六）。
+enum HolidayDayType {
+  /// 法定节假日（加班 3 倍）
+  holiday
+  /// 休息日（加班 2 倍）
+  rest
+  /// 调休上班日（按平日，加班 1.5 倍）
+  workday
+}
+
+model Holiday {
+  id          Int            @id @default(autoincrement())
+  date        DateTime       @map("date") @db.Date
+  name        String         @db.VarChar(100)
+  dayType     HolidayDayType @default(holiday) @map("day_type")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@unique([date])
+  @@index([date])
+  @@map("holidays")
 }
 
 // ===== S10 · 算薪引擎 + 批次 =====

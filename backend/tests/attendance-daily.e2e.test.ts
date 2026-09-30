@@ -90,6 +90,20 @@ describe('S07 · 考勤日报（重算 + 查询）', () => {
       ],
     });
 
+    // 加班严格取 min(已批申请, 实际超时)：此刻实际超时 90 分钟，故须有等量的已批申请，
+    // 否则按规格应计 0（无申请不计薪）。
+    await prisma.overtimeRecord.deleteMany();
+    await prisma.overtimeRecord.create({
+      data: {
+        employeeId: empId,
+        overtimeDate: new Date('2026-08-10'),
+        startTime: new Date('2026-08-10 17:00:00'),
+        endTime: new Date('2026-08-10 18:30:00'),
+        hours: 1.5,
+        status: 'approved',
+      },
+    });
+
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
     await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');

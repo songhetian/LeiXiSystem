@@ -29,6 +29,8 @@ const typeSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(100),
   baseDays: z.number().finite().optional(),
+  // 有薪假（年假/病假等）不取消全勤奖；无薪假取消。缺省 false，按无薪保守处理
+  isPaid: z.boolean().optional(),
   enabled: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   carryOverRatio: z.number().min(0).max(1).nullable().optional(),

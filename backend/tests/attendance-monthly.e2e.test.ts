@@ -80,7 +80,9 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
     });
     shiftId = shift.id;
 
-    for (let i = 1; i <= 5; i++) {
+    // 5 个工作日（周一~周五）。原先取 08-01~08-05，其中 08-01/08-02 是周末——
+    // 新口径下周末不算出勤（workDays）也不按平日计加班，会让断言失真。
+    for (let i = 3; i <= 7; i++) {
       const date = new Date(`2026-08-${String(i).padStart(2, '0')}`);
       await prisma.schedule.create({
         data: { employeeId: empId, shiftId, workDate: date },
@@ -90,6 +92,17 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
           { employeeNo: 'E101', deviceNo: 'DEV01', punchTime: new Date(`2026-08-${String(i).padStart(2, '0')} 08:00:00`), status: 'matched' },
           { employeeNo: 'E101', deviceNo: 'DEV01', punchTime: new Date(`2026-08-${String(i).padStart(2, '0')} 18:00:00`), status: 'matched' },
         ],
+      });
+      // 每天实际超时 60 分钟，需有等量的已批加班申请才会计薪（严格 min）
+      await prisma.overtimeRecord.create({
+        data: {
+          employeeId: empId,
+          overtimeDate: date,
+          startTime: new Date(`2026-08-${String(i).padStart(2, '0')} 17:00:00`),
+          endTime: new Date(`2026-08-${String(i).padStart(2, '0')} 18:00:00`),
+          hours: 1,
+          status: 'approved',
+        },
       });
     }
 
@@ -110,7 +123,7 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
       method: 'POST',
       url: '/api/v1/attendance/daily/recalc',
       headers: { cookie: adminCookie },
-      payload: { employeeId: empId, startDate: '2026-08-01', endDate: '2026-08-05' },
+      payload: { employeeId: empId, startDate: '2026-08-03', endDate: '2026-08-07' },
     });
 
     const res = await inject(app, {
@@ -129,6 +142,8 @@ describe('S08 · 考勤月报 + 结账锁定', () => {
     expect(monthly).not.toBeNull();
     expect(monthly!.workDays.toNumber()).toBe(5);
     expect(monthly!.overtimeHours.toNumber()).toBe(5);
+    // 加班按日类型分桶：五个工作日全部落在平日桶
+    expect(monthly!.overtimeWeekdayHours.toNumber()).toBe(5);
     expect(monthly!.status).toBe('draft');
   });
 

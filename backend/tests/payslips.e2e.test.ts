@@ -125,6 +125,7 @@ describe('S11 · 工资条自助 + 通知', () => {
           absentDays: 0,
           leaveMinutes: 0,
           overtimeHours: 10,
+          overtimeWeekdayHours: 10,
           status: 'confirmed',
           confirmedBy: admin.id,
           confirmedAt: new Date(),

@@ -14,6 +14,15 @@ const LOCK_TTL_MS = 120_000;
 // 口径 8 小时 = 1 天（与 S06 调休换算一致）。
 const MINUTES_PER_WORK_DAY = 480;
 
+/**
+ * 月报写操作的互斥键 —— generate / confirm / unconfirm 必须共用同一键。
+ * 三者都写同一行（employeeId, month）；若各用各的键（gen 用月份、confirm 用行 id），
+ * 并发下「生成」可插进「确认」中间，把已确认月报连同状态一起回写成 draft。
+ */
+function monthlyLockKey(employeeId: number, month: string): string {
+  return `attendance:monthly:${employeeId}:${month}`;
+}
+
 @Injectable()
 export class AttendanceMonthlyService {
   private readonly logger = new Logger(AttendanceMonthlyService.name);
@@ -31,9 +40,11 @@ export class AttendanceMonthlyService {
     userId: number;
   }) {
     const { employeeId, month, userId } = params;
+    // 单员工生成走与 confirm/unconfirm 相同的键；批量生成无法逐员工持锁，改用月份级键，
+    // 其正确性由下方的 CAS 写（只更新 draft 行）兜底。
     const lockKey = employeeId
-      ? `attendance:monthly:gen:${month}:${employeeId}`
-      : `attendance:monthly:gen:${month}`;
+      ? monthlyLockKey(employeeId, month)
+      : `attendance:monthly:bulk:${month}`;
     return this.lockService.withLock(lockKey, LOCK_TTL_MS, async () => {
       const scope = await this.dataScope.visibleScope(userId);
 
@@ -84,10 +95,14 @@ export class AttendanceMonthlyService {
           status: d.status as $Enums.AttendanceDailyStatus,
           lateMinutes: d.lateMinutes,
           earlyMinutes: d.earlyMinutes,
-          overtimeMinutes: d.overtimeMinutes,
+          overtimeWeekdayMinutes: d.overtimeWeekdayMinutes,
+          overtimeWeekendMinutes: d.overtimeWeekendMinutes,
+          overtimeHolidayMinutes: d.overtimeHolidayMinutes,
           // 请假天数 → 分钟：此前硬编码 0，导致月报「请假时长」恒 0，
           // 算薪 noLeave 恒为 true，有请假的员工照样拿全勤奖
           leaveMinutes: Math.round(Number(d.leaveDays ?? 0) * MINUTES_PER_WORK_DAY),
+          // 其中无薪假分钟数：算薪只让无薪假取消全勤奖
+          unpaidLeaveMinutes: Math.round(Number(d.unpaidLeaveDays ?? 0) * MINUTES_PER_WORK_DAY),
         });
       }
 
@@ -95,34 +110,44 @@ export class AttendanceMonthlyService {
         let count = 0;
         for (const [empId, empDailies] of grouped) {
           const monthlyResult = buildMonthly(empDailies);
-          await tx.attendanceMonthly.upsert({
-            where: { employeeId_month: { employeeId: empId, month } },
-            create: {
-              employeeId: empId,
-              month,
-              workDays: monthlyResult.workDays,
-              lateCount: monthlyResult.lateCount,
-              earlyCount: monthlyResult.earlyCount,
-              totalLateMinutes: monthlyResult.totalLateMinutes,
-              totalEarlyMinutes: monthlyResult.totalEarlyMinutes,
-              absentDays: monthlyResult.absentDays,
-              leaveMinutes: monthlyResult.leaveMinutes,
-              overtimeHours: monthlyResult.overtimeHours,
-              status: 'draft',
-            },
-            update: {
-              workDays: monthlyResult.workDays,
-              lateCount: monthlyResult.lateCount,
-              earlyCount: monthlyResult.earlyCount,
-              totalLateMinutes: monthlyResult.totalLateMinutes,
-              totalEarlyMinutes: monthlyResult.totalEarlyMinutes,
-              absentDays: monthlyResult.absentDays,
-              leaveMinutes: monthlyResult.leaveMinutes,
-              overtimeHours: monthlyResult.overtimeHours,
-              status: 'draft',
-            },
+          const metrics = {
+            workDays: monthlyResult.workDays,
+            lateCount: monthlyResult.lateCount,
+            earlyCount: monthlyResult.earlyCount,
+            totalLateMinutes: monthlyResult.totalLateMinutes,
+            totalEarlyMinutes: monthlyResult.totalEarlyMinutes,
+            absentDays: monthlyResult.absentDays,
+            leaveMinutes: monthlyResult.leaveMinutes,
+            unpaidLeaveMinutes: monthlyResult.unpaidLeaveMinutes,
+            overtimeHours: monthlyResult.overtimeHours,
+            overtimeWeekdayHours: monthlyResult.overtimeWeekdayHours,
+            overtimeWeekendHours: monthlyResult.overtimeWeekendHours,
+            overtimeHolidayHours: monthlyResult.overtimeHolidayHours,
+          };
+
+          // CAS：只更新仍为 draft 的行。已确认（confirmed）月报不可被重新生成回写，
+          // 也不能被「重置」回 draft —— 否则确认过的人数与总额会被无声改动。
+          const updated = await tx.attendanceMonthly.updateMany({
+            where: { employeeId: empId, month, status: 'draft' },
+            data: metrics,
           });
-          count++;
+          if (updated.count > 0) {
+            count++;
+            continue;
+          }
+
+          try {
+            await tx.attendanceMonthly.create({
+              data: { employeeId: empId, month, ...metrics, status: 'draft' },
+            });
+            count++;
+          } catch (err) {
+            // 唯一键冲突 = 该行已存在且非 draft（即已确认）→ 按「已确认不可回写」跳过
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+              continue;
+            }
+            throw err;
+          }
         }
         return { count };
       });
@@ -192,7 +217,16 @@ export class AttendanceMonthlyService {
   }
 
   async confirm(id: number, userId: number) {
-    return this.lockService.withLock(`attendance:monthly:confirm:${id}`, LOCK_TTL_MS, async () => {
+    // 先读一次行只为取 (employeeId, month) 构造互斥键；真正的并发安全由锁内的
+    // CAS updateMany({ status: 'draft' }) 保证，故这次读不需要在锁内。
+    const target = await this.prisma.attendanceMonthly.findUnique({ where: { id } });
+    if (!target) {
+      throw new ConflictException({
+        code: ERROR_CODES.MONTHLY_NOT_FOUND,
+        message: '月报不存在',
+      });
+    }
+    return this.lockService.withLock(monthlyLockKey(target.employeeId, target.month), LOCK_TTL_MS, async () => {
       const scope = await this.dataScope.visibleScope(userId);
       const existing = await this.prisma.attendanceMonthly.findUnique({ where: { id } });
       if (!existing) {
@@ -293,7 +327,14 @@ export class AttendanceMonthlyService {
   }
 
   async unconfirm(id: number, userId: number) {
-    return this.lockService.withLock(`attendance:monthly:unconfirm:${id}`, LOCK_TTL_MS, async () => {
+    const target = await this.prisma.attendanceMonthly.findUnique({ where: { id } });
+    if (!target) {
+      throw new ConflictException({
+        code: ERROR_CODES.MONTHLY_NOT_FOUND,
+        message: '月报不存在',
+      });
+    }
+    return this.lockService.withLock(monthlyLockKey(target.employeeId, target.month), LOCK_TTL_MS, async () => {
       const scope = await this.dataScope.visibleScope(userId);
       const existing = await this.prisma.attendanceMonthly.findUnique({ where: { id } });
       if (!existing) {

@@ -498,7 +498,7 @@ describe('功能缺失全景 · TDD 综合测试', () => {
   describe('P1-3 · 报表多维度筛选', () => {
     it('考勤月报支持按部门筛选', async () => {
       const monthly = await prisma.attendanceMonthly.create({
-        data: { employeeId: emp1Id, month: '2026-08', workDays: 22, lateCount: 1, earlyCount: 0, absentDays: 0, overtimeHours: 10, status: 'confirmed' },
+        data: { employeeId: emp1Id, month: '2026-08', workDays: 22, lateCount: 1, earlyCount: 0, absentDays: 0, overtimeHours: 10, overtimeWeekdayHours: 10, status: 'confirmed' },
       });
 
       const res = await inject(app, {

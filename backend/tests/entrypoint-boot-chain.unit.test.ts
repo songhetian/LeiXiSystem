@@ -297,12 +297,19 @@ describe('docker-compose.yml —— 启动链接线', () => {
 });
 
 describe('迁移目录 —— 基线唯一性', () => {
-  it('只保留 0_init 一个基线迁移（历史迁移已被压缩）', () => {
+  it('0_init 是唯一基线，其后只允许带时间戳前缀的新迁移（历史迁移已被压缩）', () => {
     const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    expect(dirs).toEqual(['0_init']);
+    // 基线必须存在且排在最前
+    expect(dirs[0]).toBe('0_init');
+    // 不允许出现第二个「基线式」目录（无 14 位时间戳前缀的历史迁移说明压缩未做干净）
+    const others = dirs.slice(1);
+    for (const name of others) {
+      expect(name).toMatch(/^\d{14}_/);
+      expect(name > '0_init').toBe(true);
+    }
   });
 
   it('基线含全量 DDL 与默认种子（system_setting 默认值 + system:setting:update 权限）', () => {

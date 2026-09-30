@@ -17,6 +17,8 @@ import {
 } from '../common/date.util';
 import { allocateEmployeeNo } from './employee-no.util';
 import { resolveDailyStatus } from '../attendance/daily-status';
+import { dayTypeFlags } from '../attendance/engine/workday-calendar';
+import { loadHolidayCalendar } from '../attendance/holiday-calendar';
 import * as ExcelJS from 'exceljs';
 import {
   validateOrThrow,
@@ -1668,12 +1670,26 @@ export class EmployeeTxService {
 
         // 以「打补丁后」的口径判定新状态（原实现用 { ...daily, ...updateData } 合并，
         // 类型上会把字段放大成 number | XxxFieldUpdateOperationsInput，故改为显式取值）
+        // 休息日/法定节假日标记与当日已批补卡数必须一并喂入，否则申诉重算会把周末行
+        // 洗成缺勤、把补卡行洗掉 makeup 标记（与日报生成口径不一致 → P1-4）。
+        const calendar = await loadHolidayCalendar(tx, appeal.appealDate, appeal.appealDate);
+        const { isWeekend, isHoliday } = dayTypeFlags(appeal.appealDate, calendar);
+        const makeupCount = await tx.punchMakeup.count({
+          where: {
+            employeeId: appeal.employeeId,
+            punchDate: appeal.appealDate,
+            status: 'approved',
+          },
+        });
         const newStatus = resolveDailyStatus({
           punchCount: daily.punchCount,
           lateMinutes: appeal.appealType === 'late' ? 0 : daily.lateMinutes,
           earlyMinutes: appeal.appealType === 'early' ? 0 : daily.earlyMinutes,
           absentMinutes: appeal.appealType === 'absent' ? 0 : daily.absentMinutes,
           leaveDays: daily.leaveDays,
+          isWeekend,
+          isHoliday,
+          makeupCount,
         });
         if (newStatus !== daily.status) {
           updateData.status = newStatus;

@@ -116,6 +116,8 @@ describe('S10 · 算薪引擎 + 批次', () => {
           absentDays: 0,
           leaveMinutes: 0,
           overtimeHours: 10,
+          // 算薪按日类型取倍率，加班小时必须落在分桶上（此处按平日）
+          overtimeWeekdayHours: 10,
           status: 'confirmed',
           confirmedBy: admin.id,
           confirmedAt: new Date(),

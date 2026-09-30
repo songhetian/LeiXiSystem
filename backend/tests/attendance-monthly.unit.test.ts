@@ -1,5 +1,9 @@
 // S08 · 考勤月报聚合引擎 单元测试（TDD RED 先行）
 // 引擎是纯函数、零框架依赖，可独立跑单测
+//
+// P0-2 变更：加班按日类型分桶（平日/休息日/法定），不再只有单一汇总；
+// P2-9 变更：出勤天数只统计真正出勤的日子（请假/周末/法定不计），餐补以此为准；
+//            并额外汇总「无薪假」分钟数（全勤奖只被无薪假取消）。
 import { describe, it, expect } from '@jest/globals';
 import { buildMonthly, type DailyRecord } from '../src/attendance/engine/monthly-engine';
 
@@ -9,8 +13,11 @@ describe('S08 · 考勤月报聚合引擎（纯函数）', () => {
     status: 'normal',
     lateMinutes: 0,
     earlyMinutes: 0,
-    overtimeMinutes: 0,
+    overtimeWeekdayMinutes: 0,
+    overtimeWeekendMinutes: 0,
+    overtimeHolidayMinutes: 0,
     leaveMinutes: 0,
+    unpaidLeaveMinutes: 0,
     ...overrides,
   });
 
@@ -73,13 +80,29 @@ describe('S08 · 考勤月报聚合引擎（纯函数）', () => {
     expect(r.workDays).toBe(2);
   });
 
-  it('加班合计150分钟 → overtimeHours=2.5', () => {
+  it('加班按日类型分别汇总（平日 60 + 休息日 90 = 2.5 小时）', () => {
     const dailies = [
-      baseDaily({ workDate: '2026-08-01', overtimeMinutes: 60 }),
-      baseDaily({ workDate: '2026-08-02', overtimeMinutes: 90 }),
+      baseDaily({ workDate: '2026-08-01', overtimeWeekdayMinutes: 60 }),
+      baseDaily({ workDate: '2026-08-02', status: 'weekend', overtimeWeekendMinutes: 90 }),
     ];
     const r = buildMonthly(dailies);
     expect(r.overtimeHours).toBe(2.5);
+    expect(r.overtimeWeekdayHours).toBe(1);
+    expect(r.overtimeWeekendHours).toBe(1.5);
+    expect(r.overtimeHolidayHours).toBe(0);
+  });
+
+  it('法定节假日加班单独成桶（3 倍基础）', () => {
+    const dailies = [
+      baseDaily({ workDate: '2026-10-01', status: 'holiday', overtimeHolidayMinutes: 480 }),
+      baseDaily({ workDate: '2026-10-02', status: 'weekend', overtimeWeekendMinutes: 120 }),
+      baseDaily({ workDate: '2026-10-05', overtimeWeekdayMinutes: 60 }),
+    ];
+    const r = buildMonthly(dailies);
+    expect(r.overtimeHolidayHours).toBe(8);
+    expect(r.overtimeWeekendHours).toBe(2);
+    expect(r.overtimeWeekdayHours).toBe(1);
+    expect(r.overtimeHours).toBe(11);
   });
 
   it('请假合计240分钟 → leaveMinutes=240', () => {
@@ -89,6 +112,37 @@ describe('S08 · 考勤月报聚合引擎（纯函数）', () => {
     ];
     const r = buildMonthly(dailies);
     expect(r.leaveMinutes).toBe(240);
+  });
+
+  it('请假日不计入出勤天数（餐补基数不得覆盖请假日）', () => {
+    const dailies = [
+      baseDaily({ workDate: '2026-08-01' }),
+      baseDaily({ workDate: '2026-08-02', status: 'leave', leaveMinutes: 480 }),
+      baseDaily({ workDate: '2026-08-03' }),
+    ];
+    const r = buildMonthly(dailies);
+    expect(r.workDays).toBe(2);
+    expect(r.absentDays).toBe(0);
+  });
+
+  it('周末 / 法定节假日行不计入出勤天数（其报酬走加班费）', () => {
+    const dailies = [
+      baseDaily({ workDate: '2026-08-01' }),
+      baseDaily({ workDate: '2026-08-02', status: 'weekend' }),
+      baseDaily({ workDate: '2026-08-03', status: 'holiday' }),
+    ];
+    const r = buildMonthly(dailies);
+    expect(r.workDays).toBe(1);
+  });
+
+  it('无薪假单独汇总（全勤奖只被无薪假取消）', () => {
+    const dailies = [
+      baseDaily({ workDate: '2026-08-01', status: 'leave', leaveMinutes: 480 }),
+      baseDaily({ workDate: '2026-08-02', status: 'leave', leaveMinutes: 240, unpaidLeaveMinutes: 240 }),
+    ];
+    const r = buildMonthly(dailies);
+    expect(r.leaveMinutes).toBe(720);
+    expect(r.unpaidLeaveMinutes).toBe(240);
   });
 
   it('月中入职（15号入职）→ 只统计入职后的日报', () => {
@@ -113,6 +167,15 @@ describe('S08 · 考勤月报聚合引擎（纯函数）', () => {
     expect(r.workDays).toBe(2);
   });
 
+  it('补卡(makeup) 状态 → 计入出勤天数', () => {
+    const dailies = [
+      baseDaily({ workDate: '2026-08-01', status: 'makeup' }),
+      baseDaily({ workDate: '2026-08-02', status: 'normal' }),
+    ];
+    const r = buildMonthly(dailies);
+    expect(r.workDays).toBe(2);
+  });
+
   it('空日报列表 → 全零', () => {
     const r = buildMonthly([]);
     expect(r.workDays).toBe(0);
@@ -120,6 +183,10 @@ describe('S08 · 考勤月报聚合引擎（纯函数）', () => {
     expect(r.earlyCount).toBe(0);
     expect(r.absentDays).toBe(0);
     expect(r.overtimeHours).toBe(0);
+    expect(r.overtimeWeekdayHours).toBe(0);
+    expect(r.overtimeWeekendHours).toBe(0);
+    expect(r.overtimeHolidayHours).toBe(0);
     expect(r.leaveMinutes).toBe(0);
+    expect(r.unpaidLeaveMinutes).toBe(0);
   });
 });

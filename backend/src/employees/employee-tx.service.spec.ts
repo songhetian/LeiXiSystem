@@ -92,6 +92,13 @@ function createMockPrisma() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    // 申诉重算日报状态时需要「当日已批补卡数」与节假日日历
+    punchMakeup: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    holiday: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     payrollAdjustment: {
       findMany: jest.fn(),
       deleteMany: jest.fn(),

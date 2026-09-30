@@ -19,6 +19,8 @@ export interface VacationTypeInput {
   code: string;
   name: string;
   baseDays?: number;
+  /** 有薪假不取消全勤奖；无薪假取消。缺省 false（保守：按无薪处理，避免多发） */
+  isPaid?: boolean;
   enabled?: boolean;
   sortOrder?: number;
   carryOverRatio?: number | null;
@@ -140,6 +142,7 @@ export class VacationTypeService {
       code: input.code,
       name: input.name,
       baseDays: input.baseDays !== undefined ? new Prisma.Decimal(input.baseDays) : new Prisma.Decimal(0),
+      isPaid: input.isPaid ?? false,
       enabled: input.enabled ?? true,
       sortOrder: input.sortOrder ?? 999,
       ...(input.carryOverRatio !== undefined ? { carryOverRatio: input.carryOverRatio } : {}),
@@ -160,6 +163,7 @@ export class VacationTypeService {
     if (input.code !== undefined) data.code = input.code;
     if (input.name !== undefined) data.name = input.name;
     if (input.baseDays !== undefined) data.baseDays = new Prisma.Decimal(input.baseDays);
+    if (input.isPaid !== undefined) data.isPaid = input.isPaid;
     if (input.enabled !== undefined) data.enabled = input.enabled;
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.carryOverRatio !== undefined) data.carryOverRatio = input.carryOverRatio;

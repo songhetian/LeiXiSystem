@@ -13,6 +13,7 @@ function createMockPrisma() {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
       upsert: jest.fn(),
+      create: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -138,16 +139,14 @@ describe('AttendanceMonthlyService', () => {
           overtimeMinutes: 0,
         },
       ] as any);
-      prisma.attendanceMonthly.upsert.mockResolvedValue({} as any);
+      // CAS 写：存在 draft 行 → updateMany 返回 count>0，走更新分支
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 1 } as any);
 
       await service.generate({ month: '2026-09', userId: 9 });
 
-      const create = prisma.attendanceMonthly.upsert.mock.calls[0][0].create;
-      expect(create.totalLateMinutes).toBe(12);
-      expect(create.totalEarlyMinutes).toBe(8);
-      const update = prisma.attendanceMonthly.upsert.mock.calls[0][0].update;
-      expect(update.totalLateMinutes).toBe(12);
-      expect(update.totalEarlyMinutes).toBe(8);
+      const data = prisma.attendanceMonthly.updateMany.mock.calls[0][0].data;
+      expect(data.totalLateMinutes).toBe(12);
+      expect(data.totalEarlyMinutes).toBe(8);
     });
   });
 
@@ -196,15 +195,13 @@ describe('AttendanceMonthlyService', () => {
           leaveDays: new Prisma.Decimal(0.5),
         },
       ] as any);
-      prisma.attendanceMonthly.upsert.mockResolvedValue({} as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 1 } as any);
 
       await service.generate({ month: '2026-09', userId: 9 });
 
       // 1 天 + 0.5 天 = 1.5 天 = 720 分钟
-      const create = prisma.attendanceMonthly.upsert.mock.calls[0][0].create;
-      const update = prisma.attendanceMonthly.upsert.mock.calls[0][0].update;
-      expect(create.leaveMinutes).toBe(720);
-      expect(update.leaveMinutes).toBe(720);
+      const data = prisma.attendanceMonthly.updateMany.mock.calls[0][0].data;
+      expect(data.leaveMinutes).toBe(720);
     });
 
     it('无请假日报折算后 leaveMinutes 仍为 0', async () => {
@@ -219,16 +216,126 @@ describe('AttendanceMonthlyService', () => {
           leaveDays: new Prisma.Decimal(0),
         },
       ] as any);
-      prisma.attendanceMonthly.upsert.mockResolvedValue({} as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 1 } as any);
 
       await service.generate({ month: '2026-09', userId: 9 });
 
-      expect(prisma.attendanceMonthly.upsert.mock.calls[0][0].create.leaveMinutes).toBe(0);
+      expect(prisma.attendanceMonthly.updateMany.mock.calls[0][0].data.leaveMinutes).toBe(0);
     });
   });
 
-  // 数据范围兜底：账号既无全量权限、又无部门范围、又未绑定员工时，
-  // 不得静默放行为任意员工的月报确认/取消确认（横向越权）。
+  // 缺陷 P1-5：gen 用 upsert 且 update 分支无条件写 status: 'draft'，
+  // 已确认的月报会被「重新生成」回写（人数/总额被无声改动），甚至被重置回 draft。
+  describe('generate - 已确认月报不可回写（CAS）', () => {
+    let service: AttendanceMonthlyService;
+    let prisma: ReturnType<typeof createMockPrisma>;
+    let lockKeys: string[];
+
+    const daily = (overrides: Record<string, unknown> = {}) => ({
+      employeeId: 1,
+      workDate: new Date('2026-09-02T00:00:00.000Z'),
+      status: 'normal',
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      overtimeWeekdayMinutes: 0,
+      overtimeWeekendMinutes: 0,
+      overtimeHolidayMinutes: 0,
+      leaveDays: new Prisma.Decimal(0),
+      unpaidLeaveDays: new Prisma.Decimal(0),
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prisma = createMockPrisma();
+      lockKeys = [];
+      const lockService = {
+        withLock: jest.fn((key: string, _ttl: number, fn: any) => {
+          lockKeys.push(key);
+          return fn();
+        }),
+      };
+      const dataScope = { visibleScope: jest.fn().mockResolvedValue({ all: true, ids: [] }) };
+      service = new AttendanceMonthlyService(
+        prisma as any,
+        dataScope as any,
+        createMockEventEmitter() as any,
+        lockService as any,
+      );
+      (service as any).prisma = prisma;
+      prisma.attendanceMonthly.findFirst.mockResolvedValue(null);
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
+    });
+
+    it('行已确认（updateMany 命中 0 行且 create 撞唯一键）→ 跳过，不再回写', async () => {
+      prisma.attendanceDaily.findMany.mockResolvedValue([daily()] as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 0 } as any);
+      prisma.attendanceMonthly.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('unique', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      const res = await service.generate({ employeeId: 1, month: '2026-09', userId: 9 });
+
+      expect(res.count).toBe(0);
+      // 关键：更新条件必须钉死 draft，否则已确认行会被改写
+      expect(prisma.attendanceMonthly.updateMany.mock.calls[0][0].where).toEqual({
+        employeeId: 1,
+        month: '2026-09',
+        status: 'draft',
+      });
+    });
+
+    it('行仍为 draft（updateMany 命中 1 行）→ 正常更新且不新建', async () => {
+      prisma.attendanceDaily.findMany.mockResolvedValue([daily()] as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 1 } as any);
+
+      const res = await service.generate({ employeeId: 1, month: '2026-09', userId: 9 });
+
+      expect(res.count).toBe(1);
+      expect(prisma.attendanceMonthly.create).not.toHaveBeenCalled();
+    });
+
+    it('首次生成（draft 行不存在）→ 新建行', async () => {
+      prisma.attendanceDaily.findMany.mockResolvedValue([daily()] as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 0 } as any);
+      prisma.attendanceMonthly.create.mockResolvedValue({} as any);
+
+      const res = await service.generate({ employeeId: 1, month: '2026-09', userId: 9 });
+
+      expect(res.count).toBe(1);
+      expect(prisma.attendanceMonthly.create.mock.calls[0][0].data).toMatchObject({
+        employeeId: 1,
+        month: '2026-09',
+        status: 'draft',
+      });
+    });
+
+    it('generate / confirm / unconfirm 共用同一互斥键（员工+月）', async () => {
+      prisma.attendanceDaily.findMany.mockResolvedValue([] as any);
+      prisma.attendanceMonthly.findUnique.mockResolvedValue({
+        id: 7,
+        employeeId: 1,
+        month: '2026-09',
+        status: 'draft',
+      } as any);
+      prisma.attendanceMonthly.updateMany.mockResolvedValue({ count: 1 } as any);
+      prisma.attendanceMonthly.findMany.mockResolvedValue([] as any);
+
+      await service.generate({ employeeId: 1, month: '2026-09', userId: 9 });
+      await service.confirm(7, 9);
+      await service.unconfirm(7, 9);
+
+      expect(lockKeys).toEqual([
+        'attendance:monthly:1:2026-09',
+        'attendance:monthly:1:2026-09',
+        'attendance:monthly:1:2026-09',
+      ]);
+    });
+  });
+
+  // 数据范围兜底：账号既无全量权限、又无部门范围、又未绑定员工时，  // 不得静默放行为任意员工的月报确认/取消确认（横向越权）。
   describe('confirm / unconfirm - 无任何数据范围时拒绝', () => {
     let service: AttendanceMonthlyService;
     let prisma: ReturnType<typeof createMockPrisma>;

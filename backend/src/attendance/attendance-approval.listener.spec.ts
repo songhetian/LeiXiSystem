@@ -21,6 +21,11 @@ function createMockPrisma() {
       update: jest.fn(),
       updateMany: jest.fn(),
       findUnique: jest.fn(),
+      // 重算日报状态时需要「当日已批补卡数」；默认 0 与旧行为一致
+      count: jest.fn().mockResolvedValue(0),
+    },
+    holiday: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     attendanceDaily: {
       findUnique: jest.fn(),

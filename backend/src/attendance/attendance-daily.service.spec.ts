@@ -7,6 +7,7 @@ function createMockPrisma() {
     },
     employee: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     leaveRecord: {
       findMany: jest.fn(),
@@ -15,6 +16,12 @@ function createMockPrisma() {
       findMany: jest.fn(),
     },
     punchMakeup: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    overtimeRecord: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    holiday: {
       findMany: jest.fn().mockResolvedValue([]),
     },
     attendanceDaily: {
