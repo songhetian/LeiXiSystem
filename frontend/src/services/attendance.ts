@@ -121,10 +121,16 @@ export interface MonthlyRecord {
   leaveDays: number;
   absentDays: number;
   overtimeHours: number;
+  /** 加班按日类型拆分（小时）：算薪分别取 1.5 / 2 / 3 倍 */
+  overtimeWeekdayHours?: number;
+  overtimeWeekendHours?: number;
+  overtimeHolidayHours?: number;
   totalWorkHours: number;
   lateCount: number;
   earlyCount: number;
   leaveMinutes: number;
+  /** 其中无薪假分钟数：只有无薪假会取消全勤奖 */
+  unpaidLeaveMinutes?: number;
   status: string;
   confirmedBy?: number | null;
   confirmedAt?: string | null;
@@ -360,6 +366,8 @@ export interface VacationType {
   code: string;
   name: string;
   baseDays?: number;
+  /** 有薪假（年假/病假等）不取消全勤奖；无薪假（事假等）取消 */
+  isPaid?: boolean;
   enabled?: boolean;
   sortOrder?: number;
   carryOverRatio?: number | null;
@@ -373,6 +381,7 @@ export interface VacationTypeCreateDto {
   code: string;
   name: string;
   baseDays?: number;
+  isPaid?: boolean;
   enabled?: boolean;
   sortOrder?: number;
   carryOverRatio?: number | null;

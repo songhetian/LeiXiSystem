@@ -122,6 +122,11 @@ export default function AttendanceMonthlyPage() {
           { title: '缺勤天数', dataIndex: 'absentDays' },
           { title: '请假时长(小时)', value: (r: MonthlyRecord) => ((r.leaveMinutes ?? 0) / 60).toFixed(1) },
           { title: '加班时长(小时)', dataIndex: 'overtimeHours' },
+          {
+            title: '加班明细(平/休/法定)',
+            value: (r: MonthlyRecord) =>
+              `${Number(r.overtimeWeekdayHours ?? 0)} / ${Number(r.overtimeWeekendHours ?? 0)} / ${Number(r.overtimeHolidayHours ?? 0)}`,
+          },
           { title: '状态', value: (r: MonthlyRecord) => (r.status === 'confirmed' ? '已确认' : '待确认') },
         ],
         list,
@@ -183,6 +188,13 @@ export default function AttendanceMonthlyPage() {
       dataIndex: 'overtimeHours',
       width: 110,
       render: (value: number) => `${value}h`,
+    },
+    {
+      title: '加班明细(平/休/法定)',
+      dataIndex: 'overtimeWeekdayHours',
+      width: 190,
+      render: (_: unknown, r: MonthlyRecord) =>
+        `${Number(r.overtimeWeekdayHours ?? 0)} / ${Number(r.overtimeWeekendHours ?? 0)} / ${Number(r.overtimeHolidayHours ?? 0)} h`,
     },
     {
       title: '状态',

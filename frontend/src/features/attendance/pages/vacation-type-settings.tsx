@@ -51,6 +51,15 @@ export default function VacationTypeSettingsPage() {
     { key: 'code', label: '类型编码', type: 'input', required: true, placeholder: '如 annual / sick' },
     { key: 'name', label: '类型名称', type: 'input', required: true, placeholder: '如 年假' },
     { key: 'baseDays', label: '基础天数', type: 'input', required: true, placeholder: '如 5' },
+    {
+      key: 'isPaid',
+      label: '是否计薪',
+      type: 'select',
+      options: [
+        { value: 'false', label: '无薪（取消全勤奖）' },
+        { value: 'true', label: '有薪（不取消全勤奖）' },
+      ],
+    },
     { key: 'sortOrder', label: '排序', type: 'input', placeholder: '数值越小越靠前' },
     {
       key: 'enabled',
@@ -110,11 +119,12 @@ export default function VacationTypeSettingsPage() {
   };
 
   const initialValues = useMemo(() => {
-    if (!editing) return { enabled: 'true', monthlyMode: 'false' };
+    if (!editing) return { enabled: 'true', monthlyMode: 'false', isPaid: 'false' };
     const isMonthly = isMonthlyDays(editing.monthlyDays);
     return {
       ...editing,
       enabled: editing.enabled ? 'true' : 'false',
+      isPaid: editing.isPaid ? 'true' : 'false',
       seniorityRule: editing.seniorityRule ? JSON.stringify(editing.seniorityRule) : '',
       monthlyMode: isMonthly ? 'true' : 'false',
       monthlyDays: isMonthly ? [...editing.monthlyDays!] : undefined,
@@ -130,6 +140,7 @@ export default function VacationTypeSettingsPage() {
     if (values.baseDays !== undefined && values.baseDays !== '') payload.baseDays = Number(values.baseDays);
     if (values.sortOrder !== undefined && values.sortOrder !== '') payload.sortOrder = Number(values.sortOrder);
     if (values.enabled !== undefined) payload.enabled = values.enabled === 'true';
+    if (values.isPaid !== undefined) payload.isPaid = values.isPaid === 'true';
     if (values.carryOverRatio !== undefined && values.carryOverRatio !== '') payload.carryOverRatio = Number(values.carryOverRatio);
     if (values.carryOverMaxDays !== undefined && values.carryOverMaxDays !== '') payload.carryOverMaxDays = Number(values.carryOverMaxDays);
     if (values.seniorityRule) {
@@ -230,6 +241,13 @@ export default function VacationTypeSettingsPage() {
       dataIndex: 'carryOverMaxDays',
       width: 100,
       render: (_: any, r: VacationType) => (r.carryOverMaxDays == null ? '-' : `${r.carryOverMaxDays} 天`),
+    },
+    {
+      title: '计薪',
+      dataIndex: 'isPaid',
+      width: 90,
+      render: (_: any, r: VacationType) =>
+        r.isPaid ? <Tag color="blue">有薪</Tag> : <Tag color="orange">无薪</Tag>,
     },
     {
       title: '状态',
