@@ -26,11 +26,17 @@ const OBJ_STATUS_MAP: Record<string, string> = {
   completed: '已完成',
 };
 
-/** 目标类型对应的卡片色 */
-const OBJ_TYPE_COLORS: Record<string, string> = {
-  personal: '#14b8a6',
-  department: '#8b5cf6',
+/**
+ * 目标类型对应的卡片配色（主色 + 浅底）。
+ * 走设计 token（ADR-0014 / REFACTOR_PLAN §11）：硬编码 hex 不随明暗主题切换。
+ * 注意浅底必须用独立的 `-bg` token，不能写成 `var(--lx-teal)10`——
+ * 在 var() 后面拼 alpha 是非法 CSS，整条声明会被丢弃（底色/标签会静默消失）。
+ */
+const OBJ_TYPE_COLORS: Record<string, { main: string; bg: string }> = {
+  personal: { main: 'var(--lx-teal)', bg: 'var(--lx-teal-bg)' },
+  department: { main: 'var(--lx-purple)', bg: 'var(--lx-purple-bg)' },
 };
+const OBJ_TYPE_FALLBACK_COLOR = { main: 'var(--lx-primary)', bg: 'var(--lx-info-bg)' };
 
 interface Filters {
   type: string;
@@ -340,7 +346,7 @@ export default function OkrPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.map((obj) => {
-              const color = OBJ_TYPE_COLORS[obj.type] || '#2455D9';
+              const tone = OBJ_TYPE_COLORS[obj.type] || OBJ_TYPE_FALLBACK_COLOR;
               const progress = obj.progress ?? 0;
               const statusLabel = OBJ_STATUS_MAP[obj.status ?? ''] ?? obj.status;
               const isExpanded = expandedId === obj.id;
@@ -349,7 +355,7 @@ export default function OkrPage() {
                 <div
                   key={obj.id}
                   className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
-                  style={{ borderColor: color, backgroundColor: `${color}10` }}
+                  style={{ borderColor: tone.main, backgroundColor: tone.bg }}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="min-w-0">
@@ -357,7 +363,7 @@ export default function OkrPage() {
                       <div className="flex gap-2 mt-1.5 flex-wrap">
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
-                          style={{ background: `${color}22`, color }}
+                          style={{ background: tone.bg, color: tone.main }}
                         >
                           {OBJ_TYPE_MAP[obj.type] ?? obj.type}
                         </span>
@@ -374,7 +380,7 @@ export default function OkrPage() {
                     </div>
                     <span
                       className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: color, border: '1px solid var(--lx-border-2)' }}
+                      style={{ background: tone.main, border: '1px solid var(--lx-border-2)' }}
                       title={obj.type}
                     />
                   </div>

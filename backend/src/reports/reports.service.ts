@@ -10,8 +10,7 @@ import { calculateTenure, formatAvgTenure, beijingDateRangeFilter } from '../com
 import { createHash } from 'crypto';
 import { ERROR_CODES } from '../common/error-codes';
 import { errorMessage } from '../common/error.util';
-
-type GroupByPeriod = 'month' | 'quarter' | 'year';
+import { getPeriodKey, type GroupByPeriod } from './period-key';
 
 const REPORT_CACHE_TTL = {
   employeeStructure: 600,
@@ -32,19 +31,6 @@ export class ReportsService {
     private dataScope: DataScopeService,
     private redis: RedisService,
   ) {}
-
-  private getPeriodKey(date: Date, groupBy: GroupByPeriod): string {
-    const year = date.getFullYear();
-    if (groupBy === 'year') {
-      return String(year);
-    }
-    if (groupBy === 'quarter') {
-      const quarter = Math.floor(date.getMonth() / 3) + 1;
-      return `${year}-Q${quarter}`;
-    }
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
 
   private generateCacheKey(reportName: string, params: Record<string, any>): string {
     const sorted = Object.keys(params)
@@ -623,7 +609,7 @@ export class ReportsService {
       const periodMap = new Map<string, { opening: number; hired: number; resigned: number; closing: number }>();
 
       for (const emp of hiredEmployees) {
-        const key = this.getPeriodKey(emp.hireDate, periodGroup);
+        const key = getPeriodKey(emp.hireDate, periodGroup);
         if (!periodMap.has(key)) {
           periodMap.set(key, { opening: 0, hired: 0, resigned: 0, closing: 0 });
         }
@@ -632,7 +618,7 @@ export class ReportsService {
 
       for (const emp of resignedEmployees) {
         if (emp.resignDate) {
-          const key = this.getPeriodKey(emp.resignDate, periodGroup);
+          const key = getPeriodKey(emp.resignDate, periodGroup);
           if (!periodMap.has(key)) {
             periodMap.set(key, { opening: 0, hired: 0, resigned: 0, closing: 0 });
           }
@@ -778,7 +764,7 @@ export class ReportsService {
       const periodMap = new Map<string, { totalDue: number; passed: number; failed: number; pending: number }>();
 
       for (const p of probations) {
-        const key = this.getPeriodKey(p.probationEndDate, periodGroup);
+        const key = getPeriodKey(p.probationEndDate, periodGroup);
         if (!periodMap.has(key)) {
           periodMap.set(key, { totalDue: 0, passed: 0, failed: 0, pending: 0 });
         }

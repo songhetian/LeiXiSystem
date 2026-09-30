@@ -8,7 +8,9 @@ describe('T20 打卡机 apiKey 接入', () => {
     fetchSpy = jest
       .spyOn(global, 'fetch')
       .mockResolvedValue({ ok: true, json: async () => ({ ret: 0, rows: [] }) } as any);
-    service = new PunchSyncService({} as any);
+    service = new PunchSyncService({} as any, {
+      withLock: async (_k: string, _t: number, fn: () => Promise<unknown>) => fn(),
+    } as any);
   });
 
   afterEach(() => {
@@ -57,7 +59,9 @@ describe('T20 打卡机 apiKey 接入', () => {
         $transaction: jest.fn().mockImplementation(async (fn: any) => fn({ punchLog: { create: jest.fn() } })),
       } as any;
 
-      const svc = new PunchSyncService(prisma);
+      const svc = new PunchSyncService(prisma, {
+        withLock: async (_k: string, _t: number, fn: () => Promise<unknown>) => fn(),
+      } as any);
       const fetchSpy2 = jest
         .spyOn(svc, 'fetchFromDevice')
         .mockResolvedValue({ ret: 0, rows: [] });

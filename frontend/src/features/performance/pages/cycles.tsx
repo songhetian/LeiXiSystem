@@ -25,19 +25,29 @@ const CYCLE_STATUS_MAP: Record<string, string> = {
   closed: '已结束',
 };
 
-/** 状态对应的标签配色 */
-const STATUS_COLOR: Record<string, string> = {
-  draft: '#8d98aa',
-  active: '#16a34a',
-  closed: '#f59e0b',
+/** 状态对应的标签配色（语义 token，随明暗主题切换） */
+const STATUS_COLOR: Record<string, { main: string; bg: string }> = {
+  draft: { main: 'var(--lx-neutral-text)', bg: 'var(--lx-neutral-tag-bg)' },
+  active: { main: 'var(--lx-success)', bg: 'var(--lx-success-bg)' },
+  closed: { main: 'var(--lx-warning)', bg: 'var(--lx-warning-bg)' },
 };
 
-/** 每种周期类型给出的卡片色 */
-const TYPE_COLORS: Record<string, string> = {
-  temporary: '#FF6B6B',
-  quarterly: '#4ECDC4',
-  yearly: '#45B7D1',
+/**
+ * 每种周期类型给出的卡片配色（主色 + 浅底）。
+ * 必须用独立的 `-bg` token：`var(--lx-teal)10` 这类「var() 后拼 alpha」是非法 CSS，
+ * 整条声明会被丢弃，底色会静默消失。
+ */
+const TYPE_COLORS: Record<string, { main: string; bg: string }> = {
+  temporary: { main: 'var(--lx-coral)', bg: 'var(--lx-coral-bg)' },
+  quarterly: { main: 'var(--lx-teal)', bg: 'var(--lx-teal-bg)' },
+  yearly: { main: 'var(--lx-indigo)', bg: 'var(--lx-indigo-bg)' },
 };
+const TYPE_COLOR_FALLBACK: { main: string; bg: string }[] = [
+  { main: 'var(--lx-primary)', bg: 'var(--lx-primary-bg)' },
+  { main: 'var(--lx-purple)', bg: 'var(--lx-purple-bg)' },
+  { main: 'var(--lx-pink)', bg: 'var(--lx-pink-bg)' },
+];
+const STATUS_COLOR_FALLBACK = { main: 'var(--lx-neutral-text)', bg: 'var(--lx-neutral-tag-bg)' };
 
 interface Filters {
   type: string;
@@ -246,14 +256,14 @@ export default function CyclesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.map((cycle, index) => {
-              const color = TYPE_COLORS[cycle.type] || ['#3B82F6', '#8B5CF6', '#EC4899'][index % 3];
+              const tone = TYPE_COLORS[cycle.type] || TYPE_COLOR_FALLBACK[index % TYPE_COLOR_FALLBACK.length];
               const statusLabel = CYCLE_STATUS_MAP[cycle.status] ?? cycle.status;
-              const statusColor = STATUS_COLOR[cycle.status] || '#8d98aa';
+              const statusTone = STATUS_COLOR[cycle.status] || STATUS_COLOR_FALLBACK;
               return (
                 <div
                   key={cycle.id}
                   className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
-                  style={{ borderColor: color, backgroundColor: `${color}10` }}
+                  style={{ borderColor: tone.main, backgroundColor: tone.bg }}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="min-w-0">
@@ -261,13 +271,13 @@ export default function CyclesPage() {
                       <div className="flex gap-2 mt-1.5 flex-wrap">
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
-                          style={{ background: `${color}22`, color }}
+                          style={{ background: tone.bg, color: tone.main }}
                         >
                           {CYCLE_TYPE_MAP[cycle.type] ?? cycle.type}
                         </span>
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
-                          style={{ background: `${statusColor}1c`, color: statusColor }}
+                          style={{ background: statusTone.bg, color: statusTone.main }}
                         >
                           {statusLabel}
                         </span>
@@ -275,7 +285,7 @@ export default function CyclesPage() {
                     </div>
                     <span
                       className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: color, border: '1px solid var(--lx-border-2)' }}
+                      style={{ background: tone.main, border: '1px solid var(--lx-border-2)' }}
                       title={cycle.type}
                     />
                   </div>

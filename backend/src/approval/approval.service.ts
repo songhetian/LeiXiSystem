@@ -517,6 +517,37 @@ export class ApprovalService {
     const firstNode = chain[0];
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // 并发安全：状态与次数上限必须在**同一条更新**里条件判定（CAS），
+      // 否则两个并发重提都能通过事务外的旧快照判定，把 resubmitCount 顶过上限。
+      // count === 0 说明被并发抢先（次数已用尽或状态已被改写），此时不得产生任何副作用。
+      const claimed = await tx.approvalInstance.updateMany({
+        where: {
+          id: instance.id,
+          status: { in: ['rejected', 'cancelled'] },
+          resubmitCount: { lt: instance.workflow.maxResubmits },
+        },
+        data: {
+          status: 'pending',
+          currentNodeKey: firstNode.nodeKey,
+          currentNodeName: firstNode.nodeName,
+          formData: JSON.stringify(formData),
+          resubmitCount: { increment: 1 },
+        },
+      });
+      if (claimed.count === 0) {
+        const latest = await tx.approvalInstance.findUnique({ where: { id: instance.id } });
+        if (latest && latest.resubmitCount >= instance.workflow.maxResubmits) {
+          throw new BadRequestException({
+            code: ERROR_CODES.APPROVAL_RESUBMIT_LIMIT,
+            message: `重新提交次数已达上限（最多 ${instance.workflow.maxResubmits} 次）`,
+          });
+        }
+        throw new BadRequestException({
+          code: ERROR_CODES.APPROVAL_INSTANCE_STATUS_INVALID,
+          message: '只有驳回或撤回的审批才能重新提交',
+        });
+      }
+
       await tx.approvalRecord.deleteMany({ where: { instanceId: instance.id } });
       await tx.approvalRecord.createMany({
         data: chain.map((item) => ({
@@ -528,16 +559,7 @@ export class ApprovalService {
           status: 'pending' as const,
         })),
       });
-      return tx.approvalInstance.update({
-        where: { id: instance.id },
-        data: {
-          status: 'pending',
-          currentNodeKey: firstNode.nodeKey,
-          currentNodeName: firstNode.nodeName,
-          formData: JSON.stringify(formData),
-          resubmitCount: { increment: 1 },
-        },
-      });
+      return tx.approvalInstance.findUnique({ where: { id: instance.id } });
     });
 
     // 重提后首个审批节点的「待审批」通知必须重建：驳回/撤回时该实例的通知已被

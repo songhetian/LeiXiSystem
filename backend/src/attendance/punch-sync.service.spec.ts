@@ -1,12 +1,21 @@
 import { PunchSyncService } from './punch-sync.service';
 
+/** 同步按设备加锁；测试里直接放行 */
+function createMockLock() {
+  return { withLock: jest.fn(async (_key: string, _ttl: number, fn: () => Promise<unknown>) => fn()) };
+}
+
 // 「在职」口径：正式 + 试用期。设备同步若只认正式员工，试用期员工的打卡会被整体丢弃。
 function createMockPrisma() {
   const prisma: any = {
     punchDevice: { findMany: jest.fn().mockResolvedValue([]) },
     punchSyncState: { findUnique: jest.fn(), upsert: jest.fn().mockResolvedValue({}) },
     employee: { findMany: jest.fn().mockResolvedValue([]) },
-    punchLog: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
+    punchLog: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
   };
   prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
   return prisma;
@@ -18,7 +27,7 @@ describe('PunchSyncService 在职口径', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new PunchSyncService(prisma);
+    service = new PunchSyncService(prisma, createMockLock() as never);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -53,9 +62,13 @@ describe('PunchSyncService 在职口径', () => {
     const result = await service.syncNow();
 
     expect(result.newCount).toBe(1);
-    expect(prisma.punchLog.create).toHaveBeenCalledTimes(1);
-    expect(prisma.punchLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ employeeNo: 'E001' }) }),
+    // 落库改为 createMany + skipDuplicates（由唯一约束去重），只保留花名册内的工号
+    expect(prisma.punchLog.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.punchLog.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipDuplicates: true,
+        data: [expect.objectContaining({ employeeNo: 'E001' })],
+      }),
     );
   });
 });

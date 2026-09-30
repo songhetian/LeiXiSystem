@@ -3,13 +3,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { parseXFaceRecords, buildLastSyncTimeCursor, filterNewRecords, XFaceRecord } from './engine/xface-adapter';
 import { ACTIVE_EMPLOYEE_STATUSES } from '../common/employee-status';
 import { Cron } from '@nestjs/schedule';
-import { errorStatus, errorMessage } from '../common/error.util';
+import { errorCode, errorStatus, errorMessage } from '../common/error.util';
+import { DistributedLockService, LockAcquisitionError } from '../common/distributed-lock.service';
+
+const LOCK_TTL_MS = 120_000;
 
 @Injectable()
 export class PunchSyncService {
   private readonly logger = new Logger(PunchSyncService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lockService: DistributedLockService,
+  ) {}
 
   async getSyncStatus() {
     const devices = await this.prisma.punchDevice.findMany({
@@ -83,6 +89,11 @@ export class PunchSyncService {
         );
         totalNew += newRecords.length;
       } catch (e) {
+        // 另一条链路正在同步同一台设备 → 跳过即可，不必记为设备故障
+        if (e instanceof LockAcquisitionError) {
+          this.logger.warn(`设备 ${device.deviceNo} 正在同步中，本次跳过`);
+          continue;
+        }
         this.logger.error(`同步设备 ${device.deviceNo} 失败: ${errorMessage(e)}`);
         await this.prisma.punchSyncState.upsert({
           where: { deviceNo: device.deviceNo },
@@ -106,54 +117,73 @@ export class PunchSyncService {
     lastSyncTime: Date | null = null,
     apiKey?: string,
   ): Promise<XFaceRecord[]> {
-    const apiResponse = await this.fetchFromDevice(ipAddress, port, lastSyncTime, apiKey);
-    const records = parseXFaceRecords(apiResponse);
+    // 按设备加锁：定时增量与手动 syncNow 是两条独立链路，并发时「先查后写」的窗口
+    // 会让同一批记录被写两次；唯一约束虽然兜底不脏写，但会让整台设备批次回滚。
+    return this.lockService.withLock(`punch:sync:${deviceNo}`, LOCK_TTL_MS, async () => {
+      const apiResponse = await this.fetchFromDevice(ipAddress, port, lastSyncTime, apiKey);
+      const records = parseXFaceRecords(apiResponse);
 
-    const validNos = await this.getValidEmployeeNos(records.map(r => r.employeeNo));
-    const validRecords = records.filter(r => validNos.has(r.employeeNo));
+      const validNos = await this.getValidEmployeeNos(records.map(r => r.employeeNo));
+      const validRecords = records.filter(r => validNos.has(r.employeeNo));
 
-    const existingRecords = await this.getExistingRecordsForTimeRange(validRecords, deviceNo);
-    const newRecords = filterNewRecords(validRecords, existingRecords);
+      const existingRecords = await this.getExistingRecordsForTimeRange(validRecords, deviceNo);
+      const newRecords = filterNewRecords(validRecords, existingRecords);
 
-    if (newRecords.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
-        for (const record of newRecords) {
-          await tx.punchLog.create({
-            data: {
-              employeeNo: record.employeeNo,
-              punchTime: record.punchTime,
-              deviceNo: record.deviceNo || deviceNo,
-              punchType: record.punchType,
-              source: 'api',
-              status: 'pending',
-              rawData: JSON.stringify(record),
-            },
-          });
-        }
+      if (newRecords.length > 0) {
+        await this.persistRecords(newRecords, deviceNo);
+      }
+
+      const latestTime = records.length > 0
+        ? records.reduce((latest, r) => r.punchTime > latest ? r.punchTime : latest, records[0].punchTime)
+        : new Date();
+
+      await this.prisma.punchSyncState.upsert({
+        where: { deviceNo },
+        update: {
+          lastSyncTime: latestTime,
+          lastSyncCount: newRecords.length,
+          totalSynced: { increment: newRecords.length },
+          lastError: null,
+        },
+        create: {
+          deviceNo,
+          lastSyncTime: latestTime,
+          lastSyncCount: newRecords.length,
+          totalSynced: newRecords.length,
+        },
       });
-    }
 
-    const latestTime = records.length > 0
-      ? records.reduce((latest, r) => r.punchTime > latest ? r.punchTime : latest, records[0].punchTime)
-      : new Date();
-
-    await this.prisma.punchSyncState.upsert({
-      where: { deviceNo },
-      update: {
-        lastSyncTime: latestTime,
-        lastSyncCount: newRecords.length,
-        totalSynced: { increment: newRecords.length },
-        lastError: null,
-      },
-      create: {
-        deviceNo,
-        lastSyncTime: latestTime,
-        lastSyncCount: newRecords.length,
-        totalSynced: newRecords.length,
-      },
+      return newRecords;
     });
+  }
 
-    return newRecords;
+  /**
+   * 批量落库。用 `skipDuplicates` 把去重职责交给 DB 唯一约束
+   * （`@@unique([employeeNo, punchTime, deviceNo])`）——这样即使并发撞车，
+   * 也只是跳过重复行，不会让整批记录因 P2002 回滚。
+   */
+  private async persistRecords(records: XFaceRecord[], deviceNo: string): Promise<void> {
+    try {
+      await this.prisma.punchLog.createMany({
+        data: records.map((record) => ({
+          employeeNo: record.employeeNo,
+          punchTime: record.punchTime,
+          deviceNo: record.deviceNo || deviceNo,
+          punchType: record.punchType,
+          source: 'api',
+          status: 'pending',
+          rawData: JSON.stringify(record),
+        })),
+        skipDuplicates: true,
+      });
+    } catch (e) {
+      // 兜底：唯一约束之外仍有并发冲突时，跳过而不让整台设备同步失败。
+      if (errorCode(e) === 'P2002') {
+        this.logger.warn(`打卡落库存在重复记录，已跳过冲突行：deviceNo=${deviceNo}`);
+        return;
+      }
+      throw e;
+    }
   }
 
   async fetchFromDevice(

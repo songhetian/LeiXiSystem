@@ -180,7 +180,12 @@ export class PayrollService {
 
     // IDOR fix: filter runs by data scope
     const scope = await this.dataScope.visibleScope(userId);
-    let where: any = undefined;
+    // fail-closed：既非全量、又无部门范围、又未关联员工 → 无任何可见数据。
+    // 此前 where 会保持 undefined 变成「不过滤」，把全公司批次连同总额/人数一并返回。
+    if (scopeIsEmpty(scope)) {
+      return { list: [], total: 0, page, pageSize };
+    }
+    let where: Prisma.PayrollRunWhereInput | undefined = undefined;
 
     if (scope.selfEmployeeId) {
       // For self-only scope, only show runs where the employee has a payslip
@@ -191,7 +196,7 @@ export class PayrollService {
       });
       const runIds = payslipRuns.map((p) => p.runId);
       where = { id: { in: runIds } };
-    } else if (!scope.all && scope.ids.length > 0) {
+    } else if (!scope.all) {
       // For manager scope, show runs where any employee in their department has a payslip
       const empRuns = await this.prisma.payslip.findMany({
         where: { employee: { departmentId: { in: scope.ids } } },
@@ -200,6 +205,9 @@ export class PayrollService {
       });
       const runIds = empRuns.map((p) => p.runId);
       where = { id: { in: runIds } };
+    } else {
+      // 全量：不加过滤
+      where = undefined;
     }
 
     const [list, total] = await Promise.all([
@@ -249,6 +257,14 @@ export class PayrollService {
 
     const visibleDetails = details.filter((d) => isEmployeeVisible(d.employee));
     const visibleAdjustments = adjustments.filter((a) => isEmployeeVisible(a.employee));
+
+    // 批次级 fail-closed：非全量用户若在该批次里看不到任何明细/调整项，说明这个批次
+    // 与他毫无关系（例如传他人 runId 探路），此时不得返回批次记录本身
+    // （totalAmount / totalEmployees 属于批次汇总）。这与「部分可见则按范围过滤」并存：
+    // 部门主管仍能查看自己部门员工所在的批次，只是看不到范围外的明细。
+    if (scopeIsEmpty(scope) || (!scope.all && visibleDetails.length === 0 && visibleAdjustments.length === 0)) {
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权查看该算薪批次' });
+    }
 
     const grouped = new Map<number, { employee: any; items: any[]; adjustments: any[]; totalCents: number }>();
     for (const d of visibleDetails) {
@@ -451,6 +467,11 @@ export class PayrollService {
   private async assertRunInScope(runId: number, userId: number) {
     const scope = await this.dataScope.visibleScope(userId);
     if (scope.all) return;
+
+    // fail-closed：无任何可见范围的用户不得操作/查看任何批次
+    if (scopeIsEmpty(scope)) {
+      throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权操作该算薪批次' });
+    }
 
     const employees = await this.prisma.payrollDetail.findMany({
       where: { runId },

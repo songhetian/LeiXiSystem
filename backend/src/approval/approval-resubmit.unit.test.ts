@@ -9,6 +9,8 @@ import { RedisService } from '../common/redis/redis.service';
 const mockPrisma: any = {
   approvalInstance: {
     findUnique: jest.fn(),
+    // 重提改为 CAS：状态 + 次数上限在同一条 updateMany 里条件判定
+    updateMany: jest.fn(),
     update: jest.fn(),
   },
   approvalRecord: {
@@ -58,6 +60,8 @@ describe('ApprovalService resubmit 次数限制', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // 默认 CAS 抢占成功（需要模拟并发超限的用例单独覆写为 { count: 0 }）
+    mockPrisma.approvalInstance.updateMany.mockResolvedValue({ count: 1 });
     approvalService = new ApprovalService(
       mockPrisma as unknown as PrismaService,
       mockNotificationService as unknown as NotificationService,
@@ -120,11 +124,10 @@ describe('ApprovalService resubmit 次数限制', () => {
     mockPrisma.department.findMany.mockResolvedValue([]);
     mockPrisma.approvalRecord.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.approvalRecord.createMany.mockResolvedValue({ count: 3 });
-    mockPrisma.approvalInstance.update.mockResolvedValue({ ...mockInstance(2, 'pending'), resubmitCount: 3 });
 
     const result = await approvalService.resubmit({ instanceId: 1, userId: 1 });
     expect(result).toBeDefined();
-    expect(mockPrisma.approvalInstance.update).toHaveBeenCalled();
+    expect(mockPrisma.approvalInstance.updateMany).toHaveBeenCalled();
   });
 
   it('重新提交时 resubmitCount 递增', async () => {
@@ -132,11 +135,10 @@ describe('ApprovalService resubmit 次数限制', () => {
     mockPrisma.department.findMany.mockResolvedValue([]);
     mockPrisma.approvalRecord.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.approvalRecord.createMany.mockResolvedValue({ count: 3 });
-    mockPrisma.approvalInstance.update.mockResolvedValue({ ...mockInstance(0, 'pending'), resubmitCount: 1 });
 
     await approvalService.resubmit({ instanceId: 1, userId: 1 });
 
-    const updateArgs = mockPrisma.approvalInstance.update.mock.calls[0][0] as any;
+    const updateArgs = mockPrisma.approvalInstance.updateMany.mock.calls[0][0] as any;
     expect(updateArgs.data.resubmitCount).toEqual({ increment: 1 });
   });
 
@@ -145,11 +147,6 @@ describe('ApprovalService resubmit 次数限制', () => {
     mockPrisma.department.findMany.mockResolvedValue([]);
     mockPrisma.approvalRecord.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.approvalRecord.createMany.mockResolvedValue({ count: 3 });
-    mockPrisma.approvalInstance.update.mockResolvedValue({
-      ...mockInstance(0, 'pending'),
-      id: 1,
-      currentNodeKey: 'approve1',
-    });
     mockPrisma.approvalWorkflowNode.findUnique.mockResolvedValue({
       id: 2,
       nodeKey: 'approve1',
@@ -183,7 +180,6 @@ describe('ApprovalService resubmit 次数限制', () => {
     mockPrisma.department.findMany.mockResolvedValue([]);
     mockPrisma.approvalRecord.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.approvalRecord.createMany.mockResolvedValue({ count: 3 });
-    mockPrisma.approvalInstance.update.mockResolvedValue({ ...mockInstance(4, 'pending'), resubmitCount: 5 });
 
     await expect(
       approvalService.resubmit({ instanceId: 1, userId: 1 }),
