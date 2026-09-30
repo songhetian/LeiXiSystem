@@ -153,3 +153,49 @@ Spec 轴子代理执行失败（工具异常），以下为本人直接核对：
 **第三批（P3/规约）**：P3-10 时区、P3-11 token、无用导入、`: any` 闸门。
 
 > 说明：本报告为**只读审查**，未改动任何代码；以上修复建议均给出可验证的验收方式。
+
+---
+
+## 八、修复状态（2026-09-30 全部落地）
+
+> 方式：`/tdd` 逐条垂直切片（RED → GREEN → REFACTOR），每条缺陷先写会失败的用例再改实现。
+> 结果：后端 `tsc` 0 错、122 套 / 1543 用例全绿；前端 `tsc` 0 错、83 套 / 796 用例全绿。
+
+### 第一批（提交 `0326d82`，无需迁移）
+
+| # | 缺陷 | 修法 | 验收用例 |
+|---|---|---|---|
+| P0-1 | 打卡流水非法过滤键 | `where.employee` → `visibleEmployeeNos()` + `employeeNo in [...]`；`where` 显式标 `Prisma.PunchLogWhereInput` 消除 `any` 逃逸 | `tests/punch-logs-scope.unit.test.ts` |
+| P1-3 | `listRuns` 空范围 fail-open | 入口 `scopeIsEmpty(scope)` → 直接返回空列表 | `tests/payroll-run-scope.unit.test.ts` |
+| P2-6 | `getRunDetails` 无批次级校验 | 读之前 fail-closed：空范围，或非全量且可见明细与调整项皆空 → 403 | 同上 |
+| P2-7 | 打卡同步无锁/无 P2002 捕获 | `DistributedLockService.withLock('punch:sync:{deviceNo}')` + `createMany({skipDuplicates})` + P2002 兜底 | `tests/punch-sync-idempotency.unit.test.ts` |
+| P2-8 | 审批重提并发可突破上限 | 单一 CAS `updateMany({ status in [rejected,cancelled], resubmitCount < max })`，不再「读-改-写」两段 | `tests/approval-resubmit-cas.unit.test.ts` |
+| P3-10 | 报表按本地时区取年月 | 抽纯函数 `reports/period-key.ts`（`getUTC*`） | `tests/reports-period-key.unit.test.ts` |
+| P3-11 | OKR 页硬编码 hex | 换 `var(--lx-*)` token（`{main,bg}` 成对，避免 `var(--x)10` 非法拼接）；补 cycles 页同缺陷 | `frontend/.../design-token-hardcode.test.ts`（新增闸门） |
+| P3-12 | 无用 `NotificationModule` 导入 | 删除（gateway 走 `@OnEvent` 解耦） | — |
+
+### 第二批（本次提交，含迁移 `20260930120000_overtime_day_type_holidays`）
+
+| # | 缺陷 | 修法 | 验收用例 |
+|---|---|---|---|
+| P0-2 | 加班倍数形同虚设 + 无排班日加班不计 | 见下 | `workday-calendar.unit.test.ts` / `overtime-rules.unit.test.ts` / `attendance-overtime-daily.unit.test.ts` |
+| P1-4 | 日报状态双口径 | `resolveDailyStatus` 定为唯一口径；`mergeLeaveMakeupIntoDaily`、审批监听器、员工申诉重算三处全部委托它，并统一喂入 `isWeekend/isHoliday/makeupCount/fullDayLeave` | `daily-status-unification.unit.test.ts`（两路径等价性断言） |
+| P1-5 | 月报可回写已确认行 | `generate` 的 upsert → CAS：`updateMany({ employeeId, month, status:'draft' })` 命中 0 才 create（撞 P2002 视为已确认而跳过）；`gen/confirm/unconfirm` 统一锁键 `attendance:monthly:{employeeId}:{month}` | `attendance-monthly.service.spec.ts` 新增 4 例 |
+| P2-9 | 全勤奖未豁免有薪假 / 请假日仍发餐补 | 新增 `VacationType.isPaid`（含 API/种子/前端开关）→ 日报 `unpaidLeaveDays` → 月报 `unpaidLeaveMinutes` → 算薪 `noLeave = unpaidLeaveMinutes === 0`；餐补按「真正出勤」天数（月报引擎新增 `ATTENDED_STATUSES`，请假/周末/法定不计） | `attendance-monthly.unit.test.ts` / `attendance-monthly.unit.test.ts`（workDays） |
+
+**P0-2 落地细节**
+
+1. 新增 `holidays` 日历表（`holiday` 法定 3 倍 / `rest` 休息日 2 倍 / `workday` 调休上班 1.5 倍）——仅凭星期几推不出日类型。
+2. 新增纯函数 `engine/workday-calendar.ts`：`resolveDayType`（唯一日类型口径）、`splitOvertimeMinutes`（三桶之和恒等于入参）、`dayTypeFlags`。
+3. 新增 `overtime-cap.ts`：`capOvertimeByApproval` —— **严格按规格** `min(已批申请, 实际超时)`，**无已批申请即 0**（未获批准的加班不计薪）。
+4. 日报新增 `overtimeWeekdayMinutes/WeekendMinutes/HolidayMinutes` + `unpaidLeaveDays`；月报新增 `unpaidLeaveMinutes` + 三个 `overtime*Hours`。
+5. `attendance-daily.service` 追加 `generateUnscheduledRestDayDailies`：休息日/法定节假日**无排班**到岗也生成日报（原先漏发加班费）；平日无排班仍不生成（不视作缺勤）。
+6. `payroll.service` 改用三桶小时数（1.5 / 2 / 3 倍）与 `unpaidLeaveMinutes` 判定全勤。
+7. 迁移回填策略**保持历史金额不跳变**：历史加班一律视为平日桶、历史请假一律计入无薪；内置有薪类型（annual/sick/compensatory）显式置 `is_paid = true`。
+
+### 遗留与说明
+
+- **P0-2 的口径冲突**（报告第二节提到 `vacation.service` 加班时长取自 `OvertimeRecord`）保持现状：该处是「调休额度」用途，与算薪加班不同口径，已各自注释说明，未合并。
+- **迁移未在真实库执行**：沙箱无 MySQL，仅完成 `prisma validate` / `generate`。上线前须在预发库跑一次 `migrate deploy` 并核对回填结果（`overtime_*`、`unpaid_leave_*`、`is_paid`）。
+- **e2e 用例已同步新规格**（需真实 MySQL，未在沙箱执行）：`attendance-daily` 补已批加班申请；`attendance-monthly` 改用 5 个工作日 + 每日 1h 已批加班；`payroll/payslips/reports/feature-gap` 月报夹具补 `overtimeWeekdayHours`。
+- **`entrypoint-boot-chain` 基线守卫**同步放宽：原「只允许 `0_init`」改为「`0_init` 为唯一基线，其余必须是 14 位时间戳前缀的新迁移」。

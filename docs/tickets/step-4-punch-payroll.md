@@ -56,6 +56,21 @@
 - [x] 人力成本报表（工资构成：基本/加班/补贴/扣款）
 - [x] Excel 导出（exceljs）—— 前端导出地址经 cookie 鉴权（`services/reports.ts`）
 
+### 4.5 缺陷修复（2026-09-30，源自 `docs/reviews/2026-09-30-hidden-defects.md`）
+
+- [x] **P0-2 加班倍率真正生效**：新增 `holidays` 日历表 + `overtime_*_{minutes,hours}` 三桶拆分；
+      日类型唯一口径 `engine/workday-calendar.ts#resolveDayType`；无排班日（休息日/法定）到岗也生成日报；
+      加班时长严格 `min(已批申请, 实际)`（`overtime-cap.ts`），无已批申请即 0
+- [x] **P1-4 日报状态单一口径**：`daily-status.ts#resolveDailyStatus` 定为全仓唯一，
+      merge / 审批监听 / 申诉重算三处一律委托（`tests/daily-status-unification.unit.test.ts` 等价性断言）
+- [x] **P1-5 月报已确认不可回写**：`generate` 改 CAS（只更新 `status='draft'` 行），
+      `gen/confirm/unconfirm` 统一锁键 `attendance:monthly:{employeeId}:{month}`
+- [x] **P2-9 全勤奖豁免有薪假 + 餐补按实际出勤**：新增 `vacation_types.is_paid`
+      （API / 种子 / 前端开关齐备）→ 日报 `unpaid_leave_days` → 月报 `unpaid_leave_minutes` → 算薪判定；
+      出勤天数只计真正出勤（`ATTENDED_STATUSES`）
+- [ ] **迁移上线动作**：`20260930120000_overtime_day_type_holidays` 需在预发库 `migrate deploy` 并核对回填
+      （历史加班→平日桶、历史请假→无薪、`is_paid` 内置有薪类型），沙箱无 MySQL 未执行
+
 ## 完成标准
 
 - [x] 从打卡数据到工资条的完整链路跑通（CSV/推送路径；HTTP 拉取路径待真机）

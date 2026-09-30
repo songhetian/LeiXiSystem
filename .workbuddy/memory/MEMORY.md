@@ -27,7 +27,9 @@
 ## 后端架构规约（ADR-0013）
 - 跨模块协作只能「消费方注入 token → 提供方实现接口」，禁止直接 import 对方 Service：`APPROVAL_CLIENT` / `NOTIFICATION_CLIENT`。
 - `common/module-boundary.spec.ts` 会**扫描生产源码 import 语句**强制该边界（仅扫 .ts，测试 mock 不受限）；`common/di-injection.spec.ts` 反射校验注入元数据。新增模块时注意。
-- **口径单一来源**（改动时勿再各写一份）：`attendance/overtime-conversion.ts`（加班转调休，比率取设置 `overtime_to_leave_hours`）、`attendance/punch-makeup-type.ts`（补卡类型值域）、`attendance/vacation-monthly.ts`（月假判定，前端同口径见 `frontend/src/lib/vacation-type.ts`）。
+- **口径单一来源**（改动时勿再各写一份）：`attendance/overtime-conversion.ts`（加班转调休，比率取设置 `overtime_to_leave_hours`）、`attendance/punch-makeup-type.ts`（补卡类型值域）、`attendance/vacation-monthly.ts`（月假判定，前端同口径见 `frontend/src/lib/vacation-type.ts`）、`attendance/daily-status.ts#resolveDailyStatus`（**日报状态唯一口径**，merge/审批监听/申诉重算三处均委托它）、`attendance/engine/workday-calendar.ts#resolveDayType`（**加班日类型唯一口径**，决定 1.5/2/3 倍）。
+- **加班/有薪假口径（2026-09-30 落地）**：`holidays` 表存日类型（holiday/rest/workday，未登记按周末兜底）；日报 `overtime_{weekday,weekend,holiday}_minutes` 三桶（`overtime_minutes`=三桶和）；加班时长严格 `min(已批申请, 实际)`，**无已批申请即 0**；休息日/法定**无排班**到岗也生成日报（平日无排班不生成）。`vacation_types.is_paid`（默认 false，annual/sick/compensatory 为 true）→ 日报 `unpaid_leave_days` → 月报 `unpaid_leave_minutes` → 算薪 `noLeave`；餐补按 `monthly.work_days`（只计真正出勤）。
+- 月报写操作必须是 **CAS**：`updateMany({ employeeId, month, status:'draft' })` 命中 0 再 create（撞 P2002 = 已确认，跳过）；`gen/confirm/unconfirm` 统一锁键 `attendance:monthly:{employeeId}:{month}`。
 - 金额一律以「分」做整数定点运算（`common/money.util.ts`），写库边界才转 `Prisma.Decimal`；薪资有「明细累加 == 批次总额」对账断言。
 - 时区：业务日以 **UTC 午夜**存储，取年月/月份区间一律用 `getUTC*`；「当前年月」类判断必须按**北京时间**（UTC 容器每月 1 日 00:00~08:00 会算错生效月）。
 - 数据隔离：显式部门过滤必须与可见范围**取交集**（不能覆盖）；范围解析为空要 fail-closed。
