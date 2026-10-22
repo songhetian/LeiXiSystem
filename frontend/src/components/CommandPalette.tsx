@@ -169,27 +169,11 @@ export default function CommandPalette() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1100,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: '12vh',
-          }}
+          className="cmdk-overlay"
           onClick={() => setOpen(false)}
         >
           {/* 遮罩层 */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'var(--lx-mask)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-            }}
-          />
+          <div className="cmdk-mask" />
 
           {/* 面板主体 */}
           <motion.div
@@ -203,33 +187,10 @@ export default function CommandPalette() {
             aria-label="命令面板"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleKeyDown}
-            style={{
-              position: 'relative',
-              width: '560px',
-              maxWidth: '92vw',
-              maxHeight: '60vh',
-              background: 'var(--lx-glass-bg)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              borderRadius: '16px',
-              border: '1px solid var(--lx-glass-border)',
-              boxShadow: '0 20px 60px var(--lx-primary-weak), var(--lx-shadow-xl)',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
+            className="cmdk-panel"
           >
             {/* 搜索输入区 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '16px 20px',
-                borderBottom: '1px solid var(--lx-border-1)',
-                flexShrink: 0,
-              }}
-            >
+            <div className="cmdk-search">
               <IconSearch style={{ fontSize: 20, color: 'var(--lx-text-4)', flexShrink: 0 }} />
               <input
                 ref={inputRef}
@@ -240,70 +201,19 @@ export default function CommandPalette() {
                   setSelectedIndex(0);
                 }}
                 placeholder="搜索页面、功能..."
-                style={{
-                  flex: 1,
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  fontSize: '16px',
-                  color: 'var(--lx-text-1)',
-                  fontFamily: 'inherit',
-                }}
+                className="cmdk-input"
               />
-              <kbd
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--lx-text-4)',
-                  background: 'var(--lx-bg-hover)',
-                  border: '1px solid var(--lx-border-1)',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
-                  flexShrink: 0,
-                  fontFamily: 'monospace',
-                }}
-              >
-                ESC
-              </kbd>
+              <kbd className="cmdk-kbd">ESC</kbd>
             </div>
 
             {/* 结果列表 */}
-            <div
-              ref={listRef}
-              role="listbox"
-              aria-label="命令结果"
-              style={{
-                overflowY: 'auto',
-                padding: '8px',
-                flex: 1,
-                minHeight: 0,
-              }}
-            >
+            <div ref={listRef} role="listbox" aria-label="命令结果" className="cmdk-list">
               {flatList.length === 0 ? (
-                <div
-                  style={{
-                    padding: '40px 20px',
-                    textAlign: 'center',
-                    color: 'var(--lx-text-4)',
-                    fontSize: '14px',
-                  }}
-                >
-                  未找到匹配结果
-                </div>
+                <div className="cmdk-empty">未找到匹配结果</div>
               ) : (
                 groupedResults.map(([group, items]) => (
-                  <div key={group} style={{ marginBottom: '4px' }}>
-                    <div
-                      style={{
-                        padding: '8px 12px 4px',
-                        fontSize: '11px',
-                        color: 'var(--lx-text-4)',
-                        fontWeight: 500,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.8px',
-                      }}
-                    >
-                      {group}
-                    </div>
+                  <div key={group} className="cmdk-group">
+                    <div className="cmdk-group-title">{group}</div>
                     {items.map((cmd) => {
                       runningIndex++;
                       const idx = runningIndex;
@@ -315,56 +225,12 @@ export default function CommandPalette() {
                           aria-selected={isSelected}
                           data-idx={idx}
                           onClick={() => handleSelect(cmd)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '10px 12px',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            transition: 'background 0.1s',
-                            background: isSelected ? 'var(--lx-primary-bg)' : 'transparent',
-                          }}
+                          className={`cmdk-item ${isSelected ? 'is-selected' : ''}`}
                           onMouseEnter={() => setSelectedIndex(idx)}
                         >
-                          <span
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '16px',
-                              flexShrink: 0,
-                              color: isSelected ? 'var(--lx-primary)' : 'var(--lx-text-3)',
-                              background: isSelected ? 'var(--lx-primary-bg)' : 'var(--lx-bg-hover)',
-                              transition: 'background-color 0.15s, color 0.15s',
-                            }}
-                          >
-                            {cmd.icon}
-                          </span>
-                          <span
-                            style={{
-                              flex: 1,
-                              fontSize: '14px',
-                              color: isSelected ? 'var(--lx-primary)' : 'var(--lx-text-2)',
-                              fontWeight: isSelected ? 500 : 400,
-                            }}
-                          >
-                            {cmd.label}
-                          </span>
-                          {isSelected && (
-                            <kbd
-                              style={{
-                                fontSize: '11px',
-                                color: 'var(--lx-text-4)',
-                                fontFamily: 'monospace',
-                              }}
-                            >
-                              ↵
-                            </kbd>
-                          )}
+                          <span className="cmdk-item-icon">{cmd.icon}</span>
+                          <span className="cmdk-item-label">{cmd.label}</span>
+                          {isSelected && <kbd className="cmdk-item-enter">↵</kbd>}
                         </div>
                       );
                     })}
@@ -374,29 +240,19 @@ export default function CommandPalette() {
             </div>
 
             {/* 底部提示栏 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 16px',
-                borderTop: '1px solid var(--lx-border-1)',
-                background: 'var(--lx-bg-secondary)',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--lx-text-4)' }}>
+            <div className="cmdk-footer">
+              <div className="cmdk-hints">
                 <span>
-                  <kbd style={{ fontFamily: 'monospace' }}>↑↓</kbd> 导航
+                  <kbd className="cmdk-hint-kbd">↑↓</kbd> 导航
                 </span>
                 <span>
-                  <kbd style={{ fontFamily: 'monospace' }}>↵</kbd> 选择
+                  <kbd className="cmdk-hint-kbd">↵</kbd> 选择
                 </span>
                 <span>
-                  <kbd style={{ fontFamily: 'monospace' }}>ESC</kbd> 关闭
+                  <kbd className="cmdk-hint-kbd">ESC</kbd> 关闭
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--lx-text-4)' }}>
+              <div className="cmdk-shortcut">
                 <IconCommand style={{ fontSize: 12 }} />
                 <span>K</span>
               </div>

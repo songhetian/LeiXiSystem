@@ -352,7 +352,8 @@ export default function ModalForm({
       style={{ width }}
       maskClosable={false}
     >
-      <Form layout="vertical">
+      {/* lx-form-glow（Galaxy Round 3）：弹窗表单内任一控件聚焦时容器亮起 */}
+      <Form layout="vertical" className="lx-form-glow">
         <div
           data-testid="modal-form-grid"
           style={{

@@ -135,7 +135,7 @@ export default function NotificationSettingsPage() {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '12px 20px',
-            borderBottom: '1px solid var(--lx-border, #e5e6eb)',
+            borderBottom: '1px solid var(--lx-border-1)',
           }}
         >
           <div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { Spin, Empty, Button, Result, Skeleton } from '@arco-design/web-react';
+import { Empty, Button, Result, Skeleton } from '@arco-design/web-react';
 
 export interface DataStateProps {
   loading?: boolean;
@@ -23,8 +23,8 @@ export interface DataStateProps {
 
 function SkeletonCard({ rows = 3 }: { rows?: number }) {
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+    <div className="data-state-skeleton-card">
+      <div className="data-state-skeleton-card-head">
         <Skeleton text={{ rows: 1, width: 80 }} animation />
         <Skeleton text={{ rows: 1, width: 40 }} animation />
       </div>
@@ -35,20 +35,11 @@ function SkeletonCard({ rows = 3 }: { rows?: number }) {
 
 function SkeletonList({ rows = 5 }: { rows?: number }) {
   return (
-    <div style={{ padding: '12px 16px' }}>
+    <div className="data-state-skeleton-list">
       {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '10px 0',
-            borderBottom: i < rows - 1 ? '1px solid var(--lx-border-2)' : 'none',
-          }}
-        >
+        <div key={i} className="data-state-skeleton-row">
           <Skeleton animation style={{ width: 32, height: 32, borderRadius: 6 }} />
-          <div style={{ flex: 1 }}>
+          <div className="data-state-skeleton-row-body">
             <Skeleton text={{ rows: 1, width: '50%' }} animation />
           </div>
           <Skeleton text={{ rows: 1, width: 60 }} animation />
@@ -83,13 +74,15 @@ export default function DataState({
     return (
       // role="status" + aria-live：异步加载态需要被屏幕阅读器播报（WCAG SC 4.1.3 Status Messages AA）。
       // 全站此前仅 1 处有 aria-live，这里统一补上。
-      <div
-        role="status"
-        aria-live="polite"
-        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '48px 0', gap: 8 }}
-      >
-        <Spin size={20} />
-        <span style={{ color: 'var(--lx-text-3)', fontSize: 'var(--lx-font-md)' }}>{loadingText}</span>
+      // 波点 Loader 用 Galaxy 层的 .lx-loader-dots（Galaxy Round 2 工具类），替代 Arco Spin。
+      <div role="status" aria-live="polite" className="data-state-loading">
+        <div className="lx-loader-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <span className="data-state-loading-text">{loadingText}</span>
       </div>
     );
   }
@@ -97,7 +90,7 @@ export default function DataState({
   if (error) {
     return (
       // 加载失败同样需要播报，且用 assertive 让错误优先被读出
-      <div role="alert" aria-live="assertive" style={{ padding: '48px 0' }}>
+      <div role="alert" aria-live="assertive" className="data-state-block">
         <Result
           status="error"
           title="加载失败"
@@ -114,10 +107,10 @@ export default function DataState({
 
   if (isEmpty) {
     return (
-      <div style={{ padding: '48px 0' }}>
+      <div className="data-state-block">
         <Empty description={emptyText} />
         {emptyActionLabel && onEmptyAction ? (
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <div className="data-state-empty-action">
             <Button type="primary" onClick={onEmptyAction}>
               {emptyActionLabel}
             </Button>

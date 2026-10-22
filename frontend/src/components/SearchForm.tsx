@@ -207,7 +207,9 @@ export default function SearchForm({
           label 固定百分比压缩/错位问题 */}
       <Form
         layout="vertical"
-        className={inlineActions ? 'lx-search-form lx-search-form-inline' : 'lx-search-form'}
+        className={inlineActions
+          ? 'lx-search-form lx-search-form-inline lx-form-glow'
+          : 'lx-search-form lx-form-glow'}
         onSubmit={handleSubmit}
       >
         <div className="lx-search-fields" data-testid="search-fields">

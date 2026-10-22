@@ -87,7 +87,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <Form layout="vertical" onSubmit={handleSubmit} style={{ rowGap: 2 }}>
+        {/* lx-form-glow（Galaxy Round 3）：表单内任一输入聚焦时容器亮起，控件级描边见 globals.css scoped 规则 */}
+        <Form layout="vertical" className="lx-form-glow" onSubmit={handleSubmit} style={{ rowGap: 2 }}>
           <Form.Item label="用户名">
             <Input
               size="large"

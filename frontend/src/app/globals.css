@@ -1936,6 +1936,236 @@ html, body {
 }
 
 /* ========================================
+   Galaxy 炫酷层（借鉴 uiverse.io/galaxy 设计语言）
+   极光横幅 · 流光描边 · 扫光入口 · 呼吸圆点
+   约束：浅色主题下保持企业级克制（低透明度彩色，不整块铺色）；
+   所有动画在 prefers-reduced-motion 下由上方全局 reduce 规则
+   （*、*::before、*::after 统一 0.01ms）自动停用，无需逐个登记。
+   兼容：conic 流光边框依赖 @property 注册角度，不支持的老浏览器
+   退化为静态渐变描边；color-mix 不支持时呼吸光晕自动消失（不破版）。
+   ======================================== */
+
+/* 注册角度变量：让 conic-gradient 的起始角可以参与动画 */
+@property --lx-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes lx-border-spin {
+  to { --lx-border-angle: 360deg; }
+}
+@keyframes lx-shine-sweep {
+  from { transform: translateX(-140%) skewX(-18deg); }
+  to   { transform: translateX(340%) skewX(-18deg); }
+}
+@keyframes lx-aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-4%, 8%, 0) scale(1.12); }
+}
+@keyframes lx-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  45%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--dot-c, var(--lx-primary)) 32%, transparent); }
+}
+
+/* ---- 欢迎横幅：极光渐变底 + 缓漂光斑 ----
+   ::before 仍是左侧 4px 品牌条；极光走多层 radial-gradient 背景 + ::after 光斑 */
+.dsh-hero {
+  background:
+    radial-gradient(420px 170px at 86% -30%, rgba(139, 92, 246, 0.13), transparent 62%),
+    radial-gradient(540px 210px at 68% 130%, rgba(36, 85, 217, 0.11), transparent 65%),
+    radial-gradient(300px 150px at 42% -35%, rgba(6, 182, 212, 0.09), transparent 60%),
+    var(--lx-bg-card);
+}
+.dsh-hero::after {
+  content: '';
+  position: absolute;
+  right: -70px;
+  top: -90px;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.16), transparent 65%);
+  filter: blur(6px);
+  animation: lx-aurora-drift 9s ease-in-out infinite;
+  pointer-events: none;
+}
+/* 横幅日期徽章升级为玻璃拟态：模糊底 + 细边 + 微投影 */
+.dsh-hero-chip {
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-color: rgba(36, 85, 217, 0.18);
+  box-shadow: 0 2px 10px rgba(36, 85, 217, 0.08);
+}
+
+/* ---- KPI 指标卡：hover 流光描边（conic 渐变沿边框旋转） ----
+   @property 不支持时 --lx-border-angle 固定 0deg → 退化为静态渐变描边 */
+.dsh-stat {
+  position: relative;
+}
+.dsh-stat::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--lx-border-angle),
+    transparent 0deg 210deg,
+    var(--lx-primary) 260deg,
+    var(--lx-purple) 310deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--lx-transition-base);
+  pointer-events: none;
+}
+.dsh-stat:hover::before {
+  opacity: 1;
+  animation: lx-border-spin 3.2s linear infinite;
+}
+
+/* ---- 快捷操作入口：hover 扫光 + 图标块点亮 ---- */
+.dsh-quick-item {
+  position: relative;
+  overflow: hidden;
+}
+.dsh-quick-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(36, 85, 217, 0.10),
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  transform: translateX(-140%) skewX(-18deg);
+  pointer-events: none;
+}
+.dsh-quick-item:hover::after {
+  animation: lx-shine-sweep 0.9s var(--lx-ease-standard);
+}
+/* 图标升级为渐变瓷贴：hover 点亮为品牌蓝→紫渐变并微微上浮 */
+.dsh-quick-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--lx-radius-md);
+  background: linear-gradient(135deg, var(--lx-primary-bg), rgba(139, 92, 246, 0.10));
+  transition:
+    transform var(--lx-transition-base) var(--lx-ease-standard),
+    background var(--lx-transition-base),
+    box-shadow var(--lx-transition-base);
+}
+.dsh-quick-item:hover .dsh-quick-ic {
+  background: linear-gradient(135deg, var(--lx-primary), #7c3aed);
+  color: var(--lx-text-white);
+  box-shadow: 0 6px 16px rgba(36, 85, 217, 0.35);
+  transform: translateY(-2px) scale(1.06);
+}
+
+/* ---- 待办圆点：同色呼吸光晕（颜色经 --dot-c 内联注入） ----
+   color-mix 不支持时该 box-shadow 声明被丢弃 → 无光晕但不破版 */
+.dsh-feed-dot.is-pulse {
+  animation: lx-dot-pulse 2.4s ease-out infinite;
+}
+
+/* ========================================
+   Galaxy 炫酷层 · Round 2 可复用工具类
+   来源：uiverse.io/galaxy 实测选型，落地为系统级工具类。
+   约束：全部使用 --lx-* token，浅色/暗色主题自动跟随；
+   所有动画在 prefers-reduced-motion 下由全局 reduce 规则
+   （*、*::before、*::after 统一 0.01ms）自动停用，无需逐个登记。
+   ======================================== */
+
+/* 波点弹跳 Loader（来源：uiverse Ali-Tahmazi99/nervous-firefox-94）
+   用法：<div class="lx-loader-dots"><span></span><span></span><span></span><span></span></div>
+   四个圆点错帧交替上跳（0 / 0.16s / 0.32s / 0.48s），透明度 1→0.4 递减营造纵深感；
+   颜色统一走 --lx-primary，暗色主题自动继承（暗色下 --lx-primary 不变，靠背景对比呈现）。
+   reduced-motion：全局兜底规则会将动画压到 0.01ms，圆点静止为一排淡蓝点（仍可读，不破版）。 */
+@keyframes lx-dot-updown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-8px); }
+}
+.lx-loader-dots {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 24px;
+}
+.lx-loader-dots > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lx-primary);
+  animation: lx-dot-updown 0.5s ease-in infinite alternate;
+}
+.lx-loader-dots > span:nth-child(1) { animation-delay: 0s;    opacity: 1;   }
+.lx-loader-dots > span:nth-child(2) { animation-delay: 0.16s; opacity: 0.8; }
+.lx-loader-dots > span:nth-child(3) { animation-delay: 0.32s; opacity: 0.6; }
+.lx-loader-dots > span:nth-child(4) { animation-delay: 0.48s; opacity: 0.4; }
+
+/* 表单组 :focus-within 光晕（来源：uiverse Galahhad/proud-fox-45）
+   用法：包一层 <div class="lx-form-glow">…inputs…</div>，容器内任一控件聚焦时整组亮起。
+   外圈 3px 浅蓝光晕（--lx-primary-bg）+ 边框转品牌弱蓝（--lx-primary-weak）。
+   兼容：:focus-within 为 CSS Selectors L4，Chrome 60+/Safari 10.1+/FF 52+ 均支持，
+   更老浏览器仅退化为"无组级高亮"，内部 .lx-input-glow 的单控件焦点样式仍生效，不破版。 */
+.lx-form-glow {
+  transition:
+    box-shadow var(--lx-transition-base) var(--lx-ease-standard),
+    border-color var(--lx-transition-base) var(--lx-ease-standard);
+}
+.lx-form-glow:focus-within {
+  border-color: var(--lx-primary-weak);
+  box-shadow: 0 0 0 3px var(--lx-primary-bg);
+}
+
+/* 输入控件 focus ring（挂在 input/select/textarea 上）
+   用法：<input class="lx-input-glow" … />，聚焦时品牌蓝边框 + 2px 淡蓝内 ring。
+   冲突规避：选择器严格限定为 .lx-input-glow:focus 单类形式（特异度 0,2,0），
+   只在显式挂类的原生控件上生效，不会波及 Arco Input 默认 focus 样式；
+   若与 Arco 组件混用请挂在原生元素或 .arco-input 上并接受后者覆盖顺序。
+   兼容：box-shadow 多值全浏览器支持，无 color-mix/@property 依赖，无退化风险。 */
+.lx-input-glow:focus {
+  outline: none;
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 2px var(--lx-primary-bg);
+}
+
+/* ========================================
+   Galaxy 炫酷层 · Round 3 全站接入（scoped 于 .lx-form-glow，无全局副作用）
+   挂载点：登录页 Form / ModalForm / SearchForm（见各自 TSX 的 className="lx-form-glow"）。
+   选择器纪律：一律以 .lx-form-glow 为前缀，禁止写全局 .arco-input:focus 这类无范围规则。
+   Arco Input 实际 DOM：外层 <div class="arco-input-inner-wrapper">（含 focus 态边框），
+   内层 <input class="arco-input"> 无边框 —— 故描边/ring 落在 wrapper 上（Input.Password 同构）。
+   与容器 .lx-form-glow:focus-within 的外圈光晕形成「组亮起 + 控件描边」两层反馈。
+   ======================================== */
+.lx-form-glow .arco-input-inner-wrapper:focus-within,
+.lx-form-glow .arco-select-view:focus-within,
+.lx-form-glow .arco-picker:focus-within {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 2px var(--lx-primary-bg);
+}
+/* TextArea 边框在自身元素上（无 wrapper），同样 scoped 处理 */
+.lx-form-glow .arco-textarea:focus {
+  border-color: var(--lx-primary);
+  box-shadow: 0 0 0 2px var(--lx-primary-bg);
+}
+
+/* 素材态（本轮不接入，覆盖 Arco Switch 样式风险大于收益），按需挂类：
+   文字反馈开关（.lx-switch-glow）、填充上升卡（.lx-rise-card）——
+   设计稿见 uiverse.io/galaxy，启用时在对应组件 TSX 挂类并在本节补充 scoped 规则。 */
+
+/* ========================================
    班次管理（shifts）· 卡片专业化
    白卡 + 品牌蓝强调 · 无霓虹底色 · 无上浮阴影 · 细线图标
    ======================================== */
@@ -2004,4 +2234,236 @@ html, body {
   border: 1px solid var(--lx-border-2);
   border-radius: var(--lx-radius-sm);
   padding: 8px 10px;
+}
+
+/* ========================================
+   DataState 数据状态容器
+   加载 / 错误 / 空态 / 骨架屏
+   ======================================== */
+
+/* 骨架屏 · 卡片型 */
+.data-state-skeleton-card {
+  padding: 20px;
+}
+.data-state-skeleton-card-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+/* 骨架屏 · 列表型 */
+.data-state-skeleton-list {
+  padding: 12px 16px;
+}
+.data-state-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.data-state-skeleton-row:not(:last-child) {
+  border-bottom: 1px solid var(--lx-border-2);
+}
+.data-state-skeleton-row-body {
+  flex: 1;
+}
+
+/* 加载态 */
+.data-state-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 0;
+}
+.data-state-loading-text {
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-3);
+}
+
+/* 错误态 / 空态共用留白 */
+.data-state-block {
+  padding: 48px 0;
+}
+.data-state-empty-action {
+  text-align: center;
+  margin-top: 16px;
+}
+
+/* ========================================
+   命令面板（CommandPalette）
+   玻璃质感浮层 · 键盘导航
+   ======================================== */
+
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.cmdk-mask {
+  position: absolute;
+  inset: 0;
+  background: var(--lx-mask);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.cmdk-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 560px;
+  max-width: 92vw;
+  max-height: 60vh;
+  overflow: hidden;
+  background: var(--lx-glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--lx-glass-border);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px var(--lx-primary-weak), var(--lx-shadow-xl);
+}
+
+/* 搜索输入区 */
+.cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.cmdk-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--lx-text-1);
+}
+.cmdk-kbd {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--lx-text-4);
+  background: var(--lx-bg-hover);
+  border: 1px solid var(--lx-border-1);
+  border-radius: 4px;
+}
+
+/* 结果列表 */
+.cmdk-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+.cmdk-empty {
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--lx-text-4);
+}
+.cmdk-group {
+  margin-bottom: 4px;
+}
+.cmdk-group-title {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lx-text-4);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* 单条命令 */
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: transparent;
+  transition: background-color var(--lx-transition-fast);
+}
+.cmdk-item.is-selected {
+  background: var(--lx-primary-bg);
+}
+.cmdk-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  border-radius: 8px;
+  color: var(--lx-text-3);
+  background: var(--lx-bg-hover);
+  transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast);
+}
+.cmdk-item.is-selected .cmdk-item-icon {
+  color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+}
+.cmdk-item-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--lx-text-2);
+}
+.cmdk-item.is-selected .cmdk-item-label {
+  font-weight: 500;
+  color: var(--lx-primary);
+}
+.cmdk-item-enter {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--lx-text-4);
+}
+
+/* 底部提示栏 */
+.cmdk-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: var(--lx-bg-secondary);
+  border-top: 1px solid var(--lx-border-1);
+}
+.cmdk-hints {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--lx-text-4);
+}
+.cmdk-hint-kbd {
+  font-family: monospace;
+}
+.cmdk-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--lx-text-4);
+}
+
+/* ========================================
+   错误边界兜底页（ErrorBoundary）
+   ======================================== */
+.error-boundary-fallback {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  /* 100dvh：移动端 100vh 含地址栏高度，会把底部内容推出视口且无法滚动 */
+  min-height: 100vh;
+  min-height: 100dvh;
 }

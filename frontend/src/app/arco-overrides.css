@@ -1172,7 +1172,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--lx-text-white);
   font-size: 16px;
   font-weight: 600;
   flex-shrink: 0;
@@ -1642,7 +1642,7 @@
 /* 顶栏用户头像：品牌蓝渐变 */
 .header-user-avatar {
   background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
-  color: #fff;
+  color: var(--lx-text-white);
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(36, 85, 217, 0.25);
 }
@@ -2096,7 +2096,7 @@
 .arco-pagination-item-active {
   background: var(--lx-primary) !important;
   border-color: var(--lx-primary) !important;
-  color: #fff !important;
+  color: var(--lx-text-white) !important;
 }
 
 /* 空状态 */

@@ -1,38 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { Card, Tabs, Form, Input, Button, Message, Descriptions, Avatar } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { authApi } from '@/services/auth';
 import { employeeApi, Employee } from '@/services/employee';
 import { useAuthStore } from '@/store/auth';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const FormItem = Form.Item;
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [loading, setLoading] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [form] = Form.useForm();
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    try {
-      const res = await employeeApi.getMe();
-      if (res.code === 0 && res.data) {
-        setEmployee(res.data);
-      }
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProfile();
+  // 个人档案走 SWR 共享缓存；失败提示由请求拦截器统一弹出
+  const fetchProfile = useCallback(async () => {
+    const res = await employeeApi.getMe();
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取个人档案失败');
   }, []);
+  const { data: employee, loading } = useCachedData<Employee>('profile:me', fetchProfile);
 
   const handleChangePassword = async () => {
     try {
