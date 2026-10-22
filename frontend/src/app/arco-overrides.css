@@ -4,25 +4,67 @@
    参考 admin-ui-redesign-final.html 设计规范
    ======================================== */
 
-/* ---- 按钮 ---- */
+/* ---- 按钮（Galaxy：渐变瓷感 + hover 扫光 + 微上浮）----
+   主按钮：品牌蓝纵向渐变，hover 提亮 + 轻投影 + 扫光扫过（keyframes 复用 globals 的 lx-shine-sweep）
+   危险按钮：同构红渐变。次级/文本按钮保持细线克制，仅 hover 品牌染色。 */
 .arco-btn {
   border-radius: var(--lx-radius-sm);
   font-weight: var(--lx-font-normal);
-  transition: border-color var(--lx-transition-fast), color var(--lx-transition-fast), background-color var(--lx-transition-fast), opacity var(--lx-transition-fast);
+  transition:
+    border-color var(--lx-transition-fast),
+    color var(--lx-transition-fast),
+    background-color var(--lx-transition-fast),
+    box-shadow var(--lx-transition-base) var(--lx-ease-standard),
+    transform var(--lx-transition-base) var(--lx-ease-standard),
+    opacity var(--lx-transition-fast);
   height: 32px;
   padding: 0 16px;
   font-size: var(--lx-font-sm);
 }
 
 .arco-btn-primary {
-  box-shadow: none;
-  background: var(--lx-primary);
+  position: relative;
+  overflow: hidden;
+  border: none;
+  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  box-shadow: 0 2px 8px var(--lx-primary-weak);
+}
+
+.arco-btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  pointer-events: none;
 }
 
 .arco-btn-primary:hover {
-  box-shadow: none;
-  opacity: 0.88;
-  background: var(--lx-primary-hover);
+  background: linear-gradient(135deg, var(--lx-primary-hover), var(--lx-primary)) ;
+  box-shadow: 0 4px 14px var(--lx-primary-weak);
+  transform: translateY(-1px);
+}
+
+.arco-btn-primary:hover::after {
+  animation: lx-shine-sweep 0.8s var(--lx-ease-standard);
+}
+
+.arco-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px var(--lx-primary-weak);
+}
+
+/* 危险主按钮（删除等破坏性操作）：同构红渐变，色相不变、加深收尾 */
+.arco-btn-status-danger.arco-btn-primary {
+  background: linear-gradient(135deg, var(--lx-danger), #d13a3a);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+.arco-btn-status-danger.arco-btn-primary:hover {
+  background: linear-gradient(135deg, #f06060, var(--lx-danger));
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
 }
 
 .arco-btn-secondary {
@@ -292,11 +334,20 @@
   padding: 8px 20px 6px !important;
 }
 
-/* ---- 面包屑 ---- */
+/* ---- 面包屑（Galaxy：可点击项 hover 品牌染色） ---- */
 .arco-breadcrumb-item {
   font-size: var(--lx-font-sm);
   color: var(--lx-text-3);
   font-weight: var(--lx-font-normal);
+  transition: color var(--lx-transition-fast);
+}
+
+.arco-breadcrumb-item a {
+  color: inherit;
+}
+
+.arco-breadcrumb-item a:hover {
+  color: var(--lx-primary);
 }
 
 .arco-breadcrumb-item:last-child {
@@ -861,9 +912,19 @@
   color: var(--lx-text-2);
 }
 
-/* ---- Link 链接 ---- */
+/* ---- Link 链接（Galaxy：品牌染色 + hover 平滑过渡） ---- */
 .arco-link {
   font-weight: var(--lx-font-normal);
+  color: var(--lx-primary);
+  transition: color var(--lx-transition-fast), opacity var(--lx-transition-fast);
+}
+
+.arco-link:hover {
+  color: var(--lx-primary-hover);
+}
+
+.arco-link.arco-link-hover {
+  color: var(--lx-primary-hover) !important;
 }
 
 /* ---- Table 行选择 ---- */
@@ -2037,14 +2098,17 @@
   overflow: hidden;
 }
 
-/* 表格头部 */
+/* 表格头部（Galaxy：品牌色底部强调线，表头更有层级感） */
 .arco-table-th {
   background: var(--lx-bg-secondary) !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   color: var(--lx-text-1) !important;
   font-size: var(--lx-font-sm) !important;
   border-bottom: 1px solid var(--lx-border-1) !important;
+  /* 品牌色内阴影强调线：叠加在 border 之上，不占布局空间 */
+  box-shadow: inset 0 -2px 0 var(--lx-primary-weak);
   padding: 12px 16px !important;
+  letter-spacing: 0.02em;
   /* 与 .arco-table-td 保持一致，避免表头折行导致与列体垂直错位 */
   white-space: nowrap;
 }
@@ -2053,16 +2117,18 @@
   background: var(--lx-bg-tertiary) !important;
 }
 
-/* 表格单元格 */
+/* 表格单元格（文字色从 text-2 提亮到 text-1，提升正文可读性） */
 .arco-table-td {
   padding: 12px 16px !important;
   font-size: var(--lx-font-sm) !important;
-  color: var(--lx-text-2) !important;
+  color: var(--lx-text-1) !important;
   border-bottom: 1px solid var(--lx-border-2) !important;
   /* 防止窄列下中文被逐个压缩成垂直排列 */
   white-space: nowrap;
   min-width: 64px;
 }
+
+/* 次要信息的列（状态描述等由业务组件自行用 text-3）不做全局弱化，仅默认值提亮 */
 
 /* 有 ellipsis 需求的列（ProTableColumn.ellipsis）才启用截断，列宽与表头保持一致 */
 .arco-table-td .arco-el-table-cell-wrap, 
@@ -2087,6 +2153,16 @@
 @supports (color: color-mix(in srgb, red 1%, blue)) {
   .arco-table-body tr:hover .arco-table-td {
     background: color-mix(in srgb, var(--lx-primary) 6%, var(--lx-bg-hover)) !important;
+  }
+}
+
+/* Galaxy：勾选行品牌底色（与 hover 同色系但更深一档，保证与 hover 可区分） */
+.arco-table-body tr.arco-table-tr-checked .arco-table-td {
+  background: var(--lx-primary-light) !important;
+}
+@supports (color: color-mix(in srgb, red 1%, blue)) {
+  .arco-table-body tr.arco-table-tr-checked .arco-table-td {
+    background: color-mix(in srgb, var(--lx-primary) 10%, var(--lx-bg-card)) !important;
   }
 }
 
