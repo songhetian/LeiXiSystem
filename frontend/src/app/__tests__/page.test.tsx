@@ -106,6 +106,27 @@ jest.mock('@arco-design/web-react', () => {
     Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
     List,
     Message: { success: jest.fn(), error: jest.fn() },
+    // 快捷操作管理面板（QuickActionsManager）用到的组件，缺一个就会在渲染期抛
+    // "Element type is invalid"，导致整页测试全挂
+    Modal: ({ visible, children, title, footer }: any) =>
+      visible ? (
+        <div data-testid="qa-modal">
+          <div data-testid="qa-modal-title">{title}</div>
+          {children}
+          <div data-testid="qa-modal-footer">{footer}</div>
+        </div>
+      ) : null,
+    Input: ({ value, onChange, placeholder, 'aria-label': ariaLabel }: any) => (
+      <input
+        value={value ?? ''}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        onChange={(e) => onChange?.(e.target.value)}
+      />
+    ),
+    Checkbox: ({ checked, onChange, 'aria-label': ariaLabel }: any) => (
+      <input type="checkbox" checked={!!checked} aria-label={ariaLabel} onChange={onChange} />
+    ),
   };
 });
 

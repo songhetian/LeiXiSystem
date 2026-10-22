@@ -1357,6 +1357,45 @@
   text-transform: uppercase;
   letter-spacing: 0.8px;
   padding-left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Galaxy 多彩：分组标题前的彩色记号点（按分组渲染顺序六色循环）
+   侧边栏是深色底，因此统一提亮色值保证在深底上的对比度 */
+.side-group-title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--lx-primary);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.6);
+}
+.side-group:nth-child(6n + 1) .side-group-title::before {
+  background: #60a5fa;
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
+}
+.side-group:nth-child(6n + 2) .side-group-title::before {
+  background: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.6);
+}
+.side-group:nth-child(6n + 3) .side-group-title::before {
+  background: #a78bfa;
+  box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
+}
+.side-group:nth-child(6n + 4) .side-group-title::before {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+}
+.side-group:nth-child(6n + 5) .side-group-title::before {
+  background: #818cf8;
+  box-shadow: 0 0 6px rgba(129, 140, 248, 0.6);
+}
+.side-group:nth-child(6n + 6) .side-group-title::before {
+  background: #f472b6;
+  box-shadow: 0 0 6px rgba(244, 114, 182, 0.6);
 }
 
 .side-item {
@@ -1389,6 +1428,12 @@
   color: var(--lx-sider-text-active);
   font-weight: 500;
 }
+/* Galaxy 多彩：选中项背景按分组色淡染（color-mix 不支持时保留上面的纯色底） */
+@supports (color: color-mix(in srgb, red 1%, blue)) {
+  .side-item.active {
+    background: color-mix(in srgb, var(--item-accent, var(--lx-primary)) 18%, var(--lx-sider-bg-active));
+  }
+}
 
 /* 智能交互：选中项左侧彩色指示条（每个菜单分组用专属主题色） */
 .side-item.active::before {
@@ -1412,7 +1457,8 @@
   justify-content: center;
   font-size: var(--lx-font-lg);
   color: var(--item-accent, var(--lx-sider-text));
-  opacity: 0.55;
+  /* 分组色图标此前透明度 0.55 太淡，侧边栏整体发灰；提到 0.9 让分组色真正可辨 */
+  opacity: 0.9;
   transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
 }
 
@@ -1466,7 +1512,7 @@
   justify-content: center;
   font-size: var(--lx-font-lg);
   color: var(--item-accent, var(--lx-sider-text));
-  opacity: 0.6;
+  opacity: 0.9;
   transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
 }
 
@@ -1855,7 +1901,10 @@
 }
 
 .page-tab.active {
-  background: var(--lx-primary-bg);
+  /* 多层背景：底部 2px 蓝→紫渐变条压在品牌淡底之上（不引入定位上下文，避免影响关闭按钮定位） */
+  background:
+    linear-gradient(90deg, var(--lx-primary), #7c3aed) left bottom / 100% 2px no-repeat,
+    var(--lx-primary-bg);
   color: var(--lx-primary);
   font-weight: 500;
   border-color: rgba(36, 85, 217, 0.15);
@@ -2105,6 +2154,21 @@
   font-weight: 600;
   color: var(--lx-text-1);
   letter-spacing: -0.01em;
+  /* Galaxy：标题左侧蓝→紫渐变竖条，页面头部不再是一片灰字 */
+  position: relative;
+  padding-left: 12px;
+}
+
+.page-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0.92em;
+  border-radius: var(--lx-radius-full);
+  background: linear-gradient(180deg, var(--lx-primary), #7c3aed);
 }
 
 .page-subtitle {

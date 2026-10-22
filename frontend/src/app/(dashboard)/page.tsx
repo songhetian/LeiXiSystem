@@ -16,9 +16,12 @@ import {
   IconEdit,
   IconArchive,
   IconExclamation,
+  IconLink,
 } from '@arco-design/web-react/icon';
 import { BRAND_PRIMARY, brandBarGradient } from '@/lib/dashboard-tone';
 import PageContainer from '@/components/PageContainer';
+import QuickActionsManager from '@/components/QuickActionsManager';
+import { useQuickActions, QuickActionDef } from '@/hooks/use-quick-actions';
 import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -43,6 +46,11 @@ const QUICK_ACTIONS: QuickAction[] = [
   { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar },
   { label: '工单客服', path: '/helpdesk', icon: IconUser },
 ];
+
+/** 入口池（key 取 path，天然唯一）与图标映射：自定义入口无图标，统一用 IconLink 兜底 */
+const QUICK_POOL: QuickActionDef[] = QUICK_ACTIONS.map((a) => ({ key: a.path, label: a.label, path: a.path }));
+const QUICK_ICON = new Map<string, QuickAction['icon']>(QUICK_ACTIONS.map((a) => [a.path, a.icon]));
+const quickIconOf = (a: QuickActionDef) => QUICK_ICON.get(a.key) ?? IconLink;
 
 function greeting() {
   const h = new Date().getHours();
@@ -187,6 +195,9 @@ function Ticker({ text }: { text: string }) {
 export default function HomePage() {
   const router = useRouter();
   const { can } = usePermission();
+  // 快捷操作：入口池 + 用户自定义（localStorage 持久化），管理面板可增删改查
+  const quick = useQuickActions(QUICK_POOL);
+  const [quickManagerOpen, setQuickManagerOpen] = useState(false);
 
   // 统计指标走 SWR 共享缓存；失败提示由请求拦截器统一弹出，避免重复 Toast
   const fetchStats = useCallback(async () => {
@@ -267,20 +278,25 @@ export default function HomePage() {
         <div className="dsh-panel">
           <div className="dsh-panel-head">
             <h3 className="dsh-panel-title">快捷操作</h3>
-            <span className="dsh-panel-more">
+            <button
+              type="button"
+              className="dsh-panel-more"
+              onClick={() => setQuickManagerOpen(true)}
+            >
               更多 <IconRight style={{ fontSize: 12 }} />
-            </span>
+            </button>
           </div>
           <div className="dsh-quick-grid">
-          {QUICK_ACTIONS.map((a, idx) => {
-            const Icon = a.icon;
+          {quick.visible.map((a, idx) => {
+            const Icon = quickIconOf(a);
             return (
               <button
-                key={a.path}
+                key={a.key}
                 type="button"
                 className="dsh-quick-item"
                 style={{ animationDelay: `${idx * 30}ms` }}
                 onClick={() => router.push(a.path)}
+                title={a.label}
               >
                 <span className="dsh-quick-ic">
                   <Icon />
@@ -292,6 +308,16 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      <QuickActionsManager
+        visible={quickManagerOpen}
+        onClose={() => setQuickManagerOpen(false)}
+        api={quick}
+        renderIcon={(a) => {
+          const Icon = quickIconOf(a);
+          return <Icon />;
+        }}
+      />
 
       {/* 待办事项 + 最新通知（数据来自 stats 服务端裁剪字段；面板始终渲染，无权限/空数据走空态） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>

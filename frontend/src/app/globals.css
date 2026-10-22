@@ -1823,6 +1823,111 @@ html, body {
   white-space: nowrap;
 }
 
+/* ===== 快捷操作管理面板（QuickActionsManager） ===== */
+.lx-qa-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.lx-qa-section + .lx-qa-section {
+  margin-top: 20px;
+}
+.lx-qa-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  color: var(--lx-text-1);
+}
+.lx-qa-hint {
+  font-size: var(--lx-font-xs);
+  font-weight: 400;
+  color: var(--lx-text-3);
+}
+.lx-qa-pool {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.lx-qa-pool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--lx-border-2);
+  border-radius: var(--lx-radius-sm);
+  cursor: pointer;
+  transition: border-color var(--lx-transition-fast), background-color var(--lx-transition-fast);
+}
+.lx-qa-pool-item.is-on {
+  border-color: var(--lx-primary-200);
+  background: var(--lx-primary-light);
+}
+.lx-qa-pool-item:hover {
+  border-color: var(--lx-primary);
+}
+.lx-qa-pool-ic {
+  display: inline-flex;
+  align-items: center;
+  color: var(--lx-primary);
+  font-size: 14px;
+}
+.lx-qa-pool-label {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lx-qa-custom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lx-qa-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--lx-border-2);
+  border-radius: var(--lx-radius-sm);
+  transition: border-color var(--lx-transition-fast), background-color var(--lx-transition-fast);
+}
+.lx-qa-custom-row:hover {
+  border-color: var(--lx-primary-200);
+  background: var(--lx-bg-soft);
+}
+.lx-qa-custom-row.is-editing {
+  border-style: solid;
+  border-color: var(--lx-primary);
+  background: var(--lx-bg-card);
+}
+.lx-qa-custom-label {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-1);
+  min-width: 72px;
+}
+.lx-qa-custom-path {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--lx-font-mono, ui-monospace, monospace);
+}
+.lx-qa-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lx-border-2);
+}
+
 /* 面板统一容器 */
 .dsh-panel {
   background: var(--lx-bg-card);
@@ -1845,9 +1950,18 @@ html, body {
   color: var(--lx-text-3);
   cursor: pointer;
   transition: color var(--lx-transition-fast);
+  /* 渲染为 <button>（可点击+键盘可达）：抹掉按钮默认外观，保持文字链观感 */
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: var(--lx-radius-xs);
+  font-family: inherit;
+  line-height: inherit;
 }
 .dsh-panel-more:hover {
   color: var(--lx-primary);
+  background: var(--lx-primary-bg);
 }
 
 /* 面板统一标题（所有区块共用一致的靛蓝竖条记号，形成整页统一节奏） */
@@ -2586,4 +2700,80 @@ html, body {
   /* 100dvh：移动端 100vh 含地址栏高度，会把底部内容推出视口且无法滚动 */
   min-height: 100vh;
   min-height: 100dvh;
+}
+
+/* ========================================
+   Galaxy 多彩层 · 整站氛围与细节
+   背景：用户反馈"整体配色单调，时间久了不舒服"——
+   主区长期是白卡 + 灰字 + 单点品牌蓝。这里在**不喧哗**的前提下
+   加入多色相点缀：选区色、筛选卡顶条、面板标题竖条、页面柔光。
+   全部走 token 与低透明度，暗色主题自动适配，reduced-motion 无需处理
+   （本层无动画）。
+   ======================================== */
+
+/* 选中文字：品牌色半透明底，替代浏览器默认深灰 */
+::selection {
+  background: var(--lx-primary-weak);
+  color: var(--lx-text-1);
+}
+
+/* 页面柔光层：容器顶部两团极淡的品牌蓝/紫光晕，避免大块纯白显得"死板" */
+.page-container {
+  position: relative;
+  /* 形成独立层叠上下文：::before 的 z-index:-1 才会画在容器内容之下、
+     而不是沉到父级背景色下面（否则柔光完全看不见） */
+  isolation: isolate;
+}
+.page-container::before {
+  content: '';
+  position: absolute;
+  inset: -8px 0 auto 0;
+  height: 220px;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(680px 220px at 12% -40%, rgba(36, 85, 217, 0.07), transparent 70%),
+    radial-gradient(560px 200px at 88% -50%, rgba(139, 92, 246, 0.06), transparent 70%);
+}
+
+/* 筛选卡片：顶部 2px 蓝→紫→青多彩渐变条，列表页第一眼就有色彩识别 */
+.lx-search-card {
+  position: relative;
+  overflow: hidden;
+}
+.lx-search-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--lx-primary),
+    var(--lx-purple),
+    var(--lx-teal)
+  );
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* 工作台面板标题：竖条由纯品牌蓝升级为蓝→紫渐变（保留原有 flex 流式布局，只换色） */
+.dsh-panel-title::before {
+  background: linear-gradient(180deg, var(--lx-primary), var(--lx-purple));
+  height: 14px;
+}
+
+/* 空状态插画：品牌蓝淡染，不再是灰色剪影 */
+.arco-empty-image svg {
+  color: var(--lx-primary);
+  opacity: 0.45;
+}
+
+/* 暗色下柔光需要更高透明度才可见（浅色 0.07 在深底等于没有），色相同时提亮 */
+[data-theme='dark'] .page-container::before,
+body.arco-theme-dark .page-container::before {
+  background:
+    radial-gradient(680px 220px at 12% -40%, rgba(59, 130, 246, 0.16), transparent 70%),
+    radial-gradient(560px 200px at 88% -50%, rgba(167, 139, 250, 0.14), transparent 70%);
 }
