@@ -2,6 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import HomePage from '@/app/(dashboard)/page';
+import { dashboardApi } from '@/services/dashboard';
+import { clearDataCache } from '@/hooks/use-cached-data';
+
+const mockedGetStats = dashboardApi.getStats as jest.Mock;
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -98,6 +102,8 @@ jest.mock('@arco-design/web-react', () => {
     Tag: ({ children, color }: any) => <span data-tag-color={color}>{children}</span>,
     Avatar: ({ children }: any) => <span data-testid="avatar">{children}</span>,
     Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
+    // 工作台四区块空态现在直接在 HomePage 渲染 Empty（此前仅在未渲染的 OrgChart 中使用）
+    Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
     List,
     Message: { success: jest.fn(), error: jest.fn() },
   };
@@ -175,5 +181,83 @@ describe('HomePage', () => {
     expect(mockPush).toHaveBeenCalledWith('/employees');
     await user.click(screen.getByText('工单客服'));
     expect(mockPush).toHaveBeenCalledWith('/helpdesk');
+  });
+});
+
+// ============================================================
+// 工作台四区块接真实接口字段（todoTop / notificationTop / myWeek / mySubmissionsTop）
+// ============================================================
+
+const FULL_STATS = {
+  employeeCount: 12,
+  attendanceCount: 8,
+  todayLateCount: 1,
+  monthOvertimeHours: 6.5,
+  pendingApprovals: 2,
+  monthlySalary: null,
+  employeeId: 1,
+  todoTop: [
+    { id: 11, instanceId: 3, title: '张三的请假申请', createdAt: new Date().toISOString() },
+    { id: 12, instanceId: 4, title: '李四的报销申请', createdAt: new Date().toISOString() },
+  ],
+  notificationTop: [
+    { id: 21, title: '本月工资条已发放', type: 'system', read: false, createdAt: new Date().toISOString() },
+  ],
+  mySubmissionsTop: [
+    { id: 31, title: '年假申请（2天）', status: 'approved', createdAt: new Date().toISOString() },
+    { id: 32, title: '加班申请（3小时）', status: 'pending', createdAt: new Date().toISOString() },
+  ],
+  myWeek: { workDays: 4, lateDays: 1, absentDays: 0, avgWorkHours: 8.5 },
+};
+
+describe('HomePage — 工作台四区块渲染 stats 新字段', () => {
+  beforeEach(() => {
+    clearDataCache();
+    mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
+  });
+
+  afterEach(() => {
+    // 还原为文件顶部模块级 mock 的默认返回，避免污染其他 describe
+    mockedGetStats.mockResolvedValue({ code: 0, data: null });
+  });
+
+  it('待办事项渲染 todoTop 条目（点击跳转 /approval/todo）', async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('张三的请假申请')).toBeInTheDocument());
+    expect(screen.getByText('李四的报销申请')).toBeInTheDocument();
+
+    await user.click(screen.getByText('张三的请假申请'));
+    expect(mockPush).toHaveBeenCalledWith('/approval/todo');
+  });
+
+  it('最新通知渲染 notificationTop 条目', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('本月工资条已发放')).toBeInTheDocument());
+  });
+
+  it('本周考勤概览渲染 myWeek 数值（出勤/迟到/缺勤/平均工时）', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('正常出勤')).toBeInTheDocument());
+    // KPI 数值随 stats 异步到达，需 waitFor
+    await waitFor(() => expect(screen.getByText('4')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('8.5h')).toBeInTheDocument());
+  });
+
+  it('我的申请进度渲染 mySubmissionsTop 并按状态映射文案与颜色', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('年假申请（2天）')).toBeInTheDocument());
+    expect(screen.getByText('已通过')).toBeInTheDocument();
+    expect(screen.getByText('审批中')).toBeInTheDocument();
+  });
+
+  it('stats 为 null 时四区块走空态（待办显示「暂无待办」，考勤概览显示 —）', async () => {
+    mockedGetStats.mockResolvedValue({ code: 0, data: null });
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('暂无待办')).toBeInTheDocument());
+    expect(screen.getByText('暂无通知')).toBeInTheDocument();
+    expect(screen.getByText('暂无申请')).toBeInTheDocument();
+    // myWeek 为 null → 四个 KPI 值显示 '—'
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
   });
 });

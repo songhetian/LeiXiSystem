@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Grid, Typography, Button, Message, Empty } from '@arco-design/web-react';
+import { Grid, Typography, Button, Empty, Spin } from '@arco-design/web-react';
 import {
   IconUserGroup,
   IconCheckCircle,
@@ -17,10 +17,11 @@ import {
   IconArchive,
   IconExclamation,
 } from '@arco-design/web-react/icon';
-import { BRAND_PRIMARY } from '@/lib/dashboard-tone';
+import { BRAND_PRIMARY, brandBarGradient } from '@/lib/dashboard-tone';
 import PageContainer from '@/components/PageContainer';
-import { dashboardApi, DashboardStats, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
+import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { usePermission } from '@/hooks/use-permission';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Row, Col } = Grid;
 const { Text } = Typography;
@@ -66,14 +67,14 @@ function buildMetrics(stats: DashboardStats | null) {
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
       icon: IconUserGroup,
-      trend: '+2.3%',
+      trend: '实时统计',
     },
     {
       label: '今日出勤',
       value: stats?.attendanceCount?.toString() ?? '0',
       suffix: '人',
       icon: IconCheckCircle,
-      trend: '95.2%',
+      trend: '今日打卡',
     },
     {
       label: '待审批',
@@ -84,57 +85,66 @@ function buildMetrics(stats: DashboardStats | null) {
     },
     {
       label: '本月工资',
-      value: stats?.monthlySalary != null ? `¥${(stats.monthlySalary / 10000).toFixed(1)}万` : '¥0.00',
+      // 注意：接口未核算完成时返回 null，展示「—」而非「¥0.00」——
+      // 0 会让人误以为工资真的为零（金额口径：后端以分存储，核算完成后换算展示）
+      value: stats?.monthlySalary != null ? `¥${(stats.monthlySalary / 10000).toFixed(1)}万` : '—',
       icon: IconArchive,
-      trend: '已核算',
+      trend: '本月合计',
     },
     {
       label: '今日迟到',
       value: stats?.todayLateCount?.toString() ?? '0',
       suffix: '人',
       icon: IconExclamation,
-      trend: '较昨日',
+      trend: '今日',
     },
     {
       label: '本月加班',
       value: stats?.monthOvertimeHours != null ? `${stats.monthOvertimeHours}` : '0',
       suffix: '小时',
       icon: IconStorage,
-      trend: '+8.5%',
+      trend: '本月累计',
     },
   ];
 }
 
-const TODO_ITEMS = [
-  { id: 1, title: '张三的请假申请', type: '待审批', time: '10分钟前', priority: 'high' },
-  { id: 2, title: '李四的报销申请', type: '待审批', time: '30分钟前', priority: 'medium' },
-  { id: 3, title: '王五的补卡申请', type: '待审批', time: '1小时前', priority: 'low' },
-  { id: 4, title: '月度考勤报表待确认', type: '待处理', time: '2小时前', priority: 'medium' },
-];
-
-const NOTIFICATION_ITEMS = [
-  { id: 1, title: '本月工资条已发放', type: 'system', time: '今天 09:00' },
-  { id: 2, title: '您的请假申请已通过', type: 'approval', time: '昨天 14:30' },
-  { id: 3, title: '考勤规则已更新', type: 'system', time: '2天前' },
-];
-
-const dotColor = (priority: string) => {
-  switch (priority) {
-    case 'high': return 'var(--lx-danger)';
-    case 'medium': return 'var(--lx-warning)';
-    case 'low': return 'var(--lx-primary)';
-    default: return 'var(--lx-text-3)';
-  }
+/**
+ * 审批单状态 → 文案 + 颜色。
+ * 枚举与「我的申请」页 approvalStatusMap 同源（prisma ApprovalInstanceStatus：
+ * pending / approved / rejected / cancelled），色值映射到页面语义 token。
+ */
+const SUBMISSION_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '审批中', color: 'var(--lx-warning)' },
+  approved: { label: '已通过', color: 'var(--lx-success)' },
+  rejected: { label: '已驳回', color: 'var(--lx-danger)' },
+  cancelled: { label: '已撤销', color: 'var(--lx-text-3)' },
 };
 
-const priorityText = (priority: string) => {
-  switch (priority) {
-    case 'high': return '紧急';
-    case 'medium': return '普通';
-    case 'low': return '一般';
-    default: return '';
-  }
+/** 待办圆点：统一品牌蓝 + 呼吸光晕（--dot-c 供脉冲动画取色） */
+const todoDotStyle = {
+  background: 'var(--lx-primary)',
+  '--dot-c': 'var(--lx-primary)',
+} as React.CSSProperties;
+
+/** 通知圆点：未读用类型色点亮，已读灰化 */
+const notificationDotColor = (item: DashboardNotificationItem): string => {
+  if (item.read) return 'var(--lx-text-4)';
+  return item.type === 'system' ? BRAND_PRIMARY : 'var(--lx-success)';
 };
+
+/** 相对时间（中文）：刚刚 / X分钟前 / X小时前 / 昨天 / M月D日 */
+function relativeTime(value?: string | Date | null): string {
+  if (!value) return '';
+  const t = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(t.getTime())) return '';
+  const diffMin = Math.floor((Date.now() - t.getTime()) / 60000);
+  if (diffMin < 1) return '刚刚';
+  if (diffMin < 60) return `${diffMin}分钟前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}小时前`;
+  if (diffHour < 48) return '昨天';
+  return `${t.getMonth() + 1}月${t.getDate()}日`;
+}
 
 /** 解析字符串中的数值段（保留前后缀与小数位），如 '¥12.5万' → {prefix:'¥', num:'12.5', suffix:'万'} */
 function parseNumberPart(text: string): { prefix: string; num: string; suffix: string; decimals: number } | null {
@@ -177,26 +187,17 @@ function Ticker({ text }: { text: string }) {
 export default function HomePage() {
   const router = useRouter();
   const { can } = usePermission();
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
 
-  const fetchStats = async () => {
-    setLoading(true);
-    try {
-      const res = await dashboardApi.getStats();
-      if (res.code === 0 && res.data) {
-        setStats(res.data);
-      }
-    } catch (e) {
-      Message.error('获取统计数据失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStats();
+  // 统计指标走 SWR 共享缓存；失败提示由请求拦截器统一弹出，避免重复 Toast
+  const fetchStats = useCallback(async () => {
+    const res = await dashboardApi.getStats();
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取统计数据失败');
   }, []);
+  const { data: stats, loading, revalidate: refreshStats } = useCachedData<DashboardStats>(
+    'dashboard:stats',
+    fetchStats,
+  );
 
   const metrics = buildMetrics(stats);
 
@@ -207,7 +208,7 @@ export default function HomePage() {
           type="primary"
           icon={<IconRefresh />}
           loading={loading}
-          onClick={fetchStats}
+          onClick={refreshStats}
         >
           刷新
         </Button>
@@ -292,7 +293,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 待办事项 + 最新通知 */}
+      {/* 待办事项 + 最新通知（数据来自 stats 服务端裁剪字段；面板始终渲染，无权限/空数据走空态） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} lg={12}>
           <div className="dsh-panel">
@@ -303,26 +304,19 @@ export default function HomePage() {
               </button>
             </div>
             <div>
-              {TODO_ITEMS.map((item) => (
-                <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
-                  <span className="dsh-feed-dot" style={{ background: dotColor(item.priority) }} />
-                  <div className="dsh-feed-main">
-                    <div className="dsh-feed-title">{item.title}</div>
-                    <div className="dsh-feed-meta">{item.type} · {item.time}</div>
-                  </div>
-                  <div className="dsh-feed-side">
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: dotColor(item.priority),
-                        fontWeight: 400,
-                      }}
-                    >
-                      {priorityText(item.priority)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {(stats?.todoTop ?? []).length === 0 ? (
+                <Empty description="暂无待办" />
+              ) : (
+                stats!.todoTop!.map((item) => (
+                  <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
+                    <span className="dsh-feed-dot is-pulse" style={todoDotStyle} />
+                    <div className="dsh-feed-main">
+                      <div className="dsh-feed-title">{item.title}</div>
+                      <div className="dsh-feed-meta">待审批 · {relativeTime(item.createdAt)}</div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </Col>
@@ -335,21 +329,25 @@ export default function HomePage() {
               </button>
             </div>
             <div>
-              {NOTIFICATION_ITEMS.map((item) => (
-                <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
-                  <span className="dsh-feed-dot" style={{ background: item.type === 'system' ? BRAND_PRIMARY : 'var(--lx-success)' }} />
-                  <div className="dsh-feed-main">
-                    <div className="dsh-feed-title">{item.title}</div>
-                    <div className="dsh-feed-meta">{item.time}</div>
-                  </div>
-                </button>
-              ))}
+              {(stats?.notificationTop ?? []).length === 0 ? (
+                <Empty description="暂无通知" />
+              ) : (
+                stats!.notificationTop!.map((item) => (
+                  <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/notifications')}>
+                    <span className="dsh-feed-dot" style={{ background: notificationDotColor(item) }} />
+                    <div className="dsh-feed-main">
+                      <div className="dsh-feed-title">{item.title}</div>
+                      <div className="dsh-feed-meta">{relativeTime(item.createdAt)}</div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </Col>
       </Row>
 
-      {/* 考勤概览 + 我的申请进度 */}
+      {/* 考勤概览 + 我的申请进度（stats 服务端聚合字段） */}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <div className="dsh-panel">
@@ -361,22 +359,30 @@ export default function HomePage() {
             </div>
             <div className="dsh-kpi">
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>5</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>
+                  {stats?.myWeek ? stats.myWeek.workDays : '—'}
+                </div>
                 <div className="dsh-kpi-label">正常出勤</div>
               </div>
               <div className="dsh-kpi-divider" />
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-warning)' }}>1</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-warning)' }}>
+                  {stats?.myWeek ? stats.myWeek.lateDays : '—'}
+                </div>
                 <div className="dsh-kpi-label">迟到</div>
               </div>
               <div className="dsh-kpi-divider" />
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-danger)' }}>0</div>
+                <div className="dsh-kpi-value" style={{ color: 'var(--lx-danger)' }}>
+                  {stats?.myWeek ? stats.myWeek.absentDays : '—'}
+                </div>
                 <div className="dsh-kpi-label">缺勤</div>
               </div>
               <div className="dsh-kpi-divider" />
               <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: BRAND_PRIMARY }}>8.5h</div>
+                <div className="dsh-kpi-value" style={{ color: BRAND_PRIMARY }}>
+                  {stats?.myWeek ? `${stats.myWeek.avgWorkHours}h` : '—'}
+                </div>
                 <div className="dsh-kpi-label">平均工时</div>
               </div>
             </div>
@@ -391,21 +397,27 @@ export default function HomePage() {
               </button>
             </div>
             <div>
-              {[
-                { label: '年假申请（2天）', color: 'var(--lx-success)', status: '已通过' },
-                { label: '加班申请（3小时）', color: 'var(--lx-warning)', status: '审批中' },
-                { label: '报销申请（交通费）', color: BRAND_PRIMARY, status: '待提交' },
-              ].map((it) => (
-                <div className="dsh-feed-item" key={it.label}>
-                  <span className="dsh-feed-dot" style={{ background: it.color }} />
-                  <div className="dsh-feed-main">
-                    <div className="dsh-feed-title">{it.label}</div>
-                  </div>
-                  <div className="dsh-feed-side">
-                    <span style={{ fontSize: 12, color: it.color }}>{it.status}</span>
-                  </div>
-                </div>
-              ))}
+              {(stats?.mySubmissionsTop ?? []).length === 0 ? (
+                <Empty description="暂无申请" />
+              ) : (
+                stats!.mySubmissionsTop!.map((item) => {
+                  const s = SUBMISSION_STATUS[item.status] ?? {
+                    label: item.status,
+                    color: 'var(--lx-text-3)',
+                  };
+                  return (
+                    <div className="dsh-feed-item" key={item.id}>
+                      <span className="dsh-feed-dot" style={{ background: s.color }} />
+                      <div className="dsh-feed-main">
+                        <div className="dsh-feed-title">{item.title}</div>
+                      </div>
+                      <div className="dsh-feed-side">
+                        <span style={{ fontSize: 12, color: s.color, fontWeight: 400 }}>{s.label}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </Col>
@@ -416,29 +428,29 @@ export default function HomePage() {
 
 // ====== 组织管理看板（仅有系统管理权限展示）：部门人力分布 + 近 7 日考勤趋势 ======
 function OrgChart() {
-  const [depts, setDepts] = useState<DepartmentStat[]>([]);
-  const [trend, setTrend] = useState<AttendanceTrendPoint[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [dRes, tRes] = await Promise.all([
-          dashboardApi.getDepartmentStats(),
-          dashboardApi.getAttendanceTrend(7),
-        ]);
-        if (dRes.code === 0 && dRes.data) setDepts(dRes.data);
-        if (tRes.code === 0 && tRes.data) setTrend(tRes.data);
-      } catch (e) {
-        Message.error('获取组织数据失败');
-      } finally {
-        setLoaded(true);
-      }
-    })();
+  const fetchDepts = useCallback(async () => {
+    const res = await dashboardApi.getDepartmentStats();
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取组织数据失败');
   }, []);
+  const fetchTrend = useCallback(async () => {
+    const res = await dashboardApi.getAttendanceTrend(7);
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取组织数据失败');
+  }, []);
+  const { data: depts, loading: deptsLoading } = useCachedData<DepartmentStat[]>(
+    'dashboard:dept-stats',
+    fetchDepts,
+  );
+  const { data: trend, loading: trendLoading } = useCachedData<AttendanceTrendPoint[]>(
+    'dashboard:attendance-trend:7',
+    fetchTrend,
+  );
 
-  const maxDept = Math.max(1, ...depts.map((d) => d.count));
-  const maxDay = Math.max(1, ...trend.map((p) => p.present));
+  const deptList = depts ?? [];
+  const trendList = trend ?? [];
+  const maxDept = Math.max(1, ...deptList.map((d) => d.count));
+  const maxDay = Math.max(1, ...trendList.map((p) => p.present));
 
   return (
     <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -447,19 +459,20 @@ function OrgChart() {
           <div className="dsh-panel-head">
             <h3 className="dsh-panel-title">部门人力分布</h3>
           </div>
-            {!loaded ? (
-              <Empty description="加载中" />
-            ) : depts.length === 0 ? (
+            {deptsLoading ? (
+              <Spin />
+            ) : deptList.length === 0 ? (
               <Empty description="暂无部门数据" />
             ) : (
               <div className="flex flex-col gap-3 py-2">
-                {depts.map((d) => (
+                {deptList.map((d) => (
                   <div key={d.id}>
                     <div className="flex justify-between text-xs mb-1">
                       <Text type="secondary">{d.name}</Text>
                       <Text style={{ fontWeight: 500 }}>{d.count} 人</Text>
                     </div>
-                    <div className="h-2 bg-bg-3 rounded overflow-hidden">
+                    {/* 轨道色必须用有效 token：曾写成 bg-bg-3（Tailwind 未注册该色名，类不存在 → 轨道透明隐形） */}
+                    <div className="h-2 bg-bg-tertiary rounded overflow-hidden">
                       <div
                         className="h-full rounded"
                         style={{
@@ -479,20 +492,20 @@ function OrgChart() {
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">近 7 日考勤趋势</h3>
             </div>
-            {!loaded ? (
-              <Empty description="加载中" />
-            ) : trend.length === 0 ? (
+            {trendLoading ? (
+              <Spin />
+            ) : trendList.length === 0 ? (
               <Empty description="暂无考勤数据" />
             ) : (
               <div className="flex items-end justify-between gap-3 py-3" style={{ height: 140 }}>
-                {trend.map((p) => (
+                {trendList.map((p) => (
                   <div key={p.date} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-xs text-text-2">{p.present}</span>
                     <div
                       className="w-full max-w-[28px] rounded-t"
                       style={{
                         height: `${(p.present / maxDay) * 90 + 6}px`,
-                        background: BRAND_PRIMARY,
+                        background: brandBarGradient(),
                       }}
                       title={`${p.date}：出勤 ${p.present}，迟到 ${p.late}，请假 ${p.leave}，缺勤 ${p.absent}`}
                     />
