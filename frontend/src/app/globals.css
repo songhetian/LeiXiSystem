@@ -1118,16 +1118,21 @@ html, body {
    默认（多行 grid）：字段区按 column 等宽铺排，操作列在下行右侧。
    内联（inline）：字段与查询/重置强制同一行，字段收缩让位。 */
 .lx-search-form {
+  /* 行内 flex：字段占满剩余宽度，查询/重置贴同行右侧（margin-left:auto），
+     字段放不下时自然换行、按钮组跟在末行右侧 —— 修复按钮独占一行的问题 */
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
 }
 .lx-search-fields {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px 18px;
-  min-width: 0;
 }
 .lx-search-item {
   display: flex;
@@ -1180,6 +1185,7 @@ html, body {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin-left: auto;
   padding-top: 2px;
 }
 /* ---- 内联模式：字段与按钮同一行 ---- */
@@ -2114,9 +2120,9 @@ html, body {
 .lx-loader-dots > span:nth-child(3) { animation-delay: 0.32s; opacity: 0.6; }
 .lx-loader-dots > span:nth-child(4) { animation-delay: 0.48s; opacity: 0.4; }
 
-/* 表单组 :focus-within 光晕（来源：uiverse Galahhad/proud-fox-45）
+/* 表单组 :focus-within 光晕（来源：uiverse Galahad/proud-fox-45，强度按反馈调升）
    用法：包一层 <div class="lx-form-glow">…inputs…</div>，容器内任一控件聚焦时整组亮起。
-   外圈 3px 浅蓝光晕（--lx-primary-bg）+ 边框转品牌弱蓝（--lx-primary-weak）。
+   外圈 4px 浅蓝光晕（--lx-primary-bg）+ 柔和品牌投影（--lx-primary-weak）+ 边框转品牌弱蓝。
    兼容：:focus-within 为 CSS Selectors L4，Chrome 60+/Safari 10.1+/FF 52+ 均支持，
    更老浏览器仅退化为"无组级高亮"，内部 .lx-input-glow 的单控件焦点样式仍生效，不破版。 */
 .lx-form-glow {
@@ -2126,7 +2132,9 @@ html, body {
 }
 .lx-form-glow:focus-within {
   border-color: var(--lx-primary-weak);
-  box-shadow: 0 0 0 3px var(--lx-primary-bg);
+  box-shadow:
+    0 0 0 4px var(--lx-primary-bg),
+    0 8px 24px var(--lx-primary-weak);
 }
 
 /* 输入控件 focus ring（挂在 input/select/textarea 上）
@@ -2153,12 +2161,12 @@ html, body {
 .lx-form-glow .arco-select-view:focus-within,
 .lx-form-glow .arco-picker:focus-within {
   border-color: var(--lx-primary);
-  box-shadow: 0 0 0 2px var(--lx-primary-bg);
+  box-shadow: 0 0 0 3px var(--lx-primary-bg);
 }
 /* TextArea 边框在自身元素上（无 wrapper），同样 scoped 处理 */
 .lx-form-glow .arco-textarea:focus {
   border-color: var(--lx-primary);
-  box-shadow: 0 0 0 2px var(--lx-primary-bg);
+  box-shadow: 0 0 0 3px var(--lx-primary-bg);
 }
 
 /* 素材态（本轮不接入，覆盖 Arco Switch 样式风险大于收益），按需挂类：

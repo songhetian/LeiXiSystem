@@ -119,7 +119,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ERROR_CODES.REPORT_FILE_NOT_READY]: '导出文件未就绪',
 
   // 认证/系统/知识库 5001~5099
-  [ERROR_CODES.AUTH_INVALID_CREDENTIALS]: '凭据错误',
+  [ERROR_CODES.AUTH_INVALID_CREDENTIALS]: '账号或密码错误',
   [ERROR_CODES.AUTH_TOKEN_INVALID]: 'token 无效',
   [ERROR_CODES.AUTH_ACCOUNT_DISABLED]: '账号已停用，请联系管理员',
   [ERROR_CODES.DATA_NO_PERMISSION]: '无权限访问该数据',

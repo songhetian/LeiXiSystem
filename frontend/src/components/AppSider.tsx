@@ -330,6 +330,12 @@ function AppSider({
         toggleSubmenu(item.key);
       }
     } else {
+      // 兜底直跳：叶子菜单优先用自身 path 导航，避免 AppLayout 的 MENU_ROUTES
+      // 漏登记 key 时点击无响应（曾发生：attendance-my-schedule 漏映射）。
+      // onMenuClick 仍保留，供页签/KeepAlive 等上层逻辑使用。
+      if (item.path) {
+        router.push(item.path);
+      }
       onMenuClick?.(item.key);
     }
     if (isMobile) {

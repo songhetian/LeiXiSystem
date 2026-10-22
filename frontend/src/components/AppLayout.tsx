@@ -33,6 +33,7 @@ const MENU_ROUTES: Record<string, string> = {
   'performance-cycles': '/performance/cycles',
   'okr-objectives': '/okr',
   'attendance-punch': '/attendance/punch',
+  'attendance-my-schedule': '/attendance/my-schedule',
   'attendance-shifts': '/attendance/shifts',
   'attendance-schedules': '/attendance/schedules',
   'attendance-daily': '/attendance/daily',

@@ -392,9 +392,18 @@
   font-size: var(--lx-font-sm);
 }
 
-/* ---- Switch ---- */
+/* ---- Switch（Galaxy：选中蓝→紫渐变 + 品牌光晕）----
+   覆盖 Arco 选中态平色为渐变瓷感；暗色模式下同样适用（渐变自发光） */
 .arco-switch {
   border-radius: var(--lx-radius-full);
+  transition: background var(--lx-transition-base), box-shadow var(--lx-transition-base);
+}
+.arco-switch.arco-switch-checked {
+  background: linear-gradient(135deg, var(--lx-primary), var(--lx-purple)) !important;
+  box-shadow: 0 0 8px var(--lx-primary-weak);
+}
+.arco-switch.arco-switch-checked:hover {
+  background: linear-gradient(135deg, var(--lx-primary-hover), var(--lx-purple)) !important;
 }
 
 /* ========================================
@@ -2068,8 +2077,17 @@
   background: var(--lx-bg-soft);
 }
 
+/* Galaxy：行过渡 + hover 品牌蓝染（不支持 color-mix 的浏览器落回 --lx-bg-hover，不破版） */
+.arco-table-td {
+  transition: background-color var(--lx-transition-fast);
+}
 .arco-table-body tr:hover .arco-table-td {
   background: var(--lx-bg-hover) !important;
+}
+@supports (color: color-mix(in srgb, red 1%, blue)) {
+  .arco-table-body tr:hover .arco-table-td {
+    background: color-mix(in srgb, var(--lx-primary) 6%, var(--lx-bg-hover)) !important;
+  }
 }
 
 /* 表格操作列按钮 */
@@ -2172,4 +2190,50 @@
 .arco-table-border .arco-table-th:last-child,
 .arco-table-border .arco-table-td:last-child {
   border-right: none !important;
+}
+
+/* ========================================
+   暗色模式 · Arco 组件变量覆盖（关键修复）
+   背景：arco.css 不含 .arco-theme-dark 变量块（实测 0 处），此前 body.arco-theme-dark
+   只挂类不生效 —— Arco 组件读 --color-* 变量仍为浅色，暗色下表格/输入框/卡片白底破版。
+   这里显式定义整套 Arco 暗色变量，与 [data-theme="dark"] 的 --lx-* 藏青色系同步：
+   表格、输入框、下拉、卡片、弹窗、消息等所有 Arco 组件随主题整体切换。
+   ======================================== */
+body.arco-theme-dark {
+  /* 背景阶：与 --lx-bg-page/card/secondary/tertiary 对齐的藏青色阶 */
+  --color-bg-1: #0b0f1a;
+  --color-bg-2: #151a28;
+  --color-bg-3: #1a2030;
+  --color-bg-4: #222a3d;
+  --color-bg-5: #2a3450;
+
+  /* 文字阶：与 --lx-text-1~4 一致 */
+  --color-text-1: #f1f5f9;
+  --color-text-2: #cbd5e1;
+  --color-text-3: #94a3b8;
+  --color-text-4: #64748b;
+
+  /* 边框阶：与 --lx-border-1~3 一致 */
+  --color-border: #262f45;
+  --color-border-1: #262f45;
+  --color-border-2: #333f5c;
+  --color-border-3: #3d4a6b;
+
+  /* 填充阶（hover/按下/禁用底）：藏青系 */
+  --color-fill-1: #1e2436;
+  --color-fill-2: #262f45;
+  --color-fill-3: #303a56;
+  --color-fill-4: #3a4666;
+
+  /* 遮罩与特殊面板 */
+  --color-mask-bg: rgba(0, 0, 0, 0.6);
+  --color-menu-light-bg: #151a28;
+  --color-tooltip-bg: #2a3450;
+  --color-sp-input-bg: #151a28;
+
+  /* 主色阶（暗色下提亮一档保证对比度） */
+  --color-primary-light-1: #2f3f66;
+  --color-primary-light-2: #2a3757;
+  --color-primary-light-3: #24304f;
+  --color-primary-dark-1: #5d84e0;
 }
