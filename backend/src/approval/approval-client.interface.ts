@@ -61,4 +61,32 @@ export interface ApprovalClientInterface {
    * approverId（该字段只在加签/转交/实际处理时写入），按它统计恒为 0。
    */
   countPendingForUser(userId: number): Promise<number>;
+
+  /**
+   * 首页待办卡片：当前用户待办前 N 条（listTodos 同口径、createdAt 倒序），
+   * 只返回前端渲染所需的最小字段集。
+   */
+  listTodoTop(userId: number, take: number): Promise<ApprovalTodoTopItem[]>;
+
+  /**
+   * 首页「我的申请」卡片：当前用户最近提交的 N 条审批单（listMySubmissions 同口径），
+   * 只返回 title/status/createdAt 等最小字段集。
+   */
+  listMySubmissionsTop(userId: number, take: number): Promise<ApprovalSubmissionTopItem[]>;
+}
+
+/** 首页待办卡片条目（listTodos 条目的最小字段投影） */
+export interface ApprovalTodoTopItem {
+  id: number;
+  instanceId: number;
+  title: string;
+  createdAt: Date;
+}
+
+/** 首页「我的申请」卡片条目（ApprovalInstance 的最小字段投影） */
+export interface ApprovalSubmissionTopItem {
+  id: number;
+  title: string;
+  status: string;
+  createdAt: Date;
 }

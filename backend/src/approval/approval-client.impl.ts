@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ApprovalService } from './approval.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ApprovalClientInterface } from './approval-client.interface';
+import {
+  ApprovalClientInterface,
+  ApprovalSubmissionTopItem,
+  ApprovalTodoTopItem,
+} from './approval-client.interface';
 
 /**
  * ApprovalClientImpl — concrete implementation of ApprovalClientInterface.
@@ -111,5 +115,33 @@ export class ApprovalClientImpl implements ApprovalClientInterface {
 
   async countPendingForUser(userId: number): Promise<number> {
     return this.approvalService.countPendingTodos(userId);
+  }
+
+  /** 首页待办卡片：复用 listTodos（buildTodoWhere 同口径），投影为最小字段集 */
+  async listTodoTop(userId: number, take: number): Promise<ApprovalTodoTopItem[]> {
+    const { list } = await this.approvalService.listTodos(userId, { page: 1, pageSize: take });
+    return list.map((r) => ({
+      id: r.id,
+      instanceId: r.instanceId,
+      title: r.title,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  /** 首页「我的申请」卡片：复用 listMySubmissions，投影为最小字段集 */
+  async listMySubmissionsTop(
+    userId: number,
+    take: number,
+  ): Promise<ApprovalSubmissionTopItem[]> {
+    const { list } = await this.approvalService.listMySubmissions(userId, {
+      page: 1,
+      pageSize: take,
+    });
+    return list.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      createdAt: r.createdAt,
+    }));
   }
 }
