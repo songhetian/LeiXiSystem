@@ -1,12 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Form, Input, Button, Typography, Message, Alert } from '@arco-design/web-react';
+import { Form, Input, Button, Typography, Message, Alert, Checkbox } from '@arco-design/web-react';
+import { IconCheckCircle, IconClockCircle, IconSafe } from '@arco-design/web-react/icon';
 import { authApi } from '@/services/auth';
 import { useAuthStore } from '@/store/auth';
 import { useSystemInfo } from '@/hooks/use-system-info';
+
+/** 「记住账号」只在本地存用户名，绝不落密码 */
+const REMEMBER_KEY = 'lx-remember-username';
+
+const HIGHLIGHTS = [
+  { icon: <IconClockCircle />, title: '考勤自动核算', desc: '打卡 · 排班 · 加班调休一体化' },
+  { icon: <IconSafe />, title: '薪酬精准发放', desc: '金额按分定点运算，明细可追溯' },
+  { icon: <IconCheckCircle />, title: '流程在线审批', desc: '请假 · 报销 · 用印全程留痕' },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,8 +24,24 @@ export default function LoginPage() {
   const { info: systemInfo } = useSystemInfo();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  // 每次失败自增，用于重放抖动动画（同一错误连续出现时也能再抖一次）
+  const [errorSeq, setErrorSeq] = useState(0);
+
+  // 回填上次记住的账号（仅用户名）
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBER_KEY);
+      if (saved) {
+        setUsername(saved);
+        setRemember(true);
+      }
+    } catch {
+      // 隐私模式读不到就跳过，不影响登录
+    }
+  }, []);
 
   const canSubmit = username.trim().length > 0 && password.length > 0;
 
@@ -26,110 +52,156 @@ export default function LoginPage() {
     try {
       const res = await authApi.login({ username: username.trim(), password });
       if (res.code === 0 && res.data?.user) {
+        // 勾选才记住账号；取消勾选要清掉旧值，否则会一直回填
+        try {
+          if (remember) window.localStorage.setItem(REMEMBER_KEY, username.trim());
+          else window.localStorage.removeItem(REMEMBER_KEY);
+        } catch {
+          // 存储不可用不影响登录
+        }
         setUser(res.data.user);
         Message.success('登录成功');
         router.push('/');
       } else {
         setErrorMsg(res.message || '登录失败');
+        setErrorSeq((n) => n + 1);
       }
     } catch (e: any) {
       setErrorMsg(e.message || '登录失败');
+      setErrorSeq((n) => n + 1);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      className="lx-login-page flex flex-col items-center justify-center relative"
-    >
-      {/* 单一品牌蓝柔光，保持轻盈 */}
-      <div
-        className="lx-login-glow-1 pointer-events-none absolute -top-[120px] -left-24 w-[380px] h-[380px] rounded-full"
-      />
-      <div
-        className="lx-login-glow-2 pointer-events-none absolute -bottom-[140px] -right-[120px] w-[440px] h-[440px] rounded-full"
-      />
+    <div className="lx-login-page flex items-center justify-center relative">
+      {/* 深色品牌侧栏（lg 以上显示）：渐变 + 极光光斑 + 能力点 */}
+      <aside className="lx-login-aside hidden lg:flex" aria-hidden="true">
+        <div className="lx-login-aside-orb lx-login-aside-orb-1" />
+        <div className="lx-login-aside-orb lx-login-aside-orb-2" />
+        <div className="lx-login-aside-grid" />
 
-      <div
-        className="lx-login-card relative z-10 w-full max-w-[420px] mx-4 px-6 sm:px-9 py-11 rounded-xl bg-surface lx-animate-slideUp"
-      >
-        <div className="flex flex-col items-center mb-9">
-          {systemInfo.logoUrl ? (
-            /**
-             * 用 next/image 而非原生 <img>：自动写死 width/height，消除首屏布局抖动（CLS）。
-             * 用 unoptimized 是因为 Logo 由后台配置，可能是任意 OSS/外链地址，
-             * 无法预先列入 images.remotePatterns 白名单（产物仍是同一个 <img>，不影响观感）。
-             */
-            <Image
-              src={systemInfo.logoUrl}
-              alt="系统 Logo"
-              width={56}
-              height={56}
-              unoptimized
-              className="h-14 w-14 object-contain rounded-xl"
-            />
-          ) : (
-            <div
-              className="lx-login-logo flex h-14 w-14 items-center justify-center rounded-xl text-[26px] font-semibold text-white"
-            >
-              {(systemInfo.name || '雷').charAt(0)}
-            </div>
-          )}
-          <Typography.Title
-            heading={4}
-            style={{ textAlign: 'center', margin: '18px 0 0', fontWeight: 500 }}
-          >
-            {systemInfo.name}
-          </Typography.Title>
-          <div className="text-sm text-text-3 text-center mt-1.5">
-            考勤 · 算薪 · 员工管理
-          </div>
+        <div className="lx-login-aside-inner">
+          <div className="lx-login-badge">HR · 人事数字化平台</div>
+          <h2 className="lx-login-slogan">
+            让考勤与薪酬
+            <br />
+            一次算清
+          </h2>
+          <p className="lx-login-slogan-sub">
+            从打卡到发薪，全流程在线协同，数据一处录入、处处一致。
+          </p>
+
+          <ul className="lx-login-highlights">
+            {HIGHLIGHTS.map((h, i) => (
+              <li key={h.title} className="lx-login-highlight" style={{ ['--i' as any]: i }}>
+                <span className="lx-login-highlight-ic">{h.icon}</span>
+                <span className="lx-login-highlight-text">
+                  <strong>{h.title}</strong>
+                  <em>{h.desc}</em>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {/* lx-form-glow（Galaxy Round 3）：表单内任一输入聚焦时容器亮起，控件级描边见 globals.css scoped 规则 */}
-        <Form layout="vertical" className="lx-form-glow" onSubmit={handleSubmit} style={{ rowGap: 2 }}>
-          <Form.Item label="用户名">
-            <Input
-              size="large"
-              placeholder="请输入用户名"
-              value={username}
-              onChange={setUsername}
-              onPressEnter={handleSubmit}
-            />
-          </Form.Item>
-          <Form.Item label="密码">
-            <Input.Password
-              size="large"
-              placeholder="请输入密码"
-              value={password}
-              onChange={setPassword}
-              onPressEnter={handleSubmit}
-            />
-          </Form.Item>
-          {errorMsg && (
-            <Alert
-              type="error"
-              content={errorMsg}
-              style={{ margin: '0 0 16px' }}
-            />
-          )}
-          <Button
-            type="primary"
-            long
-            size="large"
-            htmlType="submit"
-            loading={loading}
-            disabled={!canSubmit}
-            style={{ fontWeight: 400 }}
-          >
-            {loading ? '登录中...' : '登录'}
-          </Button>
-        </Form>
-      </div>
+        <div className="lx-login-aside-foot">数据本地部署 · 权限按角色隔离</div>
+      </aside>
 
-      <div className="relative z-10 mt-8 text-xs text-text-3">
-        © 2026 {systemInfo.name} · 企业数字化平台
+      {/* 右侧登录区 */}
+      <div className="lx-login-main flex flex-col items-center justify-center">
+        <div className="lx-login-glow-1 pointer-events-none absolute -top-[120px] -left-24 w-[380px] h-[380px] rounded-full" />
+        <div className="lx-login-glow-2 pointer-events-none absolute -bottom-[140px] -right-[120px] w-[440px] h-[440px] rounded-full" />
+
+        <div className="lx-login-card relative z-10 w-full max-w-[400px] mx-4 px-6 sm:px-8 py-9 rounded-xl bg-surface">
+          <div className="flex flex-col items-center mb-7">
+            {systemInfo.logoUrl ? (
+              /**
+               * 用 next/image 而非原生 <img>：自动写死 width/height，消除首屏布局抖动（CLS）。
+               * 用 unoptimized 是因为 Logo 由后台配置，可能是任意 OSS/外链地址，
+               * 无法预先列入 images.remotePatterns 白名单（产物仍是同一个 <img>，不影响观感）。
+               */
+              <Image
+                src={systemInfo.logoUrl}
+                alt="系统 Logo"
+                width={56}
+                height={56}
+                unoptimized
+                className="h-14 w-14 object-contain rounded-xl"
+              />
+            ) : (
+              <div className="lx-login-logo flex h-14 w-14 items-center justify-center rounded-xl text-[26px] font-semibold text-white">
+                {(systemInfo.name || '雷').charAt(0)}
+              </div>
+            )}
+            <Typography.Title
+              heading={1}
+              style={{ textAlign: 'center', margin: '16px 0 0', fontWeight: 600, fontSize: 20 }}
+            >
+              {systemInfo.name}
+            </Typography.Title>
+            <div className="text-sm text-text-3 text-center mt-1.5">考勤 · 算薪 · 员工管理</div>
+          </div>
+
+          {/* lx-form-glow（Galaxy Round 3）：表单内任一输入聚焦时容器亮起，控件级描边见 globals.css scoped 规则 */}
+          <Form layout="vertical" className="lx-form-glow" onSubmit={handleSubmit} style={{ rowGap: 2 }}>
+            <Form.Item label="用户名">
+              <Input
+                size="large"
+                placeholder="请输入用户名"
+                value={username}
+                onChange={setUsername}
+                onPressEnter={handleSubmit}
+                autoComplete="username"
+              />
+            </Form.Item>
+            <Form.Item label="密码">
+              <Input.Password
+                size="large"
+                placeholder="请输入密码"
+                value={password}
+                onChange={setPassword}
+                onPressEnter={handleSubmit}
+                autoComplete="current-password"
+              />
+            </Form.Item>
+
+            <div className="lx-login-options">
+              <Checkbox checked={remember} onChange={setRemember}>
+                记住账号
+              </Checkbox>
+            </div>
+
+            {errorMsg && (
+              <Alert
+                key={errorSeq}
+                className="lx-login-error"
+                type="error"
+                content={errorMsg}
+                style={{ margin: '0 0 16px' }}
+              />
+            )}
+
+            <Button
+              type="primary"
+              long
+              size="large"
+              htmlType="submit"
+              loading={loading}
+              disabled={!canSubmit}
+              style={{ fontWeight: 500 }}
+            >
+              {loading ? '登录中...' : '登录'}
+            </Button>
+          </Form>
+
+          <div className="lx-login-tip">忘记密码请联系系统管理员重置</div>
+        </div>
+
+        <div className="lx-login-copyright relative z-10 mt-7 text-xs text-text-3">
+          © 2026 {systemInfo.name} · 企业数字化平台
+        </div>
       </div>
     </div>
   );

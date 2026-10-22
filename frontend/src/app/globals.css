@@ -134,6 +134,8 @@
   /* ---- 登录页专属（品牌渐变与柔光，属确认保留的设计意图） ---- */
   --lx-login-bg: linear-gradient(160deg, #f5f7ff 0%, #eaf0ff 100%);
   --lx-login-card-shadow: 0 24px 70px rgba(36, 85, 217, 0.1), 0 2px 18px rgba(22, 30, 60, 0.04);
+  /* 登录页品牌侧栏：深靛蓝→紫（浅色主题下也保持深色，与右侧浅底卡片形成对比） */
+  --lx-login-aside-bg: linear-gradient(155deg, #0d1836 0%, #172a5e 45%, #2a1c4e 100%);
 
   /* ---- 阴影（更精致的分层阴影） ---- */
   --lx-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
@@ -306,6 +308,8 @@
   /* 登录页：暗色下的深色渐变与柔光，避免"暗色用户看到浅色登录页"的主题断裂 */
   --lx-login-bg: linear-gradient(160deg, #101527 0%, #0b0f1a 100%);
   --lx-login-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 18px rgba(0, 0, 0, 0.35);
+  /* 品牌侧栏在暗色下再压暗一档，与页面底色衔接更自然 */
+  --lx-login-aside-bg: linear-gradient(155deg, #080e20 0%, #101d42 45%, #1d1238 100%);
 
   /* 语义底色统一压暗 */
   --lx-primary-light: #18203a;
@@ -1339,11 +1343,250 @@ html, body {
 }
 .lx-login-card {
   box-shadow: var(--lx-login-card-shadow);
+  animation: lx-slideUp 0.36s var(--lx-ease-standard);
 }
 .lx-login-logo {
   background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
   box-shadow: var(--lx-shadow-md);
   box-shadow: 0 8px 22px color-mix(in srgb, var(--lx-primary) 30%, transparent);
+}
+
+/* ---- 品牌侧栏（lg 以上）：深靛蓝渐变 + 极光光斑 + 细网格 ---- */
+.lx-login-aside {
+  position: relative;
+  flex: 0 0 44%;
+  max-width: 560px;
+  align-self: stretch;
+  overflow: hidden;
+  background: var(--lx-login-aside-bg);
+  color: #fff;
+  border-radius: 0 28px 28px 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* 极光光团：蓝、紫各一团，缓慢呼吸（reduced-motion 由全局兜底停用） */
+.lx-login-aside-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.lx-login-aside-orb-1 {
+  width: 420px;
+  height: 420px;
+  top: -120px;
+  right: -80px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.55), transparent 68%);
+  animation: lx-login-orb 14s ease-in-out infinite;
+}
+.lx-login-aside-orb-2 {
+  width: 380px;
+  height: 380px;
+  bottom: -140px;
+  left: -90px;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 68%);
+  animation: lx-login-orb 18s ease-in-out infinite reverse;
+}
+@keyframes lx-login-orb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-18px, 22px, 0) scale(1.08);
+  }
+}
+
+/* 细网格：极淡白线，给深色面一点科技纹理 */
+.lx-login-aside-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 78%);
+}
+
+.lx-login-aside-inner {
+  position: relative;
+  z-index: 1;
+  padding: 0 56px;
+  max-width: 520px;
+}
+.lx-login-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--lx-radius-full);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.86);
+}
+.lx-login-slogan {
+  margin: 20px 0 0;
+  font-size: 40px;
+  line-height: 1.22;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #ffffff 30%, #a5c4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lx-login-slogan-sub {
+  margin: 16px 0 0;
+  max-width: 360px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* 能力点：三色图标方块依次入场（--i 由行内注入，控制延迟） */
+.lx-login-highlights {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.lx-login-highlight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: lx-login-rise 0.5s var(--lx-ease-standard) both;
+  animation-delay: calc(var(--i, 0) * 90ms + 120ms);
+}
+@keyframes lx-login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.lx-login-highlight-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--lx-radius-md);
+  font-size: 17px;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(96, 165, 250, 0.7));
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+}
+.lx-login-highlight:nth-child(2) .lx-login-highlight-ic {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.9), rgba(45, 212, 191, 0.7));
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35);
+}
+.lx-login-highlight:nth-child(3) .lx-login-highlight-ic {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(167, 139, 250, 0.7));
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35);
+}
+.lx-login-highlight-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.lx-login-highlight-text strong {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+}
+.lx-login-highlight-text em {
+  font-size: 12px;
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.55);
+}
+.lx-login-aside-foot {
+  position: absolute;
+  left: 56px;
+  bottom: 32px;
+  z-index: 1;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* ---- 右侧登录区 ---- */
+.lx-login-main {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 40px 0;
+}
+.lx-login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 2px 0 16px;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-2);
+}
+.lx-login-tip {
+  margin-top: 18px;
+  text-align: center;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+}
+/* 登录失败：提示条轻微抖动一次，让"输错了"有明确反馈（reduced-motion 下自动停用） */
+.lx-login-error {
+  animation: lx-login-shake 0.4s var(--lx-ease-standard);
+}
+@keyframes lx-login-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* 窄屏：隐藏品牌侧栏，登录卡片居中（退化为单栏） */
+@media (max-width: 1023px) {
+  .lx-login-aside {
+    display: none;
+  }
+}
+/* 极高屏（横屏平板等）：侧栏留白收敛，避免内容被拉得太散 */
+@media (min-width: 1024px) and (max-height: 720px) {
+  .lx-login-aside-inner {
+    padding: 0 44px;
+  }
+  .lx-login-slogan {
+    font-size: 32px;
+  }
+  .lx-login-highlights {
+    margin-top: 24px;
+    gap: 10px;
+  }
+  .lx-login-aside-foot {
+    left: 44px;
+    bottom: 20px;
+  }
 }
 
 /* ===== 系统设置 · 通用配置（横向每行 label-左 控件-右） ===== */

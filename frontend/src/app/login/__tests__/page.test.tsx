@@ -87,6 +87,16 @@ jest.mock('@arco-design/web-react', () => {
         {content}
       </div>
     ),
+    Checkbox: ({ checked, onChange, children }: any) => (
+      <label>
+        <input
+          type="checkbox"
+          checked={!!checked}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.checked)}
+        />
+        {children}
+      </label>
+    ),
     Message: { success: jest.fn(), error: jest.fn() },
   };
 });
@@ -186,5 +196,54 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('button', { name: /登录中/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /登录中/i })).toBeDisabled();
+  });
+
+  // ---- 记住账号（只在本地存用户名，不存密码） ----
+  it('勾选「记住账号」后登录成功会把用户名写入 localStorage', async () => {
+    localStorage.clear();
+    (authApi.login as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { user: { id: 1, username: 'admin', name: '管理员', permissions: [] } },
+    });
+
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByLabelText(/用户名/i), 'admin');
+    await user.type(screen.getByLabelText(/密码/i), '123456');
+    await user.click(screen.getByLabelText(/记住账号/i));
+    await user.click(screen.getByRole('button', { name: /登录/i }));
+
+    await waitFor(() => expect(localStorage.getItem('lx-remember-username')).toBe('admin'));
+    // 密码绝不落本地
+    expect(JSON.stringify(localStorage)).not.toContain('123456');
+  });
+
+  it('未勾选「记住账号」时登录成功不会写入用户名', async () => {
+    localStorage.clear();
+    (authApi.login as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { user: { id: 1, username: 'admin', name: '管理员', permissions: [] } },
+    });
+
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByLabelText(/用户名/i), 'admin');
+    await user.type(screen.getByLabelText(/密码/i), '123456');
+    await user.click(screen.getByRole('button', { name: /登录/i }));
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/'));
+    expect(localStorage.getItem('lx-remember-username')).toBeNull();
+  });
+
+  it('挂载时回填已记住的用户名并自动勾选', async () => {
+    localStorage.setItem('lx-remember-username', 'zhangsan');
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByLabelText(/用户名/i)).toHaveValue('zhangsan');
+    });
+    expect(screen.getByLabelText(/记住账号/i)).toBeChecked();
+    localStorage.clear();
   });
 });
