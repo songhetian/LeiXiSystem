@@ -1146,10 +1146,38 @@
 }
 
 /* ---- Descriptions 描述列表 ---- */
+
+/* 表格展开行里的描述列表（薪资批次明细「工资构成」等）会被 Arco 的
+   `.arco-table-layout-fixed table`（后代选择器，非子选择器）误伤成
+   table-layout: fixed —— 于是 label 的 width:1px 真的只剩 1px，
+   nowrap 的标签文字溢出压到数值上，出现「基本工资/8000」重叠。
+   这里用更高特异性的选择器（0,2,0 > 0,1,1）恢复描述表格的正常布局。 */
+.arco-table .arco-descriptions-table {
+  table-layout: auto;
+  border-collapse: collapse;
+}
+
 .arco-descriptions-item-label {
   font-weight: var(--lx-font-normal);
   color: var(--lx-text-3);
   font-size: 12.5px;
+  /* Arco 默认 width:1px 是给 table-layout:fixed 用的塌陷 hack，
+     auto 布局下显式 auto 更稳（fixed 布局由 Arco 自己的规则覆盖回 auto） */
+  width: auto;
+}
+
+/* 展开行里的明细标签列：auto 布局下会被最长标签（「调整 · 原因」）撑到 200px+，
+   短标签与数值之间空出一大段。这里给一个舒适基准宽 + 上限，超长换行而不是撑开。 */
+.arco-table .arco-descriptions-item-label {
+  width: 96px;
+  max-width: 168px;
+  white-space: normal;
+  padding-right: 16px;
+}
+
+/* 金额列用等宽数字，纵向对齐更整齐 */
+.arco-table .arco-descriptions-item-value {
+  font-variant-numeric: tabular-nums;
 }
 
 .arco-descriptions-item-content {
