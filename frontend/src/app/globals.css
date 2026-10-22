@@ -3020,3 +3020,174 @@ body.arco-theme-dark .page-container::before {
     radial-gradient(680px 220px at 12% -40%, rgba(59, 130, 246, 0.16), transparent 70%),
     radial-gradient(560px 200px at 88% -50%, rgba(167, 139, 250, 0.14), transparent 70%);
 }
+
+/* ========================================
+   工资构成明细卡（薪资批次明细展开行）
+   原先是通用 Descriptions 的「标签: 数值」平铺，信息层级弱。
+   这里做成一张真正的明细卡：收入项/调整项同网格但可区分，
+   金额等宽数字右对齐、增减带符号与语义色，合计行强调。
+   全部走 token，暗色自动跟随；仅在 hover 有过渡，reduced-motion 无影响。
+   ======================================== */
+.lx-salary-expand {
+  padding: 4px 4px 8px;
+}
+
+.lx-salary {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  padding: 14px 16px 12px;
+  box-shadow: var(--lx-shadow-sm);
+}
+
+.lx-salary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lx-salary-title {
+  position: relative;
+  margin: 0;
+  padding-left: 10px;
+  font-size: var(--lx-font-sm);
+  font-weight: 600;
+  color: var(--lx-text-1);
+  letter-spacing: 0.01em;
+}
+.lx-salary-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0.92em;
+  border-radius: var(--lx-radius-full);
+  background: linear-gradient(180deg, var(--lx-primary), var(--lx-purple));
+}
+
+.lx-salary-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lx-salary-badge {
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 8px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-secondary);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.lx-salary-badge--income {
+  background: var(--lx-primary-light);
+  color: var(--lx-primary);
+}
+.lx-salary-badge--adjust {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning);
+}
+
+.lx-salary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 2px 12px;
+}
+
+.lx-salary-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--lx-radius-sm);
+  transition: background-color var(--lx-transition-fast);
+}
+.lx-salary-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+/* 调整项：淡橙底 + 左侧细色条，让人一眼看出「这是后加的」 */
+.lx-salary-item--adjust {
+  position: relative;
+  background: var(--lx-warning-bg);
+  padding-left: 14px;
+}
+.lx-salary-item--adjust::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 12px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-warning);
+  opacity: 0.75;
+}
+
+.lx-salary-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--lx-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lx-salary-amount {
+  flex: 0 0 auto;
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  color: var(--lx-text-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.lx-salary-amount.is-plus {
+  color: var(--lx-success);
+}
+.lx-salary-amount.is-minus {
+  color: var(--lx-danger);
+}
+
+.lx-salary-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--lx-border-2);
+}
+.lx-salary-total-label {
+  font-size: 12.5px;
+  color: var(--lx-text-2);
+  letter-spacing: 0.04em;
+}
+.lx-salary-total-value {
+  font-size: var(--lx-font-xl);
+  font-weight: 600;
+  color: var(--lx-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+/* 暗色下品牌色仍是浅色主题的深蓝 #2455D9，在深底上做小字（徽标、合计金额）
+   对比度不足（<3:1）。这里只用暗色品牌梯度里的浅档提亮，不动全局 --lx-primary，
+   避免波及其他组件的按钮/描边。 */
+[data-theme='dark'] .lx-salary-total-value,
+body.arco-theme-dark .lx-salary-total-value {
+  color: var(--lx-primary-600);
+}
+[data-theme='dark'] .lx-salary-badge--income,
+body.arco-theme-dark .lx-salary-badge--income {
+  background: rgba(93, 127, 196, 0.18);
+  color: var(--lx-primary-600);
+}

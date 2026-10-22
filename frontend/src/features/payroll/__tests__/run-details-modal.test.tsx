@@ -123,10 +123,18 @@ describe('RunDetailsModal', () => {
       expect(payrollApi.getPayrollRunDetails).toHaveBeenCalledWith(1);
     });
     await waitFor(() => {
-      expect(screen.getByText('基本工资:5000')).toBeInTheDocument();
-      expect(screen.getByText('餐补:300')).toBeInTheDocument();
-      expect(screen.getByText('调整 · 迟到扣款:-100')).toBeInTheDocument();
+      expect(screen.getByTestId('salary-composition')).toBeInTheDocument();
     });
+    // 明细项：标签与金额分列（金额千分位 + 两位小数）
+    expect(screen.getByText('基本工资')).toBeInTheDocument();
+    expect(screen.getByText('5,000.00')).toBeInTheDocument();
+    expect(screen.getByText('餐补')).toBeInTheDocument();
+    expect(screen.getByText('300.00')).toBeInTheDocument();
+    // 调整项：展示原因，扣减带负号
+    expect(screen.getByText('迟到扣款')).toBeInTheDocument();
+    expect(screen.getByText('−100.00')).toBeInTheDocument();
+    // 合计行
+    expect(screen.getByText('5,200.00')).toBeInTheDocument();
   });
 
   it('draft 批次可添加调整并调用 adjustPayrollRun 后刷新', async () => {

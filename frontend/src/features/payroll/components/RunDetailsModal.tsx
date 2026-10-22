@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Modal, Table, Space, Button, Tag, Descriptions, Message } from '@arco-design/web-react';
+import { Modal, Table, Space, Button, Descriptions, Message } from '@arco-design/web-react';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
+import SalaryComposition from '@/features/payroll/components/SalaryComposition';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { payrollApi, PayrollRun, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
 
@@ -58,10 +59,6 @@ const adjustmentFields = (salaryItems: SalaryItem[]): FormFieldConfig[] => [
     placeholder: '请输入调整原因',
   },
 ];
-
-function amountValue(n: number) {
-  return n > 0 ? `+${n}` : `${n}`;
-}
 
 export default function RunDetailsModal({ run, visible = false, onCancel, onChanged }: RunDetailsModalProps) {
   const [adjustVisible, setAdjustVisible] = useState(false);
@@ -161,24 +158,8 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
   const expandedRowRender = (row: any) => {
     const d: PayrollEmployeeDetail = row._detail;
     return (
-      <div data-testid="detail-expand" style={{ padding: '0 24px 8px' }}>
-        <Descriptions
-          title="工资构成"
-          layout="horizontal"
-          data={[
-            ...d.items.map((it) => ({ label: it.name, value: `${it.amount}` })),
-            ...d.adjustments.map((a) => ({
-              label: `调整 · ${a.reason}`,
-              value: amountValue(a.amount),
-            })),
-          ]}
-          column={2}
-        />
-        {d.adjustments.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <Tag color="orange">调整项 {d.adjustments.length}</Tag>
-          </div>
-        )}
+      <div className="lx-salary-expand" data-testid="detail-expand">
+        <SalaryComposition items={d.items} adjustments={d.adjustments} total={d.total} />
       </div>
     );
   };
