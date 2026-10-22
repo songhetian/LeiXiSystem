@@ -34,6 +34,14 @@
 - 时区：业务日以 **UTC 午夜**存储，取年月/月份区间一律用 `getUTC*`；「当前年月」类判断必须按**北京时间**（UTC 容器每月 1 日 00:00~08:00 会算错生效月）。
 - 数据隔离：显式部门过滤必须与可见范围**取交集**（不能覆盖）；范围解析为空要 fail-closed。
 
+## 本地环境与演示账号
+- 演示账号：`admin/123456`（全部权限）、`staff/123456`（员工视角）；密码统一 123456，bcrypt cost 10。
+- 种子入口：`backend/prisma/seed.ts`（它调 `seed-real-data.ts` 的 seedRealData；后者只导出不执行，直接跑无效）。种子幂等：员工=30 部门=4 日报=644 薪资批次=2。
+- 本地 Redis：`"D:\Program Files\FlyEnv-Data\env\redis\redis-server.exe" --port 6379 --requirepass 123456`（Docker Desktop 未开时用）；后端启动：`cd backend && npx dotenv -e ../.env -- node --watch --require ts-node/register src/main.ts`（main.ts 的 dotenv 找 CWD 的 .env，必须借 dotenv -e 注入根目录 .env）。
+- 登录体系：token 走 HttpOnly cookie（access_token）+ body.csrfToken，请求需 X-CSRF-Token。
+- 登录失败文案统一在 `backend/src/common/error-messages.ts`（错误码→文案映射，会覆盖 service 里的 message）——2026-10-22 已把 AUTH_INVALID_CREDENTIALS 从「凭据错误」改为「账号或密码错误」。
+- ⚠️ leixin_v2 本地库曾是旧版遗留结构（与迁移基线不兼容），2026-10-22 已整库 RENAME 备份到 `leixin_v2_old_backup` 后按迁移重建 + 种子；回滚把表搬回即可。
+
 ## 提交与落盘纪律
 - 大批量改动按「工程底座 → 后端按依赖方向逐层 → 前端主题 → 前端业务 → 文档」切分，便于 review 与单独回退。
 - 接口新增方法必须与实现类**同批提交**，否则中间态 tsc 失败。

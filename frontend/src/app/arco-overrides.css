@@ -553,6 +553,31 @@
   padding: 14px 22px;
 }
 
+/* ---- Toast 容器定位与层级 ----
+   根因：Arco 的 .arco-message-wrapper 默认 z-index 1003、top 40px，
+   而主区顶栏是 --lx-z-sticky(1020)、高 var(--lx-header-height)(60px)，
+   Toast 恰好整块落在顶栏的纵向范围内，被顶栏（含 backdrop-filter 毛玻璃）
+   盖掉了上半部分。
+   修法：容器提到 --lx-z-toast（全站最高层），并下移到顶栏之下，
+   这样即便页签栏、抽屉打开时也不会被遮挡。
+   .arco-notification-wrapper 有同样的 1003 / top 20px 问题，一并处理。 */
+.arco-message-wrapper,
+.arco-notification-wrapper {
+  z-index: var(--lx-z-toast) !important;
+}
+
+.arco-message-wrapper-top {
+  top: calc(var(--lx-header-height, 60px) + 12px) !important;
+}
+
+.arco-notification-wrapper-topRight {
+  top: calc(var(--lx-header-height, 60px) + 12px) !important;
+}
+
+.arco-notification-wrapper-topLeft {
+  top: calc(var(--lx-header-height, 60px) + 12px) !important;
+}
+
 /* ---- Message / Toast 完整样式 ---- */
 .arco-message {
   border-radius: var(--lx-radius-md);
