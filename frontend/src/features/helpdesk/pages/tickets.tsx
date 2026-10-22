@@ -466,7 +466,6 @@ export default function HelpdeskTicketsPage() {
               </div>
               <div className="flex items-end">
                 <Button
-                  style={{ width: '100%' }}
                   onClick={() => {
                     setTicketFilters({ status: '', priority: '' });
                     setTicketPage(1);

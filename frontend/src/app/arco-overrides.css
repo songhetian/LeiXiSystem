@@ -153,7 +153,53 @@
 .arco-input:hover,
 .arco-textarea:hover,
 .arco-select-view:hover {
-  border-color: var(--lx-border-3);
+  border-color: var(--lx-primary);
+}
+
+/* ---- Galaxy 下拉框（Select）----
+   1) 触发器：hover 品牌染 + 箭头图标品牌色；聚焦光晕由上方 --lx-focus-ring 统一承担 */
+.arco-select-view:hover .arco-select-view-icon,
+.arco-select-view-focused .arco-select-view-icon {
+  color: var(--lx-primary);
+}
+.arco-select-view.arco-select-view-multiple:hover {
+  background: var(--lx-primary-bg);
+}
+
+/* 2) 下拉面板：圆角 + 层次投影 + 细边框（弹层挂 body 下，全局类生效） */
+.arco-select-popup,
+.arco-trigger-popup.arco-select-popup {
+  border-radius: var(--lx-radius-md);
+  border: 1px solid var(--lx-border-1);
+  box-shadow: var(--lx-shadow-dropdown);
+  overflow: hidden;
+}
+
+/* 3) 选项：hover 品牌浅底平移过渡；选中项品牌底白字 + 右侧对勾品牌色 */
+.arco-select-option {
+  transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast),
+    padding-left var(--lx-transition-fast);
+}
+.arco-select-option:hover {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+@supports (color: color-mix(in srgb, red 1%, blue)) {
+  .arco-select-option:hover {
+    background: color-mix(in srgb, var(--lx-primary) 8%, var(--lx-bg-card));
+  }
+}
+.arco-select-option.arco-select-option-selected {
+  background: var(--lx-primary);
+  color: var(--lx-text-white);
+  font-weight: 500;
+}
+.arco-select-option.arco-select-option-selected .arco-select-option-icon {
+  color: var(--lx-text-white);
+}
+/* 选项 hover 轻微右移，galaxy 式「被吸引」反馈 */
+.arco-select-option:hover {
+  padding-left: 14px;
 }
 
 .arco-input-wrapper {

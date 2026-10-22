@@ -456,7 +456,7 @@ export default function ExceptionRulesPage() {
           />
         </div>
         <div className="flex items-end">
-          <Button style={{ width: '100%' }} onClick={handleExceptionReset}>重置筛选</Button>
+          <Button onClick={handleExceptionReset}>重置筛选</Button>
         </div>
       </div>
     </div>

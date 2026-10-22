@@ -299,7 +299,7 @@ export default function ExpenseStandardsPage() {
             />
           </div>
           <div className="flex items-end">
-            <Button style={{ width: '100%' }} onClick={handleReset}>重置筛选</Button>
+            <Button onClick={handleReset}>重置筛选</Button>
           </div>
         </div>
       </div>

@@ -1752,6 +1752,18 @@ html, body {
 /* 快捷操作入口（统一小卡网格）
    注意：这些类渲染为 <button>（保证键盘可达 WCAG SC 2.1.1），
    故在规则内显式抹掉按钮默认样式，使其与原来的 <div> 视觉完全一致 */
+/* 网格容器：横向自动换行，每格最小 96px（此前缺失该定义导致条目竖排堆叠） */
+.dsh-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .dsh-quick-grid {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px;
+  }
+}
 .dsh-quick-item {
   display: flex;
   flex-direction: column;
@@ -2077,6 +2089,106 @@ html, body {
   color: var(--lx-text-white);
   box-shadow: 0 6px 16px rgba(36, 85, 217, 0.35);
   transform: translateY(-2px) scale(1.06);
+}
+
+/* ---- Galaxy 多彩：快捷操作图标六色循环（蓝/紫/青/橙/粉/绿） ----
+   底色用 --lx-*-bg 语义 token（暗色块内有对应暗色版，主题自动跟随）；
+   hover 点亮为该色相渐变白字。nth-child 优先级高于上面的统一蓝 hover。 */
+.dsh-quick-item:nth-child(6n + 1) .dsh-quick-ic {
+  color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+}
+.dsh-quick-item:nth-child(6n + 1):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #2455d9, #3b82f6);
+  box-shadow: 0 6px 16px rgba(36, 85, 217, 0.35);
+}
+.dsh-quick-item:nth-child(6n + 2) .dsh-quick-ic {
+  color: var(--lx-purple);
+  background: var(--lx-purple-bg);
+}
+.dsh-quick-item:nth-child(6n + 2):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
+}
+.dsh-quick-item:nth-child(6n + 3) .dsh-quick-ic {
+  color: var(--lx-teal);
+  background: var(--lx-teal-bg);
+}
+.dsh-quick-item:nth-child(6n + 3):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #0d9488, #2dd4bf);
+  box-shadow: 0 6px 16px rgba(20, 184, 166, 0.35);
+}
+.dsh-quick-item:nth-child(6n + 4) .dsh-quick-ic {
+  color: var(--lx-coral);
+  background: var(--lx-coral-bg);
+}
+.dsh-quick-item:nth-child(6n + 4):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #ea580c, #fb923c);
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.35);
+}
+.dsh-quick-item:nth-child(6n + 5) .dsh-quick-ic {
+  color: var(--lx-pink);
+  background: var(--lx-pink-bg);
+}
+.dsh-quick-item:nth-child(6n + 5):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #db2777, #f472b6);
+  box-shadow: 0 6px 16px rgba(236, 72, 153, 0.35);
+}
+.dsh-quick-item:nth-child(6n + 6) .dsh-quick-ic {
+  color: var(--lx-success);
+  background: var(--lx-success-bg);
+}
+.dsh-quick-item:nth-child(6n + 6):hover .dsh-quick-ic {
+  background: linear-gradient(135deg, #16a34a, #4ade80);
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
+}
+/* hover 文字色统一跟随点亮态（白字） */
+.dsh-quick-item:hover .dsh-quick-ic {
+  color: var(--lx-text-white);
+}
+
+/* ---- Galaxy 多彩：统计卡描边流光按卡取色（1蓝默认 / 2紫 / 3青 / 4橙） ----
+   .dsh-stat 渲染在 arco-col 内，按 Col 序号取色；不支持 color-mix 的浏览器
+   保持原有品牌蓝描边不破版（conic 渐变用纯色值，主题通用）。 */
+.arco-col:nth-child(2) .dsh-stat::before {
+  background: conic-gradient(
+    from var(--lx-border-angle),
+    transparent 0deg 210deg,
+    var(--lx-purple) 260deg,
+    #a78bfa 310deg,
+    transparent 360deg
+  );
+}
+.arco-col:nth-child(3) .dsh-stat::before {
+  background: conic-gradient(
+    from var(--lx-border-angle),
+    transparent 0deg 210deg,
+    var(--lx-teal) 260deg,
+    #2dd4bf 310deg,
+    transparent 360deg
+  );
+}
+.arco-col:nth-child(4) .dsh-stat::before {
+  background: conic-gradient(
+    from var(--lx-border-angle),
+    transparent 0deg 210deg,
+    var(--lx-coral) 260deg,
+    #fb923c 310deg,
+    transparent 360deg
+  );
+}
+/* 统计卡 hover 边框/光晕随卡取色（与描边同色系） */
+.arco-col:nth-child(2) .dsh-stat:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.16);
+}
+.arco-col:nth-child(3) .dsh-stat:hover {
+  border-color: rgba(20, 184, 166, 0.45);
+  box-shadow: 0 6px 20px rgba(20, 184, 166, 0.16);
+}
+.arco-col:nth-child(4) .dsh-stat:hover {
+  border-color: rgba(249, 115, 22, 0.45);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.16);
 }
 
 /* ---- 待办圆点：同色呼吸光晕（颜色经 --dot-c 内联注入） ----
