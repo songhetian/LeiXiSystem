@@ -237,4 +237,28 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it('unmount 后迟到的响应不再写入组件状态（不产生跨用例 act 告警）', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    let resolveIt!: (v: unknown) => void;
+    fetcher.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveIt = resolve;
+      }),
+    );
+    const { unmount } = render(<Probe cacheKey="k10" fetcher={fetcher} label="a" />);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // 在途即卸载（用户切页），随后响应才迟到返回
+    unmount();
+    await act(async () => {
+      resolveIt('late-data');
+    });
+
+    const actErrors = consoleSpy.mock.calls.filter((c) =>
+      String(c[0]).includes('act(') || String(c[0]).includes('not wrapped'),
+    );
+    expect(actErrors).toHaveLength(0);
+    consoleSpy.mockRestore();
+  });
 });

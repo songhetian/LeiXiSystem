@@ -67,6 +67,17 @@ export function useCachedData<T>(
     },
   );
 
+  // 组件卸载守卫：在途请求返回时不再对已卸载实例 setState（模块级缓存仍照常
+  // 写入，供后续订阅复用）。否则 React 会对已卸载组件排队更新，测试中表现为
+  // 跨用例 act 告警、真实运行中属无效更新。
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   // fetcher 经 ref 透传：inline 箭头函数每次渲染都是新引用，若直接进依赖会让
   // load（连带 revalidate、focus/visibilitychange 监听）每渲染漂移；
   // 走 ref 后 load 依赖只剩 cacheKey / staleTime，身份稳定。
@@ -121,16 +132,16 @@ export function useCachedData<T>(
         .then((data) => {
           // 已被更新的请求（同 key 后续 revalidate）取代时丢弃结果，防止旧数据覆盖新数据
           if (latestRequestId.get(cacheKey) !== requestId) return data;
-          // 无论是否为活跃 key，都写入缓存供后续订阅复用
+          // 无论是否为活跃 key / 实例是否卸载，都写入缓存供后续订阅复用
           moduleCache.set(cacheKey, { data, timestamp: Date.now() });
-          // 已切走（非当前活跃 key）时不再 setState，防止旧数据覆盖新 key
-          if (activeKeyRef.current !== myKey) return data;
+          // 已切走（非当前活跃 key）或实例已卸载时不再 setState
+          if (activeKeyRef.current !== myKey || !mountedRef.current) return data;
           setState({ data, loading: false, error: null });
           return data;
         })
         .catch((e) => {
           if (latestRequestId.get(cacheKey) !== requestId) return null;
-          if (activeKeyRef.current !== myKey) return null;
+          if (activeKeyRef.current !== myKey || !mountedRef.current) return null;
           setState((s) => ({ ...s, loading: false, error: getApiErrorMessage(e, '加载失败') }));
           return null;
         });

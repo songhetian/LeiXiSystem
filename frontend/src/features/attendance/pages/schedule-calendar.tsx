@@ -781,6 +781,9 @@ export default function ScheduleCalendarPage() {
       const dateStr = fmtDate(viewYear, viewMonth, day);
       const weekday = dateObj.getDay();
       const isWeekend = weekday === 0 || weekday === 6;
+      const isToday =
+        dateStr ===
+        fmtDate(today.getFullYear(), today.getMonth(), today.getDate());
 
       cols.push({
         title: (
@@ -788,7 +791,11 @@ export default function ScheduleCalendarPage() {
             <span className={`text-xs ${isWeekend ? 'text-danger' : 'text-text-3'}`}>
               {WEEKDAY_LABELS[weekday]}
             </span>
-            <span className={`text-sm font-medium ${isWeekend ? 'text-danger' : 'text-text-1'}`}>
+            <span
+              className={`text-sm font-medium ${isWeekend ? 'text-danger' : 'text-text-1'} ${
+                isToday ? 'cal-day-today' : ''
+              }`}
+            >
               {day}
             </span>
           </div>
@@ -837,7 +844,7 @@ export default function ScheduleCalendarPage() {
             const textColor = getContrastColor(schedule.shift.color);
             return (
               <div
-                className="w-full h-full flex items-center justify-center"
+                className="cal-sched w-full h-full flex items-center justify-center"
                 style={{ background: color, borderRadius: 4 }}
               >
                 <span style={{ fontSize: 11, fontWeight: 500, color: textColor }}>

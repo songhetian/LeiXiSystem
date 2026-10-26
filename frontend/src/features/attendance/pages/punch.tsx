@@ -423,7 +423,7 @@ export default function PunchPage() {
                   >
                     <span className="punch-quick-ic">{item.icon}</span>
                     <span className="flex-1 text-sm text-text-1 font-medium">{item.label}</span>
-                    <span className="text-text-4">
+                    <span className="punch-quick-arrow text-text-4">
                       <IconRight style={{ fontSize: 14 }} />
                     </span>
                   </Link>
