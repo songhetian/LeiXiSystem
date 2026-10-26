@@ -89,7 +89,7 @@ export default function MySchedulePage() {
 
   return (
     <PageContainer >
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-surface border border-border-1 rounded-md mb-3">
+      <div className="pro-toolbar pro-toolbar-wrap pro-toolbar-rounded mb-3">
         <div className="flex items-center gap-2">
           <Button icon={<IconLeft />} onClick={goPrev} disabled={loading} aria-label="上一月" />
           <Text bold className="min-w-[110px] text-center inline-block">

@@ -876,8 +876,8 @@ export default function ScheduleCalendarPage() {
 
   return (
       <PageContainer >
-        {/* 顶部工具栏 */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-surface border border-border-1 rounded-md mb-3">
+        {/* 顶部工具栏（与全站 ProTable 工具栏一致的灰阶分区） */}
+        <div className="pro-toolbar pro-toolbar-wrap pro-toolbar-rounded mb-3">
           <Space wrap>
             <Button
               icon={<IconLeft />}
@@ -1014,8 +1014,8 @@ export default function ScheduleCalendarPage() {
           </Space>
         </div>
 
-        {/* 日历表格 */}
-        <div ref={tableWrapRef}>
+        {/* 日历表格（统一 Pro 卡片外壳） */}
+        <div ref={tableWrapRef} className="bg-surface border border-border-1 rounded-md overflow-hidden shadow-card">
           <Table
             columns={columns}
             data={filteredEmployees}

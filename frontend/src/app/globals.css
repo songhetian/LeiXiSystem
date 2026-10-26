@@ -1118,6 +1118,14 @@ html, body {
 .pro-toolbar:empty {
   display: none;
 }
+/* 允许换行的变体（自绘工具栏字段较多时，如排班日历顶部三组控件） */
+.pro-toolbar.pro-toolbar-wrap {
+  flex-wrap: wrap;
+  height: auto;
+}
+.pro-toolbar-rounded {
+  border-radius: var(--lx-radius-lg);
+}
 
 /* ========================================
    搜索区（SearchForm）· 企业后台标准
