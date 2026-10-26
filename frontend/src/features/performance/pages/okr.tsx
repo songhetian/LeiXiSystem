@@ -7,6 +7,8 @@ import {
   IconCalendarClock,
   IconUser,
   IconArrowRise,
+  IconDown,
+  IconRight,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import { okrApi, OkrObjective, OkrKeyResult } from '@/services/performance';
@@ -360,12 +362,12 @@ export default function OkrPage() {
               return (
                 <div
                   key={obj.id}
-                  className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
-                  style={{ borderColor: tone.main, backgroundColor: tone.bg }}
+                  className="border border-border-1 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
+                  style={{ borderLeft: `3px solid ${tone.main}` }}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="min-w-0">
-                      <h3 className="text-lg font-medium text-text-1 break-all">{obj.title}</h3>
+                      <h3 className="text-base font-medium text-text-1 break-all">{obj.title}</h3>
                       <div className="flex gap-2 mt-1.5 flex-wrap">
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
@@ -384,11 +386,6 @@ export default function OkrPage() {
                         </span>
                       </div>
                     </div>
-                    <span
-                      className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: tone.main, border: '1px solid var(--lx-border-2)' }}
-                      title={obj.type}
-                    />
                   </div>
 
                   <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
@@ -419,7 +416,9 @@ export default function OkrPage() {
                       style={{ width: '100%', justifyContent: 'flex-start' }}
                       type={isExpanded ? 'secondary' : 'default'}
                     >
-                      {isExpanded ? '▼' : '▶'} 关键结果（{krs.length}）
+                      {/* 图标随展开态旋转，代替字符箭头（▼/▶） */}
+                      {isExpanded ? <IconDown /> : <IconRight />}
+                      <span className="ml-1">关键结果（{krs.length}）</span>
                     </Button>
                     {isExpanded && (
                       <div className="mt-2 flex flex-col gap-2">
