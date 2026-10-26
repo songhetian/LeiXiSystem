@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Message,
-  Table,
   Button,
   Space,
   Tag,
@@ -12,11 +11,11 @@ import {
   Form,
   Input,
   Descriptions,
-  Card,
   Divider,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable from '@/components/ProTable';
+import type { ProTableColumn } from '@/components/ProTable';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { formatDateTime } from '@/lib/format';
@@ -107,7 +106,7 @@ export default function ExpenseApprovalPage() {
     }
   };
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     {
       title: '工单号',
       dataIndex: 'id',
@@ -153,6 +152,7 @@ export default function ExpenseApprovalPage() {
     },
     {
       title: '操作',
+      dataIndex: 'actions',
       width: 180,
       render: (_v: any, record: Reimbursement) => (
         <Space>
@@ -171,30 +171,22 @@ export default function ExpenseApprovalPage() {
   ];
 
   return (
-    <PageContainer >
-      <Card className="rounded-md">
-        <DataState
-          loading={loading}
-          error={error}
-          onRetry={revalidate}
-          isEmpty={data.length === 0}
-          emptyText="暂无待审批报销单"
-        >
-          <Table
-            columns={columns}
-            data={data}
-            scroll={{ x: true }}
-            pagination={{
-              current: pageResult.current,
-              pageSize: pageResult.pageSize,
-              total: pageResult.total,
-              showTotal: true,
-              sizeCanChange: true,
-              onChange: handlePageChange,
-            }}
-          />
-        </DataState>
-      </Card>
+    <PageContainer>
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        pagination={{
+          current: pageResult.current,
+          pageSize: pageResult.pageSize,
+          total: pageResult.total,
+        }}
+        onPageChange={handlePageChange}
+        emptyElement={<span className="text-text-3">暂无待审批报销单</span>}
+      />
 
       <Modal
         title="报销单详情"

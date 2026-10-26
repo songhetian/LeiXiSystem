@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag } from '@arco-design/web-react';
+import { Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable from '@/components/ProTable';
 import { PermissionGate } from '@/components/PermissionGate';
 import type { ProTableColumn } from '@/components/ProTable';
+import type { SearchFieldConfig } from '@/components/SearchForm';
 import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/services/helpdesk';
 import { systemApi, type SysUser } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
@@ -118,10 +119,41 @@ export default function HelpdeskTicketsPage() {
       : null;
 
   // Select 清空（allowClear）时 Arco 回调 undefined，必须归一化为空串，否则会变成字符串 "undefined" 发给服务端
-  const handleFilterChange = (key: 'status' | 'priority', value?: string) => {
-    setTicketFilters((prev) => ({ ...prev, [key]: value ?? '' }));
-    setTicketPage(1); // 筛选条件变化后回到第 1 页
+  // —— 该语义现由 SearchForm 统一承担（handleChange 对空值归一化）
+
+  // ProTable 搜索区提交：字段变更即（防抖）触发过滤并回到第 1 页
+  const handleTicketSearch = (values: Record<string, any>) => {
+    setTicketFilters({
+      status: values.status ? String(values.status) : '',
+      priority: values.priority ? String(values.priority) : '',
+    });
+    setTicketPage(1);
   };
+
+  const handleTicketReset = () => {
+    setTicketFilters({ status: '', priority: '' });
+    setTicketPage(1);
+  };
+
+  const ticketSearchFields: SearchFieldConfig[] = [
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      placeholder: '全部状态',
+      options: [
+        { value: 'open', label: '处理中' },
+        { value: 'resolved', label: '已关闭' },
+      ],
+    },
+    {
+      key: 'priority',
+      label: '优先级',
+      type: 'select',
+      placeholder: '全部优先级',
+      options: PRIORITY_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+    },
+  ];
 
   // ===== 工单操作 =====
   const handleAddTicket = () => {
@@ -440,110 +472,62 @@ export default function HelpdeskTicketsPage() {
     <PageContainer>
       <Tabs defaultActiveTab="tickets">
         <TabPane key="tickets" title="工单列表">
-          {/* 筛选区 */}
-          <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm text-text-2 mb-1.5">状态</label>
-                <Select
-                  value={ticketFilters.status}
-                  onChange={(v) => handleFilterChange('status', v)}
-                  style={{ width: '100%' }}
-                  placeholder="全部状态"
-                  allowClear
-                >
-                  <Select.Option value="open">处理中</Select.Option>
-                  <Select.Option value="resolved">已关闭</Select.Option>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm text-text-2 mb-1.5">优先级</label>
-                <Select
-                  value={ticketFilters.priority}
-                  onChange={(v) => handleFilterChange('priority', v)}
-                  style={{ width: '100%' }}
-                  placeholder="全部优先级"
-                  allowClear
-                >
-                  {PRIORITY_OPTIONS.map((o) => (
-                    <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>
-                  ))}
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={() => {
-                    setTicketFilters({ status: '', priority: '' });
-                    setTicketPage(1);
-                  }}
-                >
-                  重置筛选
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* 工具栏 */}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-2">共 {ticketTotal} 个工单（按优先级：低/中/高/紧急）</span>
-            <Space>
-              <Button onClick={handleExportTickets}>导出 Excel</Button>
-              <PermissionGate code="helpdesk:manage">
-                <Button type="primary" onClick={handleAddTicket}>新建工单</Button>
-              </PermissionGate>
-            </Space>
-          </div>
-
-          <DataState
+          <ProTable
+            columns={ticketColumns}
+            data={tickets}
+            rowKey="id"
             loading={ticketLoading}
             error={ticketErrorText}
             onRetry={() => revalidateTickets()}
-            isEmpty={tickets.length === 0}
-            emptyText="暂无工单"
-          >
-            <Table
-              columns={ticketColumns}
-              data={tickets}
-              rowKey="id"
-              scroll={{ x: true }}
-              pagination={{
-                current: ticketPage,
-                pageSize: ticketPageSize,
-                total: ticketTotal,
-                showTotal: true,
-                onChange: (current, size) => {
-                  setTicketPage(current);
-                  setTicketPageSize(size);
-                },
-              }}
-              stripe
-            />
-          </DataState>
+            searchFields={ticketSearchFields}
+            onSearch={handleTicketSearch}
+            onReset={handleTicketReset}
+            searchDebounceMs={300}
+            searchInlineActions
+            toolbar={[
+              {
+                key: 'tickets-add',
+                label: '新建工单',
+                onClick: handleAddTicket,
+                disabled: !canManage,
+              },
+            ]}
+            showExport
+            onExport={handleExportTickets}
+            pagination={{
+              current: ticketPage,
+              pageSize: ticketPageSize,
+              total: ticketTotal,
+            }}
+            onPageChange={(current, size) => {
+              setTicketPage(current);
+              setTicketPageSize(size);
+            }}
+            stripe
+            emptyElement={<span className="text-text-3">暂无工单</span>}
+          />
         </TabPane>
 
         <TabPane key="slas" title="SLA 规则">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-2">共 {slas.length} 条 SLA 规则</span>
-            <PermissionGate code="helpdesk:manage">
-              <Button type="primary" onClick={handleAddSla}>新建 SLA</Button>
-            </PermissionGate>
-          </div>
-          <DataState
+          <ProTable
+            columns={slaColumns}
+            data={slas}
+            rowKey="id"
             loading={slaLoading}
             error={slaErrorText}
             onRetry={() => revalidateSlas()}
-            isEmpty={slas.length === 0}
-            emptyText="暂无 SLA 规则"
-          >
-            <Table
-              columns={slaColumns}
-              data={slas}
-              rowKey="id"
-              scroll={{ x: true }}
-              pagination={false}
-              stripe
-            />
-          </DataState>
+            toolbar={[
+              {
+                key: 'slas-add',
+                label: '新建 SLA',
+                onClick: handleAddSla,
+                disabled: !canManage,
+              },
+            ]}
+            pagination={false}
+            stripe
+            emptyElement={<span className="text-text-3">暂无 SLA 规则</span>}
+          />
         </TabPane>
       </Tabs>
 

@@ -27,16 +27,21 @@ jest.mock('@/components/PageContainer', () => ({
 jest.mock('@arco-design/web-react', () => {
   const original = jest.requireActual('@arco-design/web-react');
   const Option = ({ value, children }: any) => <option value={value}>{children}</option>;
-  const Select = ({ value, onChange, children, placeholder }: any) => (
-    <select
-      data-testid={`select-${placeholder}`}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
-    >
-      <option value="">全部</option>
-      {children}
-    </select>
-  );
+  const Select = ({ value, onChange, children, options, placeholder }: any) => {
+    // SearchForm 以 options 数组传选项（且自带“全部”首项），旧式组件以 children 传
+    const rendered = Array.isArray(options)
+      ? options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)
+      : children;
+    return (
+      <select
+        data-testid={`select-${placeholder}`}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+      >
+        {rendered}
+      </select>
+    );
+  };
   Select.Option = Option;
   return {
     ...original,
