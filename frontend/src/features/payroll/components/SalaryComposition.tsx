@@ -1,6 +1,7 @@
 'use client';
 
 import { PayrollDetailItem, PayrollAdjustmentItem } from '@/services/payroll';
+import { formatMoney } from '@/lib/format';
 
 interface SalaryCompositionProps {
   items: PayrollDetailItem[];
@@ -8,13 +9,7 @@ interface SalaryCompositionProps {
   total: number;
 }
 
-/** 金额格式化：千分位 + 两位小数。
- *  不用 toLocaleString，避免 Node/jest 与浏览器 ICU 差异导致展示不一致。 */
-function formatAmount(n: number): string {
-  const fixed = Math.abs(n).toFixed(2);
-  const [int, dec] = fixed.split('.');
-  return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
-}
+/** 金额格式化统一走 lib/format.formatMoney（千分位+两位小数、ICU 无关）。 */
 
 /**
  * 工资构成明细卡（薪资批次明细展开行）。
@@ -43,7 +38,7 @@ export default function SalaryComposition({ items, adjustments, total }: SalaryC
         {items.map((it) => (
           <div className="lx-salary-item" key={it.code}>
             <span className="lx-salary-label">{it.name}</span>
-            <span className="lx-salary-amount">{formatAmount(it.amount)}</span>
+            <span className="lx-salary-amount">{formatMoney(it.amount)}</span>
           </div>
         ))}
         {adjustments.map((a) => (
@@ -56,8 +51,9 @@ export default function SalaryComposition({ items, adjustments, total }: SalaryC
                 a.amount < 0 ? 'is-minus' : a.amount > 0 ? 'is-plus' : ''
               }`}
             >
+              {/* 调整金额统一取绝对值，正负由前缀符号 + 语义色表达（formatMoney 对负数自带 '-' 会前缀抵） */}
               {a.amount < 0 ? '−' : a.amount > 0 ? '+' : ''}
-              {formatAmount(a.amount)}
+              {formatMoney(Math.abs(a.amount))}
             </span>
           </div>
         ))}
@@ -65,7 +61,7 @@ export default function SalaryComposition({ items, adjustments, total }: SalaryC
 
       <footer className="lx-salary-total">
         <span className="lx-salary-total-label">合计</span>
-        <span className="lx-salary-total-value">{formatAmount(total)}</span>
+        <span className="lx-salary-total-value">{formatMoney(total)}</span>
       </footer>
     </section>
   );
