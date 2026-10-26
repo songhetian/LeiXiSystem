@@ -73,7 +73,7 @@ export default function TagsPage() {
           } else {
             Message.error(res.message || '删除失败');
           }
-        } catch (e: any) {
+        } catch (e) {
           notifyError(e, '删除失败');
         }
       },
@@ -105,7 +105,7 @@ export default function TagsPage() {
       } else {
         Message.error(res.message || '操作失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '操作失败');
     } finally {
       setModalLoading(false);

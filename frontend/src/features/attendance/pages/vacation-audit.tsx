@@ -27,6 +27,7 @@ import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
 import { formatDate, todayStr, formatDateTime } from '@/lib/format';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 // 批次六 · 考勤申请聚合审计（对齐参考 CompensatoryApproval 的审批人审计信息层级）
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -158,8 +159,8 @@ export default function VacationAuditPage() {
       } else {
         Message.error(res.message || '操作失败');
       }
-    } catch (e: any) {
-      Message.error(e?.message || '操作失败');
+    } catch (e) {
+      Message.error(getApiErrorMessage(e, '操作失败'));
     } finally {
       setProcessing(null);
     }

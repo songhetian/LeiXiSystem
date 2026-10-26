@@ -13,6 +13,7 @@ import { useCachedData } from '@/hooks/use-cached-data';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { exportToExcel } from '@/lib/excel';
 import { formatDate, todayStr } from '@/lib/format';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 const baseSearchFields: SearchFieldConfig[] = [
   { key: 'keyword', label: '姓名', type: 'employee', placeholder: '搜索员工姓名或工号' },
@@ -345,7 +346,7 @@ export default function EmployeeListPage() {
       }
       Message.error(result.message || '操作失败');
     } catch (e) {
-      Message.error(e instanceof Error ? e.message : '离职失败');
+      Message.error(getApiErrorMessage(e, '离职失败'));
     } finally {
       setResignSaving(false);
     }

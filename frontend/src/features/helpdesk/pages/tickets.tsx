@@ -185,7 +185,7 @@ export default function HelpdeskTicketsPage() {
           Message.error(res.message || '创建工单失败');
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '操作失败');
     } finally {
       setTicketModalLoading(false);
@@ -291,7 +291,7 @@ export default function HelpdeskTicketsPage() {
       } else {
         Message.error(res.message || '操作失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '操作失败');
     } finally {
       setSlaModalLoading(false);
@@ -312,7 +312,7 @@ export default function HelpdeskTicketsPage() {
           } else {
             Message.error(res.message || '删除失败');
           }
-        } catch (e: any) {
+        } catch (e) {
           notifyError(e, '删除失败');
         }
       },

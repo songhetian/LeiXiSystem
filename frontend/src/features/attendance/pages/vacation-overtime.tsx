@@ -9,6 +9,7 @@ import { attendanceApi, OvertimeRecord, OvertimeCreateDto } from '@/services/att
 import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { exportToExcel } from '@/lib/excel';
 import { todayStr, formatDate } from '@/lib/format';
 
@@ -45,8 +46,8 @@ export default function VacationOvertimePage() {
         // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
         setOvertimePagination({ current: page, pageSize, total });
       }
-    } catch (e: any) {
-      setOvertimeError(e?.message || '获取加班记录失败');
+    } catch (e) {
+      setOvertimeError(getApiErrorMessage(e, '获取加班记录失败'));
       notifyError(e, '获取加班记录失败');
     } finally {
       setOvertimeLoading(false);

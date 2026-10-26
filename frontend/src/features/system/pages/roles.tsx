@@ -83,7 +83,7 @@ export default function SystemRolesPage() {
       } else {
         Message.error(res.message || '保存失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '保存失败');
     } finally {
       setSaving(false);
@@ -99,7 +99,7 @@ export default function SystemRolesPage() {
       } else {
         Message.error(res.message || '删除失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '删除失败');
     }
   };
@@ -124,7 +124,7 @@ export default function SystemRolesPage() {
       } else {
         Message.error(res.message || '分配失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '分配失败');
     }
   };

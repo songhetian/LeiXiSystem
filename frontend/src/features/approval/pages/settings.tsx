@@ -133,7 +133,7 @@ export default function ApprovalSettingsPage() {
       } else {
         Message.error(res.message || '操作失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '参数校验失败');
     } finally {
       setBaseSaving(false);
@@ -197,7 +197,7 @@ export default function ApprovalSettingsPage() {
       } else {
         Message.error(res.message || '保存失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '保存失败');
     } finally {
       setNodeSaving(false);

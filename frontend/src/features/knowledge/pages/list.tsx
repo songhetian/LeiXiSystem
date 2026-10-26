@@ -17,6 +17,7 @@ import { IconFolder, IconFile, IconLeft, IconSearch, IconEye } from '@arco-desig
 import PageContainer from '@/components/PageContainer';
 import { knowledgeApi, KnowledgeArticle, KnowledgeCategory, KnowledgeAttachment } from '@/services/knowledge';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { getKnowledgeFolders, getFolderArticles, FOLDER_UNCAT } from '../view';
 import FilePreviewModal, { PreviewFile } from '../components/FilePreviewModal';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -155,8 +156,8 @@ export default function KnowledgeListPage() {
         mimeType: blob.mimeType || attachment.fileType,
         size: attachment.fileSize,
       });
-    } catch (e: any) {
-      Message.error(e?.message || '预览失败');
+    } catch (e) {
+      Message.error(getApiErrorMessage(e, '预览失败'));
     } finally {
       setPreviewLoading(false);
     }

@@ -179,7 +179,7 @@ export default function EmployeeTransactions() {
       setModalVisible(false);
       revalidate();
       revalidateCounts();
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '操作失败');
     }
   };
@@ -190,7 +190,7 @@ export default function EmployeeTransactions() {
       Message.success('删除成功');
       revalidate();
       revalidateCounts();
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '删除失败');
     }
   };
@@ -216,7 +216,7 @@ export default function EmployeeTransactions() {
       Message.success('续签成功');
       setRenewVisible(false);
       revalidate();
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '续签失败');
     }
   };
@@ -236,7 +236,7 @@ export default function EmployeeTransactions() {
       Message.success('已终止合同');
       setTermVisible(false);
       revalidate();
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '终止失败');
     }
   };
@@ -247,7 +247,7 @@ export default function EmployeeTransactions() {
       Message.success('已提交审批');
       revalidate();
       revalidateCounts();
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '提交失败');
     }
   };
@@ -417,7 +417,7 @@ export default function EmployeeTransactions() {
                       } else {
                         notifyError(res, '附件上传失败');
                       }
-                    } catch (e: any) {
+                    } catch (e) {
                       notifyError(e, '附件上传失败');
                     }
                     return false;

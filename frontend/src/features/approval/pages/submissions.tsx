@@ -95,7 +95,7 @@ export default function ApprovalSubmissionsPage() {
       } else {
         Message.error(res.message || '提交失败');
       }
-    } catch (e: any) {
+    } catch (e) {
       notifyError(e, '参数校验失败');
     } finally {
       setSubmitting(false);

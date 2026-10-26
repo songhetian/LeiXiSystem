@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker } from '@arco-design/web-react';
+import {
+  IconCalendar,
+  IconClockCircle,
+  IconTrophy,
+  IconFolder,
+} from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import { performanceApi, PerformanceCycle, PerformanceCycleCreateDto, PerformanceCycleUpdateDto } from '@/services/performance';
 import { usePermission } from '@/hooks/use-permission';
@@ -292,20 +298,20 @@ export default function CyclesPage() {
 
                   <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
-                      <span>📅</span>
+                      <IconCalendar className="text-text-4" style={{ fontSize: 14 }} />
                       <span>{cycle.startDate} ~ {cycle.endDate}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🎯</span>
+                      <IconTrophy className="text-text-4" style={{ fontSize: 14 }} />
                       <span>目标数：{cycle._count?.goals ?? 0}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🗂️</span>
+                      <IconFolder className="text-text-4" style={{ fontSize: 14 }} />
                       <span>评审数：{cycle._count?.reviews ?? 0}</span>
                     </div>
                     {cycle.selfReviewDeadline && (
                       <div className="flex items-center gap-2">
-                        <span>⏳</span>
+                        <IconClockCircle className="text-text-4" style={{ fontSize: 14 }} />
                         <span>自评截止：{cycle.selfReviewDeadline}</span>
                       </div>
                     )}

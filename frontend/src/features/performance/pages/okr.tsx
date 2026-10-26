@@ -2,6 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker, Progress, InputNumber } from '@arco-design/web-react';
+import {
+  IconCalendar,
+  IconCalendarClock,
+  IconUser,
+  IconArrowRise,
+} from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import { okrApi, OkrObjective, OkrKeyResult } from '@/services/performance';
 import { employeeApi, Employee } from '@/services/employee';
@@ -387,19 +393,19 @@ export default function OkrPage() {
 
                   <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
-                      <span>📆</span>
+                      <IconCalendar className="text-text-4" style={{ fontSize: 14 }} />
                       <span>{obj.period || '--'}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>👤</span>
+                      <IconUser className="text-text-4" style={{ fontSize: 14 }} />
                       <span>{ownerLabel(obj)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🗓️</span>
+                      <IconCalendarClock className="text-text-4" style={{ fontSize: 14 }} />
                       <span>{obj.startDate || '--'} ~ {obj.endDate || '--'}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>📊</span>
+                      <IconArrowRise className="text-text-4" style={{ fontSize: 14 }} />
                       <span className="flex-1">整体进度：{progress}%</span>
                     </div>
                     <Progress percent={progress} size="small" status={obj.status === 'completed' ? 'success' : undefined} />

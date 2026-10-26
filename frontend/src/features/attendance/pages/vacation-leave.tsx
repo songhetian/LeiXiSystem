@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Message, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
+import { getApiErrorMessage } from '@/lib/api-error';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, LeaveRecord, LeaveCreateDto } from '@/services/attendance';
@@ -86,8 +87,8 @@ export default function VacationLeavePage() {
         // 页码/页长以本次请求为准，否则翻页后会被重置回第 1 页
         setLeavePagination({ current: page, pageSize, total });
       }
-    } catch (e: any) {
-      setLeaveError(e?.message || '获取请假记录失败');
+    } catch (e) {
+      setLeaveError(getApiErrorMessage(e, '获取请假记录失败'));
       notifyError(e, '获取请假记录失败');
     } finally {
       setLeaveLoading(false);

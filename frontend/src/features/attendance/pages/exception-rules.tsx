@@ -23,6 +23,7 @@ import {
 } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { exportToExcel } from '@/lib/excel';
 import { formatDate, todayStr } from '@/lib/format';
 
@@ -92,8 +93,8 @@ export default function ExceptionRulesPage() {
       const list = (res.data?.list ?? res?.list ?? []) as ExceptionRecord[];
       setExceptions(list);
       setExceptionTotal(res.data?.total ?? list.length);
-    } catch (e: any) {
-      setExceptionError(e?.message || '获取异常记录失败');
+    } catch (e) {
+      setExceptionError(getApiErrorMessage(e, '获取异常记录失败'));
       notifyError(e, '获取异常记录失败');
     } finally {
       setExceptionLoading(false);
@@ -127,8 +128,8 @@ export default function ExceptionRulesPage() {
       const res: any = await exceptionApi.getExceptionRules();
       const list = (res.data?.list ?? res?.list ?? []) as ExceptionRule[];
       setRules(list);
-    } catch (e: any) {
-      setRuleError(e?.message || '获取异常规则失败');
+    } catch (e) {
+      setRuleError(getApiErrorMessage(e, '获取异常规则失败'));
       notifyError(e, '获取异常规则失败');
     } finally {
       setRuleLoading(false);
