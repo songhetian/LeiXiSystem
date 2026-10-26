@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, Table, Tag, Space } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, Tag, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import ProTable from '@/components/ProTable';
 import { notifyError } from '@/lib/request';
 import type { ProTableColumn } from '@/components/ProTable';
 import { attendanceLocationApi, AttendanceLocation, AttendanceLocationCreateDto, AttendanceLocationUpdateDto } from '@/services/employee';
@@ -220,35 +221,27 @@ export default function LocationsPage() {
 
   return (
     <PageContainer>
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {data.length} 个打卡定位</span>
-        <div className="flex gap-2">
-          <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" disabled={!canManage} onClick={handleAdd}>+ 新建定位</Button>
-        </div>
-      </div>
-
-      <div className="bg-surface border border-border-1 rounded-md overflow-hidden">
-        {error ? (
-          <div className="text-center py-16">
-            <p className="text-text-3 mb-3">{error}</p>
-            <Button onClick={revalidate}>重试</Button>
-          </div>
-        ) : (
-          <Table
-            columns={columns}
-            data={data}
-            rowKey="id"
-            loading={loading}
-            scroll={{ x: true }}
-            pagination={false}
-            stripe
-            style={{ borderRadius: 0 }}
-            noDataElement={<span className="p-8 inline-block text-text-3">暂无打卡定位，点击右上角新建</span>}
-          />
-        )}
-      </div>
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        toolbar={[
+          {
+            key: 'add',
+            label: '+ 新建定位',
+            onClick: handleAdd,
+            disabled: !canManage,
+          },
+        ]}
+        showExport
+        onExport={handleExport}
+        pagination={false}
+        stripe
+        emptyElement={<span className="p-8 inline-block text-text-3">暂无打卡定位，点击左上角新建</span>}
+      />
 
       {/* 新建/编辑弹窗 */}
       <Modal

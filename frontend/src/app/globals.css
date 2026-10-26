@@ -1126,6 +1126,14 @@ html, body {
 .pro-toolbar-rounded {
   border-radius: var(--lx-radius-lg);
 }
+/* 统一 Pro 卡片外壳：供自绘表格页吃进与 ProTable 一致的外层容器 */
+.pro-card {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--lx-shadow-card);
+}
 
 /* ========================================
    搜索区（SearchForm）· 企业后台标准

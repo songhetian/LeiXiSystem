@@ -5,12 +5,12 @@ import {
   Message,
   Modal,
   Button,
-  Table,
   Tag,
   Space,
 } from '@arco-design/web-react';
-import type { TableColumnProps } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import ProTable from '@/components/ProTable';
+import type { ProTableColumn } from '@/components/ProTable';
 import { notifyError } from '@/lib/request';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import {
@@ -69,7 +69,6 @@ export default function DeductionRulesPage() {
     { staleTime: 30_000 },
   );
   const data = res?.code === 0 && res.data ? res.data.list : [];
-  const total = res?.code === 0 && res.data ? res.data.total : 0;
 
   const handleAdd = () => {
     setEditingRule(null);
@@ -162,7 +161,7 @@ export default function DeductionRulesPage() {
     }
   };
 
-  const columns: TableColumnProps[] = [
+  const columns: ProTableColumn[] = [
     { title: '规则名称', dataIndex: 'name', width: 180 },
     { title: '规则类型', dataIndex: 'type', width: 140 },
     { title: '扣款方式', dataIndex: 'method', width: 100, render: (v) => methodLabel(v) },
@@ -236,32 +235,27 @@ export default function DeductionRulesPage() {
   ];
 
   return (
-    <PageContainer >
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {total} 条扣款规则</span>
-        <div className="flex gap-2">
-          <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" onClick={handleAdd} disabled={!canManage}>
-            + 新增扣款规则
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-          <p className="text-text-3 mb-3">{error}</p>
-          <Button onClick={revalidate}>重试</Button>
-        </div>
-      ) : (
-        <Table
-          columns={columns}
-          data={data}
-          rowKey="id"
-          loading={loading}
-          noDataElement={<span className="text-text-3">暂无扣款规则</span>}
-          scroll={{ x: 1200 }}
-        />
-      )}
+    <PageContainer>
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        toolbar={[
+          {
+            key: 'add',
+            label: '+ 新增扣款规则',
+            onClick: handleAdd,
+            disabled: !canManage,
+          },
+        ]}
+        showExport
+        onExport={handleExport}
+        pagination={false}
+        emptyElement={<span className="text-text-3">暂无扣款规则</span>}
+      />
 
       <ModalForm
         visible={modalVisible}

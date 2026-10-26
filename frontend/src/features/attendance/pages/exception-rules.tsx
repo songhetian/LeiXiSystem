@@ -5,16 +5,14 @@ import {
   Message,
   Modal,
   Button,
-  Select,
-  Input,
-  DatePicker,
-  Table,
   Tag,
   Space,
   Tabs,
 } from '@arco-design/web-react';
-import type { TableColumnProps } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import ProTable from '@/components/ProTable';
+import type { ProTableColumn } from '@/components/ProTable';
+import type { SearchFieldConfig } from '@/components/SearchForm';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import {
   exceptionApi,
@@ -106,19 +104,26 @@ export default function ExceptionRulesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleExceptionFilter = useCallback((key: keyof ExceptionFilters, value: string) => {
-    setExceptionFilters((prev) => {
-      const next = { ...prev, [key]: value };
-      fetchExceptions(next);
-      return next;
-    });
-  }, [fetchExceptions]);
-
   const handleExceptionReset = useCallback(() => {
     const empty: ExceptionFilters = { status: '', type: '', employeeId: '', workDate: '' };
     setExceptionFilters(empty);
     fetchExceptions(empty);
   }, [fetchExceptions]);
+
+  // ProTable 搜索区提交：字段变更即（防抖）触发，保持原即时过滤体验
+  const handleExceptionSearch = useCallback(
+    (values: Record<string, any>) => {
+      const next: ExceptionFilters = {
+        status: values.status || '',
+        type: values.type || '',
+        employeeId: values.employeeId != null ? String(values.employeeId) : '',
+        workDate: values.workDate || '',
+      };
+      setExceptionFilters(next);
+      fetchExceptions(next);
+    },
+    [fetchExceptions],
+  );
 
   // ================= 异常规则 =================
   const fetchRules = useCallback(async () => {
@@ -345,7 +350,7 @@ export default function ExceptionRulesPage() {
   };
 
   // ================= 异常记录表格列 =================
-  const exceptionColumns: TableColumnProps[] = [
+  const exceptionColumns: ProTableColumn[] = [
     { title: '员工ID', dataIndex: 'employeeId', width: 90 },
     { title: '工作日期', dataIndex: 'workDate', width: 120, render: (v) => fmtDate(v) },
     { title: '异常类型', dataIndex: 'type', width: 130 },
@@ -374,7 +379,7 @@ export default function ExceptionRulesPage() {
   ];
 
   // ================= 异常规则表格列 =================
-  const ruleColumns: TableColumnProps[] = [
+  const ruleColumns: ProTableColumn[] = [
     { title: '规则名称', dataIndex: 'name', width: 180 },
     { title: '异常类型', dataIndex: 'type', width: 140 },
     {
@@ -408,59 +413,22 @@ export default function ExceptionRulesPage() {
     },
   ];
 
-  // ================= 筛选栏 =================
-  const renderExceptionFilter = () => (
-    <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div>
-          <label className="block text-sm text-text-2 mb-1.5">状态</label>
-          <Select
-            value={exceptionFilters.status}
-            onChange={(v) => handleExceptionFilter('status', String(v))}
-            style={{ width: '100%' }}
-            placeholder="全部状态"
-            allowClear
-          >
-            <Select.Option value="pending">待处理</Select.Option>
-            <Select.Option value="resolved">已处理</Select.Option>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-sm text-text-2 mb-1.5">异常类型</label>
-          <Input
-            value={exceptionFilters.type}
-            onChange={(v) => handleExceptionFilter('type', v)}
-            placeholder="如 迟到"
-            allowClear
-            style={{ width: '100%' }}
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-text-2 mb-1.5">员工ID</label>
-          <Input
-            value={exceptionFilters.employeeId}
-            onChange={(v) => handleExceptionFilter('employeeId', v)}
-            placeholder="输入员工ID"
-            allowClear
-            style={{ width: '100%' }}
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-text-2 mb-1.5">工作日期</label>
-          <DatePicker
-            value={exceptionFilters.workDate || undefined}
-            format="YYYY-MM-DD"
-            style={{ width: '100%' }}
-            placeholder="选择日期"
-            onChange={(v) => handleExceptionFilter('workDate', v || '')}
-          />
-        </div>
-        <div className="flex items-end">
-          <Button onClick={handleExceptionReset}>重置筛选</Button>
-        </div>
-      </div>
-    </div>
-  );
+  // ================= 筛选字段 =================
+  const exceptionSearchFields: SearchFieldConfig[] = [
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      placeholder: '全部状态',
+      options: [
+        { value: 'pending', label: '待处理' },
+        { value: 'resolved', label: '已处理' },
+      ],
+    },
+    { key: 'type', label: '异常类型', type: 'input', placeholder: '如 迟到' },
+    { key: 'employeeId', label: '员工ID', type: 'input', placeholder: '输入员工ID' },
+    { key: 'workDate', label: '工作日期', type: 'date' },
+  ];
 
   // ================= 异常记录表单 =================
   const exceptionFormFields: FormFieldConfig[] = [
@@ -519,59 +487,54 @@ export default function ExceptionRulesPage() {
       <Tabs defaultActiveTab="exceptions" type="rounded" destroyOnHide>
         {/* -------- 异常记录 -------- */}
         <Tabs.TabPane key="exceptions" title={`异常记录 (${exceptionTotal})`}>
-          {renderExceptionFilter()}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-2">共 {exceptionTotal} 条异常记录</span>
-            <div className="flex gap-2">
-              <Button onClick={handleExportExceptions}>导出 Excel</Button>
-              <Button type="primary" onClick={handleExceptionAdd} disabled={!canManage}>
-                + 新增异常记录
-              </Button>
-            </div>
-          </div>
-          {exceptionError ? (
-            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-              <p className="text-text-3 mb-3">{exceptionError}</p>
-              <Button onClick={() => fetchExceptions()}>重试</Button>
-            </div>
-          ) : (
-            <Table
-              columns={exceptionColumns}
-              data={exceptions}
-              rowKey="id"
-              loading={exceptionLoading}
-              noDataElement={<span className="text-text-3">暂无异常记录</span>}
-              scroll={{ x: 1000 }}
-            />
-          )}
+          <ProTable
+            columns={exceptionColumns}
+            data={exceptions}
+            rowKey="id"
+            loading={exceptionLoading}
+            error={exceptionError}
+            onRetry={() => fetchExceptions()}
+            searchFields={exceptionSearchFields}
+            onSearch={handleExceptionSearch}
+            onReset={handleExceptionReset}
+            searchInlineActions
+            toolbar={[
+              {
+                key: 'add',
+                label: '+ 新增异常记录',
+                onClick: handleExceptionAdd,
+                disabled: !canManage,
+              },
+            ]}
+            showExport
+            onExport={handleExportExceptions}
+            pagination={false}
+            emptyElement={<span className="text-text-3">暂无异常记录</span>}
+          />
         </Tabs.TabPane>
 
         {/* -------- 异常规则 -------- */}
         <Tabs.TabPane key="rules" title="异常规则">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-2">共 {rules.length} 条异常规则</span>
-            <div className="flex gap-2">
-              <Button onClick={handleExportRules}>导出 Excel</Button>
-              <Button type="primary" onClick={handleRuleAdd} disabled={!canManage}>
-                + 新增规则
-              </Button>
-            </div>
-          </div>
-          {ruleError ? (
-            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-              <p className="text-text-3 mb-3">{ruleError}</p>
-              <Button onClick={() => fetchRules()}>重试</Button>
-            </div>
-          ) : (
-            <Table
-              columns={ruleColumns}
-              data={rules}
-              rowKey="id"
-              loading={ruleLoading}
-              noDataElement={<span className="text-text-3">暂无异常规则</span>}
-              scroll={{ x: 1100 }}
-            />
-          )}
+          <ProTable
+            columns={ruleColumns}
+            data={rules}
+            rowKey="id"
+            loading={ruleLoading}
+            error={ruleError}
+            onRetry={fetchRules}
+            toolbar={[
+              {
+                key: 'add',
+                label: '+ 新增规则',
+                onClick: handleRuleAdd,
+                disabled: !canManage,
+              },
+            ]}
+            showExport
+            onExport={handleExportRules}
+            pagination={false}
+            emptyElement={<span className="text-text-3">暂无异常规则</span>}
+          />
         </Tabs.TabPane>
       </Tabs>
 

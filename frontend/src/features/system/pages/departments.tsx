@@ -266,7 +266,7 @@ function DepartmentManager() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between bg-bg-secondary rounded-md p-4 border border-border-2">
+      <div className="pro-toolbar pro-toolbar-wrap pro-toolbar-rounded mb-3">
         <div className="flex items-center gap-6 text-sm text-text-1">
           <span>
             活跃部门：<span className="text-text-1 font-medium">{activeList.length}</span>
@@ -291,13 +291,15 @@ function DepartmentManager() {
         {showDeleted && recycleList.length === 0 ? (
           <Empty description="回收站暂无已删除部门" />
         ) : (
-          <Table
-            rowKey="id"
-            columns={columns}
-            data={showDeleted ? recycleList : activeList}
-            pagination={false}
-            scroll={{ x: 900 }}
-          />
+          <div className="pro-card">
+            <Table
+              rowKey="id"
+              columns={columns}
+              data={showDeleted ? recycleList : activeList}
+              pagination={false}
+              scroll={{ x: 900 }}
+            />
+          </div>
         )}
       </DataState>
 
