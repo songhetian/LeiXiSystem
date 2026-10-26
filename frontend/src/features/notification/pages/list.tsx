@@ -9,7 +9,6 @@ import {
   Space,
   Badge,
   List,
-  Empty,
   Modal,
   Form,
   Input,
@@ -17,6 +16,7 @@ import {
   Radio,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { notificationApi, Notification } from '@/services/notification';
 import { systemApi, SysUser } from '@/services/system';
 import { useDepartments } from '@/hooks/use-departments';
@@ -49,7 +49,7 @@ export default function NotificationsPage() {
   const [sendForm] = Form.useForm();
 
   // 通知列表
-  const { data: listRes, loading, revalidate: listRevalidate } = useCachedData<{
+  const { data: listRes, loading, error: listError, revalidate: listRevalidate } = useCachedData<{
     code: number;
     data?: { list: Notification[] };
   }>(
@@ -160,10 +160,14 @@ export default function NotificationsPage() {
         </Space>
       }
     >
-      <Card loading={loading}>
-        {data.length === 0 ? (
-          <Empty description="暂无通知" />
-        ) : (
+      <Card>
+        <DataState
+          loading={loading}
+          error={listError}
+          onRetry={listRevalidate}
+          isEmpty={data.length === 0}
+          emptyText="暂无通知"
+        >
           <List
             dataSource={data}
             render={(item) => (
@@ -205,7 +209,7 @@ export default function NotificationsPage() {
               </button>
             )}
           />
-        )}
+        </DataState>
       </Card>
 
       {/* 发送通知弹窗 */}

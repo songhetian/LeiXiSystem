@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import type { ProTableColumn } from '@/components/ProTable';
 import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/services/helpdesk';
 import { systemApi, type SysUser } from '@/services/system';
@@ -385,13 +387,15 @@ export default function HelpdeskTicketsPage() {
       dataIndex: 'actions',
       width: 230,
       render: (_: any, record: HelpdeskTicket) => (
-        <Space size={4}>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleEditTicket(record)}>指派/更新</Button>
-          {record.status !== 'resolved' && (
-            <Button size="small" type="text" disabled={!canManage} onClick={() => handleResolveTicket(record)}>解决</Button>
-          )}
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleDeleteTicket(record)}>删除</Button>
-        </Space>
+        <PermissionGate code="helpdesk:manage">
+          <Space size={4}>
+            <Button size="small" type="text" onClick={() => handleEditTicket(record)}>指派/更新</Button>
+            {record.status !== 'resolved' && (
+              <Button size="small" type="text" onClick={() => handleResolveTicket(record)}>解决</Button>
+            )}
+            <Button size="small" type="text" status="danger" onClick={() => handleDeleteTicket(record)}>删除</Button>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
@@ -420,10 +424,12 @@ export default function HelpdeskTicketsPage() {
       dataIndex: 'actions',
       width: 140,
       render: (_: any, record: HelpdeskSla) => (
-        <Space size={4}>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleEditSla(record)}>编辑</Button>
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleDeleteSla(record)}>删除</Button>
-        </Space>
+        <PermissionGate code="helpdesk:manage">
+          <Space size={4}>
+            <Button size="small" type="text" onClick={() => handleEditSla(record)}>编辑</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleDeleteSla(record)}>删除</Button>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
@@ -482,21 +488,23 @@ export default function HelpdeskTicketsPage() {
             <span className="text-sm text-text-2">共 {ticketTotal} 个工单（按优先级：低/中/高/紧急）</span>
             <Space>
               <Button onClick={handleExportTickets}>导出 Excel</Button>
-              <Button type="primary" disabled={!canManage} onClick={handleAddTicket}>新建工单</Button>
+              <PermissionGate code="helpdesk:manage">
+                <Button type="primary" onClick={handleAddTicket}>新建工单</Button>
+              </PermissionGate>
             </Space>
           </div>
 
-          {ticketErrorText ? (
-            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-              <p className="text-text-3 mb-3">{ticketErrorText}</p>
-              <Button onClick={() => revalidateTickets()}>重试</Button>
-            </div>
-          ) : (
+          <DataState
+            loading={ticketLoading}
+            error={ticketErrorText}
+            onRetry={() => revalidateTickets()}
+            isEmpty={tickets.length === 0}
+            emptyText="暂无工单"
+          >
             <Table
               columns={ticketColumns}
               data={tickets}
               rowKey="id"
-              loading={ticketLoading}
               scroll={{ x: true }}
               pagination={{
                 current: ticketPage,
@@ -509,33 +517,33 @@ export default function HelpdeskTicketsPage() {
                 },
               }}
               stripe
-              style={{ borderRadius: 0 }}
             />
-          )}
+          </DataState>
         </TabPane>
 
         <TabPane key="slas" title="SLA 规则">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-text-2">共 {slas.length} 条 SLA 规则</span>
-            <Button type="primary" disabled={!canManage} onClick={handleAddSla}>新建 SLA</Button>
+            <PermissionGate code="helpdesk:manage">
+              <Button type="primary" onClick={handleAddSla}>新建 SLA</Button>
+            </PermissionGate>
           </div>
-          {slaErrorText ? (
-            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-              <p className="text-text-3 mb-3">{slaErrorText}</p>
-              <Button onClick={() => revalidateSlas()}>重试</Button>
-            </div>
-          ) : (
+          <DataState
+            loading={slaLoading}
+            error={slaErrorText}
+            onRetry={() => revalidateSlas()}
+            isEmpty={slas.length === 0}
+            emptyText="暂无 SLA 规则"
+          >
             <Table
               columns={slaColumns}
               data={slas}
               rowKey="id"
-              loading={slaLoading}
               scroll={{ x: true }}
               pagination={false}
               stripe
-              style={{ borderRadius: 0 }}
             />
-          )}
+          </DataState>
         </TabPane>
       </Tabs>
 

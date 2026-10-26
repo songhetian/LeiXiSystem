@@ -16,6 +16,7 @@ import {
   Divider,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { formatDateTime } from '@/lib/format';
@@ -48,7 +49,7 @@ export default function ExpenseApprovalPage() {
 
   // SWR 缓存：参数编入 cacheKey，翻页即重新订阅；同参数复用缓存
   const cacheKey = `expense:approvals:${pagination.current}:${pagination.pageSize}`;
-  const { data: res, loading, revalidate } = useCachedData<ApprovalListEnvelope>(
+  const { data: res, loading, error, revalidate } = useCachedData<ApprovalListEnvelope>(
     cacheKey,
     () => reimbursementApi.getPendingApprovals({ page: pagination.current, pageSize: pagination.pageSize }),
     { staleTime: 30_000 },
@@ -172,20 +173,27 @@ export default function ExpenseApprovalPage() {
   return (
     <PageContainer >
       <Card className="rounded-md">
-        <Table
+        <DataState
           loading={loading}
-          columns={columns}
-          data={data}
-          scroll={{ x: true }}
-          pagination={{
-            current: pageResult.current,
-            pageSize: pageResult.pageSize,
-            total: pageResult.total,
-            showTotal: true,
-            sizeCanChange: true,
-            onChange: handlePageChange,
-          }}
-        />
+          error={error}
+          onRetry={revalidate}
+          isEmpty={data.length === 0}
+          emptyText="暂无待审批报销单"
+        >
+          <Table
+            columns={columns}
+            data={data}
+            scroll={{ x: true }}
+            pagination={{
+              current: pageResult.current,
+              pageSize: pageResult.pageSize,
+              total: pageResult.total,
+              showTotal: true,
+              sizeCanChange: true,
+              onChange: handlePageChange,
+            }}
+          />
+        </DataState>
       </Card>
 
       <Modal

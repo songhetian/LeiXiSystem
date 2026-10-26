@@ -30,6 +30,7 @@ import {
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import {
   knowledgeApi,
   KnowledgeCategory,
@@ -266,14 +267,16 @@ function CategoryManage() {
               </span>
               <span className="kb-cat-name">{cat.name}</span>
               <div className="kb-cat-actions">
-                <Button size="mini" type="text" icon={<IconEdit />} onClick={() => openEdit(cat)}>
-                  编辑
-                </Button>
-                <Popconfirm title="确定删除该分类吗？删除后该分类下的文章也会被移除" onOk={() => handleDelete(cat)}>
-                  <Button size="mini" type="text" status="danger" icon={<IconDelete />}>
-                    删除
+                <PermissionGate code="knowledge:manage">
+                  <Button size="mini" type="text" icon={<IconEdit />} onClick={() => openEdit(cat)}>
+                    编辑
                   </Button>
-                </Popconfirm>
+                  <Popconfirm title="确定删除该分类吗？删除后该分类下的文章也会被移除" onOk={() => handleDelete(cat)}>
+                    <Button size="mini" type="text" status="danger" icon={<IconDelete />}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </PermissionGate>
               </div>
             </div>
           ))}
@@ -504,16 +507,18 @@ function ArticleManage() {
         title: '操作',
         width: 170,
         render: (_v, record) => (
-          <Space>
-            <Button size="mini" icon={<IconEdit />} onClick={() => openEdit(record)}>
-              编辑
-            </Button>
-            <Popconfirm title="确定删除吗？" onOk={() => handleDelete(record)}>
-              <Button size="mini" status="danger" icon={<IconDelete />}>
-                删除
+          <PermissionGate code="knowledge:manage">
+            <Space>
+              <Button size="mini" icon={<IconEdit />} onClick={() => openEdit(record)}>
+                编辑
               </Button>
-            </Popconfirm>
-          </Space>
+              <Popconfirm title="确定删除吗？" onOk={() => handleDelete(record)}>
+                <Button size="mini" status="danger" icon={<IconDelete />}>
+                  删除
+                </Button>
+              </Popconfirm>
+            </Space>
+          </PermissionGate>
         ),
       },
     ],

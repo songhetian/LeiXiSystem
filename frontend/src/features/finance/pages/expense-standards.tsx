@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { financeApi, ExpenseStandard, ExpenseStandardCreateDto, ExpenseStandardUpdateDto } from '@/services/finance';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -244,13 +246,15 @@ export default function ExpenseStandardsPage() {
       title: '操作',
       width: 190,
       render: (_: any, record: ExpenseStandard) => (
-        <Space>
-          <Button size="mini" type="text" disabled={!canManage} onClick={() => { setEditingStandard(record); openModal('edit'); }}>编辑</Button>
-          <Button size="mini" type="text" disabled={!canManage} onClick={() => handleToggle(record)}>
-            {record.status === 'disabled' ? '启用' : '停用'}
-          </Button>
-          <Button size="mini" type="text" status="danger" disabled={!canManage} onClick={() => handleDelete(record)}>删除</Button>
-        </Space>
+        <PermissionGate code="finance:expense-standard:manage">
+          <Space>
+            <Button size="mini" type="text" onClick={() => { setEditingStandard(record); openModal('edit'); }}>编辑</Button>
+            <Button size="mini" type="text" onClick={() => handleToggle(record)}>
+              {record.status === 'disabled' ? '启用' : '停用'}
+            </Button>
+            <Button size="mini" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
@@ -309,27 +313,29 @@ export default function ExpenseStandardsPage() {
         <span className="text-sm text-text-2">共 {data.length} 条费用标准</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" disabled={!canManage} onClick={handleAdd}>+ 新建费用标准</Button>
+          <PermissionGate code="finance:expense-standard:manage">
+            <Button type="primary" onClick={handleAdd}>+ 新建费用标准</Button>
+          </PermissionGate>
         </div>
       </div>
 
       {/* 费用标准表格 */}
       <div className="bg-surface border border-border-1 rounded-md">
-        {error ? (
-          <div className="text-center py-16">
-            <p className="text-text-3 mb-3">{error}</p>
-          </div>
-        ) : (
+        <DataState
+          loading={loading}
+          error={error}
+          onRetry={revalidate}
+          isEmpty={data.length === 0}
+          emptyText="暂无费用标准数据"
+        >
           <Table
             rowKey="id"
-            loading={loading}
             data={data}
             columns={columns}
             scroll={{ x: true }}
             pagination={{ pageSize: 10, showTotal: true }}
-            noDataElement={<div className="py-16 text-text-3">暂无费用标准数据</div>}
           />
-        )}
+        </DataState>
       </div>
 
       {/* 新建 / 编辑弹窗 */}

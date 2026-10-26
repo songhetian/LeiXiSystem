@@ -14,9 +14,9 @@ import {
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { approvalApi, ApprovalGroup } from '@/services/approval';
 import { systemApi, SysUser } from '@/services/system';
-import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
 
@@ -25,7 +25,6 @@ const USERS_KEY = 'config:system:users-approvers';
 
 // 审批人管理：复用后端 /approval/groups 审批组接口，参考 ApproverManagement 组织审批组与成员
 export default function ApproverManagementPage() {
-  const { can } = usePermission();
   const { data: list, loading, error, revalidate: revalidateGroups } = useCachedData<ApprovalGroup[]>(
     GROUPS_KEY,
     () =>
@@ -132,11 +131,11 @@ export default function ApproverManagementPage() {
       <div className="bg-bg-secondary rounded-md p-4 border border-border-2">
         <div className="mb-4 flex justify-between">
           <span className="font-medium text-text-1">审批组</span>
-          {can('approval:manage') && (
+          <PermissionGate code="approval:manage">
             <Button type="primary" size="small" onClick={openCreate}>
               新增审批组
             </Button>
-          )}
+          </PermissionGate>
         </div>
         <DataState loading={loading} error={error} onRetry={revalidateGroups} isEmpty={!list || list.length === 0}>
           <table className="w-full border-collapse">
@@ -147,9 +146,9 @@ export default function ApproverManagementPage() {
                 <th className="text-left py-2.5 px-3">组名</th>
                 <th className="text-left py-2.5 px-3">成员</th>
                 <th className="text-left py-2.5 px-3">状态</th>
-                {can('approval:manage') && (
+                <PermissionGate code="approval:manage">
                   <th className="text-right py-2.5 px-3">操作</th>
-                )}
+                </PermissionGate>
               </tr>
             </thead>
             <tbody>
@@ -176,7 +175,7 @@ export default function ApproverManagementPage() {
                       {item.status === 1 ? '启用' : '停用'}
                     </Tag>
                   </td>
-                  {can('approval:manage') && (
+                  <PermissionGate code="approval:manage">
                     <td className="py-2.5 px-3 text-right">
                       <Space>
                         <Button size="mini" onClick={() => openEdit(item)}>
@@ -189,7 +188,7 @@ export default function ApproverManagementPage() {
                         </Popconfirm>
                       </Space>
                     </td>
-                  )}
+                  </PermissionGate>
                 </tr>
               ))}
             </tbody>

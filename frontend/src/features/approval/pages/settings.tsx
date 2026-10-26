@@ -32,6 +32,7 @@ import {
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { PermissionGate } from '@/components/PermissionGate';
 import { approvalApi, Workflow, WorkflowNode } from '@/services/approval';
 import { notifyError } from '@/lib/request';
 import { usePermission } from '@/hooks/use-permission';
@@ -244,37 +245,36 @@ export default function ApprovalSettingsPage() {
       dataIndex: 'action',
       width: 260,
       render: (_: any, record: Workflow) => (
-        <Space size="mini">
-          <Button
-            size="small"
-            type="text"
-            icon={<IconEdit />}
-            disabled={!can('approval:workflow:manage')}
-            onClick={() => openEditBase(record)}
-          >
-            编辑信息
-          </Button>
-          <Button
-            size="small"
-            type="text"
-            icon={<IconSettings />}
-            disabled={!can('approval:workflow:manage')}
-            onClick={() => openNodeConfig(record)}
-          >
-            配置节点
-          </Button>
-          <ConfirmButton
-            size="small"
-            type="text"
-            status="danger"
-            disabled={!can('approval:workflow:manage')}
-            title="确认删除"
-            content={`确定要删除审批流程「${record.name}」吗？`}
-            onConfirm={() => handleDelete(record)}
-          >
-            删除
-          </ConfirmButton>
-        </Space>
+        <PermissionGate code="approval:workflow:manage">
+          <Space size="mini">
+            <Button
+              size="small"
+              type="text"
+              icon={<IconEdit />}
+              onClick={() => openEditBase(record)}
+            >
+              编辑信息
+            </Button>
+            <Button
+              size="small"
+              type="text"
+              icon={<IconSettings />}
+              onClick={() => openNodeConfig(record)}
+            >
+              配置节点
+            </Button>
+            <ConfirmButton
+              size="small"
+              type="text"
+              status="danger"
+              title="确认删除"
+              content={`确定要删除审批流程「${record.name}」吗？`}
+              onConfirm={() => handleDelete(record)}
+            >
+              删除
+            </ConfirmButton>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
@@ -285,14 +285,15 @@ export default function ApprovalSettingsPage() {
       <Card style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 16, fontWeight: 500 }}>审批流列表</div>
-          <Button
-            type="primary"
-            icon={<IconPlus />}
-            disabled={!can('approval:workflow:manage')}
-            onClick={openCreateBase}
-          >
-            新建审批流程
-          </Button>
+          <PermissionGate code="approval:workflow:manage">
+            <Button
+              type="primary"
+              icon={<IconPlus />}
+              onClick={openCreateBase}
+            >
+              新建审批流程
+            </Button>
+          </PermissionGate>
         </div>
         <DataState loading={loading} error={error} onRetry={revalidateList} isEmpty={!data || data.length === 0}>
           <Table

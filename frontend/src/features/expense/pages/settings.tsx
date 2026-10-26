@@ -16,8 +16,8 @@ import {
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { reimbursementApi, ReimbursementType, ExpenseType } from '@/services/reimbursement';
-import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
 
@@ -27,9 +27,6 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function ReimbursementSettingsPage() {
-  const { can } = usePermission();
-  const manage = can('reimbursement:manage');
-
   // ===== 一级报销类型（参考数据跨页共享缓存，避免切页重复请求）=====
   const fetchTypes = useCallback(
     () =>
@@ -206,11 +203,11 @@ export default function ReimbursementSettingsPage() {
           <div className="bg-bg-secondary rounded-md p-4 border border-border-2">
             <div className="mb-4 flex justify-between">
               <span className="font-medium text-text-1">报销类型</span>
-              {manage && (
+              <PermissionGate code="reimbursement:manage">
                 <Button type="primary" size="small" onClick={openTypeCreate}>
                   新增类型
                 </Button>
-              )}
+              </PermissionGate>
             </div>
             <DataState loading={loading} error={error} onRetry={revalidateTypes} isEmpty={!list || list.length === 0}>
               <table className="w-full border-collapse">
@@ -221,7 +218,9 @@ export default function ReimbursementSettingsPage() {
                     <th className="text-left py-2.5 px-3">名称</th>
                     <th className="text-left py-2.5 px-3">说明</th>
                     <th className="text-left py-2.5 px-3">状态</th>
-                    {manage && <th className="text-right py-2.5 px-3">操作</th>}
+                    <PermissionGate code="reimbursement:manage">
+                      <th className="text-right py-2.5 px-3">操作</th>
+                    </PermissionGate>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,7 +235,7 @@ export default function ReimbursementSettingsPage() {
                           {STATUS_MAP[item.status]?.label || item.status}
                         </Tag>
                       </td>
-                      {manage && (
+                      <PermissionGate code="reimbursement:manage">
                         <td className="py-2.5 px-3 text-right">
                           <Space>
                             <Button size="mini" onClick={() => openTypeEdit(item)}>编辑</Button>
@@ -245,7 +244,7 @@ export default function ReimbursementSettingsPage() {
                             </Popconfirm>
                           </Space>
                         </td>
-                      )}
+                      </PermissionGate>
                     </tr>
                   ))}
                 </tbody>
@@ -261,11 +260,11 @@ export default function ReimbursementSettingsPage() {
                 二级费用类型
                 <span className="ml-2 text-xs text-text-3">用于填写报销明细时的费用条目，如「市内交通费 / 招待餐费」</span>
               </span>
-              {manage && (
+              <PermissionGate code="reimbursement:manage">
                 <Button type="primary" size="small" onClick={openExpenseCreate}>
                   新增费用类型
                 </Button>
-              )}
+              </PermissionGate>
             </div>
             <DataState loading={expenseLoading} error={expenseError} onRetry={revalidateExpense} isEmpty={!expenseList || expenseList.length === 0}>
               <table className="w-full border-collapse">
@@ -276,7 +275,9 @@ export default function ReimbursementSettingsPage() {
                     <th className="text-left py-2.5 px-3">单位</th>
                     <th className="text-left py-2.5 px-3">排序</th>
                     <th className="text-left py-2.5 px-3">状态</th>
-                    {manage && <th className="text-right py-2.5 px-3">操作</th>}
+                    <PermissionGate code="reimbursement:manage">
+                      <th className="text-right py-2.5 px-3">操作</th>
+                    </PermissionGate>
                   </tr>
                 </thead>
                 <tbody>
@@ -291,7 +292,7 @@ export default function ReimbursementSettingsPage() {
                           {STATUS_MAP[item.status]?.label || item.status}
                         </Tag>
                       </td>
-                      {manage && (
+                      <PermissionGate code="reimbursement:manage">
                         <td className="py-2.5 px-3 text-right">
                           <Space>
                             <Button size="mini" onClick={() => openExpenseEdit(item)}>编辑</Button>
@@ -300,7 +301,7 @@ export default function ReimbursementSettingsPage() {
                             </Popconfirm>
                           </Space>
                         </td>
-                      )}
+                      </PermissionGate>
                     </tr>
                   ))}
                 </tbody>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Table, Card, Button, Space, Select, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import StatusTag from '@/components/StatusTag';
 import { approvalApi, ApprovedItem } from '@/services/approval';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -29,7 +30,7 @@ export default function ApprovalApprovedPage() {
 
   // SWR 缓存：翻页/筛选参数编入 cacheKey，同参数复用缓存
   const cacheKey = `approval:approved:${pagination.current}:${pagination.pageSize}:${actionFilter ?? ''}`;
-  const { data: res, loading } = useCachedData<{
+  const { data: res, loading, error, revalidate } = useCachedData<{
     code: number;
     data?: { list: ApprovedItem[]; page: number; pageSize: number; total: number };
   }>(
@@ -117,20 +118,27 @@ export default function ApprovalApprovedPage() {
             </Select>
           </Space>
         </div>
-        <Table
-          columns={columns}
-          data={data}
-          rowKey="id"
-          scroll={{ x: true }}
+        <DataState
           loading={loading}
-          pagination={{
-            current: pageResult.current,
-            pageSize: pageResult.pageSize,
-            total: pageResult.total,
-            onChange: handlePageChange,
-            showTotal: true,
-          }}
-        />
+          error={error}
+          onRetry={revalidate}
+          isEmpty={data.length === 0}
+          emptyText="暂无已办审批"
+        >
+          <Table
+            columns={columns}
+            data={data}
+            rowKey="id"
+            scroll={{ x: true }}
+            pagination={{
+              current: pageResult.current,
+              pageSize: pageResult.pageSize,
+              total: pageResult.total,
+              onChange: handlePageChange,
+              showTotal: true,
+            }}
+          />
+        </DataState>
       </Card>
     </PageContainer>
   );

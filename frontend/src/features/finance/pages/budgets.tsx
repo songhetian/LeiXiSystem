@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { financeApi, Budget, BudgetCreateDto, BudgetUpdateDto } from '@/services/finance';
 import { usePermission } from '@/hooks/use-permission';
 import { useDepartments } from '@/hooks/use-departments';
@@ -241,8 +243,10 @@ export default function BudgetsPage() {
       width: 140,
       render: (_: any, record: Budget) => (
         <Space>
-          <Button size="mini" type="text" disabled={!canManage} onClick={() => { setEditingBudget(record); openModal('edit'); }}>编辑</Button>
-          <Button size="mini" type="text" status="danger" disabled={!canManage} onClick={() => handleDelete(record)}>删除</Button>
+          <PermissionGate code="finance:budget:manage">
+            <Button size="mini" type="text" onClick={() => { setEditingBudget(record); openModal('edit'); }}>编辑</Button>
+            <Button size="mini" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
@@ -308,27 +312,29 @@ export default function BudgetsPage() {
         <span className="text-sm text-text-2">共 {data.length} 条预算</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" disabled={!canManage} onClick={() => openModal('add')}>+ 新建预算</Button>
+          <PermissionGate code="finance:budget:manage">
+            <Button type="primary" onClick={() => openModal('add')}>+ 新建预算</Button>
+          </PermissionGate>
         </div>
       </div>
 
       {/* 预算表格 */}
       <div className="bg-surface border border-border-1 rounded-md">
-        {error ? (
-          <div className="text-center py-16">
-            <p className="text-text-3 mb-3">{error}</p>
-          </div>
-        ) : (
+        <DataState
+          loading={loading}
+          error={error}
+          onRetry={revalidate}
+          isEmpty={data.length === 0}
+          emptyText="暂无预算数据"
+        >
           <Table
             rowKey="id"
-            loading={loading}
             data={data}
             columns={columns}
             scroll={{ x: true }}
             pagination={{ pageSize: 10, showTotal: true }}
-            noDataElement={<div className="py-16 text-text-3">暂无预算数据</div>}
           />
-        )}
+        </DataState>
       </div>
 
       {/* 新建 / 编辑弹窗 */}
