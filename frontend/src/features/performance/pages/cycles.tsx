@@ -268,12 +268,12 @@ export default function CyclesPage() {
               return (
                 <div
                   key={cycle.id}
-                  className="border-2 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
-                  style={{ borderColor: tone.main, backgroundColor: tone.bg }}
+                  className="border border-border-1 rounded-lg p-5 bg-surface transition-shadow hover:shadow-md"
+                  style={{ borderLeft: `3px solid ${tone.main}` }}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="min-w-0">
-                      <h3 className="text-lg font-medium text-text-1 break-all">{cycle.name}</h3>
+                      <h3 className="text-base font-medium text-text-1 break-all">{cycle.name}</h3>
                       <div className="flex gap-2 mt-1.5 flex-wrap">
                         <span
                           className="inline-block px-2 py-0.5 rounded text-xs font-normal"
@@ -289,11 +289,6 @@ export default function CyclesPage() {
                         </span>
                       </div>
                     </div>
-                    <span
-                      className="shrink-0 w-4 h-4 rounded"
-                      style={{ background: tone.main, border: '1px solid var(--lx-border-2)' }}
-                      title={cycle.type}
-                    />
                   </div>
 
                   <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
