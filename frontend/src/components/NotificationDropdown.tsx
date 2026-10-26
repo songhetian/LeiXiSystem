@@ -60,6 +60,8 @@ export function NotificationDropdown() {
       if (res.code === 0 && res.data) {
         setList(res.data.list);
       }
+    } catch {
+      // 失败时保留旧列表，不打断面板展示
     } finally {
       setLoading(false);
     }
