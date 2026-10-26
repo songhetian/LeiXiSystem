@@ -15,6 +15,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { useTabsStore, type TabItem } from '@/store/tabs';
 import { tabTitleFor } from '@/config/navigation';
+import { clearDataCache } from '@/hooks/use-cached-data';
 import { clampMenuPosition } from './page-tabs-position';
 
 // 右键 /「更多」菜单固定尺寸（与 .page-tabs-menu 的 width 对齐）
@@ -198,6 +199,11 @@ export default function PageTabs() {
   const handleRefresh = useCallback(() => {
     if (!menu) return;
     const tab = menu.tab;
+    // KeepAlive 会让页面实例跨导航存活，router.refresh() 只补 server 数据、
+    // 不重跑挂载期数据请求。刷新页签 = 1) 清共享数据缓存（绕过 staleTime），
+    // 2) 派发重挂载事件让该页实例重建，3) 让路由层面同步最新 server 渲染。
+    clearDataCache();
+    window.dispatchEvent(new CustomEvent('lx-keep-alive-refresh', { detail: { path: tab.path } }));
     // Next App Router 下，pathname 不变仅 query 变（_t）并不会触发 client component 重渲染；
     // router.refresh() 会重拉当前路由的 server 数据并复位 client 边界，确保页面真正重载。
     if (tab.path !== pathname) {

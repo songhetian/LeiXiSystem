@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 export interface KeepAliveHostProps {
   /** 当前激活的路由路径 */
@@ -20,6 +20,11 @@ export interface KeepAliveHostProps {
  * - 所有缓存子树同时渲染，非当前路径用 hidden 隐藏（display:none），
  *   因此组件实例始终存活，内部 useState 等状态不丢失。
  * - alivePaths 之外的路径（即已关闭的页签）从缓存移除，触发其卸载。
+ *
+ * 强制刷新（页签「刷新当前页」）：
+ * - KeepAlive 复用实例意味着普通 router.refresh() 不会重跑挂载期数据请求；
+ * - 监听 `lx-keep-alive-refresh`（detail.path = 目标路径）事件，
+ *   按路径递增版本号并写入渲染 key —— key 变化强制 React 卸载旧实例、重建新实例。
  */
 export default function KeepAliveHost({
   activePath,
@@ -28,6 +33,22 @@ export default function KeepAliveHost({
 }: KeepAliveHostProps) {
   const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
   const cache = cacheRef.current;
+  // 路径 → 重挂载版本号；增量写入渲染 key，驱动目标页强制重挂载
+  const refreshCountsRef = useRef<Map<string, number>>(new Map());
+  const [, setVersion] = useState(0);
+
+  useEffect(() => {
+    const onRefresh = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path;
+      if (!path) return;
+      refreshCountsRef.current.set(path, (refreshCountsRef.current.get(path) ?? 0) + 1);
+      // 同步丢弃缓存中的旧子树，重建时以最新 children 挂载全新实例
+      cacheRef.current.delete(path);
+      setVersion((v) => v + 1);
+    };
+    window.addEventListener('lx-keep-alive-refresh', onRefresh);
+    return () => window.removeEventListener('lx-keep-alive-refresh', onRefresh);
+  }, []);
 
   // 始终以最新子树覆盖当前活跃路径
   cache.set(activePath, children);
@@ -47,7 +68,7 @@ export default function KeepAliveHost({
     <>
       {Array.from(cache.entries()).map(([path, node]) => (
         <div
-          key={path}
+          key={`${path}#${refreshCountsRef.current.get(path) ?? 0}`}
           hidden={path !== activePath}
           className={path === activePath ? 'keep-alive-node page-enter' : 'keep-alive-node'}
           style={{ width: '100%', height: '100%' }}

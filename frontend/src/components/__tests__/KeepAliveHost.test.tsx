@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import KeepAliveHost from '@/components/KeepAliveHost';
@@ -88,5 +88,28 @@ describe('KeepAliveHost', () => {
     );
     expect(screen.queryByTestId('p-a')).not.toBeInTheDocument();
     expect(screen.getByTestId('p-b')).toBeInTheDocument();
+  });
+
+  it('收到 lx-keep-alive-refresh 事件时，目标路径的实例被重建（状态重置）', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <KeepAliveHost activePath="/a" alivePaths={['/a']}>
+        <Counter />
+      </KeepAliveHost>,
+    );
+    await user.click(screen.getByTestId('counter'));
+    expect(screen.getByTestId('counter')).toHaveTextContent('1');
+
+    // 其余路径不受影响：对 /b 派发刷新，/a 实例仍保留
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lx-keep-alive-refresh', { detail: { path: '/b' } }));
+    });
+    expect(screen.getByTestId('counter')).toHaveTextContent('1');
+
+    // 对 /a 派发刷新 → 实例重建，计数器归零
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lx-keep-alive-refresh', { detail: { path: '/a' } }));
+    });
+    expect(screen.getByTestId('counter')).toHaveTextContent('0');
   });
 });
