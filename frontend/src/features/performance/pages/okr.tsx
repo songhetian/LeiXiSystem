@@ -329,8 +329,8 @@ export default function OkrPage() {
       </div>
 
       {/* 工具栏 */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {filteredCount} 个 OKR 目标</span>
+      <div className="pro-toolbar pro-toolbar-wrap pro-toolbar-rounded mb-3">
+        <span className="text-sm text-text-3">共 {filteredCount} 个 OKR 目标</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
           <Button type="primary" onClick={handleAddObjective} disabled={!canManage}>

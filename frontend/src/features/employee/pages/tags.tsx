@@ -130,8 +130,8 @@ export default function TagsPage() {
   return (
     <PageContainer>
       {/* 工具栏 */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {tags.length} 个标签</span>
+      <div className="pro-toolbar pro-toolbar-wrap pro-toolbar-rounded mb-3">
+        <span className="text-sm text-text-3">共 {tags.length} 个标签</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
           <Button type="primary" disabled={!canManage} onClick={handleAdd}>+ 新建标签</Button>
