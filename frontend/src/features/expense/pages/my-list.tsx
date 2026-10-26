@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Descriptions, Table, Divider, Space, Button } from '@arco-design/web-react';
+import { Message, Modal, Descriptions, Table, Divider, Space, Button, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
+import useFetchState from '@/hooks/use-fetch-state';
 import { formatDateTime } from '@/lib/format';
 import ReimbursementForm, { resolveFileUrl } from '@/features/expense/components/ReimbursementForm';
 
@@ -53,8 +54,7 @@ export default function MyReimbursementPage() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
   const [detailVisible, setDetailVisible] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [currentReimbursement, setCurrentReimbursement] = useState<Reimbursement | null>(null);
+  const { data: currentReimbursement, loading: detailLoading, error: detailError, run: runFetchDetail } = useFetchState<Reimbursement>();
 
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -92,28 +92,18 @@ export default function MyReimbursementPage() {
   const handleCreate = () => setCreateModalVisible(true);
   const handleCreateCancel = () => setCreateModalVisible(false);
 
-  const viewDetail = async (record: Reimbursement) => {
-    setDetailLoading(true);
+  const viewDetail = (record: Reimbursement) => {
     setDetailVisible(true);
-    try {
-      const result = await reimbursementApi.getDetail(record.id);
-      if (result.code === 0 && result.data) {
-        setCurrentReimbursement(result.data);
-      } else {
-        Message.error(result.message || '获取详情失败');
-        setDetailVisible(false);
-      }
-    } catch {
-      Message.error('获取详情失败');
-      setDetailVisible(false);
-    } finally {
-      setDetailLoading(false);
-    }
+    void runFetchDetail(() =>
+      reimbursementApi.getDetail(record.id).then((result) => {
+        if (result.code === 0 && result.data) return result.data;
+        throw new Error(result.message || '获取详情失败');
+      }),
+    );
   };
 
   const handleDetailCancel = () => {
     setDetailVisible(false);
-    setCurrentReimbursement(null);
   };
 
   const handleSubmitApproval = async (record: Reimbursement) => {
@@ -209,6 +199,9 @@ export default function MyReimbursementPage() {
   ];
 
   const renderDetailContent = () => {
+    if (detailError) {
+      return <Empty description={detailError} />;
+    }
     if (!currentReimbursement) return null;
     const items = currentReimbursement.items ?? [];
 

@@ -21,10 +21,12 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { getKnowledgeFolders, getFolderArticles, FOLDER_UNCAT } from '../view';
 import FilePreviewModal, { PreviewFile } from '../components/FilePreviewModal';
 import { useCachedData } from '@/hooks/use-cached-data';
+import useFetchState from '@/hooks/use-fetch-state';
 
 /** 空回退引用（保持稳定，避免每次渲染生成新数组触发依赖 effect 死循环） */
 const EMPTY_CATEGORIES: KnowledgeCategory[] = [];
 const EMPTY_ARTICLES: KnowledgeArticle[] = [];
+const EMPTY_ATTACHMENTS: KnowledgeAttachment[] = [];
 
 const { Text } = Typography;
 
@@ -68,9 +70,12 @@ export default function KnowledgeListPage() {
   const [keyword, setKeyword] = useState('');
 
   const [detailVisible, setDetailVisible] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [currentArticle, setCurrentArticle] = useState<KnowledgeArticle | null>(null);
-  const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
+  const { data: detailData, loading: detailLoading, error: detailError, run: runFetchDetail } = useFetchState<{
+    article: KnowledgeArticle;
+    attachments: KnowledgeAttachment[];
+  }>();
+  const currentArticle = detailData?.article ?? null;
+  const attachments = detailData?.attachments ?? EMPTY_ATTACHMENTS;
 
   const [preview, setPreview] = useState<PreviewFile | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -116,33 +121,26 @@ export default function KnowledgeListPage() {
     setKeyword('');
   };
 
-  const handleOpenDetail = async (record: KnowledgeArticle) => {
-    setDetailLoading(true);
+  const handleOpenDetail = (record: KnowledgeArticle) => {
     setDetailVisible(true);
-    try {
+    void runFetchDetail(async () => {
       const [articleResult, attachmentsResult] = await Promise.all([
         knowledgeApi.getArticleDetail(record.id),
         knowledgeApi.getAttachments(record.id),
       ]);
-      if (articleResult.code === 0 && articleResult.data) {
-        setCurrentArticle(articleResult.data);
-      } else {
-        Message.error(articleResult.message || '获取文章详情失败');
+      if (articleResult.code !== 0 || !articleResult.data) {
+        throw new Error(articleResult.message || '获取文章详情失败');
       }
-      if (attachmentsResult.code === 0 && attachmentsResult.data) {
-        setAttachments(attachmentsResult.data);
-      }
-    } catch (e) {
-      Message.error('获取文章详情失败');
-    } finally {
-      setDetailLoading(false);
-    }
+      return {
+        article: articleResult.data,
+        attachments:
+          attachmentsResult.code === 0 && attachmentsResult.data ? attachmentsResult.data : EMPTY_ATTACHMENTS,
+      };
+    });
   };
 
   const handleDetailCancel = () => {
     setDetailVisible(false);
-    setCurrentArticle(null);
-    setAttachments([]);
   };
 
   const handlePreview = async (attachment: KnowledgeAttachment) => {
@@ -316,7 +314,10 @@ export default function KnowledgeListPage() {
         }
         style={{ width: 760 }}
       >
-        {currentArticle && (
+        {detailError ? (
+          <Empty description={detailError} />
+        ) : (
+          currentArticle && (
           <div>
             <div
               style={{
@@ -391,6 +392,7 @@ export default function KnowledgeListPage() {
               </>
             )}
           </div>
+          )
         )}
       </Modal>
 

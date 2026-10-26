@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Drawer, Spin, Empty } from '@arco-design/web-react';
 import StatusTag from '@/components/StatusTag';
 import { employeeApi, Employee, EmployeeChangeLog } from '@/services/employee';
 import { formatDate, formatDateTime as formatDateTimeTz } from '@/lib/format';
+import useFetchState from '@/hooks/use-fetch-state';
 
 interface TimelineItem {
   key: string;
@@ -113,35 +114,20 @@ interface Props {
 }
 
 export default function EmployeeDetailModal({ employeeId, visible, onClose }: Props) {
-  const [emp, setEmp] = useState<Employee | null>(null);
-  const [logs, setLogs] = useState<EmployeeChangeLog[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { data, loading, run } = useFetchState<{ emp: Employee | null; logs: EmployeeChangeLog[] }>();
+  const emp = data?.emp ?? null;
+  const logs = data?.logs ?? [];
 
   useEffect(() => {
     if (!visible || !employeeId) return;
-    let alive = true;
-    setLoading(true);
-    setEmp(null);
-    setLogs([]);
-    Promise.all([employeeApi.getById(employeeId), employeeApi.getEmployeeChangeLogs(employeeId)])
-      .then(([detailRes, logRes]) => {
-        if (!alive) return;
-        setEmp(detailRes.data ?? null);
-        setLogs(logRes.data ?? []);
-      })
-      .catch(() => {
-        if (alive) {
-          setEmp(null);
-          setLogs([]);
-        }
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [visible, employeeId]);
+    void run(async () => {
+      const [detailRes, logRes] = await Promise.all([
+        employeeApi.getById(employeeId),
+        employeeApi.getEmployeeChangeLogs(employeeId),
+      ]);
+      return { emp: detailRes.data ?? null, logs: logRes.data ?? [] };
+    });
+  }, [visible, employeeId, run]);
 
   const timeline = buildTimeline(emp, logs);
 

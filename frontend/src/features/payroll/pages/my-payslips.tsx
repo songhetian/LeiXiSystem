@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Table, Descriptions, Tag, Space, Divider } from '@arco-design/web-react';
+import { Modal, Table, Descriptions, Tag, Space, Divider, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { payslipApi, Payslip, PayslipDetail, PayslipItem } from '@/services/payslip';
 import { useCachedData } from '@/hooks/use-cached-data';
+import useFetchState from '@/hooks/use-fetch-state';
 import { formatDateTime } from '@/lib/format';
 import { SearchFieldConfig } from '@/components/SearchForm';
 
@@ -30,8 +31,7 @@ export default function MyPayslipsPage() {
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
   const [detailVisible, setDetailVisible] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [currentPayslip, setCurrentPayslip] = useState<PayslipDetail | null>(null);
+  const { data: currentPayslip, loading: detailLoading, error: detailError, run: runFetchDetail } = useFetchState<PayslipDetail>();
 
   // SWR 缓存：参数编入 cacheKey，搜索/翻页即重新订阅；同参数复用缓存
   const cacheKey = `payroll:my-payslips:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
@@ -59,30 +59,24 @@ export default function MyPayslipsPage() {
     setPagination((p) => ({ ...p, current: page, pageSize }));
   };
 
-  const handleViewDetail = async (record: Payslip) => {
-    setDetailLoading(true);
+  const handleViewDetail = (record: Payslip) => {
     setDetailVisible(true);
-    try {
-      const result = await payslipApi.getMyPayslipDetail(record.id);
-      if (result.code === 0 && result.data) {
-        setCurrentPayslip(result.data);
-        if (result.data.status === 'unviewed') {
-          await payslipApi.markAsViewed(record.id);
-          revalidate();
+    void runFetchDetail(() =>
+      payslipApi.getMyPayslipDetail(record.id).then(async (result) => {
+        if (result.code === 0 && result.data) {
+          if (result.data.status === 'unviewed') {
+            await payslipApi.markAsViewed(record.id);
+            revalidate();
+          }
+          return result.data;
         }
-      } else {
-        Message.error(result.message || '获取明细失败');
-      }
-    } catch (e) {
-      Message.error('获取明细失败');
-    } finally {
-      setDetailLoading(false);
-    }
+        throw new Error(result.message || '获取明细失败');
+      }),
+    );
   };
 
   const handleDetailCancel = () => {
     setDetailVisible(false);
-    setCurrentPayslip(null);
   };
 
   const columns: ProTableColumn[] = [
@@ -108,6 +102,9 @@ export default function MyPayslipsPage() {
   ];
 
   const renderDetailContent = () => {
+    if (detailError) {
+      return <Empty description={detailError} />;
+    }
     if (!currentPayslip) return null;
 
     const incomeItems = currentPayslip.items.filter((item: PayslipItem) => item.type === 'income');
