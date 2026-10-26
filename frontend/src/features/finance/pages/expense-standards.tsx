@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space, Tag } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, InputNumber, Form, Space, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable from '@/components/ProTable';
+import type { ProTableColumn } from '@/components/ProTable';
+import type { SearchFieldConfig } from '@/components/SearchForm';
 import { PermissionGate } from '@/components/PermissionGate';
 import { financeApi, ExpenseStandard, ExpenseStandardCreateDto, ExpenseStandardUpdateDto } from '@/services/finance';
 import { usePermission } from '@/hooks/use-permission';
@@ -69,13 +71,39 @@ export default function ExpenseStandardsPage() {
   );
   const data = resData ?? [];
 
-  const handleFilterChange = (key: 'category' | 'status' | 'keyword', value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
   const handleReset = () => {
     setFilters({ category: '', status: '', keyword: '' });
   };
+
+  // ProTable 搜索区提交：字段变更即（防抖）触发过滤
+  const handleSearch = (values: Record<string, any>) => {
+    setFilters({
+      category: values.category ? String(values.category) : '',
+      status: values.status ? String(values.status) : '',
+      keyword: values.keyword ? String(values.keyword) : '',
+    });
+  };
+
+  const expenseSearchFields: SearchFieldConfig[] = [
+    {
+      key: 'category',
+      label: '类别',
+      type: 'select',
+      placeholder: '全部类别',
+      options: EXPENSE_CATEGORIES.map((c) => ({ value: c, label: c })),
+    },
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      placeholder: '全部状态',
+      options: [
+        { value: 'enabled', label: '启用' },
+        { value: 'disabled', label: '停用' },
+      ],
+    },
+    { key: 'keyword', label: '搜索', type: 'input', placeholder: '费用标准名称' },
+  ];
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -222,7 +250,7 @@ export default function ExpenseStandardsPage() {
     }
   };
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '类别', dataIndex: 'category', width: 120, render: (v: string) => v || '--' },
     {
@@ -244,6 +272,7 @@ export default function ExpenseStandardsPage() {
     },
     {
       title: '操作',
+      dataIndex: 'actions',
       width: 190,
       render: (_: any, record: ExpenseStandard) => (
         <PermissionGate code="finance:expense-standard:manage">
@@ -260,83 +289,31 @@ export default function ExpenseStandardsPage() {
   ];
 
   return (
-    <PageContainer >
-      {/* 筛选栏 */}
-      <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">类别</label>
-            <Select
-              value={filters.category || undefined}
-              onChange={(v) => handleFilterChange('category', String(v ?? ''))}
-              style={{ width: '100%' }}
-              placeholder="全部类别"
-              allowClear
-              allowCreate
-            >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <Select.Option key={c} value={c}>{c}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">状态</label>
-            <Select
-              value={filters.status || undefined}
-              onChange={(v) => handleFilterChange('status', String(v ?? ''))}
-              style={{ width: '100%' }}
-              placeholder="全部状态"
-              allowClear
-            >
-              <Select.Option value="enabled">启用</Select.Option>
-              <Select.Option value="disabled">停用</Select.Option>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">搜索</label>
-            <Input
-              value={filters.keyword}
-              onChange={(v) => handleFilterChange('keyword', v)}
-              placeholder="费用标准名称"
-              allowClear
-              style={{ width: '100%' }}
-            />
-          </div>
-          <div className="flex items-end">
-            <Button onClick={handleReset}>重置筛选</Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {data.length} 条费用标准</span>
-        <div className="flex gap-2">
-          <Button onClick={handleExport}>导出 Excel</Button>
-          <PermissionGate code="finance:expense-standard:manage">
-            <Button type="primary" onClick={handleAdd}>+ 新建费用标准</Button>
-          </PermissionGate>
-        </div>
-      </div>
-
-      {/* 费用标准表格 */}
-      <div className="bg-surface border border-border-1 rounded-md">
-        <DataState
-          loading={loading}
-          error={error}
-          onRetry={revalidate}
-          isEmpty={data.length === 0}
-          emptyText="暂无费用标准数据"
-        >
-          <Table
-            rowKey="id"
-            data={data}
-            columns={columns}
-            scroll={{ x: true }}
-            pagination={{ pageSize: 10, showTotal: true }}
-          />
-        </DataState>
-      </div>
+    <PageContainer>
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        searchFields={expenseSearchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        searchDebounceMs={300}
+        searchInlineActions
+        toolbar={[
+          {
+            key: 'standards-add',
+            label: '+ 新建费用标准',
+            onClick: handleAdd,
+            disabled: !canManage,
+          },
+        ]}
+        showExport
+        onExport={handleExport}
+        emptyElement={<span className="text-text-3">暂无费用标准数据</span>}
+      />
 
       {/* 新建 / 编辑弹窗 */}
       <Modal

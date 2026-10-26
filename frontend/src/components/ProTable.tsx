@@ -66,6 +66,9 @@ export interface ProTableProps {
   searchExpandable?: boolean;
   /** 是否让查询/重置与搜索字段同一行（右侧固定），默认 false */
   searchInlineActions?: boolean;
+  /** 搜索字段变更后自动提交的防抖毫秒数（>0 时变更即查，无需点查询按钮）；默认 0 关闭 */
+  searchDebounceMs?: number;
+  /** 搜索字段变更后自动提交的防抖毫秒数（>0 时变更即查，无需点查询按钮）；默认 0 关闭 */
   toolbar?: ProTableToolbarAction[];
   pagination?: ProTablePagination | false;
   onPageChange?: (page: number, pageSize: number) => void;
@@ -100,6 +103,7 @@ export default function ProTable({
   searchColumn,
   searchExpandable,
   searchInlineActions,
+  searchDebounceMs,
   toolbar,
   pagination,
   onPageChange,
@@ -328,6 +332,7 @@ export default function ProTable({
             column={searchColumn}
             expandable={searchExpandable}
             inlineActions={searchInlineActions}
+            debounceMs={searchDebounceMs}
           />
         </div>
       )}

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, InputNumber, Form, Table, Space } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, InputNumber, Form, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable from '@/components/ProTable';
+import type { ProTableColumn } from '@/components/ProTable';
+import type { SearchFieldConfig } from '@/components/SearchForm';
 import { PermissionGate } from '@/components/PermissionGate';
 import { financeApi, Budget, BudgetCreateDto, BudgetUpdateDto } from '@/services/finance';
 import { usePermission } from '@/hooks/use-permission';
@@ -68,13 +70,45 @@ export default function BudgetsPage() {
   const data = resData ?? [];
 
   // 加载部门列表（用于筛选与表单），由 useDepartments 共享缓存提供
-  const handleFilterChange = (key: 'year' | 'departmentId' | 'category', value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
   const handleReset = () => {
     setFilters({ year: '', departmentId: '', category: '' });
   };
+
+  // ProTable 搜索区提交：字段变更即（防抖）触发过滤
+  const handleSearch = (values: Record<string, any>) => {
+    setFilters({
+      year: values.year ? String(values.year) : '',
+      departmentId: values.departmentId ? String(values.departmentId) : '',
+      category: values.category ? String(values.category) : '',
+    });
+  };
+
+  const budgetSearchFields: SearchFieldConfig[] = [
+    {
+      key: 'year',
+      label: '年份',
+      type: 'select',
+      placeholder: '全部年份',
+      options: buildYears().map((y) => ({ value: String(y), label: `${y} 年` })),
+    },
+    {
+      key: 'departmentId',
+      label: '部门',
+      type: 'select',
+      placeholder: '全部部门',
+      options: [
+        { value: 'global', label: '公司总预算' },
+        ...departments.map((d) => ({ value: String(d.id), label: d.name })),
+      ],
+    },
+    {
+      key: 'category',
+      label: '类别',
+      type: 'select',
+      placeholder: '全部类别',
+      options: BUDGET_CATEGORIES.map((c) => ({ value: c, label: c })),
+    },
+  ];
 
   const handleAdd = () => {
     if (!canManage) return;
@@ -209,7 +243,7 @@ export default function BudgetsPage() {
     }
   };
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     { title: '年份', dataIndex: 'year', width: 90 },
     {
       title: '部门',
@@ -240,6 +274,7 @@ export default function BudgetsPage() {
     { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '--' },
     {
       title: '操作',
+      dataIndex: 'actions',
       width: 140,
       render: (_: any, record: Budget) => (
         <Space>
@@ -253,89 +288,31 @@ export default function BudgetsPage() {
   ];
 
   return (
-    <PageContainer >
-      {/* 筛选栏 */}
-      <div className="bg-surface border border-border-1 rounded-md p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">年份</label>
-            <Select
-              value={filters.year || undefined}
-              onChange={(v) => handleFilterChange('year', String(v ?? ''))}
-              style={{ width: '100%' }}
-              placeholder="全部年份"
-              allowClear
-            >
-              {buildYears().map((y) => (
-                <Select.Option key={y} value={String(y)}>{y} 年</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">部门</label>
-            <Select
-              value={filters.departmentId || undefined}
-              onChange={(v) => handleFilterChange('departmentId', String(v ?? ''))}
-              style={{ width: '100%' }}
-              placeholder="全部部门"
-              allowClear
-            >
-              <Select.Option value="global">公司总预算</Select.Option>
-              {departments.map((d) => (
-                <Select.Option key={d.id} value={String(d.id)}>{d.name}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-2 mb-1.5">类别</label>
-            <Select
-              value={filters.category || undefined}
-              onChange={(v) => handleFilterChange('category', String(v ?? ''))}
-              style={{ width: '100%' }}
-              placeholder="全部类别"
-              allowClear
-              allowCreate
-            >
-              {BUDGET_CATEGORIES.map((c) => (
-                <Select.Option key={c} value={c}>{c}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <Button onClick={handleReset}>重置筛选</Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-text-2">共 {data.length} 条预算</span>
-        <div className="flex gap-2">
-          <Button onClick={handleExport}>导出 Excel</Button>
-          <PermissionGate code="finance:budget:manage">
-            <Button type="primary" onClick={() => openModal('add')}>+ 新建预算</Button>
-          </PermissionGate>
-        </div>
-      </div>
-
-      {/* 预算表格 */}
-      <div className="bg-surface border border-border-1 rounded-md">
-        <DataState
-          loading={loading}
-          error={error}
-          onRetry={revalidate}
-          isEmpty={data.length === 0}
-          emptyText="暂无预算数据"
-        >
-          <Table
-            rowKey="id"
-            data={data}
-            columns={columns}
-            scroll={{ x: true }}
-            pagination={{ pageSize: 10, showTotal: true }}
-          />
-        </DataState>
-      </div>
+    <PageContainer>
+      <ProTable
+        columns={columns}
+        data={data}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        searchFields={budgetSearchFields}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        searchDebounceMs={300}
+        searchInlineActions
+        toolbar={[
+          {
+            key: 'budgets-add',
+            label: '+ 新建预算',
+            onClick: () => openModal('add'),
+            disabled: !canManage,
+          },
+        ]}
+        showExport
+        onExport={handleExport}
+        emptyElement={<span className="text-text-3">暂无预算数据</span>}
+      />
 
       {/* 新建 / 编辑弹窗 */}
       <Modal
