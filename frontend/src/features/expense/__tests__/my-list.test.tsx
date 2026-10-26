@@ -202,7 +202,7 @@ describe('MyReimbursementPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       expect(screen.getByTestId('cell-1-title')).toHaveTextContent('8月北京出差报销');
-      expect(screen.getByTestId('cell-1-totalAmount')).toContainHTML('1500');
+      expect(screen.getByTestId('cell-1-totalAmount')).toContainHTML('¥ 1,500.00');
     });
 
     it('renders status tags for each status', async () => {

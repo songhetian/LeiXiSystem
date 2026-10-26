@@ -18,7 +18,7 @@ import ProTable from '@/components/ProTable';
 import type { ProTableColumn } from '@/components/ProTable';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'gray' },
@@ -133,7 +133,7 @@ export default function ExpenseApprovalPage() {
       title: '金额',
       dataIndex: 'totalAmount',
       width: 120,
-      render: (v: number) => <span className="font-medium text-text-1">¥{v?.toFixed(2) || '0.00'}</span>,
+      render: (v: number) => <span className="font-medium text-text-1">¥ {formatMoney(v, '0.00')}</span>,
     },
     {
       title: '状态',
@@ -217,7 +217,7 @@ export default function ExpenseApprovalPage() {
               column={2}
               data={[
                 { label: '标题', value: currentItem.title },
-                { label: '金额', value: <span className="font-medium text-text-1">¥{currentItem.totalAmount?.toFixed(2)}</span> },
+                { label: '金额', value: <span className="font-medium text-text-1">¥ {formatMoney(currentItem.totalAmount, '0.00')}</span> },
                 { label: '申请人', value: currentItem.applicantName },
                 { label: '部门', value: currentItem.departmentName || '-' },
                 { label: '状态', value: (
@@ -255,7 +255,7 @@ export default function ExpenseApprovalPage() {
                         <tr key={item.id ?? idx} className="border-b border-border-2">
                           <td className="p-2">{item.description || '-'}</td>
                           <td className="p-2">{item.expenseDate || '-'}</td>
-                          <td className="p-2 text-right">¥{item.amount?.toFixed(2)}</td>
+                          <td className="p-2 text-right">¥ {formatMoney(item.amount, '0.00')}</td>
                         </tr>
                       ))}
                     </tbody>

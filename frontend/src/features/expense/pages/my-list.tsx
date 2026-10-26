@@ -9,7 +9,7 @@ import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
 import useFetchState from '@/hooks/use-fetch-state';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import ReimbursementForm, { resolveFileUrl } from '@/features/expense/components/ReimbursementForm';
 
 interface ReimbursementListEnvelope {
@@ -149,7 +149,7 @@ export default function MyReimbursementPage() {
       dataIndex: 'totalAmount',
       width: 120,
       render: (value: number) => (
-        <span style={{ fontWeight: 600 }}>¥{Number(value).toFixed(2)}</span>
+        <span style={{ fontWeight: 600 }}>¥ {formatMoney(value)}</span>
       ),
     },
     {
@@ -216,7 +216,7 @@ export default function MyReimbursementPage() {
             { label: '报销分类', value: currentReimbursement.typeName || '-' },
             { label: '申请人', value: currentReimbursement.applicantName },
             { label: '部门', value: currentReimbursement.departmentName || '-' },
-            { label: '总金额', value: `¥${Number(currentReimbursement.totalAmount).toFixed(2)}` },
+            { label: '总金额', value: `¥ ${formatMoney(currentReimbursement.totalAmount)}` },
             {
               label: '状态',
               value: statusMap[currentReimbursement.status]?.label || currentReimbursement.status,
@@ -235,7 +235,7 @@ export default function MyReimbursementPage() {
               { title: '费用类型', dataIndex: 'itemType', width: 140, render: (v: string) => v || '-' },
               { title: '产生日期', dataIndex: 'expenseDate', width: 130, render: (v: string) => v || '-' },
               { title: '用途说明', dataIndex: 'description', render: (v: string) => v || '-' },
-              { title: '金额', dataIndex: 'amount', width: 120, render: (v: number) => `¥${Number(v).toFixed(2)}` },
+              { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number) => `¥ ${formatMoney(v)}` },
               {
                 title: '凭证',
                 dataIndex: 'attachmentUrl',

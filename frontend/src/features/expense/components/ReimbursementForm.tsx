@@ -20,6 +20,7 @@ import {
 import { IconPlus, IconDelete, IconLink } from '@arco-design/web-react/icon';
 import { reimbursementApi, ReimbursementType, ExpenseType } from '@/services/reimbursement';
 import { notifyError } from '@/lib/request';
+import { formatMoney } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Row, Col } = Grid;
@@ -418,7 +419,7 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
         <Text type="secondary">
           合计金额:{' '}
           <Text bold style={{ color: 'var(--lx-primary)' }}>
-            ¥ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            ¥ {formatMoney(totalAmount, '0.00')}
           </Text>
         </Text>
         <Space>
