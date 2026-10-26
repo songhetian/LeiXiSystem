@@ -225,8 +225,7 @@ export default function ProTable({
     if (onExport) {
       onExport(data);
       return;
-    }
-    const headers = visibleColumns.map((col) => col.title).join(',');
+    }    const headers = visibleColumns.map((col) => col.title).join(',');
     const rows = data.map((row) =>
       visibleColumns
         .map((col) => {
@@ -268,57 +267,62 @@ export default function ProTable({
     </div>
   );
 
+  const showSearch = !!(searchFields && searchFields.length > 0);
+  const hasUtilities = !!(showExport || showDensity || showColumnSetting);
+  const hasToolbarActions = !!(toolbar && toolbar.length > 0);
+  const showToolbarRow = showSearch || hasToolbarActions || hasUtilities;
+  const utilities = (
+    <div className="flex items-center gap-2.5">
+      {showExport && (
+        <Button size="small" onClick={handleExportCSV}>导出 CSV</Button>
+      )}
+      {showDensity && (
+        <Select
+          size="small"
+          value={density}
+          style={{ width: 100 }}
+          onChange={(val) => setDensity(val as TableDensity)}
+        >
+          <Select.Option value="default">默认</Select.Option>
+          <Select.Option value="middle">中等</Select.Option>
+          <Select.Option value="small">紧凑</Select.Option>
+        </Select>
+      )}
+      {showColumnSetting && (
+        <Popover
+          content={columnSettingContent}
+          trigger="click"
+          position="br"
+        >
+          <Button size="small">列设置</Button>
+        </Popover>
+      )}
+    </div>
+  );
+  const toolbarActions = hasToolbarActions ? (
+    <div className="flex items-center gap-2.5">
+      {toolbar!.map((action) => (
+        <Button
+          key={action.key}
+          type={action.type || 'primary'}
+          onClick={action.onClick}
+          disabled={action.disabled}
+          loading={action.loading}
+          status={action.status}
+        >
+          {action.label}
+        </Button>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <div className="bg-surface border border-border-1 rounded-md overflow-hidden shadow-card">
-      {searchFields && searchFields.length > 0 ? (
-        <div className="pt-3 px-[18px] border-b border-border-2 bg-surface">
-          {((toolbar && toolbar.length > 0) || showColumnSetting || showExport || showDensity) && (
-            <div className="flex items-center justify-end gap-2.5 pb-3">
-              <div className="flex items-center gap-2.5">
-                {toolbar?.map((action) => (
-                  <Button
-                    key={action.key}
-                    type={action.type || 'primary'}
-                    onClick={action.onClick}
-                    disabled={action.disabled}
-                    loading={action.loading}
-                    status={action.status}
-                    size="small"
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2.5">
-                {showExport && (
-                  <Button size="small" onClick={handleExportCSV}>导出 CSV</Button>
-                )}
-                {showDensity && (
-                  <Select
-                    size="small"
-                    value={density}
-                    style={{ width: 100 }}
-                    onChange={(val) => setDensity(val as TableDensity)}
-                  >
-                    <Select.Option value="default">默认</Select.Option>
-                    <Select.Option value="middle">中等</Select.Option>
-                    <Select.Option value="small">紧凑</Select.Option>
-                  </Select>
-                )}
-                {showColumnSetting && (
-                  <Popover
-                    content={columnSettingContent}
-                    trigger="click"
-                    position="br"
-                  >
-                    <Button size="small">列设置</Button>
-                  </Popover>
-                )}
-              </div>
-            </div>
-          )}
+      {showSearch && (
+        <div className="pro-search-section">
           <SearchForm
-            fields={searchFields}
+            bare
+            fields={searchFields!}
             onSearch={onSearch || (() => {})}
             onReset={onReset}
             column={searchColumn}
@@ -326,51 +330,16 @@ export default function ProTable({
             inlineActions={searchInlineActions}
           />
         </div>
-      ) : ((toolbar && toolbar.length > 0) || showColumnSetting || showExport || showDensity) ? (
-        <div className="flex items-center justify-between py-3 px-[18px] border-b border-border-2 bg-surface">
-          <div className="flex items-center gap-2.5">
-            {toolbar?.map((action) => (
-              <Button
-                key={action.key}
-                type={action.type || 'primary'}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                loading={action.loading}
-                status={action.status}
-                size="small"
-              >
-                {action.label}
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2.5">
-            {showExport && (
-              <Button size="small" onClick={handleExportCSV}>导出 CSV</Button>
-            )}
-            {showDensity && (
-              <Select
-                size="small"
-                value={density}
-                style={{ width: 100 }}
-                onChange={(val) => setDensity(val as TableDensity)}
-              >
-                <Select.Option value="default">默认</Select.Option>
-                <Select.Option value="middle">中等</Select.Option>
-                <Select.Option value="small">紧凑</Select.Option>
-              </Select>
-            )}
-            {showColumnSetting && (
-              <Popover
-                content={columnSettingContent}
-                trigger="click"
-                position="br"
-              >
-                <Button size="small">列设置</Button>
-              </Popover>
-            )}
-          </div>
+      )}
+
+      {showToolbarRow && (
+        <div className="pro-toolbar">
+          {toolbarActions}
+          {/* 主操作缺失时左占位，保证工具组始终贴右 */}
+          {!hasToolbarActions && <div className="flex-1 min-w-0" />}
+          {utilities}
         </div>
-      ) : null}
+      )}
 
       {showBatchBar && (
         <div className="py-2 px-[18px] bg-brand-bg flex justify-between items-center border-b border-border-2">

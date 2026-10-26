@@ -1090,6 +1090,36 @@ html, body {
 }
 
 /* ========================================
+   ProTable Pro 分区结构（企业后台标准）
+   一张卡片内三个语义分区：搜索区 / 工具栏 / 表格，用背景灰阶
+   与分隔线建立层级，而不是卡片套卡片的双边框
+   ======================================== */
+/* 搜索区：内嵌 SearchForm（bare），分区自带内边距与底部分隔线 */
+.pro-search-section {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--lx-border-2);
+  background: var(--lx-bg-card);
+}
+.pro-search-section .lx-search-form {
+  gap: 8px 14px;
+}
+/* 工具栏：主操作居左、导出/密度/列设置等低频工具居右；
+   轻度反底的灰阶底把它与搜索区/表体在视觉上分层 */
+.pro-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--lx-bg-secondary);
+  border-bottom: 1px solid var(--lx-border-2);
+  min-height: 48px;
+}
+.pro-toolbar:empty {
+  display: none;
+}
+
+/* ========================================
    搜索区（SearchForm）· 企业后台标准
    字段等宽栅格 + 右侧固定操作列，按钮不随字段换行漂移
    ======================================== */

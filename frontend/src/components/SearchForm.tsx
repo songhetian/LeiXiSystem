@@ -38,6 +38,11 @@ export interface SearchFormProps {
   expandable?: boolean;
   /** 是否让“查询/重置”与字段排在同一行（右侧固定），默认 false */
   inlineActions?: boolean;
+  /**
+   * 内嵌模式：脱掉自身 Card 外壳（无边框/阴影/外边距），由宿主容器提供分区与分隔线。
+   * 用于 ProTable —— 避免出现「卡片套卡片」的双重边框；独立使用（如 shifts 页）保持默认 false。
+   */
+  bare?: boolean;
 }
 
 export default function SearchForm({
@@ -49,6 +54,7 @@ export default function SearchForm({
   debounceMs = 0,
   expandable = true,
   inlineActions = false,
+  bare = false,
 }: SearchFormProps) {
   const [values, setValues] = useState<Record<string, any>>(initialValues);
   // 防抖定时器用 ref 保存（不用 state），便于卸载清理
@@ -201,42 +207,51 @@ export default function SearchForm({
     );
   };
 
+  const form = (
+    // 自绘布局：每个字段 = flex(label + 控件)，避开 Arco FormItem 的 arco-col 栅格导致的
+    // label 固定百分比压缩/错位问题
+    <Form
+      layout="vertical"
+      className={inlineActions ? 'lx-search-form lx-search-form-inline' : 'lx-search-form'}
+      onSubmit={handleSubmit}
+    >
+      <div className="lx-search-fields" data-testid="search-fields">
+        {visibleFields.map((field) => (
+          <div className="lx-search-item" data-testid={`form-item-${field.key}`} key={field.key}>
+            <label className="lx-search-item-label" htmlFor={field.key}>
+              {field.label}
+            </label>
+            <div className="lx-search-item-control">{renderField(field)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="lx-search-actions" data-testid="search-actions">
+        <Button type="primary" htmlType="submit">
+          查询
+        </Button>
+        <Button onClick={handleReset}>重置</Button>
+        {showToggle && (
+          <Button type="text" data-testid="toggle-collapse" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? '收起' : '展开'}
+            {expanded ? (
+              <IconUp style={{ fontSize: 12, marginLeft: 4 }} />
+            ) : (
+              <IconDown style={{ fontSize: 12, marginLeft: 4 }} />
+            )}
+          </Button>
+        )}
+      </div>
+    </Form>
+  );
+
+  // bare：内嵌到 ProTable，去外壳由宿主统一控制分区边界
+  if (bare) {
+    return form;
+  }
+
   return (
     <Card size="small" className="lx-search-card">
-      {/* 自绘布局：每个字段 = flex(label + 控件)，避开 Arco FormItem 的 arco-col 栅格导致的
-          label 固定百分比压缩/错位问题 */}
-      <Form
-        layout="vertical"
-        className={inlineActions ? 'lx-search-form lx-search-form-inline' : 'lx-search-form'}
-        onSubmit={handleSubmit}
-      >
-        <div className="lx-search-fields" data-testid="search-fields">
-          {visibleFields.map((field) => (
-            <div className="lx-search-item" data-testid={`form-item-${field.key}`} key={field.key}>
-              <label className="lx-search-item-label" htmlFor={field.key}>
-                {field.label}
-              </label>
-              <div className="lx-search-item-control">{renderField(field)}</div>
-            </div>
-          ))}
-        </div>
-        <div className="lx-search-actions" data-testid="search-actions">
-          <Button type="primary" htmlType="submit">
-            查询
-          </Button>
-          <Button onClick={handleReset}>重置</Button>
-          {showToggle && (
-            <Button type="text" data-testid="toggle-collapse" onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '收起' : '展开'}
-              {expanded ? (
-                <IconUp style={{ fontSize: 12, marginLeft: 4 }} />
-              ) : (
-                <IconDown style={{ fontSize: 12, marginLeft: 4 }} />
-              )}
-            </Button>
-          )}
-        </div>
-      </Form>
+      {form}
     </Card>
   );
 }
