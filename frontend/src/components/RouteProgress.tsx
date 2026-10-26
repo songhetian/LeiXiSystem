@@ -63,7 +63,7 @@ function RouteProgressInner() {
           background: 'var(--lx-primary, #2455D9)',
           transition: 'width 0.2s ease, opacity 0.2s ease',
           opacity: visible ? 1 : 0,
-          boxShadow: '0 0 6px rgba(36, 85, 217, 0.5)',
+          boxShadow: '0 0 6px var(--lx-primary-weak)',
         }}
       />
     </div>

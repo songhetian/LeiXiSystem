@@ -958,7 +958,7 @@ export default function ScheduleCalendarPage() {
                           height: 10,
                           borderRadius: 2,
                           background: s.color || DEFAULT_SHIFT_COLOR,
-                          border: '1px solid rgba(0,0,0,0.1)',
+                          border: '1px solid var(--lx-border-2)',
                         }}
                       />
                       {s.name}（{s.startTime}-{s.endTime}）
@@ -1167,7 +1167,7 @@ function ScheduleEditModal({
                       height: 10,
                       borderRadius: 2,
                       background: s.color || DEFAULT_SHIFT_COLOR,
-                      border: '1px solid rgba(0,0,0,0.1)',
+                      border: '1px solid var(--lx-border-2)',
                     }}
                   />
                   {s.name}（{s.startTime}-{s.endTime}{s.isNextDay ? ' 次日' : ''}）                </span>

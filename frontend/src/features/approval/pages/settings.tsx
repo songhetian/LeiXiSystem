@@ -540,7 +540,7 @@ export default function ApprovalSettingsPage() {
                           transition: 'all 0.2s',
                           boxShadow:
                             activeNodeKey === node.nodeKey
-                              ? '0 4px 12px rgba(var(--primary-6), 0.15)'
+                              ? '0 4px 12px color-mix(in srgb, var(--lx-primary) 15%, transparent)'
                               : 'none',
                         }}
                       >
