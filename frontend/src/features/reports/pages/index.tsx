@@ -191,30 +191,29 @@ export default function ReportsPage() {
 
       <Row gutter={16}>
         <Col span={12}>
-          <Card title="各部门考勤" style={{ marginBottom: 16 }}>
-            <ProTable
-              columns={attendanceColumns}
-              data={attendance?.departments ?? []}
-              rowKey="id"
-              loading={loading}
-              error={error}
-              onRetry={handleQuery}
-              pagination={false}
-            />
-          </Card>
+          {/* ProTable 自带统一卡片外壳，外层不再包 Card（避免卡片套卡片） */}
+          <div className="text-sm font-medium text-text-1 mb-2">各部门考勤</div>
+          <ProTable
+            columns={attendanceColumns}
+            data={attendance?.departments ?? []}
+            rowKey="id"
+            loading={loading}
+            error={error}
+            onRetry={handleQuery}
+            pagination={false}
+          />
         </Col>
         <Col span={12}>
-          <Card title="各部门人力成本" style={{ marginBottom: 16 }}>
-            <ProTable
-              columns={laborColumns}
-              data={labor?.departments ?? []}
-              rowKey="id"
-              loading={loading}
-              error={error}
-              onRetry={handleQuery}
-              pagination={false}
-            />
-          </Card>
+          <div className="text-sm font-medium text-text-1 mb-2">各部门人力成本</div>
+          <ProTable
+            columns={laborColumns}
+            data={labor?.departments ?? []}
+            rowKey="id"
+            loading={loading}
+            error={error}
+            onRetry={handleQuery}
+            pagination={false}
+          />
         </Col>
       </Row>
 
