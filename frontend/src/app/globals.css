@@ -72,11 +72,6 @@
 
   /* 打卡页专用语义色：下班签退按钮，与上班签到的品牌蓝区分 */
   --lx-clock-out: #4f46e5;
-  /* 快捷自助四入口：需彼此可区分，故各自独立成 token */
-  --lx-quick-monthly: #2455D9;
-  --lx-quick-leave: #0e9f6e;
-  --lx-quick-overtime: #7c3aed;
-  --lx-quick-stats: #0e7490;
 
   /* ---- 文字色（4 级） ---- */
   --lx-text-1: #0f172a;
@@ -93,7 +88,7 @@
   --lx-sider-text-hover: #1e293b;
   --lx-sider-text-active: #2455D9;
   --lx-sider-border: #e2e8f0;
-  --lx-sider-logo-bg: linear-gradient(135deg, #2455D9, #3a6ee8);
+  --lx-sider-logo-bg: var(--lx-primary);
   --lx-sider-group-text: #94a3b8;
   --lx-sider-gradient: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
 
@@ -339,11 +334,8 @@
   --lx-indigo-bg: rgba(99, 102, 241, 0.16);
   --lx-emerald-bg: rgba(16, 185, 129, 0.16);
 
-  /* 打卡页快捷自助四入口：深色下提亮一档，与深色卡片拉开层次（仍配白字，对比度 ≥ 3:1） */
-  --lx-quick-monthly: #3a6ee8;
-  --lx-quick-leave: #12a06f;
-  --lx-quick-overtime: #8b5cf6;
-  --lx-quick-stats: #0e8ea8;
+  /* 打卡页下班按钮：深色下提亮一档，与深色卡片拉开层次 */
+  --lx-clock-out: #4f46e5;
 
   /* 侧边栏：暗色下切换为深色调（用户偏好浅色侧边栏；此为可调项，如需保持浅色可删除本段） */
   --lx-sider-bg: #101527;
@@ -479,11 +471,6 @@ html, body {
   }
 }
 
-@keyframes lx-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes lx-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -552,12 +539,6 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.lx-skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: lx-shimmer 1.5s infinite;
 }
 
 /* ========================================
@@ -806,8 +787,7 @@ html, body {
   .dsh-hero,
   .dsh-stat,
   .dsh-panel,
-  .dsh-quick-item,
-  .lx-skeleton {
+  .dsh-quick-item {
     animation: none;
   }
 
@@ -1910,7 +1890,7 @@ html, body {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(180deg, var(--lx-primary), var(--lx-primary-hover));
+  background: var(--lx-primary);
 }
 .dsh-hero-title {
   margin: 0;
@@ -2311,250 +2291,6 @@ html, body {
 }
 
 /* ========================================
-   Galaxy 炫酷层（借鉴 uiverse.io/galaxy 设计语言）
-   极光横幅 · 流光描边 · 扫光入口 · 呼吸圆点
-   约束：浅色主题下保持企业级克制（低透明度彩色，不整块铺色）；
-   所有动画在 prefers-reduced-motion 下由上方全局 reduce 规则
-   （*、*::before、*::after 统一 0.01ms）自动停用，无需逐个登记。
-   兼容：conic 流光边框依赖 @property 注册角度，不支持的老浏览器
-   退化为静态渐变描边；color-mix 不支持时呼吸光晕自动消失（不破版）。
-   ======================================== */
-
-/* 注册角度变量：让 conic-gradient 的起始角可以参与动画 */
-@property --lx-border-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes lx-border-spin {
-  to { --lx-border-angle: 360deg; }
-}
-@keyframes lx-shine-sweep {
-  from { transform: translateX(-140%) skewX(-18deg); }
-  to   { transform: translateX(340%) skewX(-18deg); }
-}
-@keyframes lx-aurora-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(-4%, 8%, 0) scale(1.12); }
-}
-@keyframes lx-dot-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 transparent; }
-  45%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--dot-c, var(--lx-primary)) 32%, transparent); }
-}
-
-/* ---- 欢迎横幅：极光渐变底 + 缓漂光斑 ----
-   ::before 仍是左侧 4px 品牌条；极光走多层 radial-gradient 背景 + ::after 光斑 */
-.dsh-hero {
-  background:
-    radial-gradient(420px 170px at 86% -30%, rgba(139, 92, 246, 0.13), transparent 62%),
-    radial-gradient(540px 210px at 68% 130%, rgba(36, 85, 217, 0.11), transparent 65%),
-    radial-gradient(300px 150px at 42% -35%, rgba(6, 182, 212, 0.09), transparent 60%),
-    var(--lx-bg-card);
-}
-.dsh-hero::after {
-  content: '';
-  position: absolute;
-  right: -70px;
-  top: -90px;
-  width: 250px;
-  height: 250px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.16), transparent 65%);
-  filter: blur(6px);
-  animation: lx-aurora-drift 9s ease-in-out infinite;
-  pointer-events: none;
-}
-/* 横幅日期徽章升级为玻璃拟态：模糊底 + 细边 + 微投影 */
-.dsh-hero-chip {
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border-color: rgba(36, 85, 217, 0.18);
-  box-shadow: 0 2px 10px rgba(36, 85, 217, 0.08);
-}
-
-/* ---- KPI 指标卡：hover 流光描边（conic 渐变沿边框旋转） ----
-   @property 不支持时 --lx-border-angle 固定 0deg → 退化为静态渐变描边 */
-.dsh-stat {
-  position: relative;
-}
-.dsh-stat::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--lx-border-angle),
-    transparent 0deg 210deg,
-    var(--lx-primary) 260deg,
-    var(--lx-purple) 310deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity var(--lx-transition-base);
-  pointer-events: none;
-}
-.dsh-stat:hover::before {
-  opacity: 1;
-  animation: lx-border-spin 3.2s linear infinite;
-}
-
-/* ---- 快捷操作入口：hover 扫光 + 图标块点亮 ---- */
-.dsh-quick-item {
-  position: relative;
-  overflow: hidden;
-}
-.dsh-quick-item::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 42%;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    rgba(36, 85, 217, 0.10),
-    rgba(255, 255, 255, 0.65),
-    transparent
-  );
-  transform: translateX(-140%) skewX(-18deg);
-  pointer-events: none;
-}
-.dsh-quick-item:hover::after {
-  animation: lx-shine-sweep 0.9s var(--lx-ease-standard);
-}
-/* 图标升级为渐变瓷贴：hover 点亮为品牌蓝→紫渐变并微微上浮 */
-.dsh-quick-ic {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--lx-radius-md);
-  background: linear-gradient(135deg, var(--lx-primary-bg), rgba(139, 92, 246, 0.10));
-  transition:
-    transform var(--lx-transition-base) var(--lx-ease-standard),
-    background var(--lx-transition-base),
-    box-shadow var(--lx-transition-base);
-}
-.dsh-quick-item:hover .dsh-quick-ic {
-  background: linear-gradient(135deg, var(--lx-primary), #7c3aed);
-  color: var(--lx-text-white);
-  box-shadow: 0 6px 16px rgba(36, 85, 217, 0.35);
-  transform: translateY(-2px) scale(1.06);
-}
-
-/* ---- Galaxy 多彩：快捷操作图标六色循环（蓝/紫/青/橙/粉/绿） ----
-   底色用 --lx-*-bg 语义 token（暗色块内有对应暗色版，主题自动跟随）；
-   hover 点亮为该色相渐变白字。nth-child 优先级高于上面的统一蓝 hover。 */
-.dsh-quick-item:nth-child(6n + 1) .dsh-quick-ic {
-  color: var(--lx-primary);
-  background: var(--lx-primary-bg);
-}
-.dsh-quick-item:nth-child(6n + 1):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #2455d9, #3b82f6);
-  box-shadow: 0 6px 16px rgba(36, 85, 217, 0.35);
-}
-.dsh-quick-item:nth-child(6n + 2) .dsh-quick-ic {
-  color: var(--lx-purple);
-  background: var(--lx-purple-bg);
-}
-.dsh-quick-item:nth-child(6n + 2):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #7c3aed, #a78bfa);
-  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
-}
-.dsh-quick-item:nth-child(6n + 3) .dsh-quick-ic {
-  color: var(--lx-teal);
-  background: var(--lx-teal-bg);
-}
-.dsh-quick-item:nth-child(6n + 3):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #0d9488, #2dd4bf);
-  box-shadow: 0 6px 16px rgba(20, 184, 166, 0.35);
-}
-.dsh-quick-item:nth-child(6n + 4) .dsh-quick-ic {
-  color: var(--lx-coral);
-  background: var(--lx-coral-bg);
-}
-.dsh-quick-item:nth-child(6n + 4):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #ea580c, #fb923c);
-  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.35);
-}
-.dsh-quick-item:nth-child(6n + 5) .dsh-quick-ic {
-  color: var(--lx-pink);
-  background: var(--lx-pink-bg);
-}
-.dsh-quick-item:nth-child(6n + 5):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #db2777, #f472b6);
-  box-shadow: 0 6px 16px rgba(236, 72, 153, 0.35);
-}
-.dsh-quick-item:nth-child(6n + 6) .dsh-quick-ic {
-  color: var(--lx-success);
-  background: var(--lx-success-bg);
-}
-.dsh-quick-item:nth-child(6n + 6):hover .dsh-quick-ic {
-  background: linear-gradient(135deg, #16a34a, #4ade80);
-  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
-}
-/* hover 文字色统一跟随点亮态（白字） */
-.dsh-quick-item:hover .dsh-quick-ic {
-  color: var(--lx-text-white);
-}
-
-/* ---- Galaxy 多彩：统计卡描边流光按卡取色（1蓝默认 / 2紫 / 3青 / 4橙） ----
-   .dsh-stat 渲染在 arco-col 内，按 Col 序号取色；不支持 color-mix 的浏览器
-   保持原有品牌蓝描边不破版（conic 渐变用纯色值，主题通用）。 */
-.arco-col:nth-child(2) .dsh-stat::before {
-  background: conic-gradient(
-    from var(--lx-border-angle),
-    transparent 0deg 210deg,
-    var(--lx-purple) 260deg,
-    #a78bfa 310deg,
-    transparent 360deg
-  );
-}
-.arco-col:nth-child(3) .dsh-stat::before {
-  background: conic-gradient(
-    from var(--lx-border-angle),
-    transparent 0deg 210deg,
-    var(--lx-teal) 260deg,
-    #2dd4bf 310deg,
-    transparent 360deg
-  );
-}
-.arco-col:nth-child(4) .dsh-stat::before {
-  background: conic-gradient(
-    from var(--lx-border-angle),
-    transparent 0deg 210deg,
-    var(--lx-coral) 260deg,
-    #fb923c 310deg,
-    transparent 360deg
-  );
-}
-/* 统计卡 hover 边框/光晕随卡取色（与描边同色系） */
-.arco-col:nth-child(2) .dsh-stat:hover {
-  border-color: rgba(139, 92, 246, 0.45);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.16);
-}
-.arco-col:nth-child(3) .dsh-stat:hover {
-  border-color: rgba(20, 184, 166, 0.45);
-  box-shadow: 0 6px 20px rgba(20, 184, 166, 0.16);
-}
-.arco-col:nth-child(4) .dsh-stat:hover {
-  border-color: rgba(249, 115, 22, 0.45);
-  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.16);
-}
-
-/* ---- 待办圆点：同色呼吸光晕（颜色经 --dot-c 内联注入） ----
-   color-mix 不支持时该 box-shadow 声明被丢弃 → 无光晕但不破版 */
-.dsh-feed-dot.is-pulse {
-  animation: lx-dot-pulse 2.4s ease-out infinite;
-}
-
-/* ========================================
    Galaxy 炫酷层 · Round 2 可复用工具类
    来源：uiverse.io/galaxy 实测选型，落地为系统级工具类。
    约束：全部使用 --lx-* token，浅色/暗色主题自动跟随；
@@ -2775,7 +2511,8 @@ html, body {
 .cmdk-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  /* 与 Toast 同层：命令面板是全局浮层，不得被页签栏/通知下拉压住 */
+  z-index: var(--lx-z-toast);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2904,6 +2641,16 @@ html, body {
   font-size: 11px;
   color: var(--lx-text-4);
 }
+/* 员工实体结果的次要说明（工号 · 部门）：淡色小字靠右 */
+.cmdk-item-sublabel {
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--lx-text-4);
+}
 
 /* 底部提示栏 */
 .cmdk-footer {
@@ -2960,65 +2707,16 @@ html, body {
   color: var(--lx-text-1);
 }
 
-/* 页面柔光层：容器顶部两团极淡的品牌蓝/紫光晕，避免大块纯白显得"死板" */
-.page-container {
-  position: relative;
-  /* 形成独立层叠上下文：::before 的 z-index:-1 才会画在容器内容之下、
-     而不是沉到父级背景色下面（否则柔光完全看不见） */
-  isolation: isolate;
-}
-.page-container::before {
-  content: '';
-  position: absolute;
-  inset: -8px 0 auto 0;
-  height: 220px;
-  pointer-events: none;
-  z-index: -1;
-  background:
-    radial-gradient(680px 220px at 12% -40%, rgba(36, 85, 217, 0.07), transparent 70%),
-    radial-gradient(560px 200px at 88% -50%, rgba(139, 92, 246, 0.06), transparent 70%);
-}
-
-/* 筛选卡片：顶部 2px 蓝→紫→青多彩渐变条，列表页第一眼就有色彩识别 */
+/* 筛选卡片 */
 .lx-search-card {
   position: relative;
   overflow: hidden;
-}
-.lx-search-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--lx-primary),
-    var(--lx-purple),
-    var(--lx-teal)
-  );
-  opacity: 0.85;
-  pointer-events: none;
-}
-
-/* 工作台面板标题：竖条由纯品牌蓝升级为蓝→紫渐变（保留原有 flex 流式布局，只换色） */
-.dsh-panel-title::before {
-  background: linear-gradient(180deg, var(--lx-primary), var(--lx-purple));
-  height: 14px;
 }
 
 /* 空状态插画：品牌蓝淡染，不再是灰色剪影 */
 .arco-empty-image svg {
   color: var(--lx-primary);
   opacity: 0.45;
-}
-
-/* 暗色下柔光需要更高透明度才可见（浅色 0.07 在深底等于没有），色相同时提亮 */
-[data-theme='dark'] .page-container::before,
-body.arco-theme-dark .page-container::before {
-  background:
-    radial-gradient(680px 220px at 12% -40%, rgba(59, 130, 246, 0.16), transparent 70%),
-    radial-gradient(560px 200px at 88% -50%, rgba(167, 139, 250, 0.14), transparent 70%);
 }
 
 /* ========================================
@@ -3066,7 +2764,7 @@ body.arco-theme-dark .page-container::before {
   width: 3px;
   height: 0.92em;
   border-radius: var(--lx-radius-full);
-  background: linear-gradient(180deg, var(--lx-primary), var(--lx-purple));
+  background: var(--lx-primary);
 }
 
 .lx-salary-badges {

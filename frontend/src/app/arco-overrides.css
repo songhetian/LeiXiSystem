@@ -4,9 +4,9 @@
    参考 admin-ui-redesign-final.html 设计规范
    ======================================== */
 
-/* ---- 按钮（Galaxy：渐变瓷感 + hover 扫光 + 微上浮）----
-   主按钮：品牌蓝纵向渐变，hover 提亮 + 轻投影 + 扫光扫过（keyframes 复用 globals 的 lx-shine-sweep）
-   危险按钮：同构红渐变。次级/文本按钮保持细线克制，仅 hover 品牌染色。 */
+/* ---- 按钮 ----
+   主按钮：平面品牌蓝，hover 提亮 / active 加深（不位移、不扫光、不上浮）；
+   危险主按钮同构换色。次级/文本按钮保持细线克制，仅 hover 品牌染色。 */
 .arco-btn {
   border-radius: var(--lx-radius-sm);
   font-weight: var(--lx-font-normal);
@@ -14,8 +14,7 @@
     border-color var(--lx-transition-fast),
     color var(--lx-transition-fast),
     background-color var(--lx-transition-fast),
-    box-shadow var(--lx-transition-base) var(--lx-ease-standard),
-    transform var(--lx-transition-base) var(--lx-ease-standard),
+    box-shadow var(--lx-transition-fast),
     opacity var(--lx-transition-fast);
   height: 32px;
   padding: 0 16px;
@@ -23,48 +22,27 @@
 }
 
 .arco-btn-primary {
-  position: relative;
-  overflow: hidden;
   border: none;
-  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
-  box-shadow: 0 2px 8px var(--lx-primary-weak);
-}
-
-.arco-btn-primary::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-  transform: translateX(-140%) skewX(-18deg);
-  pointer-events: none;
+  background: var(--lx-primary);
 }
 
 .arco-btn-primary:hover {
-  background: linear-gradient(135deg, var(--lx-primary-hover), var(--lx-primary)) ;
-  box-shadow: 0 4px 14px var(--lx-primary-weak);
-  transform: translateY(-1px);
-}
-
-.arco-btn-primary:hover::after {
-  animation: lx-shine-sweep 0.8s var(--lx-ease-standard);
+  background: var(--lx-primary-hover);
 }
 
 .arco-btn-primary:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 4px var(--lx-primary-weak);
+  background: var(--lx-primary-active);
 }
 
-/* 危险主按钮（删除等破坏性操作）：同构红渐变，色相不变、加深收尾 */
+/* 危险主按钮（删除等破坏性操作）：同构红平面，hover 提亮 */
 .arco-btn-status-danger.arco-btn-primary {
-  background: linear-gradient(135deg, var(--lx-danger), #d13a3a);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  background: var(--lx-danger);
 }
 .arco-btn-status-danger.arco-btn-primary:hover {
-  background: linear-gradient(135deg, #f06060, var(--lx-danger));
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+  background: #f06060;
+}
+.arco-btn-status-danger.arco-btn-primary:active {
+  background: #d13a3a;
 }
 
 .arco-btn-secondary {
@@ -175,10 +153,9 @@
   overflow: hidden;
 }
 
-/* 3) 选项：hover 品牌浅底平移过渡；选中项品牌底白字 + 右侧对勾品牌色 */
+/* 3) 选项：hover 品牌浅底；选中项品牌底白字 + 右侧对勾品牌色 */
 .arco-select-option {
-  transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast),
-    padding-left var(--lx-transition-fast);
+  transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast);
 }
 .arco-select-option:hover {
   background: var(--lx-primary-bg);
@@ -196,10 +173,6 @@
 }
 .arco-select-option.arco-select-option-selected .arco-select-option-icon {
   color: var(--lx-text-white);
-}
-/* 选项 hover 轻微右移，galaxy 式「被吸引」反馈 */
-.arco-select-option:hover {
-  padding-left: 14px;
 }
 
 .arco-input-wrapper {
@@ -1285,18 +1258,6 @@
   background: var(--lx-bg-hover);
 }
 
-/* 折叠时子菜单项用彩色圆点表达 */
-.fold-dot {
-  display: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.app-sider.collapsed .fold-dot {
-  display: block;
-}
-
 .app-sider.collapsed .side-footer {
   justify-content: center;
   padding: 12px 0;
@@ -1345,7 +1306,6 @@
   font-size: 16px;
   font-weight: 600;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(36, 85, 217, 0.25);
 }
 
 /* 系统 Logo 图片（替代字块）：同尺寸圆角展示，object-fit 保持比例不拉伸 */
@@ -1415,40 +1375,15 @@
   gap: 6px;
 }
 
-/* Galaxy 多彩：分组标题前的彩色记号点（按分组渲染顺序六色循环）
-   侧边栏是深色底，因此统一提亮色值保证在深底上的对比度 */
+/* 分组标题：统一品牌蓝记号点（六色循环已去除，单主色更符合企业级克制） */
 .side-group-title::before {
   content: '';
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: var(--lx-primary);
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.6);
-}
-.side-group:nth-child(6n + 1) .side-group-title::before {
-  background: #60a5fa;
-  box-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
-}
-.side-group:nth-child(6n + 2) .side-group-title::before {
-  background: #2dd4bf;
-  box-shadow: 0 0 6px rgba(45, 212, 191, 0.6);
-}
-.side-group:nth-child(6n + 3) .side-group-title::before {
-  background: #a78bfa;
-  box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
-}
-.side-group:nth-child(6n + 4) .side-group-title::before {
-  background: #fbbf24;
-  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
-}
-.side-group:nth-child(6n + 5) .side-group-title::before {
-  background: #818cf8;
-  box-shadow: 0 0 6px rgba(129, 140, 248, 0.6);
-}
-.side-group:nth-child(6n + 6) .side-group-title::before {
-  background: #f472b6;
-  box-shadow: 0 0 6px rgba(244, 114, 182, 0.6);
+  background: var(--lx-primary-600, var(--lx-primary));
+  opacity: 0.55;
 }
 
 .side-item {
@@ -1481,14 +1416,8 @@
   color: var(--lx-sider-text-active);
   font-weight: 500;
 }
-/* Galaxy 多彩：选中项背景按分组色淡染（color-mix 不支持时保留上面的纯色底） */
-@supports (color: color-mix(in srgb, red 1%, blue)) {
-  .side-item.active {
-    background: color-mix(in srgb, var(--item-accent, var(--lx-primary)) 18%, var(--lx-sider-bg-active));
-  }
-}
 
-/* 智能交互：选中项左侧彩色指示条（每个菜单分组用专属主题色） */
+/* 选中项左侧品牌色指示条 */
 .side-item.active::before {
   content: '';
   position: absolute;
@@ -1498,7 +1427,7 @@
   width: 3px;
   height: 60%;
   border-radius: 0 var(--lx-radius-2xs) var(--lx-radius-2xs) 0;
-  background: var(--item-accent, var(--lx-primary));
+  background: var(--lx-sider-text-active);
 }
 
 .si-icon {
@@ -1509,8 +1438,7 @@
   align-items: center;
   justify-content: center;
   font-size: var(--lx-font-lg);
-  color: var(--item-accent, var(--lx-sider-text));
-  /* 分组色图标此前透明度 0.55 太淡，侧边栏整体发灰；提到 0.9 让分组色真正可辨 */
+  color: var(--lx-sider-text);
   opacity: 0.9;
   transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
 }
@@ -1521,7 +1449,7 @@
 
 .side-item.active .si-icon {
   opacity: 1;
-  color: var(--item-accent, var(--lx-primary));
+  color: var(--lx-sider-text-active);
 }
 
 .si-label {
@@ -1530,6 +1458,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 侧栏角标（待办审批数）：小计数徽章，与文字同基线 */
+.side-badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-primary);
+  color: var(--lx-text-white);
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 500;
+  text-align: center;
 }
 
 .side-parent {
@@ -1564,7 +1507,7 @@
   align-items: center;
   justify-content: center;
   font-size: var(--lx-font-lg);
-  color: var(--item-accent, var(--lx-sider-text));
+  color: var(--lx-sider-text);
   opacity: 0.9;
   transition: opacity var(--lx-transition-fast), color var(--lx-transition-fast);
 }
@@ -1663,11 +1606,6 @@
 }
 
 .side-logout-btn:hover {
-  color: var(--lx-text-2);
-  background: var(--lx-bg-hover);
-}
-
-.side-logout-btn.hover {
   color: var(--lx-danger);
   background: var(--lx-danger-bg);
 }
@@ -1854,12 +1792,11 @@
   color: var(--lx-text-3);
 }
 
-/* 顶栏用户头像：品牌蓝渐变 */
+/* 顶栏用户头像：平面品牌蓝（渐变与投影已去，与按钮同构） */
 .header-user-avatar {
-  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  background: var(--lx-primary);
   color: var(--lx-text-white);
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(36, 85, 217, 0.25);
 }
 
 /* ========================================
