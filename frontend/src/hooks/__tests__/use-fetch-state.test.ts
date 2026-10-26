@@ -154,5 +154,48 @@ describe('useFetchState', () => {
       expect(result.current.error).toBeNull();
       expect(result.current.data).toBe('成功了');
     });
+
+    it('并发 run：慢的旧请求返回后不得覆盖新请求结果（防竞态）', async () => {
+      const { result } = renderHook(() => useFetchState<string>());
+
+      // 旧请求（ companies慢速 500ms）先发，新请求（快速）后发
+      let resolveOld!: (v: string) => void;
+      const slowOld = () => new Promise<string>((r) => { resolveOld = r; });
+      let resolveNew!: (v: string) => void;
+      const fastNew = () => new Promise<string>((r) => { resolveNew = r; });
+
+      await act(async () => {
+        const oldRun = result.current.run(slowOld);
+        const newRun = result.current.run(fastNew);
+        resolveNew('新数据');
+        await newRun;
+        resolveOld('旧数据');
+        await oldRun;
+      });
+
+      expect(result.current.data).toBe('新数据');
+      expect(result.current.loading).toBe(false);
+    });
+
+    it('并发 run 中旧请求失败也不得把 error 写回最新请求的成功态', async () => {
+      const { result } = renderHook(() => useFetchState<string>());
+
+      let rejectOld!: (e: Error) => void;
+      const slowOld = () => new Promise<string>((_, rej) => { rejectOld = rej; });
+      let resolveNew!: (v: string) => void;
+      const fastNew = () => new Promise<string>((r) => { resolveNew = r; });
+
+      await act(async () => {
+        const oldRun = result.current.run(slowOld);
+        const newRun = result.current.run(fastNew);
+        resolveNew('新数据');
+        await newRun;
+        rejectOld(new Error('旧请求失败'));
+        await oldRun;
+      });
+
+      expect(result.current.data).toBe('新数据');
+      expect(result.current.error).toBeNull();
+    });
   });
 });

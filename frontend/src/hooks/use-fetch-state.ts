@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 interface FetchState<T> {
   data: T | null;
@@ -30,6 +31,10 @@ export function useFetchState<T>(initialData: T | null = null): UseFetchStateRes
     };
   }, []);
 
+  // run 调用序号：快速连续触发（如快速翻页/切换筛选）时只有最新一次
+  // 允许写状态，迟到的旧响应直接丢弃，否则会把新结果覆盖回旧数据
+  const seqRef = useRef(0);
+
   const setData = useCallback((data: T | null) => {
     setState((prev) => ({ ...prev, data, error: null }));
   }, []);
@@ -43,18 +48,18 @@ export function useFetchState<T>(initialData: T | null = null): UseFetchStateRes
   }, []);
 
   const run = useCallback(async (fetcher: () => Promise<T | null | undefined>): Promise<T | null> => {
+    const seq = ++seqRef.current;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const result = await fetcher();
       const data = result ?? null;
-      if (mountedRef.current) {
+      if (mountedRef.current && seq === seqRef.current) {
         setState({ data, loading: false, error: null });
       }
       return data;
-    } catch (e: any) {
-      const message = e?.message || '加载失败';
-      if (mountedRef.current) {
-        setState((prev) => ({ ...prev, loading: false, error: message }));
+    } catch (e) {
+      if (mountedRef.current && seq === seqRef.current) {
+        setState((prev) => ({ ...prev, loading: false, error: getApiErrorMessage(e, '加载失败') }));
       }
       return null;
     }
