@@ -186,4 +186,55 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     expect(switchFetcher).toHaveBeenCalledWith('old');
     expect(switchFetcher).toHaveBeenCalledWith('new');
   });
+
+  it('页面切到后台（visibilitychange → hidden）不触发重新请求', async () => {
+    fetcher.mockResolvedValue('data-x');
+    render(<Probe cacheKey="k8" fetcher={fetcher} label="a" staleTime={5000} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('a-data')).toHaveTextContent('"data-x"');
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // 模拟文档变为隐藏（切走页签）：visibilitychange 事件不应触发刷新
+    const original = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: original?.get ? original.get() : 'visible',
+    });
+
+    // 等一拍确认没有多余请求
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('页面回到前台（visibilitychange → visible）触发重新请求', async () => {
+    fetcher.mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+    render(<Probe cacheKey="k9" fetcher={fetcher} label="a" staleTime={0} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('a-data')).toHaveTextContent('"v1"');
+    });
+
+    const original = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    if (original?.get) {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: original.get,
+      });
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId('a-data')).toHaveTextContent('"v2"');
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 // ========== 模块级共享缓存（跨组件去重 + 共享） ==========
 // 与 useFetchState 不同：SWR 语义。多个组件用同一 cacheKey 订阅同一份数据，
@@ -66,6 +67,12 @@ export function useCachedData<T>(
     },
   );
 
+  // fetcher 经 ref 透传：inline 箭头函数每次渲染都是新引用，若直接进依赖会让
+  // load（连带 revalidate、focus/visibilitychange 监听）每渲染漂移；
+  // 走 ref 后 load 依赖只剩 cacheKey / staleTime，身份稳定。
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
+
   const load = useCallback(
     (force = false) => {
       const myKey = cacheKey;
@@ -100,7 +107,7 @@ export function useCachedData<T>(
       } else {
         requestId = ++requestCounter;
         latestRequestId.set(cacheKey, requestId);
-        pending = fetcher();
+        pending = fetcherRef.current();
         inflight.set(cacheKey, { promise: pending, id: requestId });
         // 仅当在途表里仍是自己时才清理，避免把后续新请求的条目误删
         pending
@@ -121,14 +128,14 @@ export function useCachedData<T>(
           setState({ data, loading: false, error: null });
           return data;
         })
-        .catch((e: any) => {
+        .catch((e) => {
           if (latestRequestId.get(cacheKey) !== requestId) return null;
           if (activeKeyRef.current !== myKey) return null;
-          setState((s) => ({ ...s, loading: false, error: e?.message || '加载失败' }));
+          setState((s) => ({ ...s, loading: false, error: getApiErrorMessage(e, '加载失败') }));
           return null;
         });
     },
-    [cacheKey, fetcher, staleTime],
+    [cacheKey, staleTime],
   );
 
   // 初次订阅：先标记当前活跃 key，再发起加载
@@ -139,10 +146,13 @@ export function useCachedData<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey]);
 
-  // 窗口聚焦时自动刷新（可在 option 中关闭）
+  // 窗口聚焦 / 页签回前台时自动刷新（可在 option 中关闭）。
+  // visibilitychange 在切走（hidden）时同样触发，必须判 visibilityState，
+  // 否则用户离开页面反而会多打一轮请求。
   useEffect(() => {
     if (!revalidateOnFocus) return;
     const onFocus = () => {
+      if (document.visibilityState === 'hidden') return;
       void load();
     };
     window.addEventListener('focus', onFocus);
