@@ -101,6 +101,7 @@ export default function MySchedulePage() {
               setViewYear(today.getFullYear());
               setViewMonth(today.getMonth());
             }}
+            disabled={loading || (viewYear === today.getFullYear() && viewMonth === today.getMonth())}
           >
             回到本月
           </Button>
