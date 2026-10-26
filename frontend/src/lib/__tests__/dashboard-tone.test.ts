@@ -1,4 +1,4 @@
-import { brandTone, BRAND_PALETTE, BRAND_PRIMARY, brandBarGradient } from '@/lib/dashboard-tone';
+import { brandTone, BRAND_PALETTE, BRAND_PRIMARY } from '@/lib/dashboard-tone';
 
 // 把 #rrggbb 解析为 [r,g,b]
 function hexToRgb(hex: string): [number, number, number] {
@@ -54,17 +54,5 @@ describe('dashboard-tone 工作台品牌色', () => {
   it('BRAND_PRIMARY 为品牌主蓝 #2455D9', () => {
     expect(BRAND_PRIMARY).toBe('#2455D9');
     expect(Math.abs(hueOf(BRAND_PRIMARY) - 227)).toBeLessThanOrEqual(40);
-  });
-
-  it('brandBarGradient 生成品牌蓝系横向渐变，两端色相均落在主蓝区间', () => {
-    const g = brandBarGradient();
-    expect(g).toMatch(/^linear-gradient\(90deg, /);
-    const colors = [...g.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0]);
-    expect(colors.length).toBeGreaterThanOrEqual(2);
-    for (const c of colors) {
-      const h = hueOf(c);
-      expect(h).toBeGreaterThanOrEqual(210);
-      expect(h).toBeLessThanOrEqual(245);
-    }
   });
 });

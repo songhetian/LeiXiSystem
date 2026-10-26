@@ -19,11 +19,6 @@ export interface BrandTone {
 /** 品牌主蓝（工作台柱状图/强调色统一走此 token，禁止四处散落硬编码色值） */
 export const BRAND_PRIMARY = '#2455D9';
 
-/** 品牌蓝系横向渐变（部门/趋势柱背景），两端取自 BRAND_PALETTE 主蓝区间 */
-export function brandBarGradient(from: string = BRAND_PRIMARY, to: string = BRAND_PALETTE[7]): string {
-  return `linear-gradient(90deg, ${from}, ${to})`;
-}
-
 function hexToRgba(hex: string, alpha: number): string {
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 255;

@@ -104,6 +104,11 @@ jest.mock('@arco-design/web-react', () => {
     Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
     // 工作台四区块空态现在直接在 HomePage 渲染 Empty（此前仅在未渲染的 OrgChart 中使用）
     Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
+    // DataState（OrgChart 骨架/错误态）依赖的组件
+    Skeleton: ({ children }: any) => <div data-testid="skeleton">{children}</div>,
+    Result: ({ subTitle, extra }: any) => (
+      <div data-testid="result">{subTitle}{extra}</div>
+    ),
     List,
     Message: { success: jest.fn(), error: jest.fn() },
     // 快捷操作管理面板（QuickActionsManager）用到的组件，缺一个就会在渲染期抛

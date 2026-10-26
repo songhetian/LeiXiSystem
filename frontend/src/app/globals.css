@@ -1928,9 +1928,17 @@ html, body {
 
 /* KPI 指标卡（统一主蓝，去花哨色块） */
 .dsh-stat {
+  padding: 16px;
+  background: var(--lx-bg-card);
+  text-align: left;
+  font-family: inherit;
   transition: border-color var(--lx-transition-base), box-shadow var(--lx-transition-base);
   border: 1px solid var(--lx-border-1);
   border-radius: var(--lx-radius-lg);
+}
+/* 可点 KPI 卡（如待审批直达审批中心） */
+.dsh-stat.is-clickable {
+  cursor: pointer;
 }
 .dsh-stat:hover {
   border-color: var(--lx-primary-200);
@@ -1941,6 +1949,11 @@ html, body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+/* 卡片右上角说明小字（替代 Typography.Text 内联） */
+.dsh-stat-hint {
+  font-size: 12px;
+  color: var(--lx-text-3);
 }
 .dsh-stat-ic {
   width: 34px;
@@ -2288,6 +2301,72 @@ html, body {
   width: 1px;
   height: 34px;
   background: var(--lx-border-2);
+}
+
+/* ---- 近 7 日考勤趋势：零依赖堆叠柱（出勤/迟到/请假/缺勤） ---- */
+.trend-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+.trend-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+.trend-chart {
+  position: relative;
+  padding-bottom: 2px;
+}
+/* 水平网格线：3 条均匀分布，只做视觉参照不承载语义 */
+.trend-grid {
+  position: absolute;
+  inset: 0 0 20px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.trend-grid span {
+  border-top: 1px dashed var(--lx-border-2);
+}
+.trend-bars {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 134px;
+}
+.trend-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.trend-stack {
+  width: 56%;
+  max-width: 26px;
+  min-width: 12px;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column-reverse; /* 出勤段贴底，向上堆叠 */
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+.trend-stack i {
+  display: block;
+  width: 100%;
+}
+.trend-date {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--lx-text-4);
+  line-height: 16px;
 }
 
 /* ========================================
