@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime, formatDateRange, todayStr } from '@/lib/format';
+import { formatDate, formatDateTime, formatDateRange, todayStr, formatMoney } from '@/lib/format';
 
 /**
  * 固定测试进程时区为 UTC，用来暴露「依赖本机时区」的格式化缺陷。
@@ -87,5 +87,25 @@ describe('todayStr', () => {
       String(d.getDate()).padStart(2, '0'),
     ].join('-');
     expect(todayStr()).toBe(expectStr);
+  });
+});
+
+describe('formatMoney', () => {
+  it('千分位 + 固定两位小数', () => {
+    expect(formatMoney(50000)).toBe('50,000.00');
+    expect(formatMoney(1234567.891)).toBe('1,234,567.89');
+    expect(formatMoney(0)).toBe('0.00');
+  });
+
+  it('负数保留符号', () => {
+    expect(formatMoney(-1234.5)).toBe('-1,234.50');
+  });
+
+  it('字符串数字按数值处理，非数值返回占位符', () => {
+    expect(formatMoney('7200')).toBe('7,200.00');
+    expect(formatMoney('abc')).toBe('--');
+    expect(formatMoney(null)).toBe('--');
+    expect(formatMoney(undefined)).toBe('--');
+    expect(formatMoney(Infinity)).toBe('--');
   });
 });

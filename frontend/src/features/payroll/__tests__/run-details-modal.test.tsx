@@ -114,7 +114,7 @@ describe('RunDetailsModal', () => {
     await waitFor(() => {
       expect(screen.getByText('E001 张三')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('desc-合计')).toHaveTextContent('5200');
+    expect(screen.queryByTestId('desc-合计')).toHaveTextContent('¥ 5,200.00');
   });
 
   it('展开行展示工资构成（明细项 + 调整项）', async () => {

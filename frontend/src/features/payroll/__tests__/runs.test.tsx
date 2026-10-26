@@ -194,7 +194,7 @@ describe('PayrollRunsPage', () => {
       });
       expect(screen.getByTestId('cell-1-month')).toHaveTextContent('2026-08');
       expect(screen.getByTestId('cell-1-totalEmployees')).toHaveTextContent('10');
-      expect(screen.getByTestId('cell-1-totalAmount')).toHaveTextContent('50000');
+      expect(screen.getByTestId('cell-1-totalAmount')).toHaveTextContent('¥ 50,000.00');
     });
 
     it('renders status tag for each run status', async () => {

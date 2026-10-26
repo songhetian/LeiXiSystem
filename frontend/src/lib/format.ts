@@ -93,3 +93,20 @@ export function formatDateRange(start: unknown, end: unknown, fallback = '-'): s
 export function todayStr(): string {
   return formatDate(new Date(), 'YYYY-MM-DD', '');
 }
+
+/**
+ * 统一的金额格式化：千分位 + 固定两位小数。
+ * 金额展示一律从这里取，避免各页面手写 `toFixed(2)` / `toLocaleString` ——
+ * 不用 toLocaleString 是为了规避 Node(jest) 与浏览器 ICU 差异导致的展示不一致。
+ * @example formatMoney(50000)          // '50,000.00'
+ * @example formatMoney(-1234.5)        // '-1,234.50'
+ * @example formatMoney(null, '--')     // '--'
+ */
+export function formatMoney(value: unknown, fallback = '--'): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return fallback;
+  const fixed = Math.abs(n).toFixed(2);
+  const [int, dec] = fixed.split('.');
+  const body = `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
+  return n < 0 ? `-${body}` : body;
+}

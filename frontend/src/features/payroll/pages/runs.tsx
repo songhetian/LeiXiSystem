@@ -9,7 +9,7 @@ import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { payrollApi, PayrollRun } from '@/services/payroll';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 
 interface RunListEnvelope {
@@ -175,8 +175,14 @@ export default function PayrollRunsPage() {
       width: 100,
       render: (value: string) => <StatusTag status={value} statusMap={statusMap} />,
     },
-    { title: '员工数', dataIndex: 'totalEmployees', width: 100 },
-    { title: '总金额', dataIndex: 'totalAmount', width: 120 },
+    { title: '员工数', dataIndex: 'totalEmployees', width: 100, align: 'right' },
+    {
+      title: '总金额',
+      dataIndex: 'totalAmount',
+      width: 140,
+      align: 'right',
+      render: (v: unknown) => `¥ ${formatMoney(v)}`,
+    },
     { title: '创建人', dataIndex: 'createdByName', width: 120 },
     { title: '创建时间', dataIndex: 'createdAt', width: 200, render: (v: unknown) => formatDateTime(v) },
     {

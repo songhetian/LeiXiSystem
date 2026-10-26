@@ -6,6 +6,7 @@ import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import SalaryComposition from '@/features/payroll/components/SalaryComposition';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { payrollApi, PayrollRun, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
+import { formatMoney } from '@/lib/format';
 
 interface RunDetailsModalProps {
   run: PayrollRun;
@@ -144,14 +145,21 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
   const columns = [
     { title: '工号', dataIndex: 'employeeNo', width: 90 },
     { title: '姓名', dataIndex: 'name', width: 100 },
-    { title: '合计', dataIndex: 'total', width: 110 },
+    {
+      title: '合计',
+      dataIndex: 'total',
+      width: 110,
+      align: 'right' as const,
+      // 数据映射时统一走 formatMoney（含千分位/两位小数），列不再丢裸数值
+      render: (v: string) => v,
+    },
   ];
 
   const rows = (details?.employees ?? []).map((e) => ({
     key: e.employee.id,
     employeeNo: e.employee.employeeNo,
     name: e.employee.name,
-    total: e.total,
+    total: `¥ ${formatMoney(e.total)}`,
     _detail: e,
   }));
 
@@ -176,7 +184,7 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
         data={[
           { label: '批次状态', value: statusMapText[run.status] ?? run.status },
           { label: '员工数', value: `${run.totalEmployees}` },
-          { label: '总金额', value: `${run.totalAmount}` },
+          { label: '总金额', value: `¥ ${formatMoney(run.totalAmount)}` },
         ]}
         column={3}
         style={{ marginBottom: 16 }}
