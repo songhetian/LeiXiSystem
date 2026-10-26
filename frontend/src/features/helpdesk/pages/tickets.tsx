@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag, Spin } from '@arco-design/web-react';
+import { Table, Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import type { ProTableColumn } from '@/components/ProTable';
 import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/services/helpdesk';
@@ -486,33 +486,32 @@ export default function HelpdeskTicketsPage() {
             </Space>
           </div>
 
-          <Spin loading={ticketLoading} style={{ display: 'block' }}>
-            {ticketErrorText ? (
-              <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{ticketErrorText}</p>
-                <Button onClick={() => revalidateTickets()}>重试</Button>
-              </div>
-            ) : (
-              <Table
-                columns={ticketColumns}
-                data={tickets}
-                rowKey="id"
-                scroll={{ x: true }}
-                pagination={{
-                  current: ticketPage,
-                  pageSize: ticketPageSize,
-                  total: ticketTotal,
-                  showTotal: true,
-                  onChange: (current, size) => {
-                    setTicketPage(current);
-                    setTicketPageSize(size);
-                  },
-                }}
-                stripe
-                style={{ borderRadius: 0 }}
-              />
-            )}
-          </Spin>
+          {ticketErrorText ? (
+            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
+              <p className="text-text-3 mb-3">{ticketErrorText}</p>
+              <Button onClick={() => revalidateTickets()}>重试</Button>
+            </div>
+          ) : (
+            <Table
+              columns={ticketColumns}
+              data={tickets}
+              rowKey="id"
+              loading={ticketLoading}
+              scroll={{ x: true }}
+              pagination={{
+                current: ticketPage,
+                pageSize: ticketPageSize,
+                total: ticketTotal,
+                showTotal: true,
+                onChange: (current, size) => {
+                  setTicketPage(current);
+                  setTicketPageSize(size);
+                },
+              }}
+              stripe
+              style={{ borderRadius: 0 }}
+            />
+          )}
         </TabPane>
 
         <TabPane key="slas" title="SLA 规则">
@@ -520,24 +519,23 @@ export default function HelpdeskTicketsPage() {
             <span className="text-sm text-text-2">共 {slas.length} 条 SLA 规则</span>
             <Button type="primary" disabled={!canManage} onClick={handleAddSla}>新建 SLA</Button>
           </div>
-          <Spin loading={slaLoading} style={{ display: 'block' }}>
-            {slaErrorText ? (
-              <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{slaErrorText}</p>
-                <Button onClick={() => revalidateSlas()}>重试</Button>
-              </div>
-            ) : (
-              <Table
-                columns={slaColumns}
-                data={slas}
-                rowKey="id"
-                scroll={{ x: true }}
-                pagination={false}
-                stripe
-                style={{ borderRadius: 0 }}
-              />
-            )}
-          </Spin>
+          {slaErrorText ? (
+            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
+              <p className="text-text-3 mb-3">{slaErrorText}</p>
+              <Button onClick={() => revalidateSlas()}>重试</Button>
+            </div>
+          ) : (
+            <Table
+              columns={slaColumns}
+              data={slas}
+              rowKey="id"
+              loading={slaLoading}
+              scroll={{ x: true }}
+              pagination={false}
+              stripe
+              style={{ borderRadius: 0 }}
+            />
+          )}
         </TabPane>
       </Tabs>
 

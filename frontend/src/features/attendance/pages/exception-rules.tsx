@@ -11,7 +11,6 @@ import {
   Table,
   Tag,
   Space,
-  Spin,
   Tabs,
 } from '@arco-design/web-react';
 import type { TableColumnProps } from '@arco-design/web-react';
@@ -529,23 +528,21 @@ export default function ExceptionRulesPage() {
               </Button>
             </div>
           </div>
-          <Spin loading={exceptionLoading} style={{ display: 'block' }}>
-            {exceptionError ? (
-              <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{exceptionError}</p>
-                <Button onClick={() => fetchExceptions()}>重试</Button>
-              </div>
-            ) : (
-              <Table
-                columns={exceptionColumns}
-                data={exceptions}
-                rowKey="id"
-                loading={exceptionLoading}
-                noDataElement={<span className="text-text-3">暂无异常记录</span>}
-                scroll={{ x: 1000 }}
-              />
-            )}
-          </Spin>
+          {exceptionError ? (
+            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
+              <p className="text-text-3 mb-3">{exceptionError}</p>
+              <Button onClick={() => fetchExceptions()}>重试</Button>
+            </div>
+          ) : (
+            <Table
+              columns={exceptionColumns}
+              data={exceptions}
+              rowKey="id"
+              loading={exceptionLoading}
+              noDataElement={<span className="text-text-3">暂无异常记录</span>}
+              scroll={{ x: 1000 }}
+            />
+          )}
         </Tabs.TabPane>
 
         {/* -------- 异常规则 -------- */}
@@ -559,23 +556,21 @@ export default function ExceptionRulesPage() {
               </Button>
             </div>
           </div>
-          <Spin loading={ruleLoading} style={{ display: 'block' }}>
-            {ruleError ? (
-              <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-                <p className="text-text-3 mb-3">{ruleError}</p>
-                <Button onClick={() => fetchRules()}>重试</Button>
-              </div>
-            ) : (
-              <Table
-                columns={ruleColumns}
-                data={rules}
-                rowKey="id"
-                loading={ruleLoading}
-                noDataElement={<span className="text-text-3">暂无异常规则</span>}
-                scroll={{ x: 1100 }}
-              />
-            )}
-          </Spin>
+          {ruleError ? (
+            <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
+              <p className="text-text-3 mb-3">{ruleError}</p>
+              <Button onClick={() => fetchRules()}>重试</Button>
+            </div>
+          ) : (
+            <Table
+              columns={ruleColumns}
+              data={rules}
+              rowKey="id"
+              loading={ruleLoading}
+              noDataElement={<span className="text-text-3">暂无异常规则</span>}
+              scroll={{ x: 1100 }}
+            />
+          )}
         </Tabs.TabPane>
       </Tabs>
 

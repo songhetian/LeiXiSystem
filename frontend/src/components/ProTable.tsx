@@ -106,7 +106,9 @@ export default function ProTable({
   onRowClick,
   rowSelection,
   bordered = false,
-  stripe = true,
+  // 默认关闭斑马纹（内部始终透传此值）：此前声明默认 true 却写死 false，
+  // 调用方即使传 stripe 也被忽略——现在声明与行为一致，传 true 即生效
+  stripe = false,
   showColumnSetting = false,
   showExport = false,
   showDensity = false,
@@ -404,7 +406,7 @@ export default function ProTable({
           loading={loading}
           pagination={tablePagination}
           border={bordered}
-          stripe={false}
+          stripe={stripe}
           rowSelection={rowSelection}
           size={density === 'default' ? 'default' : density}
           onRow={(record, index) => ({

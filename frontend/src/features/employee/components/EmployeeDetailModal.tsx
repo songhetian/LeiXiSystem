@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Modal, Spin, Empty } from '@arco-design/web-react';
+import { Drawer, Spin, Empty } from '@arco-design/web-react';
 import StatusTag from '@/components/StatusTag';
 import { employeeApi, Employee, EmployeeChangeLog } from '@/services/employee';
 import { formatDate, formatDateTime as formatDateTimeTz } from '@/lib/format';
@@ -146,7 +146,15 @@ export default function EmployeeDetailModal({ employeeId, visible, onClose }: Pr
   const timeline = buildTimeline(emp, logs);
 
   return (
-    <Modal title={`员工档案 · ${emp?.name ?? ''}`} visible={visible} onCancel={onClose} footer={null} className="ed-modal" style={{ width: 720, maxHeight: 'calc(100vh - 96px)' }} unmountOnExit>
+    <Drawer
+      title={`员工档案 · ${emp?.name ?? ''}`}
+      visible={visible}
+      onCancel={onClose}
+      footer={null}
+      width={620}
+      className="ed-drawer"
+      unmountOnExit
+    >
       {loading ? (
         <div className="ed-loading">
           <Spin size={24} />
@@ -257,6 +265,6 @@ export default function EmployeeDetailModal({ employeeId, visible, onClose }: Pr
           </div>
         </div>
       )}
-    </Modal>
+    </Drawer>
   );
 }

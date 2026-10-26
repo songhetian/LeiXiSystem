@@ -11,12 +11,16 @@ import {
   IconThunderbolt,
   IconDashboard,
   IconRight,
+  IconExclamationCircle,
+  IconMoon,
+  IconCheckCircleFill,
+  IconExclamation,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import { attendanceApi, type Shift } from '@/services/attendance';
-import { usePermission } from '@/hooks/use-permission';
 import useFetchState from '@/hooks/use-fetch-state';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 // 状态 → 中文徽标（对齐旧项目 getStatusBadge 语义）
 // 用语义色 token：-text 保证 WCAG AA 对比度、-bg 随明暗主题切换，
@@ -71,22 +75,44 @@ interface TodayPunchData {
   clockOut?: { allowed: boolean; message: string };
 }
 
+/**
+ * 时钟显示：每秒自转的 state 隔离在本组件内。
+ * 此前 serverTime 挂在页面顶层 state，一秒一次把整页（含表单/列表）全部重渲，
+ * 打卡页越长越卡；现在只有这一小块数字在重渲染。
+ */
+function PunchClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+
+  return (
+    <div className="text-right">
+      <div className="text-2xl font-bold text-brand font-mono leading-none tabular-nums">
+        {hh}:{mm}:{ss}
+      </div>
+      <div className="text-xs text-text-4 mt-1">
+        {formatDate(now)} {getWeekday(now)}
+      </div>
+    </div>
+  );
+}
+
 export default function PunchPage() {
-  usePermission();
   const { data: todayData, loading, error, run: runFetch } = useFetchState<TodayPunchData>();
   const [punching, setPunching] = useState(false);
 
-  const [serverTime, setServerTime] = useState(new Date());
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   // 直接复用服务层 Shift 类型，避免再抄一份局部形状（抄的那份与真实返回不完全兼容，只能靠 as any 压过去）
   const [availableShifts, setAvailableShifts] = useState<Shift[]>([]);
   const [selectedShiftId, setSelectedShiftId] = useState<number | undefined>();
   const [scheduling, setScheduling] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => setServerTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const fetchToday = useCallback(async () => {
     await runFetch(async () => {
@@ -119,9 +145,8 @@ export default function PunchPage() {
       } else {
         Message.error(res.message || '打卡失败');
       }
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.data?.message || '打卡失败';
-      Message.error(msg);
+    } catch (e) {
+      Message.error(getApiErrorMessage(e, '打卡失败'));
     } finally {
       setPunching(false);
     }
@@ -132,15 +157,14 @@ export default function PunchPage() {
     try {
       const res = await attendanceApi.clockOut();
       if (res.code === 0 && res.data) {
-        const late = res.data.earlyMinutes && res.data.earlyMinutes > 0;
-        Message.success(late ? '打卡成功，但您早退了' : '打卡成功');
+        const early = res.data.earlyMinutes && res.data.earlyMinutes > 0;
+        Message.success(early ? '打卡成功，但您早退了' : '打卡成功');
         fetchToday();
       } else {
         Message.error(res.message || '打卡失败');
       }
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.data?.message || '打卡失败';
-      Message.error(msg);
+    } catch (e) {
+      Message.error(getApiErrorMessage(e, '打卡失败'));
     } finally {
       setPunching(false);
     }
@@ -167,8 +191,8 @@ export default function PunchPage() {
       } else {
         Message.error(res.message || '设置失败');
       }
-    } catch (e: any) {
-      Message.error(e?.response?.data?.message || '设置失败');
+    } catch (e) {
+      Message.error(getApiErrorMessage(e, '设置失败'));
     } finally {
       setScheduling(false);
     }
@@ -186,24 +210,24 @@ export default function PunchPage() {
   const clockOutAllowed = todayData?.clockOut?.allowed;
   const clockOutMsg = todayData?.clockOut?.message || '';
 
-  // 上班按钮态
-  const clockInBtn: { text: string; disabled: boolean; primary: boolean } = hasClockedIn
-    ? { text: '已完成上班打卡', disabled: true, primary: false }
+  // 上班按钮态：可用（主蓝） / 已完成（置灰） / 禁用（置灰 + 原因）
+  const clockInBtn: { text: string; disabled: boolean; done: boolean } = hasClockedIn
+    ? { text: '已完成上班打卡', disabled: true, done: true }
     : clockInAllowed === false
-      ? { text: '上班签到', disabled: true, primary: false }
-      : { text: punching ? '处理中...' : '上班签到', disabled: false, primary: true };
+      ? { text: '上班签到', disabled: true, done: false }
+      : { text: punching ? '处理中...' : '上班签到', disabled: false, done: false };
 
-  // 下班按钮态
-  const clockOutBtn: { text: string; disabled: boolean; primary: boolean } =
+  // 下班按钮态：未上班禁用 / 已完成置灰 / 禁用 + 原因
+  const clockOutBtn: { text: string; disabled: boolean; done: boolean } =
     !hasClockedIn
-      ? { text: '等待上班签到', disabled: true, primary: false }
+      ? { text: '等待上班签到', disabled: true, done: false }
       : hasClockedOut
-        ? { text: '已完成下班打卡', disabled: true, primary: false }
+        ? { text: '已完成下班打卡', disabled: true, done: true }
         : clockOutAllowed === false
-          ? { text: '下班签退', disabled: true, primary: false }
-          : { text: punching ? '处理中...' : '下班签退', disabled: false, primary: true };
+          ? { text: '下班签退', disabled: true, done: false }
+          : { text: punching ? '处理中...' : '下班签退', disabled: false, done: false };
 
-  // 按钮下方提示文案
+  // 按钮下方提示文案：禁用给原因，可用给时段
   const clockInHint = !hasClockedIn
     ? clockInAllowed === false
       ? clockInMsg
@@ -220,206 +244,192 @@ export default function PunchPage() {
           : ''
       : '';
 
-  const hh = String(serverTime.getHours()).padStart(2, '0');
-  const mm = String(serverTime.getMinutes()).padStart(2, '0');
-  const ss = String(serverTime.getSeconds()).padStart(2, '0');
-
   return (
-    <PageContainer>
+    <PageContainer title="打卡" subTitle="今日签到签退与个人考勤记录">
       <DataState loading={loading} error={error} onRetry={fetchToday}>
         <div className="max-w-5xl mx-auto">
-          {/* ─── 顶部信息卡：日期 + 服务器时间 ─── */}
-          <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-5 mb-4 flex justify-between items-center">
+          {/* ─── 顶部信息卡：标题 + 服务器时间（时钟独立子组件，避免整页每秒重渲） ─── */}
+          <div className="punch-card mb-4 flex justify-between items-center">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-semibold text-text-1">考勤打卡</span>
               </div>
-              <p className="text-xs text-text-4 mt-1">{formatDate(serverTime)} {getWeekday(serverTime)}</p>
+              <p className="text-xs text-text-4 mt-1">打卡时间精确到秒，班次内打卡自动判定迟到 / 早退</p>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-brand font-mono leading-none tabular-nums">
-                {hh}:{mm}:{ss}
-              </div>
-              <div className="text-xs text-text-4 mt-1">当前服务器时间</div>
-            </div>
+            <PunchClock />
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {/* ─── 今日考勤状态 ─── */}
-            <div className="flex flex-col gap-4">
-              <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-6">
-                <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-4 bg-brand rounded-full" />
-                    <h2 className="text-sm font-semibold text-text-1">今日考勤状态</h2>
-                  </div>
-                  {shift && hasSchedule && !isRestDay ? (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span
-                        className="px-2 py-0.5 rounded text-white text-xs"
-                        style={{ background: shift.color || 'var(--lx-primary)' }}
-                      >
-                        {shift.name}
-                      </span>
-                      <span className="text-text-3">
-                        {shift.startTime} - {shift.endTime}{shift.isNextDay ? '（次日）' : ''}
-                      </span>
-                    </div>
-                  ) : (!isRestDay && (
-                    <Button size="small" type="primary" onClick={openScheduleModal}>
-                      设置排班
-                    </Button>
-                  ))}
+          {/* ─── 今日考勤状态 ─── */}
+          <div className="punch-card p-6">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-2">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-4 bg-brand rounded-full" />
+                <h2 className="text-sm font-semibold text-text-1">今日考勤状态</h2>
+              </div>
+              {shift && hasSchedule && !isRestDay ? (
+                <div className="flex items-center gap-2 text-xs">
+                  <span
+                    className="px-2 py-0.5 rounded text-white text-xs"
+                    style={{ background: shift.color || 'var(--lx-primary)' }}
+                  >
+                    {shift.name}
+                  </span>
+                  <span className="text-text-3">
+                    {shift.startTime} - {shift.endTime}{shift.isNextDay ? '（次日）' : ''}
+                  </span>
                 </div>
+              ) : (!isRestDay && (
+                <Button size="small" type="primary" onClick={openScheduleModal}>
+                  设置排班
+                </Button>
+              ))}
+            </div>
 
-                {/* 三卡统计：上班 / 下班 / 计薪工时（对齐旧项目顺序） */}
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-xs text-text-4 mb-2">上班打卡</div>
-                    <div className={`text-lg font-bold tabular-nums ${hasClockedIn ? 'text-text-1' : 'text-text-4'}`}>
-                      {formatHM(todayData?.firstPunch)}
-                    </div>
-                    {hasClockedIn && (
-                      <div className="mt-2 flex justify-center">
-                        {todayData?.lateMinutes ? (
-                          <Tag color="red">迟到 {todayData.lateMinutes} 分钟</Tag>
-                        ) : (
-                          <Tag color="green">正常</Tag>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-xs text-text-4 mb-2">下班打卡</div>
-                    <div className={`text-lg font-bold tabular-nums ${hasClockedOut ? 'text-text-1' : 'text-text-4'}`}>
-                      {formatHM(todayData?.lastPunch)}
-                    </div>
-                    {hasClockedOut && (
-                      <div className="mt-2 flex justify-center">
-                        {todayData?.earlyMinutes ? (
-                          <Tag color="gold">早退 {todayData.earlyMinutes} 分钟</Tag>
-                        ) : (
-                          <Tag color="green">正常</Tag>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-bg-secondary rounded-xl p-4 text-center border border-border-2">
-                    <div className="text-xs text-text-4 mb-2">计薪工时</div>
-                    <div className="text-lg font-bold text-text-1 tabular-nums">
-                      {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
-                    </div>
-                    {todayData?.status === 'normal' && (
-                      <div className="mt-2 flex justify-center">
-                        <Tag color="green">正常</Tag>
-                      </div>
-                    )}
-                    {!hasClockedOut && (
-                      <div className="mt-2 text-xs text-text-4">下班后统计</div>
-                    )}
-                  </div>
+            {/* 四格统计：上班 / 下班 / 计薪工时 / 打卡次数 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="punch-stat">
+                <div className="punch-stat-label">上班打卡</div>
+                <div className={`punch-stat-value ${hasClockedIn ? '' : 'is-empty'}`}>
+                  {formatHM(todayData?.firstPunch)}
                 </div>
-
-                {/* 状态徽标（迟到/早退等） */}
-                {statusMeta && statusMeta.label !== '正常' && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-xs border" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: statusMeta.color }} />
-                    <span className="font-medium">系统提醒：您今日考勤状态为「{statusMeta.label}」</span>
+                {hasClockedIn && (
+                  <div className="mt-2 flex justify-center">
+                    {todayData?.lateMinutes ? (
+                      <Tag color="red">迟到 {todayData.lateMinutes} 分钟</Tag>
+                    ) : (
+                      <Tag color="green">正常</Tag>
+                    )}
                   </div>
                 )}
-
-                {/* 无排班 / 休息日 提示条 */}
-                {!hasSchedule && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-text-1 border border-warning bg-warning-light">
-                    <span>⚠️</span>
-                    <span className="font-medium">暂无排班，请先排班后再打卡</span>
+              </div>
+              <div className="punch-stat">
+                <div className="punch-stat-label">下班打卡</div>
+                <div className={`punch-stat-value ${hasClockedOut ? '' : 'is-empty'}`}>
+                  {formatHM(todayData?.lastPunch)}
+                </div>
+                {hasClockedOut && (
+                  <div className="mt-2 flex justify-center">
+                    {todayData?.earlyMinutes ? (
+                      <Tag color="gold">早退 {todayData.earlyMinutes} 分钟</Tag>
+                    ) : (
+                      <Tag color="green">正常</Tag>
+                    )}
                   </div>
                 )}
-                {isRestDay && (
-                  <div className="mb-5 flex items-center gap-3 rounded-lg px-4 py-3 text-text-1 border border-success bg-success-light">
-                    <span>🛌</span>
-                    <span className="font-medium">休息日，无需打卡</span>
-                  </div>
-                )}
-
-                {/* 打卡按钮区 */}
-                {!isRestDay && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Button
-                        type="primary"
-                        size="large"
-                        long
-                        loading={punching}
-                        disabled={clockInBtn.disabled}
-                        onClick={hasClockedIn ? undefined : handleClockIn}
-                        style={clockInBtn.disabled || hasClockedIn ? {} : { background: 'var(--lx-primary)', borderColor: 'var(--lx-primary)' }}
-                      >
-                        {clockInBtn.text}
-                      </Button>
-                      {clockInHint && (
-                        <div className={`mt-2 text-center text-xs min-h-[16px] ${clockInAllowed === false ? 'text-text-4' : 'text-brand'}`}>
-                          {clockInHint}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <Button
-                        type="primary"
-                        size="large"
-                        long
-                        loading={punching}
-                        disabled={clockOutBtn.disabled}
-                        onClick={!hasClockedIn || hasClockedOut ? undefined : handleClockOut}
-                        style={clockOutBtn.disabled || !hasClockedIn || hasClockedOut ? {} : { background: 'var(--lx-clock-out)', borderColor: 'var(--lx-clock-out)' }}
-                      >
-                        {clockOutBtn.text}
-                      </Button>
-                      {clockOutHint && (
-                        <div className={`mt-2 text-center text-xs min-h-[16px] ${clockOutAllowed === false ? 'text-text-4' : 'text-clock-out'}`}>
-                          {clockOutHint}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ─── 快捷自助功能（位于今日考勤状态下方） ─── */}
-                <div className="bg-surface rounded-xl shadow-sm border border-border-2 p-6">
-                  <div className="flex items-center gap-2 mb-6 pb-4 border-b border-border-2">
-                    <span className="w-1.5 h-4 bg-clock-out rounded-full" />
-                    <h2 className="text-sm font-semibold text-text-1">快捷自助功能</h2>
-                  </div>
-                  <div className="flex flex-col gap-2.5">
-                    {[
-                      { icon: <IconCalendar />, label: '打卡月报', path: '/attendance/monthly', tone: 'bg-quick-monthly' },
-                      { icon: <IconFile />, label: '在线请假', path: '/attendance/vacation/leave', tone: 'bg-quick-leave' },
-                      { icon: <IconThunderbolt />, label: '加班申请', path: '/attendance/vacation/overtime', tone: 'bg-quick-overtime' },
-                      { icon: <IconDashboard />, label: '数据统计', path: '/attendance/daily', tone: 'bg-quick-stats' },
-                    ].map((item) => (
-                      <Link
-                        key={item.label}
-                        href={item.path}
-                        prefetch
-                        className={`group flex items-center justify-between rounded-lg px-4 py-3 text-white transition-[filter] hover:brightness-95 active:brightness-90 ${item.tone}`}
-                      >
-                        <span className="flex items-center gap-2 text-sm font-medium">
-                          <span className="text-base leading-none">{item.icon}</span>
-                          {item.label}
-                        </span>
-                        <span className="transition-colors opacity-90">
-                          <IconRight />
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
+              </div>
+              <div className="punch-stat">
+                <div className="punch-stat-label">计薪工时</div>
+                <div className="punch-stat-value">
+                  {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
+                </div>
+                <div className="mt-2 text-xs text-text-4 text-center">
+                  {todayData?.status === 'normal' ? <Tag color="green">正常</Tag> : '下班后统计'}
                 </div>
               </div>
+              <div className="punch-stat">
+                <div className="punch-stat-label">今日打卡次数</div>
+                <div className="punch-stat-value">
+                  {todayData?.punchCount ?? 0}
+                </div>
+                <div className="mt-2 text-xs text-text-4 text-center">含重复补打</div>
+              </div>
             </div>
-          </div>
 
-          <div className="text-center text-text-4 mt-4 text-xs">
-            打卡时间精确到秒，班次内打卡自动判定迟到 / 早退
+            {/* 状态徽标（迟到/早退等） */}
+            {statusMeta && statusMeta.label !== '正常' && (
+              <div
+                className="punch-alert mb-5"
+                style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}
+              >
+                <IconExclamationCircle style={{ flexShrink: 0 }} />
+                <span className="font-medium">系统提醒：您今日考勤状态为「{statusMeta.label}」</span>
+              </div>
+            )}
+
+            {/* 无排班 / 休息日 提示条（emoji → Arco 语义图标） */}
+            {!hasSchedule && (
+              <div className="punch-alert mb-5 border-warning bg-warning-light">
+                <IconExclamation className="text-warning" style={{ flexShrink: 0 }} />
+                <span className="font-medium">暂无排班，请先排班后再打卡</span>
+              </div>
+            )}
+            {isRestDay && (
+              <div className="punch-alert mb-5 border-success bg-success-light">
+                <IconMoon className="text-success" style={{ flexShrink: 0 }} />
+                <span className="font-medium">休息日，无需打卡</span>
+              </div>
+            )}
+
+            {/* 打卡按钮区：每个上下文一枚大按钮，完成/禁用置灰并在下方说明原因 */}
+            {!isRestDay && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Button
+                    type="primary"
+                    size="large"
+                    long
+                    loading={punching}
+                    disabled={clockInBtn.disabled}
+                    className={`punch-btn ${clockInBtn.done ? 'is-done' : ''}`}
+                    onClick={hasClockedIn ? undefined : handleClockIn}
+                  >
+                    {clockInBtn.text}
+                  </Button>
+                  {clockInHint && (
+                    <div className={`punch-hint ${clockInAllowed === false ? 'is-muted' : ''}`}>
+                      {clockInHint}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Button
+                    type="primary"
+                    size="large"
+                    long
+                    loading={punching}
+                    disabled={clockOutBtn.disabled}
+                    className={`punch-btn punch-btn-out ${clockOutBtn.done ? 'is-done' : ''}`}
+                    onClick={!hasClockedIn || hasClockedOut ? undefined : handleClockOut}
+                  >
+                    {clockOutBtn.text}
+                  </Button>
+                  {clockOutHint && (
+                    <div className={`punch-hint ${clockOutAllowed === false ? 'is-muted' : ''}`}>
+                      {clockOutHint}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ─── 快捷自助功能（平面行样式，主题统一主蓝） ─── */}
+            <div className="mt-6 pt-5 border-t border-border-2">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-1.5 h-4 bg-brand rounded-full" />
+                <h2 className="text-sm font-semibold text-text-1">快捷自助功能</h2>
+              </div>
+              <div className="flex flex-col gap-2">
+                {[
+                  { icon: <IconCalendar />, label: '打卡月报', path: '/attendance/monthly' },
+                  { icon: <IconFile />, label: '在线请假', path: '/attendance/vacation/leave' },
+                  { icon: <IconThunderbolt />, label: '加班申请', path: '/attendance/vacation/overtime' },
+                  { icon: <IconDashboard />, label: '数据统计', path: '/attendance/daily' },
+                ].map((item) => (
+                  <Link
+                    key={item.label}
+                    href={item.path}
+                    prefetch
+                    className="punch-quick-item"
+                  >
+                    <span className="punch-quick-ic">{item.icon}</span>
+                    <span className="flex-1 text-sm text-text-1 font-medium">{item.label}</span>
+                    <span className="text-text-4">
+                      <IconRight style={{ fontSize: 14 }} />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </DataState>
@@ -437,7 +447,8 @@ export default function PunchPage() {
           </div>
           {availableShifts.length === 0 ? (
             <div className="py-10 text-center text-sm text-text-4">
-              📋 暂无可用的班次
+              <IconFile style={{ fontSize: 22, marginBottom: 6 }} />
+              <div>暂无可用的班次</div>
             </div>
           ) : (
             <div className="flex flex-col gap-2 max-h-[280px] overflow-y-auto pr-1">
@@ -448,7 +459,7 @@ export default function PunchPage() {
                     key={s.id}
                     type="button"
                     onClick={() => setSelectedShiftId(s.id)}
-                    className={`w-full text-left pl-3 pr-3 py-3 rounded-md border-l-[3px] transition-colors duration-200 flex items-center gap-3 ${
+                    className={`w-full text-left px-3 py-3 rounded-md border-l-[3px] transition-colors duration-200 flex items-center gap-3 ${
                       active
                         ? 'border-l-brand border-t border-b border-r border-brand-200 bg-brand-light'
                         : 'border-l-transparent border border-border-1 bg-surface hover:bg-bg-secondary'
@@ -475,11 +486,11 @@ export default function PunchPage() {
                       {s.startTime} – {s.endTime}
                     </span>
                     <span
-                      className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-sm leading-none ${
+                      className={`w-5 h-5 shrink-0 rounded-full grid place-items-center leading-none ${
                         active ? 'bg-brand text-white' : 'bg-bg-hover text-transparent'
                       }`}
                     >
-                      ✓
+                      <IconCheckCircleFill style={{ fontSize: 14 }} />
                     </span>
                   </button>
                 );
@@ -496,7 +507,7 @@ export default function PunchPage() {
               disabled={!selectedShiftId}
               onClick={handleSelfSchedule}
             >
-              {scheduling ? '提交中...' : '确认设置'}
+              确认设置
             </Button>
           </div>
         </div>

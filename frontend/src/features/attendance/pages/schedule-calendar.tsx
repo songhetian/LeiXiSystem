@@ -1006,22 +1006,20 @@ export default function ScheduleCalendarPage() {
         </div>
 
         {/* 日历表格 */}
-        <Spin loading={loading && schedules.length === 0} style={{ display: 'block' }}>
-          <div ref={tableWrapRef}>
-            <Table
-              columns={columns}
-              data={filteredEmployees}
-              rowKey="id"
-              loading={loading && filteredEmployees.length > 0}
-              pagination={false}
-              scroll={{ x: 140 + 52 * daysInMonth }}
-              border={{ wrapper: true, cell: true }}
-              size="small"
-              hover={false}
-              noDataElement={selectedDeptId === undefined ? '请选择部门' : '当前部门暂无员工'}
-            />
-          </div>
-        </Spin>
+        <div ref={tableWrapRef}>
+          <Table
+            columns={columns}
+            data={filteredEmployees}
+            rowKey="id"
+            loading={loading && filteredEmployees.length > 0}
+            pagination={false}
+            scroll={{ x: 140 + 52 * daysInMonth }}
+            border={{ wrapper: true, cell: true }}
+            size="small"
+            hover={false}
+            noDataElement={selectedDeptId === undefined ? '请选择部门' : '当前部门暂无员工'}
+          />
+        </div>
 
         {/* 固定底部横向滚动条：无需滚到表格底部即可切换日期 */}
         <HSyncBar

@@ -8,7 +8,6 @@ import {
   Table,
   Tag,
   Space,
-  Spin,
 } from '@arco-design/web-react';
 import type { TableColumnProps } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
@@ -248,23 +247,21 @@ export default function DeductionRulesPage() {
         </div>
       </div>
 
-      <Spin loading={loading} style={{ display: 'block' }}>
-        {error ? (
-          <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-            <p className="text-text-3 mb-3">{error}</p>
-            <Button onClick={revalidate}>重试</Button>
-          </div>
-        ) : (
-          <Table
-            columns={columns}
-            data={data}
-            rowKey="id"
-            loading={loading}
-            noDataElement={<span className="text-text-3">暂无扣款规则</span>}
-            scroll={{ x: 1200 }}
-          />
-        )}
-      </Spin>
+      {error ? (
+        <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
+          <p className="text-text-3 mb-3">{error}</p>
+          <Button onClick={revalidate}>重试</Button>
+        </div>
+      ) : (
+        <Table
+          columns={columns}
+          data={data}
+          rowKey="id"
+          loading={loading}
+          noDataElement={<span className="text-text-3">暂无扣款规则</span>}
+          scroll={{ x: 1200 }}
+        />
+      )}
 
       <ModalForm
         visible={modalVisible}

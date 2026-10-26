@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, Table, Tag, Space, Spin } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, Table, Tag, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import type { ProTableColumn } from '@/components/ProTable';
@@ -230,25 +230,24 @@ export default function LocationsPage() {
       </div>
 
       <div className="bg-surface border border-border-1 rounded-md overflow-hidden">
-        <Spin loading={loading} style={{ display: 'block' }}>
-          {error ? (
-            <div className="text-center py-16">
-              <p className="text-text-3 mb-3">{error}</p>
-              <Button onClick={revalidate}>重试</Button>
-            </div>
-          ) : (
-            <Table
-              columns={columns}
-              data={data}
-              rowKey="id"
-              scroll={{ x: true }}
-              pagination={false}
-              stripe
-              style={{ borderRadius: 0 }}
-              noDataElement={<span className="p-8 inline-block text-text-3">暂无打卡定位，点击右上角新建</span>}
-            />
-          )}
-        </Spin>
+        {error ? (
+          <div className="text-center py-16">
+            <p className="text-text-3 mb-3">{error}</p>
+            <Button onClick={revalidate}>重试</Button>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            data={data}
+            rowKey="id"
+            loading={loading}
+            scroll={{ x: true }}
+            pagination={false}
+            stripe
+            style={{ borderRadius: 0 }}
+            noDataElement={<span className="p-8 inline-block text-text-3">暂无打卡定位，点击右上角新建</span>}
+          />
+        )}
       </div>
 
       {/* 新建/编辑弹窗 */}

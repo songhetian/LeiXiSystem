@@ -1697,10 +1697,10 @@ html, body {
   white-space: nowrap;
 }
 
-/* ---- 可滚动内容区（显式高度，仅自身滚动，不裁剪尾部） ---- */
+/* ---- 可滚动内容区 ----
+   Drawer 版：滚动交给 arco-drawer-body 自身，这里不再限高（避免双滚动条） */
 .ed-scroll {
   margin-top: 14px;
-  max-height: calc(100vh - 200px);
   overflow-y: auto;
 }
 /* 内容内边距：左右等宽留白，滚动条落在内容之外不重叠 */
@@ -2367,6 +2367,104 @@ html, body {
   font-size: 11px;
   color: var(--lx-text-4);
   line-height: 16px;
+}
+
+/* ========================================
+   打卡页（attendance/punch）
+   信息卡/统计格/大按钮/提示条/快捷自助行
+   ======================================== */
+.punch-card {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-2);
+  border-radius: var(--lx-radius-xl);
+  padding: 20px;
+  box-shadow: var(--lx-shadow-sm);
+}
+/* 上/下班/工时/次数统计格 */
+.punch-stat {
+  background: var(--lx-bg-secondary);
+  border: 1px solid var(--lx-border-2);
+  border-radius: var(--lx-radius-lg);
+  padding: 14px 12px;
+  text-align: center;
+}
+.punch-stat-label {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  margin-bottom: 8px;
+}
+.punch-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lx-text-1);
+  font-variant-numeric: tabular-nums;
+}
+/* 未打卡占位（--:--）弱化为灰，避免误读为真实时间 */
+.punch-stat-value.is-empty {
+  color: var(--lx-text-4);
+}
+/* 打卡大按钮：上班主蓝 / 下班靛蓝 / 已完成置灰 */
+.punch-btn.is-done {
+  background: var(--lx-bg-hover);
+  border-color: var(--lx-border-2);
+  color: var(--lx-text-3);
+}
+.punch-btn.is-done:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-3);
+}
+/* 下班签退：靛蓝（--lx-clock-out 语义色，与上班签到品牌蓝区分） */
+.arco-btn-primary.punch-btn-out:not(:disabled):not(.is-done) {
+  background: var(--lx-clock-out);
+}
+.arco-btn-primary.punch-btn-out:not(:disabled):not(.is-done):hover {
+  background: #6366f1;
+}
+.arco-btn-primary.punch-btn-out:not(:disabled):not(.is-done):active {
+  background: #4338ca;
+}
+/* 按钮下方时段/原因提示 */
+.punch-hint {
+  margin-top: 8px;
+  min-height: 16px;
+  text-align: center;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-primary);
+}
+.punch-hint.is-muted {
+  color: var(--lx-text-4);
+}
+/* 状态/提醒条（迟到徽标、无排班、休息日） */
+.punch-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--lx-radius-lg);
+  padding: 12px 16px;
+  font-size: var(--lx-font-xs);
+  border: 1px solid var(--lx-border-2);
+}
+/* 快捷自助行：平面列表行（原 bg-quick-* 彩色块已随 token 删除） */
+.punch-quick-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--lx-border-2);
+  border-radius: var(--lx-radius-md);
+  transition: background-color var(--lx-transition-fast), border-color var(--lx-transition-fast);
+}
+.punch-quick-item:hover {
+  background: var(--lx-primary-bg);
+  border-color: var(--lx-primary-200);
+}
+.punch-quick-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--lx-primary);
+  flex-shrink: 0;
 }
 
 /* ========================================
