@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Table, Card, Button, Space, Select, Modal, Form, Input, Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import StatusTag from '@/components/StatusTag';
 import { approvalApi, SubmissionItem, Workflow } from '@/services/approval';
+import useFetchState from '@/hooks/use-fetch-state';
 import { notifyError } from '@/lib/request';
 
 const TextArea = Input.TextArea;
@@ -25,10 +27,16 @@ const MODULE_LABEL: Record<string, string> = {
   procurement: '采购',
 };
 
+interface ListResult {
+  list: SubmissionItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export default function ApprovalSubmissionsPage() {
   const router = useRouter();
-  const [submissionLoading, setSubmissionLoading] = useState(false);
-  const [submissionData, setSubmissionData] = useState<SubmissionItem[]>([]);
+  const { data: submissionData, loading: submissionLoading, error: submissionError, run: runFetchSubmissions } = useFetchState<ListResult>();
   const [submissionPagination, setSubmissionPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
@@ -38,20 +46,18 @@ export default function ApprovalSubmissionsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchSubmissions = async (page = 1, pageSize = 20, status?: string) => {
-    setSubmissionLoading(true);
-    try {
+    await runFetchSubmissions(async () => {
       const result = await approvalApi.listMySubmissions({ page, pageSize, status });
       if (result.code === 0 && result.data) {
-        setSubmissionData(result.data.list);
         setSubmissionPagination({
           current: result.data.page,
           pageSize: result.data.pageSize,
           total: result.data.total,
         });
+        return result.data;
       }
-    } finally {
-      setSubmissionLoading(false);
-    }
+      throw new Error(result.message || '获取申请列表失败');
+    });
   };
 
   const fetchWorkflows = async () => {
@@ -164,20 +170,27 @@ export default function ApprovalSubmissionsPage() {
             发起申请
           </Button>
         </div>
-        <Table
-          columns={submissionColumns}
-          data={submissionData}
-          rowKey="id"
-          scroll={{ x: true }}
+        <DataState
           loading={submissionLoading}
-          pagination={{
-            current: submissionPagination.current,
-            pageSize: submissionPagination.pageSize,
-            total: submissionPagination.total,
-            onChange: handleSubmissionPageChange,
-            showTotal: true,
-          }}
-        />
+          error={submissionError}
+          onRetry={() => fetchSubmissions(submissionPagination.current, submissionPagination.pageSize, statusFilter)}
+          isEmpty={!submissionData || submissionData.list.length === 0}
+          emptyText="暂无申请记录"
+        >
+          <Table
+            columns={submissionColumns}
+            data={submissionData?.list || []}
+            rowKey="id"
+            scroll={{ x: true }}
+            pagination={{
+              current: submissionPagination.current,
+              pageSize: submissionPagination.pageSize,
+              total: submissionPagination.total,
+              onChange: handleSubmissionPageChange,
+              showTotal: true,
+            }}
+          />
+        </DataState>
       </Card>
 
       <Modal

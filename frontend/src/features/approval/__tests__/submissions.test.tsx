@@ -89,6 +89,20 @@ jest.mock('@arco-design/web-react', () => {
     <span data-testid="tag" data-color={color}>{children}</span>
   );
 
+  const Empty = ({ description }: any) => (
+    <div data-testid="empty">{description || '暂无数据'}</div>
+  );
+  const Result = ({ title, subTitle, extra }: any) => (
+    <div data-testid="result">
+      <div>{title}</div>
+      <div>{subTitle}</div>
+      {extra}
+    </div>
+  );
+  const Skeleton = (props: any) => (
+    <div data-testid="skeleton" style={props.style || props.text} />
+  );
+
   const Space = ({ children }: any) => <div data-testid="space">{children}</div>;
 
   const Select = ({ value, onChange, options, placeholder, allowClear }: any) => (
@@ -152,7 +166,10 @@ jest.mock('@arco-design/web-react', () => {
     warning: jest.fn(),
   };
 
-  return { Button, Card, Table, Tag, Space, Message, Select, Modal, Form, Input };
+  return {
+    Button, Card, Table, Tag, Space, Message, Select, Modal, Form, Input,
+    Empty, Result, Skeleton,
+  };
 });
 
 const mockSubmissions = [

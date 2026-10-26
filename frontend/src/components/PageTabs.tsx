@@ -176,11 +176,23 @@ export default function PageTabs() {
       if (CLOSEABLE.includes(tab.path)) return;
       removeTab(tab.path);
       if (tab.path === pathname) {
-        const rest = tabs.filter((t) => t.path !== tab.path);
-        router.push(rest[rest.length - 1]?.path || '/');
+        // 与浏览器页签一致：优先跳右侧相邻页签，无右侧则回退左侧
+        const index = tabs.findIndex((t) => t.path === tab.path);
+        const right = tabs[index + 1];
+        const left = index > 0 ? tabs[index - 1] : undefined;
+        router.push(right?.path || left?.path || '/');
       }
     },
     [removeTab, router, pathname, tabs],
+  );
+
+  const handleAuxClose = useCallback(
+    (e: React.MouseEvent, tab: TabItem) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      handleClose(tab);
+    },
+    [handleClose],
   );
 
   const handleRefresh = useCallback(() => {
@@ -268,6 +280,7 @@ export default function PageTabs() {
                 onClick={() => {
                   if (!active) router.push(tab.path);
                 }}
+                onAuxClick={(e) => handleAuxClose(e, tab)}
               >
                 <span className="page-tab-dot" />
                 <span className="page-tab-label">{tab.label}</span>

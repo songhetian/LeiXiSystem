@@ -66,6 +66,59 @@ describe('PageTabs 可访问性', () => {
       expect(screen.getByRole('tab', { name: /考勤统计/ })).toBeInTheDocument();
     });
   });
+
+  it('关闭当前页签时跳到右侧相邻页签（无右侧则取左侧）', () => {
+    mockPathname.current = '/employees';
+    render(<PageTabs />);
+    fireEvent.click(screen.getAllByRole('button', { name: '关闭' })[0]);
+    // /employees 的右侧邻居是 /attendance/shifts，而非最后打开的页签
+    expect(push).toHaveBeenCalledWith('/attendance/shifts');
+  });
+
+  it('关闭最后一个业务页签（无右侧邻居）时回退到左侧相邻页签', () => {
+    mockPathname.current = '/attendance/shifts';
+    render(<PageTabs />);
+    fireEvent.click(screen.getAllByRole('button', { name: '关闭' })[1]);
+    // /attendance/shifts 无右侧邻居 → 回退左侧 /employees
+    expect(push).toHaveBeenCalledWith('/employees');
+  });
+
+  it('关闭非当前页签时不切换路由', () => {
+    mockPathname.current = '/';
+    render(<PageTabs />);
+    fireEvent.click(screen.getAllByRole('button', { name: '关闭' })[0]);
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe('PageTabs 中键关闭（auxclick button=1）', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPathname.current = '/';
+    useTabsStore.setState({
+      tabs: [
+        { path: '/', label: '工作台' },
+        { path: '/employees', label: '员工列表' },
+      ],
+    });
+  });
+
+  it('中键点击页签可关闭该页签', () => {
+    render(<PageTabs />);
+    const employeeTab = screen.getByRole('tab', { name: /员工列表/ });
+    fireEvent(employeeTab, new MouseEvent('auxclick', { bubbles: true, button: 1, cancelable: true }));
+    const labels = useTabsStore.getState().tabs.map((t) => t.label);
+    expect(labels).toEqual(['工作台']);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('左键普通点击不触发关闭', () => {
+    render(<PageTabs />);
+    const workbench = screen.getByRole('tab', { name: /工作台/ });
+    fireEvent(workbench, new MouseEvent('auxclick', { bubbles: true, button: 0, cancelable: true }));
+    const labels = useTabsStore.getState().tabs.map((t) => t.label);
+    expect(labels).toEqual(['工作台', '员工列表']);
+  });
 });
 
 describe('PageTabs 页签右键菜单', () => {
