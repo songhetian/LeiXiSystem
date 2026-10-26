@@ -134,7 +134,7 @@
   border-color: var(--lx-primary);
 }
 
-/* ---- Galaxy 下拉框（Select）----
+/* ---- 下拉框（Select）----
    1) 触发器：hover 品牌染 + 箭头图标品牌色；聚焦光晕由上方 --lx-focus-ring 统一承担 */
 .arco-select-view:hover .arco-select-view-icon,
 .arco-select-view-focused .arco-select-view-icon {
@@ -353,7 +353,7 @@
   padding: 8px 20px 6px !important;
 }
 
-/* ---- 面包屑（Galaxy：可点击项 hover 品牌染色） ---- */
+/* ---- 面包屑（可点击项 hover 品牌染色） ---- */
 .arco-breadcrumb-item {
   font-size: var(--lx-font-sm);
   color: var(--lx-text-3);
@@ -462,19 +462,8 @@
   font-size: var(--lx-font-sm);
 }
 
-/* ---- Switch（Galaxy：选中蓝→紫渐变 + 品牌光晕）----
-   覆盖 Arco 选中态平色为渐变瓷感；暗色模式下同样适用（渐变自发光） */
-.arco-switch {
-  border-radius: var(--lx-radius-full);
-  transition: background var(--lx-transition-base), box-shadow var(--lx-transition-base);
-}
-.arco-switch.arco-switch-checked {
-  background: linear-gradient(135deg, var(--lx-primary), var(--lx-purple)) !important;
-  box-shadow: 0 0 8px var(--lx-primary-weak);
-}
-.arco-switch.arco-switch-checked:hover {
-  background: linear-gradient(135deg, var(--lx-primary-hover), var(--lx-purple)) !important;
-}
+/* ---- Switch ----
+   选中态交回 Arco 默认（品牌主色平面），渐变瓷感与光晕已去除 */
 
 /* ========================================
    弹出组件完整样式补充
@@ -956,7 +945,7 @@
   color: var(--lx-text-2);
 }
 
-/* ---- Link 链接（Galaxy：品牌染色 + hover 平滑过渡） ---- */
+/* ---- Link 链接（品牌染色 + hover 平滑过渡） ---- */
 .arco-link {
   font-weight: var(--lx-font-normal);
   color: var(--lx-primary);
@@ -2144,7 +2133,6 @@
   font-weight: 600;
   color: var(--lx-text-1);
   letter-spacing: -0.01em;
-  /* Galaxy：标题左侧蓝→紫渐变竖条，页面头部不再是一片灰字 */
   position: relative;
   padding-left: 12px;
 }
@@ -2158,7 +2146,7 @@
   width: 3px;
   height: 0.92em;
   border-radius: var(--lx-radius-full);
-  background: linear-gradient(180deg, var(--lx-primary), #7c3aed);
+  background: var(--lx-primary);
 }
 
 .page-subtitle {
@@ -2198,7 +2186,7 @@
   overflow: hidden;
 }
 
-/* 表格头部（Galaxy：品牌色底部强调线，表头更有层级感） */
+/* 表格头部（品牌色底部强调线） */
 .arco-table-th {
   background: var(--lx-bg-secondary) !important;
   font-weight: 600 !important;
@@ -2243,7 +2231,7 @@
   background: var(--lx-bg-soft);
 }
 
-/* Galaxy：行过渡 + hover 品牌蓝染（不支持 color-mix 的浏览器落回 --lx-bg-hover，不破版） */
+/* 表格行 hover 品牌蓝染（不支持 color-mix 的浏览器落回 --lx-bg-hover，不破版） */
 .arco-table-td {
   transition: background-color var(--lx-transition-fast);
 }
@@ -2256,7 +2244,7 @@
   }
 }
 
-/* Galaxy：勾选行品牌底色（与 hover 同色系但更深一档，保证与 hover 可区分） */
+/* 勾选行品牌底色（与 hover 同色系但更深一档，保证与 hover 可区分） */
 .arco-table-body tr.arco-table-tr-checked .arco-table-td {
   background: var(--lx-primary-light) !important;
 }

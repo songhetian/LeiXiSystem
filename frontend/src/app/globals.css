@@ -2468,8 +2468,8 @@ html, body {
 }
 
 /* ========================================
-   Galaxy 炫酷层 · Round 2 可复用工具类
-   来源：uiverse.io/galaxy 实测选型，落地为系统级工具类。
+   可复用工具类（Loader 波点 / 表单聚焦组反馈）
+   来源：uiverse.io 部件，落地为系统级工具类。
    约束：全部使用 --lx-* token，浅色/暗色主题自动跟随；
    所有动画在 prefers-reduced-motion 下由全局 reduce 规则
    （*、*::before、*::after 统一 0.01ms）自动停用，无需逐个登记。
@@ -2532,8 +2532,9 @@ html, body {
 }
 
 /* ========================================
-   Galaxy 炫酷层 · Round 3 全站接入（scoped 于 .lx-form-glow，无全局副作用）
-   挂载点：登录页 Form / ModalForm / SearchForm（见各自 TSX 的 className="lx-form-glow"）。
+   表单聚焦组反馈（scoped 于 .lx-form-glow，无全局副作用）
+   挂载点：登录页 Form（见 login/page.tsx 的 className="lx-form-glow"）。
+   ModalForm 已去除该类——应用内部表单不应在聚焦时整组亮起。
    选择器纪律：一律以 .lx-form-glow 为前缀，禁止写全局 .arco-input:focus 这类无范围规则。
    Arco Input 实际 DOM：外层 <div class="arco-input-inner-wrapper">（含 focus 态边框），
    内层 <input class="arco-input"> 无边框 —— 故描边/ring 落在 wrapper 上（Input.Password 同构）。
@@ -2870,12 +2871,9 @@ html, body {
 }
 
 /* ========================================
-   Galaxy 多彩层 · 整站氛围与细节
-   背景：用户反馈"整体配色单调，时间久了不舒服"——
-   主区长期是白卡 + 灰字 + 单点品牌蓝。这里在**不喧哗**的前提下
-   加入多色相点缀：选区色、筛选卡顶条、面板标题竖条、页面柔光。
-   全部走 token 与低透明度，暗色主题自动适配，reduced-motion 无需处理
-   （本层无动画）。
+   整站细节（选区色、空态淡染）
+   主区为白卡 + 灰字 + 单点品牌蓝；选区/空态以品牌蓝低透明度点缀，
+   暗色主题自动适配，本层无动画。
    ======================================== */
 
 /* 选中文字：品牌色半透明底，替代浏览器默认深灰 */

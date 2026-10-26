@@ -431,7 +431,7 @@ export default function HelpdeskTicketsPage() {
   const assigneeOptions = users.map((u) => ({ value: u.id, label: `${u.username} - ${u.name}` }));
 
   return (
-    <PageContainer breadcrumbs={['首页', '工单客服']}>
+    <PageContainer>
       <Tabs defaultActiveTab="tickets">
         <TabPane key="tickets" title="工单列表">
           {/* 筛选区 */}

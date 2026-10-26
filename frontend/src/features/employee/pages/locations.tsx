@@ -219,7 +219,7 @@ export default function LocationsPage() {
   ];
 
   return (
-    <PageContainer breadcrumbs={['首页', '考勤管理', '打卡定位']}>
+    <PageContainer>
       {/* 工具栏 */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-text-2">共 {data.length} 个打卡定位</span>

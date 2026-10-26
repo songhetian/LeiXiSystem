@@ -201,9 +201,7 @@ export default function NotificationSettingsPage() {
   ));
 
   return (
-    <PageContainer
-      breadcrumbs={['系统设置', '通知设置']}
-    >
+    <PageContainer>
       {loading ? (
         <div
           style={{
