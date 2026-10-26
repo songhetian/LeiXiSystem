@@ -282,9 +282,9 @@ export default function ApprovalSettingsPage() {
   return (
     <PageContainer
     >
-      <Card style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>审批流列表</div>
+      <div className="pro-card">
+        <div className="pro-toolbar pro-toolbar-wrap">
+          <span className="text-sm font-medium text-text-1">审批流列表</span>
           <PermissionGate code="approval:workflow:manage">
             <Button
               type="primary"
@@ -304,7 +304,7 @@ export default function ApprovalSettingsPage() {
             pagination={{ pageSize: 20, showTotal: true }}
           />
         </DataState>
-      </Card>
+      </div>
 
       {/* ===== 基本信息弹窗 ===== */}
       <Modal

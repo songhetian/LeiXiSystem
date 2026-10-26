@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Table, Card, Button, Space, Select, Modal, Form, Input, Message } from '@arco-design/web-react';
+import { Table, Button, Select, Modal, Form, Input, Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import StatusTag from '@/components/StatusTag';
@@ -149,23 +149,26 @@ export default function ApprovalSubmissionsPage() {
 
   return (
     <PageContainer>
-      <Card className="mt-4">
-        <div className="mb-4 flex items-center justify-between">
-          <Space>
-            <span className="text-text-2">状态筛选：</span>
+      <div className="pro-card">
+        <div className="pro-toolbar pro-toolbar-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-3">状态筛选</span>
             <Select
               placeholder="全部"
               style={{ width: 140 }}
               allowClear
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(v) => {
+                setStatusFilter(v || '');
+                setSubmissionPagination((p) => ({ ...p, current: 1 }));
+              }}
               options={[
                 { value: 'pending', label: '审批人' },
                 { value: 'approved', label: '已通过' },
                 { value: 'rejected', label: '已驳回' },
               ]}
             />
-          </Space>
+          </div>
           <Button type="primary" onClick={openApplyModal}>
             发起申请
           </Button>
@@ -191,7 +194,7 @@ export default function ApprovalSubmissionsPage() {
             }}
           />
         </DataState>
-      </Card>
+      </div>
 
       <Modal
         title="发起审批申请"

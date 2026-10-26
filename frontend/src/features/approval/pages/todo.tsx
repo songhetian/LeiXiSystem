@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect } from 'react';
-import { Tabs, Table, Button, Space, Modal, Input, Message, Tag, Card } from '@arco-design/web-react';
+import { Tabs, Table, Button, Space, Modal, Input, Message, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
@@ -188,7 +188,7 @@ export default function ApprovalTodoPage() {
     <PageContainer >
       <Tabs activeTab={activeTab} onChange={handleTabChange}>
         <TabPane key="todos" title="待办审批">
-          <Card style={{ marginTop: 16 }}>
+          <div className="pro-card">
             <DataState
               loading={todoLoading}
               error={todoError}
@@ -209,10 +209,10 @@ export default function ApprovalTodoPage() {
                 }}
               />
             </DataState>
-          </Card>
+          </div>
         </TabPane>
         <TabPane key="submissions" title="我的申请">
-          <Card style={{ marginTop: 16 }}>
+          <div className="pro-card">
             <DataState
               loading={submissionLoading}
               error={submissionError}
@@ -233,7 +233,7 @@ export default function ApprovalTodoPage() {
                 }}
               />
             </DataState>
-          </Card>
+          </div>
         </TabPane>
       </Tabs>
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Table, Card, Button, Space, Select, Tag } from '@arco-design/web-react';
+import { Table, Button, Select, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
 import StatusTag from '@/components/StatusTag';
@@ -99,10 +99,10 @@ export default function ApprovalApprovedPage() {
 
   return (
     <PageContainer>
-      <Card style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Space>
-            <span className="text-text-2">操作筛选：</span>
+      <div className="pro-card">
+        <div className="pro-toolbar pro-toolbar-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-3">操作筛选</span>
             <Select
               placeholder="全部"
               style={{ width: 140 }}
@@ -116,7 +116,7 @@ export default function ApprovalApprovedPage() {
               <Option value="approved">已同意</Option>
               <Option value="rejected">已驳回</Option>
             </Select>
-          </Space>
+          </div>
         </div>
         <DataState
           loading={loading}
@@ -139,7 +139,7 @@ export default function ApprovalApprovedPage() {
             }}
           />
         </DataState>
-      </Card>
+      </div>
     </PageContainer>
   );
 }
