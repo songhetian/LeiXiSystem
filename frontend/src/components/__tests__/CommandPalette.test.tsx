@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import CommandPalette from '@/components/CommandPalette';
+import { usePaletteStore } from '@/store/palette';
 
 const mockPush = jest.fn();
 
@@ -29,6 +30,8 @@ async function openPalette(user: ReturnType<typeof userEvent.setup>) {
 describe('CommandPalette - 手写浮层的焦点管理', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    // store 是模块级单例：用例间复位开关，避免上一个用例的 open 状态泄漏
+    usePaletteStore.setState({ open: false });
   });
 
   it('用 Ctrl+K 打开后暴露 dialog 语义（role=dialog + aria-modal）', async () => {
@@ -46,7 +49,7 @@ describe('CommandPalette - 手写浮层的焦点管理', () => {
 
     await openPalette(user);
 
-    expect(screen.getByPlaceholderText('搜索页面、功能...')).toHaveFocus();
+    expect(screen.getByPlaceholderText('搜索页面、员工...')).toHaveFocus();
   });
 
   it('搜索框是唯一可聚焦元素时，按 Tab 不逃出浮层（焦点仍留在浮层内）', async () => {
@@ -54,7 +57,7 @@ describe('CommandPalette - 手写浮层的焦点管理', () => {
     renderWithOutsideTrigger();
 
     const dialog = await openPalette(user);
-    const input = screen.getByPlaceholderText('搜索页面、功能...');
+    const input = screen.getByPlaceholderText('搜索页面、员工...');
 
     await user.tab();
 
@@ -71,7 +74,7 @@ describe('CommandPalette - 手写浮层的焦点管理', () => {
     expect(trigger).toHaveFocus();
 
     await openPalette(user);
-    expect(screen.getByPlaceholderText('搜索页面、功能...')).toHaveFocus();
+    expect(screen.getByPlaceholderText('搜索页面、员工...')).toHaveFocus();
 
     await user.keyboard('{Escape}');
 

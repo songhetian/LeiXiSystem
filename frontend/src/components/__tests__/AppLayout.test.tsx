@@ -237,7 +237,8 @@ describe('AppSider', () => {
 describe('AppHeader', () => {
   it('renders breadcrumb from current pathname', () => {
     render(<AppHeader title="工作台" />);
-    expect(screen.getByText('首页')).toBeInTheDocument();
+    // 面包屑由 config/navigation 派生：/ 即「工作台」（不再叫「首页」）
+    expect(screen.getByText('工作台')).toBeInTheDocument();
   });
 
   it('renders user avatar and name', () => {
@@ -246,9 +247,10 @@ describe('AppHeader', () => {
     expect(screen.getByText('管理员')).toBeInTheDocument();
   });
 
-  it('falls back to default title when pathname has no mapping', () => {
+  it('unregistered path falls back to URL last segment', () => {
+    mockPathname.current = '/some-unknown-page';
     render(<AppHeader title="工作台" />);
-    expect(screen.getByText(/首页/i)).toBeInTheDocument();
+    expect(screen.getByText('some-unknown-page')).toBeInTheDocument();
   });
 
   it('renders dropdowns for theme and user menu', () => {

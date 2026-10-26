@@ -4,87 +4,47 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import useFocusTrap from '@/hooks/use-focus-trap';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  IconDashboard,
-  IconUser,
-  IconCalendar,
-  IconCheckCircle,
-  IconIdcard,
-  IconSafe,
-  IconBook,
-  IconNotification,
-  IconFile,
-  IconSettings,
-  IconSearch,
-  IconCommand,
-  IconStar,
-  IconTags,
-  IconLocation,
-  IconCustomerService,
-} from '@arco-design/web-react/icon';
+import { IconSearch, IconCommand, IconUser } from '@arco-design/web-react/icon';
+import { paletteCommandsFor } from '@/config/navigation';
+import { usePaletteStore } from '@/store/palette';
+import { useAuthStore } from '@/store/auth';
+import { employeeApi, type Employee } from '@/services/employee';
 
-interface CommandItem {
+/** 结果条目：页面命令 + 员工实体搜索统一结构 */
+interface PaletteEntry {
   id: string;
   label: string;
+  /** 次要说明（员工条目的工号·部门） */
+  sublabel?: string;
   path: string;
   icon: React.ReactNode;
   group: string;
-  keywords?: string;
 }
 
-const COMMANDS: CommandItem[] = [
-  { id: 'dashboard', label: '工作台', path: '/', icon: <IconDashboard />, group: '常用', keywords: '首页 仪表盘 dashboard' },
-  { id: 'employee-list', label: '员工列表', path: '/employees', icon: <IconUser />, group: '人事', keywords: '员工 人员 staff' },
-  { id: 'employee-transactions', label: '员工事务', path: '/employees/transactions', icon: <IconUser />, group: '人事', keywords: '入职 离职 调动' },
-  { id: 'employee-timeline', label: '人员履历', path: '/employees/timeline', icon: <IconUser />, group: '人事', keywords: '履历 入职 离职 调动 晋升' },
-  { id: 'employee-change-logs', label: '员工变动流水', path: '/employees/change-logs', icon: <IconUser />, group: '人事', keywords: '变动 流水 日志 change' },
-  { id: 'attendance-punch', label: '打卡', path: '/attendance/punch', icon: <IconCalendar />, group: '考勤', keywords: '签到 打卡 clock' },
-  { id: 'attendance-daily', label: '考勤日报', path: '/attendance/daily', icon: <IconCalendar />, group: '考勤', keywords: '日报 daily' },
-  { id: 'attendance-monthly', label: '考勤月报', path: '/attendance/monthly', icon: <IconCalendar />, group: '考勤', keywords: '月报 monthly' },
-  { id: 'attendance-statistics', label: '考勤统计', path: '/attendance/statistics', icon: <IconCalendar />, group: '考勤', keywords: '统计 应休 已休 加班 statistics' },
-  { id: 'attendance-vacation-leave', label: '请假申请', path: '/attendance/vacation/leave', icon: <IconCalendar />, group: '考勤', keywords: '请假 休假 leave' },
-  { id: 'attendance-vacation-overtime', label: '加班申请', path: '/attendance/vacation/overtime', icon: <IconCalendar />, group: '考勤', keywords: '加班 overtime' },
-  { id: 'attendance-vacation-audit', label: '考勤申请审计', path: '/attendance/vacation/audit', icon: <IconCalendar />, group: '考勤', keywords: '审计 审批 audit' },
-  { id: 'attendance-shifts', label: '班次管理', path: '/attendance/shifts', icon: <IconCalendar />, group: '考勤', keywords: '班次 shift' },
-  { id: 'attendance-schedules', label: '排班管理', path: '/attendance/schedules', icon: <IconCalendar />, group: '考勤', keywords: '排班 schedule' },
-  { id: 'approval-todo', label: '待办审批', path: '/approval/todo', icon: <IconCheckCircle />, group: '审批', keywords: '审批 待办 todo' },
-  { id: 'approval-approved', label: '已办审批', path: '/approval/approved', icon: <IconCheckCircle />, group: '审批', keywords: '已办 approved' },
-  { id: 'approval-submissions', label: '我的申请', path: '/approval/submissions', icon: <IconCheckCircle />, group: '审批', keywords: '申请 submissions' },
-  { id: 'payroll-runs', label: '算薪批次', path: '/payroll/runs', icon: <IconIdcard />, group: '薪酬', keywords: '算薪 payroll' },
-  { id: 'my-payslips', label: '我的工资条', path: '/payroll/my-payslips', icon: <IconIdcard />, group: '薪酬', keywords: '工资条 payslip' },
-  { id: 'my-reimbursement', label: '我的报销', path: '/expense/my', icon: <IconSafe />, group: '薪酬', keywords: '报销 expense' },
-  { id: 'expense-approval', label: '报销审批', path: '/expense/approval', icon: <IconSafe />, group: '薪酬', keywords: '报销审批' },
-  { id: 'knowledge', label: '知识库', path: '/knowledge', icon: <IconBook />, group: '工具', keywords: '知识 knowledge' },
-  { id: 'performance-cycles', label: '绩效管理', path: '/performance/cycles', icon: <IconStar />, group: '人事', keywords: '绩效 performance 周期' },
-  { id: 'okr-objectives', label: 'OKR 目标', path: '/okr', icon: <IconStar />, group: '人事', keywords: 'okr 目标' },
-  { id: 'finance-budgets', label: '财务预算', path: '/finance/budgets', icon: <IconSafe />, group: '薪酬', keywords: '预算 budget' },
-  { id: 'finance-expense-standards', label: '费用标准', path: '/finance/expense-standards', icon: <IconSafe />, group: '薪酬', keywords: '费用 标准 expense' },
-  { id: 'helpdesk', label: '工单客服', path: '/helpdesk', icon: <IconCustomerService />, group: '工具', keywords: '工单 ticket 客服 helpdesk' },
-  { id: 'attendance-exception-rules', label: '考勤异常', path: '/attendance/exception-rules', icon: <IconCalendar />, group: '考勤', keywords: '异常 exception ' },
-  { id: 'attendance-deduction-rules', label: '扣款规则', path: '/attendance/deduction-rules', icon: <IconCalendar />, group: '考勤', keywords: '扣款 deduction ' },
-  { id: 'attendance-locations', label: '打卡定位', path: '/attendance/locations', icon: <IconLocation />, group: '考勤', keywords: '打卡 定位 location' },
-  { id: 'employee-tags', label: '员工标签', path: '/employees/tags', icon: <IconTags />, group: '人事', keywords: '标签 tag' },
-  { id: 'notifications', label: '我的通知', path: '/notifications', icon: <IconNotification />, group: '工具', keywords: '通知 notification' },
-  { id: 'broadcasts-public', label: '公告', path: '/broadcasts', icon: <IconNotification />, group: '工具', keywords: '公告 发布 通知 broadcast announcement' },
-  { id: 'notifications-settings', label: '通知设置', path: '/notifications/settings', icon: <IconNotification />, group: '设置', keywords: '通知设置 推送 配置 角色 settings' },
-  { id: 'system-departments', label: '组织架构', path: '/system/departments', icon: <IconFile />, group: '系统', keywords: '部门 department' },
-  { id: 'system-positions', label: '岗位管理', path: '/system/positions', icon: <IconFile />, group: '系统', keywords: '岗位 position' },
-  { id: 'system-users', label: '用户管理', path: '/system/users', icon: <IconFile />, group: '系统', keywords: '用户 user' },
-  { id: 'system-roles', label: '角色权限', path: '/system/roles', icon: <IconFile />, group: '系统', keywords: '角色 role' },
-  { id: 'system-permissions', label: '权限管理', path: '/system/permissions', icon: <IconFile />, group: '系统', keywords: '权限 permission' },
-  { id: 'system-logs', label: '操作日志', path: '/system/logs', icon: <IconFile />, group: '系统', keywords: '日志 log' },
-  { id: 'settings', label: '系统设置', path: '/settings', icon: <IconSettings />, group: '系统', keywords: '设置 settings' },
-];
+const EMPLOYEE_GROUP = '员工';
+// ≥2 字符才触发员工搜索（单字命中率过低，白白打接口）
+const MIN_EMPLOYEE_QUERY = 2;
+const EMPLOYEE_DEBOUNCE_MS = 250;
+const EMPLOYEE_PAGE_SIZE = 5;
 
 export default function CommandPalette() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const open = usePaletteStore((s) => s.open);
+  const togglePalette = usePaletteStore((s) => s.toggle);
+  const setOpen = usePaletteStore((s) => s.setOpen);
+  const permissions = useAuthStore((s) => s.user?.permissions);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   // 自绘浮层没有 Arco Modal 那套焦点管理，靠 hook 补齐（打开收焦点 / Tab 循环 / 关闭还焦点）
   const panelRef = useFocusTrap<HTMLDivElement>(open);
   const listRef = useRef<HTMLDivElement>(null);
+  // 员工搜索竞态防护：只有最新一次请求允许写结果
+  const searchSeq = useRef(0);
+
+  // 可见页面命令：由导航真值源派生并按权限过滤
+  const commands = useMemo(() => paletteCommandsFor(permissions ?? undefined), [permissions]);
 
   // 全局快捷键监听
   useEffect(() => {
@@ -92,57 +52,98 @@ export default function CommandPalette() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         e.stopPropagation();
-        setOpen((prev) => !prev);
+        togglePalette();
       }
-      if (e.key === 'Escape' && open) {
+      if (e.key === 'Escape' && usePaletteStore.getState().open) {
         setOpen(false);
       }
     };
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [open]);
+  }, [togglePalette, setOpen]);
 
-  // 打开时重置查询与选中项（焦点交给 useFocusTrap，避免两处各聚焦一次）
+  // 打开时重置查询、选中项与员工结果（焦点交给 useFocusTrap，避免两处各聚焦一次）
   useEffect(() => {
     if (open) {
       setQuery('');
       setSelectedIndex(0);
+      setEmployees([]);
     }
   }, [open]);
 
-  // 模糊匹配搜索
+  // 卸载时复位开关：登出/路由卸载后 store 不残留 open=true（也隔离测试间状态）
+  useEffect(() => () => setOpen(false), [setOpen]);
+
+  // 员工实体搜索：防抖 + RequestID 防竞态；无权限 / 查询过短直接清空
+  useEffect(() => {
+    const q = query.trim();
+    const canSearch = open && q.length >= MIN_EMPLOYEE_QUERY
+      && (permissions?.includes('employee:view') ?? false);
+    if (!canSearch) {
+      setEmployees([]);
+      return;
+    }
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(() => {
+      employeeApi
+        .getList({ keyword: q, page: 1, pageSize: EMPLOYEE_PAGE_SIZE })
+        .then((res) => {
+          if (searchSeq.current === seq) setEmployees(res.data?.list ?? []);
+        })
+        .catch(() => {
+          if (searchSeq.current === seq) setEmployees([]);
+        });
+    }, EMPLOYEE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query, open, permissions]);
+
+  // 模糊匹配搜索（label + group + keywords）
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) return COMMANDS;
+    if (!query.trim()) return commands;
     const q = query.toLowerCase().trim();
-    return COMMANDS.filter((cmd) => {
+    return commands.filter((cmd) => {
       const text = `${cmd.label} ${cmd.group} ${cmd.keywords || ''}`.toLowerCase();
       return text.includes(q);
     });
-  }, [query]);
+  }, [commands, query]);
 
-  // 按分组组织结果
+  // 页面命令按分组组织；员工结果追加为独立分组
   const groupedResults = useMemo(() => {
-    const groups = new Map<string, CommandItem[]>();
+    const groups = new Map<string, PaletteEntry[]>();
     for (const cmd of filteredCommands) {
       if (!groups.has(cmd.group)) groups.set(cmd.group, []);
       groups.get(cmd.group)!.push(cmd);
     }
-    return Array.from(groups.entries());
-  }, [filteredCommands]);
+    const entries = Array.from(groups.entries());
+    if (employees.length > 0) {
+      entries.push([
+        EMPLOYEE_GROUP,
+        employees.map((emp) => ({
+          id: `employee-${emp.id}`,
+          label: emp.name,
+          sublabel: [emp.employeeNo, emp.departmentName].filter(Boolean).join(' · '),
+          path: `/employees/${emp.id}`,
+          icon: <IconUser />,
+          group: EMPLOYEE_GROUP,
+        })),
+      ]);
+    }
+    return entries;
+  }, [filteredCommands, employees]);
 
   // 扁平化用于键盘导航
   const flatList = useMemo(() => groupedResults.flatMap(([, items]) => items), [groupedResults]);
 
-  // 选中项变化时滚动到可视区域
+  // 选中项变化时滚动到可视区域（jsdom 未实现 scrollIntoView，可选调用兜底）
   useEffect(() => {
-    const el = listRef.current?.querySelector(`[data-idx="${selectedIndex}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${selectedIndex}"]`);
+    el?.scrollIntoView?.({ block: 'nearest' });
   }, [selectedIndex]);
 
-  const handleSelect = useCallback((cmd: CommandItem) => {
-    router.push(cmd.path);
+  const handleSelect = useCallback((entry: PaletteEntry) => {
+    router.push(entry.path);
     setOpen(false);
-  }, [router]);
+  }, [router, setOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -200,7 +201,7 @@ export default function CommandPalette() {
                   setQuery(e.target.value);
                   setSelectedIndex(0);
                 }}
-                placeholder="搜索页面、功能..."
+                placeholder="搜索页面、员工..."
                 className="cmdk-input"
               />
               <kbd className="cmdk-kbd">ESC</kbd>
@@ -214,22 +215,25 @@ export default function CommandPalette() {
                 groupedResults.map(([group, items]) => (
                   <div key={group} className="cmdk-group">
                     <div className="cmdk-group-title">{group}</div>
-                    {items.map((cmd) => {
+                    {items.map((entry) => {
                       runningIndex++;
                       const idx = runningIndex;
                       const isSelected = idx === selectedIndex;
                       return (
                         <div
-                          key={cmd.id}
+                          key={entry.id}
                           role="option"
                           aria-selected={isSelected}
                           data-idx={idx}
-                          onClick={() => handleSelect(cmd)}
+                          onClick={() => handleSelect(entry)}
                           className={`cmdk-item ${isSelected ? 'is-selected' : ''}`}
                           onMouseEnter={() => setSelectedIndex(idx)}
                         >
-                          <span className="cmdk-item-icon">{cmd.icon}</span>
-                          <span className="cmdk-item-label">{cmd.label}</span>
+                          <span className="cmdk-item-icon">{entry.icon}</span>
+                          <span className="cmdk-item-label">{entry.label}</span>
+                          {entry.sublabel && (
+                            <span className="cmdk-item-sublabel">{entry.sublabel}</span>
+                          )}
                           {isSelected && <kbd className="cmdk-item-enter">↵</kbd>}
                         </div>
                       );

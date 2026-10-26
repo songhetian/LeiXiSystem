@@ -2,121 +2,16 @@
 
 import { usePathname } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
+import { menuKeyFor, tabTitleFor } from '@/config/navigation';
 
-const PATH_TO_MENU: Record<string, string> = {
-  '/': 'dashboard',
-  '/employees': 'employee-list',
-  '/employees/transactions': 'employee-transactions',
-  '/employees/tags': 'employee-tags',
-  '/employees/timeline': 'employee-timeline',
-  '/employees/change-logs': 'employee-change-logs',
-  '/attendance/punch': 'attendance-punch',
-  '/attendance/shifts': 'attendance-shifts',
-  '/attendance/schedules': 'attendance-schedules',
-  '/attendance/my-schedule': 'attendance-my-schedule',
-  '/attendance/daily': 'attendance-daily',
-  '/attendance/monthly': 'attendance-monthly',
-  '/attendance/statistics': 'attendance-statistics',
-  '/attendance/vacation/balance': 'attendance-vacation-balance',
-  '/attendance/vacation/leave': 'attendance-vacation-leave',
-  '/attendance/vacation/settings': 'attendance-vacation-type-settings',
-  '/attendance/vacation/overtime': 'attendance-vacation-overtime',
-  '/attendance/vacation/audit': 'attendance-vacation-audit',
-  '/attendance/punch-makeup': 'attendance-punch-makeup',
-  '/attendance/devices': 'attendance-devices',
-  '/attendance/settings': 'attendance-settings',
-  '/attendance/exception-rules': 'attendance-exception-rules',
-  '/attendance/deduction-rules': 'attendance-deduction-rules',
-  '/attendance/locations': 'attendance-locations',
-  '/approval/todo': 'approval-todo',
-  '/approval/approved': 'approval-approved',
-  '/approval/submissions': 'approval-submissions',
-  '/approval/settings': 'approval-settings',
-  '/approval/role-workflow': 'approval-role-workflow',
-  '/payroll/runs': 'payroll-runs',
-  '/payroll/my-payslips': 'my-payslips',
-  '/expense/my': 'my-reimbursement',
-  '/expense/approval': 'expense-approval',
-  '/knowledge': 'knowledge',
-  '/knowledge/admin': 'knowledge-admin',
-  '/performance/cycles': 'performance-cycles',
-  '/okr': 'okr-objectives',
-  '/finance/budgets': 'finance-budgets',
-  '/finance/expense-standards': 'finance-expense-standards',
-  '/helpdesk': 'helpdesk',
-  '/notifications': 'notifications',
-  '/notifications/settings': 'notifications-settings',
-  '/system/departments': 'system-departments',
-  '/system/positions': 'system-positions',
-  '/system/broadcasts': 'system-broadcasts',
-  '/broadcasts': 'broadcasts-public',
-  '/system/users': 'system-users',
-  '/system/roles': 'system-roles',
-  '/system/permissions': 'system-permissions',
-  '/system/logs': 'system-logs',
-  '/settings': 'settings',
-  '/profile': 'profile',
-};
-
-const PATH_TO_TITLE: Record<string, string> = {
-  '/': '工作台',
-  '/employees': '员工列表',
-  '/employees/transactions': '员工事务',
-  '/employees/tags': '员工标签',
-  '/employees/timeline': '人员履历',
-  '/employees/change-logs': '员工变动流水',
-  '/attendance/punch': '打卡',
-  '/attendance/shifts': '班次管理',
-  '/attendance/schedules': '排班管理',
-  '/attendance/my-schedule': '我的排班',
-  '/attendance/daily': '考勤日报',
-  '/attendance/monthly': '考勤月报',
-  '/attendance/statistics': '考勤统计',
-  '/attendance/vacation/balance': '休假额度',
-  '/attendance/vacation/leave': '请假记录',
-  '/attendance/vacation/settings': '假期设置',
-  '/attendance/vacation/overtime': '加班记录',
-  '/attendance/vacation/audit': '考勤申请审计',
-  '/attendance/punch-makeup': '补卡申请',
-  '/attendance/devices': '打卡设备',
-  '/attendance/settings': '考勤设置',
-  '/attendance/exception-rules': '考勤异常',
-  '/attendance/deduction-rules': '扣款规则',
-  '/attendance/locations': '打卡定位',
-  '/approval/todo': '待办审批',
-  '/approval/approved': '已办审批',
-  '/approval/submissions': '我的申请',
-  '/approval/settings': '流程设置',
-  '/approval/role-workflow': '职责授权',
-  '/payroll/runs': '算薪批次',
-  '/payroll/my-payslips': '我的工资条',
-  '/expense/my': '我的报销',
-  '/expense/approval': '报销审批',
-  '/knowledge': '知识库',
-  '/knowledge/admin': '知识库管理',
-  '/performance/cycles': '绩效管理',
-  '/okr': 'OKR 目标',
-  '/finance/budgets': '财务预算',
-  '/finance/expense-standards': '费用标准',
-  '/helpdesk': '工单客服',
-  '/notifications': '我的通知',
-  '/notifications/settings': '通知设置',
-  '/system/departments': '组织架构',
-  '/system/positions': '岗位管理',
-  '/system/broadcasts': '公告管理',
-  '/broadcasts': '公告',
-  '/system/users': '用户管理',
-  '/system/roles': '角色权限',
-  '/system/permissions': '权限管理',
-  '/system/logs': '操作日志',
-  '/settings': '系统设置',
-  '/profile': '个人中心',
-};
-
+/**
+ * 仪表盘外壳：activeMenu（侧栏高亮）与标题均从 config/navigation 派生，
+ * 新增页面只需在 NAV_TREE 登记一处。
+ */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const activeMenu = PATH_TO_MENU[pathname] || 'dashboard';
-  const title = PATH_TO_TITLE[pathname] || '';
+  const pathname = usePathname() || '/';
+  const activeMenu = menuKeyFor(pathname) || 'dashboard';
+  const title = tabTitleFor(pathname);
 
   return (
     <AppLayout title={title} activeMenu={activeMenu}>

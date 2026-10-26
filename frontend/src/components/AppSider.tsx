@@ -1,227 +1,18 @@
 'use client';
 
 import { useState, useMemo, useEffect, memo } from 'react';
-import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@arco-design/web-react';
 import {
-  IconDashboard,
-  IconCalendar,
-  IconUser,
-  IconCheckCircle,
-  IconIdcard,
-  IconSafe,
-  IconBook,
-  IconFile,
-  IconNotification,
-  IconSettings,
-  IconPoweroff,
   IconDown,
-  IconStar,
-  IconTags,
-  IconCommand,
-  IconLocation,
-  IconCustomerService,
+  IconPoweroff,
 } from '@arco-design/web-react/icon';
 import { useAuthStore } from '@/store/auth';
 import { useSystemInfo } from '@/hooks/use-system-info';
+import { useApprovalTodoCount } from '@/hooks/use-menu-badges';
+import { NAV_TREE, type NavNode } from '@/config/navigation';
 
-export interface MenuItemConfig {
-  key: string;
-  label: string;
-  icon?: React.ReactNode;
-  path?: string;
-  children?: MenuItemConfig[];
-  permission?: string;
-  group?: string;
-}
-
-const defaultMenuItems: MenuItemConfig[] = [
-  { key: 'dashboard', label: '工作台', icon: <IconDashboard />, path: '/', group: '常用' },
-  { key: 'attendance-my-schedule', label: '我的排班', icon: <IconCalendar />, path: '/attendance/my-schedule', permission: 'attendance:view', group: '常用' },
-  { key: 'broadcasts-public', label: '公告', icon: <IconNotification />, path: '/broadcasts', group: '常用' },
-  {
-    key: 'employee',
-    label: '员工管理',
-    icon: <IconUser />,
-    permission: 'employee:view',
-    group: '人事',
-    children: [
-      { key: 'employee-list', label: '员工列表', permission: 'employee:view' },
-      { key: 'employee-transactions', label: '员工事务', permission: 'employee:view' },
-      { key: 'employee-timeline', label: '人员履历', permission: 'employee:view' },
-      { key: 'employee-change-logs', label: '员工变动流水', permission: 'employee:view' },
-      { key: 'employee-tags', label: '员工标签', permission: 'employee:view' },
-    ],
-  },
-  {
-    key: 'attendance',
-    label: '考勤管理',
-    icon: <IconCalendar />,
-    permission: 'attendance:view',
-    group: '人事',
-    children: [
-      { key: 'attendance-punch', label: '打卡', permission: 'attendance:view' },
-      {
-        key: 'attendance-shift-schedule',
-        label: '班次排班',
-        permission: 'attendance:view',
-        children: [
-          { key: 'attendance-shifts', label: '班次管理', permission: 'attendance:view' },
-          { key: 'attendance-schedules', label: '排班管理', permission: 'attendance:view' },
-        ],
-      },
-      {
-        key: 'attendance-reports',
-        label: '考勤报表',
-        permission: 'attendance:view',
-        children: [
-          { key: 'attendance-daily', label: '考勤日报', permission: 'attendance:view' },
-          { key: 'attendance-monthly', label: '考勤月报', permission: 'attendance:view' },
-          { key: 'attendance-statistics', label: '考勤统计', permission: 'attendance:view' },
-        ],
-      },
-      {
-        key: 'attendance-vacation',
-        label: '假期与出勤',
-        permission: 'attendance:view',
-        children: [
-          { key: 'attendance-vacation-balance', label: '休假额度', permission: 'attendance:view' },
-          { key: 'attendance-vacation-leave', label: '请假记录', permission: 'attendance:view' },
-          { key: 'attendance-vacation-type-settings', label: '假期设置', permission: 'vacation:manage' },
-          { key: 'attendance-vacation-overtime', label: '加班记录', permission: 'attendance:view' },
-          { key: 'attendance-vacation-audit', label: '考勤申请审计', permission: 'attendance:view' },
-          { key: 'attendance-punch-makeup', label: '补卡申请', permission: 'attendance:view' },
-        ],
-      },
-      { key: 'attendance-devices', label: '打卡设备', permission: 'attendance:manage' },
-      { key: 'attendance-settings', label: '考勤设置', permission: 'attendance:manage' },
-      { key: 'attendance-exception-rules', label: '考勤异常', permission: 'attendance:exception:view' },
-      { key: 'attendance-deduction-rules', label: '扣款规则', permission: 'attendance:deduction:view' },
-      { key: 'attendance-locations', label: '打卡定位', permission: 'attendance:view' },
-    ],
-  },
-  {
-    key: 'approval',
-    label: '审批中心',
-    icon: <IconCheckCircle />,
-    permission: 'approval:todo:view',
-    group: '流程',
-    children: [
-      { key: 'approval-todo', label: '待办审批', permission: 'approval:todo:view' },
-      { key: 'approval-approved', label: '已办审批', permission: 'approval:todo:view' },
-      { key: 'approval-submissions', label: '我的申请', permission: 'approval:submitted:view' },
-      { key: 'approval-settings', label: '流程设置', permission: 'approval:workflow:manage' },
-      { key: 'approval-approvers', label: '审批人管理', permission: 'approval:manage' },
-      { key: 'approval-role-workflow', label: '职责授权', permission: 'approval:workflow:manage' },
-    ],
-  },
-  {
-    key: 'payroll',
-    label: '薪资管理',
-    icon: <IconIdcard />,
-    permission: 'payroll:view',
-    group: '薪酬',
-    children: [
-      { key: 'payroll-runs', label: '算薪批次', permission: 'payroll:view' },
-      { key: 'my-payslips', label: '我的工资条', permission: 'payroll:view' },
-    ],
-  },
-  {
-    key: 'reimbursement',
-    label: '报销管理',
-    icon: <IconSafe />,
-    permission: 'reimbursement:view',
-    group: '薪酬',
-    children: [
-      { key: 'my-reimbursement', label: '我的报销', permission: 'reimbursement:view' },
-      { key: 'expense-approval', label: '报销审批', permission: 'reimbursement:approve' },
-      { key: 'expense-settings', label: '报销配置', permission: 'reimbursement:manage' },
-    ],
-  },
-  {
-    key: 'knowledge',
-    label: '知识库',
-    icon: <IconBook />,
-    permission: 'knowledge:view',
-    group: '工具',
-    children: [
-      { key: 'knowledge', label: '知识列表', permission: 'knowledge:view' },
-      { key: 'knowledge-admin', label: '知识库管理', permission: 'knowledge:manage' },
-    ],
-  },
-  {
-    key: 'performance',
-    label: '绩效 OKR',
-    icon: <IconStar />,
-    permission: 'performance:view',
-    group: '人事',
-    children: [
-      { key: 'performance-cycles', label: '绩效管理', permission: 'performance:view' },
-      { key: 'okr-objectives', label: 'OKR 目标', permission: 'okr:view' },
-    ],
-  },
-  {
-    key: 'finance',
-    label: '财务预算',
-    icon: <IconSafe />,
-    permission: 'finance:budget:view',
-    group: '薪酬',
-    children: [
-      { key: 'finance-budgets', label: '财务预算', permission: 'finance:budget:view' },
-      { key: 'finance-expense-standards', label: '费用标准', permission: 'finance:expense-standard:view' },
-    ],
-  },
-  { key: 'helpdesk', label: '工单客服', icon: <IconCustomerService />, path: '/helpdesk', permission: 'helpdesk:view', group: '工具' },
-  { key: 'notifications', label: '我的通知', icon: <IconNotification />, path: '/notifications', group: '工具' },
-  { key: 'notifications-settings', label: '通知设置', icon: <IconNotification />, path: '/notifications/settings', permission: 'system:notification:settings', group: '设置' },
-  {
-    key: 'system',
-    label: '系统管理',
-    icon: <IconFile />,
-    permission: 'system:user:view',
-    group: '设置',
-    children: [
-      { key: 'system-departments', label: '组织架构', permission: 'department:manage' },
-      { key: 'system-positions', label: '岗位管理', permission: 'position:manage' },
-      { key: 'system-users', label: '用户管理', permission: 'system:user:manage' },
-      { key: 'system-roles', label: '角色权限', permission: 'system:role:manage' },
-      { key: 'system-permissions', label: '权限管理', permission: 'system:role:manage' },
-      { key: 'system-broadcasts', label: '公告管理', permission: 'system:broadcast:manage' },
-      { key: 'system-logs', label: '操作日志', permission: 'system:log:view' },
-    ],
-  },
-  {
-    key: 'settings',
-    label: '系统设置',
-    icon: <IconSettings />,
-    path: '/settings',
-    permission: 'system:setting:view',
-    group: '设置',
-  },
-];
-
-/* 每个菜单分组的专属主题色（CSS 变量，与全局 Token 一致） */
-const GROUP_ACCENT: Record<string, string> = {
-  常用: 'var(--lx-primary)',
-  人事: 'var(--lx-teal)',
-  流程: 'var(--lx-purple)',
-  薪酬: 'var(--lx-warning)',
-  工具: 'var(--lx-indigo)',
-  设置: 'var(--lx-pink)',
-};
-
-export interface AppSiderProps {
-  activeKey?: string;
-  onMenuClick?: (key: string) => void;
-  menuItems?: MenuItemConfig[];
-  permissions?: string[];
-  isMobile?: boolean;
-  visible?: boolean;
-  onClose?: () => void;
-  /** 桌面端折叠为图标窄栏 */
-  collapsed?: boolean;
-}
+export interface MenuItemConfig extends NavNode {}
 
 function filterMenuItems(items: MenuItemConfig[], permissions?: string[]): MenuItemConfig[] {
   if (!permissions) return items;
@@ -236,6 +27,18 @@ function filterMenuItems(items: MenuItemConfig[], permissions?: string[]): MenuI
     result.push(item);
   }
   return result;
+}
+
+export interface AppSiderProps {
+  activeKey?: string;
+  onMenuClick?: (key: string) => void;
+  menuItems?: MenuItemConfig[];
+  permissions?: string[];
+  isMobile?: boolean;
+  visible?: boolean;
+  onClose?: () => void;
+  /** 桌面端折叠为图标窄栏 */
+  collapsed?: boolean;
 }
 
 /**
@@ -268,7 +71,7 @@ function groupByGroup(items: MenuItemConfig[]): { group: string; items: MenuItem
 function AppSider({
   activeKey = 'dashboard',
   onMenuClick,
-  menuItems = defaultMenuItems,
+  menuItems = NAV_TREE,
   permissions,
   isMobile = false,
   visible = false,
@@ -278,7 +81,7 @@ function AppSider({
   const { user, logout } = useAuthStore();
   const { info: systemInfo } = useSystemInfo();
   const router = useRouter();
-  const [logoutHover, setLogoutHover] = useState(false);
+  const todoCount = useApprovalTodoCount();
 
   const visibleItems = useMemo(() => filterMenuItems(menuItems, permissions), [menuItems, permissions]);
   const groupedItems = useMemo(() => groupByGroup(visibleItems), [visibleItems]);
@@ -348,9 +151,8 @@ function AppSider({
     const isOpen = openKeys.includes(item.key);
     const hasChildren = item.children && item.children.length > 0;
     const paddingLeft = 20 + level * 16;
-    // 依据所属分组注入主题色，使图标/指示条带上分组的专属色彩
-    const accent = GROUP_ACCENT[item.group || ''] || undefined;
-    const accentStyle = accent ? { '--item-accent': accent } as CSSProperties : undefined;
+    // 待办审批角标：待办数 > 0 时展示（无权限时 hook 恒为 0）
+    const badge = item.key === 'approval-todo' && todoCount > 0 ? todoCount : null;
 
     if (hasChildren) {
       return (
@@ -358,7 +160,7 @@ function AppSider({
           <button
             type="button"
             className="side-parent"
-            style={{ paddingLeft, ...accentStyle }}
+            style={{ paddingLeft }}
             title={collapsed ? item.label : undefined}
             aria-label={item.label}
             aria-expanded={!collapsed ? isOpen : undefined}
@@ -384,19 +186,17 @@ function AppSider({
         type="button"
         key={item.key}
         className={`side-item ${isActive ? 'active' : ''}`}
-        style={{ paddingLeft, ...accentStyle }}
+        style={{ paddingLeft }}
         title={collapsed ? item.label : undefined}
-        aria-label={item.label}
+        aria-label={badge ? `${item.label}（${badge} 条待办）` : item.label}
         aria-current={isActive ? 'page' : undefined}
         onClick={() => handleItemClick(item)}
       >
         {item.icon && level === 0 && (
           <span className="si-icon">{item.icon}</span>
         )}
-        {collapsed && !item.icon && (
-          <span className="fold-dot" style={{ background: accent || 'var(--lx-text-3)' }} />
-        )}
         <span className="si-label">{item.label}</span>
+        {badge !== null && <span className="side-badge">{badge > 99 ? '99+' : badge}</span>}
       </button>
     );
   };
@@ -442,9 +242,7 @@ function AppSider({
         <button
           type="button"
           aria-label="退出登录"
-          className={`side-logout-btn ${logoutHover ? 'hover' : ''}`}
-          onMouseEnter={() => setLogoutHover(true)}
-          onMouseLeave={() => setLogoutHover(false)}
+          className="side-logout-btn"
           onClick={handleLogout}
         >
           <IconPoweroff />

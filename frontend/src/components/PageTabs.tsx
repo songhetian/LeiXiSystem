@@ -14,69 +14,12 @@ import {
   IconBranch,
 } from '@arco-design/web-react/icon';
 import { useTabsStore, type TabItem } from '@/store/tabs';
+import { tabTitleFor } from '@/config/navigation';
 import { clampMenuPosition } from './page-tabs-position';
 
 // 右键 /「更多」菜单固定尺寸（与 .page-tabs-menu 的 width 对齐）
 const MENU_W = 180;
 const MENU_H = 156;
-
-// 页面标题映射（用于页签名称）
-const TABS_TITLE: Record<string, string> = {
-  '/': '工作台',
-  '/employees': '员工列表',
-  '/employees/transactions': '员工事务',
-  '/employees/tags': '员工标签',
-  '/employees/timeline': '人员履历',
-  '/employees/change-logs': '员工变动流水',
-  '/attendance/punch': '打卡',
-  '/attendance/shifts': '班次管理',
-  '/attendance/schedules': '排班管理',
-  '/attendance/my-schedule': '我的排班',
-  '/attendance/daily': '考勤日报',
-  '/attendance/monthly': '考勤月报',
-  '/attendance/statistics': '考勤统计',
-  '/attendance/vacation/balance': '休假额度',
-  '/attendance/vacation/leave': '请假记录',
-  '/attendance/vacation/settings': '假期设置',
-  '/attendance/vacation/overtime': '加班记录',
-  '/attendance/vacation/audit': '考勤申请审计',
-  '/attendance/punch-makeup': '补卡申请',
-  '/attendance/devices': '打卡设备',
-  '/attendance/settings': '考勤设置',
-  '/attendance/exception-rules': '考勤异常',
-  '/attendance/deduction-rules': '扣款规则',
-  '/attendance/locations': '打卡定位',
-  '/approval/todo': '待办审批',
-  '/approval/approved': '已办审批',
-  '/approval/submissions': '我的申请',
-  '/approval/settings': '流程设置',
-  '/approval/approvers': '审批人管理',
-  '/approval/role-workflow': '职责授权',
-  '/payroll/runs': '算薪批次',
-  '/payroll/my-payslips': '我的工资条',
-  '/expense/my': '我的报销',
-  '/expense/approval': '报销审批',
-  '/expense/settings': '报销配置',
-  '/knowledge': '知识库',
-  '/knowledge/admin': '知识库管理',
-  '/performance/cycles': '绩效管理',
-  '/okr': 'OKR 目标',
-  '/finance/budgets': '财务预算',
-  '/finance/expense-standards': '费用标准',
-  '/helpdesk': '工单客服',
-  '/notifications': '我的通知',
-  '/notifications/settings': '通知设置',
-  '/system/departments': '组织架构',
-  '/system/positions': '岗位管理',
-  '/system/broadcasts': '公告管理',
-  '/broadcasts': '公告',
-  '/system/users': '用户管理',
-  '/system/roles': '角色权限',
-  '/system/permissions': '权限管理',
-  '/system/logs': '操作日志',
-  '/settings': '系统设置',
-  '/profile': '个人资料',
-};
 
 // 固定不可关闭的页签
 const CLOSEABLE = ['/', '/profile'];
@@ -103,9 +46,9 @@ export default function PageTabs() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [scrollable, setScrollable] = useState({ left: false, right: false });
 
-  // 路由变化时自动登记页签
+  // 路由变化时自动登记页签（标题取导航真值源派生，含动态详情页）
   useEffect(() => {
-    const label = TABS_TITLE[pathname] || pathname.split('/').filter(Boolean).pop() || '页面';
+    const label = tabTitleFor(pathname);
     addTab(pathname, label);
   }, [pathname, addTab]);
 

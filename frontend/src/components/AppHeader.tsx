@@ -1,10 +1,12 @@
 'use client';
 
-import { Avatar, Dropdown, Menu, Input } from '@arco-design/web-react';
+import { Avatar, Dropdown, Menu } from '@arco-design/web-react';
 import { IconMore, IconMenu, IconRight, IconSearch, IconMenuFold, IconMenuUnfold, IconSunFill, IconMoonFill, IconDesktop } from '@arco-design/web-react/icon';
 import { useAuthStore } from '@/store/auth';
 import { useThemeStore } from '@/store/theme';
 import type { ThemeMode } from '@/store/theme';
+import { usePaletteStore } from '@/store/palette';
+import { breadcrumbFor, parentReturnFor } from '@/config/navigation';
 import { useRouter, usePathname } from 'next/navigation';
 import { NotificationDropdown } from './NotificationDropdown';
 import { memo } from 'react';
@@ -17,72 +19,16 @@ export interface AppHeaderProps {
   collapsed?: boolean;
 }
 
-// 面包屑父级（第一层）可点击跳转到对应分组首页
-const PARENT_RETURN_PATH: Record<string, string> = {
-  首页: '/',
-  员工管理: '/employees',
-  考勤管理: '/attendance/daily',
-  审批中心: '/approval/todo',
-  薪资管理: '/payroll/runs',
-  报销管理: '/expense/my',
-  系统管理: '/system/users',
-  知识库: '/knowledge',
-  系统设置: '/settings',
-};
-
-const BREADCRUMB_MAP: Record<string, string[]> = {
-  '/': ['首页'],
-  '/employees': ['员工管理', '员工列表'],
-  '/employees/transactions': ['员工管理', '员工事务'],
-  '/employees/timeline': ['员工管理', '人员履历'],
-  '/employees/change-logs': ['员工管理', '员工变动流水'],
-  '/employees/tags': ['员工管理', '员工标签'],
-  '/attendance/shifts': ['考勤管理', '班次管理'],
-  '/attendance/schedules': ['考勤管理', '排班管理'],
-  '/attendance/daily': ['考勤管理', '考勤日报'],
-  '/attendance/monthly': ['考勤管理', '考勤月报'],
-  '/attendance/statistics': ['考勤管理', '考勤统计'],
-  '/attendance/vacation/balance': ['考勤管理', '休假额度'],
-  '/attendance/vacation/leave': ['考勤管理', '请假记录'],
-  '/attendance/vacation/settings': ['考勤管理', '假期设置'],
-  '/attendance/vacation/overtime': ['考勤管理', '加班记录'],
-  '/attendance/vacation/audit': ['考勤管理', '考勤申请审计'],
-  '/attendance/punch-makeup': ['考勤管理', '补卡申请'],
-  '/attendance/devices': ['考勤管理', '打卡设备'],
-  '/attendance/settings': ['考勤管理', '考勤设置'],
-  '/approval/todo': ['审批中心', '待办审批'],
-  '/approval/approved': ['审批中心', '已办审批'],
-  '/approval/submissions': ['审批中心', '我的申请'],
-  '/approval/settings': ['审批中心', '流程设置'],
-  '/approval/role-workflow': ['审批中心', '职责授权'],
-  '/payroll/runs': ['薪资管理', '算薪批次'],
-  '/payroll/my-payslips': ['薪资管理', '我的工资条'],
-  '/expense/my': ['报销管理', '我的报销'],
-  '/expense/approval': ['报销管理', '报销审批'],
-  '/knowledge': ['知识库'],
-  '/knowledge/admin': ['知识库管理'],
-  '/notifications': ['我的通知'],
-  '/notifications/settings': ['系统设置', '通知设置'],
-  '/system/departments': ['系统管理', '组织架构'],
-  '/system/positions': ['系统管理', '岗位管理'],
-  '/system/broadcasts': ['系统管理', '公告管理'],
-  '/broadcasts': ['系统管理', '公告'],
-  '/system/users': ['系统管理', '用户管理'],
-  '/system/roles': ['系统管理', '角色权限'],
-  '/system/permissions': ['系统管理', '权限管理'],
-  '/system/logs': ['系统管理', '操作日志'],
-  '/settings': ['系统设置'],
-  '/profile': ['个人资料'],
-};
-
 function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed = false }: AppHeaderProps) {
   const { user, logout } = useAuthStore();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || '/';
   const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
+  const togglePalette = usePaletteStore((s) => s.toggle);
 
-  const breadcrumbs = BREADCRUMB_MAP[pathname] || [title];
+  // 面包屑由 config/navigation 派生（含动态详情页父级链），未知路由取 URL 末段
+  const breadcrumbs = breadcrumbFor(pathname);
 
   const handleLogout = () => {
     logout();
@@ -156,7 +102,7 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
           <nav className="breadcrumb">
             {breadcrumbs.map((item, index) => {
               const isLast = index === breadcrumbs.length - 1;
-              const returnPath = PARENT_RETURN_PATH[item];
+              const returnPath = parentReturnFor(item);
               const clickable = !isLast && !!returnPath;
               return (
                 <span key={index} className="breadcrumb-item">
@@ -184,19 +130,17 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
         </div>
 
         <div className="header-right">
-          {/* 智能搜索入口（Ctrl+K 命令面板） */}
+          {/* 智能搜索入口（Ctrl+K 命令面板）：直接改 zustand 开关，
+              不再伪造 KeyboardEvent 去触发另一个组件的全局监听 */}
           {!isMobile && (
             <button
               type="button"
               className="header-search-trigger"
-              onClick={() => {
-                const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true });
-                document.dispatchEvent(event);
-              }}
+              onClick={togglePalette}
               aria-label="搜索"
             >
               <IconSearch className="header-search-icon" />
-              <span className="header-search-text">搜索页面...</span>
+              <span className="header-search-text">搜索页面、员工...</span>
               <kbd className="header-search-kbd">Ctrl K</kbd>
             </button>
           )}

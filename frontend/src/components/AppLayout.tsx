@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth';
 import { useTabsStore } from '@/store/tabs';
 import { useSocket } from '@/hooks/use-socket';
 import { useResponsive } from '@/hooks/use-responsive';
+import { menuPathFor } from '@/config/navigation';
 
 export interface AppLayoutProps {
   children: React.ReactNode;
@@ -21,56 +22,6 @@ export interface AppLayoutProps {
   activeMenu?: string;
   onMenuClick?: (key: string) => void;
 }
-
-const MENU_ROUTES: Record<string, string> = {
-  dashboard: '/',
-  'broadcasts-public': '/broadcasts',
-  'employee-list': '/employees',
-  'employee-transactions': '/employees/transactions',
-  'employee-tags': '/employees/tags',
-  'employee-timeline': '/employees/timeline',
-  'employee-change-logs': '/employees/change-logs',
-  'performance-cycles': '/performance/cycles',
-  'okr-objectives': '/okr',
-  'attendance-punch': '/attendance/punch',
-  'attendance-my-schedule': '/attendance/my-schedule',
-  'attendance-shifts': '/attendance/shifts',
-  'attendance-schedules': '/attendance/schedules',
-  'attendance-daily': '/attendance/daily',
-  'attendance-monthly': '/attendance/monthly',
-  'attendance-statistics': '/attendance/statistics',
-  'attendance-vacation-balance': '/attendance/vacation/balance',
-  'attendance-vacation-leave': '/attendance/vacation/leave',
-  'attendance-vacation-type-settings': '/attendance/vacation/settings',
-  'attendance-vacation-overtime': '/attendance/vacation/overtime',
-  'attendance-vacation-audit': '/attendance/vacation/audit',
-  'attendance-punch-makeup': '/attendance/punch-makeup',
-  'attendance-devices': '/attendance/devices',
-  'attendance-settings': '/attendance/settings',
-  'approval-todo': '/approval/todo',
-  'approval-approved': '/approval/approved',
-  'approval-submissions': '/approval/submissions',
-  'approval-settings': '/approval/settings',
-  'approval-approvers': '/approval/approvers',
-  'approval-role-workflow': '/approval/role-workflow',
-  'payroll-runs': '/payroll/runs',
-  'my-payslips': '/payroll/my-payslips',
-  'my-reimbursement': '/expense/my',
-  'expense-approval': '/expense/approval',
-  'expense-settings': '/expense/settings',
-  knowledge: '/knowledge',
-  'knowledge-admin': '/knowledge/admin',
-  notifications: '/notifications',
-  'notifications-settings': '/notifications/settings',
-  'system-departments': '/system/departments',
-  'system-positions': '/system/positions',
-  'system-broadcasts': '/system/broadcasts',
-  'system-users': '/system/users',
-  'system-roles': '/system/roles',
-  'system-permissions': '/system/permissions',
-  'system-logs': '/system/logs',
-  settings: '/settings',
-};
 
 export default function AppLayout({
   children,
@@ -108,7 +59,7 @@ export default function AppLayout({
   }, [refreshUser]);
 
   const handleMenuClick = useCallback((key: string) => {
-    const route = MENU_ROUTES[key];
+    const route = menuPathFor(key);
     if (route) {
       router.push(route);
     }
