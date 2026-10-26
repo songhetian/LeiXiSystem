@@ -368,7 +368,7 @@ export default function PunchPage() {
                     type="primary"
                     size="large"
                     long
-                    loading={punching}
+                    loading={punching && !hasClockedOut && !clockInBtn.disabled}
                     disabled={clockInBtn.disabled}
                     className={`punch-btn ${clockInBtn.done ? 'is-done' : ''}`}
                     onClick={hasClockedIn ? undefined : handleClockIn}
@@ -386,7 +386,7 @@ export default function PunchPage() {
                     type="primary"
                     size="large"
                     long
-                    loading={punching}
+                    loading={punching && hasClockedIn && !hasClockedOut}
                     disabled={clockOutBtn.disabled}
                     className={`punch-btn punch-btn-out ${clockOutBtn.done ? 'is-done' : ''}`}
                     onClick={!hasClockedIn || hasClockedOut ? undefined : handleClockOut}

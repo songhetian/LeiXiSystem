@@ -484,7 +484,8 @@ export default function ScheduleCalendarPage() {
   const applyStamp = useCallback(
     async (employeeId: number, dateStr: string, stamp: StampValue) => {
       const existing = scheduleMap.get(`${employeeId}_${dateStr}`);
-      // 无变化直接跳过      if (stamp !== 'clear' && existing && existing.shiftId === stamp) return;
+      // 无变化直接跳过：印章与已有排班相同班次时不必再打 update 接口
+      if (stamp !== 'clear' && existing && existing.shiftId === stamp) return;
       if (stamp === 'clear' && !existing) return;
 
       try {
@@ -1001,7 +1002,8 @@ export default function ScheduleCalendarPage() {
               </Tag>
             ))}
             <Tag color="orange" size="small" style={{ margin: 0 }}>
-              ● = 已审批请假            </Tag>
+              橙色底 = 已审批请假
+            </Tag>
           </Space>
         </div>
 
@@ -1244,7 +1246,11 @@ function HSyncBar({ visible, scrollLeft, scrollWidth, clientWidth, onSeek }: HSy
     <div
       ref={barRef}
       className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[1100]"
+      aria-hidden="true"
       onPointerDown={(e) => {
+        // setPointerCapture：快速拖动时指针移出长条不再中断拖拽，
+        // 把后续 pointermove 事件持续锁在本元素上直到 pointerup
+        e.currentTarget.setPointerCapture?.(e.pointerId);
         draggingRef.current = true;
         const rect = barRef.current?.getBoundingClientRect();
         if (rect) seekFromEvent(e.clientX, rect.left);
@@ -1258,7 +1264,7 @@ function HSyncBar({ visible, scrollLeft, scrollWidth, clientWidth, onSeek }: HSy
       onPointerUp={() => {
         draggingRef.current = false;
       }}
-      onPointerLeave={() => {
+      onPointerCancel={() => {
         draggingRef.current = false;
       }}
     >
