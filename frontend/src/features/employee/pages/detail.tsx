@@ -23,6 +23,7 @@ import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
 import useFetchState from '@/hooks/use-fetch-state';
+import { formatMoney } from '@/lib/format';
 import EmployeeDetailTabs from '@/features/employee/components/EmployeeDetailTabs';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -153,7 +154,7 @@ export default function EmployeeDetailPage() {
                 { label: '岗位', value: employee.positionName || employee.position?.name || '-' },
                 { label: '入职日期', value: employee.hireDate },
                 { label: '离职日期', value: employee.resignDate || '-' },
-                { label: '薪资', value: `¥${employee.salary}` },
+                { label: '薪资', value: employee.salary ? `¥ ${formatMoney(employee.salary, '-')}` : '-' },
                 { label: '创建时间', value: employee.createdAt || '-' },
               ]}
             />

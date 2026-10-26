@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Drawer, Spin, Empty } from '@arco-design/web-react';
 import StatusTag from '@/components/StatusTag';
 import { employeeApi, Employee, EmployeeChangeLog } from '@/services/employee';
-import { formatDate, formatDateTime as formatDateTimeTz } from '@/lib/format';
+import { formatDate, formatDateTime as formatDateTimeTz, formatMoney } from '@/lib/format';
 import useFetchState from '@/hooks/use-fetch-state';
 
 interface TimelineItem {
@@ -30,7 +30,7 @@ function formatDateTime(v?: string | null): string {
 function formatSalary(v?: string | number): string {
   const n = Number(v ?? 0);
   if (!n || n <= 0) return '-';
-  return `¥ ${n.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
+  return `¥ ${formatMoney(n, '0.00')}`;
 }
 
 /** 在职时长：按 年/月 描述 */

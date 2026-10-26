@@ -12,7 +12,7 @@ import { usePermission } from '@/hooks/use-permission';
 import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatMoney } from '@/lib/format';
 
 /** 常用预算类别选项 */
 const BUDGET_CATEGORIES = ['行政', '差旅', '办公', '营销', '培训', '设备', '其他'];
@@ -256,20 +256,23 @@ export default function BudgetsPage() {
       title: '总额',
       dataIndex: 'totalAmount',
       width: 150,
-      render: (v: number) => `¥ ${Number(v ?? 0).toLocaleString('zh-CN')}`,
+      align: 'right',
+      render: (v: number) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
     },
     {
       title: '已用',
       dataIndex: 'usedAmount',
       width: 150,
-      render: (v: number | undefined) => (v == null ? '--' : `¥ ${Number(v).toLocaleString('zh-CN')}`),
+      align: 'right',
+      render: (v: number | undefined) => (v == null ? '--' : `¥ ${formatMoney(v, '0.00')}`),
     },
     {
       title: '剩余',
       dataIndex: 'usedAmount',
       width: 150,
+      align: 'right',
       render: (v: number | undefined, record: Budget) =>
-        v == null ? '--' : `¥ ${(record.totalAmount - v).toLocaleString('zh-CN')}`,
+        v == null ? '--' : `¥ ${formatMoney(record.totalAmount - v, '0.00')}`,
     },
     { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '--' },
     {

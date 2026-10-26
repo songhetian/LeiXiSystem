@@ -11,7 +11,7 @@ import { financeApi, ExpenseStandard, ExpenseStandardCreateDto, ExpenseStandardU
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, formatMoney } from '@/lib/format';
 
 /** 常用费用类别选项 */
 const EXPENSE_CATEGORIES = ['差旅', '办公', '通讯', '招待', '交通', '住宿', '其他'];
@@ -257,7 +257,8 @@ export default function ExpenseStandardsPage() {
       title: '金额',
       dataIndex: 'amount',
       width: 130,
-      render: (v: number) => `¥ ${Number(v ?? 0).toLocaleString('zh-CN')}`,
+      align: 'right',
+      render: (v: number) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
     },
     { title: '单位', dataIndex: 'unit', width: 130, render: (v: string) => v || '--' },
     { title: '描述', dataIndex: 'description', ellipsis: true, render: (v: string) => v || '--' },
