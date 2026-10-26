@@ -1856,8 +1856,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
-  border-radius: var(--lx-radius-md);
+  padding: 4px 10px;
+  /* 页签是紧凑条状元素，8px 圆角会呈胶囊感；4px 更利落（REFACTOR_PLAN §11 企业级标准） */
+  border-radius: var(--lx-radius-xs);
   font-size: var(--lx-font-xs);
   font-family: inherit;
   color: var(--lx-text-3);
@@ -1880,13 +1881,14 @@
 }
 
 .page-tab.active {
-  /* 多层背景：底部 2px 蓝→紫渐变条压在品牌淡底之上（不引入定位上下文，避免影响关闭按钮定位） */
+  /* 活页签：纯主色 2px 下划线压在品牌淡底之上（不引入定位上下文，
+     避免影响关闭按钮定位）。渐变下划线已按「单主色」原则移除 */
   background:
-    linear-gradient(90deg, var(--lx-primary), #7c3aed) left bottom / 100% 2px no-repeat,
+    var(--lx-primary) left bottom / 100% 2px no-repeat,
     var(--lx-primary-bg);
   color: var(--lx-primary);
   font-weight: 500;
-  border-color: rgba(36, 85, 217, 0.15);
+  border-color: var(--lx-primary-weak);
 }
 
 .page-tab-dot {
