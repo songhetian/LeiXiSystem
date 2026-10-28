@@ -283,7 +283,7 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
       )}
       {salaryItemsEmpty && canManage && run.status === 'draft' && (
         <div className="mb-3 rounded-md border border-warning bg-warning-light px-3 py-2 text-sm text-warning-text">
-          暂无启用的工资项，请先在「薪资项设置」中启用后再做调整。
+          暂无启用的工资项（配置为空或已全部停用），暂时无法添加调整。
         </div>
       )}
       <DataState

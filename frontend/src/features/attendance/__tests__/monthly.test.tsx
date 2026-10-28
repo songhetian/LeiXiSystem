@@ -24,6 +24,7 @@ jest.mock('@/services/attendance', () => ({
     getMonthlyList: jest.fn(),
     generateMonthly: jest.fn(),
     confirmMonthly: jest.fn(),
+    unconfirmMonthly: jest.fn(),
     exportMonthlyUrl: jest.fn(
       (month: string) => `/api/v1/reports/attendance-monthly/export?month=${month}`,
     ),
@@ -171,9 +172,11 @@ describe('AttendanceMonthlyPage', () => {
   });
 
   describe('正常用例', () => {
-    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', async () => {
       render(<AttendanceMonthlyPage />);
       expect(screen.queryByTestId('page-title')).toBeNull();
+      // 等首屏请求落地，避免测试结束后 setState 落在 act 之外
+      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(2));
     });
 
     it('renders ProTable with monthly columns', async () => {
@@ -319,20 +322,19 @@ describe('AttendanceMonthlyPage', () => {
   });
 
   describe('确认操作', () => {
-    it('确认 button only shows for draft status records', async () => {
+    it('草稿行展示「确认」，已确认行展示「撤销确认」', async () => {
       render(<AttendanceMonthlyPage />);
       await waitFor(() => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(2);
       });
-      // 草稿行（id=1）展示「确认」按钮
+      // 草稿行（id=1）可确认
       expect(screen.getByTestId('cell-1-operation')).toHaveTextContent('确认');
-      // 已确认行（id=2）不展示「确认」按钮
-      expect(screen.getByTestId('cell-2-operation')).toBeEmptyDOMElement();
-      // 仅有一条草稿记录 => 仅一个确认按钮
-      expect(screen.getAllByTestId('arco-btn')).toHaveLength(1);
+      // 已确认行（id=2）可撤销确认：确认会锁住当月，没有撤销入口就只能等后端修数据
+      expect(screen.getByTestId('cell-2-operation')).toHaveTextContent('撤销确认');
+      expect(screen.getAllByTestId('arco-btn')).toHaveLength(2);
     });
 
-    it('calls confirmMonthly when 确认 button clicked', async () => {
+    it('确认前有二次确认，确认后才调用 confirmMonthly', async () => {
       const user = userEvent.setup();
       (attendanceApi.confirmMonthly as jest.Mock).mockResolvedValue({
         code: 0,
@@ -342,10 +344,36 @@ describe('AttendanceMonthlyPage', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(2);
       });
-      await user.click(screen.getByTestId('arco-btn'));
+
+      await user.click(screen.getByTestId('cell-1-operation').querySelector('button')!);
+      // 还没点确认按钮时不该发请求
+      expect(attendanceApi.confirmMonthly).not.toHaveBeenCalled();
+
+      await user.click(await screen.findByText('确认并锁定'));
       await waitFor(() => {
         expect(attendanceApi.confirmMonthly).toHaveBeenCalledWith(1);
       });
+    });
+
+    it('撤销确认同样二次确认，确认后才调用 unconfirmMonthly 并刷新', async () => {
+      const user = userEvent.setup();
+      (attendanceApi.unconfirmMonthly as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+      });
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(2);
+      });
+
+      await user.click(screen.getByTestId('cell-2-operation').querySelector('button')!);
+      expect(attendanceApi.unconfirmMonthly).not.toHaveBeenCalled();
+
+      await user.click(await screen.findByText('确认撤销'));
+      await waitFor(() => {
+        expect(attendanceApi.unconfirmMonthly).toHaveBeenCalledWith(2);
+      });
+      await waitFor(() => expect(attendanceApi.getMonthlyList).toHaveBeenCalledTimes(2));
     });
   });
 

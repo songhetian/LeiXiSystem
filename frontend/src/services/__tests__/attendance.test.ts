@@ -147,6 +147,13 @@ describe('attendanceApi', () => {
       });
       expect(result.code).toBe(0);
     });
+
+    it('unconfirmMonthly 调用撤回确认接口（确认会锁住当月，必须能退回草稿）', async () => {
+      mockedRequest.post.mockResolvedValueOnce({ code: 0, message: 'ok' });
+      const result = await attendanceApi.unconfirmMonthly(5);
+      expect(mockedRequest.post).toHaveBeenCalledWith('/attendance/monthly/5/unconfirm');
+      expect(result.code).toBe(0);
+    });
   });
 
   describe('边界用例', () => {

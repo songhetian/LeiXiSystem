@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Button, Message } from '@arco-design/web-react';
+import { Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments } from '@/hooks/use-departments';
 import { attendanceApi, MonthlyRecord, MonthlyListResult, MonthlyListParams } from '@/services/attendance';
@@ -14,7 +15,8 @@ import { exportToExcel } from '@/lib/excel';
 import { todayStr, getTzParts } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
-  { key: 'month', label: '月份', type: 'date', format: 'YYYY-MM', placeholder: '请选择月份', span: 4 },
+  // 月份统一用月选择器，避免手输 2026-8 / 2026/08 这类查不到的写法
+  { key: 'month', label: '月份', type: 'month', placeholder: '请选择月份', span: 4 },
   {
     key: 'status',
     label: '状态',
@@ -161,6 +163,21 @@ export default function AttendanceMonthlyPage() {
     }
   };
 
+  // 撤销确认：确认会锁住当月（再次生成会被后端拒绝），需要修正时先退回草稿
+  const handleUnconfirm = async (id: number) => {
+    try {
+      const result = await attendanceApi.unconfirmMonthly(id);
+      if (result.code === 0) {
+        Message.success('已撤销确认');
+        await revalidate();
+      } else {
+        Message.error(result.message || '撤销确认失败');
+      }
+    } catch {
+      Message.error('撤销确认失败');
+    }
+  };
+
   const columns: ProTableColumn[] = [
     {
       title: '工号',
@@ -216,18 +233,34 @@ export default function AttendanceMonthlyPage() {
     {
       title: '操作',
       dataIndex: 'operation',
-      width: 100,
+      width: 130,
       render: (_value, record) =>
         record.status === 'draft' ? (
-          <Button
+          <ConfirmButton
             type="text"
             size="small"
             disabled={!can('attendance:manage')}
-            onClick={() => handleConfirm(record.id)}
+            title="确认月报"
+            content={`确认后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报将被锁定并作为薪资核算依据，当月不能再重新生成。`}
+            okText="确认并锁定"
+            onConfirm={() => handleConfirm(record.id)}
           >
             确认
-          </Button>
-        ) : null,
+          </ConfirmButton>
+        ) : (
+          <ConfirmButton
+            type="text"
+            size="small"
+            status="warning"
+            disabled={!can('attendance:manage')}
+            title="撤销确认"
+            content={`撤销后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报回到待确认，可重新生成。已据此核算的工资不会自动回滚。`}
+            okText="确认撤销"
+            onConfirm={() => handleUnconfirm(record.id)}
+          >
+            撤销确认
+          </ConfirmButton>
+        ),
     },
   ];
 

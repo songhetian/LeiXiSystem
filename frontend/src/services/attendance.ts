@@ -673,6 +673,13 @@ export const attendanceApi = {
     return request.post(`/attendance/monthly/${id}/confirm`);
   },
   /**
+   * 撤销确认：确认后的月报会锁住当月（再次生成会被后端拒绝），
+   * 需要修正时必须先撤销确认回到草稿
+   */
+  unconfirmMonthly(id: number): Promise<MonthlyConfirmResult> {
+    return request.post(`/attendance/monthly/${id}/unconfirm`);
+  },
+  /**
    * 月报导出 URL（供 window.open 直接下载 CSV）
    * 注意：导出走独立的报表接口，不经过 request 实例的拦截器
    */
