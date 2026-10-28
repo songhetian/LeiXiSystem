@@ -238,8 +238,7 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it('unmount 后迟到的响应不再写入组件状态（不产生跨用例 act 告警）', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('unmount 后迟到的响应不再写入组件状态（不产生跨用例 act 告警）', async () => {    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     let resolveIt!: (v: unknown) => void;
     fetcher.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -260,5 +259,40 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     );
     expect(actErrors).toHaveLength(0);
     consoleSpy.mockRestore();
+  });
+
+  // 回归背景：无缓存时首帧返回 loading=false + data=null，页面会先渲染「暂无数据」，
+  // 下一拍才切骨架屏，用户看到的是一片文字闪一下（甘特/统计页尤其明显）。
+  it('无缓存时首帧就是 loading，不先闪一下「暂无数据」', () => {
+    const frames: string[] = [];
+    function FirstFrameProbe() {
+      const { data, loading } = useCachedData('k-first-frame', () => new Promise(() => {}));
+      frames.push(`${data === null ? 'null' : 'data'}/${loading}`);
+      return null;
+    }
+
+    render(<FirstFrameProbe />);
+    expect(frames[0]).toBe('null/true');
+  });
+
+  it('已有新鲜缓存时首帧直接出数据，不再闪骨架屏', async () => {
+    fetcher.mockResolvedValue('cached-value');
+    const first = render(<Probe cacheKey="k-first-cached" fetcher={fetcher} label="a" staleTime={5000} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('a-data')).toHaveTextContent('"cached-value"');
+    });
+    first.unmount();
+
+    const frames: string[] = [];
+    function FirstFrameProbe() {
+      const { data, loading } = useCachedData('k-first-cached', () => Promise.resolve('x'), {
+        staleTime: 5000,
+      });
+      frames.push(`${data === null ? 'null' : 'data'}/${loading}`);
+      return null;
+    }
+
+    render(<FirstFrameProbe />);
+    expect(frames[0]).toBe('data/false');
   });
 });

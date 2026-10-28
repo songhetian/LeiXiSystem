@@ -402,8 +402,10 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
         </Upload>
         {docAttachments.length > 0 && (
           <Space direction="vertical" size={4} style={{ marginTop: 8 }}>
-            {docAttachments.map((att, index) => (
-              <Space key={index} size={8} align="center">
+            {docAttachments.map((att) => (
+              // 键与删除都按 fileUrl 定位：用下标会在删除中间一项后错位，
+              // 让后面附件的「移除」删到别人头上
+              <Space key={att.fileUrl} size={8} align="center">
                 <Text style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {att.fileName}
                 </Text>
@@ -411,7 +413,7 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
                   size="mini"
                   type="text"
                   status="danger"
-                  onClick={() => setDocAttachments((prev) => prev.filter((_, i) => i !== index))}
+                  onClick={() => setDocAttachments((prev) => prev.filter((a) => a.fileUrl !== att.fileUrl))}
                 >
                   移除
                 </Button>

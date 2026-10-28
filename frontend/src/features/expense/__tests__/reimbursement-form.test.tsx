@@ -143,4 +143,34 @@ describe('ReimbursementForm', () => {
 
     await waitFor(() => expect(reimbursementApi.uploadFile).toHaveBeenCalled());
   });
+
+  it('删除中间附件后按文件定位移除，只删掉自己那一项', async () => {
+    (reimbursementApi.uploadFile as jest.Mock)
+      .mockResolvedValueOnce({ code: 0, data: { url: '/uploads/a.png', fileName: 'A.png' } })
+      .mockResolvedValueOnce({ code: 0, data: { url: '/uploads/b.png', fileName: 'B.png' } });
+
+    const user = userEvent.setup();
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('报销单标题')).toBeInTheDocument());
+
+    const input = document.querySelectorAll('input[type=file]')[1] as HTMLInputElement;
+    await user.upload(input, new File(['x'], 'A.png', { type: 'image/png' }));
+    await waitFor(() => expect(screen.getByText('A.png')).toBeInTheDocument());
+    await user.upload(input, new File(['y'], 'B.png', { type: 'image/png' }));
+    await waitFor(() => expect(screen.getByText('B.png')).toBeInTheDocument());
+
+    // 移除第一个附件，剩下的必须还是 B
+    await user.click(screen.getAllByRole('button', { name: '移除' })[0]);
+    await waitFor(() => expect(screen.queryByText('A.png')).not.toBeInTheDocument());
+    expect(screen.getByText('B.png')).toBeInTheDocument();
+
+    // 提交时携带的附件也是 B（不会删错人）
+    await user.type(screen.getAllByPlaceholderText('0.00')[0], '100');
+    await user.click(screen.getByRole('button', { name: /正式提交/ }));
+    await waitFor(() => {
+      expect(reimbursementApi.createReimbursement).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments: [{ fileName: 'B.png', fileUrl: '/uploads/b.png' }] }),
+      );
+    });
+  });
 });

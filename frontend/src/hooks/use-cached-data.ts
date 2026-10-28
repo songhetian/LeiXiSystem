@@ -63,7 +63,10 @@ export function useCachedData<T>(
       if (cached) {
         return { data: cached.data as T, loading: false, error: null };
       }
-      return { data: null, loading: false, error: null };
+      // 无缓存时首帧就是 loading：mounted effect 里马上会发请求，若首帧
+      // 返回 loading=false + data=null，页面会先闪一下「暂无数据」再切骨架屏，
+      // 用户看到的是「刚说有数据、又说没有、又变成加载中」。
+      return { data: null, loading: true, error: null };
     },
   );
 
