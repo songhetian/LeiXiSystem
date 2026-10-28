@@ -49,6 +49,8 @@ export default function EmployeeSelect({
 }: EmployeeSelectProps) {
   const [options, setOptions] = useState<OptionData[]>([]);
   const [loading, setLoading] = useState(false);
+  // 加载失败与「确实没有员工」是两件事：不区分会让用户以为库里查无此人
+  const [loadFailed, setLoadFailed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchedRef = useRef(false);
 
@@ -71,10 +73,14 @@ export default function EmployeeSelect({
         pageSize: 50,
         departmentId,
       });
+      // 业务码非 0 不是「没有员工」，必须走失败分支
+      if (res.code !== 0) throw new Error(res.message || '员工列表加载失败');
       const list = res.data?.list ?? [];
       setOptions(list.map(toOption));
+      setLoadFailed(false);
     } catch {
       setOptions([]);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -132,7 +138,14 @@ export default function EmployeeSelect({
     allowClear,
     style: { width: '100%', ...style },
     className,
-    notFoundContent: loading ? <Spin /> : '暂无数据',
+    notFoundContent: loading ? (
+      <Spin />
+    ) : loadFailed ? (
+      // 失败时说清是「加载失败」，用户还能重试（收起再展开触发重新搜索）
+      '员工列表加载失败，请收起后重试'
+    ) : (
+      '暂无数据'
+    ),
     mode: isMultiple ? 'multiple' : undefined,
   };
 

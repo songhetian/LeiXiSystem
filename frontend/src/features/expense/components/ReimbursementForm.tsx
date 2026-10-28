@@ -57,16 +57,20 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
   const [itemUploadingIdx, setItemUploadingIdx] = useState<number | null>(null);
   const [docUploading, setDocUploading] = useState(false);
 
-  // 参考数据经 useCachedData 共享缓存，避免重复请求；缓存异常降级为空数组
+  // 参考数据经 useCachedData 共享缓存，避免重复请求。
+  // 业务码非 0 一律抛错交给下面的 catch 统一提示：静默降级会让「报销类型」
+  // /「费用类型」下拉变空，用户无从判断是系统里没配还是接口挂了。
   const { data: types } = useCachedData<ReimbursementType[]>(
     'ref:reimbursement:types',
     useCallback(
       () =>
         reimbursementApi
           .getTypes()
-          .then((res) => (res.code === 0 ? (res.data ?? []) : []))
+          .then((res) => {
+            if (res.code !== 0) throw new Error(res.message || '报销类型加载失败');
+            return res.data ?? [];
+          })
           .catch((e) => {
-            // 静默降级会让「报销类型」下拉变空，用户无法提交却不知原因（保持空数组兜底 + 显式提示）
             notifyError(e, '报销类型加载失败，请刷新重试');
             return [];
           }),
@@ -79,7 +83,10 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
       () =>
         reimbursementApi
           .getExpenseTypes()
-          .then((res) => (res.code === 0 ? (res.data ?? []) : []))
+          .then((res) => {
+            if (res.code !== 0) throw new Error(res.message || '费用类型加载失败');
+            return res.data ?? [];
+          })
           .catch((e) => {
             notifyError(e, '费用类型加载失败，请刷新重试');
             return [];

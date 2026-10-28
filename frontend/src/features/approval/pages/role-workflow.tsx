@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState } from 'react';
-import { Message, Select, Tag, Tooltip } from '@arco-design/web-react';
+import { Message, Select, Tag, Tooltip, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
@@ -36,7 +36,9 @@ export default function RoleWorkflowPage() {
       }),
   );
 
-  const { data: workflows } = useCachedData<Workflow[]>(
+  // 可选流程列表是绑定下拉的数据源：失败时不能静默留空，
+  // 否则下拉里「一个流程都没有」，用户会以为系统里没有已激活流程。
+  const { data: workflows, error: workflowsError, revalidate: revalidateWorkflows } = useCachedData<Workflow[]>(
     WORKFLOW_KEY,
     () =>
       approvalApi.listWorkflows().then((res) => {
@@ -75,11 +77,12 @@ export default function RoleWorkflowPage() {
       render: (_: any, role: RoleWorkflowItem) =>
         managePerm ? (
           <Select
-            placeholder="默认（通用流程）"
+            placeholder={workflowsError ? '流程列表加载失败' : '默认（通用流程）'}
             allowClear
             showSearch
             style={{ width: '100%' }}
             options={workflowOptions}
+            disabled={!!workflowsError}
             value={role.workflowId ?? undefined}
             onChange={(v) => handleChange(role.id, v as number | undefined, role.name)}
             filterOption={(input, option) =>
@@ -113,6 +116,17 @@ export default function RoleWorkflowPage() {
     <PageContainer
       action={<span className="text-text-3 text-sm">未绑定角色的用户发起审批时走所选模块的通用流程</span>}
     >
+      {managePerm && workflowsError && (
+        <div
+          role="alert"
+          className="mb-3 flex items-center justify-between gap-3 rounded-md border border-danger bg-danger-light px-3 py-2 text-sm text-danger"
+        >
+          <span>审批流程列表加载失败，暂时无法绑定：{workflowsError}</span>
+          <Button size="mini" onClick={() => revalidateWorkflows()}>
+            重试
+          </Button>
+        </div>
+      )}
       <ProTable
         columns={columns}
         data={list || []}

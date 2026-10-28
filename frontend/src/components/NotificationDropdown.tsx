@@ -13,6 +13,8 @@ export function NotificationDropdown() {
   const [unread, setUnread] = useState(0);
   const [list, setList] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  // 通知面板的失败态：接口挂了不能显示「暂无新通知」（用户会以为确实没有消息）
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -57,11 +59,12 @@ export function NotificationDropdown() {
     setLoading(true);
     try {
       const res = await notificationApi.list({ page: 1, pageSize: 5, read: false });
-      if (res.code === 0 && res.data) {
-        setList(res.data.list);
-      }
-    } catch {
-      // 失败时保留旧列表，不打断面板展示
+      if (res.code !== 0) throw new Error(res.message || '通知加载失败');
+      setList(res.data?.list ?? []);
+      setError(null);
+    } catch (e) {
+      // 保留旧列表（若有）：失败信息挂在面板顶部，不把旧消息抹掉
+      setError((e as Error)?.message || '通知加载失败');
     } finally {
       setLoading(false);
     }
@@ -191,8 +194,19 @@ export function NotificationDropdown() {
             </Button>
           </div>
           <div style={styles.panelBody}>
+            {error && (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-2 border-b border-danger bg-danger-light px-3 py-2 text-xs text-danger"
+              >
+                <span>{error}</span>
+                <Button type="text" size="mini" onClick={fetchList}>
+                  重试
+                </Button>
+              </div>
+            )}
             <Spin loading={loading} style={{ display: 'block' }}>
-              {list.length === 0 && !loading ? (
+              {list.length === 0 && !loading && !error ? (
                 <Empty description="暂无新通知" style={{ padding: '24px 0' }} />
               ) : (
                 <List

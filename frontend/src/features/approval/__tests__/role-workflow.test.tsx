@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoleWorkflowPage from '@/features/approval/pages/role-workflow';
 import { approvalApi } from '@/services/approval';
@@ -36,8 +36,13 @@ jest.mock('@arco-design/web-react', () => {
   return {
     ...actual,
     Tag: ({ color, children }: any) => <span data-testid="tag" data-color={color}>{children}</span>,
-    Select: ({ options }: any) => (
-      <select data-testid="workflow-select" data-options={JSON.stringify(options || [])}>
+    Select: ({ options, disabled, placeholder }: any) => (
+      <select
+        data-testid="workflow-select"
+        data-options={JSON.stringify(options || [])}
+        data-disabled={disabled ? 'true' : 'false'}
+        data-placeholder={placeholder}
+      >
         <option value="">默认</option>
         {(options || []).map((o: any) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -80,5 +85,43 @@ describe('RoleWorkflowPage', () => {
     // useCachedData 模块级缓存未清空，二次挂载直接复用缓存，不重复请求
     await waitFor(() => expect(screen.getAllByText('普通员工').length).toBeGreaterThan(0));
     expect(approvalApi.listRoleWorkflows).toHaveBeenCalledTimes(1);
+  });
+
+  it('可选流程加载失败时明示失败并禁用绑定下拉，而非静默空下拉', async () => {
+    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '获取审批流程列表失败',
+    });
+    render(<RoleWorkflowPage />);
+
+    // 角色列表本身可用，仍要能看见角色行
+    expect(await screen.findByText('普通员工')).toBeInTheDocument();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('审批流程列表加载失败');
+    expect(alert).toHaveTextContent('获取审批流程列表失败');
+
+    // 下拉禁用 + 占位文案点明原因，避免用户以为系统里没有可用流程
+    const select = screen.getAllByTestId('workflow-select')[0];
+    expect(select).toHaveAttribute('data-disabled', 'true');
+    expect(select).toHaveAttribute('data-placeholder', '流程列表加载失败');
+  });
+
+  it('流程列表失败后点重试恢复下拉可选', async () => {
+    (approvalApi.listWorkflows as jest.Mock).mockResolvedValueOnce({
+      code: 500,
+      message: '获取审批流程列表失败',
+    });
+    render(<RoleWorkflowPage />);
+    const retry = await screen.findByText('重试');
+
+    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: workflows });
+    fireEvent.click(retry);
+
+    await waitFor(() => {
+      const select = screen.getAllByTestId('workflow-select')[0];
+      expect(select).toHaveAttribute('data-disabled', 'false');
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

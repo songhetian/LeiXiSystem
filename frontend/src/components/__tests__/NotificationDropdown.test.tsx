@@ -87,6 +87,27 @@ describe('NotificationDropdown（通知下拉面板）', () => {
     });
   });
 
+  it('通知列表业务码非 0 时展示失败与重试，不伪装成「暂无新通知」', async () => {
+    mockedNotificationApi.list.mockResolvedValue({ code: 500, message: '通知加载失败' });
+    render(<NotificationDropdown />);
+    await waitFor(() => screen.getByTestId('notification-trigger'));
+    fireEvent.click(screen.getByTestId('notification-trigger'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('通知加载失败');
+    expect(screen.queryByText('暂无新通知')).not.toBeInTheDocument();
+
+    // 重试成功后恢复正常列表
+    mockedNotificationApi.list.mockResolvedValue({
+      code: 0,
+      data: { list: mockNotifications.slice(0, 2), total: 2, page: 1, pageSize: 5 },
+    });
+    fireEvent.click(screen.getByText('重试'));
+
+    await waitFor(() => expect(screen.getByText('审批通过')).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('点击查看全部跳转到通知中心', async () => {
     render(<NotificationDropdown />);
     await waitFor(() => screen.getByTestId('notification-trigger'));

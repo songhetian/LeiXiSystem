@@ -14,6 +14,13 @@ jest.mock('@/services/reimbursement', () => ({
   },
 }));
 
+// 参考数据失败提示：断言提示被真正调用，避免「接口失败 → 空下拉 → 用户不知原因」
+jest.mock('@/lib/request', () => ({
+  notifyError: jest.fn(),
+}));
+
+const { notifyError } = jest.requireMock('@/lib/request') as { notifyError: jest.Mock };
+
 const mockTypes = [
   { id: 1, name: '差旅费', code: 'TRAVEL', status: 'active' },
   { id: 2, name: '餐饮费', code: 'MEAL', status: 'active' },
@@ -96,6 +103,20 @@ describe('ReimbursementForm', () => {
         expect.objectContaining({ status: 'draft' }),
       );
     });
+  });
+
+  it('参考数据业务码非 0 时给出显式失败提示，而不是静默留空下拉', async () => {
+    (reimbursementApi.getTypes as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '类型服务异常',
+    });
+    renderForm();
+
+    await waitFor(() => expect(notifyError).toHaveBeenCalled());
+    // 把后端原因带到用户面前（兜底文案由 notifyError 的 fallback 承担）
+    const [error, fallback] = notifyError.mock.calls[0];
+    expect((error as Error).message).toBe('类型服务异常');
+    expect(fallback).toBe('报销类型加载失败，请刷新重试');
   });
 
   it('可新增明细项并选择费用类型/金额/日期/备注', async () => {
