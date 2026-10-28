@@ -343,6 +343,87 @@ describe('SearchForm', () => {
     });
   });
 
+  describe('起止日期成对校验', () => {
+    // 回归背景：开始日期晚于结束日期时，此前照样发请求，接口返回空列表，
+    // 用户看到的是「没有数据」而不是「你填反了」。
+    const dateFields: SearchFieldConfig[] = [
+      { key: 'keyword', label: '关键词', type: 'input' },
+      { key: 'startDate', label: '开始日期', type: 'date' },
+      { key: 'endDate', label: '结束日期', type: 'date' },
+    ];
+
+    it('开始晚于结束时提示并阻断查询', async () => {
+      const user = userEvent.setup();
+      const onSearch = jest.fn();
+      render(
+        <SearchForm
+          fields={dateFields}
+          onSearch={onSearch}
+          initialValues={{ startDate: '2026-10-10', endDate: '2026-10-01' }}
+          expandable={false}
+        />,
+      );
+
+      expect(screen.getByRole('alert')).toHaveTextContent('「开始日期」不能晚于「结束日期」');
+
+      await user.click(screen.getByTestId('btn-查询'));
+      expect(onSearch).not.toHaveBeenCalled();
+    });
+
+    it('区间顺序合法时正常查询', async () => {
+      const user = userEvent.setup();
+      const onSearch = jest.fn();
+      render(
+        <SearchForm
+          fields={dateFields}
+          onSearch={onSearch}
+          initialValues={{ startDate: '2026-10-01', endDate: '2026-10-10' }}
+          expandable={false}
+        />,
+      );
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(screen.getByTestId('btn-查询'));
+      expect(onSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ startDate: '2026-10-01', endDate: '2026-10-10' }),
+      );
+    });
+
+    it('防抖查询同样不把非法区间发出去', () => {
+      jest.useFakeTimers();
+      const onSearch = jest.fn();
+      render(
+        <SearchForm
+          fields={dateFields}
+          onSearch={onSearch}
+          initialValues={{ startDate: '2026-10-10', endDate: '2026-10-01' }}
+          debounceMs={300}
+          expandable={false}
+        />,
+      );
+
+      fireEvent.change(screen.getByTestId('input-keyword'), { target: { value: '张三' } });
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      expect(onSearch).not.toHaveBeenCalled();
+      jest.useRealTimers();
+    });
+
+    it('只有起始日期字段（无对应结束字段）时不做成对校验', () => {
+      render(
+        <SearchForm
+          fields={[{ key: 'startDate', label: '开始日期', type: 'date' }]}
+          onSearch={() => {}}
+          initialValues={{ startDate: '2026-10-10' }}
+          expandable={false}
+        />,
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
   describe('无障碍：label 与控件 id 绑定（WCAG SC 1.3.1 / 3.3.2 / 4.1.2）', () => {
     // 回归背景：此前只有 Select 传了 id，日期/区间/员工/文本四类控件的 <label htmlFor>
     // 全部悬空 —— 点击 label 无法聚焦控件，屏幕阅读器也不朗读字段名。

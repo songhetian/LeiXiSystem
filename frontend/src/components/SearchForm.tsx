@@ -61,6 +61,27 @@ export default function SearchForm({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expanded, setExpanded] = useState(false);
 
+  /**
+   * 起止日期成对校验：startDate/endDate、startTime/endTime 这类字段，
+   * 开始晚于结束时给出明确提示并阻断查询（倒序区间在列表接口上没有意义）。
+   */
+  const findRangeError = (vals: Record<string, any>): string | null => {
+    for (const field of fields) {
+      if (!/^start/i.test(field.key)) continue;
+      const endKey = `end${field.key.slice('start'.length)}`;
+      const endField = fields.find((f) => f.key === endKey);
+      if (!endField) continue;
+      const start = vals[field.key];
+      const end = vals[endKey];
+      if (!start || !end) continue;
+      if (String(start) > String(end)) {
+        return `「${field.label}」不能晚于「${endField.label}」`;
+      }
+    }
+    return null;
+  };
+  const rangeError = findRangeError(values);
+
   // 卸载时清理防抖定时器，避免组件销毁后仍触发 onSearch
   useEffect(
     () => () => {
@@ -76,12 +97,16 @@ export default function SearchForm({
     if (debounceMs > 0) {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
+        // 区间非法时不把请求发出去：列表接口不接受倒序区间，
+        // 打过去只会拿到空结果或 400，用户看不出是自己填反了
+        if (findRangeError(newValues)) return;
         onSearch(newValues);
       }, debounceMs);
     }
   };
 
   const handleSubmit = () => {
+    if (findRangeError(values)) return;
     onSearch(values);
   };
 
@@ -225,6 +250,11 @@ export default function SearchForm({
           </div>
         ))}
       </div>
+      {rangeError && (
+        <div className="text-danger text-xs mb-2" role="alert">
+          {rangeError}
+        </div>
+      )}
       <div className="lx-search-actions" data-testid="search-actions">
         <Button type="primary" htmlType="submit">
           查询
