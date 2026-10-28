@@ -1,12 +1,15 @@
 ﻿'use client';
 
 import { useState } from 'react';
-import { Message, Card, Statistic, Grid, Button, Space, Input, Typography, List } from '@arco-design/web-react';
+import { Message, Card, Statistic, Grid, Button, Space, DatePicker } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
+import DataState from '@/components/DataState';
+import StatusTag from '@/components/StatusTag';
 import { reportsApi, ExportTask } from '@/services/reports';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { formatMoney } from '@/lib/format';
 
 const { Row, Col } = Grid;
 
@@ -32,7 +35,12 @@ export default function ReportsPage() {
     data?: any;
   }>(
     `reports:attendance:${month}`,
-    () => reportsApi.getAttendanceMonthly(month),
+    async () => {
+      const res = await reportsApi.getAttendanceMonthly(month);
+      // 业务码非 0 视为失败：否则页面会把失败当「0 人 0 天」展示
+      if (res.code !== 0) throw new Error(res.message || '考勤月报读取失败');
+      return res;
+    },
     { staleTime: 30_000 },
   );
   const attendance = attRes?.code === 0 && attRes.data ? attRes.data : undefined;
@@ -43,39 +51,60 @@ export default function ReportsPage() {
     data?: any;
   }>(
     `reports:labor-cost:${month}`,
-    () => reportsApi.getLaborCost(month),
+    async () => {
+      const res = await reportsApi.getLaborCost(month);
+      if (res.code !== 0) throw new Error(res.message || '人力成本读取失败');
+      return res;
+    },
     { staleTime: 30_000 },
   );
   const labor = laborRes?.code === 0 && laborRes.data ? laborRes.data : undefined;
 
   // 员工结构：共享缓存
-  const { data: structRes, loading: structLoading } = useCachedData<{ code: number; data?: any }>(
+  const {
+    data: structRes,
+    loading: structLoading,
+    error: structError,
+    revalidate: structRevalidate,
+  } = useCachedData<{ code: number; data?: any }>(
     'reports:employee-structure',
-    () => reportsApi.getEmployeeStructure(),
+    async () => {
+      const res = await reportsApi.getEmployeeStructure();
+      if (res.code !== 0) throw new Error(res.message || '员工结构读取失败');
+      return res;
+    },
     { staleTime: 60_000 },
   );
   const structure = structRes?.code === 0 && structRes.data ? structRes.data : undefined;
 
   // 导出任务
-  const { data: tasksRes, loading: taskLoading, revalidate: tasksRevalidate } = useCachedData<{
+  const {
+    data: tasksRes,
+    loading: taskLoading,
+    error: taskError,
+    revalidate: tasksRevalidate,
+  } = useCachedData<{
     code: number;
     data?: { list: ExportTask[] };
   }>(
     'reports:export-tasks',
     async () => {
       const res = await reportsApi.listExportTasks();
+      if (res.code !== 0) throw new Error(res.message || '导出任务读取失败');
       return { code: res.code, data: res.data ?? undefined };
     },
     { staleTime: 10_000 },
   );
   const tasks = tasksRes?.code === 0 && tasksRes.data ? tasksRes.data.list ?? [] : [];
 
-  const loading = attLoading || laborLoading || structLoading || taskLoading;
-  const error = attError || laborError;
+  // 查询按钮的忙碌态：只跟「随月份变化」的两路请求走
+  const queryLoading = attLoading || laborLoading;
 
   const handleQuery = () => {
     void attRevalidate();
     void laborRevalidate();
+    void structRevalidate();
+    void tasksRevalidate();
   };
 
   const handleExport = async (type: 'attendance-monthly' | 'labor-cost') => {
@@ -94,18 +123,24 @@ export default function ReportsPage() {
 
   const attendanceColumns: ProTableColumn[] = [
     { title: '部门', dataIndex: 'name', width: 140 },
-    { title: '人数', dataIndex: 'employeeCount', width: 80 },
-    { title: '出勤天数', dataIndex: 'totalWorkDays', width: 100 },
-    { title: '迟到', dataIndex: 'totalLateCount', width: 80 },
-    { title: '早退', dataIndex: 'totalEarlyCount', width: 80 },
-    { title: '缺勤(天)', dataIndex: 'totalAbsentDays', width: 100 },
-    { title: '加班(小时)', dataIndex: 'totalOvertimeHours', width: 110 },
+    { title: '人数', dataIndex: 'employeeCount', width: 80, align: 'right' },
+    { title: '出勤天数', dataIndex: 'totalWorkDays', width: 100, align: 'right' },
+    { title: '迟到', dataIndex: 'totalLateCount', width: 80, align: 'right' },
+    { title: '早退', dataIndex: 'totalEarlyCount', width: 80, align: 'right' },
+    { title: '缺勤(天)', dataIndex: 'totalAbsentDays', width: 100, align: 'right' },
+    { title: '加班(小时)', dataIndex: 'totalOvertimeHours', width: 110, align: 'right' },
   ];
 
   const laborColumns: ProTableColumn[] = [
     { title: '部门', dataIndex: 'name', width: 140 },
-    { title: '人数', dataIndex: 'totalEmployees', width: 80 },
-    { title: '合计金额', dataIndex: 'totalAmount', width: 140 },
+    { title: '人数', dataIndex: 'totalEmployees', width: 80, align: 'right' },
+    {
+      title: '合计金额',
+      dataIndex: 'totalAmount',
+      width: 150,
+      align: 'right',
+      render: (v: unknown) => `¥ ${formatMoney(v)}`,
+    },
   ];
 
   const taskColumns: ProTableColumn[] = [
@@ -116,7 +151,8 @@ export default function ReportsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 90,
-      render: (value: string) => exportStatusMap[value]?.label || value,
+      // 状态一律走 StatusTag，与全站列表状态呈现一致（不再裸文本）
+      render: (value: string) => <StatusTag status={value} statusMap={exportStatusMap} />,
     },
     {
       title: '操作',
@@ -142,13 +178,16 @@ export default function ReportsPage() {
   return (
     <PageContainer action={
         <Space>
-          <Input
-            placeholder="月份 YYYY-MM"
+          <DatePicker.MonthPicker
+            // 月份是离散值：用月选择器而非自由文本，避免输入过程中每敲一个字符
+            // 就换一次缓存键、连打多次请求
             value={month}
-            onChange={setMonth}
+            onChange={(v) => v && setMonth(v)}
+            allowClear={false}
+            placeholder="选择月份"
             style={{ width: 160 }}
           />
-          <Button type="primary" onClick={handleQuery} loading={loading}>
+          <Button type="primary" onClick={handleQuery} loading={queryLoading}>
             查询
           </Button>
         </Space>
@@ -156,15 +195,17 @@ export default function ReportsPage() {
     >
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={12}>
-          <Card title={`${month} 考勤月报`} loading={loading}>
-            <Row gutter={8}>
-              <Col span={8}><Statistic title="员工数" value={s1?.totalEmployees ?? 0} suffix="人" /></Col>
-              <Col span={8}><Statistic title="出勤天数" value={s1?.totalWorkDays ?? 0} /></Col>
-              <Col span={8}><Statistic title="迟到次数" value={s1?.totalLateCount ?? 0} /></Col>
-              <Col span={8}><Statistic title="早退次数" value={s1?.totalEarlyCount ?? 0} /></Col>
-              <Col span={8}><Statistic title="缺勤天数" value={s1?.totalAbsentDays ?? 0} /></Col>
-              <Col span={8}><Statistic title="加班小时" value={s1?.totalOvertimeHours ?? 0} /></Col>
-            </Row>
+          <Card title={`${month} 考勤月报`} loading={attLoading}>
+            <DataState error={attError} onRetry={attRevalidate}>
+              <Row gutter={8}>
+                <Col span={8}><Statistic title="员工数" value={s1?.totalEmployees ?? 0} suffix="人" /></Col>
+                <Col span={8}><Statistic title="出勤天数" value={Number(s1?.totalWorkDays ?? 0)} precision={1} /></Col>
+                <Col span={8}><Statistic title="迟到次数" value={s1?.totalLateCount ?? 0} /></Col>
+                <Col span={8}><Statistic title="早退次数" value={s1?.totalEarlyCount ?? 0} /></Col>
+                <Col span={8}><Statistic title="缺勤天数" value={Number(s1?.totalAbsentDays ?? 0)} precision={1} /></Col>
+                <Col span={8}><Statistic title="加班小时" value={Number(s1?.totalOvertimeHours ?? 0)} precision={1} /></Col>
+              </Row>
+            </DataState>
             <div style={{ marginTop: 12 }}>
               <Button size="small" disabled={!can('reports:view')} onClick={() => handleExport('attendance-monthly')}>
                 导出 Excel
@@ -173,13 +214,36 @@ export default function ReportsPage() {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title={`${month} 人力成本`} loading={loading}>
-            <Row gutter={8}>
-              <Col span={6}><Statistic title="人数" value={s2?.totalEmployees ?? 0} suffix="人" /></Col>
-              <Col span={6}><Statistic title="基础工资" value={s2?.totalBaseSalary ?? '0'} /></Col>
-              <Col span={6}><Statistic title="加班费" value={s2?.totalOvertimePay ?? '0'} /></Col>
-              <Col span={6}><Statistic title="合计" value={s2?.totalAmount ?? '0'} /></Col>
-            </Row>
+          <Card title={`${month} 人力成本`} loading={laborLoading}>
+            <DataState error={laborError} onRetry={laborRevalidate}>
+              <Row gutter={8}>
+                <Col span={6}><Statistic title="人数" value={s2?.totalEmployees ?? 0} suffix="人" /></Col>
+                <Col span={6}>
+                  <Statistic
+                    title="基础工资"
+                    value={Number(s2?.totalBaseSalary ?? 0)}
+                    prefix="¥"
+                    precision={2}
+                  />
+                </Col>
+                <Col span={6}>
+                  <Statistic
+                    title="加班费"
+                    value={Number(s2?.totalOvertimePay ?? 0)}
+                    prefix="¥"
+                    precision={2}
+                  />
+                </Col>
+                <Col span={6}>
+                  <Statistic
+                    title="合计"
+                    value={Number(s2?.totalAmount ?? 0)}
+                    prefix="¥"
+                    precision={2}
+                  />
+                </Col>
+              </Row>
+            </DataState>
             <div style={{ marginTop: 12 }}>
               <Button size="small" disabled={!can('reports:view')} onClick={() => handleExport('labor-cost')}>
                 导出 Excel
@@ -197,9 +261,9 @@ export default function ReportsPage() {
             columns={attendanceColumns}
             data={attendance?.departments ?? []}
             rowKey="id"
-            loading={loading}
-            error={error}
-            onRetry={handleQuery}
+            loading={attLoading}
+            error={attError}
+            onRetry={attRevalidate}
             pagination={false}
           />
         </Col>
@@ -209,20 +273,22 @@ export default function ReportsPage() {
             columns={laborColumns}
             data={labor?.departments ?? []}
             rowKey="id"
-            loading={loading}
-            error={error}
-            onRetry={handleQuery}
+            loading={laborLoading}
+            error={laborError}
+            onRetry={laborRevalidate}
             pagination={false}
           />
         </Col>
       </Row>
 
-      <Card title="员工结构" style={{ marginBottom: 16 }} loading={loading}>
-        <Row gutter={12}>
-          <Col span={8}><Statistic title="在册员工" value={s3?.total ?? 0} suffix="人" /></Col>
-          <Col span={8}><Statistic title="试用期" value={s3?.onProbation ?? 0} suffix="人" /></Col>
-          <Col span={8}><Statistic title="平均司龄" value={s3?.avgTenure?.formatted ?? '-'} /></Col>
-        </Row>
+      <Card title="员工结构" style={{ marginBottom: 16 }} loading={structLoading}>
+        <DataState error={structError} onRetry={structRevalidate}>
+          <Row gutter={12}>
+            <Col span={8}><Statistic title="在册员工" value={s3?.total ?? 0} suffix="人" /></Col>
+            <Col span={8}><Statistic title="试用期" value={s3?.onProbation ?? 0} suffix="人" /></Col>
+            <Col span={8}><Statistic title="平均司龄" value={s3?.avgTenure?.formatted ?? '-'} /></Col>
+          </Row>
+        </DataState>
         <div style={{ marginTop: 12 }}>
           <Space>
             <Button size="small" disabled={!can('reports:view')} onClick={() => handleEmployeeExport('xlsx')}>
@@ -235,17 +301,17 @@ export default function ReportsPage() {
         </div>
       </Card>
 
-      <Card title="导出任务">
-        <ProTable
-          columns={taskColumns}
-          data={tasks}
-          rowKey="id"
-          loading={loading}
-          error={error}
-          onRetry={handleQuery}
-          pagination={false}
-        />
-      </Card>
+      {/* ProTable 自带外壳：不再用 Card 包裹，去掉卡片套卡片 */}
+      <div className="text-sm font-medium text-text-1 mb-2">导出任务</div>
+      <ProTable
+        columns={taskColumns}
+        data={tasks}
+        rowKey="id"
+        loading={taskLoading}
+        error={taskError}
+        onRetry={tasksRevalidate}
+        pagination={false}
+      />
     </PageContainer>
   );
 }
