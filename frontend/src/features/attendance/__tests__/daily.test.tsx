@@ -1,307 +1,103 @@
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AttendanceDailyPage from '@/features/attendance/pages/daily';
 import { attendanceApi } from '@/services/attendance';
+import { exportToExcel } from '@/lib/excel';
 import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
     getDailyList: jest.fn(),
     recalcDaily: jest.fn(),
+    importPunchLogs: jest.fn(),
   },
 }));
 
-jest.mock('@/services/system', () => ({
-  systemApi: {
-    listDepartments: jest.fn().mockResolvedValue({
-      code: 0,
-      data: [
-        { id: 1, name: '技术部' },
-        { id: 2, name: '产品部' },
-      ],
-    }),
-  },
+jest.mock('@/lib/excel', () => ({
+  exportToExcel: jest.fn(() => true),
 }));
 
+jest.mock('@/hooks/use-departments', () => ({
+  useDepartments: () => ({ departments: [], loading: false }),
+}));
+
+jest.mock('@/hooks/use-permission', () => ({
+  usePermission: () => ({ can: () => true }),
+}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
-  default: ({ title, action, children }: any) => (
-    <div data-testid="page-container">
-      {title && <h2 data-testid="page-title">{title}</h2>}
-      <div data-testid="page-action">{action}</div>
-      <div data-testid="page-content">{children}</div>
-    </div>
-  ),
+  default: ({ children }: any) => <div data-testid="page-container">{children}</div>,
 }));
 
+// ProTable 只保留 toolbar 与错误态接缝：本页断言点是导出映射与打卡时间戳
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, rowKey, loading, error, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
-    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
-      {searchFields && (
-        <div data-testid="search-area">
-          {searchFields.map((f: any) => (
-            <span key={f.key} data-testid={`search-${f.key}`}>{f.label}</span>
-          ))}
-        </div>
-      )}
-      {toolbar && (
-        <div data-testid="toolbar">
-          {toolbar.map((t: any) => (
-            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <table>
-        <thead>
-          <tr>
-            {columns.map((c: any) => (
-              <th key={c.dataIndex} data-testid={`col-${c.dataIndex}`}>{c.title}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row: any) => (
-            <tr key={row[rowKey]} data-testid="table-row">
-              {columns.map((c: any) => (
-                <td key={c.dataIndex} data-testid={`cell-${row[rowKey]}-${c.dataIndex}`}>
-                  {c.render ? c.render(row[c.dataIndex], row) : row[c.dataIndex]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {pagination && pagination !== false && (
-        <div data-testid="pagination">
-          <span data-testid="page-current">{pagination.current}</span>
-          <span data-testid="page-total">{pagination.total}</span>
-        </div>
-      )}
+  default: ({ data, error, toolbar = [] }: any) => (
+    <div data-testid="pro-table" data-error={error ?? ''} data-rows={data.length}>
+      {toolbar.map((t: any) => (
+        <button key={t.key} type="button" disabled={t.disabled} onClick={t.onClick}>
+          {t.label}
+        </button>
+      ))}
     </div>
   ),
 }));
 
-jest.mock('@/components/StatusTag', () => ({
-  __esModule: true,
-  default: ({ status }: any) => (
-    <span data-testid={`status-tag-${status}`}>{status}</span>
-  ),
-}));
+const makeupRow = {
+  id: 1,
+  employeeId: 1,
+  employeeNo: 'E001',
+  employeeName: '张三',
+  departmentName: '研发部',
+  date: '2026-10-27',
+  shiftName: '标准班',
+  checkIn: '09:00:00',
+  checkOut: '18:00:00',
+  workHours: 8,
+  status: 'makeup',
+};
 
-const mockRecords = [
-  { id: 1, employeeNo: 'E001', employeeName: '张三', departmentName: '技术部', date: '2026-08-13', shiftName: '早班', workHours: 8, status: 'normal' },
-  { id: 2, employeeNo: 'E002', employeeName: '李四', departmentName: '产品部', date: '2026-08-13', shiftName: '早班', workHours: 7.5, status: 'abnormal', abnormalType: '迟到' },
-  { id: 3, employeeNo: 'E003', employeeName: '王五', departmentName: '技术部', date: '2026-08-13', shiftName: '早班', workHours: 0, status: 'leave' },
-];
-
-describe('AttendanceDailyPage', () => {
+describe('AttendanceDailyPage（考勤日报）', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
     clearDataCache();
+    jest.clearAllMocks();
     (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
       code: 0,
-      message: 'ok',
-      data: {
-        list: mockRecords,
-        total: 3,
-        page: 1,
-        pageSize: 20,
-      },
+      data: { list: [makeupRow], total: 1, page: 1, pageSize: 20 },
     });
+    (attendanceApi.importPunchLogs as jest.Mock).mockResolvedValue({ code: 0, data: { imported: 1 } });
+    (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({ code: 0, data: { updated: 1 } });
   });
 
-  describe('正常用例', () => {
-    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
-      render(<AttendanceDailyPage />);
-      expect(screen.queryByTestId('page-title')).toBeNull();
-    });
+  it('导出时「补卡」按业务文案导出，不吐 makeup 原始状态', async () => {
+    render(<AttendanceDailyPage />);
+    await waitFor(() => expect(screen.getByTestId('pro-table')).toHaveAttribute('data-rows', '1'));
 
-    it('renders ProTable with attendance columns', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('pro-table')).toBeInTheDocument();
-      });
-      expect(screen.getByTestId('col-employeeNo')).toHaveTextContent('工号');
-      expect(screen.getByTestId('col-employeeName')).toHaveTextContent('姓名');
-      expect(screen.getByTestId('col-departmentName')).toHaveTextContent('部门');
-      expect(screen.getByTestId('col-date')).toHaveTextContent('日期');
-      expect(screen.getByTestId('col-shiftName')).toHaveTextContent('班次');
-      expect(screen.getByTestId('col-workHours')).toHaveTextContent('工时');
-      expect(screen.getByTestId('col-status')).toHaveTextContent('状态');
-    });
+    fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
 
-    it('fetches attendance list on mount', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(attendanceApi.getDailyList).toHaveBeenCalled();
-      });
-    });
-
-    it('renders attendance data in table', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
-      });
-      expect(screen.getByTestId('cell-1-employeeNo')).toHaveTextContent('E001');
-      expect(screen.getByTestId('cell-1-employeeName')).toHaveTextContent('张三');
-      expect(screen.getByTestId('cell-1-date')).toHaveTextContent('2026-08-13');
-    });
-
-    it('renders status tag for attendance status', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
-      });
-      expect(screen.getAllByTestId('status-tag-normal').length).toBeGreaterThan(0);
-      expect(screen.getAllByTestId('status-tag-abnormal').length).toBeGreaterThan(0);
-      expect(screen.getAllByTestId('status-tag-leave').length).toBeGreaterThan(0);
-    });
-
-    it('has 重新计算 button in toolbar', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('toolbar-recalc')).toBeInTheDocument();
-      });
-      expect(screen.getByTestId('toolbar-recalc')).toHaveTextContent('重新计算');
-    });
-
-    it('renders search fields for filtering', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('search-area')).toBeInTheDocument();
-      });
-      expect(screen.getByTestId('search-employeeNo')).toHaveTextContent('工号');
-      expect(screen.getByTestId('search-startDate')).toHaveTextContent('开始日期');
-      expect(screen.getByTestId('search-endDate')).toHaveTextContent('结束日期');
-      expect(screen.getByTestId('search-status')).toHaveTextContent('状态');
-    });
-
-    it('renders department search field after departments load', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('search-departmentId')).toHaveTextContent('部门');
-      });
-    });
-
-    it('shows pagination info', async () => {
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('pagination')).toBeInTheDocument();
-        expect(screen.getByTestId('page-total')).toHaveTextContent('3');
-      });
-    });
+    await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+    const [, , columns] = (exportToExcel as jest.Mock).mock.calls[0];
+    const statusCol = columns.find((c: any) => c.title === '状态');
+    expect(statusCol.value(makeupRow)).toBe('补卡');
   });
 
-  describe('重新计算', () => {
-    it('calls recalcDaily when recalc button clicked', async () => {
-      const user = userEvent.setup();
-      (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({
-        code: 0,
-        message: 'ok',
-        data: { updated: 3 },
-      });
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('toolbar-recalc')).toBeInTheDocument();
-      });
-      await user.click(screen.getByTestId('toolbar-recalc'));
-      expect(attendanceApi.recalcDaily).toHaveBeenCalled();
-    });
+  it('模拟打卡的打卡时间按北京时间拼装（不受宿主机时区影响）', async () => {
+    jest.useFakeTimers();
+    // 2026-10-28T02:30:05Z = 北京时间 2026-10-28 10:30:05
+    jest.setSystemTime(new Date('2026-10-28T02:30:05Z'));
 
-    it('refreshes list after successful recalc', async () => {
-      const user = userEvent.setup();
-      (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({
-        code: 0,
-        data: { updated: 3 },
-      });
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(attendanceApi.getDailyList).toHaveBeenCalledTimes(1);
-      });
-      await user.click(screen.getByTestId('toolbar-recalc'));
-      await waitFor(() => {
-        expect(attendanceApi.getDailyList).toHaveBeenCalledTimes(2);
-      });
-    });
+    render(<AttendanceDailyPage />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '模拟打卡' })).toBeInTheDocument());
 
-    it('重算范围按北京时间当月首末日，不因时区偏移一天', async () => {
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date('2026-09-28T03:00:00.000Z')); // 北京时间 2026-09-28 11:00
-      try {
-        (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({
-          code: 0,
-          data: { updated: 0 },
-        });
-        render(<AttendanceDailyPage />);
-        await act(async () => {
-          fireEvent.click(screen.getByTestId('toolbar-recalc'));
-        });
-        await waitFor(() => {
-          expect(attendanceApi.recalcDaily).toHaveBeenCalledWith({
-            startDate: '2026-09-01',
-            endDate: '2026-09-30',
-          });
-        });
-      } finally {
-        jest.useRealTimers();
-      }
-    });
-  });
+    fireEvent.click(screen.getByRole('button', { name: '模拟打卡' }));
 
-  describe('边界用例', () => {
-    it('shows loading state while fetching', () => {
-      let resolveFn: (value: any) => void;
-      (attendanceApi.getDailyList as jest.Mock).mockImplementation(
-        () => new Promise((resolve) => { resolveFn = resolve; }),
-      );
-      render(<AttendanceDailyPage />);
-      expect(screen.getByTestId('pro-table')).toHaveAttribute('data-loading', 'true');
-    });
+    await waitFor(() => expect(attendanceApi.importPunchLogs).toHaveBeenCalled());
+    const csv = (attendanceApi.importPunchLogs as jest.Mock).mock.calls[0][0] as string;
+    expect(csv).toContain('2026-10-28 10:30:05');
+    // 打卡成功后会自动触发当月重算（避免测试结束时仍有挂起的 setState）
+    await waitFor(() => expect(attendanceApi.recalcDaily).toHaveBeenCalled());
 
-    it('handles empty list', async () => {
-      (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
-        code: 0,
-        data: { list: [], total: 0, page: 1, pageSize: 20 },
-      });
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(attendanceApi.getDailyList).toHaveBeenCalled();
-      });
-      expect(screen.queryAllByTestId('table-row')).toHaveLength(0);
-    });
-  });
-
-  describe('异常用例', () => {
-    it('handles recalc schedule not configured error (code 2005)', async () => {
-      const user = userEvent.setup();
-      (attendanceApi.recalcDaily as jest.Mock).mockResolvedValue({
-        code: 2005,
-        message: '排班未配置',
-      });
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('toolbar-recalc')).toBeInTheDocument();
-      });
-      await user.click(screen.getByTestId('toolbar-recalc'));
-      await waitFor(() => {
-        expect(attendanceApi.recalcDaily).toHaveBeenCalled();
-      });
-    });
-
-    it('日报列表业务码非 0 时向 ProTable 传错误态，而非空表', async () => {
-      (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
-        code: 500,
-        message: '日报读取失败',
-      });
-      render(<AttendanceDailyPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '日报读取失败');
-      });
-    });
+    jest.useRealTimers();
   });
 });

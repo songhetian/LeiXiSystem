@@ -98,9 +98,6 @@ export default function AttendanceDailyPage() {
         return;
       }
       const list = (res.data?.list ?? []) as DailyRecord[];
-      const statusLabel: Record<string, string> = {
-        normal: '正常', abnormal: '异常', leave: '请假', absent: '旷工',
-      };
       if (!exportToExcel(
         `考勤日报_${todayStr()}.xlsx`,
         '考勤日报',
@@ -113,7 +110,9 @@ export default function AttendanceDailyPage() {
           { title: '上班打卡', dataIndex: 'checkIn' },
           { title: '下班打卡', dataIndex: 'checkOut' },
           { title: '工时(小时)', dataIndex: 'workHours' },
-          { title: '状态', value: (r: DailyRecord) => statusLabel[r.status] ?? r.status },
+          // 状态文案复用列表的 statusMap：此前另抄一份缺了「补卡」，
+          // 导出里补卡行会原样吐 makeup
+          { title: '状态', value: (r: DailyRecord) => statusMap[r.status]?.label ?? r.status },
         ],
         list,
       )) {
@@ -149,18 +148,16 @@ export default function AttendanceDailyPage() {
       } else {
         Message.error(result.message || '计算失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('计算失败');
     }
   };
 
   // 模拟打卡：生成一条当前时间的打卡记录（等价于打卡机推一条数据）
+  // 时间戳按展示时区（北京时间）拼装：宿主机时区不一定是 +08，用本地时间会打出偏移的打卡点
   const handleDemoPunch = async () => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(
-      now.getHours(),
-    )}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const { Y, M, D, HH, mm, ss } = getTzParts(new Date());
+    const ts = `${Y}-${M}-${D} ${HH}:${mm}:${ss}`;
     const csv = `工号,打卡时间,设备号\nE001,${ts},DEMO-001`;
     try {
       const result = await attendanceApi.importPunchLogs(csv);
@@ -170,7 +167,7 @@ export default function AttendanceDailyPage() {
       } else {
         Message.error(result.message || '模拟打卡失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('模拟打卡失败');
     }
   };
