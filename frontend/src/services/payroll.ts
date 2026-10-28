@@ -162,8 +162,10 @@ export const payrollApi = {
     return request.get(`/payroll/runs/${id}/details`);
   },
 
-  confirmPayrollRun(id: number): Promise<DetailResult<PayrollRun>> {
-    return request.post(`/payroll/runs/${id}/confirm`, {});
+  confirmPayrollRun(id: number, checkedEmployeeIds: number[]): Promise<DetailResult<PayrollRun>> {
+    // 后端确认前置校验：必须带至少 3 名抽检员工（confirmRunSchema），
+    // 此前这里发空 body，确认按钮永远被 400 挡回
+    return request.post(`/payroll/runs/${id}/confirm`, { checkedEmployeeIds });
   },
 
   publishPayrollRun(id: number): Promise<DetailResult<PayrollRun>> {

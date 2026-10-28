@@ -6,9 +6,11 @@ import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { payrollApi, PayrollRun } from '@/services/payroll';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { usePermission } from '@/hooks/use-permission';
 import { formatDateTime, formatMoney } from '@/lib/format';
 import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 
@@ -19,7 +21,8 @@ interface RunListEnvelope {
 }
 
 const searchFields: SearchFieldConfig[] = [
-  { key: 'month', label: '月份', type: 'input', placeholder: 'YYYY-MM' },
+  // 月份用月选择器：手输 YYYY-MM 容易写成 2026-8 / 2026/08，查不到数据
+  { key: 'month', label: '月份', type: 'month', placeholder: '请选择月份' },
   {
     key: 'status',
     label: '状态',
@@ -45,8 +48,9 @@ const createFormFields: FormFieldConfig[] = [
   {
     key: 'month',
     label: '月份',
-    type: 'input',
-    placeholder: '请输入月份，如 2026-08',
+    // 月选择器：手输月份格式不统一（2026-8 / 2026/08）会直接建出查不到的批次
+    type: 'month',
+    placeholder: '请选择月份',
     required: true,
   },
   {
@@ -58,6 +62,9 @@ const createFormFields: FormFieldConfig[] = [
 ];
 
 export default function PayrollRunsPage() {
+  const { can } = usePermission();
+  // 后端 create/confirm/publish/recall 均要求 payroll:manage，前端同步做权限门
+  const canManage = can('payroll:manage');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
@@ -123,7 +130,7 @@ export default function PayrollRunsPage() {
       } else {
         Message.error(result.message || '创建失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('创建失败');
     } finally {
       setCreateLoading(false);
@@ -132,20 +139,6 @@ export default function PayrollRunsPage() {
 
   const handleViewDetails = (record: PayrollRun) => {
     setDetailRun(record);
-  };
-
-  const handleConfirm = async (record: PayrollRun) => {
-    try {
-      const result = await payrollApi.confirmPayrollRun(record.id);
-      if (result.code === 0) {
-        Message.success('确认成功');
-        revalidate();
-      } else {
-        Message.error(result.message || '确认失败');
-      }
-    } catch (e) {
-      Message.error('确认失败');
-    }
   };
 
   const handlePublish = async (record: PayrollRun) => {
@@ -157,7 +150,7 @@ export default function PayrollRunsPage() {
       } else {
         Message.error(result.message || '发布失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('发布失败');
     }
   };
@@ -171,7 +164,7 @@ export default function PayrollRunsPage() {
       } else {
         Message.error(result.message || '撤回失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('撤回失败');
     }
   };
@@ -204,19 +197,44 @@ export default function PayrollRunsPage() {
             明细
           </Button>
           {record.status === 'draft' && (
-            <Button type="text" size="mini" status="success" onClick={() => handleConfirm(record)}>
-              确认
+            // 确认必须先抽检 ≥3 名员工（后端强校验），所以入口指向批次明细里的勾选确认
+            <Button
+              type="text"
+              size="mini"
+              status="success"
+              disabled={!canManage}
+              onClick={() => handleViewDetails(record)}
+            >
+              核对确认
             </Button>
           )}
           {record.status === 'confirmed' && (
-            <Button type="text" size="mini" status="success" onClick={() => handlePublish(record)}>
+            <ConfirmButton
+              type="text"
+              size="mini"
+              status="success"
+              disabled={!canManage}
+              title="发布工资条"
+              content={`发布后 ${record.month} 批次的工资条将推送给 ${record.totalEmployees} 名员工，员工可见即不可再修改。确定发布吗？`}
+              okText="发布"
+              onConfirm={() => handlePublish(record)}
+            >
               发布
-            </Button>
+            </ConfirmButton>
           )}
           {record.status === 'published' && (
-            <Button type="text" size="mini" status="warning" onClick={() => handleRecall(record)}>
+            <ConfirmButton
+              type="text"
+              size="mini"
+              status="warning"
+              disabled={!canManage}
+              title="撤回工资条"
+              content={`确定撤回 ${record.month} 批次吗？撤回后员工将无法查看该月工资条，需重新发布。`}
+              okText="撤回"
+              onConfirm={() => handleRecall(record)}
+            >
               撤回
-            </Button>
+            </ConfirmButton>
           )}
         </Space>
       ),
@@ -224,7 +242,7 @@ export default function PayrollRunsPage() {
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'create', label: '创建批次', type: 'primary', onClick: handleCreate },
+    { key: 'create', label: '创建批次', type: 'primary', disabled: !canManage, onClick: handleCreate },
   ];
 
   return (
@@ -255,6 +273,7 @@ export default function PayrollRunsPage() {
         <RunDetailsModal
           run={detailRun}
           visible={!!detailRun}
+          canManage={canManage}
           onCancel={() => setDetailRun(null)}
           onChanged={revalidate}
         />

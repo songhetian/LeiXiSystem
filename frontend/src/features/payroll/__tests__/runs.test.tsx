@@ -15,6 +15,29 @@ jest.mock('@/services/payroll', () => ({
   },
 }));
 
+// 权限门：默认有 payroll:manage，个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
+jest.mock('@/hooks/use-permission', () => ({
+  usePermission: () => ({ can: (perm: string) => mockCan(perm) }),
+}));
+
+// 二次确认按钮：真实组件会弹 Modal.confirm，这里直接触发 onConfirm，
+// 同时把确认文案暴露成属性，便于断言「发布前告知影响范围」
+jest.mock('@/components/ConfirmButton', () => ({
+  __esModule: true,
+  ConfirmButton: ({ children, onConfirm, title, content, disabled }: any) => (
+    <button
+      type="button"
+      data-testid={`confirm-${title}`}
+      data-confirm-content={content}
+      disabled={disabled}
+      onClick={() => onConfirm()}
+    >
+      {children}
+    </button>
+  ),
+}));
+
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -41,7 +64,12 @@ jest.mock('@/components/ProTable', () => ({
       {toolbar && (
         <div data-testid="toolbar">
           {toolbar.map((t: any) => (
-            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick}>
+            <button
+              key={t.key}
+              data-testid={`toolbar-${t.key}`}
+              disabled={t.disabled}
+              onClick={t.onClick}
+            >
               {t.label}
             </button>
           ))}
@@ -148,6 +176,9 @@ describe('PayrollRunsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearDataCache();
+    mockCan.mockReturnValue(true);
+    (payrollApi.publishPayrollRun as jest.Mock).mockResolvedValue({ code: 0, message: 'ok' });
+    (payrollApi.recallPayrollRun as jest.Mock).mockResolvedValue({ code: 0, message: 'ok' });
     (payrollApi.getPayrollRuns as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
@@ -161,9 +192,11 @@ describe('PayrollRunsPage', () => {
   });
 
   describe('正常用例', () => {
-    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', async () => {
       render(<PayrollRunsPage />);
       expect(screen.queryByTestId('page-title')).toBeNull();
+      // 等首屏请求落地，避免测试结束后 setState 落在 act 之外
+      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(3));
     });
 
     it('renders ProTable with payroll run columns', async () => {
@@ -254,6 +287,83 @@ describe('PayrollRunsPage', () => {
         expect(payrollApi.getPayrollRuns).toHaveBeenCalled();
       });
       expect(screen.queryByTestId('run-details-modal')).not.toBeInTheDocument();
+    });
+
+    it('「核对确认」进入批次明细勾选确认，不直接发确认请求', async () => {
+      const user = userEvent.setup();
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+
+      await user.click(screen.getByText('核对确认'));
+
+      // 后端要求至少抽检 3 名员工，行内直接确认必然被 400 挡回，所以入口只能指向明细
+      expect(screen.getByTestId('run-details-modal')).toHaveAttribute('data-month', '2026-08');
+      expect(payrollApi.confirmPayrollRun).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('发布与撤回', () => {
+    it('发布前二次确认，确认文案写明月份与影响人数，确认后调接口并刷新', async () => {
+      const user = userEvent.setup();
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+
+      const publishBtn = screen.getByTestId('confirm-发布工资条');
+      expect(publishBtn).toHaveAttribute(
+        'data-confirm-content',
+        expect.stringContaining('2026-07'),
+      );
+      expect(publishBtn).toHaveAttribute(
+        'data-confirm-content',
+        expect.stringContaining('10 名员工'),
+      );
+
+      await user.click(publishBtn);
+      await waitFor(() => expect(payrollApi.publishPayrollRun).toHaveBeenCalledWith(2));
+      await waitFor(() => expect(payrollApi.getPayrollRuns).toHaveBeenCalledTimes(2));
+    });
+
+    it('撤回同样需要二次确认，确认后才调撤回接口', async () => {
+      const user = userEvent.setup();
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+
+      expect(screen.getByTestId('confirm-撤回工资条')).toHaveAttribute(
+        'data-confirm-content',
+        expect.stringContaining('需重新发布'),
+      );
+
+      await user.click(screen.getByTestId('confirm-撤回工资条'));
+      await waitFor(() => expect(payrollApi.recallPayrollRun).toHaveBeenCalledWith(3));
+    });
+  });
+
+  describe('权限门', () => {
+    it('无 payroll:manage 时创建/核对确认/发布/撤回全部禁用', async () => {
+      mockCan.mockReturnValue(false);
+      render(<PayrollRunsPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+
+      expect(screen.getByTestId('toolbar-create')).toBeDisabled();
+      expect(screen.getByText('核对确认').closest('button')).toBeDisabled();
+      expect(screen.getByTestId('confirm-发布工资条')).toBeDisabled();
+      expect(screen.getByTestId('confirm-撤回工资条')).toBeDisabled();
+      // 只读角色仍可查看明细
+      expect(screen.getAllByText('明细')[0].closest('button')).toBeEnabled();
+    });
+
+    it('权限判定使用 payroll:manage', async () => {
+      render(<PayrollRunsPage />);
+      await waitFor(() => expect(payrollApi.getPayrollRuns).toHaveBeenCalled());
+      expect(mockCan).toHaveBeenCalledWith('payroll:manage');
     });
   });
 

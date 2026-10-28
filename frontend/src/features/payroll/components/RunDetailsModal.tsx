@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Modal, Table, Space, Button, Descriptions, Message } from '@arco-design/web-react';
+import { Modal, Table, Space, Button, Descriptions, Message, Typography } from '@arco-design/web-react';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import DataState from '@/components/DataState';
 import SalaryComposition from '@/features/payroll/components/SalaryComposition';
@@ -12,6 +12,8 @@ import { formatMoney } from '@/lib/format';
 interface RunDetailsModalProps {
   run: PayrollRun;
   visible?: boolean;
+  /** 是否具备 payroll:manage：无权限时不展示调整/确认入口（后端两个接口都要求 manage） */
+  canManage: boolean;
   onCancel: () => void;
   /** 调整成功后通知父级刷新列表 */
   onChanged?: () => void;
@@ -23,6 +25,9 @@ const statusMapText: Record<string, string> = {
   published: '已发布',
   recalled: '已撤回',
 };
+
+/** 确认前必须抽检的员工数（与后端 confirmRunSchema 的最小人数保持一致） */
+const MIN_CHECKED_EMPLOYEES = 3;
 
 const adjustmentFields = (salaryItems: SalaryItem[]): FormFieldConfig[] => [
   {
@@ -62,10 +67,17 @@ const adjustmentFields = (salaryItems: SalaryItem[]): FormFieldConfig[] => [
   },
 ];
 
-export default function RunDetailsModal({ run, visible = false, onCancel, onChanged }: RunDetailsModalProps) {
+export default function RunDetailsModal({ run, visible = false, canManage, onCancel, onChanged }: RunDetailsModalProps) {
   const [adjustVisible, setAdjustVisible] = useState(false);
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [adjustFormFields, setAdjustFormFields] = useState<FormFieldConfig[]>(adjustmentFields([]));
+  // 确认批次前的抽检：必须勾选 ≥3 名员工（后端强校验），勾选即"人工核对过"
+  const [checkedKeys, setCheckedKeys] = useState<number[]>([]);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    setCheckedKeys([]);
+  }, [run.id, visible]);
 
   // SWR 缓存：批次明细，按 run.id 隔离
   const { data: dRes, loading, error, revalidate } = useCachedData<
@@ -149,6 +161,31 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
     }
   };
 
+  const needMore = MIN_CHECKED_EMPLOYEES - checkedKeys.length;
+
+  const handleConfirmRun = () => {
+    Modal.confirm({
+      title: '确认算薪批次',
+      content: `已勾选 ${checkedKeys.length} 名员工核对。确认后 ${run.month} 批次将锁定，不能再调整薪资项。`,
+      okText: '确认',
+      onOk: async () => {
+        setConfirming(true);
+        try {
+          const res = await payrollApi.confirmPayrollRun(run.id, checkedKeys);
+          if (res.code !== 0) throw new Error(res.message || '确认失败');
+          Message.success('确认成功');
+          onChanged?.();
+          // 状态已从草稿变为已确认，关闭弹窗让用户看到刷新后的列表
+          onCancel();
+        } catch {
+          Message.error('确认失败');
+        } finally {
+          setConfirming(false);
+        }
+      },
+    });
+  };
+
   const columns = [
     { title: '工号', dataIndex: 'employeeNo', width: 90 },
     { title: '姓名', dataIndex: 'name', width: 100 },
@@ -196,11 +233,28 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
         column={3}
         style={{ marginBottom: 16 }}
       />
-      <Space style={{ marginBottom: 12 }}>
-        {details && run.status === 'draft' && (
-          <Button type="primary" size="small" onClick={openAdjust}>
-            添加调整
-          </Button>
+      <Space style={{ marginBottom: 12 }} wrap>
+        {details && canManage && run.status === 'draft' && (
+          <>
+            <Button type="primary" size="small" onClick={openAdjust}>
+              添加调整
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              status="success"
+              loading={confirming}
+              disabled={checkedKeys.length < MIN_CHECKED_EMPLOYEES}
+              onClick={handleConfirmRun}
+            >
+              确认批次
+            </Button>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {needMore > 0
+                ? `确认前请勾选至少 ${MIN_CHECKED_EMPLOYEES} 名员工核对薪资（还差 ${needMore} 名）`
+                : `已勾选 ${checkedKeys.length} 名员工，可确认批次`}
+            </Typography.Text>
+          </>
         )}
       </Space>
       <DataState
@@ -217,6 +271,14 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
           scroll={{ x: true }}
           pagination={false}
           expandedRowRender={expandedRowRender}
+          rowSelection={
+            canManage && run.status === 'draft'
+              ? {
+                  selectedRowKeys: checkedKeys,
+                  onChange: (keys: (string | number)[]) => setCheckedKeys(keys.map(Number)),
+                }
+              : undefined
+          }
         />
       </DataState>
 

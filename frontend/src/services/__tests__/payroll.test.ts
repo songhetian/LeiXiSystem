@@ -179,14 +179,16 @@ describe('payrollApi', () => {
       expect(result.code).toBe(0);
     });
 
-    it('confirmPayrollRun sends POST request', async () => {
+    it('confirmPayrollRun 带上抽检员工（后端要求至少 3 人）', async () => {
       mockedRequest.post.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
         data: { id: 1, status: 'confirmed' },
       });
-      const result = await payrollApi.confirmPayrollRun(1);
-      expect(mockedRequest.post).toHaveBeenCalledWith('/payroll/runs/1/confirm', {});
+      const result = await payrollApi.confirmPayrollRun(1, [11, 12, 13]);
+      expect(mockedRequest.post).toHaveBeenCalledWith('/payroll/runs/1/confirm', {
+        checkedEmployeeIds: [11, 12, 13],
+      });
       expect(result.code).toBe(0);
     });
 
@@ -295,7 +297,7 @@ describe('payrollApi', () => {
         code: 3003,
         message: '批次已发布不可修改',
       });
-      const result = await payrollApi.confirmPayrollRun(1);
+      const result = await payrollApi.confirmPayrollRun(1, [11, 12, 13]);
       expect(result.code).toBe(3003);
     });
 
