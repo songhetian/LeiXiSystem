@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import EmployeeDetailTabs from '@/features/employee/components/EmployeeDetailTabs';
 import { attendanceApi } from '@/services/attendance';
 import { employeeApi } from '@/services/employee';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/attendance', () => ({
   attendanceApi: {
@@ -49,6 +50,15 @@ jest.mock('@arco-design/web-react', () => {
     Spin: ({ children }: any) => <div>{children}</div>,
     Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
     Tag: ({ children }: any) => <span>{children}</span>,
+    Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+    // DataState 依赖项（外层已有 role="alert"，这里不再重复）
+    Result: ({ subTitle, extra }: any) => (
+      <div>
+        <p>{subTitle}</p>
+        {extra}
+      </div>
+    ),
+    Skeleton: () => null,
   };
 });
 
@@ -96,6 +106,7 @@ const timeline = [
 describe('EmployeeDetailTabs', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDataCache();
     (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValue({
       code: 0, data: { list: monthly, total: 1, page: 1, pageSize: 12 },
     });
@@ -158,5 +169,40 @@ describe('EmployeeDetailTabs', () => {
       expect(screen.getAllByTestId('timeline-item').length).toBeGreaterThan(0);
     });
     expect(screen.getByText('入职')).toBeInTheDocument();
+  });
+
+  it('考勤状态以标签渲染（已确认 / 草稿）', async () => {
+    render(<EmployeeDetailTabs employeeId={1} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('status-tag')).toHaveTextContent('已确认');
+    });
+  });
+
+  it('单个维度接口失败时只在对应页签报错并可重试，不影响其他页签', async () => {
+    (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '考勤记录读取失败',
+    });
+    render(<EmployeeDetailTabs employeeId={1} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('考勤记录读取失败');
+    });
+    expect(screen.getByText('重试')).toBeInTheDocument();
+    // 履历页签不受影响
+    expect(screen.getAllByTestId('timeline-item').length).toBeGreaterThan(0);
+  });
+
+  it('各维度数据为空时展示对应空态文案', async () => {
+    (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValue({ code: 0, data: { list: [] } });
+    (attendanceApi.getBalanceList as jest.Mock).mockResolvedValue({ code: 0, data: { list: [] } });
+    (employeeApi.getTimeline as jest.Mock).mockResolvedValue({ code: 0, data: { list: [] } });
+    render(<EmployeeDetailTabs employeeId={1} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('暂无考勤记录')).toBeInTheDocument();
+    });
+    expect(screen.getByText('暂无假期额度')).toBeInTheDocument();
+    expect(screen.getByText('暂无履历记录')).toBeInTheDocument();
   });
 });
