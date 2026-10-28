@@ -17,9 +17,9 @@ import {
   IconLink,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import QuickActionsManager from '@/components/QuickActionsManager';
 import StatCard from '@/components/StatCard';
-import DataState from '@/components/DataState';
 import { useQuickActions, QuickActionDef } from '@/hooks/use-quick-actions';
 import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { usePermission } from '@/hooks/use-permission';
@@ -118,10 +118,11 @@ export default function HomePage() {
   // 统计指标走 SWR 共享缓存；失败提示由请求拦截器统一弹出，避免重复 Toast
   const fetchStats = useCallback(async () => {
     const res = await dashboardApi.getStats();
-    if (res.code === 0 && res.data) return res.data;
-    throw new Error(res.message || '获取统计数据失败');
+    // code 非 0 才算失败；data 为 null 是「暂无统计数据」的合法空态（新部署/空库）
+    if (res.code !== 0) throw new Error(res.message || '获取统计数据失败');
+    return res.data ?? null;
   }, []);
-  const { data: stats, loading, revalidate: refreshStats } = useCachedData<DashboardStats>(
+  const { data: stats, loading, error, revalidate: refreshStats } = useCachedData<DashboardStats | null>(
     'dashboard:stats',
     fetchStats,
   );
@@ -193,22 +194,24 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* KPI 指标卡 */}
+      {/* KPI 指标卡：失败展示错误态 + 重试，不再把 0 当真实数据 */}
       <div style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
-          {metrics.map((m) => (
-            <Col xs={12} md={6} key={m.label}>
-              <StatCard
-                label={m.label}
-                value={m.value}
-                suffix={m.suffix}
-                icon={m.icon}
-                hint={m.hint}
-                onClick={m.onClick}
-              />
-            </Col>
-          ))}
-        </Row>
+        <DataState error={error} onRetry={refreshStats}>
+          <Row gutter={[16, 16]}>
+            {metrics.map((m) => (
+              <Col xs={12} md={6} key={m.label}>
+                <StatCard
+                  label={m.label}
+                  value={m.value}
+                  suffix={m.suffix}
+                  icon={m.icon}
+                  hint={m.hint}
+                  onClick={m.onClick}
+                />
+              </Col>
+            ))}
+          </Row>
+        </DataState>
       </div>
 
       {/* 组织管理看板（管理员可见） */}

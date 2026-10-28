@@ -236,8 +236,7 @@ const FULL_STATS = {
   myWeek: { workDays: 4, lateDays: 1, absentDays: 0, avgWorkHours: 8.5 },
 };
 
-describe('HomePage — 工作台四区块渲染 stats 新字段', () => {
-  beforeEach(() => {
+describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  beforeEach(() => {
     clearDataCache();
     mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
   });
@@ -285,5 +284,19 @@ describe('HomePage — 工作台四区块渲染 stats 新字段', () => {
     expect(screen.getByText('暂无申请')).toBeInTheDocument();
     // myWeek 为 null → 四个 KPI 值显示 '—'
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('统计接口失败时 KPI 区展示错误态与重试，不再伪装成 0', async () => {
+    mockedGetStats.mockRejectedValueOnce(new Error('统计数据加载失败'));
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('统计数据加载失败'));
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
+    // 失败时不应把「在职员工 0 人」这类假数据摆出来
+    expect(screen.queryByText('在职员工')).toBeNull();
+
+    mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
+    await userEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() => expect(screen.getByText('在职员工')).toBeInTheDocument());
   });
 });
