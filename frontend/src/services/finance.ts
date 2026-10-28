@@ -8,14 +8,17 @@ export interface Budget {
   year: number;
   /** 部门ID；为空表示公司总预算 */
   departmentId?: number | null;
-  departmentName?: string;
   /** 预算类别（如：行政、差旅、办公、营销等） */
   category?: string;
-  /** 预算总额 */
-  totalAmount: number;
-  /** 已用金额 */
-  usedAmount?: number;
-  remark?: string;
+  /**
+   * 预算总额。后端字段名是 amount（不是 totalAmount），
+   * Prisma Decimal 经 JSON 序列化后是字符串，展示前请用 Number()/formatMoney 处理。
+   */
+  amount: number | string;
+  /** 已用金额（Decimal 序列化字符串） */
+  usedAmount?: number | string;
+  /** 备注。后端字段名是 note（不是 remark） */
+  note?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -31,16 +34,16 @@ export interface BudgetCreateDto {
   year: number;
   departmentId?: number | null;
   category?: string;
-  totalAmount: number;
-  remark?: string;
+  amount: number;
+  note?: string;
 }
 
 export interface BudgetUpdateDto {
   year?: number;
   departmentId?: number | null;
   category?: string;
-  totalAmount?: number;
-  remark?: string;
+  amount?: number;
+  note?: string;
 }
 
 // ========== 费用标准 ==========

@@ -34,9 +34,11 @@ export default function BudgetsPage() {
 
   const { departments } = useDepartments();
 
+  // 默认筛选（北京时间当前年）只在挂载时算一次，「重置」回同一默认值
+  const [defaults] = useState(() => ({ year: currentYear() }));
   // 筛选条件
   const [filters, setFilters] = useState<{ year: string; departmentId: string; category: string }>({
-    year: currentYear(),
+    year: defaults.year,
     departmentId: '',
     category: '',
   });
@@ -47,6 +49,12 @@ export default function BudgetsPage() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [form] = Form.useForm();
 
+  // 后端预算表只存 departmentId，没有部门名：用共享部门缓存补上，否则整列都显示成「公司总预算」
+  const departmentNameOf = (b: Budget): string => {
+    if (b.departmentId == null) return '公司总预算';
+    return departments.find((d) => d.id === b.departmentId)?.name ?? `部门 #${b.departmentId}`;
+  };
+
   // 预算列表：筛选条件编入缓存键，变化即重新获取
   const { year, departmentId, category } = filters;
   const cacheKey = `finance:budgets:${year}:${departmentId}:${category}`;
@@ -55,21 +63,16 @@ export default function BudgetsPage() {
     async () => {
       const params: Record<string, any> = {};
       if (year) params.year = Number(year);
-      const depValue = departmentId === 'global' ? '' : departmentId;
+      // 「公司总预算」= departmentId 为空，后端没有对应的查询参数（null 会被省略），下面本地过滤
+      const isGlobal = departmentId === 'global';
+      const depValue = isGlobal ? '' : departmentId;
       if (depValue) params.departmentId = Number(depValue);
-      else params.departmentId = null;
       if (category) params.category = category;
       const res = await financeApi.listBudgets(params);
       // 业务码非 0 视为失败，否则会显示成「暂无预算」
       if (res.code !== 0) throw new Error(res.message || '预算列表读取失败');
       let list: Budget[] = res.data?.list ?? [];
-      // 若后端未按条件过滤，则本地兜底
-      if (params.year !== undefined) list = list.filter((b) => b.year === params.year);
-      if (depValue) list = list.filter((b) => (b.departmentId ?? null) === Number(depValue));
-      if (category) {
-        const kw = String(category).toLowerCase();
-        list = list.filter((b) => String(b.category ?? '').toLowerCase().includes(kw));
-      }
+      if (isGlobal) list = list.filter((b) => b.departmentId == null);
       return list;
     },
     { staleTime: 30_000 },
@@ -78,7 +81,7 @@ export default function BudgetsPage() {
 
   // 加载部门列表（用于筛选与表单），由 useDepartments 共享缓存提供
   const handleReset = () => {
-    setFilters({ year: '', departmentId: '', category: '' });
+    setFilters({ year: defaults.year, departmentId: '', category: '' });
   };
 
   // ProTable 搜索区提交：字段变更即（防抖）触发过滤
@@ -120,7 +123,7 @@ export default function BudgetsPage() {
   const handleDelete = (record: Budget) => {
     Modal.confirm({
       title: '确认删除',
-      content: `确定要删除 ${record.year} 年${record.departmentName ? `「${record.departmentName}」` : '「公司总预算」'}的预算记录吗？删除后不可恢复。`,
+      content: `确定要删除 ${record.year} 年「${departmentNameOf(record)}」的预算记录吗？删除后不可恢复。`,
       okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
@@ -147,15 +150,16 @@ export default function BudgetsPage() {
           : values.departmentId
             ? Number(values.departmentId)
             : null;
+      // 后端字段名是 amount / note，提交 totalAmount / remark 会被 zod 校验挡回 400
+      const dto = {
+        year: Number(values.year),
+        departmentId: depId,
+        category: values.category || '',
+        amount: Number(values.amount) || 0,
+        note: values.note || '',
+      };
       if (editingBudget) {
-        const dto: BudgetUpdateDto = {
-          year: Number(values.year),
-          departmentId: depId,
-          category: values.category || '',
-          totalAmount: Number(values.totalAmount) || 0,
-          remark: values.remark || '',
-        };
-        const res = await financeApi.updateBudget(editingBudget.id, dto);
+        const res = await financeApi.updateBudget(editingBudget.id, dto as BudgetUpdateDto);
         if (res.code === 0) {
           Message.success('修改成功');
           setModalVisible(false);
@@ -165,14 +169,7 @@ export default function BudgetsPage() {
           Message.error(res.message || '操作失败');
         }
       } else {
-        const dto: BudgetCreateDto = {
-          year: Number(values.year),
-          departmentId: depId,
-          category: values.category || '',
-          totalAmount: Number(values.totalAmount) || 0,
-          remark: values.remark || '',
-        };
-        const res = await financeApi.createBudget(dto);
+        const res = await financeApi.createBudget(dto as BudgetCreateDto);
         if (res.code === 0) {
           Message.success('创建成功');
           setModalVisible(false);
@@ -205,12 +202,14 @@ export default function BudgetsPage() {
         year: String(record.year),
         departmentId: record.departmentId ? String(record.departmentId) : 'global',
         category: record.category || '',
-        totalAmount: record.totalAmount,
-        remark: record.remark || '',
+        amount: Number(record.amount ?? 0),
+        note: record.note || '',
       });
     } else {
       setEditingBudget(null);
       form.resetFields();
+      // 新建默认落在当前年 + 公司总预算，少点两次选择
+      form.setFieldsValue({ year: defaults.year, departmentId: 'global' });
     }
     setModalVisible(true);
   };
@@ -231,12 +230,19 @@ export default function BudgetsPage() {
       '财务预算',
       [
         { title: '年份', dataIndex: 'year' },
-        { title: '部门', value: (b: Budget) => b.departmentName ?? '公司总预算' },
+        { title: '部门', value: (b: Budget) => departmentNameOf(b) },
         { title: '类别', dataIndex: 'category' },
-        { title: '总额', dataIndex: 'totalAmount' },
-        { title: '已用', dataIndex: 'usedAmount' },
-        { title: '剩余', value: (b: Budget) => (b.usedAmount != null ? b.totalAmount - b.usedAmount : '') },
-        { title: '备注', dataIndex: 'remark' },
+        { title: '总额', value: (b: Budget) => Number(b.amount ?? 0) },
+        {
+          title: '已用',
+          value: (b: Budget) => (b.usedAmount == null ? '' : Number(b.usedAmount)),
+        },
+        {
+          title: '剩余',
+          value: (b: Budget) =>
+            b.usedAmount == null ? '' : Number(b.amount ?? 0) - Number(b.usedAmount),
+        },
+        { title: '备注', value: (b: Budget) => b.note ?? '' },
       ],
       data,
     )) {
@@ -248,24 +254,24 @@ export default function BudgetsPage() {
     { title: '年份', dataIndex: 'year', width: 90 },
     {
       title: '部门',
-      dataIndex: 'departmentName',
+      dataIndex: 'departmentId',
       width: 160,
-      render: (value: string, record: Budget) => (record.departmentName ? value : '公司总预算'),
+      render: (_: unknown, record: Budget) => departmentNameOf(record),
     },
     { title: '类别', dataIndex: 'category', width: 120, render: (v: string) => v || '--' },
     {
       title: '总额',
-      dataIndex: 'totalAmount',
+      dataIndex: 'amount',
       width: 150,
       align: 'right',
-      render: (v: number) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
+      render: (v: number | string) => `¥ ${formatMoney(Number(v ?? 0), '0.00')}`,
     },
     {
       title: '已用',
       dataIndex: 'usedAmount',
       width: 150,
       align: 'right',
-      render: (v: number | undefined) => (v == null ? '--' : `¥ ${formatMoney(v, '0.00')}`),
+      render: (v: number | string | undefined) => (v == null ? '--' : `¥ ${formatMoney(Number(v), '0.00')}`),
     },
     {
       title: '剩余',
@@ -277,9 +283,9 @@ export default function BudgetsPage() {
       render: (_: unknown, record: Budget) =>
         record.usedAmount == null
           ? '--'
-          : `¥ ${formatMoney(record.totalAmount - record.usedAmount, '0.00')}`,
+          : `¥ ${formatMoney(Number(record.amount ?? 0) - Number(record.usedAmount), '0.00')}`,
     },
-    { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '--' },
+    { title: '备注', dataIndex: 'note', ellipsis: true, render: (v: string) => v || '--' },
     {
       title: '操作',
       dataIndex: 'actions',
@@ -305,6 +311,8 @@ export default function BudgetsPage() {
         error={error}
         onRetry={revalidate}
         searchFields={budgetSearchFields}
+        // 默认按当前年查询，筛选框必须显示同一年份，否则用户看不出数据被默认条件过滤过
+        searchInitialValues={{ year: defaults.year }}
         onSearch={handleSearch}
         onReset={handleReset}
         searchDebounceMs={300}
@@ -369,7 +377,7 @@ export default function BudgetsPage() {
           </Form.Item>
           <Form.Item
             label="预算总额"
-            field="totalAmount"
+            field="amount"
             rules={[{ required: true, message: '请输入预算总额' }]}
           >
             <InputNumber
@@ -380,7 +388,7 @@ export default function BudgetsPage() {
               prefix="¥"
             />
           </Form.Item>
-          <Form.Item label="备注" field="remark">
+          <Form.Item label="备注" field="note">
             <Input.TextArea placeholder="请输入备注（可选）" rows={2} />
           </Form.Item>
         </Form>
