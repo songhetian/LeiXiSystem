@@ -55,7 +55,9 @@ export default function BudgetsPage() {
       else params.departmentId = null;
       if (category) params.category = category;
       const res = await financeApi.listBudgets(params);
-      let list: Budget[] = res.code === 0 ? res.data?.list ?? [] : [];
+      // 业务码非 0 视为失败，否则会显示成「暂无预算」
+      if (res.code !== 0) throw new Error(res.message || '预算列表读取失败');
+      let list: Budget[] = res.data?.list ?? [];
       // 若后端未按条件过滤，则本地兜底
       if (params.year !== undefined) list = list.filter((b) => b.year === params.year);
       if (depValue) list = list.filter((b) => (b.departmentId ?? null) === Number(depValue));
