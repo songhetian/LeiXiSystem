@@ -112,18 +112,6 @@ export default function BudgetsPage() {
     },
   ];
 
-  const handleAdd = () => {
-    if (!canManage) return;
-    setEditingBudget(null);
-    setModalVisible(true);
-  };
-
-  const handleEdit = (record: Budget) => {
-    if (!canManage) return;
-    setEditingBudget(record);
-    setModalVisible(true);
-  };
-
   const handleDelete = (record: Budget) => {
     Modal.confirm({
       title: '确认删除',
@@ -201,19 +189,24 @@ export default function BudgetsPage() {
     form.resetFields();
   };
 
-  // 打开弹窗时根据编辑状态回填表单
-  const openModal = (mode: 'add' | 'edit') => {
-    if (mode === 'edit' && editingBudget) {
+  // 打开弹窗：编辑态直接用行数据回填（state 更新是异步的，不能先 setState 再读 state），
+  // 新增态清空上一次编辑残留，避免「新建」里躺着上一条预算的旧值。
+  const openModal = (mode: 'add' | 'edit', record?: Budget) => {
+    if (!canManage) return;
+    if (mode === 'edit' && record) {
+      setEditingBudget(record);
       form.setFieldsValue({
-        year: String(editingBudget.year),
-        departmentId: editingBudget.departmentId ? String(editingBudget.departmentId) : 'global',
-        category: editingBudget.category || '',
-        totalAmount: editingBudget.totalAmount,
-        remark: editingBudget.remark || '',
+        year: String(record.year),
+        departmentId: record.departmentId ? String(record.departmentId) : 'global',
+        category: record.category || '',
+        totalAmount: record.totalAmount,
+        remark: record.remark || '',
       });
     } else {
+      setEditingBudget(null);
       form.resetFields();
     }
+    setModalVisible(true);
   };
 
   const handleSubmit = async () => {
@@ -270,11 +263,15 @@ export default function BudgetsPage() {
     },
     {
       title: '剩余',
-      dataIndex: 'usedAmount',
+      // 不能复用 usedAmount 作为 dataIndex：与「已用」列重复，React 会因重复 key
+      // 复用错列节点（列显隐/重排时尤其明显）
+      dataIndex: 'remaining',
       width: 150,
       align: 'right',
-      render: (v: number | undefined, record: Budget) =>
-        v == null ? '--' : `¥ ${formatMoney(record.totalAmount - v, '0.00')}`,
+      render: (_: unknown, record: Budget) =>
+        record.usedAmount == null
+          ? '--'
+          : `¥ ${formatMoney(record.totalAmount - record.usedAmount, '0.00')}`,
     },
     { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '--' },
     {
@@ -284,7 +281,7 @@ export default function BudgetsPage() {
       render: (_: any, record: Budget) => (
         <Space>
           <PermissionGate code="finance:budget:manage">
-            <Button size="mini" type="text" onClick={() => { setEditingBudget(record); openModal('edit'); }}>编辑</Button>
+            <Button size="mini" type="text" onClick={() => openModal('edit', record)}>编辑</Button>
             <Button size="mini" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
           </PermissionGate>
         </Space>

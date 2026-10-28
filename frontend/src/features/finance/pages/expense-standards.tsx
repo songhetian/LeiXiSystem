@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, InputNumber, Form, Space, Tag } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, InputNumber, Form, Space } from '@arco-design/web-react';
+import StatusTag from '@/components/StatusTag';
 import PageContainer from '@/components/PageContainer';
 import ProTable from '@/components/ProTable';
 import type { ProTableColumn } from '@/components/ProTable';
@@ -16,10 +17,10 @@ import { todayStr, formatMoney } from '@/lib/format';
 /** 常用费用类别选项 */
 const EXPENSE_CATEGORIES = ['差旅', '办公', '通讯', '招待', '交通', '住宿', '其他'];
 
-/** 状态中文映射 */
+/** 状态中文映射（统一走公共 StatusTag） */
 const STATUS_MAP: Record<string, { text: string; color: string }> = {
-  enabled: { text: '启用', color: 'green' },
-  disabled: { text: '停用', color: 'gray' },
+  enabled: { text: '启用', color: 'success' },
+  disabled: { text: '停用', color: 'default' },
 };
 
 export default function ExpenseStandardsPage() {
@@ -53,8 +54,10 @@ export default function ExpenseStandardsPage() {
       if (filters.status) params.status = filters.status;
       if (filters.keyword) params.keyword = filters.keyword;
       const res = await financeApi.listExpenseStandards(params);
+      // 业务码非 0 视为失败，否则会显示成「暂无费用标准数据」
+      if (res.code !== 0) throw new Error(res.message || '费用标准读取失败');
       // ListResult<T>.data 类型为 {list,total,page,pageSize}，不再做数组兜底
-      let list: ExpenseStandard[] = res.code === 0 ? res.data?.list ?? [] : [];
+      let list: ExpenseStandard[] = res.data?.list ?? [];
       // 若后端未按条件过滤，则本地兜底
       if (filters.category) {
         const kw = String(filters.category).toLowerCase();
@@ -105,24 +108,24 @@ export default function ExpenseStandardsPage() {
     { key: 'keyword', label: '搜索', type: 'input', placeholder: '费用标准名称' },
   ];
 
-  const handleAdd = () => {
+  // 打开弹窗：编辑态直接用行数据回填（state 更新是异步的，不能先 setState 再读 state），
+  // 新增态清空上一次编辑残留，避免「新建」里躺着上一条标准的旧值。
+  const openModal = (mode: 'add' | 'edit', record?: ExpenseStandard) => {
     if (!canManage) return;
-    setEditingStandard(null);
-    setModalVisible(true);
-  };
-
-  const openModal = (mode: 'add' | 'edit') => {
-    if (mode === 'edit' && editingStandard) {
+    if (mode === 'edit' && record) {
+      setEditingStandard(record);
       form.setFieldsValue({
-        name: editingStandard.name,
-        category: editingStandard.category || '',
-        amount: editingStandard.amount,
-        unit: editingStandard.unit || '',
-        description: editingStandard.description || '',
+        name: record.name,
+        category: record.category || '',
+        amount: record.amount,
+        unit: record.unit || '',
+        description: record.description || '',
       });
     } else {
+      setEditingStandard(null);
       form.resetFields();
     }
+    setModalVisible(true);
   };
 
   const handleModalCancel = () => {
@@ -267,8 +270,9 @@ export default function ExpenseStandardsPage() {
       dataIndex: 'status',
       width: 100,
       render: (v: string) => {
-        const info = STATUS_MAP[v] || { text: v, color: 'gray' };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        const info = STATUS_MAP[v] || { text: v, color: 'default' };
+        // 报销标准状态统一走公共 StatusTag
+        return <StatusTag status={v} statusMap={{ [v]: { label: info.text, color: info.color } }} />;
       },
     },
     {
@@ -278,7 +282,7 @@ export default function ExpenseStandardsPage() {
       render: (_: any, record: ExpenseStandard) => (
         <PermissionGate code="finance:expense-standard:manage">
           <Space>
-            <Button size="mini" type="text" onClick={() => { setEditingStandard(record); openModal('edit'); }}>编辑</Button>
+            <Button size="mini" type="text" onClick={() => openModal('edit', record)}>编辑</Button>
             <Button size="mini" type="text" onClick={() => handleToggle(record)}>
               {record.status === 'disabled' ? '启用' : '停用'}
             </Button>
@@ -307,7 +311,7 @@ export default function ExpenseStandardsPage() {
           {
             key: 'standards-add',
             label: '+ 新建费用标准',
-            onClick: handleAdd,
+            onClick: () => openModal('add'),
             disabled: !canManage,
           },
         ]}

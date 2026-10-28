@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import BudgetsPage from '@/features/finance/pages/budgets';
 import { financeApi } from '@/services/finance';
@@ -103,5 +103,20 @@ describe('BudgetsPage（预算管理）', () => {
     await waitFor(() => {
       expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '预算读取失败');
     });
+  });
+
+  it('点击编辑回填该行数据（不是空表单）', async () => {
+    (financeApi.listBudgets as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [{ ...budget, remark: '差旅说明' }] },
+    });
+    render(<BudgetsPage />);
+
+    await waitFor(() => expect(screen.getByText('编辑')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('编辑'));
+
+    await waitFor(() => expect(screen.getByText('编辑预算')).toBeInTheDocument());
+    // 备注是普通输入框，最直观地证明表单被回填；此前点编辑永远是空表单
+    expect(screen.getByDisplayValue('差旅说明')).toBeInTheDocument();
   });
 });
