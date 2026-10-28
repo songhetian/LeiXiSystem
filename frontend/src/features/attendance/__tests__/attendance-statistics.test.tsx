@@ -21,8 +21,8 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, error }: any) => (
-    <div data-testid="pro-table">
+  default: ({ columns, data, error, searchInitialValues }: any) => (
+    <div data-testid="pro-table" data-initial-month={searchInitialValues?.month ?? ''}>
       {error && <div data-testid="table-error">{error}</div>}
       {data.map((row: any) => (
         <div key={row.employeeId} data-testid="table-row">
@@ -109,5 +109,31 @@ describe('AttendanceStatisticsPage（考勤统计）', () => {
 
     await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(1));
     expect(screen.getByTestId('cell-2-remainingDays')).toHaveTextContent('--');
+  });
+
+  it('默认按北京时间当前年月查询，并把月份回填进搜索框', async () => {
+    jest.useFakeTimers();
+    // 2026-10-31T16:30:00Z = 北京时间 2026-11-01 00:30
+    jest.setSystemTime(new Date('2026-10-31T16:30:00Z'));
+    try {
+      (attendanceApi.getAttendanceStatistics as jest.Mock).mockResolvedValue({
+        code: 0,
+        data: { rows: [], total: 0 },
+      });
+      render(<AttendanceStatisticsPage />);
+
+      await waitFor(() =>
+        expect(attendanceApi.getAttendanceStatistics).toHaveBeenCalledWith({
+          year: 2026,
+          month: 11,
+          departmentId: undefined,
+          keyword: undefined,
+        }),
+      );
+      // 数据被默认月份过滤，筛选框也必须显示同一个月，否则用户不知道在看哪个月
+      expect(screen.getByTestId('pro-table')).toHaveAttribute('data-initial-month', '2026-11');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

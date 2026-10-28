@@ -60,6 +60,12 @@ export interface ProTableProps {
   searchFields?: SearchFieldConfig[];
   onSearch?: (values: Record<string, any>) => void;
   onReset?: () => void;
+  /**
+   * 搜索表单初始值。
+   * 页面若默认带筛选条件（如「当前月」），必须回填到这里，否则用户看到的是
+   * 空筛选框、却在看被隐藏条件过滤后的数据，点重置也看不出发生了什么。
+   */
+  searchInitialValues?: Record<string, any>;
   /** 搜索表单每行列数，默认 3；传入 4 及以上可让字段排成一行 */
   searchColumn?: number;
   /** 是否允许“展开/收起”搜索框（默认 true）；不想让字段藏起来时传 false */
@@ -100,6 +106,7 @@ export default function ProTable({
   searchFields,
   onSearch,
   onReset,
+  searchInitialValues,
   searchColumn,
   searchExpandable,
   searchInlineActions,
@@ -329,6 +336,7 @@ export default function ProTable({
             fields={searchFields!}
             onSearch={onSearch || (() => {})}
             onReset={onReset}
+            initialValues={searchInitialValues}
             column={searchColumn}
             expandable={searchExpandable}
             inlineActions={searchInlineActions}

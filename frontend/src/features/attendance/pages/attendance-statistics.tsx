@@ -29,7 +29,11 @@ function currentYearMonth(): { year: number; month: number } {
 export default function AttendanceStatisticsPage() {
   const { departments } = useDepartments();
 
-  const [query, setQuery] = useState<AttendanceStatParams>(() => currentYearMonth());
+  // 默认筛选（当前北京时间年月）只在挂载时算一次：
+  // “重置”要回到这个默认值，且搜索框首屏应显示同样的月份，而不是空着
+  const [defaults] = useState(currentYearMonth);
+  const [query, setQuery] = useState<AttendanceStatParams>(defaults);
+  const defaultMonth = `${defaults.year}-${String(defaults.month).padStart(2, '0')}`;
 
   // SWR 缓存：相同筛选条件来回切页直接复用；失败由 ProTable 展示 error 并提供重试
   const cacheKey = `attendance:statistics:${query.year}-${query.month}:${query.departmentId ?? 'all'}:${query.employeeId ?? 'all'}:${query.keyword ?? ''}`;
@@ -48,7 +52,7 @@ export default function AttendanceStatisticsPage() {
 
   // 搜索：把表单值归一化进 query，cacheKey 随之变化即触发重新拉取
   const handleSearch = (filters: Record<string, any>) => {
-    let { year, month } = currentYearMonth();
+    let { year, month } = defaults;
     if (filters.month) {
       const [y, m] = String(filters.month).split('-').map(Number);
       if (y && m) {
@@ -66,7 +70,7 @@ export default function AttendanceStatisticsPage() {
 
   // 重置：回到默认年月口径；query 变化即触发 cacheKey 变化重新拉取
   const handleReset = () => {
-    setQuery(currentYearMonth());
+    setQuery(defaults);
   };
 
   const handleExport = () => {
@@ -142,6 +146,7 @@ export default function AttendanceStatisticsPage() {
         error={error}
         onRetry={revalidate}
         searchFields={searchFields}
+        searchInitialValues={{ month: defaultMonth }}
         onSearch={handleSearch}
         onReset={handleReset}
         searchColumn={3}

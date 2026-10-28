@@ -6,8 +6,8 @@ import type { SearchFieldConfig } from '@/components/SearchForm';
 
 jest.mock('@/components/SearchForm', () => ({
   __esModule: true,
-  default: ({ fields, onSearch, onReset }: any) => (
-    <div data-testid="search-form">
+  default: ({ fields, onSearch, onReset, initialValues }: any) => (
+    <div data-testid="search-form" data-initial={JSON.stringify(initialValues ?? {})}>
       {fields.map((f: any) => (
         <span key={f.key} data-testid={`search-field-${f.key}`}>{f.label}</span>
       ))}
@@ -66,8 +66,32 @@ jest.mock('@arco-design/web-react', () => {
 
   const Card = ({ children }: any) => <div data-testid="card">{children}</div>;
   const Space = ({ children }: any) => <div data-testid="space">{children}</div>;
+  // ProTable 还用到这些组件：缺桩会让 React 报 "type is invalid" 噪声，掩盖真实告警
+  const Empty = ({ description }: any) => <div data-testid="empty">{description}</div>;
+  const Popover = ({ children, content }: any) => (
+    <div data-testid="popover">
+      {children}
+      {content}
+    </div>
+  );
+  const Checkbox = ({ children, checked, onChange }: any) => (
+    <label>
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange?.(e.target.checked)} />
+      {children}
+    </label>
+  );
+  const Select = ({ children, value, onChange, options }: any) => (
+    <select value={value} onChange={(e) => onChange?.(e.target.value)}>
+      {children ??
+        (options ?? []).map((o: any) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+    </select>
+  );
 
-  return { Table, Button, Card, Space };
+  return { Table, Button, Card, Space, Empty, Popover, Checkbox, Select };
 });
 
 const mockColumns = [
@@ -106,6 +130,23 @@ describe('ProTable', () => {
       );
       expect(screen.getByTestId('search-form')).toBeInTheDocument();
       expect(screen.getByTestId('search-field-name')).toBeInTheDocument();
+    });
+
+    it('把 searchInitialValues 透传给搜索表单（默认筛选条件必须在界面上可见）', () => {
+      render(
+        <ProTable
+          columns={mockColumns}
+          data={mockData}
+          rowKey="id"
+          searchFields={mockSearchFields}
+          searchInitialValues={{ month: '2026-11' }}
+          onSearch={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('search-form')).toHaveAttribute(
+        'data-initial',
+        JSON.stringify({ month: '2026-11' }),
+      );
     });
 
     it('renders toolbar actions when provided', () => {
