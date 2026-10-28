@@ -11,7 +11,7 @@ import { attendanceApi, MonthlyRecord, MonthlyListResult, MonthlyListParams } fr
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, getTzParts } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
   { key: 'month', label: '月份', type: 'date', format: 'YYYY-MM', placeholder: '请选择月份', span: 4 },
@@ -32,11 +32,10 @@ const statusMap: Record<string, { label: string; color: string }> = {
   confirmed: { label: '已确认', color: 'green' },
 };
 
-/** 取当前月份，格式 YYYY-MM */
+/** 取当前月份，格式 YYYY-MM（按北京时间，宿主机时区不同也不会在月初取到上个月） */
 function getCurrentMonth(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const { Y, M } = getTzParts(new Date());
+  return `${Y}-${M}`;
 }
 
 export default function AttendanceMonthlyPage() {

@@ -267,6 +267,25 @@ describe('AttendanceMonthlyPage', () => {
   });
 
   describe('生成月报', () => {
+    it('默认月份按北京时间取（宿主机还在上个月时也不生成上月月报）', async () => {
+      jest.useFakeTimers();
+      // 2026-10-31T16:30:00Z = 北京时间 2026-11-01 00:30
+      jest.setSystemTime(new Date('2026-10-31T16:30:00Z'));
+      (attendanceApi.generateMonthly as jest.Mock).mockResolvedValue({ code: 0, data: { count: 1 } });
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-generate')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-generate'));
+
+      await waitFor(() =>
+        expect(attendanceApi.generateMonthly).toHaveBeenCalledWith({ month: '2026-11' }),
+      );
+      jest.useRealTimers();
+    });
+
     it('calls generateMonthly when 生成月报 button clicked', async () => {
       const user = userEvent.setup();
       (attendanceApi.generateMonthly as jest.Mock).mockResolvedValue({

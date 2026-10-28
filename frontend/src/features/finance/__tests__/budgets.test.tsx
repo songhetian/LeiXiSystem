@@ -105,6 +105,19 @@ describe('BudgetsPage（预算管理）', () => {
     });
   });
 
+  it('默认筛选年份按北京时间取：元旦早晨（UTC 仍是上一年）查的是新年度', async () => {
+    jest.useFakeTimers();
+    // 2025-12-31T16:30:00Z = 北京时间 2026-01-01 00:30
+    jest.setSystemTime(new Date('2025-12-31T16:30:00Z'));
+
+    render(<BudgetsPage />);
+
+    await waitFor(() =>
+      expect(financeApi.listBudgets).toHaveBeenCalledWith(expect.objectContaining({ year: 2026 })),
+    );
+    jest.useRealTimers();
+  });
+
   it('点击编辑回填该行数据（不是空表单）', async () => {
     (financeApi.listBudgets as jest.Mock).mockResolvedValue({
       code: 0,

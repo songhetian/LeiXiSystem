@@ -20,7 +20,7 @@ import {
 import { IconPlus, IconDelete, IconLink } from '@arco-design/web-react/icon';
 import { reimbursementApi, ReimbursementType, ExpenseType } from '@/services/reimbursement';
 import { notifyError } from '@/lib/request';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, getTzParts } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
 
 const { Row, Col } = Grid;
@@ -108,8 +108,10 @@ export default function ReimbursementForm({ visible, onSuccess, onCancel }: Reim
     setItems([{ key: Date.now() }]);
     setDocAttachments([]);
     form.resetFields();
+    // 默认标题的月份按北京时间取（元旦早上宿主机还是上一年/上一月）
+    const { Y, M } = getTzParts(new Date());
     form.setFieldsValue({
-      title: `${new Date().getFullYear()}年${new Date().getMonth() + 1}月报销申请`,
+      title: `${Y}年${Number(M)}月报销申请`,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);

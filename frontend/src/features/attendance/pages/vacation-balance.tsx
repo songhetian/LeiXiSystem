@@ -9,7 +9,7 @@ import { attendanceApi, VacationBalance } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { todayStr, getTzParts } from '@/lib/format';
 
 interface BalanceEnvelope {
   code: number;
@@ -41,7 +41,8 @@ function monthText(month?: number | null) {
 
 export default function VacationBalancePage() {
   const { can } = usePermission();
-  const year = new Date().getFullYear();
+  // 年度按北京时间取：宿主机在 UTC 等时区时，元旦早晨会取到上一年
+  const year = Number(getTzParts(new Date()).Y);
   const [monthFilter, setMonthFilter] = useState<number | undefined>(undefined);
 
   // SWR 缓存：切出再切回本页直接复用缓存；失败时 error 交由 ProTable 展示 + 重试

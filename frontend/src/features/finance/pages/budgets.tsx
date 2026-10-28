@@ -12,14 +12,19 @@ import { usePermission } from '@/hooks/use-permission';
 import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr, formatMoney } from '@/lib/format';
+import { todayStr, formatMoney, getTzParts } from '@/lib/format';
 
 /** 常用预算类别选项 */
 const BUDGET_CATEGORIES = ['行政', '差旅', '办公', '营销', '培训', '设备', '其他'];
 
+/** 当前年份：按北京时间取，宿主机在 UTC 等时区时元旦早上不会落到上一年 */
+function currentYear(): string {
+  return getTzParts(new Date()).Y;
+}
+
 /** 近5年（含当前年在内，往前推4年） */
 function buildYears(): number[] {
-  const current = new Date().getFullYear();
+  const current = Number(currentYear());
   return Array.from({ length: 5 }, (_, i) => current - i);
 }
 
@@ -31,7 +36,7 @@ export default function BudgetsPage() {
 
   // 筛选条件
   const [filters, setFilters] = useState<{ year: string; departmentId: string; category: string }>({
-    year: String(new Date().getFullYear()),
+    year: currentYear(),
     departmentId: '',
     category: '',
   });

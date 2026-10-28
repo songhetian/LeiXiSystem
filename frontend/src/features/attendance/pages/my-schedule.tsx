@@ -8,6 +8,7 @@ import DataState from '@/components/DataState';
 import { attendanceApi, type Schedule, type Shift } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { getContrastColor } from '@/lib/contrast';
+import { formatDate as formatDateTz, getTzParts } from '@/lib/format';
 
 const { Text } = Typography;
 
@@ -19,23 +20,32 @@ function pad2(n: number) {
 function formatDate(y: number, m0: number, d: number) {
   return `${y}-${pad2(m0 + 1)}-${pad2(d)}`;
 }
+/** 月份天数 / 当月 1 日是星期几：用 UTC 构造再取，避免宿主机时区与夏令时干扰 */
 function getDaysInMonth(y: number, m0: number) {
-  return new Date(y, m0 + 1, 0).getDate();
+  return new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
+}
+function getFirstWeekday(y: number, m0: number) {
+  return new Date(Date.UTC(y, m0, 1)).getUTCDay();
 }
 function dateOnly(s?: string): string {
   if (!s) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const d = new Date(s);
-  if (isNaN(d.getTime())) return s;
-  return formatDate(d.getFullYear(), d.getMonth(), d.getDate());
+  // 时间戳按全站展示口径（北京时间）折算成日期，不用宿主机本地时区
+  return formatDateTz(s, 'YYYY-MM-DD', s);
 }
 
 const DEFAULT_COLOR = 'var(--lx-primary-weak)';
 
 export default function MySchedulePage() {
-  const today = useMemo(() => new Date(), []);
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  // 「今天」按北京时间判定：在非 +08 时区的机器上，月初/月末会开错月份，
+  // 「今天」也会标到隔壁那天
+  const today = useMemo(() => getTzParts(new Date()), []);
+  const todayYear = Number(today.Y);
+  const todayMonth0 = Number(today.M) - 1;
+  const todayDateStr = formatDate(todayYear, todayMonth0, Number(today.D));
+
+  const [viewYear, setViewYear] = useState(todayYear);
+  const [viewMonth, setViewMonth] = useState(todayMonth0);
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const monthStart = formatDate(viewYear, viewMonth, 1);
@@ -68,23 +78,23 @@ export default function MySchedulePage() {
   }, [schedules]);
 
   const goPrev = useCallback(() => {
-    setViewMonth((m) => {
-      if (m === 0) {
-        setViewYear((y) => y - 1);
-        return 11;
-      }
-      return m - 1;
-    });
-  }, []);
+    // 年份/月份是两个独立 state：不能在 setViewMonth 的 updater 里再 setViewYear
+    // （StrictMode 下 updater 会被调用两次，年份会连减两次）
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(viewYear - 1);
+    } else {
+      setViewMonth(viewMonth - 1);
+    }
+  }, [viewMonth, viewYear]);
   const goNext = useCallback(() => {
-    setViewMonth((m) => {
-      if (m === 11) {
-        setViewYear((y) => y + 1);
-        return 0;
-      }
-      return m + 1;
-    });
-  }, []);
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(viewYear + 1);
+    } else {
+      setViewMonth(viewMonth + 1);
+    }
+  }, [viewMonth, viewYear]);
 
   const shiftSet = new Map<number, Shift>();
   schedules.forEach((s) => {
@@ -103,10 +113,10 @@ export default function MySchedulePage() {
           <Button icon={<IconRight />} onClick={goNext} disabled={loading} aria-label="下一月" />
           <Button
             onClick={() => {
-              setViewYear(today.getFullYear());
-              setViewMonth(today.getMonth());
+              setViewYear(todayYear);
+              setViewMonth(todayMonth0);
             }}
-            disabled={loading || (viewYear === today.getFullYear() && viewMonth === today.getMonth())}
+            disabled={loading || (viewYear === todayYear && viewMonth === todayMonth0)}
           >
             回到本月
           </Button>
@@ -143,14 +153,14 @@ export default function MySchedulePage() {
                 {w}
               </div>
             ))}
-            {Array.from({ length: new Date(viewYear, viewMonth, 1).getDay() }).map((_, i) => (
+            {Array.from({ length: getFirstWeekday(viewYear, viewMonth) }).map((_, i) => (
               <div key={`pad_${i}`} />
             ))}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const dateStr = formatDate(viewYear, viewMonth, day);
               const shift = byDate.get(dateStr);
-              const isToday = dateStr === formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+              const isToday = dateStr === todayDateStr;
               return (
                 <div
                   key={dateStr}

@@ -24,6 +24,7 @@ import { useQuickActions, QuickActionDef } from '@/hooks/use-quick-actions';
 import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { getTzParts } from '@/lib/format';
 
 const { Row, Col } = Grid;
 const { Text } = Typography;
@@ -52,7 +53,8 @@ const QUICK_ICON = new Map<string, QuickAction['icon']>(QUICK_ACTIONS.map((a) =>
 const quickIconOf = (a: QuickActionDef) => QUICK_ICON.get(a.key) ?? IconLink;
 
 function greeting() {
-  const h = new Date().getHours();
+  // 问候时段按北京时间判定：宿主机时区不同时，凌晨也可能显示「下午好」
+  const h = Number(getTzParts(new Date()).HH);
   if (h < 6) return '夜深了';
   if (h < 9) return '早上好';
   if (h < 12) return '上午好';
@@ -62,9 +64,11 @@ function greeting() {
 }
 
 function todayText() {
-  const now = new Date();
-  const week = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
-  return `${now.getMonth() + 1}月${now.getDate()}日 · 星期${week}`;
+  const { Y, M, D } = getTzParts(new Date());
+  const week = ['日', '一', '二', '三', '四', '五', '六'][
+    new Date(Date.UTC(Number(Y), Number(M) - 1, Number(D))).getUTCDay()
+  ];
+  return `${Number(M)}月${Number(D)}日 · 星期${week}`;
 }
 
 /**

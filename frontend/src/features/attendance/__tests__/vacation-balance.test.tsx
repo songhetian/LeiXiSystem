@@ -234,6 +234,16 @@ describe('VacationBalancePage', () => {
     await waitFor(() => expect(screen.getAllByTestId('table-row').length).toBe(4));
   });
 
+  it('年度按北京时间取：元旦早晨（UTC 仍是上一年）请求的是新年度', async () => {
+    jest.useFakeTimers();
+    // 2025-12-31T16:30:00Z = 北京时间 2026-01-01 00:30
+    jest.setSystemTime(new Date('2025-12-31T16:30:00Z'));
+
+    render(<VacationBalancePage />);
+    await waitFor(() => expect(attendanceApi.getMyBalances).toHaveBeenCalledWith({ year: 2026 }));
+    jest.useRealTimers();
+  });
+
   it('业务码非 0 时不当作空列表，向 ProTable 传错误信息', async () => {
     (attendanceApi.getMyBalances as jest.Mock).mockResolvedValue({
       code: 500,

@@ -150,6 +150,18 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.queryByTestId('page-title')).toBeNull());
   });
 
+  it('问候语与日期按北京时间渲染（不受宿主机时区影响）', async () => {
+    jest.useFakeTimers();
+    // 2026-10-27T16:30:00Z = 北京时间 2026-10-28 00:30（周三）
+    jest.setSystemTime(new Date('2026-10-27T16:30:00Z'));
+
+    render(<HomePage />);
+
+    expect(screen.getByText('夜深了，欢迎回来')).toBeInTheDocument();
+    expect(screen.getByText('10月28日 · 星期三')).toBeInTheDocument();
+    jest.useRealTimers();
+  });
+
   it('renders dashboard metric cards', async () => {
     render(<HomePage />);
     await waitFor(() => {
