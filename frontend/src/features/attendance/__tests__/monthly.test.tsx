@@ -66,8 +66,8 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, rowKey, loading, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
-    <div data-testid="pro-table" data-loading={loading}>
+  default: ({ columns, data, rowKey, loading, error, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
+    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
       {searchFields && (
         <div data-testid="search-area">
           {searchFields.map((f: any) => (
@@ -363,6 +363,38 @@ describe('AttendanceMonthlyPage', () => {
         expect(attendanceApi.getMonthlyList).toHaveBeenCalled();
       });
       expect(screen.queryAllByTestId('table-row')).toHaveLength(0);
+    });
+
+    it('业务码非 0 时向 ProTable 传错误态，而非静默显示空表', async () => {
+      (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValue({
+        code: 500,
+        message: '月报读取失败',
+      });
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '月报读取失败');
+      });
+    });
+
+    it('导出接口业务码非 0 时提示失败，不谎报「没有可导出的数据」', async () => {
+      const { exportToExcel } = jest.requireMock('@/lib/excel') as any;
+      const { Message } = jest.requireActual('@arco-design/web-react');
+      const errorSpy = jest.spyOn(Message, 'error').mockImplementation(() => ({}) as any);
+      const user = userEvent.setup();
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-export')).toBeInTheDocument();
+      });
+
+      (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValueOnce({
+        code: 500,
+        message: '导出取数失败',
+      });
+      await user.click(screen.getByTestId('toolbar-export'));
+
+      await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('导出取数失败'));
+      expect(exportToExcel).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
     });
   });
 });

@@ -65,7 +65,12 @@ export default function AttendanceMonthlyPage() {
   const cacheKey = `attendance:monthly:${JSON.stringify({ page, pageSize, search: searchParams })}`;
   const { data: result, loading, error, revalidate } = useCachedData<MonthlyListResult>(
     cacheKey,
-    () => attendanceApi.getMonthlyList({ page, pageSize, ...searchParams }),
+    async () => {
+      const res = await attendanceApi.getMonthlyList({ page, pageSize, ...searchParams });
+      // 业务码非 0 视为失败，否则表格会显示成「暂无数据」
+      if (res.code !== 0) throw new Error(res.message || '考勤月报读取失败');
+      return res;
+    },
     { staleTime: 30_000 },
   );
 
@@ -98,7 +103,7 @@ export default function AttendanceMonthlyPage() {
       } else {
         Message.error(result.message || '生成失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('生成失败');
     }
   };
@@ -107,6 +112,10 @@ export default function AttendanceMonthlyPage() {
   const handleExport = async () => {
     try {
       const res = await attendanceApi.getMonthlyList({ page: 1, pageSize: 10000, ...searchParams });
+      if (res.code !== 0) {
+        Message.error(res.message || '导出失败');
+        return;
+      }
       const list = (res.data?.list ?? []) as MonthlyRecord[];
       if (!exportToExcel(
         `考勤月报_${todayStr()}.xlsx`,
@@ -148,7 +157,7 @@ export default function AttendanceMonthlyPage() {
       } else {
         Message.error(result.message || '确认失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('确认失败');
     }
   };
@@ -173,26 +182,29 @@ export default function AttendanceMonthlyPage() {
       render: (_value, record) => record.employee?.department?.name || record.departmentName,
     },
     { title: '月份', dataIndex: 'month', width: 100 },
-    { title: '出勤天数', dataIndex: 'workDays', width: 100 },
-    { title: '迟到次数', dataIndex: 'lateCount', width: 100 },
-    { title: '早退次数', dataIndex: 'earlyCount', width: 100 },
-    { title: '缺勤天数', dataIndex: 'absentDays', width: 100 },
+    { title: '出勤天数', dataIndex: 'workDays', width: 100, align: 'right' },
+    { title: '迟到次数', dataIndex: 'lateCount', width: 100, align: 'right' },
+    { title: '早退次数', dataIndex: 'earlyCount', width: 100, align: 'right' },
+    { title: '缺勤天数', dataIndex: 'absentDays', width: 100, align: 'right' },
     {
       title: '请假时长',
       dataIndex: 'leaveMinutes',
       width: 110,
-      render: (value: number) => `${(value / 60).toFixed(1)}h`,
+      align: 'right',
+      render: (value: number | null) => `${(Number(value ?? 0) / 60).toFixed(1)}h`,
     },
     {
       title: '加班时长',
       dataIndex: 'overtimeHours',
       width: 110,
-      render: (value: number) => `${value}h`,
+      align: 'right',
+      render: (value: unknown) => `${Number(value ?? 0)}h`,
     },
     {
       title: '加班明细(平/休/法定)',
       dataIndex: 'overtimeWeekdayHours',
       width: 190,
+      align: 'right',
       render: (_: unknown, r: MonthlyRecord) =>
         `${Number(r.overtimeWeekdayHours ?? 0)} / ${Number(r.overtimeWeekendHours ?? 0)} / ${Number(r.overtimeHolidayHours ?? 0)} h`,
     },
@@ -226,7 +238,7 @@ export default function AttendanceMonthlyPage() {
   ];
 
   return (
-    <PageContainer >
+    <PageContainer>
       <ProTable
         columns={columns}
         data={data}

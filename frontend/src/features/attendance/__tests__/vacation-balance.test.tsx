@@ -23,8 +23,29 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, loading, rowKey }: any) => (
-    <div data-testid="pro-table" data-loading={loading}>
+  default: ({ columns, data, loading, rowKey, error, searchFields, onSearch, onReset }: any) => (
+    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
+      {searchFields && (
+        <div data-testid="search-area">
+          {searchFields.map((f: any) => (
+            <select
+              key={f.key}
+              data-testid={`search-${f.key}`}
+              onChange={(e) =>
+                onSearch?.({ [f.key]: e.target.value === '' ? undefined : Number(e.target.value) })
+              }
+            >
+              <option value="">{f.allLabel || '全部'}</option>
+              {(f.options || []).map((o: any) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ))}
+          <button onClick={() => onReset?.()}>重置</button>
+        </div>
+      )}
       <table>
         <thead>
           <tr>
@@ -58,21 +79,7 @@ jest.mock('@arco-design/web-react', () => {
     <span data-testid="tag" data-color={color}>{children}</span>
   );
   const Message = { success: jest.fn(), error: jest.fn(), info: jest.fn(), warning: jest.fn() };
-  const Select = ({ value, options, onChange, placeholder }: any) => (
-    <select
-      data-testid="month-filter"
-      value={value ?? ''}
-      onChange={(e) => onChange?.(e.target.value === '' ? undefined : Number(e.target.value))}
-    >
-      <option value="">{placeholder || '全部'}</option>
-      {(options || []).map((o: any) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
-  return { Tag, Message, Select };
+  return { Tag, Message };
 });
 
 const mockBalances = [
@@ -204,13 +211,37 @@ describe('VacationBalancePage', () => {
       expect(screen.getAllByTestId('table-row').length).toBe(4);
     });
 
-    fireEvent.change(screen.getByTestId('month-filter'), { target: { value: '8' } });
+    fireEvent.change(screen.getByTestId('search-month'), { target: { value: '8' } });
 
     await waitFor(() => {
       const rows = screen.getAllByTestId('table-row');
       expect(rows.length).toBe(1);
       expect(rows[0]).toHaveTextContent('8 月');
       expect(rows[0]).not.toHaveTextContent('7 月');
+    });
+  });
+
+  it('重置月份筛选后恢复全部额度行', async () => {
+    render(<VacationBalancePage />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId('table-row').length).toBe(4);
+    });
+
+    fireEvent.change(screen.getByTestId('search-month'), { target: { value: '7' } });
+    await waitFor(() => expect(screen.getAllByTestId('table-row').length).toBe(1));
+
+    fireEvent.click(screen.getByText('重置'));
+    await waitFor(() => expect(screen.getAllByTestId('table-row').length).toBe(4));
+  });
+
+  it('业务码非 0 时不当作空列表，向 ProTable 传错误信息', async () => {
+    (attendanceApi.getMyBalances as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '额度读取失败',
+    });
+    render(<VacationBalancePage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '额度读取失败');
     });
   });
 });
