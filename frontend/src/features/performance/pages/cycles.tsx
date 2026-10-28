@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, Form, DatePicker } from '@arco-design/web-react';
 import {
   IconCalendar,
   IconClockCircle,
@@ -9,6 +9,7 @@ import {
   IconFolder,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { performanceApi, PerformanceCycle, PerformanceCycleCreateDto, PerformanceCycleUpdateDto } from '@/services/performance';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
@@ -250,17 +251,14 @@ export default function CyclesPage() {
       </div>
 
       {/* 周期卡片 */}
-      <Spin loading={loading} style={{ display: 'block' }}>
-        {error ? (
-          <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-            <p className="text-text-3 mb-3">{error}</p>
-          </div>
-        ) : data.length === 0 ? (
-          <div className="text-center py-16 bg-surface border border-border-1 rounded-md text-text-3">
-            {loading ? '加载中...' : '暂无绩效周期，点击右上角新建周期'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <DataState
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        isEmpty={data.length === 0}
+        emptyText="暂无绩效周期，点击右上角新建周期"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.map((cycle, index) => {
               const tone = TYPE_COLORS[cycle.type] || TYPE_COLOR_FALLBACK[index % TYPE_COLOR_FALLBACK.length];
               const statusLabel = CYCLE_STATUS_MAP[cycle.status] ?? cycle.status;
@@ -334,9 +332,8 @@ export default function CyclesPage() {
                 </div>
               );
             })}
-          </div>
-        )}
-      </Spin>
+        </div>
+      </DataState>
 
       <CycleFormModal
         visible={modalVisible}

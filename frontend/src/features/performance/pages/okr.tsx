@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Message, Modal, Button, Select, Input, Spin, Form, DatePicker, Progress, InputNumber } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, Form, DatePicker, Progress, InputNumber } from '@arco-design/web-react';
 import {
   IconCalendar,
   IconCalendarClock,
@@ -11,6 +11,7 @@ import {
   IconRight,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { okrApi, OkrObjective, OkrKeyResult } from '@/services/performance';
 import { employeeApi, Employee } from '@/services/employee';
 import { systemApi } from '@/services/system';
@@ -342,17 +343,14 @@ export default function OkrPage() {
       </div>
 
       {/* 目标卡片 */}
-      <Spin loading={loading} style={{ display: 'block' }}>
-        {error ? (
-          <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
-            <p className="text-text-3 mb-3">{error}</p>
-          </div>
-        ) : data.length === 0 ? (
-          <div className="text-center py-16 bg-surface border border-border-1 rounded-md text-text-3">
-            {loading ? '加载中...' : '暂无 OKR 目标，点击右上角新建目标'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <DataState
+        loading={loading}
+        error={error}
+        onRetry={revalidate}
+        isEmpty={data.length === 0}
+        emptyText="暂无 OKR 目标，点击右上角新建目标"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.map((obj) => {
               const tone = OBJ_TYPE_COLORS[obj.type] || OBJ_TYPE_FALLBACK_COLOR;
               const progress = obj.progress ?? 0;
@@ -482,9 +480,8 @@ export default function OkrPage() {
                 </div>
               );
             })}
-          </div>
-        )}
-      </Spin>
+        </div>
+      </DataState>
 
       {/* 目标表单弹窗 */}
       <ObjectiveFormModal

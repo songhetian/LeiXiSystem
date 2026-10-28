@@ -105,4 +105,16 @@ describe('OkrPage 筛选清空', () => {
     await user.selectOptions(screen.getByTestId('select-全部状态'), '');
     await waitFor(() => expect(screen.getByText('共 2 个 OKR 目标')).toBeInTheDocument());
   });
+
+  it('接口失败时展示错误态与重试入口，点击重试重新拉取', async () => {
+    (okrApi.listObjectives as jest.Mock).mockRejectedValueOnce(new Error('目标加载失败'));
+    render(<OkrPage />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('目标加载失败'));
+
+    (okrApi.listObjectives as jest.Mock).mockResolvedValue({ code: 0, data: { list: mockObjectives } });
+    await userEvent.click(screen.getByRole('button', { name: '重试' }));
+
+    await waitFor(() => expect(screen.getByText('共 2 个 OKR 目标')).toBeInTheDocument());
+  });
 });
