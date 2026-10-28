@@ -65,10 +65,17 @@ export default function DataState({
 }: DataStateProps) {
   if (loading) {
     if (skeleton) {
-      if (skeletonType === 'list') {
-        return <SkeletonList rows={skeletonRows} />;
-      }
-      return <SkeletonCard rows={skeletonRows} />;
+      return (
+        // 骨架屏同样要有可播报的加载态：只画灰块不吭声，读屏用户会以为页面卡住。
+        <div role="status" aria-live="polite">
+          <span className="sr-only">{loadingText}</span>
+          {skeletonType === 'list' ? (
+            <SkeletonList rows={skeletonRows} />
+          ) : (
+            <SkeletonCard rows={skeletonRows} />
+          )}
+        </div>
+      );
     }
 
     return (

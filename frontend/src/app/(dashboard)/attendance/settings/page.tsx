@@ -6,12 +6,12 @@ import {
   Card,
   Button,
   Space,
-  Spin,
   Form,
   InputNumber,
   Grid,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { attendanceApi, AttendanceSettings } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -52,12 +52,15 @@ export default function AttendanceSettingsPage() {
   // SWR 共享缓存。关闭聚焦重取：本页是可编辑表单，重取会覆盖用户未保存的改动。
   const { data: res, loading, error, revalidate } = useCachedData<SettingsEnvelope>(
     'attendance:settings',
-    () => attendanceApi.getSettings(),
+    async () => {
+      const envelope = await attendanceApi.getSettings();
+      // 业务错误直接抛错：绝不能落到 DEFAULT_SETTINGS 表单上，
+      // 否则用户一保存就把默认值写回真实配置。
+      if (envelope.code !== 0) throw new Error(envelope.message || '加载考勤设置失败');
+      return envelope;
+    },
     { staleTime: 30_000, revalidateOnFocus: false },
   );
-  // 业务错误/请求失败都不是空数据：必须显式报错，绝不能落到 DEFAULT_SETTINGS
-  // 表单上 —— 否则用户一保存就把默认值写回真实配置。
-  const errorText = error ?? (res && res.code !== 0 ? res.message || '加载考勤设置失败' : null);
 
   // 拉取成功后同步进可编辑副本
   useEffect(() => {
@@ -79,7 +82,7 @@ export default function AttendanceSettingsPage() {
       } else {
         Message.error(res.message || '保存失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('保存失败');
     } finally {
       setSaving(false);
@@ -111,23 +114,18 @@ export default function AttendanceSettingsPage() {
 
   return (
       <PageContainer extra={
-          <Button type="primary" loading={saving} disabled={!canManage || loading || !!errorText} onClick={handleSave}>
+          <Button type="primary" loading={saving} disabled={!canManage || loading || !!error} onClick={handleSave}>
             保存设置
           </Button>
         }
       >
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 48 }}>
-            <Spin />
-          </div>
-        ) : errorText ? (
-          <Card>
-            <Space direction="vertical" size={12}>
-              <span className="lx-settings-card-desc">{errorText}</span>
-              <Button onClick={() => revalidate()}>重试</Button>
-            </Space>
-          </Card>
-        ) : (
+        <DataState
+          loading={loading}
+          skeleton
+          skeletonRows={4}
+          error={error}
+          onRetry={revalidate}
+        >
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             {/* 打卡规则 */}
             <Card title="打卡规则">
@@ -191,7 +189,7 @@ export default function AttendanceSettingsPage() {
               </Form>
             </Card>
           </Space>
-        )}
+        </DataState>
       </PageContainer>
   );
 }

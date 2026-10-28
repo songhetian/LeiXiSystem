@@ -14,6 +14,18 @@ describe('DataState', () => {
       render(<DataState loading loadingText="正在获取数据...">内容</DataState>);
       expect(screen.getByText('正在获取数据...')).toBeInTheDocument();
     });
+
+    it('骨架屏加载态同样向读屏播报（role=status），且不泄露子内容', () => {
+      render(
+        <DataState loading skeleton>
+          <div>内容</div>
+        </DataState>,
+      );
+      const status = screen.getByRole('status');
+      expect(status).toHaveAttribute('aria-live', 'polite');
+      expect(status).toHaveTextContent('加载中...');
+      expect(screen.queryByText('内容')).not.toBeInTheDocument();
+    });
   });
 
   describe('empty 状态', () => {
