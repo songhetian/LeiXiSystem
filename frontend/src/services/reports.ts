@@ -60,6 +60,9 @@ export interface ExportTask {
   fileName?: string | null;
   downloadUrl?: string | null;
   errorMsg?: string | null;
+  /** 已重试次数 / 上限：用户需要知道还能重试几次 */
+  retryCount?: number;
+  maxRetries?: number;
   createdAt: string;
 }
 
@@ -79,9 +82,20 @@ export const reportsApi = {
   listExportTasks(): Promise<{ code: number; message?: string; data?: { list: ExportTask[]; total: number } }> {
     return request.get('/reports/export/tasks');
   },
+  /** 重试失败的导出任务（后端只允许 failed → pending，且会重置失败原因） */
+  retryExportTask(
+    id: number,
+  ): Promise<{ code: number; message?: string; data?: { taskId: number; status: string } }> {
+    return request.post(`/reports/export/${id}/retry`);
+  },
   /** 员工列表导出下载地址（cookie 鉴权，可直接新窗口打开） */
   employeeListExportUrl(format: 'xlsx' | 'csv' = 'xlsx'): string {
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
     return `${base}/reports/employee-list/export?format=${format}`;
+  },
+  /** 导出任务下载地址（同样走 cookie 鉴权，可新窗口直接打开） */
+  exportTaskDownloadUrl(id: number): string {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
+    return `${base}/reports/export/${id}/download`;
   },
 };

@@ -9,13 +9,17 @@ import StatusTag from '@/components/StatusTag';
 import { reportsApi, ExportTask } from '@/services/reports';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, getTzParts } from '@/lib/format';
 
 const { Row, Col } = Grid;
 
+/**
+ * 当前月份一律按北京时间取：宿主机（或容器）用 UTC 时，月末最后几小时
+ * 会算出上一个月，报表默认月份就错了。
+ */
 function currentMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const { Y, M } = getTzParts(new Date());
+  return `${Y}-${M}`;
 }
 
 const exportStatusMap: Record<string, { label: string; color: string }> = {
@@ -122,8 +126,23 @@ export default function ReportsPage() {
       } else {
         Message.error(res.message || '导出失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('导出失败');
+    }
+  };
+
+  // 失败的导出任务允许重试（后端只接受 failed 状态），重试后回到排队中
+  const handleRetryTask = async (task: ExportTask) => {
+    try {
+      const res = await reportsApi.retryExportTask(task.id);
+      if (res.code === 0) {
+        Message.success('已重新提交导出任务');
+        void tasksRevalidate();
+      } else {
+        Message.error(res.message || '重试失败');
+      }
+    } catch {
+      Message.error('重试失败');
     }
   };
 
@@ -172,15 +191,50 @@ export default function ReportsPage() {
       render: (value: string) => <StatusTag status={value} statusMap={exportStatusMap} />,
     },
     {
+      // 失败原因必须展示：只给一个「失败」标签，用户既不知道原因也不知道能不能重试
+      title: '失败原因',
+      dataIndex: 'errorMsg',
+      width: 220,
+      ellipsis: true,
+      render: (value: string | null | undefined, record: ExportTask) =>
+        record.status === 'failed' ? (
+          <span className="text-danger" title={value ?? ''}>
+            {value || '导出失败，原因未记录'}
+          </span>
+        ) : null,
+    },
+    {
       title: '操作',
       dataIndex: 'actions',
-      width: 100,
-      render: (_: any, record: ExportTask) =>
-        record.status === 'completed' ? (
-          <Button size="small" type="text" onClick={() => window.open(`/api/v1/reports/export/${record.id}/download`, '_blank')}>
-            下载
-          </Button>
-        ) : null,
+      width: 110,
+      render: (_: any, record: ExportTask) => {
+        if (record.status === 'completed') {
+          return (
+            <Button
+              size="small"
+              type="text"
+              disabled={!can('reports:view')}
+              // 下载地址统一由 service 生成，避免页面里硬编码 /api/v1 前缀
+              onClick={() => window.open(reportsApi.exportTaskDownloadUrl(record.id), '_blank')}
+            >
+              下载
+            </Button>
+          );
+        }
+        if (record.status === 'failed') {
+          return (
+            <Button
+              size="small"
+              type="text"
+              disabled={!can('reports:view')}
+              onClick={() => handleRetryTask(record)}
+            >
+              重试
+            </Button>
+          );
+        }
+        return null;
+      },
     },
   ];
 

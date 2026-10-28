@@ -83,4 +83,15 @@ describe('reportsApi（T27）', () => {
     expect(mockedRequest.get).toHaveBeenCalledWith('/reports/export/tasks');
     expect(result.data?.list).toHaveLength(0);
   });
+
+  it('retryExportTask 发送 POST /reports/export/:id/retry', async () => {
+    mockedRequest.post.mockResolvedValueOnce({ code: 0, data: { taskId: 7, status: 'pending' } });
+    const result = await reportsApi.retryExportTask(7);
+    expect(mockedRequest.post).toHaveBeenCalledWith('/reports/export/7/retry');
+    expect(result.data?.status).toBe('pending');
+  });
+
+  it('exportTaskDownloadUrl 生成可新窗口打开的下载地址（cookie 鉴权，不经 request 拦截器）', () => {
+    expect(reportsApi.exportTaskDownloadUrl(7)).toBe('/api/v1/reports/export/7/download');
+  });
 });

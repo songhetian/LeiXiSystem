@@ -12,7 +12,9 @@ jest.mock('@/services/reports', () => ({
     getEmployeeStructure: jest.fn(),
     createExportTask: jest.fn(),
     listExportTasks: jest.fn(),
+    retryExportTask: jest.fn(),
     employeeListExportUrl: jest.fn(() => '/api/v1/reports/employee-list/export?format=xlsx'),
+    exportTaskDownloadUrl: jest.fn((id: number) => `/api/v1/reports/export/${id}/download`),
   },
 }));
 
@@ -257,5 +259,81 @@ describe('ReportsPage（报表中心）', () => {
     await userEvent.click(screen.getAllByText('重试')[0]);
 
     await waitFor(() => expect(screen.getByTestId('stat-员工数')).toHaveTextContent('12'));
+  });
+
+  it('默认月份按北京时间取（宿主机还在上个月时也展示当月报表）', async () => {
+    jest.useFakeTimers();
+    // 2026-10-31T16:30:00Z = 北京时间 2026-11-01 00:30
+    jest.setSystemTime(new Date('2026-10-31T16:30:00Z'));
+    try {
+      render(<ReportsPage />);
+      await waitFor(() =>
+        expect(reportsApi.getAttendanceMonthly).toHaveBeenCalledWith('2026-11'),
+      );
+      expect(screen.getByLabelText('选择月份')).toHaveValue('2026-11');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('已完成的导出任务下载地址由 service 生成，不在页面里硬编码前缀', async () => {
+    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+    render(<ReportsPage />);
+    await userEvent.click(await screen.findByText('下载'));
+
+    expect(reportsApi.exportTaskDownloadUrl).toHaveBeenCalledWith(3);
+    expect(openSpy).toHaveBeenCalledWith('/api/v1/reports/export/3/download', '_blank');
+    openSpy.mockRestore();
+  });
+
+  it('失败的导出任务展示失败原因并可重试，重试后刷新任务列表', async () => {
+    (reportsApi.listExportTasks as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: {
+        list: [
+          {
+            id: 9,
+            type: 'labor-cost',
+            format: 'xlsx',
+            month: '2026-09',
+            status: 'failed',
+            errorMsg: '文件写入磁盘失败',
+            createdAt: '2026-09-30T02:00:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+    });
+    (reportsApi.retryExportTask as jest.Mock).mockResolvedValue({ code: 0, data: { taskId: 9, status: 'pending' } });
+
+    render(<ReportsPage />);
+    // 失败原因要直给：只有一个「失败」标签等于没说
+    expect(await screen.findByText('文件写入磁盘失败')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('重试'));
+    await waitFor(() => expect(reportsApi.retryExportTask).toHaveBeenCalledWith(9));
+    await waitFor(() => expect(reportsApi.listExportTasks).toHaveBeenCalledTimes(2));
+  });
+
+  it('失败任务没有记录原因时也给出兜底文案，而不是留空', async () => {
+    (reportsApi.listExportTasks as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: {
+        list: [
+          {
+            id: 10,
+            type: 'attendance-monthly',
+            format: 'xlsx',
+            month: '2026-09',
+            status: 'failed',
+            errorMsg: null,
+            createdAt: '2026-09-30T02:00:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<ReportsPage />);
+    expect(await screen.findByText('导出失败，原因未记录')).toBeInTheDocument();
   });
 });
