@@ -10,6 +10,10 @@ jest.mock('@/services/performance', () => ({
   okrApi: { listObjectives: jest.fn() },
 }));
 
+jest.mock('@/lib/excel', () => ({
+  exportToExcel: jest.fn(() => true),
+}));
+
 jest.mock('@/services/employee', () => ({
   employeeApi: { getList: jest.fn() },
 }));
@@ -116,5 +120,45 @@ describe('OkrPage 筛选清空', () => {
     await userEvent.click(screen.getByRole('button', { name: '重试' }));
 
     await waitFor(() => expect(screen.getByText('共 2 个 OKR 目标')).toBeInTheDocument());
+  });
+
+  it('目标卡片的起止日期按 YYYY-MM-DD 展示，不把后端的 ISO 串直接摊出来', async () => {
+    (okrApi.listObjectives as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: {
+        list: [
+          {
+            ...mockObjectives[0],
+            // @db.Date 经 JSON 序列化后的真实形状
+            startDate: '2026-07-01T00:00:00.000Z',
+            endDate: '2026-09-30T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    render(<OkrPage />);
+
+    expect(await screen.findByText(/2026-07-01 ~ 2026-09-30/)).toBeInTheDocument();
+    expect(screen.queryByText(/T00:00:00\.000Z/)).not.toBeInTheDocument();
+  });
+
+  it('导出时起止日期同样格式化（Excel 里不该出现 ISO 串）', async () => {
+    const { exportToExcel } = require('@/lib/excel');
+    const row = {
+      ...mockObjectives[0],
+      startDate: '2026-07-01T00:00:00.000Z',
+      endDate: '2026-09-30T00:00:00.000Z',
+    };
+    (okrApi.listObjectives as jest.Mock).mockResolvedValue({ code: 0, data: { list: [row] } });
+    render(<OkrPage />);
+    await screen.findByText('共 1 个 OKR 目标');
+
+    await userEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+
+    await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+    const [, , columns] = (exportToExcel as jest.Mock).mock.calls[0];
+    const byTitle = (title: string) => columns.find((c: any) => c.title === title);
+    expect(byTitle('开始日期').value(row)).toBe('2026-07-01');
+    expect(byTitle('结束日期').value(row)).toBe('2026-09-30');
   });
 });

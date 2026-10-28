@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Message, Modal, Button, Select, Input, Form, DatePicker } from '@arco-design/web-react';
 import {
   IconCalendar,
@@ -13,7 +13,7 @@ import DataState from '@/components/DataState';
 import { performanceApi, PerformanceCycle, PerformanceCycleCreateDto, PerformanceCycleUpdateDto } from '@/services/performance';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { formatDate, todayStr } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
 
 const FormItem = Form.Item;
@@ -135,13 +135,20 @@ export default function CyclesPage() {
   };
 
   const handleModalOk = async (values: any) => {
+    // 起止日期成对校验：后端只校验非空，开始晚于结束会真的落库，之后所有周期统计都错位
+    const startDate = formatDate(values.startDate, 'YYYY-MM-DD', '');
+    const endDate = formatDate(values.endDate, 'YYYY-MM-DD', '');
+    if (startDate && endDate && startDate > endDate) {
+      Message.error('开始日期不能晚于结束日期');
+      return;
+    }
     setModalLoading(true);
     try {
       const dto: PerformanceCycleCreateDto | PerformanceCycleUpdateDto = {
         name: values.name,
         type: values.type || 'quarterly',
-        startDate: values.startDate || '',
-        endDate: values.endDate || '',
+        startDate,
+        endDate,
         status: values.status || 'draft',
       };
       let res;
@@ -177,13 +184,20 @@ export default function CyclesPage() {
       [
         { title: '周期名称', dataIndex: 'name' },
         { title: '类型', value: (c: PerformanceCycle) => CYCLE_TYPE_MAP[c.type] ?? c.type },
-        { title: '开始日期', dataIndex: 'startDate' },
-        { title: '结束日期', dataIndex: 'endDate' },
+        // 后端 startDate/endDate 是 DateTime，原始串是 ISO（2026-01-01T00:00:00.000Z），导出前统一格式化
+        { title: '开始日期', value: (c: PerformanceCycle) => formatDate(c.startDate, 'YYYY-MM-DD', '') },
+        { title: '结束日期', value: (c: PerformanceCycle) => formatDate(c.endDate, 'YYYY-MM-DD', '') },
         { title: '状态', value: (c: PerformanceCycle) => CYCLE_STATUS_MAP[c.status] ?? c.status },
         { title: '目标数', value: (c: PerformanceCycle) => c._count?.goals ?? 0 },
         { title: '评审数', value: (c: PerformanceCycle) => c._count?.reviews ?? 0 },
-        { title: '自评截止日', value: (c: PerformanceCycle) => c.selfReviewDeadline ?? '' },
-        { title: '经理评审截止日', value: (c: PerformanceCycle) => c.managerReviewDeadline ?? '' },
+        {
+          title: '自评截止日',
+          value: (c: PerformanceCycle) => formatDate(c.selfReviewDeadline, 'YYYY-MM-DD', ''),
+        },
+        {
+          title: '经理评审截止日',
+          value: (c: PerformanceCycle) => formatDate(c.managerReviewDeadline, 'YYYY-MM-DD', ''),
+        },
       ],
       data,
     )) {
@@ -192,6 +206,23 @@ export default function CyclesPage() {
   };
 
   const filteredCount = data.length;
+
+  // 表单初值必须稳定引用：每次父组件渲染都新建对象会让弹窗内的 effect 反复 setFieldsValue，
+  // 用户正在输入的名称/日期会被悄悄重置
+  const formValues = useMemo<CycleFormValues>(
+    () =>
+      editing
+        ? {
+            name: editing.name,
+            type: editing.type,
+            // DatePicker 只认 'YYYY-MM-DD'，塞 ISO 串会显示原始时间戳
+            startDate: formatDate(editing.startDate, 'YYYY-MM-DD', ''),
+            endDate: formatDate(editing.endDate, 'YYYY-MM-DD', ''),
+            status: editing.status,
+          }
+        : { name: '', type: 'quarterly', startDate: '', endDate: '', status: 'draft' },
+    [editing],
+  );
 
   return (
     <PageContainer >
@@ -295,7 +326,8 @@ export default function CyclesPage() {
                   <div className="flex flex-col gap-1.5 text-sm text-text-2 mb-4">
                     <div className="flex items-center gap-2">
                       <IconCalendar className="text-text-4" style={{ fontSize: 14 }} />
-                      <span>{cycle.startDate} ~ {cycle.endDate}</span>
+                      {/* 后端是 DateTime，直接渲染会把 2026-07-01T00:00:00.000Z 摊在卡片上 */}
+                      <span>{formatDate(cycle.startDate)} ~ {formatDate(cycle.endDate)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <IconTrophy className="text-text-4" style={{ fontSize: 14 }} />
@@ -308,7 +340,7 @@ export default function CyclesPage() {
                     {cycle.selfReviewDeadline && (
                       <div className="flex items-center gap-2">
                         <IconClockCircle className="text-text-4" style={{ fontSize: 14 }} />
-                        <span>自评截止：{cycle.selfReviewDeadline}</span>
+                        <span>自评截止：{formatDate(cycle.selfReviewDeadline)}</span>
                       </div>
                     )}
                   </div>
@@ -341,19 +373,7 @@ export default function CyclesPage() {
       <CycleFormModal
         visible={modalVisible}
         title={editing ? '编辑绩效周期' : '新建绩效周期'}
-        initialValues={editing ? {
-          name: editing.name,
-          type: editing.type,
-          startDate: editing.startDate,
-          endDate: editing.endDate,
-          status: editing.status,
-        } : {
-          name: '',
-          type: 'quarterly',
-          startDate: '',
-          endDate: '',
-          status: 'draft',
-        }}
+        initialValues={formValues}
         confirmLoading={modalLoading}
         onOk={handleModalOk}
         onCancel={handleModalCancel}

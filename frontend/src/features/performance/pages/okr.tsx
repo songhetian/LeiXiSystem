@@ -19,7 +19,7 @@ import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
-import { todayStr } from '@/lib/format';
+import { formatDate, todayStr } from '@/lib/format';
 
 const FormItem = Form.Item;
 
@@ -159,6 +159,13 @@ export default function OkrPage() {
   };
 
   const handleObjModalOk = async (values: any) => {
+    // startDate/endDate 在库里是 Date 类型：只认日期，且开始不能晚于结束
+    const startDate = formatDate(values.startDate, 'YYYY-MM-DD', '');
+    const endDate = formatDate(values.endDate, 'YYYY-MM-DD', '');
+    if (startDate && endDate && startDate > endDate) {
+      Message.error('开始日期不能晚于结束日期');
+      return;
+    }
     setObjModalLoading(true);
     try {
       const dto: any = {
@@ -166,8 +173,8 @@ export default function OkrPage() {
         type: values.type || 'personal',
         period: values.period,
         status: values.status || 'active',
-        startDate: values.startDate || undefined,
-        endDate: values.endDate || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
         ownerId: values.ownerId ? Number(values.ownerId) : null,
         departmentId: values.type === 'department' && values.departmentId ? Number(values.departmentId) : null,
       };
@@ -273,8 +280,8 @@ export default function OkrPage() {
         { title: '负责人', value: (o: OkrObjective) => ownerLabel(o) },
         { title: '进度(%)', value: (o: OkrObjective) => o.progress ?? 0 },
         { title: '状态', value: (o: OkrObjective) => OBJ_STATUS_MAP[o.status ?? ''] ?? o.status },
-        { title: '开始日期', value: (o: OkrObjective) => o.startDate ?? '' },
-        { title: '结束日期', value: (o: OkrObjective) => o.endDate ?? '' },
+        { title: '开始日期', value: (o: OkrObjective) => formatDate(o.startDate, 'YYYY-MM-DD', '') },
+        { title: '结束日期', value: (o: OkrObjective) => formatDate(o.endDate, 'YYYY-MM-DD', '') },
         { title: '关键结果数', value: (o: OkrObjective) => o.keyResults?.length ?? 0 },
       ],
       data,
@@ -284,6 +291,49 @@ export default function OkrPage() {
   };
 
   const filteredCount = data.length;
+
+  // 表单初值必须稳定引用：父组件每次渲染都新建对象会让弹窗内 effect 反复 setFieldsValue，
+  // 用户正在输入的标题/日期会被悄悄重置回旧值
+  const objectiveFormValues = useMemo<ObjectiveFormValues>(
+    () =>
+      editingObj
+        ? {
+            title: editingObj.title,
+            type: editingObj.type || 'personal',
+            period: editingObj.period || '',
+            status: editingObj.status || 'active',
+            // DatePicker 只认 'YYYY-MM-DD'；后端返回 ISO 串时直接塞进去会显示成时间戳
+            startDate: formatDate(editingObj.startDate, 'YYYY-MM-DD', ''),
+            endDate: formatDate(editingObj.endDate, 'YYYY-MM-DD', ''),
+            ownerId: editingObj.ownerId ? String(editingObj.ownerId) : '',
+            departmentId: editingObj.departmentId ? String(editingObj.departmentId) : '',
+          }
+        : {
+            title: '',
+            type: 'personal',
+            period: '',
+            status: 'active',
+            startDate: '',
+            endDate: '',
+            ownerId: '',
+            departmentId: '',
+          },
+    [editingObj],
+  );
+
+  const keyResultFormValues = useMemo<KeyResultFormValues>(
+    () =>
+      editingKr
+        ? {
+            title: editingKr.title,
+            initialValue: editingKr.initialValue ?? 0,
+            targetValue: editingKr.targetValue ?? 0,
+            currentValue: editingKr.currentValue ?? 0,
+            unit: editingKr.unit ?? '',
+          }
+        : { title: '', initialValue: 0, targetValue: 100, currentValue: 0, unit: '' },
+    [editingKr],
+  );
 
   return (
     <PageContainer >
@@ -400,7 +450,11 @@ export default function OkrPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <IconCalendarClock className="text-text-4" style={{ fontSize: 14 }} />
-                      <span>{obj.startDate || '--'} ~ {obj.endDate || '--'}</span>
+                      {/* 后端是 Date 类型，序列化后是 ISO 串，必须格式化后再展示 */}
+                      <span>
+                        {formatDate(obj.startDate, 'YYYY-MM-DD', '--')} ~{' '}
+                        {formatDate(obj.endDate, 'YYYY-MM-DD', '--')}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <IconArrowRise className="text-text-4" style={{ fontSize: 14 }} />
@@ -492,25 +546,7 @@ export default function OkrPage() {
         title={editingObj ? '编辑 OKR 目标' : '新建 OKR 目标'}
         employees={Object.values(employeeMap)}
         departments={Object.entries(deptMap).map(([id, name]) => ({ id: Number(id), name }))}
-        initialValues={editingObj ? {
-          title: editingObj.title,
-          type: editingObj.type || 'personal',
-          period: editingObj.period || '',
-          status: editingObj.status || 'active',
-          startDate: editingObj.startDate || '',
-          endDate: editingObj.endDate || '',
-          ownerId: editingObj.ownerId ? String(editingObj.ownerId) : '',
-          departmentId: editingObj.departmentId ? String(editingObj.departmentId) : '',
-        } : {
-          title: '',
-          type: 'personal',
-          period: '',
-          status: 'active',
-          startDate: '',
-          endDate: '',
-          ownerId: '',
-          departmentId: '',
-        }}
+        initialValues={objectiveFormValues}
         confirmLoading={objModalLoading}
         onOk={handleObjModalOk}
         onCancel={handleObjModalCancel}
@@ -520,19 +556,7 @@ export default function OkrPage() {
       <KeyResultFormModal
         visible={krModalVisible}
         title={editingKr ? '更新关键结果' : '新增关键结果'}
-        initialValues={editingKr ? {
-          title: editingKr.title,
-          initialValue: editingKr.initialValue ?? 0,
-          targetValue: editingKr.targetValue ?? 0,
-          currentValue: editingKr.currentValue ?? 0,
-          unit: editingKr.unit ?? '',
-        } : {
-          title: '',
-          initialValue: 0,
-          targetValue: 100,
-          currentValue: 0,
-          unit: '',
-        }}
+        initialValues={keyResultFormValues}
         confirmLoading={krModalLoading}
         onOk={handleKrModalOk}
         onCancel={handleKrModalCancel}
