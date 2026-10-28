@@ -125,6 +125,22 @@ describe('SettingsPage · 按钮级权限（T26）', () => {
     });
   });
 
+  it('设置列表返回业务错误(code!==0)时展示错误态，而非「暂无系统设置项」', async () => {
+    (settingsApi.list as jest.Mock).mockResolvedValue({ code: 500, message: '设置读取失败' });
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 1, username: 'admin', name: '管理员', permissions: ['system:setting:update'] },
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('设置读取失败');
+    });
+    // 业务失败不能被渲染成「库里没有设置项」
+    expect(screen.queryByText('暂无系统设置项')).not.toBeInTheDocument();
+    expect(screen.getByText('系统品牌')).toBeInTheDocument();
+  });
+
   it('设置列表加载失败时展示错误态与重试，品牌卡片仍可编辑', async () => {
     (settingsApi.list as jest.Mock).mockRejectedValueOnce(new Error('设置加载失败'));
     mockUseAuthStore.mockReturnValue({

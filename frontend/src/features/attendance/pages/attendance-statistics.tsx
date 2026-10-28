@@ -35,12 +35,16 @@ export default function AttendanceStatisticsPage() {
   const cacheKey = `attendance:statistics:${query.year}-${query.month}:${query.departmentId ?? 'all'}:${query.employeeId ?? 'all'}:${query.keyword ?? ''}`;
   const { data: res, loading, error, revalidate } = useCachedData<AttendanceStatResult>(
     cacheKey,
-    () => attendanceApi.getAttendanceStatistics(query),
+    async () => {
+      const result = await attendanceApi.getAttendanceStatistics(query);
+      // 业务错误（code!==0）不是空数据，必须抛错交给 ProTable 错误态，
+      // 否则会被误读为「该月无统计数据」
+      if (result.code !== 0) throw new Error(result.message || '获取考勤统计失败');
+      return result;
+    },
     { staleTime: 30_000 },
   );
   const rows = res?.code === 0 && res.data ? res.data.rows : [];
-  // 业务错误（code!==0）不是空数据，必须透出错误态，否则会被误读为「该月无统计数据」
-  const errorText = error ?? (res && res.code !== 0 ? res.message || '获取考勤统计失败' : null);
 
   // 搜索：把表单值归一化进 query，cacheKey 随之变化即触发重新拉取
   const handleSearch = (filters: Record<string, any>) => {
@@ -111,17 +115,21 @@ export default function AttendanceStatisticsPage() {
     { title: '工号', dataIndex: 'employeeNo', width: 100 },
     { title: '姓名', dataIndex: 'name', width: 120 },
     { title: '部门', dataIndex: 'departmentName', width: 140, ellipsis: true },
-    { title: '应休(天)', dataIndex: 'totalDays', width: 100 },
-    { title: '已休(天)', dataIndex: 'usedDays', width: 100 },
+    { title: '应休(天)', dataIndex: 'totalDays', width: 100, align: 'right' },
+    { title: '已休(天)', dataIndex: 'usedDays', width: 100, align: 'right' },
     {
       title: '剩余(天)',
       dataIndex: 'remainingDays',
       width: 100,
-      render: (value: number) => (
-        <span className={value < 0 ? 'text-danger' : 'text-text-1'}>{value}</span>
-      ),
+      align: 'right',
+      render: (value: number | null) =>
+        value == null ? (
+          '--'
+        ) : (
+          <span className={value < 0 ? 'text-danger' : 'text-text-1'}>{value}</span>
+        ),
     },
-    { title: '加班时长(小时)', dataIndex: 'overtimeHours', width: 120 },
+    { title: '加班时长(小时)', dataIndex: 'overtimeHours', width: 120, align: 'right' },
   ];
 
   return (
@@ -131,7 +139,7 @@ export default function AttendanceStatisticsPage() {
         data={rows}
         rowKey="employeeId"
         loading={loading}
-        error={errorText}
+        error={error}
         onRetry={revalidate}
         searchFields={searchFields}
         onSearch={handleSearch}

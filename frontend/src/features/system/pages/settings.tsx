@@ -52,7 +52,13 @@ export default function SettingsPage() {
     code: number;
     message?: string;
     data?: SystemSetting[];
-  }>(cacheKey, () => settingsApi.list(), { staleTime: 30_000, revalidateOnFocus: false });
+  }>(cacheKey, async () => {
+    const envelope = await settingsApi.list();
+    // 业务码非 0 视为失败：否则页面会退化成「暂无系统设置项」，
+    // 用户根本看不出是后端拒绝/出错
+    if (envelope.code !== 0) throw new Error(envelope.message || '系统设置读取失败');
+    return envelope;
+  }, { staleTime: 30_000, revalidateOnFocus: false });
   const settings = res?.code === 0 && res.data ? res.data : [];
 
   // 系统品牌配置公开信息（名称/Logo），供本页展示（与登录页/侧边栏一致）
@@ -94,7 +100,7 @@ export default function SettingsPage() {
       } else {
         Message.error('Logo 上传失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('Logo 上传失败');
     }
     return false; // 阻止默认立即上传，由本函数统一处理
@@ -136,7 +142,7 @@ export default function SettingsPage() {
       } else {
         Message.error(res.message || '保存失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('保存失败');
     } finally {
       setSaving(false);
@@ -157,7 +163,8 @@ export default function SettingsPage() {
     >
       {/* 品牌卡片不依赖设置列表数据：加载中/失败时同样可编辑（bulkUpdate 自带 upsert） */}
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          {/* 品牌信息：系统名称 + Logo（登录页与侧边栏展示） */}          <Card title="系统品牌" className="lx-settings-brand">
+          {/* 品牌信息：系统名称 + Logo（登录页与侧边栏展示） */}
+          <Card title="系统品牌" className="lx-settings-brand">
             <div className="lx-brand-row">
               {/* Logo 图标（当前效果） */}
               <div className="lx-brand-logo">
@@ -200,50 +207,49 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
-          
 
           {/* 分组设置项：库中无任何设置项时，品牌卡片仍可编辑（bulkUpdate 自带 upsert 创建） */}
           <DataState loading={loading} error={error} onRetry={revalidate}>
             <>
-          {settings.length === 0 && (
-            <Card>
-              <div className="lx-settings-empty">暂无系统设置项</div>
-            </Card>
-          )}
+              {settings.length === 0 && (
+                <Card>
+                  <div className="lx-settings-empty">暂无系统设置项</div>
+                </Card>
+              )}
 
-          {Object.entries(grouped).map(([group, items]) => {
-            if (items.length === 0) return null;
-            let visible = items;
-            if (group === 'attendance') {
-              visible = items.filter((s) => ACTIVE_ATTENDANCE_KEYS.has(s.key));
-              if (visible.length === 0) return null;
-            }
-            return (
-              <Card key={group} title={GROUP_LABELS[group] || group}>
-                <div className="lx-settings-grid">
-                  {visible
-                    .filter((s) => s.key !== 'system.name' && s.key !== 'system.logo')
-                    .map((s) => (
-                      <div key={s.key} className="lx-settings-grid-item">
-                        <div className="lx-settings-grid-label">
-                          <span>{s.label || s.key}</span>
-                          {s.description && (
-                            <div className="lx-settings-grid-desc">{s.description}</div>
-                          )}
-                        </div>
-                        <div className="lx-settings-grid-control">
-                          <Input
-                            value={values[s.key] ?? ''}
-                            onChange={(v) => handleChange(s.key, v)}
-                            placeholder={s.label || s.key}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </Card>
-            );
-          })}
+              {Object.entries(grouped).map(([group, items]) => {
+                if (items.length === 0) return null;
+                let visible = items;
+                if (group === 'attendance') {
+                  visible = items.filter((s) => ACTIVE_ATTENDANCE_KEYS.has(s.key));
+                  if (visible.length === 0) return null;
+                }
+                return (
+                  <Card key={group} title={GROUP_LABELS[group] || group}>
+                    <div className="lx-settings-grid">
+                      {visible
+                        .filter((s) => s.key !== 'system.name' && s.key !== 'system.logo')
+                        .map((s) => (
+                          <div key={s.key} className="lx-settings-grid-item">
+                            <div className="lx-settings-grid-label">
+                              <span>{s.label || s.key}</span>
+                              {s.description && (
+                                <div className="lx-settings-grid-desc">{s.description}</div>
+                              )}
+                            </div>
+                            <div className="lx-settings-grid-control">
+                              <Input
+                                value={values[s.key] ?? ''}
+                                onChange={(v) => handleChange(s.key, v)}
+                                placeholder={s.label || s.key}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </Card>
+                );
+              })}
             </>
           </DataState>
       </Space>

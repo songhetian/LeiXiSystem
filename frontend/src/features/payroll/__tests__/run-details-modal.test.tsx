@@ -49,6 +49,15 @@ jest.mock('@arco-design/web-react', () => {
     Space: ({ children }: any) => <div>{children}</div>,
     Tag: ({ children }: any) => <span data-testid="tag">{children}</span>,
     Message: { success: jest.fn(), error: jest.fn() },
+    // DataState 依赖项：错误文案/空态/骨架屏（外层 role="alert" 已由 DataState 提供）
+    Result: ({ subTitle, extra }: any) => (
+      <div>
+        <p>{subTitle}</p>
+        {extra}
+      </div>
+    ),
+    Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
+    Skeleton: () => null,
   };
 });
 
@@ -163,6 +172,39 @@ describe('RunDetailsModal', () => {
       expect(payrollApi.getPayrollRunDetails).toHaveBeenCalledWith(1);
     });
     expect(screen.queryByText('添加调整')).not.toBeInTheDocument();
+  });
+
+  it('明细接口业务码非 0 时展示错误态与重试，不显示「暂无明细」', async () => {
+    (payrollApi.getPayrollRunDetails as jest.Mock).mockResolvedValueOnce({
+      code: 500,
+      message: '批次明细读取失败',
+    });
+    render(<RunDetailsModal visible run={mockRun} onCancel={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('批次明细读取失败');
+    });
+    expect(screen.queryByTestId('empty')).not.toBeInTheDocument();
+    // 明细没拿到时不提供「添加调整」，避免对着空员工列表改工资
+    expect(screen.queryByText('添加调整')).not.toBeInTheDocument();
+
+    (payrollApi.getPayrollRunDetails as jest.Mock).mockResolvedValue({
+      code: 0, message: 'ok', data: mockDetails,
+    });
+    await userEvent.click(screen.getByText('重试'));
+
+    await waitFor(() => expect(screen.getByText('E001 张三')).toBeInTheDocument());
+  });
+
+  it('批次没有员工明细时展示空态文案而非空白表格', async () => {
+    (payrollApi.getPayrollRunDetails as jest.Mock).mockResolvedValue({
+      code: 0, message: 'ok', data: { ...mockDetails, employees: [] },
+    });
+    render(<RunDetailsModal visible run={mockRun} onCancel={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('empty')).toHaveTextContent('该批次暂无员工明细');
+    });
   });
 
   it('非 visible 时不渲染内容', () => {

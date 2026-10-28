@@ -21,12 +21,16 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ data, error }: any) => (
+  default: ({ columns, data, error }: any) => (
     <div data-testid="pro-table">
       {error && <div data-testid="table-error">{error}</div>}
       {data.map((row: any) => (
         <div key={row.employeeId} data-testid="table-row">
-          {row.name}
+          {columns.map((col: any) => (
+            <span key={col.dataIndex} data-testid={`cell-${row.employeeId}-${col.dataIndex}`}>
+              {col.render ? col.render(row[col.dataIndex], row) : row[col.dataIndex]}
+            </span>
+          ))}
         </div>
       ))}
     </div>
@@ -77,5 +81,33 @@ describe('AttendanceStatisticsPage（考勤统计）', () => {
     await waitFor(() =>
       expect(screen.getByTestId('table-error')).toHaveTextContent('获取考勤统计失败'),
     );
+    // 失败时不能再摆出空表，否则会被读成「本月没有统计数据」
+    expect(screen.queryAllByTestId('table-row')).toHaveLength(0);
+  });
+
+  it('剩余天数缺失时显示 --，不渲染空白单元格', async () => {
+    (attendanceApi.getAttendanceStatistics as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: {
+        rows: [
+          {
+            employeeId: 2,
+            employeeNo: 'E002',
+            name: '李四',
+            departmentId: 1,
+            departmentName: '研发部',
+            totalDays: 10,
+            usedDays: 2,
+            remainingDays: null,
+            overtimeHours: 0,
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AttendanceStatisticsPage />);
+
+    await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(1));
+    expect(screen.getByTestId('cell-2-remainingDays')).toHaveTextContent('--');
   });
 });

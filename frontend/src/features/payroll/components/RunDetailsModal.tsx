@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Table, Space, Button, Descriptions, Message } from '@arco-design/web-react';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
+import DataState from '@/components/DataState';
 import SalaryComposition from '@/features/payroll/components/SalaryComposition';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { payrollApi, PayrollRun, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
@@ -67,14 +68,20 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
   const [adjustFormFields, setAdjustFormFields] = useState<FormFieldConfig[]>(adjustmentFields([]));
 
   // SWR 缓存：批次明细，按 run.id 隔离
-  const { data: dRes, loading, revalidate } = useCachedData<
+  const { data: dRes, loading, error, revalidate } = useCachedData<
     Awaited<ReturnType<typeof payrollApi.getPayrollRunDetails>>
   >(
     `payroll:run-details:${run.id}`,
-    () => (visible
-      ? payrollApi.getPayrollRunDetails(run.id)
-      : Promise.resolve({ code: 0, message: '', data: null } as unknown as Awaited<ReturnType<typeof payrollApi.getPayrollRunDetails>>)
-    ),
+    async () => {
+      if (!visible) {
+        return { code: 0, message: '', data: null } as unknown as Awaited<ReturnType<typeof payrollApi.getPayrollRunDetails>>;
+      }
+      const res = await payrollApi.getPayrollRunDetails(run.id);
+      // 业务码非 0 视为失败：否则弹窗里会显示成「暂无明细」，
+      // 财务会以为该批次真的没有员工数据
+      if (res.code !== 0) throw new Error(res.message || '批次明细读取失败');
+      return res;
+    },
     { staleTime: 30_000 },
   );
   const details = dRes?.code === 0 && dRes.data ? dRes.data : null;
@@ -190,21 +197,28 @@ export default function RunDetailsModal({ run, visible = false, onCancel, onChan
         style={{ marginBottom: 16 }}
       />
       <Space style={{ marginBottom: 12 }}>
-        {run.status === 'draft' && (
+        {details && run.status === 'draft' && (
           <Button type="primary" size="small" onClick={openAdjust}>
             添加调整
           </Button>
         )}
       </Space>
-      <Table
-        rowKey="key"
+      <DataState
         loading={loading}
-        columns={columns}
-        data={rows}
-        scroll={{ x: true }}
-        pagination={false}
-        expandedRowRender={expandedRowRender}
-      />
+        error={error}
+        onRetry={revalidate}
+        isEmpty={!details || rows.length === 0}
+        emptyText="该批次暂无员工明细"
+      >
+        <Table
+          rowKey="key"
+          columns={columns}
+          data={rows}
+          scroll={{ x: true }}
+          pagination={false}
+          expandedRowRender={expandedRowRender}
+        />
+      </DataState>
 
       <ModalForm
         visible={adjustVisible}
