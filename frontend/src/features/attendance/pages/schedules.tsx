@@ -30,7 +30,16 @@ export default function SchedulesPage() {
   const cacheKey = `attendance:schedules:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
   const { data: res, loading, error, revalidate } = useCachedData<ScheduleListEnvelope>(
     cacheKey,
-    () => attendanceApi.getScheduleList({ page: pagination.current, pageSize: pagination.pageSize, ...searchParams }),
+    async () => {
+      const envelope = await attendanceApi.getScheduleList({
+        page: pagination.current,
+        pageSize: pagination.pageSize,
+        ...searchParams,
+      });
+      // 业务码非 0 视为失败，避免失败被渲染成「暂无排班」
+      if (envelope.code !== 0) throw new Error(envelope.message || '排班列表读取失败');
+      return envelope;
+    },
     { staleTime: 30_000 },
   );
   const data = res?.code === 0 && res.data ? res.data.list : [];

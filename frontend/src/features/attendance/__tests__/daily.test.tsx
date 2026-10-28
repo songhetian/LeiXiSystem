@@ -38,8 +38,8 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, rowKey, loading, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
-    <div data-testid="pro-table" data-loading={loading}>
+  default: ({ columns, data, rowKey, loading, error, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
+    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
       {searchFields && (
         <div data-testid="search-area">
           {searchFields.map((f: any) => (
@@ -290,6 +290,17 @@ describe('AttendanceDailyPage', () => {
       await user.click(screen.getByTestId('toolbar-recalc'));
       await waitFor(() => {
         expect(attendanceApi.recalcDaily).toHaveBeenCalled();
+      });
+    });
+
+    it('日报列表业务码非 0 时向 ProTable 传错误态，而非空表', async () => {
+      (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
+        code: 500,
+        message: '日报读取失败',
+      });
+      render(<AttendanceDailyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '日报读取失败');
       });
     });
   });

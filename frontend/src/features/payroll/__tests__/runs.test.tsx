@@ -29,8 +29,8 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, rowKey, loading, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
-    <div data-testid="pro-table" data-loading={loading}>
+  default: ({ columns, data, rowKey, loading, error, searchFields, toolbar, pagination, onSearch, onPageChange }: any) => (
+    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
       {searchFields && (
         <div data-testid="search-area">
           {searchFields.map((f: any) => (
@@ -384,7 +384,10 @@ describe('PayrollRunsPage', () => {
       });
       render(<PayrollRunsPage />);
       await waitFor(() => {
-        expect(payrollApi.getPayrollRuns).toHaveBeenCalled();
+        expect(screen.getByTestId('pro-table')).toHaveAttribute(
+          'data-error',
+          '无权限访问该数据',
+        );
       });
     });
   });

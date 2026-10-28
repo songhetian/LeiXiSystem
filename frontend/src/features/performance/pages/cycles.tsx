@@ -76,6 +76,8 @@ export default function CyclesPage() {
     cacheKey,
     async () => {
       const res = await performanceApi.listCycles();
+      // 业务码非 0 视为失败，交给 DataState 展示错误 + 重试
+      if (res.code !== 0) throw new Error(res.message || '绩效周期读取失败');
       let list = (res.data?.list ?? []) as PerformanceCycle[];
       // 本地兜底过滤（缓存键已含筛选条件，筛选变化即重新获取）
       if (filters.type !== '') list = list.filter((c) => c.type === filters.type);

@@ -28,8 +28,8 @@ jest.mock('@/components/PageContainer', () => ({
 
 jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ columns, data, rowKey, loading, searchFields, toolbar, pagination }: any) => (
-    <div data-testid="pro-table" data-loading={loading}>
+  default: ({ columns, data, rowKey, loading, error, searchFields, toolbar, pagination }: any) => (
+    <div data-testid="pro-table" data-loading={loading} data-error={error ?? ''}>
       {searchFields && <div data-testid="search-area" />}
       {toolbar && (
         <div data-testid="toolbar">
@@ -195,6 +195,17 @@ describe('SchedulesPage', () => {
       (attendanceApi.getScheduleList as jest.Mock).mockRejectedValue(new Error('error'));
       render(<SchedulesPage />);
       await waitFor(() => expect(attendanceApi.getScheduleList).toHaveBeenCalled());
+    });
+
+    it('排班列表业务码非 0 时向 ProTable 传错误信息', async () => {
+      (attendanceApi.getScheduleList as jest.Mock).mockResolvedValue({
+        code: 500,
+        message: '排班读取失败',
+      });
+      render(<SchedulesPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '排班读取失败');
+      });
     });
   });
 });

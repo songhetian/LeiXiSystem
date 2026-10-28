@@ -78,6 +78,8 @@ export default function OkrPage() {
     cacheKey,
     async () => {
       const res: any = await okrApi.listObjectives();
+      // 业务码非 0 视为失败，交给 DataState 展示错误 + 重试
+      if (res.code !== 0) throw new Error(res.message || 'OKR 目标读取失败');
       let list = (res.data?.list ?? []) as OkrObjective[];
       if (filters.type !== '') list = list.filter((o) => o.type === filters.type);
       if (filters.status !== '') list = list.filter((o) => o.status === filters.status);

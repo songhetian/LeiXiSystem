@@ -67,7 +67,12 @@ export default function AttendanceDailyPage() {
   const cacheKey = `attendance:daily:${JSON.stringify({ page, pageSize, search: searchParams })}`;
   const { data: result, loading, error, revalidate } = useCachedData<DailyListResult>(
     cacheKey,
-    () => attendanceApi.getDailyList({ page, pageSize, ...searchParams }),
+    async () => {
+      const res = await attendanceApi.getDailyList({ page, pageSize, ...searchParams });
+      // 业务码非 0 视为失败，避免失败被渲染成「暂无日报数据」
+      if (res.code !== 0) throw new Error(res.message || '考勤日报读取失败');
+      return res;
+    },
     { staleTime: 30_000 },
   );
 
@@ -88,6 +93,10 @@ export default function AttendanceDailyPage() {
   const handleExport = async () => {
     try {
       const res = await attendanceApi.getDailyList({ page: 1, pageSize: 10000, ...searchParams });
+      if (res.code !== 0) {
+        Message.error(res.message || '导出失败');
+        return;
+      }
       const list = (res.data?.list ?? []) as DailyRecord[];
       const statusLabel: Record<string, string> = {
         normal: '正常', abnormal: '异常', leave: '请假', absent: '旷工',
@@ -172,7 +181,7 @@ export default function AttendanceDailyPage() {
     { title: '部门', dataIndex: 'departmentName', width: 120 },
     { title: '日期', dataIndex: 'date', width: 120 },
     { title: '班次', dataIndex: 'shiftName', width: 100 },
-    { title: '工时(小时)', dataIndex: 'workHours', width: 100 },
+    { title: '工时(小时)', dataIndex: 'workHours', width: 100, align: 'right' },
     {
       title: '状态',
       dataIndex: 'status',
@@ -188,7 +197,7 @@ export default function AttendanceDailyPage() {
   ];
 
   return (
-    <PageContainer >
+    <PageContainer>
       <ProTable
         columns={columns}
         data={data}
