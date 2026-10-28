@@ -1178,6 +1178,31 @@ html, body {
   font-weight: 600;
 }
 
+/* 我的排班：月历网格 */
+.my-schedule-card {
+  padding: 16px;
+}
+.my-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.my-schedule-weekday {
+  text-align: center;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  padding: 4px 0;
+}
+.my-schedule-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 72px;
+  padding: 8px;
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+}
+
 /* ========================================
    搜索区（SearchForm）· 企业后台标准
    字段等宽栅格 + 右侧固定操作列，按钮不随字段换行漂移

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Button, Spin, Tag, Typography, Empty } from '@arco-design/web-react';
+import { Button, Tag, Typography } from '@arco-design/web-react';
 import { IconLeft, IconRight } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { attendanceApi, type Schedule, type Shift } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { getContrastColor } from '@/lib/contrast';
@@ -42,16 +43,20 @@ export default function MySchedulePage() {
 
   // SWR 缓存：cacheKey 含月份区间，切月/回到本月即重新订阅
   const cacheKey = `attendance:my-schedule:${monthStart}:${monthEnd}`;
-  const { data: res, loading } = useCachedData<{
-    code: number;
-    message?: string;
-    data?: { list: Schedule[] };
-  }>(
+  const { data: list, loading, error, revalidate } = useCachedData<Schedule[]>(
     cacheKey,
-    () => attendanceApi.getMyScheduleList({ startDate: monthStart, endDate: monthEnd, pageSize: 400 }),
+    async () => {
+      const res = await attendanceApi.getMyScheduleList({
+        startDate: monthStart,
+        endDate: monthEnd,
+        pageSize: 400,
+      });
+      if (res.code !== 0) throw new Error(res.message || '排班加载失败');
+      return res.data?.list ?? [];
+    },
     { staleTime: 30_000 },
   );
-  const schedules = res?.code === 0 && res.data ? res.data.list : [];
+  const schedules = list ?? [];
 
   const byDate = useMemo(() => {
     const m = new Map<string, Shift | undefined>();
@@ -124,16 +129,17 @@ export default function MySchedulePage() {
         </div>
       </div>
 
-      <Spin loading={loading} style={{ display: 'block' }} className="bg-surface border border-border-1 rounded-md p-4">
-        {schedules.length === 0 && !loading ? (
-          <Empty description="本月暂无排班" style={{ padding: '40px 0' }} />
-        ) : (
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
-          >
+      <div className="pro-card my-schedule-card">
+        <DataState
+          loading={loading}
+          error={error}
+          onRetry={revalidate}
+          isEmpty={schedules.length === 0}
+          emptyText="本月暂无排班"
+        >
+          <div className="my-schedule-grid">
             {WEEKDAY_LABELS.map((w) => (
-              <div key={w} className="text-center text-xs text-text-3 py-1">
+              <div key={w} className="my-schedule-weekday">
                 {w}
               </div>
             ))}
@@ -148,7 +154,7 @@ export default function MySchedulePage() {
               return (
                 <div
                   key={dateStr}
-                  className="min-h-[72px] rounded-md border border-border-1 p-2 flex flex-col gap-1"
+                  className="my-schedule-day"
                   style={{ background: shift ? shift.color || DEFAULT_COLOR : undefined }}
                 >
                   <span
@@ -182,8 +188,8 @@ export default function MySchedulePage() {
               );
             })}
           </div>
-        )}
-      </Spin>
+        </DataState>
+      </div>
     </PageContainer>
   );
 }
