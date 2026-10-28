@@ -194,9 +194,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* KPI 指标卡：失败展示错误态 + 重试，不再把 0 当真实数据 */}
+      {/* KPI 指标卡：加载中不摆出 0，失败展示错误态 + 重试，不再把 0 当真实数据 */}
       <div style={{ marginBottom: 24 }}>
-        <DataState error={error} onRetry={refreshStats}>
+        <DataState loading={loading} skeleton skeletonRows={1} error={error} onRetry={refreshStats}>
           <Row gutter={[16, 16]}>
             {metrics.map((m) => (
               <Col xs={12} md={6} key={m.label}>
@@ -273,6 +273,12 @@ export default function HomePage() {
               </button>
             </div>
             <DataState
+              loading={loading}
+              skeleton
+              skeletonType="list"
+              skeletonRows={3}
+              error={error}
+              onRetry={refreshStats}
               isEmpty={(stats?.todoTop ?? []).length === 0}
               emptyText="暂无待办"
               emptyActionLabel={can('approval:todo:view') ? '去审批中心' : undefined}
@@ -299,6 +305,12 @@ export default function HomePage() {
               </button>
             </div>
             <DataState
+              loading={loading}
+              skeleton
+              skeletonType="list"
+              skeletonRows={3}
+              error={error}
+              onRetry={refreshStats}
               isEmpty={(stats?.notificationTop ?? []).length === 0}
               emptyText="暂无通知"
             >
@@ -326,6 +338,7 @@ export default function HomePage() {
                 查看详情 <IconRight style={{ fontSize: 12 }} />
               </button>
             </div>
+            <DataState loading={loading} skeleton skeletonRows={1} error={error} onRetry={refreshStats}>
             <div className="dsh-kpi">
               <div className="dsh-kpi-item">
                 <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>
@@ -355,6 +368,7 @@ export default function HomePage() {
                 <div className="dsh-kpi-label">平均工时</div>
               </div>
             </div>
+            </DataState>
           </div>
         </Col>
         <Col xs={24} lg={10}>
@@ -366,6 +380,12 @@ export default function HomePage() {
               </button>
             </div>
             <DataState
+              loading={loading}
+              skeleton
+              skeletonType="list"
+              skeletonRows={2}
+              error={error}
+              onRetry={refreshStats}
               isEmpty={(stats?.mySubmissionsTop ?? []).length === 0}
               emptyText="暂无申请"
             >
@@ -410,11 +430,11 @@ function OrgChart() {
     if (res.code === 0 && res.data) return res.data;
     throw new Error(res.message || '获取组织数据失败');
   }, []);
-  const { data: depts, loading: deptsLoading, revalidate: revalidateDepts } = useCachedData<DepartmentStat[]>(
+  const { data: depts, loading: deptsLoading, error: deptsError, revalidate: revalidateDepts } = useCachedData<DepartmentStat[]>(
     'dashboard:dept-stats',
     fetchDepts,
   );
-  const { data: trend, loading: trendLoading, revalidate: revalidateTrend } = useCachedData<AttendanceTrendPoint[]>(
+  const { data: trend, loading: trendLoading, error: trendError, revalidate: revalidateTrend } = useCachedData<AttendanceTrendPoint[]>(
     'dashboard:attendance-trend:7',
     fetchTrend,
   );
@@ -437,6 +457,7 @@ function OrgChart() {
             skeleton
             skeletonType="list"
             skeletonRows={4}
+            error={deptsError}
             isEmpty={deptList.length === 0}
             emptyText="暂无部门数据"
             onRetry={revalidateDepts}
@@ -474,6 +495,7 @@ function OrgChart() {
             skeleton
             skeletonType="list"
             skeletonRows={3}
+            error={trendError}
             isEmpty={trendList.length === 0}
             emptyText="暂无考勤数据"
             onRetry={revalidateTrend}

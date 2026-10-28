@@ -290,13 +290,36 @@ describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  befor
     mockedGetStats.mockRejectedValueOnce(new Error('统计数据加载失败'));
     render(<HomePage />);
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('统计数据加载失败'));
-    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByRole('alert')[0]).toHaveTextContent('统计数据加载失败'),
+    );
+    expect(screen.getAllByRole('button', { name: '重试' }).length).toBeGreaterThan(0);
     // 失败时不应把「在职员工 0 人」这类假数据摆出来
     expect(screen.queryByText('在职员工')).toBeNull();
 
     mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
-    await userEvent.click(screen.getByRole('button', { name: '重试' }));
+    await userEvent.click(screen.getAllByRole('button', { name: '重试' })[0]);
     await waitFor(() => expect(screen.getByText('在职员工')).toBeInTheDocument());
+  });
+
+  it('统计接口失败时四个区块不把失败伪装成「暂无待办 / 暂无通知 / 暂无申请」', async () => {
+    mockedGetStats.mockRejectedValueOnce(new Error('统计数据加载失败'));
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0));
+    expect(screen.queryByText('暂无待办')).toBeNull();
+    expect(screen.queryByText('暂无通知')).toBeNull();
+    expect(screen.queryByText('暂无申请')).toBeNull();
+    // 本周考勤概览也不能以「—」冒充真实结果
+    expect(screen.queryByText('正常出勤')).toBeNull();
+  });
+
+  it('统计接口加载中不先摆出 0 人 0 项', async () => {
+    mockedGetStats.mockReturnValue(new Promise(() => {}));
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0));
+    expect(screen.queryByText('在职员工')).toBeNull();
+    expect(screen.queryByText('暂无待办')).toBeNull();
   });
 });
