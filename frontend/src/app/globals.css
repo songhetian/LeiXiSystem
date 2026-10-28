@@ -1109,6 +1109,74 @@ html, body {
   overflow: hidden;
   box-shadow: var(--lx-shadow-card);
 }
+/* 带内容内边距的 Pro 卡片（Tabs / 表单 / 卡片网格类页面） */
+.pro-card--tabs {
+  padding: 4px 20px 20px;
+}
+.pro-card--tabs .arco-tabs-header {
+  border-bottom: 1px solid var(--lx-border-2);
+}
+.pro-card--tabs .arco-tabs-header-title {
+  font-size: var(--lx-font-md);
+  padding: 14px 4px 12px;
+}
+.pro-card--tabs .arco-tabs-header-title-active {
+  font-weight: 600;
+  color: var(--lx-primary);
+}
+
+/* Pro 分区小节头：图标 + 标题 + 说明 + 右侧操作，供配置/明细类页面复用 */
+.pro-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 2px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.pro-section-title {
+  font-size: var(--lx-font-md);
+  font-weight: 600;
+  color: var(--lx-text-1);
+}
+.pro-section-desc {
+  margin-top: 2px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+
+/* 通知推送配置：事件 × 推送目标 网格 */
+.lx-notify-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px 40px;
+  padding: 18px 2px 4px;
+}
+.lx-notify-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lx-notify-setting-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lx-notify-setting-item-label {
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  color: var(--lx-text-1);
+}
+.lx-notify-setting-item-code {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+}
+.lx-notify-setting-pseudo {
+  color: var(--lx-primary);
+  font-weight: 600;
+}
 
 /* ========================================
    搜索区（SearchForm）· 企业后台标准

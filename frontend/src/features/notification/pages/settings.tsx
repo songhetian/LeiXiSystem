@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Tabs, Select, Button, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { Tabs, Select, Button, Message, Tooltip } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import {
   notificationSettingApi,
   NotificationSettingItem,
   TargetRoleOption,
 } from '@/services/notification';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
 
 // 业务事件分组（剔除已排除的『学习考试』模块，对照参考 NotificationSettings 的信息层级）
@@ -61,43 +63,44 @@ function isPseudoRole(label: string): boolean {
   return /本人|主管|待办|受众/.test(label);
 }
 
+const SETTINGS_KEY = 'config:notification:settings';
+const ROLES_KEY = 'config:notification:target-roles';
+
 export default function NotificationSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState<TargetRoleOption[]>([]);
-  // eventType -> 当前已选目标角色 token 列表
-  const [targets, setTargets] = useState<Record<string, string[]>>({});
+  // 推送配置与可选目标角色均走共享缓存（AGENTS：列表/详情数据一律 useCachedData）
+  const {
+    data: settingsList,
+    loading,
+    error,
+    revalidate,
+  } = useCachedData<NotificationSettingItem[]>(SETTINGS_KEY, async () => {
+    const res = await notificationSettingApi.list();
+    if (res.code !== 0) throw new Error(res.message || '推送配置读取失败');
+    return res.data ?? [];
+  });
+
+  const { data: roles } = useCachedData<TargetRoleOption[]>(ROLES_KEY, async () => {
+    const res = await notificationSettingApi.listRoles();
+    if (res.code !== 0 || !res.data) throw new Error(res.message || '目标角色读取失败');
+    return res.data;
+  });
+
+  // 本地草稿：接口数据到达后初始化，保存前不污染缓存
+  const [draft, setDraft] = useState<Record<string, string[]>>({});
+  useEffect(() => {
+    if (!settingsList) return;
+    const map: Record<string, string[]> = {};
+    for (const s of settingsList) map[s.eventType] = s.targetRoles;
+    setDraft(map);
+  }, [settingsList]);
+
   const [savingGroup, setSavingGroup] = useState('');
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const [settingsRes, rolesRes] = await Promise.all([
-          notificationSettingApi.list(),
-          notificationSettingApi.listRoles(),
-        ]);
-        if (!mounted) return;
-        const map: Record<string, string[]> = {};
-        if (settingsRes.code === 0) {
-          for (const s of settingsRes.data ?? []) map[s.eventType] = s.targetRoles;
-        }
-        setTargets(map);
-        if (rolesRes.code === 0 && rolesRes.data) setRoles(rolesRes.data);
-      } catch (e) {
-        notifyError(e, '推送配置读取失败');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const roleOptions = useMemo(() => roles, [roles]);
+  const roleOptions = useMemo(() => roles ?? [], [roles]);
+  const isEmpty = settingsList != null && settingsList.length === 0 && roleOptions.length === 0;
 
   const handleChange = (eventType: string, value: string[]) => {
-    setTargets((prev) => ({ ...prev, [eventType]: value }));
+    setDraft((prev) => ({ ...prev, [eventType]: value }));
   };
 
   const saveGroup = async (groupId: string) => {
@@ -108,10 +111,11 @@ export default function NotificationSettingsPage() {
     try {
       await Promise.all(
         eventTypes.map((type) =>
-          notificationSettingApi.setTargetRoles(type, targets[type] ?? []),
+          notificationSettingApi.setTargetRoles(type, draft[type] ?? []),
         ),
       );
       Message.success(`${group.title} 配置保存成功`);
+      void revalidate();
     } catch (e) {
       notifyError(e, `${group.title} 同步失败`);
     } finally {
@@ -121,101 +125,58 @@ export default function NotificationSettingsPage() {
 
   const tabItems = GROUPS.map((group) => (
     <Tabs.TabPane key={group.key} title={group.title}>
-      <div
-        style={{
-          background: 'var(--lx-bg-card)',
-          borderRadius: 8,
-          border: '1px solid var(--lx-border-2)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 20px',
-            borderBottom: '1px solid var(--lx-border-1)',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--lx-text-1)' }}>{group.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--lx-text-3)', marginTop: 2 }}>{group.description}</div>
-          </div>
-          <Button
-            type="primary"
-            loading={savingGroup === group.key}
-            onClick={() => saveGroup(group.key)}
-          >
-            {savingGroup === group.key ? '正在保存...' : '保存配置'}
-          </Button>
+      <div className="pro-section-head">
+        <div>
+          <div className="pro-section-title">{group.title}</div>
+          <div className="pro-section-desc">{group.description}</div>
         </div>
+        <Button
+          type="primary"
+          loading={savingGroup === group.key}
+          onClick={() => saveGroup(group.key)}
+        >
+          {savingGroup === group.key ? '正在保存...' : '保存配置'}
+        </Button>
+      </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '18px 40px',
-            padding: 20,
-          }}
-        >
-          {Object.entries(group.items).map(([type, label]) => (
-            <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--lx-text-1)' }}>{label}</span>
-                <Tooltip content={type}>
-                  <span style={{ fontSize: 11, color: 'var(--lx-text-4)' }}>{type}</span>
-                </Tooltip>
-              </div>
-              <Select
-                mode="multiple"
-                placeholder="选择推送目标"
-                value={targets[type] ?? []}
-                onChange={(val) => handleChange(type, val as string[])}
-                options={roleOptions.map((r) => ({
-                  ...r,
-                  label: (
-                    <span
-                      style={
-                        isPseudoRole(r.label) ? { color: 'var(--lx-primary)', fontWeight: 600 } : undefined
-                      }
-                    >
-                      {r.label}
-                    </span>
-                  ),
-                }))}
-                allowClear
-                maxTagCount={4}
-              />
+      <div className="lx-notify-setting-grid">
+        {Object.entries(group.items).map(([type, label]) => (
+          <div key={type} className="lx-notify-setting-item">
+            <div className="lx-notify-setting-item-head">
+              <span className="lx-notify-setting-item-label">{label}</span>
+              <Tooltip content={type}>
+                <span className="lx-notify-setting-item-code">{type}</span>
+              </Tooltip>
             </div>
-          ))}
-        </div>
+            <Select
+              mode="multiple"
+              placeholder="选择推送目标"
+              value={draft[type] ?? []}
+              onChange={(val) => handleChange(type, val as string[])}
+              options={roleOptions.map((r) => ({
+                ...r,
+                label: (
+                  <span className={isPseudoRole(r.label) ? 'lx-notify-setting-pseudo' : undefined}>
+                    {r.label}
+                  </span>
+                ),
+              }))}
+              allowClear
+              maxTagCount={4}
+            />
+          </div>
+        ))}
       </div>
     </Tabs.TabPane>
   ));
 
   return (
     <PageContainer>
-      {loading ? (
-        <div
-          style={{
-            height: 200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Spin size={32} />
-        </div>
-      ) : (
-        <Tabs defaultActiveTab="attendance">{tabItems}</Tabs>
-      )}
+      <div className="pro-card pro-card--tabs">
+        <DataState loading={loading} error={error} onRetry={revalidate} isEmpty={isEmpty} emptyText="暂无推送配置">
+          <Tabs defaultActiveTab="attendance">{tabItems}</Tabs>
+        </DataState>
+      </div>
     </PageContainer>
   );
 }
