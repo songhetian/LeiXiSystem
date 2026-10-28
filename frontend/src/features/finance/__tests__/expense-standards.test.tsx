@@ -105,4 +105,27 @@ describe('ExpenseStandardsPage（费用标准）', () => {
     expect(screen.getByDisplayValue('差旅住宿标准')).toBeInTheDocument();
     expect(screen.getByDisplayValue('一线城市上限')).toBeInTheDocument();
   });
+
+  it('金额是 Prisma Decimal 字符串时也能正确格式化', async () => {
+    (financeApi.listExpenseStandards as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [{ ...standard, amount: '1234.50' }], total: 1 },
+    });
+    render(<ExpenseStandardsPage />);
+
+    await waitFor(() => expect(screen.getByText('¥ 1,234.50')).toBeInTheDocument());
+  });
+
+  it('关键词只在本地过滤名称，不把后端不支持的 keyword 参数发出去', async () => {
+    (financeApi.listExpenseStandards as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [standard, { ...standard, id: 2, name: '市内交通标准' }], total: 2 },
+    });
+    render(<ExpenseStandardsPage />);
+    await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(2));
+
+    // 搜索框变更走 ProTable 的防抖查询；这里直接断言首屏请求不带 keyword
+    const params = (financeApi.listExpenseStandards as jest.Mock).mock.calls[0][0] ?? {};
+    expect(params).not.toHaveProperty('keyword');
+  });
 });

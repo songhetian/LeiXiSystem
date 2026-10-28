@@ -52,23 +52,14 @@ export default function ExpenseStandardsPage() {
       const params: Record<string, any> = {};
       if (filters.category) params.category = filters.category;
       if (filters.status) params.status = filters.status;
-      if (filters.keyword) params.keyword = filters.keyword;
+      // keyword 后端接口不支持（只有 category/status），全量拉回后本地过滤名称
       const res = await financeApi.listExpenseStandards(params);
       // 业务码非 0 视为失败，否则会显示成「暂无费用标准数据」
       if (res.code !== 0) throw new Error(res.message || '费用标准读取失败');
-      // ListResult<T>.data 类型为 {list,total,page,pageSize}，不再做数组兜底
-      let list: ExpenseStandard[] = res.data?.list ?? [];
-      // 若后端未按条件过滤，则本地兜底
-      if (filters.category) {
-        const kw = String(filters.category).toLowerCase();
-        list = list.filter((s) => String(s.category ?? '').toLowerCase().includes(kw));
-      }
-      if (filters.status) list = list.filter((s) => s.status === filters.status);
-      if (filters.keyword) {
-        const kw = String(filters.keyword).toLowerCase();
-        list = list.filter((s) => s.name.toLowerCase().includes(kw));
-      }
-      return list;
+      const list: ExpenseStandard[] = res.data?.list ?? [];
+      if (!filters.keyword) return list;
+      const kw = String(filters.keyword).toLowerCase();
+      return list.filter((s) => String(s.name ?? '').toLowerCase().includes(kw));
     },
     { staleTime: 30_000 },
   );
@@ -117,7 +108,8 @@ export default function ExpenseStandardsPage() {
       form.setFieldsValue({
         name: record.name,
         category: record.category || '',
-        amount: record.amount,
+        // Decimal 出参是字符串，InputNumber 需要数字
+        amount: Number(record.amount ?? 0),
         unit: record.unit || '',
         description: record.description || '',
       });
@@ -240,7 +232,8 @@ export default function ExpenseStandardsPage() {
       [
         { title: '名称', dataIndex: 'name' },
         { title: '类别', dataIndex: 'category' },
-        { title: '金额', dataIndex: 'amount' },
+        // 金额导出为数值（Decimal 字符串直接导出会变成文本列，Excel 里无法求和）
+        { title: '金额', value: (s: ExpenseStandard) => Number(s.amount ?? 0) },
         { title: '单位', dataIndex: 'unit' },
         { title: '描述', dataIndex: 'description' },
         {
@@ -262,7 +255,7 @@ export default function ExpenseStandardsPage() {
       dataIndex: 'amount',
       width: 130,
       align: 'right',
-      render: (v: number) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
+      render: (v: number | string) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
     },
     { title: '单位', dataIndex: 'unit', width: 130, render: (v: string) => v || '--' },
     { title: '描述', dataIndex: 'description', ellipsis: true, render: (v: string) => v || '--' },

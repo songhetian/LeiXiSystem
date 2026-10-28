@@ -124,4 +124,40 @@ describe('RoleWorkflowPage', () => {
     });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('绑定的流程已停用时不谎称「已绑定」，标出「绑定已失效」（实际走通用流程）', async () => {
+    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: [
+        // 正常绑定：流程仍激活
+        { id: 2, code: 'ROLE002', name: '部门主管', workflowId: 10, workflowName: '主管审批流程', workflowStatus: 'active' },
+        // 绑定关系还在，但流程被停用 → 后端解析时会跳过，实际走通用流程
+        { id: 3, code: 'ROLE003', name: '财务主管', workflowId: 12, workflowName: '旧财务流程', workflowStatus: 'disabled' },
+      ],
+    });
+    render(<RoleWorkflowPage />);
+
+    expect(await screen.findByText('财务主管')).toBeInTheDocument();
+    expect(screen.getAllByText('已绑定').length).toBe(1);
+    expect(screen.getByText('绑定已失效')).toBeInTheDocument();
+  });
+
+  it('已停用的绑定也要出现在下拉选项里，否则下拉显示裸 ID', async () => {
+    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: [
+        { id: 3, code: 'ROLE003', name: '财务主管', workflowId: 12, workflowName: '旧财务流程', workflowStatus: 'disabled' },
+      ],
+    });
+    render(<RoleWorkflowPage />);
+
+    await waitFor(() => expect(screen.getByTestId('workflow-select')).toBeInTheDocument());
+    const options = JSON.parse(screen.getByTestId('workflow-select').getAttribute('data-options') || '[]');
+    expect(options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: 10 }),
+        expect.objectContaining({ value: 12, label: '旧财务流程（已停用）' }),
+      ]),
+    );
+  });
 });

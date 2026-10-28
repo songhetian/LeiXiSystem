@@ -17,6 +17,9 @@ const WORKFLOW_KEY = 'config:approval:workflows-bind';
 const bindStatusMap: Record<string, { label: string; color: string }> = {
   bound: { label: '已绑定', color: 'success' },
   general: { label: '通用流程', color: 'default' },
+  // 绑定的流程后来被停用/删除：后端 resolveWorkflowForUser 只认 active，
+  // 实际走的仍是通用流程，这里必须如实标出来
+  invalid: { label: '绑定已失效', color: 'danger' },
 };
 
 // 职责授权：为每个角色绑定一个已激活的审批流程。绑定后该角色用户在发起审批时
@@ -64,7 +67,23 @@ export default function RoleWorkflowPage() {
     }
   };
 
-  const workflowOptions = (workflows || []).map((w) => ({ label: `${w.name}（${w.module}）`, value: w.id }));
+  // 可选流程只列「已激活」的；但已绑定却已停用的流程也要出现在选项里，
+  // 否则下拉匹配不到选项，会直接显示成裸 ID（用户看不出绑的是哪个流程）
+  const activeOptions = (workflows || []).map((w) => ({ label: `${w.name}（${w.module}）`, value: w.id }));
+  const unavailableOptions = (list || [])
+    .filter(
+      (r) =>
+        r.workflowId != null &&
+        // 状态缺失（老接口/裁剪出参）时不臆断为失效，避免把正常绑定误标成红色
+        !!r.workflowStatus &&
+        r.workflowStatus !== 'active' &&
+        !activeOptions.some((o) => o.value === r.workflowId),
+    )
+    .map((r) => ({
+      label: `${r.workflowName ?? `流程 #${r.workflowId}`}（已停用）`,
+      value: r.workflowId as number,
+    }));
+  const workflowOptions = [...activeOptions, ...unavailableOptions];
 
   const columns: ProTableColumn[] = [
     { title: '角色', dataIndex: 'name', width: 160, render: (v: string) => <span className="font-medium text-text-1">{v}</span> },
@@ -99,16 +118,28 @@ export default function RoleWorkflowPage() {
       title: '当前状态',
       dataIndex: 'workflowIdState',
       width: 130,
-      render: (_: any, role: RoleWorkflowItem) =>
-        role.workflowId ? (
+      render: (_: any, role: RoleWorkflowItem) => {
+        if (!role.workflowId) {
+          return (
+            <Tooltip content="未绑定，该角色用户走通用流程">
+              <StatusTag status="general" statusMap={bindStatusMap} />
+            </Tooltip>
+          );
+        }
+        // 绑定关系还在，但流程已停用 → 发起审批时后端会跳过它走通用流程
+        if (role.workflowStatus && role.workflowStatus !== 'active') {
+          return (
+            <Tooltip content="绑定的流程已停用或删除，该角色用户实际走通用流程，请重新绑定">
+              <StatusTag status="invalid" statusMap={bindStatusMap} />
+            </Tooltip>
+          );
+        }
+        return (
           <Tooltip content="已绑定专属流程，该角色用户审批优先走此流程">
             <StatusTag status="bound" statusMap={bindStatusMap} />
           </Tooltip>
-        ) : (
-          <Tooltip content="未绑定，该角色用户走通用流程">
-            <StatusTag status="general" statusMap={bindStatusMap} />
-          </Tooltip>
-        ),
+        );
+      },
     },
   ];
 

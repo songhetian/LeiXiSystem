@@ -54,8 +54,11 @@ export interface ExpenseStandard {
   name: string;
   /** 费用类别 */
   category?: string;
-  /** 标准金额 */
-  amount: number;
+  /**
+   * 标准金额。Prisma Decimal 经 JSON 序列化后是字符串，
+   * 展示/计算前请用 formatMoney / Number() 处理。
+   */
+  amount: number | string;
   /** 计量单位（如：元/天、元/次、元/公里） */
   unit?: string;
   description?: string;
