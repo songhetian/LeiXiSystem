@@ -117,6 +117,7 @@ export default function CyclesPage() {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除绩效周期「${record.name}」吗？删除后不可恢复。`,
+      okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
           const res = await performanceApi.deleteCycle(record.id);

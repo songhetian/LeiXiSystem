@@ -83,6 +83,7 @@ export default function SchedulesPage() {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除该排班吗？`,
+      okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
           const res = await attendanceApi.deleteSchedule(record.id);

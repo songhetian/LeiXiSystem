@@ -116,6 +116,7 @@ export default function BudgetsPage() {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除 ${record.year} 年${record.departmentName ? `「${record.departmentName}」` : '「公司总预算」'}的预算记录吗？删除后不可恢复。`,
+      okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
           const res = await financeApi.deleteBudget(record.id);

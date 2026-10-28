@@ -43,6 +43,8 @@ export function ConfirmButton({
           content,
           okText,
           cancelText,
+          // 危险操作（删除等）确认按钮同步标红：按钮红、弹窗确认蓝会让人误以为不严重
+          okButtonProps: status === 'danger' ? { status: 'danger' } : undefined,
           onOk: async () => {
             await onConfirm();
           },

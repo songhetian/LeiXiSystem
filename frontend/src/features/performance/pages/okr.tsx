@@ -141,6 +141,7 @@ export default function OkrPage() {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除 OKR 目标「${record.title}」吗？其下关键结果将一并删除。`,
+      okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
           const res = await okrApi.deleteObjective(record.id);
