@@ -25,6 +25,12 @@ const exportStatusMap: Record<string, { label: string; color: string }> = {
   failed: { label: '失败', color: 'red' },
 };
 
+/** 导出任务类型 → 业务文案（后端存的是 attendance-monthly / labor-cost 这类编码） */
+const exportTypeMap: Record<string, string> = {
+  'attendance-monthly': '考勤月报',
+  'labor-cost': '人力成本',
+};
+
 export default function ReportsPage() {
   const { can } = usePermission();
   const [month, setMonth] = useState(currentMonth());
@@ -144,8 +150,19 @@ export default function ReportsPage() {
   ];
 
   const taskColumns: ProTableColumn[] = [
-    { title: '类型', dataIndex: 'type', width: 160 },
-    { title: '格式', dataIndex: 'format', width: 70 },
+    {
+      title: '类型',
+      dataIndex: 'type',
+      width: 160,
+      // 类型列此前直接吐后端编码（attendance-monthly），业务方读不懂
+      render: (value: string) => exportTypeMap[value] ?? value,
+    },
+    {
+      title: '格式',
+      dataIndex: 'format',
+      width: 70,
+      render: (value: string) => (value ? value.toUpperCase() : '--'),
+    },
     { title: '月份', dataIndex: 'month', width: 90 },
     {
       title: '状态',

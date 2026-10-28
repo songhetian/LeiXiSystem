@@ -220,6 +220,13 @@ describe('ReportsPage（报表中心）', () => {
     expect(tag).toHaveAttribute('data-color', 'green');
   });
 
+  it('导出任务类型/格式展示业务文案，不把后端编码直接摊给用户', async () => {
+    render(<ReportsPage />);
+    expect(await screen.findByText('考勤月报')).toBeInTheDocument();
+    expect(screen.queryByText('attendance-monthly')).toBeNull();
+    expect(screen.getByText('XLSX')).toBeInTheDocument();
+  });
+
   it('切换月份后按新月份重新拉取报表', async () => {
     render(<ReportsPage />);
     await screen.findByText('¥ 98,765.40');
