@@ -447,7 +447,15 @@ export class AttendanceDailyService {
       this.prisma.attendanceDaily.findMany({
         where,
         include: {
-          employee: { select: { id: true, employeeNo: true, name: true } },
+          // 部门名用于日报列表/导出的「部门」列
+          employee: {
+            select: {
+              id: true,
+              employeeNo: true,
+              name: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
           shift: { select: { id: true, name: true, startTime: true, endTime: true } },
         },
         orderBy: [{ workDate: 'desc' }, { employeeId: 'asc' }],

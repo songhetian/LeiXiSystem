@@ -79,7 +79,7 @@ describe('attendanceApi', () => {
       mockedRequest.post.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
-        data: { updated: 5 },
+        data: { count: 5, taskId: 3 },
       });
       const result = await attendanceApi.recalcDaily({
         startDate: '2026-08-01',
@@ -93,7 +93,7 @@ describe('attendanceApi', () => {
     });
 
     it('recalcDaily sends employeeId when provided', async () => {
-      mockedRequest.post.mockResolvedValueOnce({ code: 0, data: { updated: 1 } });
+      mockedRequest.post.mockResolvedValueOnce({ code: 0, data: { count: 1, taskId: 4 } });
       await attendanceApi.recalcDaily({
         employeeId: 1,
         startDate: '2026-08-01',

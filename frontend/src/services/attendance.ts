@@ -48,26 +48,41 @@ export interface AttendanceAuditResult {
 
 // ========== 考勤日报 ==========
 
+/**
+ * 考勤日报行：字段以后端 Prisma 原始出参为准（`employee` / `shift` 嵌套）。
+ * 早期前端按扁平字段（employeeNo/date/checkIn/workHours）读取，与接口实际结构不符，
+ * 导致工号、姓名、日期、打卡时间整列空白，导出也是空列。
+ */
 export interface DailyRecord {
   id: number;
   employeeId: number;
-  employeeNo: string;
-  employeeName: string;
-  departmentName: string;
-  date: string;
-  shiftName: string;
-  checkIn?: string;
-  checkOut?: string;
-  workHours?: number;
-  status: 'normal' | 'abnormal' | 'leave' | 'absent';
-  abnormalType?: string | null;
+  /** 工作日（Date 序列化串） */
+  workDate: string;
+  shiftId?: number | null;
+  firstPunch?: string | null;
+  lastPunch?: string | null;
+  punchCount?: number;
+  lateMinutes?: number;
+  earlyMinutes?: number;
+  absentMinutes?: number;
+  overtimeMinutes?: number;
+  leaveDays?: string | number;
+  unpaidLeaveDays?: string | number;
+  status: string;
+  makeupReason?: string | null;
+  employee?: {
+    id?: number;
+    employeeNo: string;
+    name: string;
+    department?: { id: number; name: string } | null;
+  } | null;
+  shift?: { id: number; name: string; startTime?: string; endTime?: string } | null;
 }
 
 export interface DailyListParams {
   page?: number;
   pageSize?: number;
   employeeId?: number;
-  employeeNo?: string;
   departmentId?: number;
   startDate?: string;
   endDate?: string;
@@ -95,7 +110,9 @@ export interface RecalcResult {
   code: number;
   message?: string;
   data?: {
-    updated: number;
+    /** 后端 /attendance/daily/recalc 返回的实际重算条数字段名是 count */
+    count: number;
+    taskId?: number;
   };
 }
 

@@ -246,5 +246,16 @@ describe('AttendanceDailyService', () => {
       const where = prisma.attendanceDaily.findMany.mock.calls[0][0].where;
       expect(where.employee).toBeUndefined();
     });
+
+    it('查询日报时带上员工所属部门（列表/导出需要展示部门名）', async () => {
+      dataScope.visibleScope.mockResolvedValue({ all: true, ids: [] });
+
+      await service.list({ userId: 9, page: 1, pageSize: 20 });
+
+      const include = prisma.attendanceDaily.findMany.mock.calls[0][0].include;
+      expect(include.employee.select.department).toEqual({
+        select: { id: true, name: true },
+      });
+    });
   });
 });
