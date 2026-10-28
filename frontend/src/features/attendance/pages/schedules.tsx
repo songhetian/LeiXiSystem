@@ -19,6 +19,8 @@ interface ScheduleListEnvelope {
 
 export default function SchedulesPage() {
   const { can } = usePermission();
+  // 后端排班的增/改/删都要求 attendance:manage，前端同步做权限门
+  const canManage = can('attendance:manage');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
@@ -48,12 +50,26 @@ export default function SchedulesPage() {
     : pagination;
 
   // 班次下拉参考数据：共享缓存，跨组件去重
-  const { data: shiftsRes } = useCachedData<{ code: number; data?: { list: Shift[] } }>(
+  // 失败要明示：空下拉会让用户以为「系统里没有班次」，从而以为排班功能坏了
+  const {
+    data: shiftsRes,
+    loading: shiftsLoading,
+    error: shiftsError,
+    revalidate: revalidateShifts,
+  } = useCachedData<{ code: number; data?: { list: Shift[] } }>(
     'attendance:shifts',
-    () => attendanceApi.getShiftList(),
+    async () => {
+      const res = await attendanceApi.getShiftList();
+      if (res.code !== 0) throw new Error(res.message || '班次列表读取失败');
+      return res;
+    },
     { staleTime: 60_000 },
   );
   const shifts = shiftsRes?.code === 0 && shiftsRes.data ? shiftsRes.data.list : [];
+  // 加载中不算「没有班次」；加载完仍为空说明确实还没配置
+  const shiftsEmpty = !shiftsLoading && !shiftsError && shifts.length === 0;
+  // 班次缺失时不允许新建/编辑排班，否则只能提交一个没有班次的排班
+  const shiftsBlocked = !!shiftsError || shiftsEmpty;
 
   const handleSearch = (values: Record<string, any>) => {
     setSearchParams(values);
@@ -93,7 +109,7 @@ export default function SchedulesPage() {
           } else {
             Message.error(res.message || '删除失败');
           }
-        } catch (e) {
+        } catch {
           Message.error('删除失败');
         }
       },
@@ -122,7 +138,7 @@ export default function SchedulesPage() {
       } else {
         Message.error(res.message || '操作失败');
       }
-    } catch (e) {
+    } catch {
       Message.error('操作失败');
     } finally {
       setModalLoading(false);
@@ -140,7 +156,8 @@ export default function SchedulesPage() {
   ];
 
   const formFields: FormFieldConfig[] = [
-    { key: 'employeeId', label: '员工', type: 'input', required: true, placeholder: '请输入员工ID' },
+    // 选人而不是让人背员工 ID：后端只要 employeeId，前端用员工选择器按姓名/工号搜
+    { key: 'employeeId', label: '员工', type: 'employee', required: true, placeholder: '搜索员工姓名或工号' },
     {
       key: 'shiftId',
       label: '班次',
@@ -186,19 +203,57 @@ export default function SchedulesPage() {
       width: 180,
       render: (_: any, record: Schedule) => (
         <Space>
-          <Button size="small" type="text" onClick={() => handleEdit(record)}>编辑</Button>
-          <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          <Button
+            size="small"
+            type="text"
+            disabled={!canManage || shiftsBlocked}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Button
+            size="small"
+            type="text"
+            status="danger"
+            disabled={!canManage}
+            onClick={() => handleDelete(record)}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
   ];
 
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增排班', type: 'primary', onClick: handleAdd, disabled: !can('attendance:manage') },
+    {
+      key: 'add',
+      label: '新增排班',
+      type: 'primary',
+      onClick: handleAdd,
+      // 班次还没就绪时新增只会提交一个空班次的排班，直接禁用
+      disabled: !canManage || shiftsBlocked,
+    },
   ];
 
   return (
     <PageContainer >
+      {shiftsError && (
+        <div
+          role="alert"
+          className="mb-3 flex items-center justify-between gap-3 rounded-md border border-danger bg-danger-light px-3 py-2 text-sm text-danger"
+        >
+          <span>班次列表加载失败，暂时无法新增或编辑排班：{shiftsError}</span>
+          <Button size="mini" onClick={() => revalidateShifts()}>
+            重试
+          </Button>
+        </div>
+      )}
+      {shiftsEmpty && (
+        <div className="mb-3 rounded-md border border-warning bg-warning-light px-3 py-2 text-sm text-warning-text">
+          尚未配置班次，请先在「考勤设置 → 班次管理」创建班次后再排班。
+        </div>
+      )}
       <ProTable
         columns={columns}
         data={data}

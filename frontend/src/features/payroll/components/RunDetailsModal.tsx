@@ -98,18 +98,29 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
   );
   const details = dRes?.code === 0 && dRes.data ? dRes.data : null;
 
-  // 工资项参考数据：跨组件共享缓存
-  const { data: sRes } = useCachedData<
+  // 工资项参考数据：跨组件共享缓存。失败时不能让调整表单拿到一个空下拉
+  const {
+    data: sRes,
+    loading: salaryItemsLoading,
+    error: salaryItemsError,
+  } = useCachedData<
     Awaited<ReturnType<typeof payrollApi.getSalaryItems>>
   >(
     'payroll:salary-items:active',
-    () => (visible
-      ? payrollApi.getSalaryItems({ status: 'active' })
-      : Promise.resolve({ code: 0, message: '', data: { list: [], total: 0, page: 1, pageSize: 20 } } as Awaited<ReturnType<typeof payrollApi.getSalaryItems>>)
-    ),
+    async () => {
+      if (!visible) {
+        return { code: 0, message: '', data: { list: [], total: 0, page: 1, pageSize: 20 } } as Awaited<ReturnType<typeof payrollApi.getSalaryItems>>;
+      }
+      const res = await payrollApi.getSalaryItems({ status: 'active' });
+      if (res.code !== 0) throw new Error(res.message || '工资项读取失败');
+      return res;
+    },
     { staleTime: 60_000 },
   );
   const salaryItems = sRes?.code === 0 && sRes.data ? sRes.data.list ?? [] : [];
+  // 加载中不算「没有工资项」；失败或确实为空时都不允许添加调整（工资项是必填）
+  const salaryItemsEmpty = !salaryItemsLoading && !salaryItemsError && salaryItems.length === 0;
+  const salaryItemsBlocked = !!salaryItemsError || salaryItemsEmpty;
 
   // 工资项就绪后用默认项生成调整表单字段；依赖服务端 res 引用避免空数组字面量死循环
   useEffect(() => {
@@ -236,7 +247,12 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
       <Space style={{ marginBottom: 12 }} wrap>
         {details && canManage && run.status === 'draft' && (
           <>
-            <Button type="primary" size="small" onClick={openAdjust}>
+            <Button
+              type="primary"
+              size="small"
+              disabled={salaryItemsBlocked}
+              onClick={openAdjust}
+            >
               添加调整
             </Button>
             <Button
@@ -257,6 +273,19 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
           </>
         )}
       </Space>
+      {salaryItemsError && (
+        <div
+          role="alert"
+          className="mb-3 rounded-md border border-danger bg-danger-light px-3 py-2 text-sm text-danger"
+        >
+          工资项加载失败，暂时无法添加调整：{salaryItemsError}
+        </div>
+      )}
+      {salaryItemsEmpty && canManage && run.status === 'draft' && (
+        <div className="mb-3 rounded-md border border-warning bg-warning-light px-3 py-2 text-sm text-warning-text">
+          暂无启用的工资项，请先在「薪资项设置」中启用后再做调整。
+        </div>
+      )}
       <DataState
         loading={loading}
         error={error}

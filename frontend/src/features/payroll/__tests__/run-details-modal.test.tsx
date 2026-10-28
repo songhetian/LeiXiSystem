@@ -134,7 +134,13 @@ describe('RunDetailsModal', () => {
     });
     (payrollApi.adjustPayrollRun as jest.Mock).mockResolvedValue({ code: 0, message: 'ok' });
     (payrollApi.getSalaryItems as jest.Mock).mockResolvedValue({
-      code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 },
+      code: 0,
+      data: {
+        list: [{ id: 1, code: 'penalty', name: '罚款', type: 'deduction', enabled: true }],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
     });
   });
 
@@ -228,6 +234,31 @@ describe('RunDetailsModal', () => {
     await waitFor(() => {
       expect(screen.getByTestId('empty')).toHaveTextContent('该批次暂无员工明细');
     });
+  });
+
+  it('工资项参考数据失败时明示失败并禁用添加调整，而不是给一个空下拉', async () => {
+    (payrollApi.getSalaryItems as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '工资项读取失败',
+    });
+    render(<RunDetailsModal canManage visible run={mockRun} onCancel={jest.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('E001 张三')).toBeInTheDocument());
+    const alert = await screen.findByText(/工资项加载失败/);
+    expect(alert.closest('[role="alert"]') ?? alert).toHaveTextContent('工资项读取失败');
+    // 工资项是调整表单的必填项，拿不到就不该让人点开一个空下拉
+    expect(screen.getByText('添加调整').closest('button')).toBeDisabled();
+  });
+
+  it('没有任何启用工资项时给出提示并禁用添加调整', async () => {
+    (payrollApi.getSalaryItems as jest.Mock).mockResolvedValue({
+      code: 0, data: { list: [], total: 0, page: 1, pageSize: 20 },
+    });
+    render(<RunDetailsModal canManage visible run={mockRun} onCancel={jest.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('E001 张三')).toBeInTheDocument());
+    expect(await screen.findByText(/暂无启用的工资项/)).toBeInTheDocument();
+    expect(screen.getByText('添加调整').closest('button')).toBeDisabled();
   });
 
   it('非 visible 时不渲染内容', async () => {

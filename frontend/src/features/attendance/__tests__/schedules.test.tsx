@@ -15,6 +15,12 @@ jest.mock('@/services/attendance', () => ({
   },
 }));
 
+// 权限门：默认有 attendance:manage，个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
+jest.mock('@/hooks/use-permission', () => ({
+  usePermission: () => ({ can: (code: string) => mockCan(code) }),
+}));
+
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -34,7 +40,14 @@ jest.mock('@/components/ProTable', () => ({
       {toolbar && (
         <div data-testid="toolbar">
           {toolbar.map((t: any) => (
-            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick}>{t.label}</button>
+            <button
+              key={t.key}
+              data-testid={`toolbar-${t.key}`}
+              disabled={t.disabled}
+              onClick={t.onClick}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
       )}
@@ -66,7 +79,9 @@ jest.mock('@/components/ModalForm', () => ({
   default: ({ visible, title, fields, initialValues, onOk, onCancel, confirmLoading }: any) =>
     visible ? (
       <div data-testid="modal-form" data-title={title} data-confirm-loading={confirmLoading}>
-        {fields.map((f: any) => <div key={f.key} data-testid={`field-${f.key}`}>{f.label}</div>)}
+        {fields.map((f: any) => (
+          <div key={f.key} data-testid={`field-${f.key}`} data-type={f.type}>{f.label}</div>
+        ))}
         <button data-testid="modal-ok" onClick={() => onOk(initialValues)}>确定</button>
         <button data-testid="modal-cancel" onClick={onCancel}>取消</button>
       </div>
@@ -91,6 +106,7 @@ describe('SchedulesPage', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
     (attendanceApi.getScheduleList as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: mockSchedules, total: 2, page: 1, pageSize: 20 },
@@ -206,6 +222,64 @@ describe('SchedulesPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('pro-table')).toHaveAttribute('data-error', '排班读取失败');
       });
+    });
+
+    it('班次参考数据失败时明示失败并可重试，同时禁用新增', async () => {
+      (attendanceApi.getShiftList as jest.Mock).mockResolvedValue({
+        code: 500,
+        message: '班次读取失败',
+      });
+      render(<SchedulesPage />);
+
+      const alert = await screen.findByText(/班次列表加载失败/);
+      expect(alert.closest('[role="alert"]') ?? alert).toHaveTextContent('班次读取失败');
+      // 班次没拿到时不能新增：否则只能提交一个没有班次的排班
+      expect(screen.getByTestId('toolbar-add')).toBeDisabled();
+      // 列表本身照常展示（排班数据是好的）
+      expect(screen.getAllByTestId('table-row')).toHaveLength(2);
+
+      (attendanceApi.getShiftList as jest.Mock).mockResolvedValue({
+        code: 0,
+        data: { list: [{ id: 1, name: '早班' }, { id: 2, name: '中班' }], total: 2 },
+      });
+      await userEvent.click(screen.getByText('重试'));
+
+      await waitFor(() => expect(screen.queryByText(/班次列表加载失败/)).not.toBeInTheDocument());
+      expect(screen.getByTestId('toolbar-add')).toBeEnabled();
+    });
+
+    it('没有任何班次时提示先去配置班次，而不是让人对着空下拉发愁', async () => {
+      (attendanceApi.getShiftList as jest.Mock).mockResolvedValue({
+        code: 0,
+        data: { list: [], total: 0 },
+      });
+      render(<SchedulesPage />);
+
+      expect(await screen.findByText(/尚未配置班次/)).toBeInTheDocument();
+      expect(screen.getByTestId('toolbar-add')).toBeDisabled();
+    });
+  });
+
+  describe('权限门', () => {
+    it('无 attendance:manage 时新增/编辑/删除全部禁用', async () => {
+      mockCan.mockReturnValue(false);
+      render(<SchedulesPage />);
+      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(2));
+
+      expect(screen.getByTestId('toolbar-add')).toBeDisabled();
+      expect(screen.getAllByText('编辑')[0].closest('button')).toBeDisabled();
+      expect(screen.getAllByText('删除')[0].closest('button')).toBeDisabled();
+    });
+  });
+
+  describe('表单字段', () => {
+    it('员工字段用员工选择器，不要求手输员工 ID', async () => {
+      const user = userEvent.setup();
+      render(<SchedulesPage />);
+      await waitFor(() => expect(screen.getByTestId('toolbar-add')).toBeInTheDocument());
+      await user.click(screen.getByTestId('toolbar-add'));
+
+      expect(screen.getByTestId('field-employeeId')).toHaveAttribute('data-type', 'employee');
     });
   });
 });
