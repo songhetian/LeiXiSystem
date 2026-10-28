@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SettingsPage from '@/features/system/pages/settings';
 import { settingsApi } from '@/services/settings';
@@ -55,6 +55,16 @@ jest.mock('@arco-design/web-react', () => ({
   ),
   Space: ({ children }: any) => <div>{children}</div>,
   Spin: () => null,
+  // DataState 依赖的组件：错误态需暴露 subTitle 与「重试」按钮
+  Result: ({ title, subTitle, extra }: any) => (
+    <div>
+      <h4>{title}</h4>
+      <p>{subTitle}</p>
+      {extra}
+    </div>
+  ),
+  Empty: ({ description }: any) => <div>{description}</div>,
+  Skeleton: () => null,
   // 页面内的品牌 Logo 上传容器；返回可渲染结构，避免组件为 undefined 导致渲染报错
   Upload: ({ children }: any) => <div>{children}</div>,
   Message: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
@@ -101,8 +111,7 @@ describe('SettingsPage · 按钮级权限（T26）', () => {
     });
   });
 
-  it('设置列表为空时仍渲染品牌卡片（系统名称 / Logo 不依赖已存在的设置项）', async () => {
-    // 全新部署：库中还没有任何设置项，但品牌配置仍应可编辑并保存（bulkUpdate 自带 upsert）
+  it('设置列表为空时仍渲染品牌卡片（系统名称 / Logo 不依赖已存在的设置项）', async () => {    // 全新部署：库中还没有任何设置项，但品牌配置仍应可编辑并保存（bulkUpdate 自带 upsert）
     (settingsApi.list as jest.Mock).mockResolvedValue({ code: 0, data: [] });
     mockUseAuthStore.mockReturnValue({
       user: { id: 1, username: 'admin', name: '管理员', permissions: ['system:setting:update'] },
@@ -114,5 +123,25 @@ describe('SettingsPage · 按钮级权限（T26）', () => {
       expect(screen.getByText('系统品牌')).toBeInTheDocument();
       expect(screen.getByText('暂无系统设置项')).toBeInTheDocument();
     });
+  });
+
+  it('设置列表加载失败时展示错误态与重试，品牌卡片仍可编辑', async () => {
+    (settingsApi.list as jest.Mock).mockRejectedValueOnce(new Error('设置加载失败'));
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 1, username: 'admin', name: '管理员', permissions: ['system:setting:update'] },
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('设置加载失败');
+    });
+    // 品牌卡片不依赖列表数据，失败时仍应可编辑
+    expect(screen.getByText('系统品牌')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument();
+
+    (settingsApi.list as jest.Mock).mockResolvedValue({ code: 0, data: mockSettings });
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() => expect(screen.getByText('公司名称')).toBeInTheDocument());
   });
 });

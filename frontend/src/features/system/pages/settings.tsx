@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Message, Card, Input, Button, Space, Spin, Upload } from '@arco-design/web-react';
+import { Message, Card, Input, Button, Space, Upload } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import DataState from '@/components/DataState';
 import { settingsApi, SystemSetting } from '@/services/settings';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -47,7 +48,7 @@ export default function SettingsPage() {
 
   // SWR 缓存：禁用聚焦自动刷新，避免打断用户正在编辑的表单值
   const cacheKey = `system:settings`;
-  const { data: res, loading, revalidate } = useCachedData<{
+  const { data: res, loading, error, revalidate } = useCachedData<{
     code: number;
     message?: string;
     data?: SystemSetting[];
@@ -154,14 +155,9 @@ export default function SettingsPage() {
         </Button>
       }
     >
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 48 }}>
-          <Spin />
-        </div>
-      ) : (
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          {/* 品牌信息：系统名称 + Logo（登录页与侧边栏展示） */}
-          <Card title="系统品牌" className="lx-settings-brand">
+      {/* 品牌卡片不依赖设置列表数据：加载中/失败时同样可编辑（bulkUpdate 自带 upsert） */}
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          {/* 品牌信息：系统名称 + Logo（登录页与侧边栏展示） */}          <Card title="系统品牌" className="lx-settings-brand">
             <div className="lx-brand-row">
               {/* Logo 图标（当前效果） */}
               <div className="lx-brand-logo">
@@ -204,8 +200,11 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
+          
 
           {/* 分组设置项：库中无任何设置项时，品牌卡片仍可编辑（bulkUpdate 自带 upsert 创建） */}
+          <DataState loading={loading} error={error} onRetry={revalidate}>
+            <>
           {settings.length === 0 && (
             <Card>
               <div className="lx-settings-empty">暂无系统设置项</div>
@@ -245,8 +244,9 @@ export default function SettingsPage() {
               </Card>
             );
           })}
-        </Space>
-      )}
+            </>
+          </DataState>
+      </Space>
     </PageContainer>
   );
 }
