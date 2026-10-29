@@ -1,12 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { Modal } from '@arco-design/web-react';
 import AttendanceMonthlyPage from '@/features/attendance/pages/monthly';
 import { attendanceApi } from '@/services/attendance';
 import { clearDataCache } from '@/hooks/use-cached-data';
 
 // Arco Button 在表格「操作」列中渲染，mock 成原生 button 以保证断言稳定；
 // 其余 Arco 能力（如 Message）保留原实现。
+// Modal.confirm 换成可断言桩：真实 confirm 会往 body 挂一个独立 React 根，
+// RTL cleanup 清不掉，残留弹窗会让后续用例查到重复的「开始生成」按钮。
 jest.mock('@arco-design/web-react', () => {
   const actual = jest.requireActual('@arco-design/web-react');
   return {
@@ -16,6 +19,7 @@ jest.mock('@arco-design/web-react', () => {
         {children}
       </button>
     ),
+    Modal: Object.assign(actual.Modal, { confirm: jest.fn() }),
   };
 });
 
@@ -43,9 +47,22 @@ jest.mock('@/services/system', () => ({
   },
 }));
 
-// 放开权限，使「生成月报」「确认」等按钮可点击
+// 部门参考数据用共享 hook：直接给固定值，避免 useDict 的异步 setState 落到用例结束后
+// 触发「not wrapped in act」告警
+jest.mock('@/hooks/use-departments', () => ({
+  useDepartments: () => ({
+    departments: [
+      { id: 1, name: '技术部' },
+      { id: 2, name: '产品部' },
+    ],
+    loading: false,
+  }),
+}));
+
+// 权限门：默认放开权限，使「生成月报」「确认」等按钮可点击；个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (code?: string) => mockCan(code) }),
 }));
 
 // 导出已改为本地生成 Excel
@@ -159,6 +176,7 @@ describe('AttendanceMonthlyPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearDataCache();
+    mockCan.mockReturnValue(true);
     (attendanceApi.getMonthlyList as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
@@ -281,15 +299,22 @@ describe('AttendanceMonthlyPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('toolbar-generate')).toBeInTheDocument();
       });
+      // 部门参考数据在这轮微任务里落地，先等它进 DOM，
+      // 否则测试结束后才 setState 会触发「not wrapped in act」告警
+      await waitFor(() => {
+        expect(screen.getByTestId('search-departmentId')).toBeInTheDocument();
+      });
       await user.click(screen.getByTestId('toolbar-generate'));
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      await act(async () => {
+        await opts.onOk();
+      });
 
-      await waitFor(() =>
-        expect(attendanceApi.generateMonthly).toHaveBeenCalledWith({ month: '2026-11' }),
-      );
+      expect(attendanceApi.generateMonthly).toHaveBeenCalledWith({ month: '2026-11' });
       jest.useRealTimers();
     });
 
-    it('calls generateMonthly when 生成月报 button clicked', async () => {
+    it('点「生成月报」先弹确认框，未确认不发起生成', async () => {
       const user = userEvent.setup();
       (attendanceApi.generateMonthly as jest.Mock).mockResolvedValue({
         code: 0,
@@ -301,6 +326,32 @@ describe('AttendanceMonthlyPage', () => {
         expect(screen.getByTestId('toolbar-generate')).toBeInTheDocument();
       });
       await user.click(screen.getByTestId('toolbar-generate'));
+
+      // 生成会覆盖当月草稿月报，必须先二次确认
+      expect(attendanceApi.generateMonthly).not.toHaveBeenCalled();
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      expect(opts.title).toBe('生成考勤月报');
+      expect(opts.okText).toBe('开始生成');
+      // 文案要说清覆盖的是哪个月
+      expect(opts.content).toMatch(/将按 \d{4}-\d{2} 的日报重算/);
+    });
+
+    it('确认后调用 generateMonthly', async () => {
+      const user = userEvent.setup();
+      (attendanceApi.generateMonthly as jest.Mock).mockResolvedValue({
+        code: 0,
+        message: 'ok',
+        data: { count: 10 },
+      });
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-generate')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-generate'));
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      await act(async () => {
+        await opts.onOk();
+      });
       expect(attendanceApi.generateMonthly).toHaveBeenCalled();
     });
 
@@ -315,6 +366,10 @@ describe('AttendanceMonthlyPage', () => {
         expect(attendanceApi.getMonthlyList).toHaveBeenCalledTimes(1);
       });
       await user.click(screen.getByTestId('toolbar-generate'));
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      await act(async () => {
+        await opts.onOk();
+      });
       await waitFor(() => {
         expect(attendanceApi.getMonthlyList).toHaveBeenCalledTimes(2);
       });
@@ -349,10 +404,12 @@ describe('AttendanceMonthlyPage', () => {
       // 还没点确认按钮时不该发请求
       expect(attendanceApi.confirmMonthly).not.toHaveBeenCalled();
 
-      await user.click(await screen.findByText('确认并锁定'));
-      await waitFor(() => {
-        expect(attendanceApi.confirmMonthly).toHaveBeenCalledWith(1);
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      expect(opts.okText).toBe('确认并锁定');
+      await act(async () => {
+        await opts.onOk();
       });
+      expect(attendanceApi.confirmMonthly).toHaveBeenCalledWith(1);
     });
 
     it('撤销确认同样二次确认，确认后才调用 unconfirmMonthly 并刷新', async () => {
@@ -369,11 +426,28 @@ describe('AttendanceMonthlyPage', () => {
       await user.click(screen.getByTestId('cell-2-operation').querySelector('button')!);
       expect(attendanceApi.unconfirmMonthly).not.toHaveBeenCalled();
 
-      await user.click(await screen.findByText('确认撤销'));
-      await waitFor(() => {
-        expect(attendanceApi.unconfirmMonthly).toHaveBeenCalledWith(2);
+      const opts = (Modal.confirm as jest.Mock).mock.calls[0][0];
+      expect(opts.okText).toBe('确认撤销');
+      await act(async () => {
+        await opts.onOk();
       });
+      expect(attendanceApi.unconfirmMonthly).toHaveBeenCalledWith(2);
       await waitFor(() => expect(attendanceApi.getMonthlyList).toHaveBeenCalledTimes(2));
+    });
+  });
+
+  describe('权限门', () => {
+    it('无 attendance:manage 时生成月报/确认/撤销确认不渲染，导出仍可见', async () => {
+      mockCan.mockReturnValue(false);
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(2));
+
+      // 按钮无权限不渲染（PermissionGate），而非禁用
+      expect(screen.queryByTestId('toolbar-generate')).not.toBeInTheDocument();
+      expect(screen.getByTestId('cell-1-operation').querySelector('button')).toBeNull();
+      expect(screen.getByTestId('cell-2-operation').querySelector('button')).toBeNull();
+      // 导出为查看类动作，不受考勤管理权限点限制
+      expect(screen.getByTestId('toolbar-export')).toBeInTheDocument();
     });
   });
 
@@ -387,6 +461,39 @@ describe('AttendanceMonthlyPage', () => {
       });
       await user.click(screen.getByTestId('toolbar-export'));
       expect(exportToExcel).toHaveBeenCalled();
+    });
+
+    it('导出会翻页取全量（后端 pageSize 上限 100，写 10000 会被静默截断成第一页）', async () => {
+      const { exportToExcel } = jest.requireMock('@/lib/excel') as any;
+      const rows = Array.from({ length: 120 }, (_, i) => ({
+        ...mockRecords[0],
+        id: i + 1,
+        employee: { ...mockRecords[0].employee, employeeNo: `E${i + 1}` },
+      }));
+      (attendanceApi.getMonthlyList as jest.Mock).mockImplementation(({ page, pageSize }: any) => ({
+        code: 0,
+        data: {
+          list: rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+          total: rows.length,
+          page,
+          pageSize,
+        },
+      }));
+
+      const user = userEvent.setup();
+      render(<AttendanceMonthlyPage />);
+      await waitFor(() => expect(screen.getAllByTestId('table-row')).toHaveLength(20));
+
+      await user.click(screen.getByTestId('toolbar-export'));
+
+      await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+      const [, , , exported] = (exportToExcel as jest.Mock).mock.calls[0];
+      expect(exported).toHaveLength(120);
+      const pages = (attendanceApi.getMonthlyList as jest.Mock).mock.calls
+        .map((c) => c[0])
+        .filter((p: any) => p.pageSize !== 20)
+        .map((p: any) => p.page);
+      expect(pages).toEqual([1, 2]);
     });
   });
 

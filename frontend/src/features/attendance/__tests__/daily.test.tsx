@@ -31,8 +31,10 @@ jest.mock('@/hooks/use-departments', () => ({
   useDepartments: () => ({ departments: [], loading: false }),
 }));
 
+// 权限门：默认全放行，个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (code?: string) => mockCan(code) }),
 }));
 
 jest.mock('@/components/PageContainer', () => ({
@@ -91,6 +93,7 @@ describe('AttendanceDailyPage（考勤日报）', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
     (attendanceApi.getDailyList as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: [lateRow], total: 1, page: 1, pageSize: 20 },
@@ -132,6 +135,39 @@ describe('AttendanceDailyPage（考勤日报）', () => {
     render(<AttendanceDailyPage />);
     await waitFor(() => expect(screen.getByTestId('pro-table')).toBeInTheDocument());
     expect(screen.getByTestId('search-employeeId')).toHaveAttribute('data-type', 'employee');
+  });
+
+  it('导出会翻页取全量（后端 pageSize 上限 100，写 10000 会被静默截断成第一页）', async () => {
+    // 150 条：按后端上限要分 2 页才能取完
+    const rows = Array.from({ length: 150 }, (_, i) => ({
+      ...lateRow,
+      id: i + 1,
+      employee: { ...lateRow.employee, employeeNo: `E${String(i + 1).padStart(3, '0')}` },
+    }));
+    (attendanceApi.getDailyList as jest.Mock).mockImplementation(({ page, pageSize }: any) => ({
+      code: 0,
+      data: {
+        list: rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+        total: rows.length,
+        page,
+        pageSize,
+      },
+    }));
+
+    render(<AttendanceDailyPage />);
+    await waitFor(() => expect(screen.getByTestId('pro-table')).toHaveAttribute('data-rows', '20'));
+
+    fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+
+    await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+    const [, , , exported] = (exportToExcel as jest.Mock).mock.calls[0];
+    expect(exported).toHaveLength(150);
+    // 每页请求都不超过后端上限
+    const pages = (attendanceApi.getDailyList as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .filter((p: any) => p.pageSize !== 20)
+      .map((p: any) => p.page);
+    expect(pages).toEqual([1, 2]);
   });
 
   it('导出时嵌套字段与状态文案都按列表口径输出', async () => {
@@ -205,5 +241,17 @@ describe('AttendanceDailyPage（考勤日报）', () => {
     await waitFor(() => expect(attendanceApi.recalcDaily).toHaveBeenCalled());
 
     jest.useRealTimers();
+  });
+
+  it('无 attendance:manage 时模拟打卡/重新计算不渲染，导出仍可见', async () => {
+    mockCan.mockReturnValue(false);
+    render(<AttendanceDailyPage />);
+    await waitFor(() => expect(screen.getByTestId('pro-table')).toBeInTheDocument());
+
+    // 按钮无权限不渲染（权限门），而非禁用
+    expect(screen.queryByRole('button', { name: '模拟打卡' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重新计算' })).not.toBeInTheDocument();
+    // 导出为查看类动作，不受考勤管理权限点限制
+    expect(screen.getByRole('button', { name: '导出 Excel' })).toBeInTheDocument();
   });
 });

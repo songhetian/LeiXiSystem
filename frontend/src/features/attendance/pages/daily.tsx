@@ -12,6 +12,7 @@ import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { Empty } from '@arco-design/web-react';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate, todayStr, getTzParts } from '@/lib/format';
 
 /**
@@ -106,12 +107,12 @@ export default function AttendanceDailyPage() {
   // 导出 Excel：拉取符合当前筛选条件的全部日报
   const handleExport = async () => {
     try {
-      const res = await attendanceApi.getDailyList({ page: 1, pageSize: 10000, ...searchParams });
-      if (res.code !== 0) {
-        Message.error(res.message || '导出失败');
-        return;
-      }
-      const list = (res.data?.list ?? []) as DailyRecord[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<DailyRecord>(async (page, pageSize) => {
+        const res = await attendanceApi.getDailyList({ page, pageSize, ...searchParams });
+        if (res.code !== 0) throw new Error(res.message || '导出失败');
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `考勤日报_${todayStr()}.xlsx`,
         '考勤日报',
@@ -138,8 +139,9 @@ export default function AttendanceDailyPage() {
       )) {
         Message.info('当前没有可导出的日报数据');
       }
-    } catch {
-      Message.error('导出失败');
+    } catch (e) {
+      // 业务码非 0 时把后端原因透出来，而不是笼统的「导出失败」
+      Message.error(e instanceof Error ? e.message : '导出失败');
     }
   };
 
@@ -225,9 +227,14 @@ export default function AttendanceDailyPage() {
     },
   ];
 
+  // 模拟打卡/重算是考勤管理写操作：无 attendance:manage 时工具栏不渲染（导出为查看类，不受限）
+  const canManage = can('attendance:manage');
+  const manageActions: ProTableToolbarAction[] = [
+    { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch },
+    { key: 'recalc', label: '重新计算', onClick: handleRecalc },
+  ];
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'demo-punch', label: '模拟打卡', type: 'primary', onClick: handleDemoPunch, disabled: !can('attendance:manage') },
-    { key: 'recalc', label: '重新计算', onClick: handleRecalc, disabled: !can('attendance:manage') },
+    ...(canManage ? manageActions : []),
     { key: 'export', label: '导出 Excel', onClick: handleExport, disabled: !can('attendance:view') },
   ];
 

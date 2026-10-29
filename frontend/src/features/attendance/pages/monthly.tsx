@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Message } from '@arco-design/web-react';
+import { Message, Modal } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { PermissionGate } from '@/components/PermissionGate';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments } from '@/hooks/use-departments';
 import { attendanceApi, MonthlyRecord, MonthlyListResult, MonthlyListParams } from '@/services/attendance';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { todayStr, getTzParts } from '@/lib/format';
 
 const baseSearchFields: SearchFieldConfig[] = [
@@ -94,8 +96,7 @@ export default function AttendanceMonthlyPage() {
   };
 
   // 生成月报：以当前月份（或搜索条件中的月份）为参数
-  const handleGenerate = async () => {
-    const month = (searchParams.month as string) || getCurrentMonth();
+  const runGenerate = async (month: string) => {
     try {
       const result = await attendanceApi.generateMonthly({ month });
       if (result.code === 0) {
@@ -109,15 +110,27 @@ export default function AttendanceMonthlyPage() {
     }
   };
 
+  // 生成会按当月考勤重算并覆盖已有草稿月报，动手前把月份写清楚
+  const handleGenerate = () => {
+    const month = (searchParams.month as string) || getCurrentMonth();
+    Modal.confirm({
+      title: '生成考勤月报',
+      content: `将按 ${month} 的日报重算并生成月报（已确认的月份会被后端拒绝）。确定继续吗？`,
+      okText: '开始生成',
+      cancelText: '取消',
+      onOk: () => runGenerate(month),
+    });
+  };
+
   // 导出 Excel：拉取符合当前筛选条件的全部月报
   const handleExport = async () => {
     try {
-      const res = await attendanceApi.getMonthlyList({ page: 1, pageSize: 10000, ...searchParams });
-      if (res.code !== 0) {
-        Message.error(res.message || '导出失败');
-        return;
-      }
-      const list = (res.data?.list ?? []) as MonthlyRecord[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<MonthlyRecord>(async (page, pageSize) => {
+        const res = await attendanceApi.getMonthlyList({ page, pageSize, ...searchParams });
+        if (res.code !== 0) throw new Error(res.message || '导出失败');
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `考勤月报_${todayStr()}.xlsx`,
         '考勤月报',
@@ -143,8 +156,8 @@ export default function AttendanceMonthlyPage() {
       )) {
         Message.info('当前没有可导出的月报数据');
       }
-    } catch {
-      Message.error('导出失败');
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : '导出失败');
     }
   };
 
@@ -234,38 +247,44 @@ export default function AttendanceMonthlyPage() {
       title: '操作',
       dataIndex: 'operation',
       width: 130,
-      render: (_value, record) =>
-        record.status === 'draft' ? (
-          <ConfirmButton
-            type="text"
-            size="small"
-            disabled={!can('attendance:manage')}
-            title="确认月报"
-            content={`确认后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报将被锁定并作为薪资核算依据，当月不能再重新生成。`}
-            okText="确认并锁定"
-            onConfirm={() => handleConfirm(record.id)}
-          >
-            确认
-          </ConfirmButton>
-        ) : (
-          <ConfirmButton
-            type="text"
-            size="small"
-            status="warning"
-            disabled={!can('attendance:manage')}
-            title="撤销确认"
-            content={`撤销后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报回到待确认，可重新生成。已据此核算的工资不会自动回滚。`}
-            okText="确认撤销"
-            onConfirm={() => handleUnconfirm(record.id)}
-          >
-            撤销确认
-          </ConfirmButton>
-        ),
+      render: (_value, record) => (
+        // 确认/撤销确认是月结写操作：无 attendance:manage 不渲染
+        <PermissionGate code="attendance:manage">
+          {record.status === 'draft' ? (
+            <ConfirmButton
+              type="text"
+              size="small"
+              title="确认月报"
+              content={`确认后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报将被锁定并作为薪资核算依据，当月不能再重新生成。`}
+              okText="确认并锁定"
+              onConfirm={() => handleConfirm(record.id)}
+            >
+              确认
+            </ConfirmButton>
+          ) : (
+            <ConfirmButton
+              type="text"
+              size="small"
+              status="warning"
+              title="撤销确认"
+              content={`撤销后 ${record.employee?.name || record.employeeName || '该员工'} ${record.month} 的月报回到待确认，可重新生成。已据此核算的工资不会自动回滚。`}
+              okText="确认撤销"
+              onConfirm={() => handleUnconfirm(record.id)}
+            >
+              撤销确认
+            </ConfirmButton>
+          )}
+        </PermissionGate>
+      ),
     },
   ];
 
+  // 生成月报是考勤管理写操作：无权限时工具栏不渲染（导出为查看类，不受限）
+  const manageActions: ProTableToolbarAction[] = [
+    { key: 'generate', label: '生成月报', type: 'primary', onClick: handleGenerate },
+  ];
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'generate', label: '生成月报', type: 'primary', onClick: handleGenerate, disabled: !can('attendance:manage') },
+    ...(can('attendance:manage') ? manageActions : []),
     { key: 'export', label: '导出 Excel', onClick: handleExport, disabled: !can('attendance:view') },
   ];
 
