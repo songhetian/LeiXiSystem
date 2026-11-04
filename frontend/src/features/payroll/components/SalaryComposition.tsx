@@ -2,6 +2,7 @@
 
 import { PayrollDetailItem, PayrollAdjustmentItem } from '@/services/payroll';
 import { formatMoney } from '@/lib/format';
+import MoneyText from '@/components/MoneyText';
 
 interface SalaryCompositionProps {
   items: PayrollDetailItem[];
@@ -38,7 +39,10 @@ export default function SalaryComposition({ items, adjustments, total }: SalaryC
         {items.map((it) => (
           <div className="lx-salary-item" key={it.code}>
             <span className="lx-salary-label">{it.name}</span>
-            <span className="lx-salary-amount">{formatMoney(it.amount)}</span>
+            {/* 11.6-6：收入项若出现负值（如代扣冲减）同样红色标注 */}
+            <span className="lx-salary-amount">
+              <MoneyText value={it.amount} />
+            </span>
           </div>
         ))}
         {adjustments.map((a) => (
@@ -61,7 +65,10 @@ export default function SalaryComposition({ items, adjustments, total }: SalaryC
 
       <footer className="lx-salary-total">
         <span className="lx-salary-total-label">合计</span>
-        <span className="lx-salary-total-value">{formatMoney(total)}</span>
+        {/* 11.6-6：扣减大于收入时合计可能为负，负数红色标注 */}
+        <span className="lx-salary-total-value">
+          <MoneyText value={total} />
+        </span>
       </footer>
     </section>
   );

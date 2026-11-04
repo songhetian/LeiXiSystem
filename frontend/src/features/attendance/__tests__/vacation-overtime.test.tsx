@@ -220,7 +220,7 @@ describe('VacationOvertimePage', () => {
   it('shows status tags for different statuses', async () => {
     render(<VacationOvertimePage />);
     await waitFor(() => {
-      expect(screen.getAllByTestId('tag').length).toBeGreaterThan(0);
+      expect(screen.getAllByTestId('status-tag').length).toBeGreaterThan(0);
     });
   });
 

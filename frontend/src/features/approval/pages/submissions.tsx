@@ -1,23 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Table, Button, Select, Modal, Form, Input, Message } from '@arco-design/web-react';
+import { Button, Select, Modal, Form, Input, Message, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
+import { APPROVAL_INSTANCE_STATUS as approvalStatusMap } from '@/features/approval/lib/status-maps';
 import { approvalApi, SubmissionItem, Workflow } from '@/services/approval';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
 
 const TextArea = Input.TextArea;
 
-const approvalStatusMap: Record<string, { label: string; color: string }> = {
-  pending: { label: '审批中', color: 'arcoblue' },
-  approved: { label: '已通过', color: 'green' },
-  rejected: { label: '已驳回', color: 'red' },
-  cancelled: { label: '已撤销', color: 'gray' },
-};
 
 const MODULE_LABEL: Record<string, string> = {
   leave: '请假',
@@ -27,7 +22,8 @@ const MODULE_LABEL: Record<string, string> = {
   procurement: '采购',
 };
 
-interface ListResult {
+// 分页接口的数据体（code/message 外壳已在 fetcher 中解包）
+interface PageData {
   list: SubmissionItem[];
   page: number;
   pageSize: number;
@@ -36,29 +32,31 @@ interface ListResult {
 
 export default function ApprovalSubmissionsPage() {
   const router = useRouter();
-  const { data: submissionData, loading: submissionLoading, error: submissionError, run: runFetchSubmissions } = useFetchState<ListResult>();
   const [submissionPagination, setSubmissionPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+
+  // SWR 共享缓存：分页与状态筛选编入 cacheKey，参数变化自动重拉
+  const { data: submissionData, loading: submissionLoading, error: submissionError, revalidate: revalidateSubmissions } = useCachedData<PageData>(
+    `approval:submissions:${submissionPagination.current}:${submissionPagination.pageSize}:${statusFilter ?? ''}`,
+    async () => {
+      const result = await approvalApi.listMySubmissions({
+        page: submissionPagination.current,
+        pageSize: submissionPagination.pageSize,
+        status: statusFilter,
+      });
+      if (result.code === 0 && result.data) return result.data;
+      throw new Error(result.message || '获取申请列表失败');
+    },
+  );
+  // 有响应时以响应中的分页信息为准；加载中回退本地 state（保留上次 total，防止页码条闪烁）
+  const submissionPageResult = submissionData
+    ? { current: submissionData.page, pageSize: submissionData.pageSize, total: submissionData.total }
+    : submissionPagination;
 
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchSubmissions = async (page = 1, pageSize = 20, status?: string) => {
-    await runFetchSubmissions(async () => {
-      const result = await approvalApi.listMySubmissions({ page, pageSize, status });
-      if (result.code === 0 && result.data) {
-        setSubmissionPagination({
-          current: result.data.page,
-          pageSize: result.data.pageSize,
-          total: result.data.total,
-        });
-        return result.data;
-      }
-      throw new Error(result.message || '获取申请列表失败');
-    });
-  };
 
   const fetchWorkflows = async () => {
     try {
@@ -71,12 +69,9 @@ export default function ApprovalSubmissionsPage() {
     }
   };
 
-  useEffect(() => {
-    fetchSubmissions(1, 20, statusFilter);
-  }, [statusFilter]);
-
   const handleSubmissionPageChange = (page: number, pageSize: number) => {
-    fetchSubmissions(page, pageSize, statusFilter);
+    // 携带上次响应的 total，避免加载新页时页码条闪为 0
+    setSubmissionPagination({ ...submissionPageResult, current: page, pageSize });
   };
 
   const openApplyModal = () => {
@@ -97,7 +92,12 @@ export default function ApprovalSubmissionsPage() {
       if (res.code === 0) {
         Message.success('提交成功');
         setModalVisible(false);
-        fetchSubmissions(1, 20, statusFilter);
+        // 提交成功后回到第一页：已在第一页则强制刷新（绕过缓存），否则由 cacheKey 变化自动重拉
+        if (submissionPagination.current === 1) {
+          revalidateSubmissions();
+        } else {
+          setSubmissionPagination({ ...submissionPageResult, current: 1 });
+        }
       } else {
         Message.error(res.message || '提交失败');
       }
@@ -108,7 +108,7 @@ export default function ApprovalSubmissionsPage() {
     }
   };
 
-  const submissionColumns = [
+  const submissionColumns: ProTableColumn[] = [
     {
       title: '标题',
       dataIndex: 'title',
@@ -173,27 +173,21 @@ export default function ApprovalSubmissionsPage() {
             发起申请
           </Button>
         </div>
-        <DataState
+        <ProTable
+          columns={submissionColumns}
+          data={submissionData?.list ?? []}
+          rowKey="id"
           loading={submissionLoading}
           error={submissionError}
-          onRetry={() => fetchSubmissions(submissionPagination.current, submissionPagination.pageSize, statusFilter)}
-          isEmpty={!submissionData || submissionData.list.length === 0}
-          emptyText="暂无申请记录"
-        >
-          <Table
-            columns={submissionColumns}
-            data={submissionData?.list || []}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{
-              current: submissionPagination.current,
-              pageSize: submissionPagination.pageSize,
-              total: submissionPagination.total,
-              onChange: handleSubmissionPageChange,
-              showTotal: true,
-            }}
-          />
-        </DataState>
+          onRetry={revalidateSubmissions}
+          pagination={{
+            current: submissionPageResult.current,
+            pageSize: submissionPageResult.pageSize,
+            total: submissionPageResult.total,
+          }}
+          onPageChange={handleSubmissionPageChange}
+          emptyElement={<Empty description="暂无申请记录" />}
+        />
       </div>
 
       <Modal

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { systemApi, OperationLog } from '@/services/system';
@@ -56,7 +56,10 @@ export default function SystemLogsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 80,
-      render: (value: string) => <Tag color={value === 'success' ? 'green' : 'red'}>{value}</Tag>,
+      // 操作结果状态统一走公共 StatusTag（文本保持原始值，success 绿色、其余视为失败红色）
+      render: (value: string) => (
+        <StatusTag status={value} statusMap={{ [value]: { label: value, color: value === 'success' ? 'success' : 'danger' } }} />
+      ),
     },
     { title: '时间', dataIndex: 'createdAt', width: 180, render: (v: unknown) => formatDateTime(v) },
   ];

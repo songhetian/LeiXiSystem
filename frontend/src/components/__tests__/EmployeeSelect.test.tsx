@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import EmployeeSelect from '@/components/EmployeeSelect';
 import { employeeApi } from '@/services/employee';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/employee', () => ({
   employeeApi: { getList: jest.fn() },
@@ -24,6 +25,8 @@ function openDropdown() {
 describe('EmployeeSelect（员工下拉）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // 使用 useCachedData 的组件测试必须清空共享缓存，防止跨用例串数据
+    clearDataCache();
   });
 
   it('加载成功后展示「工号 - 姓名 (部门)」格式的选项', async () => {

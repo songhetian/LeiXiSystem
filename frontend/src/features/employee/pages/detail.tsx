@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Message,
@@ -8,7 +8,6 @@ import {
   Button,
   Space,
   Card,
-  Tag,
   Modal,
   Form,
   Input,
@@ -18,26 +17,27 @@ import {
   Divider,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { formatMoney } from '@/lib/format';
 import EmployeeDetailTabs from '@/features/employee/components/EmployeeDetailTabs';
 
+// 员工状态统一走公共 StatusTag
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  active: { label: '在职', color: 'green' },
-  inactive: { label: '待入职', color: 'orange' },
-  resigned: { label: '已离职', color: 'red' },
+  active: { label: '在职', color: 'success' },
+  inactive: { label: '待入职', color: 'warning' },
+  resigned: { label: '已离职', color: 'danger' },
 };
 
 export default function EmployeeDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { can } = usePermission();
-  const { data: employee, loading, error, run: runFetch, setData: setEmployee } = useFetchState<Employee>();
-
   const [editVisible, setEditVisible] = useState(false);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -50,20 +50,19 @@ export default function EmployeeDetailPage() {
 
   const id = Number(params?.id);
 
-  const fetchData = async () => {
-    if (!id) return;
-    await runFetch(async () => {
+  // SWR 缓存：详情按 id 共享缓存，路由 id 变化自动重拉；编辑/离职后 revalidate() 强刷
+  const { data: employee, loading, error, revalidate } = useCachedData<Employee>(
+    `employee:detail:${id || 'none'}`,
+    async () => {
+      // 无有效 id（异常路由）不发起请求，保持 isEmpty 兜底语义
+      if (!id) return null as unknown as Employee;
       const res = await employeeApi.getById(id);
       if (res.code === 0 && res.data) {
         return res.data;
       }
       throw new Error(res.message || '获取员工信息失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [id]);
+    },
+  );
 
   const openEdit = () => {
     if (!employee) return;
@@ -89,7 +88,7 @@ export default function EmployeeDetailPage() {
       if (res.code === 0) {
         Message.success('保存成功');
         setEditVisible(false);
-        fetchData();
+        await revalidate();
       } else {
         Message.error(res.message || '保存失败');
       }
@@ -108,7 +107,7 @@ export default function EmployeeDetailPage() {
       if (res.code === 0) {
         Message.success('已办理离职');
         setResignVisible(false);
-        fetchData();
+        await revalidate();
       } else {
         Message.error(res.message || '操作失败');
       }
@@ -119,25 +118,28 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  const statusInfo = employee ? STATUS_MAP[employee.status] || STATUS_MAP.active : STATUS_MAP.active;
-
   return (
     <PageContainer >
       <Card className="rounded-md">
-        <DataState loading={loading} error={error} onRetry={fetchData} isEmpty={!employee}>
+        <DataState loading={loading} error={error} onRetry={() => { void revalidate(); }} isEmpty={!employee}>
           {employee && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <Space size="medium">
                 <h2 style={{ margin: 0 }}>{employee.name}</h2>
-                <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
+                <StatusTag status={employee.status} statusMap={STATUS_MAP} />
               </Space>
               <Space>
-                <Button onClick={openEdit}>编辑</Button>
+                {/* 编辑/离职为管理动作 → employee:manage，无权限不渲染（员工查看自己详情不受影响） */}
+                <PermissionGate code="employee:manage">
+                  <Button onClick={openEdit}>编辑</Button>
+                </PermissionGate>
                 {employee.status === 'active' && (
-                  <Button status="warning" onClick={() => setResignVisible(true)}>
-                    办理离职
-                  </Button>
+                  <PermissionGate code="employee:manage">
+                    <Button status="warning" onClick={() => setResignVisible(true)}>
+                      办理离职
+                    </Button>
+                  </PermissionGate>
                 )}
               </Space>
             </div>

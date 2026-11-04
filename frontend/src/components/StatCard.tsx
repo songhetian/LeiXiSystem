@@ -65,7 +65,7 @@ export interface StatCardProps {
  * KPI 指标卡：统一品牌蓝图标 + 数值 + 标签。
  * 可点（onClick）时渲染为 <button> 保证键盘可达（WCAG SC 2.1.1）。
  */
-function StatCard({ label, value, suffix, icon, hint, onClick }: StatCardProps) {
+function StatCard({ label, value, suffix, icon, hint, onClick, stagger = 0 }: StatCardProps & { stagger?: number }) {
   const Icon = icon;
   const body = (
     <>
@@ -87,12 +87,22 @@ function StatCard({ label, value, suffix, icon, hint, onClick }: StatCardProps) 
 
   if (onClick) {
     return (
-      <button type="button" className="dsh-stat is-clickable" onClick={onClick} aria-label={`${label}，点击前往处理`}>
+      <button
+        type="button"
+        className="dsh-stat is-clickable"
+        onClick={onClick}
+        aria-label={`${label}，点击前往处理`}
+        style={{ '--i': stagger } as React.CSSProperties}
+      >
         {body}
       </button>
     );
   }
-  return <div className="dsh-stat">{body}</div>;
+  return (
+    <div className="dsh-stat" style={{ '--i': stagger } as React.CSSProperties}>
+      {body}
+    </div>
+  );
 }
 
 export default memo(StatCard);

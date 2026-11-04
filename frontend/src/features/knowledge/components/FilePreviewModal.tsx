@@ -42,7 +42,7 @@ function DownloadFallback({ file, hint }: { file: PreviewFile; hint?: string }) 
         color: 'var(--lx-text-3)',
       }}
     >
-      <div style={{ fontSize: 48, opacity: 0.4 }}>.{getFileExt(file.name)}</div>
+      <div style={{ fontSize: 32, opacity: 0.4 }}>.{getFileExt(file.name)}</div>
       <div style={{ fontSize: 14 }}>{hint ?? '此文件类型不支持在线预览'}</div>
       <div style={{ fontSize: 12 }}>文件大小：{formatFileSize(file.size)}</div>
       <Button type="primary" icon={<IconDownload />} href={file.url} download={file.name}>

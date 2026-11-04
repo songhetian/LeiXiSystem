@@ -1,20 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Input, Spin, Empty } from '@arco-design/web-react';
+import { Message, Modal, Button, Input, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import { PermissionGate } from '@/components/PermissionGate';
 import { notifyError } from '@/lib/request';
 import { employeeTagApi, EmployeeTag, EmployeeTagCreateDto, EmployeeTagUpdateDto } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
 import { todayStr } from '@/lib/format';
+import { normalizeTagColor } from '@/features/employee/components/EmployeeTagPill';
+import LoaderDots from '@/components/LoaderDots';
 
-/** 默认标签色（供新建时随机取色） */
+/** 默认标签色盘（新建时按名称稳定取色——同一名称永远同色，替代原先的随机取色：
+ *  随机色会导致「技术骨干」这次蓝下次橙，标签语义色无法形成记忆） */
 const VIBRANT_COLORS = [
   '#3B82F6', '#16A34A', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4',
   '#EC4899', '#F97316', '#10B981', '#6366F1', '#DC2626', '#2563EB',
 ];
+
+function colorByName(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return VIBRANT_COLORS[h % VIBRANT_COLORS.length];
+}
 
 interface TagListEnvelope {
   code: number;
@@ -24,6 +34,7 @@ interface TagListEnvelope {
 
 export default function TagsPage() {
   const { can } = usePermission();
+  // 写操作（新建/编辑/删除标签）→ employee:tag:manage，按钮无权限不渲染
   const canManage = can('employee:tag:manage');
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -45,7 +56,7 @@ export default function TagsPage() {
     if (!canManage) return;
     setEditingTag(null);
     setName('');
-    setColor(VIBRANT_COLORS[Math.floor(Math.random() * VIBRANT_COLORS.length)]);
+    setColor(colorByName(name.trim() || '标签'));
     setSortOrder('');
     setModalVisible(true);
   };
@@ -134,11 +145,16 @@ export default function TagsPage() {
         <span className="text-sm text-text-3">共 {tags.length} 个标签</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" disabled={!canManage} onClick={handleAdd}>+ 新建标签</Button>
+          <PermissionGate code="employee:tag:manage">
+            <Button type="primary" onClick={handleAdd}>+ 新建标签</Button>
+          </PermissionGate>
         </div>
       </div>
 
-      <Spin loading={loading} style={{ display: 'block' }}>
+      {loading ? (
+        <LoaderDots />
+      ) : (
+        <>
         {error ? (
           <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
             <p className="text-text-3 mb-3">{error}</p>
@@ -151,7 +167,8 @@ export default function TagsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {tags.map((tag) => {
-              const c = tag.color || '#3B82F6';
+              // 颜色经规范化（容错无 # / 3 位短写 / 非法值），非法回退品牌蓝
+              const c = normalizeTagColor(tag.color);
               return (
                 <div
                   key={tag.id}
@@ -168,16 +185,19 @@ export default function TagsPage() {
                       <div className="text-xs text-text-3 mt-0.5">排序：{tag.sortOrder ?? 0}</div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="small" type="text" disabled={!canManage} onClick={() => handleEdit(tag)}>编辑</Button>
-                    <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleDelete(tag)}>删除</Button>
-                  </div>
+                  <PermissionGate code="employee:tag:manage">
+                    <div className="flex gap-2">
+                      <Button size="small" type="text" onClick={() => handleEdit(tag)}>编辑</Button>
+                      <Button size="small" type="text" status="danger" onClick={() => handleDelete(tag)}>删除</Button>
+                    </div>
+                  </PermissionGate>
                 </div>
               );
             })}
           </div>
         )}
-      </Spin>
+      </>
+      )}
 
       {/* 新建/编辑弹窗 */}
       <Modal
@@ -214,7 +234,7 @@ export default function TagsPage() {
                     style={{
                       width: 24,
                       height: 24,
-                      borderRadius: 6,
+                      borderRadius: 4,
                       background: c,
                       cursor: 'pointer',
                       border: color.toLowerCase() === c.toLowerCase() ? '2px solid var(--lx-primary)' : '1px solid var(--lx-border-3)',

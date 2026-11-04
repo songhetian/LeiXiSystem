@@ -105,6 +105,37 @@ describe('MySchedulePage（我的排班）', () => {
     expect(screen.getAllByText(/09:00-18:00/).length).toBeGreaterThan(0);
   });
 
+  it('排班超过单页上限（400）时循环分页拉全量，不漏排班', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-11-10T02:00:00Z'));
+    const firstPage = Array.from({ length: 400 }, (_, i) => ({
+      id: i + 1,
+      workDate: '2026-11-03',
+      shift: dayShift,
+    }));
+    (attendanceApi.getMyScheduleList as jest.Mock).mockImplementation(({ page }: any) =>
+      Promise.resolve({
+        code: 0,
+        data: {
+          list:
+            page === 1
+              ? firstPage
+              : [{ id: 401, workDate: '2026-11-28', shift: { ...dayShift, id: 2, name: '夜班' } }],
+          total: 401,
+          page,
+          pageSize: 400,
+        },
+      }),
+    );
+
+    render(<MySchedulePage />);
+
+    await waitFor(() => expect(screen.getAllByText(/夜班/).length).toBeGreaterThan(0));
+    expect(attendanceApi.getMyScheduleList).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, pageSize: 400 }),
+    );
+  });
+
   it('加载失败展示错误与重试，重试成功后正常渲染', async () => {
     (attendanceApi.getMyScheduleList as jest.Mock).mockResolvedValueOnce({
       code: 500,

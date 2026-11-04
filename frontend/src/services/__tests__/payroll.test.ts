@@ -99,14 +99,14 @@ describe('payrollApi', () => {
       expect(result.code).toBe(0);
     });
 
-    it('updateSalaryItem sends PATCH request', async () => {
-      mockedRequest.patch.mockResolvedValueOnce({
+    it('updateSalaryItem sends PUT request', async () => {
+      mockedRequest.put.mockResolvedValueOnce({
         code: 0,
         message: 'ok',
         data: { id: 1, amount: 6000 },
       });
       const result = await payrollApi.updateSalaryItem(1, { amount: 6000 });
-      expect(mockedRequest.patch).toHaveBeenCalledWith('/payroll/items/1', {
+      expect(mockedRequest.put).toHaveBeenCalledWith('/payroll/items/1', {
         amount: 6000,
       });
       expect(result.code).toBe(0);
@@ -151,18 +151,6 @@ describe('payrollApi', () => {
         month: '2026-09',
       });
       expect(result.code).toBe(0);
-    });
-
-    it('getPayrollRunDetail sends GET request', async () => {
-      mockedRequest.get.mockResolvedValueOnce({
-        code: 0,
-        message: 'ok',
-        data: mockPayrollRun,
-      });
-      const result = await payrollApi.getPayrollRunDetail(1);
-      expect(mockedRequest.get).toHaveBeenCalledWith('/payroll/runs/1');
-      expect(result.code).toBe(0);
-      expect(result.data!.id).toBe(1);
     });
 
     it('getPayrollRunDetails sends GET request for run details', async () => {
@@ -306,7 +294,7 @@ describe('payrollApi', () => {
         code: 3004,
         message: '批次不存在',
       });
-      const result = await payrollApi.getPayrollRunDetail(999);
+      const result = await payrollApi.getPayrollRunDetails(999);
       expect(result.code).toBe(3004);
     });
 

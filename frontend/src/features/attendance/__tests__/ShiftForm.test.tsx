@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import ShiftForm, { ShiftFormValues } from '@/features/attendance/pages/ShiftForm';
+import ShiftForm, { ShiftFormValues } from '@/features/attendance/components/ShiftForm';
 
 const baseValues: ShiftFormValues = {
   name: '早班',

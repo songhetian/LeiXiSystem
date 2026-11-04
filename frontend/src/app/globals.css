@@ -130,7 +130,11 @@
 
   /* ---- 登录页专属（品牌渐变与柔光，属确认保留的设计意图） ---- */
   --lx-login-bg: linear-gradient(160deg, #f5f7ff 0%, #eaf0ff 100%);
-  --lx-login-card-shadow: 0 24px 70px rgba(36, 85, 217, 0.1), 0 2px 18px rgba(22, 30, 60, 0.04);
+  --lx-login-card-shadow: 0 16px 48px rgba(36, 85, 217, 0.08);
+  /* 卡片底色必须走 token：此前硬编码 rgba(255,255,255,.88)，
+     暗色主题下变浅字压白卡（对比度约 1.1:1，正文不可读）。
+     透明度保留，以便卡片底下的极光光斑仍能透出来。 */
+  --lx-login-card-bg: rgba(255, 255, 255, 0.88);
   /* 登录页品牌侧栏：深靛蓝→紫（浅色主题下也保持深色，与右侧浅底卡片形成对比） */
   --lx-login-aside-bg: linear-gradient(155deg, #0d1836 0%, #172a5e 45%, #2a1c4e 100%);
 
@@ -184,10 +188,46 @@
   --lx-radius-xl: 12px;
   --lx-radius-full: 9999px;
 
+  /* ---- 快捷入口图标色板（数据驱动 tone，浅底 + 深前景）---- */
+  --lx-tone-indigo-bg: #eef2ff;
+  --lx-tone-indigo-fg: #4f46e5;
+  --lx-tone-indigo-bg-hover: #e0e7ff;
+  --lx-tone-indigo-fg-hover: #4338ca;
+  --lx-tone-teal-bg: #f0fdfa;
+  --lx-tone-teal-fg: #0d9488;
+  --lx-tone-teal-bg-hover: #ccfbf1;
+  --lx-tone-teal-fg-hover: #0f766e;
+  --lx-tone-emerald-bg: #ecfdf5;
+  --lx-tone-emerald-fg: #059669;
+  --lx-tone-emerald-bg-hover: #d1fae5;
+  --lx-tone-emerald-fg-hover: #047857;
+  --lx-tone-sky-bg: #f0f9ff;
+  --lx-tone-sky-fg: #0284c7;
+  --lx-tone-sky-bg-hover: #e0f2fe;
+  --lx-tone-sky-fg-hover: #0369a1;
+  --lx-tone-violet-bg: #f5f3ff;
+  --lx-tone-violet-fg: #7c3aed;
+  --lx-tone-violet-bg-hover: #ede9fe;
+  --lx-tone-violet-fg-hover: #6d28d9;
+  --lx-tone-amber-bg: #fffbeb;
+  --lx-tone-amber-fg: #d97706;
+  --lx-tone-amber-bg-hover: #fef3c7;
+  --lx-tone-amber-fg-hover: #b45309;
+  --lx-tone-rose-bg: #fff1f2;
+  --lx-tone-rose-fg: #e11d48;
+  --lx-tone-rose-bg-hover: #ffe4e6;
+  --lx-tone-rose-fg-hover: #be123c;
+  --lx-tone-cyan-bg: #ecfeff;
+  --lx-tone-cyan-fg: #0891b2;
+  --lx-tone-cyan-bg-hover: #cffafe;
+  --lx-tone-cyan-fg-hover: #0e7490;
+
   /* ---- 表单控件统一基准宽度（一处修改，全站生效）---- */
   --lx-control-min-w: 150px;
   --lx-control-range-min-w: 240px;
   --lx-control-textarea-min-w: 240px;
+  /* 员工搜索下拉要容纳「工号 - 姓名 (部门)」，比普通字段更宽 */
+  --lx-control-employee-min-w: 180px;
 
   /* ---- 过渡动画 ----
      --lx-transition-* 是「时长+缓动」复合值，只能整体用于 transition 简写；
@@ -304,7 +344,10 @@
 
   /* 登录页：暗色下的深色渐变与柔光，避免"暗色用户看到浅色登录页"的主题断裂 */
   --lx-login-bg: linear-gradient(160deg, #101527 0%, #0b0f1a 100%);
-  --lx-login-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 18px rgba(0, 0, 0, 0.35);
+  --lx-login-card-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  /* 暗色卡片底色：深藏青半透明，与 --lx-login-bg 同色系；
+     浅字（--lx-text-1 #f1f5f9）压此底色对比度 ≈ 14:1，满足 WCAG AA */
+  --lx-login-card-bg: rgba(21, 26, 40, 0.86);
   /* 品牌侧栏在暗色下再压暗一档，与页面底色衔接更自然 */
   --lx-login-aside-bg: linear-gradient(155deg, #080e20 0%, #101d42 45%, #1d1238 100%);
 
@@ -435,12 +478,9 @@ html, body {
 
 /* ========================================
    动画关键帧
+   只保留仍被引用的两条（登录卡片入场、下拉面板展开）；
+   随 Tailwind 化后失效的通用动画类已删除，其关键帧一并移除。
    ======================================== */
-
-@keyframes lx-fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
 @keyframes lx-slideUp {
   from {
@@ -475,54 +515,9 @@ html, body {
   }
 }
 
-@keyframes lx-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-@keyframes lx-slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.lx-animate-fadeIn {
-  animation: lx-fadeIn var(--lx-transition-base) ease-out;
-}
-
-.lx-animate-slideUp {
-  animation: lx-slideUp var(--lx-transition-slow) ease-out;
-}
-
-.lx-animate-slideInLeft {
-  animation: lx-slideInLeft var(--lx-transition-base) ease-out;
-}
-
-.lx-animate-scaleIn {
-  animation: lx-scaleIn var(--lx-transition-base) ease-out;
-}
-
 /* ========================================
    工具类
    ======================================== */
-
-.lx-card {
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius-lg);
-  box-shadow: var(--lx-shadow-card);
-  border: 1px solid var(--lx-border-1);
-  transition: box-shadow var(--lx-transition-base), border-color var(--lx-transition-base);
-}
-
-.lx-card-hover:hover {
-  box-shadow: var(--lx-shadow-card-hover);
-  border-color: var(--lx-border-3);
-}
 
 .lx-action-hover {
   cursor: pointer;
@@ -552,6 +547,22 @@ html, body {
 .lx-tag-danger { background: var(--lx-danger-bg); color: var(--lx-danger-text); }
 .lx-tag-purple { background: var(--lx-purple-bg); color: var(--lx-purple-text); }
 .lx-tag-default { background: var(--lx-neutral-tag-bg); color: var(--lx-neutral-text); }
+
+/* 员工自定义色标签（EmployeeTagPill）：颜色由内联 style 注入（hex 由组件规范化），
+   这里只管形状——与 StatusTag 同款无边框 pill，字号走 token。 */
+.lx-emp-tag {
+  display: inline-block;
+  max-width: 160px;
+  padding: 1px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--lx-radius-full);
+  font-size: var(--lx-font-xs);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
 
 /* ========================================
    响应式工具类
@@ -608,57 +619,10 @@ html, body {
   outline-offset: 2px;
 }
 
-.lx-hidden { display: none !important; }
-.lx-block { display: block !important; }
-.lx-flex { display: flex !important; }
-
-@media (max-width: 767px) {
-  .lx-mobile-only { display: block !important; }
-  .lx-mobile-flex { display: flex !important; }
-  .lx-mobile-hidden { display: none !important; }
-}
-
-@media (min-width: 768px) {
-  .lx-tablet-only { display: block !important; }
-  .lx-tablet-flex { display: flex !important; }
-  .lx-tablet-hidden { display: none !important; }
-}
-
-@media (min-width: 1024px) {
-  .lx-desktop-only { display: block !important; }
-  .lx-desktop-flex { display: flex !important; }
-  .lx-desktop-hidden { display: none !important; }
-}
-
-/* ========================================
-   响应式间距工具类
-   ======================================== */
-
-.lx-p-0 { padding: 0 !important; }
-.lx-p-1 { padding: var(--lx-space-1) !important; }
-.lx-p-2 { padding: var(--lx-space-2) !important; }
-.lx-p-3 { padding: var(--lx-space-3) !important; }
-.lx-p-4 { padding: var(--lx-space-4) !important; }
-.lx-p-5 { padding: var(--lx-space-5) !important; }
-.lx-p-6 { padding: var(--lx-space-6) !important; }
-
-.lx-m-0 { margin: 0 !important; }
-.lx-mt-1 { margin-top: var(--lx-space-1) !important; }
-.lx-mt-2 { margin-top: var(--lx-space-2) !important; }
-.lx-mt-3 { margin-top: var(--lx-space-3) !important; }
-.lx-mt-4 { margin-top: var(--lx-space-4) !important; }
-.lx-mt-5 { margin-top: var(--lx-space-5) !important; }
-.lx-mt-6 { margin-top: var(--lx-space-6) !important; }
-.lx-mt-7 { margin-top: var(--lx-space-7) !important; }
-.lx-mt-8 { margin-top: var(--lx-space-8) !important; }
-.lx-mb-1 { margin-bottom: var(--lx-space-1) !important; }
-.lx-mb-2 { margin-bottom: var(--lx-space-2) !important; }
-.lx-mb-3 { margin-bottom: var(--lx-space-3) !important; }
-.lx-mb-4 { margin-bottom: var(--lx-space-4) !important; }
-.lx-mb-5 { margin-bottom: var(--lx-space-5) !important; }
-.lx-mb-6 { margin-bottom: var(--lx-space-6) !important; }
-.lx-mb-7 { margin-bottom: var(--lx-space-7) !important; }
-.lx-mb-8 { margin-bottom: var(--lx-space-8) !important; }
+/* 注：此处的 `lx-hidden/block/flex`、`lx-mobile-*`、`lx-p-*`、`lx-mt-*`、`lx-mb-*`
+   以及下方的 `lx-row/lx-col-*` 栅格均已删除 —— 它们是 Tailwind 化之前的自研
+   工具类体系，全仓 0 处引用（含动态拼接），留着只会让 CSS 体积与心智负担双增。
+   现在这些能力统一由 Tailwind 提供（`hidden` / `md:flex` / `p-4` / `grid-cols-*`）。 */
 
 /* ========================================
    移动端基础适配
@@ -698,65 +662,6 @@ html, body {
 }
 
 /* ========================================
-   响应式栅格系统
-   ======================================== */
-
-.lx-row {
-  display: flex;
-  flex-wrap: wrap;
-  margin: 0 calc(var(--lx-space-2) * -1);
-}
-
-.lx-col {
-  padding: 0 var(--lx-space-2);
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.lx-col-1 { width: 8.3333%; }
-.lx-col-2 { width: 16.6667%; }
-.lx-col-3 { width: 25%; }
-.lx-col-4 { width: 33.3333%; }
-.lx-col-5 { width: 41.6667%; }
-.lx-col-6 { width: 50%; }
-.lx-col-7 { width: 58.3333%; }
-.lx-col-8 { width: 66.6667%; }
-.lx-col-9 { width: 75%; }
-.lx-col-10 { width: 83.3333%; }
-.lx-col-11 { width: 91.6667%; }
-.lx-col-12 { width: 100%; }
-
-@media (min-width: 768px) {
-  .lx-col-md-1 { width: 8.3333%; }
-  .lx-col-md-2 { width: 16.6667%; }
-  .lx-col-md-3 { width: 25%; }
-  .lx-col-md-4 { width: 33.3333%; }
-  .lx-col-md-5 { width: 41.6667%; }
-  .lx-col-md-6 { width: 50%; }
-  .lx-col-md-7 { width: 58.3333%; }
-  .lx-col-md-8 { width: 66.6667%; }
-  .lx-col-md-9 { width: 75%; }
-  .lx-col-md-10 { width: 83.3333%; }
-  .lx-col-md-11 { width: 91.6667%; }
-  .lx-col-md-12 { width: 100%; }
-}
-
-@media (min-width: 1024px) {
-  .lx-col-lg-1 { width: 8.3333%; }
-  .lx-col-lg-2 { width: 16.6667%; }
-  .lx-col-lg-3 { width: 25%; }
-  .lx-col-lg-4 { width: 33.3333%; }
-  .lx-col-lg-5 { width: 41.6667%; }
-  .lx-col-lg-6 { width: 50%; }
-  .lx-col-lg-7 { width: 58.3333%; }
-  .lx-col-lg-8 { width: 66.6667%; }
-  .lx-col-lg-9 { width: 75%; }
-  .lx-col-lg-10 { width: 83.3333%; }
-  .lx-col-lg-11 { width: 91.6667%; }
-  .lx-col-lg-12 { width: 100%; }
-}
-
-/* ========================================
    页面切换过渡（非阻塞式淡入）
    随 PageTransition.tsx 使用：以 pathname 为 key 重挂载子树，播放轻量进入动画。
    不依赖 JS 动画库、不阻塞数据请求，切换页面时"点击即反馈"。
@@ -778,10 +683,6 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter,
-  .lx-animate-fadeIn,
-  .lx-animate-slideUp,
-  .lx-animate-slideInLeft,
-  .lx-animate-scaleIn,
   .dsh-hero,
   .dsh-stat,
   .dsh-panel,
@@ -866,6 +767,37 @@ html, body {
   border-radius: var(--lx-radius-xl);
   box-shadow: var(--lx-shadow-card);
   padding: 6px 20px 20px;
+}
+
+/* 知识库首页卡片网格（features/knowledge/pages/list.tsx）。
+   从 tsx 内联样式抽出；hover 效果走 :hover —— 原先用 onMouseEnter 改
+   boxShadow 是 JS 模拟 CSS 能力，还要手动清理，纯 CSS 一行即可。 */
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 16px;
+}
+.kb-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+  cursor: pointer;
+  transition: box-shadow var(--lx-transition-fast), border-color var(--lx-transition-fast);
+}
+.kb-card:hover {
+  box-shadow: var(--lx-shadow-card);
+  border-color: var(--lx-border-2);
+}
+.kb-card--folder {
+  justify-content: center;
+  gap: 12px;
+  min-height: 128px;
+  padding: 20px;
 }
 .kb-tabs-wrap .arco-tabs-header {
   border-bottom: 1px solid var(--lx-border-2);
@@ -1044,7 +976,7 @@ html, body {
   text-align: center;
 }
 .kb-upload-icon {
-  font-size: 34px;
+  font-size: var(--lx-font-4xl); /* 34→4xl(32)，归 token */
   color: var(--lx-primary);
   margin-bottom: 6px;
   display: inline-block;
@@ -1293,13 +1225,21 @@ html, body {
 /* ---- 内联模式：字段与按钮同一行 ---- */
 .lx-search-form-inline {
   flex-direction: row;
-  flex-wrap: nowrap;
+  /* 必须是 wrap：下面 .lx-search-active（已生效条件行）是 flex: 1 0 100%，
+     在 nowrap 容器里必然把「字段 + 按钮 + 整行」挤成一行，字段被压到 0 宽、
+     查询/重置按钮溢出后被 ProTable 的 overflow-hidden 裁掉，用户点一次查询就找不到按钮。 */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 14px;
 }
 .lx-search-form-inline .lx-search-fields {
-  flex: 1 1 auto;
-  flex-wrap: nowrap; /* 强制单行 */
+  /* basis 必须是 0 而不是 auto：auto 的假设宽度等于字段的 max-content，
+     字段一多就超过容器，flex 断行会把「查询/重置」整组推到第二行。
+     置 0 后字段块永远与按钮同行，剩余宽度由 grow 分配，字段内部自行换行。 */
+  flex: 1 1 0;
+  min-width: 0;
+  /* 单行优先，但字段多时允许换行 —— 强制 nowrap 会让 6 个字段的页面横向溢出 */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px 14px;
 }
@@ -1308,18 +1248,19 @@ html, body {
   align-items: flex-end;
   padding-bottom: 0;
 }
-/* 内联搜索区：字段宽度统一走 --lx-control-* 基准，避免各控件宽窄不一 */
-.lx-search-form-inline .lx-search-item-control .arco-input {
+/* ---- 控件宽度统一基准（所有搜索表单共用，不再区分内联/多行）----
+   实际宽度落在 .lx-search-control 上，内部控件撑满，避免各页面宽窄不一 */
+.lx-search-control {
   width: var(--lx-control-min-w);
 }
-.lx-search-form-inline .lx-search-item-control .arco-select {
-  width: var(--lx-control-min-w) !important;
+.lx-search-field-wrap[data-type="range"] .lx-search-control {
+  width: var(--lx-control-range-min-w);
 }
-.lx-search-form-inline .lx-search-item-control .arco-picker {
-  width: var(--lx-control-min-w) !important;
+.lx-search-field-wrap[data-type="employee"] .lx-search-control {
+  width: var(--lx-control-employee-min-w);
 }
-.lx-search-form-inline .lx-search-item-control .arco-picker-range {
-  width: var(--lx-control-range-min-w) !important;
+.lx-search-control > * {
+  width: 100%;
 }
 .lx-search-form-inline .lx-search-actions {
   flex: 0 0 auto;
@@ -1357,6 +1298,52 @@ html, body {
   border-color: var(--lx-primary);
   background: var(--lx-primary-light);
 }
+/* ---- 已生效条件回显：整行独占，排在字段/按钮下方 ---- */
+.lx-search-active {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+.lx-search-active-label {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+.lx-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--lx-border-2);
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-secondary);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-2);
+  cursor: pointer;
+  transition: color var(--lx-transition-fast), border-color var(--lx-transition-fast),
+    background var(--lx-transition-fast);
+}
+.lx-search-chip:hover {
+  border-color: var(--lx-primary);
+  background: var(--lx-primary-light);
+}
+.lx-search-chip:hover .lx-search-chip-close {
+  color: var(--lx-primary);
+}
+.lx-search-chip-key {
+  color: var(--lx-text-3);
+}
+.lx-search-chip-value {
+  color: var(--lx-text-1);
+  font-weight: var(--lx-font-medium);
+}
+.lx-search-chip-close {
+  font-size: 12px;
+  color: var(--lx-text-4);
+}
 
 /* ========================================
    员工详情弹窗（EmployeeDetailModal）
@@ -1381,7 +1368,7 @@ html, body {
   width: 48px;
   height: 48px;
   border-radius: var(--lx-radius-xl);
-  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  background: var(--lx-primary);
   color: #fff;
   font-size: var(--lx-font-xl);
   font-weight: 600;
@@ -1390,9 +1377,7 @@ html, body {
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  /* color-mix 需 Chrome 111+/Safari 16.2+/Firefox 113+；老浏览器用既有分层阴影兜底 */
   box-shadow: var(--lx-shadow-md);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--lx-primary) 22%, transparent);
 }
 .lx-brand-logo-img {
   width: 100%;
@@ -1440,13 +1425,44 @@ html, body {
   filter: blur(34px);
 }
 .lx-login-card {
+  border: none;
+  /* 阴影与底色都走 token：浅色为品牌淡蓝柔光、暗色为深黑柔光，两套都已定义 */
   box-shadow: var(--lx-login-card-shadow);
+  background: var(--lx-login-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   animation: lx-slideUp 0.36s var(--lx-ease-standard);
 }
+/*
+ * 登录卡片内的焦点可见性（WCAG 2.2 SC 2.4.7 Focus Visible）
+ *
+ * 旧实现用 `.lx-login-card *:focus/:focus-visible/:focus-within { outline:none;
+ * box-shadow:none !important }` 把卡片内所有焦点样式一并抹掉，连 `.lx-form-glow`
+ * 的组级光晕也被 `*:focus-within` 命中清空 —— 键盘用户 Tab 进登录表单时看不到
+ * 任何焦点位置提示，属于可访问性缺陷，已废弃。
+ *
+ * 现约定：
+ *  1. 输入控件沿用全站统一焦点环（`--lx-focus-ring`，与 InputTag / Mentions /
+ *     Picker 同款 3px 品牌色光晕），视觉上仍是「描边 + 柔光」，与设计意图一致；
+ *     Arco 2.x 的 Input DOM 是 `.arco-input-inner-wrapper > input.arco-input`
+ *     （焦点态由 JS 打 `-focus` 类），故描边必须落在 wrapper 上 ——
+ *     写成 `.arco-input-wrapper` 是不存在的类名，等于没有规则；
+ *  2. 复选框的原生 input 透明且无默认轮廓，故描边挂在 label 上（focus-within）；
+ *  3. 按钮、链接等其余可聚焦元素交给全局 `:focus-visible` 规则，不再单独覆盖。
+ */
+.lx-login-card .arco-input-inner-wrapper:focus-within,
+.lx-login-card .arco-input-inner-wrapper.arco-input-inner-wrapper-focus {
+  border-color: var(--lx-primary);
+  box-shadow: var(--lx-focus-ring);
+}
+.lx-login-card .arco-checkbox:focus-within {
+  outline: 2px solid var(--lx-focus-outline);
+  outline-offset: 2px;
+  border-radius: var(--lx-radius-sm);
+}
 .lx-login-logo {
-  background: linear-gradient(135deg, var(--lx-primary), var(--lx-primary-hover));
+  background: var(--lx-primary);
   box-shadow: var(--lx-shadow-md);
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--lx-primary) 30%, transparent);
 }
 
 /* ---- 品牌侧栏（lg 以上）：深靛蓝渐变 + 极光光斑 + 细网格 ---- */
@@ -1463,7 +1479,8 @@ html, body {
   justify-content: center;
 }
 
-/* 极光光团：蓝、紫各一团，缓慢呼吸（reduced-motion 由全局兜底停用） */
+/* 极光光团（减装饰后仅留一团静态柔光）：原先蓝紫两团反向呼吸，
+   动画 + 双光团 + 网格三者叠加装饰密度过高 */
 .lx-login-aside-orb {
   position: absolute;
   border-radius: 50%;
@@ -1475,25 +1492,7 @@ html, body {
   height: 420px;
   top: -120px;
   right: -80px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.55), transparent 68%);
-  animation: lx-login-orb 14s ease-in-out infinite;
-}
-.lx-login-aside-orb-2 {
-  width: 380px;
-  height: 380px;
-  bottom: -140px;
-  left: -90px;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 68%);
-  animation: lx-login-orb 18s ease-in-out infinite reverse;
-}
-@keyframes lx-login-orb {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(-18px, 22px, 0) scale(1.08);
-  }
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 68%);
 }
 
 /* 细网格：极淡白线，给深色面一点科技纹理 */
@@ -1527,7 +1526,7 @@ html, body {
 }
 .lx-login-slogan {
   margin: 20px 0 0;
-  font-size: 40px;
+  font-size: var(--lx-font-4xl); /* 40→4xl(32)：登录页减装饰（m-008），标题收敛到字号体系最大档 */
   line-height: 1.22;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -1539,7 +1538,7 @@ html, body {
 .lx-login-slogan-sub {
   margin: 16px 0 0;
   max-width: 360px;
-  font-size: 13.5px;
+  font-size: var(--lx-font-sm); /* 13.5→sm(13)，归 token */
   line-height: 1.7;
   color: rgba(255, 255, 255, 0.62);
 }
@@ -1578,18 +1577,19 @@ html, body {
   height: 36px;
   flex-shrink: 0;
   border-radius: var(--lx-radius-md);
-  font-size: 17px;
-  color: #fff;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(96, 165, 250, 0.7));
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+  font-size: var(--lx-font-xl); /* 17→xl(20)，归 token */
+  color: var(--lx-tone-sky-fg);
+  background: var(--lx-tone-sky-bg);
 }
+/* 减装饰（m-008）：原先蓝/青/紫三条渐变 + 三色投影，是典型 AI 模板配色；
+   收敛为 --lx-tone-* 浅底深字，同侧栏深底上仍可读（bg 为半透明浅色）。 */
 .lx-login-highlight:nth-child(2) .lx-login-highlight-ic {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.9), rgba(45, 212, 191, 0.7));
-  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35);
+  color: var(--lx-tone-teal-fg);
+  background: var(--lx-tone-teal-bg);
 }
 .lx-login-highlight:nth-child(3) .lx-login-highlight-ic {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(167, 139, 250, 0.7));
-  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35);
+  color: var(--lx-tone-violet-fg);
+  background: var(--lx-tone-violet-bg);
 }
 .lx-login-highlight-text {
   display: flex;
@@ -1598,7 +1598,7 @@ html, body {
   min-width: 0;
 }
 .lx-login-highlight-text strong {
-  font-size: 13.5px;
+  font-size: var(--lx-font-sm); /* 13.5→sm(13)，归 token */
   font-weight: 500;
   color: rgba(255, 255, 255, 0.95);
 }
@@ -1612,7 +1612,7 @@ html, body {
   left: 56px;
   bottom: 32px;
   z-index: 1;
-  font-size: 11.5px;
+  font-size: var(--lx-font-xs); /* 11.5→xs(12)，归 token */
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.38);
 }
@@ -1768,7 +1768,7 @@ html, body {
   line-height: 1;
 }
 .ed-name {
-  font-size: 17px;
+  font-size: var(--lx-font-lg); /* 17→lg(15)，归 token */
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -1966,7 +1966,8 @@ html, body {
    现代企业后台 · 统一品牌蓝 · 克制层级
    ======================================== */
 
-/* 入场动效：轻幅上浮淡入（错帧由内联 animation-delay 承接） */
+/* 入场动效：轻幅上浮淡入。错帧由 StatCard 的 --i 序号驱动（原注释声称
+   用内联 animation-delay，实际从未实现——四卡同帧齐动，正是 AI 生成观感之一） */
 @keyframes dsh-rise {
   from {
     opacity: 0;
@@ -1981,6 +1982,10 @@ html, body {
 .dsh-stat,
 .dsh-panel {
   animation: dsh-rise 0.4s var(--lx-ease-standard) both;
+}
+/* KPI 卡按序错帧入场（--i 由 StatCard.stagger 注入），打破同帧齐动 */
+.dsh-stat {
+  animation-delay: calc(var(--i, 0) * 60ms);
 }
 .dsh-quick-item {
   animation: dsh-rise 0.34s var(--lx-ease-standard) both;
@@ -2039,27 +2044,218 @@ html, body {
   border-radius: var(--lx-radius-full);
   padding: 5px 12px;
 }
+/* 数据新鲜度胶囊：弱化处理，不与日期胶囊抢注意力 */
+.dsh-hero-chip-muted {
+  color: var(--lx-text-3);
+  background: transparent;
+  border-color: transparent;
+  padding-left: 4px;
+  padding-right: 4px;
+}
 .dsh-hero-chip b {
   font-weight: 600;
   color: var(--lx-primary);
 }
 
-/* KPI 指标卡（统一主蓝，去花哨色块） */
+/* ---- 工资条：列表实发列与明细弹窗汇总区 ---- */
+/* 列表里实发工资是员工唯一真正关心的数字，用主色 + 中等字重做视觉锚点 */
+.lx-payslip-net {
+  font-weight: 600;
+  color: var(--lx-success);
+}
+
+.lx-payslip-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 32px;
+  margin-bottom: 8px;
+}
+.lx-payslip-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 96px;
+}
+.lx-payslip-summary-label {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.lx-payslip-summary-value {
+  font-size: var(--lx-font-lg);
+  font-weight: 500;
+  color: var(--lx-text-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+/* 实发是这一屏的结论，字号与颜色各提一档 */
+.lx-payslip-summary-item.is-net .lx-payslip-summary-value {
+  font-size: var(--lx-font-xl);
+  font-weight: 600;
+  color: var(--lx-primary);
+}
+
+/* 明细分区标题：比正文高半档，避免裸 h4 的浏览器默认样式 */
+.lx-payslip-section-title {
+  margin: 0 0 8px;
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  color: var(--lx-text-1);
+}
+
+/* ---- 工资条：年度累计条（员工对账） ---- */
+.lx-payslip-year {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-lg);
+  /* 与工作台 KPI 卡同一套「去框感」投影，不用描边 */
+  box-shadow: var(--lx-shadow-card);
+}
+.lx-payslip-year-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.lx-payslip-year-title {
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  color: var(--lx-text-1);
+}
+.lx-payslip-year-meta {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+.lx-payslip-year-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+}
+.lx-payslip-year-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+.lx-payslip-year-label {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.lx-payslip-year-value {
+  font-size: var(--lx-font-lg);
+  font-weight: 500;
+  color: var(--lx-text-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.lx-payslip-year-value.is-net {
+  font-size: var(--lx-font-xl);
+  font-weight: 600;
+  color: var(--lx-primary);
+}
+
+/* ---- 工资条：与上月对比（明细弹窗） ---- */
+.lx-payslip-diff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  background: var(--lx-bg-secondary);
+  border-radius: var(--lx-radius-md);
+}
+.lx-payslip-diff-title {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.lx-payslip-diff-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-2);
+}
+.lx-payslip-diff-item {
+  white-space: nowrap;
+}
+.lx-payslip-diff-empty {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-3);
+}
+/* 逐项差异独占一行：合计差额在上、具体工资项在下 */
+.lx-payslip-diff-detail {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--lx-border-2);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-2);
+}
+.lx-payslip-diff-badge {
+  margin: 0 4px;
+  padding: 0 6px;
+  font-style: normal;
+  font-size: var(--lx-font-xs);
+  line-height: 18px;
+  color: var(--lx-text-3);
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-sm);
+}
+.lx-payslip-detail-loading {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--lx-text-3);
+}
+/* 差额用等宽数字对齐，涨绿跌红，持平中性 */
+.lx-payslip-delta {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+.lx-payslip-delta.is-up {
+  color: var(--lx-success);
+}
+.lx-payslip-delta.is-down {
+  color: var(--lx-danger);
+}
+.lx-payslip-delta.is-flat {
+  color: var(--lx-text-3);
+}
+
+/* 工资条明细弹窗底部：关闭在左、打印在右，主次分明 */
+.lx-payslip-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* KPI 指标卡（无边框，纯柔光悬浮，撑满 Grid Col） */
 .dsh-stat {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   padding: 16px;
   background: var(--lx-bg-card);
   text-align: left;
   font-family: inherit;
-  transition: border-color var(--lx-transition-base), box-shadow var(--lx-transition-base);
-  border: 1px solid var(--lx-border-1);
+  transition: box-shadow var(--lx-transition-base);
+  border: none;
   border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-card);
 }
-/* 可点 KPI 卡（如待审批直达审批中心） */
+/* 可点 KPI 卡（button 元素，同上宽度规则） */
 .dsh-stat.is-clickable {
   cursor: pointer;
 }
 .dsh-stat:hover {
-  border-color: var(--lx-primary-200);
   box-shadow: var(--lx-shadow-card-hover);
 }
 .dsh-stat-top {
@@ -2103,6 +2299,60 @@ html, body {
   color: var(--lx-text-3);
 }
 
+/* 今日状态（打卡 + 假期余额）：横向数值格，与 KPI 卡视觉同族但更轻 */
+.dsh-today {
+  display: flex;
+  align-items: stretch;
+  padding: 6px 0 2px;
+}
+.dsh-today-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 14px;
+}
+.dsh-today-cell:first-child {
+  padding-left: 0;
+}
+.dsh-today-cell + .dsh-today-cell {
+  border-left: 1px solid var(--lx-border-1);
+}
+.dsh-today-label {
+  margin-bottom: 6px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsh-today-value {
+  font-size: var(--lx-font-xl);
+  font-weight: 500;
+  color: var(--lx-text-1);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+/* 文字型取值（班次/状态）：压到正文尺寸并与数值基线对齐 */
+.dsh-today-value.is-text {
+  font-size: var(--lx-font-sm);
+  font-weight: 400;
+  color: var(--lx-text-2);
+  line-height: 30px;
+}
+.dsh-today-value .u {
+  font-size: var(--lx-font-sm);
+  font-weight: 400;
+  color: var(--lx-text-3);
+  margin-left: 3px;
+}
+.dsh-today-tip {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--lx-border-1);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+
 /* 快捷操作入口（统一小卡网格）
    注意：这些类渲染为 <button>（保证键盘可达 WCAG SC 2.1.1），
    故在规则内显式抹掉按钮默认样式，使其与原来的 <div> 视觉完全一致 */
@@ -2123,13 +2373,13 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 6px;
+  gap: 10px;
+  padding: 16px 6px 14px;
   border-radius: var(--lx-radius-lg);
-  border: 1px solid var(--lx-border-1);
+  border: none;
   background: var(--lx-bg-card);
   cursor: pointer;
-  transition: border-color var(--lx-transition-base), background-color var(--lx-transition-base);
+  transition: background-color var(--lx-transition-base), box-shadow var(--lx-transition-base);
   color: var(--lx-text-2);
   font-family: inherit;
   font-size: inherit;
@@ -2137,9 +2387,9 @@ html, body {
   text-align: center;
 }
 .dsh-quick-item:hover {
-  border-color: var(--lx-primary-200);
-  background: var(--lx-primary-light);
-  color: var(--lx-primary);
+  background: var(--lx-bg-card);
+  box-shadow: var(--lx-shadow-card-hover);
+  color: var(--lx-text-1);
 }
 /* 触屏无 hover：补 :active 点按反馈 */
 .dsh-quick-item:active {
@@ -2149,12 +2399,30 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--lx-font-xl);
-  color: var(--lx-primary);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--lx-radius-md);
+  font-size: 18px;
+  transition: background-color var(--lx-transition-base), color var(--lx-transition-base);
 }
-.dsh-quick-item:hover .dsh-quick-ic {
-  color: var(--lx-primary);
-}
+
+/* ---- 9 种 tone：浅底 + 深图标，hover 略加深（色值收口在 :root --lx-tone-*）---- */
+.dsh-quick-item[data-tone="indigo"] .dsh-quick-ic { background: var(--lx-tone-indigo-bg); color: var(--lx-tone-indigo-fg); }
+.dsh-quick-item[data-tone="indigo"]:hover .dsh-quick-ic { background: var(--lx-tone-indigo-bg-hover); color: var(--lx-tone-indigo-fg-hover); }
+.dsh-quick-item[data-tone="teal"] .dsh-quick-ic { background: var(--lx-tone-teal-bg); color: var(--lx-tone-teal-fg); }
+.dsh-quick-item[data-tone="teal"]:hover .dsh-quick-ic { background: var(--lx-tone-teal-bg-hover); color: var(--lx-tone-teal-fg-hover); }
+.dsh-quick-item[data-tone="emerald"] .dsh-quick-ic { background: var(--lx-tone-emerald-bg); color: var(--lx-tone-emerald-fg); }
+.dsh-quick-item[data-tone="emerald"]:hover .dsh-quick-ic { background: var(--lx-tone-emerald-bg-hover); color: var(--lx-tone-emerald-fg-hover); }
+.dsh-quick-item[data-tone="sky"] .dsh-quick-ic { background: var(--lx-tone-sky-bg); color: var(--lx-tone-sky-fg); }
+.dsh-quick-item[data-tone="sky"]:hover .dsh-quick-ic { background: var(--lx-tone-sky-bg-hover); color: var(--lx-tone-sky-fg-hover); }
+.dsh-quick-item[data-tone="violet"] .dsh-quick-ic { background: var(--lx-tone-violet-bg); color: var(--lx-tone-violet-fg); }
+.dsh-quick-item[data-tone="violet"]:hover .dsh-quick-ic { background: var(--lx-tone-violet-bg-hover); color: var(--lx-tone-violet-fg-hover); }
+.dsh-quick-item[data-tone="amber"] .dsh-quick-ic { background: var(--lx-tone-amber-bg); color: var(--lx-tone-amber-fg); }
+.dsh-quick-item[data-tone="amber"]:hover .dsh-quick-ic { background: var(--lx-tone-amber-bg-hover); color: var(--lx-tone-amber-fg-hover); }
+.dsh-quick-item[data-tone="rose"] .dsh-quick-ic { background: var(--lx-tone-rose-bg); color: var(--lx-tone-rose-fg); }
+.dsh-quick-item[data-tone="rose"]:hover .dsh-quick-ic { background: var(--lx-tone-rose-bg-hover); color: var(--lx-tone-rose-fg-hover); }
+.dsh-quick-item[data-tone="cyan"] .dsh-quick-ic { background: var(--lx-tone-cyan-bg); color: var(--lx-tone-cyan-fg); }
+.dsh-quick-item[data-tone="cyan"]:hover .dsh-quick-ic { background: var(--lx-tone-cyan-bg-hover); color: var(--lx-tone-cyan-fg-hover); }
 
 /* ===== 员工事务页签 · 待处理数圆形徽标 ===== */
 .tx-count-badge {
@@ -2169,7 +2437,8 @@ html, body {
   color: var(--lx-text-white);
   font-size: var(--lx-font-xs);
   line-height: 1;
-  font-weight: 400;
+  /* 与 .side-badge 对齐（同为 18px 计数徽标，字重应一致） */
+  font-weight: 500;
 }
 .dsh-quick-label {
   font-size: var(--lx-font-xs);
@@ -2282,10 +2551,10 @@ html, body {
   border-top: 1px solid var(--lx-border-2);
 }
 
-/* 面板统一容器 */
+/* 面板统一容器（无边框，纯柔光悬浮） */
 .dsh-panel {
   background: var(--lx-bg-card);
-  border: 1px solid var(--lx-border-1);
+  border: none;
   border-radius: var(--lx-radius-lg);
   box-shadow: var(--lx-shadow-card);
   padding: 16px;
@@ -2405,7 +2674,7 @@ html, body {
   min-width: 64px;
 }
 .dsh-kpi-value {
-  font-size: 22px;
+  font-size: var(--lx-font-xl); /* 22→xl(20)，归 token */
   font-weight: 600;
   color: var(--lx-text-1);
   letter-spacing: -0.02em;
@@ -2482,7 +2751,7 @@ html, body {
 }
 .trend-date {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   color: var(--lx-text-4);
   line-height: 16px;
 }
@@ -2524,7 +2793,7 @@ html, body {
 /* 打卡大按钮：统一高度/字重/圆角，上班主蓝 / 下班靛蓝 / 已完成置灰 */
 .punch-btn {
   height: 46px;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   letter-spacing: 0.02em;
   border-radius: var(--lx-radius-lg);
@@ -2629,6 +2898,34 @@ html, body {
 .cal-sched:hover {
   box-shadow: 0 0 0 2px var(--lx-primary-weak);
 }
+/* 单元格键盘入口：整格是原生 button，重置按钮外观，聚焦时用内描边标识当前格 */
+.cal-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: inherit;
+}
+.cal-cell:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--lx-primary);
+  outline-offset: -2px;
+}
+/* 周末表头底色：靠特异性取胜而不是 !important —
+   本文件早于 arco-overrides.css 加载，故选择器必须比 `.arco-table-th`(0,1,0)
+   和 `.arco-table-th:hover`(0,1,1) 更具体；这里分别是 (0,2,0) / (0,2,1)。 */
+.arco-table-th.cal-weekend-head,
+.arco-table-th.cal-weekend-head:hover {
+  background: var(--lx-warning-light);
+}
 
 /* ========================================
    可复用工具类（Loader 波点 / 表单聚焦组反馈）
@@ -2669,7 +2966,7 @@ html, body {
    用法：包一层 <div class="lx-form-glow">…inputs…</div>，容器内任一控件聚焦时整组亮起。
    外圈 4px 浅蓝光晕（--lx-primary-bg）+ 柔和品牌投影（--lx-primary-weak）+ 边框转品牌弱蓝。
    兼容：:focus-within 为 CSS Selectors L4，Chrome 60+/Safari 10.1+/FF 52+ 均支持，
-   更老浏览器仅退化为"无组级高亮"，内部 .lx-input-glow 的单控件焦点样式仍生效，不破版。 */
+   更老浏览器仅退化为"无组级高亮"，控件级描边由下方 scoped 规则兜底，不破版。 */
 .lx-form-glow {
   transition:
     box-shadow var(--lx-transition-base) var(--lx-ease-standard),
@@ -2682,17 +2979,9 @@ html, body {
     0 8px 24px var(--lx-primary-weak);
 }
 
-/* 输入控件 focus ring（挂在 input/select/textarea 上）
-   用法：<input class="lx-input-glow" … />，聚焦时品牌蓝边框 + 2px 淡蓝内 ring。
-   冲突规避：选择器严格限定为 .lx-input-glow:focus 单类形式（特异度 0,2,0），
-   只在显式挂类的原生控件上生效，不会波及 Arco Input 默认 focus 样式；
-   若与 Arco 组件混用请挂在原生元素或 .arco-input 上并接受后者覆盖顺序。
-   兼容：box-shadow 多值全浏览器支持，无 color-mix/@property 依赖，无退化风险。 */
-.lx-input-glow:focus {
-  outline: none;
-  border-color: var(--lx-primary);
-  box-shadow: 0 0 0 2px var(--lx-primary-bg);
-}
+/* 注：此前这里还有一个 `.lx-input-glow:focus { outline:none; … }` 供原生
+   <input> 使用。全仓 0 处挂载（表单已统一走 Arco Input + 下方 scoped 规则），
+   且它自身带 `outline:none`，与「焦点必须可见」的规约相悖，已删除。 */
 
 /* ========================================
    表单聚焦组反馈（scoped 于 .lx-form-glow，无全局副作用）
@@ -2904,7 +3193,7 @@ html, body {
   flex-shrink: 0;
   padding: 2px 6px;
   font-family: monospace;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   color: var(--lx-text-4);
   background: var(--lx-bg-hover);
   border: 1px solid var(--lx-border-1);
@@ -2929,7 +3218,7 @@ html, body {
 }
 .cmdk-group-title {
   padding: 8px 12px 4px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   font-weight: 500;
   color: var(--lx-text-4);
   text-transform: uppercase;
@@ -2979,7 +3268,7 @@ html, body {
 }
 .cmdk-item-enter {
   font-family: monospace;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   color: var(--lx-text-4);
 }
 /* 员工实体结果的次要说明（工号 · 部门）：淡色小字靠右 */
@@ -3006,7 +3295,7 @@ html, body {
 .cmdk-hints {
   display: flex;
   gap: 12px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   color: var(--lx-text-4);
 }
 .cmdk-hint-kbd {
@@ -3016,7 +3305,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   color: var(--lx-text-4);
 }
 
@@ -3112,7 +3401,7 @@ html, body {
 }
 
 .lx-salary-badge {
-  font-size: 11px;
+  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   line-height: 18px;
   padding: 0 8px;
   border-radius: var(--lx-radius-full);
@@ -3171,7 +3460,7 @@ html, body {
 .lx-salary-label {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: var(--lx-font-xs); /* 12.5→xs(12)，归 token */
   color: var(--lx-text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3203,7 +3492,7 @@ html, body {
   border-top: 1px dashed var(--lx-border-2);
 }
 .lx-salary-total-label {
-  font-size: 12.5px;
+  font-size: var(--lx-font-xs); /* 12.5→xs(12)，归 token */
   color: var(--lx-text-2);
   letter-spacing: 0.04em;
 }
@@ -3226,4 +3515,228 @@ body.arco-theme-dark .lx-salary-total-value {
 body.arco-theme-dark .lx-salary-badge--income {
   background: rgba(93, 127, 196, 0.18);
   color: var(--lx-primary-600);
+}
+
+/* ========================================
+   审批流程设计器（features/approval/pages/settings.tsx）
+   主结构从内联样式抽出；旧 Arco token（--color-*）统一换 --lx-*。
+   transition 只挂真正变化的属性，不再用 `all`。
+   ======================================== */
+.appr-flow-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 260px;
+  min-height: 480px;
+}
+.appr-flow-col {
+  padding: 16px;
+  min-width: 0;
+}
+.appr-flow-col--left { border-right: 1px solid var(--lx-border-2); }
+.appr-flow-col--right { border-left: 1px solid var(--lx-border-2); }
+.appr-flow-col-title {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-1);
+}
+.appr-flow-col-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.appr-node-list { display: flex; flex-direction: column; gap: 6px; }
+.appr-node-item {
+  padding: 8px 10px;
+  border-radius: var(--lx-radius-sm);
+  border: 1px solid var(--lx-border-2);
+  background: var(--lx-bg-card);
+  transition: border-color var(--lx-transition-fast), background-color var(--lx-transition-fast);
+}
+.appr-node-item--active {
+  border-color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+}
+.appr-node-hit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.appr-node-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.appr-node-sub { display: flex; align-items: center; gap: 6px; padding-left: 26px; }
+.appr-node-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+  font-size: var(--lx-font-xs);
+  font-weight: 600;
+}
+.appr-node-actions { display: flex; gap: 2px; margin-top: 6px; padding-left: 26px; }
+.appr-flow-stage {
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 380px;
+}
+
+/* ========================================
+   过渡画面：启动态 / 路由级加载 / 表格首屏骨架
+   颜色全部走 --lx-* token，浅色/暗色主题自动跟随；
+   动画只存在于波点 Loader，prefers-reduced-motion 由全局兜底规则停用。
+   ======================================== */
+
+.lx-boot-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--lx-bg-page);
+}
+.lx-boot-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lx-boot-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: var(--lx-radius-md);
+}
+.lx-boot-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-primary);
+  color: var(--lx-text-white);
+  font-size: 20px;
+  font-weight: 600;
+}
+.lx-boot-name {
+  color: var(--lx-text-1);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.lx-boot-hint {
+  margin: 0;
+  color: var(--lx-text-3);
+  font-size: var(--lx-font-xs);
+}
+
+/* 表格首屏骨架：与 DataState 的骨架语言保持一致（灰块 + 表头分割线） */
+.protable-skeleton {
+  padding: 4px 0 8px;
+}
+.protable-skeleton-head,
+.protable-skeleton-row {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+}
+.protable-skeleton-head {
+  border-bottom: 1px solid var(--lx-border-2);
+}
+.protable-skeleton-head .protable-skeleton-cell {
+  height: 14px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-tertiary);
+}
+.protable-skeleton-row + .protable-skeleton-row {
+  border-top: 1px solid var(--lx-border-2);
+}
+.protable-skeleton-cell {
+  flex: 1;
+  min-width: 0;
+}
+.appr-flow-arrow { color: var(--lx-border-3); font-size: var(--lx-font-lg); line-height: 1.5; }
+.appr-flow-cap {
+  width: 100px;
+  padding: 8px 12px;
+  border-radius: var(--lx-radius-sm);
+  text-align: center;
+  font-weight: 500;
+  font-size: var(--lx-font-xs);
+}
+.appr-flow-cap--start { background: var(--lx-success-bg); color: var(--lx-success-text); }
+.appr-flow-cap--end { background: var(--lx-info-bg); color: var(--lx-info-text); }
+.appr-flow-node {
+  width: 160px;
+  padding: 10px 12px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-card);
+  border: 1.5px solid var(--lx-border-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--lx-transition-fast), background-color var(--lx-transition-fast),
+    box-shadow var(--lx-transition-fast);
+}
+.appr-flow-node--active {
+  background: var(--lx-primary-bg);
+  border-color: var(--lx-primary);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--lx-primary) 15%, transparent);
+}
+.appr-flow-node-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.appr-flow-node-icon { color: var(--lx-primary); font-size: var(--lx-font-xs); }
+.appr-flow-form { display: flex; flex-direction: column; gap: 10px; }
+
+/* 角色权限穿梭双栏（features/system/pages/roles.tsx）—— 内联结构样式抽出 */
+.roles-split {
+  display: flex;
+  gap: 12px;
+  height: 420px;
+}
+.roles-pane {
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.roles-pane--nav { width: 224px; flex-shrink: 0; }
+.roles-pane--main { flex: 1; min-width: 0; }
+.roles-pane-search {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.roles-pane-body { flex: 1; overflow: auto; }
+.roles-pane-body--nav { padding: 4px 0; }
+.roles-pane-body--perm { padding: 12px 14px; }
+.roles-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--lx-text-3);
+  font-size: var(--lx-font-sm);
+}
+.roles-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 14px;
+}
+.roles-pane-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }

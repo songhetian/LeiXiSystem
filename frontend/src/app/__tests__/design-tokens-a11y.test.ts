@@ -172,3 +172,120 @@ describe('设计 token 对比度闸门（WCAG 2.2 AA）', () => {
     });
   });
 });
+
+/**
+ * 登录页焦点可见性闸门（WCAG 2.2 SC 2.4.7）
+ *
+ * 历史缺陷：`.lx-login-card *:focus/:focus-visible/:focus-within { outline:none;
+ * box-shadow:none !important }` 把登录卡片内所有焦点环（含 `.lx-form-glow` 的
+ * 组级光晕）一并抹掉，键盘用户完全看不到焦点位置。这里把「不许整块清除焦点样式」
+ * 与「输入控件必须保留焦点环」固化成断言，避免同类写法再次写回。
+ */
+type CssRule = { selector: string; body: string };
+
+function cssRules(input: string): CssRule[] {
+  // 先去注释，避免注释里的示例代码被误判；再取最内层选择器块（@media 等嵌套由
+  // 「选择器不含花括号」的贪婪限制自然退化到最内层规则，正合需要）。
+  const stripped = input.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: CssRule[] = [];
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(stripped))) {
+    out.push({ selector: m[1].trim(), body: m[2] });
+  }
+  const rules = out;
+  return rules;
+}
+
+describe('登录卡片底色主题化闸门（暗色可读性）', () => {
+  /**
+   * 曾经的缺陷：`.lx-login-card` 直接写 `background: rgba(255,255,255,.88)`，
+   * 暗色主题下变成「浅字压白卡」，正文对比度仅约 1.1:1。
+   * 这里钉住两件事：底色必须走 token；token 在明暗两套里都能与 text-1 达到 AA。
+   */
+  const cardRule = cssRules(css).find((r) => /^\.lx-login-card$/.test(r.selector.trim()));
+
+  it('卡片底色走 --lx-login-card-bg，不得硬编码半透明白', () => {
+    expect(cardRule).toBeDefined();
+    expect(cardRule!.body).toMatch(/background\s*:\s*var\(--lx-login-card-bg\)/);
+    expect(cardRule!.body).not.toMatch(/rgba\(\s*255\s*,\s*255\s*,\s*255/);
+  });
+
+  it.each([
+    ['浅色', rootMap],
+    ['暗色', darkMap],
+  ])('%s主题：卡片文字 vs 卡片底 ≥ 4.5:1', (_name, theme) => {
+    const text = parseColor(resolve('lx-text-1', theme as TokenMap));
+    const cardBg = parseColor(resolve('lx-login-card-bg', theme as TokenMap));
+    const page = parseColor(resolve('lx-bg-page', theme as TokenMap));
+    expect(text).not.toBeNull();
+    expect(cardBg).not.toBeNull();
+    expect(page).not.toBeNull();
+    // 卡片是半透明的，按 alpha 合成到页面底色后再算对比度
+    expect(ratio(text!, composite(cardBg!, page!))).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+});
+
+describe('登录页焦点可见性闸门（WCAG 2.2 SC 2.4.7）', () => {
+  const rules = cssRules(css);
+
+  it('登录卡片内不得存在整块清除焦点样式的通配符规则', () => {
+    const killers = rules.filter(
+      (r) =>
+        /\.lx-login-card\s+\*/.test(r.selector) &&
+        /:focus/.test(r.selector) &&
+        /(outline\s*:\s*none|box-shadow\s*:\s*none)/.test(r.body),
+    );
+    expect(killers.map((r) => r.selector)).toEqual([]);
+  });
+
+  it('输入框焦点环挂在 Arco 真实 DOM 类名上（.arco-input-inner-wrapper）', () => {
+    const ring = rules.find(
+      (r) =>
+        r.selector.includes('.lx-login-card') &&
+        r.selector.includes('.arco-input-inner-wrapper:focus-within'),
+    );
+    expect(ring).toBeDefined();
+    expect(ring!.body).toMatch(/box-shadow\s*:\s*var\(--lx-focus-ring\)/);
+
+    // 反向校验：`.arco-input-wrapper` 在 Arco 2.x 里并不存在（真实类名是
+    // `.arco-input-inner-wrapper`），写成前者等于没有规则 —— 这类"选了不存在的类名"
+    // 的死代码本仓库已出现过多次，这里从依赖包 CSS 里取证，防止再写回。
+    const arcoCss = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'node_modules',
+        '@arco-design',
+        'web-react',
+        'dist',
+        'css',
+        'arco.css',
+      ),
+      'utf-8',
+    );
+    expect(arcoCss).toContain('.arco-input-inner-wrapper {');
+    const loginRules = rules.filter((r) => r.selector.includes('.lx-login-card'));
+    const dead = loginRules.filter((r) => /\.arco-input-wrapper\b(?!-)/.test(r.selector));
+    expect(dead.map((r) => r.selector)).toEqual([]);
+  });
+
+  it('复选框（原生 input 透明）焦点描边挂在 label 上', () => {
+    const box = rules.find(
+      (r) => r.selector.includes('.lx-login-card') && r.selector.includes('.arco-checkbox'),
+    );
+    expect(box).toBeDefined();
+    expect(box!.body).toMatch(/outline\s*:\s*2px solid var\(--lx-focus-outline\)/);
+  });
+
+  it.each([
+    ['浅色', rootMap],
+    ['暗色', darkMap],
+  ])('%s主题 --lx-focus-ring 为合法的 3px 光晕值', (_name, theme) => {
+    const raw = (theme as TokenMap)['lx-focus-ring'] ?? rootMap['lx-focus-ring'];
+    expect(raw).toBeDefined();
+    expect(raw).toMatch(/^0 0 0 3px rgba?\(/);
+  });
+});

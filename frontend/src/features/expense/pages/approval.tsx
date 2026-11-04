@@ -6,27 +6,49 @@ import {
   Message,
   Button,
   Space,
-  Tag,
   Modal,
   Form,
   Input,
   Descriptions,
   Divider,
+  Table,
+  type TableColumnProps,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable from '@/components/ProTable';
 import type { ProTableColumn } from '@/components/ProTable';
-import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
+import { reimbursementApi, Reimbursement, ReimbursementItem } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
-import { formatDateTime, formatMoney } from '@/lib/format';
+import { usePermission } from '@/hooks/use-permission';
+import { formatDateTime } from '@/lib/format';
+import MoneyText from '@/components/MoneyText';
 
+// 审批状态统一走公共 StatusTag
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'gray' },
-  pending: { label: '待提交', color: 'orange' },
-  approving: { label: '审批中', color: 'blue' },
-  approved: { label: '已通过', color: 'green' },
-  rejected: { label: '已驳回', color: 'red' },
+  draft: { label: '草稿', color: 'default' },
+  pending: { label: '待提交', color: 'warning' },
+  approving: { label: '审批中', color: 'info' },
+  approved: { label: '已通过', color: 'success' },
+  rejected: { label: '已驳回', color: 'danger' },
 };
+
+/** 审批明细子表：金额统一走 MoneyText（负数标红、千分位与两位小数） */
+const detailItemColumns: TableColumnProps<ReimbursementItem>[] = [
+  { title: '费用名称', dataIndex: 'description', render: (value) => value || '-' },
+  { title: '日期', dataIndex: 'expenseDate', width: 140, render: (value) => value || '-' },
+  {
+    title: '金额',
+    dataIndex: 'amount',
+    width: 140,
+    align: 'right',
+    render: (value) => (
+      <>
+        ¥ <MoneyText value={value} fallback="0.00" />
+      </>
+    ),
+  },
+];
 
 interface ApprovalListEnvelope {
   code: number;
@@ -36,6 +58,10 @@ interface ApprovalListEnvelope {
 
 export default function ExpenseApprovalPage() {
   const router = useRouter();
+  const { can } = usePermission();
+  // 11.6-3：通过/驳回对应 reimbursement:approve（seed 中 staff 无此点，仅审批角色可见），
+  // 无权限时写操作按钮不渲染，查看保留
+  const canApprove = can('reimbursement:approve');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
   const [detailVisible, setDetailVisible] = useState(false);
@@ -43,6 +69,8 @@ export default function ExpenseApprovalPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
+  // 动作提交的目标直接用列表行 / 详情里的 record，避免依赖详情接口返回时机
+  const [actionTarget, setActionTarget] = useState<Reimbursement | null>(null);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -81,19 +109,32 @@ export default function ExpenseApprovalPage() {
     }
   };
 
-  const openAction = (type: 'approve' | 'reject') => {
+  const openAction = (type: 'approve' | 'reject', target: Reimbursement) => {
     setActionType(type);
+    setActionTarget(target);
     setComment('');
   };
 
+  const closeAction = () => {
+    setActionType(null);
+    setActionTarget(null);
+  };
+
   const handleAction = async () => {
-    if (!currentItem || !actionType) return;
+    // 竞态修复：详情接口可能还没返回，提交目标以点击时传入的 record 为准
+    if (!actionTarget || !actionType) return;
+    // 驳回原因必填：空串/纯空格一律拦截，不发起请求
+    if (actionType === 'reject' && !comment.trim()) {
+      Message.warning('请输入驳回原因');
+      return;
+    }
     setActionLoading(true);
     try {
-      const res = await reimbursementApi[actionType](currentItem.id, { comment });
+      const payloadComment = actionType === 'reject' ? comment.trim() : comment;
+      const res = await reimbursementApi[actionType](actionTarget.id, { comment: payloadComment });
       if (res.code === 0) {
         Message.success(actionType === 'approve' ? '已通过' : '已驳回');
-        setActionType(null);
+        closeAction();
         setDetailVisible(false);
         revalidate();
       } else {
@@ -133,16 +174,16 @@ export default function ExpenseApprovalPage() {
       title: '金额',
       dataIndex: 'totalAmount',
       width: 120,
-      render: (v: number) => <span className="font-medium text-text-1">¥ {formatMoney(v, '0.00')}</span>,
+      // 11.6-6：金额列负数红色标注
+      render: (v: number) => (
+        <span className="font-medium text-text-1">¥ <MoneyText value={v} fallback="0.00" /></span>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v: string) => {
-        const info = STATUS_MAP[v] || STATUS_MAP.draft;
-        return <Tag color={info.color}>{info.label}</Tag>;
-      },
+      render: (v: string) => <StatusTag status={v} statusMap={STATUS_MAP} />,
     },
     {
       title: '申请时间',
@@ -159,12 +200,16 @@ export default function ExpenseApprovalPage() {
           <Button size="mini" onClick={() => openDetail(record)}>
             查看
           </Button>
-          <Button size="mini" type="primary" onClick={() => { openDetail(record); setTimeout(() => openAction('approve'), 300); }}>
-            通过
-          </Button>
-          <Button size="mini" status="danger" onClick={() => { openDetail(record); setTimeout(() => openAction('reject'), 300); }}>
-            驳回
-          </Button>
+          {canApprove && (
+            <Button size="mini" type="primary" onClick={() => { openDetail(record); openAction('approve', record); }}>
+              通过
+            </Button>
+          )}
+          {canApprove && (
+            <Button size="mini" status="danger" onClick={() => { openDetail(record); openAction('reject', record); }}>
+              驳回
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -195,12 +240,12 @@ export default function ExpenseApprovalPage() {
         footer={
           <Space>
             <Button onClick={() => setDetailVisible(false)}>关闭</Button>
-            {currentItem && (currentItem.status === 'approving' || currentItem.status === 'pending') && (
+            {currentItem && canApprove && (currentItem.status === 'approving' || currentItem.status === 'pending') && (
               <>
-                <Button status="danger" onClick={() => openAction('reject')}>
+                <Button status="danger" onClick={() => openAction('reject', currentItem)}>
                   驳回
                 </Button>
-                <Button type="primary" onClick={() => openAction('approve')}>
+                <Button type="primary" onClick={() => openAction('approve', currentItem)}>
                   通过
                 </Button>
               </>
@@ -217,14 +262,10 @@ export default function ExpenseApprovalPage() {
               column={2}
               data={[
                 { label: '标题', value: currentItem.title },
-                { label: '金额', value: <span className="font-medium text-text-1">¥ {formatMoney(currentItem.totalAmount, '0.00')}</span> },
+                { label: '金额', value: <span className="font-medium text-text-1">¥ <MoneyText value={currentItem.totalAmount} fallback="0.00" /></span> },
                 { label: '申请人', value: currentItem.applicantName },
                 { label: '部门', value: currentItem.departmentName || '-' },
-                { label: '状态', value: (
-                  <Tag color={(STATUS_MAP[currentItem.status] || STATUS_MAP.draft).color}>
-                    {(STATUS_MAP[currentItem.status] || STATUS_MAP.draft).label}
-                  </Tag>
-                ) },
+                { label: '状态', value: <StatusTag status={currentItem.status} statusMap={STATUS_MAP} /> },
                 { label: '申请时间', value: currentItem.createdAt },
               ]}
             />
@@ -242,24 +283,14 @@ export default function ExpenseApprovalPage() {
                 <Divider />
                 <div>
                   <div className="font-medium mb-2">明细</div>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-border-2">
-                        <th scope="col" className="text-left p-2">费用名称</th>
-                        <th scope="col" className="text-left p-2">日期</th>
-                        <th scope="col" className="text-right p-2">金额</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentItem.items.map((item, idx) => (
-                        <tr key={item.id ?? idx} className="border-b border-border-2">
-                          <td className="p-2">{item.description || '-'}</td>
-                          <td className="p-2">{item.expenseDate || '-'}</td>
-                          <td className="p-2 text-right">¥ {formatMoney(item.amount, '0.00')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <Table
+                    rowKey={(item) => String(item.id ?? item.expenseDate ?? item.name)}
+                    size="small"
+                    border={false}
+                    pagination={false}
+                    columns={detailItemColumns}
+                    data={currentItem.items}
+                  />
                 </div>
               </>
             )}
@@ -271,7 +302,7 @@ export default function ExpenseApprovalPage() {
         title={actionType === 'approve' ? '通过审批' : '驳回审批'}
         visible={!!actionType}
         onOk={handleAction}
-        onCancel={() => setActionType(null)}
+        onCancel={closeAction}
         confirmLoading={actionLoading}
         okText={actionType === 'approve' ? '确认通过' : '确认驳回'}
       >

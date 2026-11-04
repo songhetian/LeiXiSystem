@@ -19,6 +19,7 @@ import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate, todayStr } from '@/lib/format';
 
 const FormItem = Form.Item;
@@ -55,7 +56,9 @@ interface Filters {
 
 export default function OkrPage() {
   const { can } = usePermission();
-  const canManage = can('performance:manage');
+  // 后端 OKR 全部写接口 @RequirePermission('okr:manage')，无个人自助写语义；
+  // 11.6-3：无权限的新建/编辑/删除/更新按钮不渲染（而非 disabled）
+  const canManage = can('okr:manage');
   const [filters, setFilters] = useState<Filters>({ type: '', status: '', keyword: '' });
 
   // 目标表单
@@ -93,12 +96,15 @@ export default function OkrPage() {
   );
   const data = resData ?? [];
 
-  // 负责人名称映射：共享缓存参考数据
+  // 负责人名称映射：共享缓存参考数据。
+  // 后端 pageSize 上限 100，pageSize: 200 会被静默压成 100，人数多的公司会缺负责人姓名
   const { data: empMapData } = useCachedData<Record<number, Employee>>(
     'system:employees-map',
     async () => {
-      const res = await employeeApi.getList({ page: 1, pageSize: 200 });
-      const list = res.data?.list ?? [];
+      const list = await fetchAllPages<Employee>(async (page, pageSize) => {
+        const res = await employeeApi.getList({ page, pageSize });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
       const map: Record<number, Employee> = {};
       list.forEach((e) => { map[e.id] = e; });
       return map;
@@ -389,9 +395,11 @@ export default function OkrPage() {
         <span className="text-sm text-text-3">共 {filteredCount} 个 OKR 目标</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" onClick={handleAddObjective} disabled={!canManage}>
-            + 新建目标
-          </Button>
+          {canManage && (
+            <Button type="primary" onClick={handleAddObjective}>
+              + 新建目标
+            </Button>
+          )}
         </div>
       </div>
 
@@ -486,14 +494,15 @@ export default function OkrPage() {
                           <div key={kr.id} className="rounded border border-border-2 bg-bg-page p-3 text-sm">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="font-medium text-text-1 truncate">{kr.title}</span>
-                              <Button
-                                size="mini"
-                                type="primary"
-                                disabled={!canManage}
-                                onClick={() => handleEditKr(obj.id, kr)}
-                              >
-                                更新
-                              </Button>
+                              {canManage && (
+                                <Button
+                                  size="mini"
+                                  type="primary"
+                                  onClick={() => handleEditKr(obj.id, kr)}
+                                >
+                                  更新
+                                </Button>
+                              )}
                             </div>
                             <div className="text-xs text-text-2 mb-1">
                               初始 {kr.initialValue ?? 0} → 目标 {kr.targetValue ?? 0}，当前 {kr.currentValue ?? 0}
@@ -502,37 +511,40 @@ export default function OkrPage() {
                             <Progress percent={kr.progress ?? 0} size="mini" />
                           </div>
                         ))}
-                        <Button
-                          size="small"
-                          type="primary"
-                          className="w-full"
-                          disabled={!canManage}
-                          onClick={() => handleAddKr(obj.id)}
-                        >
-                          + 新增关键结果
-                        </Button>
+                        {canManage && (
+                          <Button
+                            size="small"
+                            type="primary"
+                            className="w-full"
+                            onClick={() => handleAddKr(obj.id)}
+                          >
+                            + 新增关键结果
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      type="primary"
-                      size="small"
-                      style={{ flex: 1 }}
-                      disabled={!canManage}
-                      onClick={() => handleEditObjective(obj)}
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      size="small"
-                      status="danger"
-                      disabled={!canManage}
-                      onClick={() => handleDeleteObjective(obj)}
-                    >
-                      删除
-                    </Button>
+                    {canManage && (
+                      <Button
+                        type="primary"
+                        size="small"
+                        style={{ flex: 1 }}
+                        onClick={() => handleEditObjective(obj)}
+                      >
+                        编辑
+                      </Button>
+                    )}
+                    {canManage && (
+                      <Button
+                        size="small"
+                        status="danger"
+                        onClick={() => handleDeleteObjective(obj)}
+                      >
+                        删除
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

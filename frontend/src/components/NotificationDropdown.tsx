@@ -2,23 +2,39 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Badge, List, Button, Empty, Spin, Tag } from '@arco-design/web-react';
+import { Badge, List, Button, Empty, Tag } from '@arco-design/web-react';
 import { IconNotification } from '@arco-design/web-react/icon';
 import { useRouter } from 'next/navigation';
 import { useThrottle } from '@/hooks/use-throttle';
 import { notificationApi, Notification } from '@/services/notification';
+import { notificationTypeMeta } from '@/lib/notification-meta';
+import LoaderDots from '@/components/LoaderDots';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 export function NotificationDropdown() {
   const router = useRouter();
   const [unread, setUnread] = useState(0);
-  const [list, setList] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
-  // 通知面板的失败态：接口挂了不能显示「暂无新通知」（用户会以为确实没有消息）
-  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+
+  // 未读通知列表统一走共享缓存：打开面板立即出数据，失败不会被伪装成「暂无新通知」
+  const {
+    data: listRes,
+    loading,
+    error,
+    revalidate: revalidateList,
+  } = useCachedData<Awaited<ReturnType<typeof notificationApi.list>>>(
+    'notifications:dropdown:unread',
+    async () => {
+      const res = await notificationApi.list({ page: 1, pageSize: 5, read: false });
+      if (res.code !== 0) throw new Error(res.message || '通知加载失败');
+      return res;
+    },
+    { staleTime: 30_000 },
+  );
+  const list = listRes?.data?.list ?? [];
 
   const updatePanelPosition = useCallback(() => {
     if (triggerRef.current) {
@@ -55,34 +71,22 @@ export function NotificationDropdown() {
     }
   }, []);
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await notificationApi.list({ page: 1, pageSize: 5, read: false });
-      if (res.code !== 0) throw new Error(res.message || '通知加载失败');
-      setList(res.data?.list ?? []);
-      setError(null);
-    } catch (e) {
-      // 保留旧列表（若有）：失败信息挂在面板顶部，不把旧消息抹掉
-      setError((e as Error)?.message || '通知加载失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchUnread();
-    const handler = () => fetchUnread();
+    // socket 推送到达时：未读数与面板列表一起刷新（列表由共享缓存去重）
+    const handler = () => {
+      fetchUnread();
+      void revalidateList();
+    };
     window.addEventListener('socket-notification', handler);
     return () => window.removeEventListener('socket-notification', handler);
-  }, [fetchUnread]);
+  }, [fetchUnread, revalidateList]);
 
   useEffect(() => {
     if (open) {
       updatePanelPosition();
-      fetchList();
     }
-  }, [open, fetchList, updatePanelPosition]);
+  }, [open, updatePanelPosition]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -130,7 +134,8 @@ export function NotificationDropdown() {
       try {
         await notificationApi.markRead(item.id);
         setUnread((prev) => Math.max(0, prev - 1));
-        setList((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
+        // 已读状态变化后让共享缓存重新拉取，避免本地副本与列表页不一致
+        void revalidateList();
       } catch {
         // 忽略
       }
@@ -141,7 +146,7 @@ export function NotificationDropdown() {
     try {
       await notificationApi.markAllRead();
       setUnread(0);
-      setList((prev) => prev.map((n) => ({ ...n, read: true })));
+      void revalidateList();
     } catch {
       // 忽略
     }
@@ -152,12 +157,7 @@ export function NotificationDropdown() {
     router.push('/notifications');
   };
 
-  const typeMap: Record<string, { color: string; label: string }> = {
-    approval: { color: 'blue', label: '审批' },
-    payslip: { color: 'green', label: '薪资' },
-    system: { color: 'orange', label: '系统' },
-    attendance: { color: 'purple', label: '考勤' },
-  };
+  // 类型颜色/文案统一走 lib/notification-meta.ts（与通知中心列表页同源）
 
   return (
     <div ref={triggerRef} style={{ position: 'relative' }}>
@@ -200,12 +200,15 @@ export function NotificationDropdown() {
                 className="flex items-center justify-between gap-2 border-b border-danger bg-danger-light px-3 py-2 text-xs text-danger"
               >
                 <span>{error}</span>
-                <Button type="text" size="mini" onClick={fetchList}>
+                <Button type="text" size="mini" onClick={() => void revalidateList()}>
                   重试
                 </Button>
               </div>
             )}
-            <Spin loading={loading} style={{ display: 'block' }}>
+            {loading ? (
+        <LoaderDots />
+      ) : (
+        <>
               {list.length === 0 && !loading && !error ? (
                 <Empty description="暂无新通知" style={{ padding: '24px 0' }} />
               ) : (
@@ -217,7 +220,7 @@ export function NotificationDropdown() {
                       key={item.id}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${typeMap[item.type]?.label || item.type}：${item.title}`}
+                      aria-label={`${notificationTypeMeta(item.type).label}：${item.title}`}
                       onKeyDown={(e: React.KeyboardEvent) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -234,8 +237,8 @@ export function NotificationDropdown() {
                       <List.Item.Meta
                         title={
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Tag color={typeMap[item.type]?.color || 'gray'} size="small">
-                              {typeMap[item.type]?.label || item.type}
+                            <Tag color={notificationTypeMeta(item.type).color} size="small">
+                              {notificationTypeMeta(item.type).label}
                             </Tag>
                             <span style={{ fontWeight: 500, fontSize: 13 }}>{item.title}</span>
                           </div>
@@ -250,7 +253,8 @@ export function NotificationDropdown() {
                   )}
                 />
               )}
-            </Spin>
+            </>
+      )}
           </div>
           <div style={styles.panelFooter}>
             <Button type="text" size="small" long onClick={handleViewAll}>

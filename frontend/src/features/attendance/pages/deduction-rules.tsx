@@ -5,10 +5,11 @@ import {
   Message,
   Modal,
   Button,
-  Tag,
   Space,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import ProTable from '@/components/ProTable';
 import type { ProTableColumn } from '@/components/ProTable';
 import { notifyError } from '@/lib/request';
@@ -21,6 +22,7 @@ import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
 import { todayStr } from '@/lib/format';
+import { ENABLED_STATUS_MAP } from '@/features/attendance/lib/status-maps';
 
 /** 扣款方式中文映射（固定 / 比例 / 倍数） */
 function methodLabel(method?: string): string {
@@ -173,7 +175,7 @@ export default function DeductionRulesPage() {
       title: '状态',
       dataIndex: 'enabled',
       width: 90,
-      render: (v) => <Tag color={v ? 'green' : 'gray'}>{v ? '启用' : '停用'}</Tag>,
+      render: (v) => <StatusTag status={v ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />,
     },
     { title: '描述', dataIndex: 'description', ellipsis: true },
     {
@@ -182,8 +184,11 @@ export default function DeductionRulesPage() {
       width: 140,
       render: (_: any, record: DeductionRule) => (
         <Space>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleEdit(record)}>编辑</Button>
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleDelete(record)}>删除</Button>
+          {/* 规则编辑/删除是扣款规则配置写操作：无权限不渲染 */}
+          <PermissionGate code="attendance:deduction:manage">
+            <Button size="small" type="text" onClick={() => handleEdit(record)}>编辑</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
@@ -243,14 +248,10 @@ export default function DeductionRulesPage() {
         loading={loading}
         error={error}
         onRetry={revalidate}
-        toolbar={[
-          {
-            key: 'add',
-            label: '+ 新增扣款规则',
-            onClick: handleAdd,
-            disabled: !canManage,
-          },
-        ]}
+        // 新增规则是扣款规则配置写操作：无权限时工具栏不渲染
+        toolbar={canManage
+          ? [{ key: 'add', label: '+ 新增扣款规则', onClick: handleAdd }]
+          : []}
         showExport
         onExport={handleExport}
         pagination={false}

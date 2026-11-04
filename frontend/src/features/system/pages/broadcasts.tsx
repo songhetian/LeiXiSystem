@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { broadcastApi, Broadcast, BroadcastCreateDto } from '@/services/broadcast';
@@ -109,14 +111,15 @@ export default function BroadcastsPage() {
     setCurrentBroadcast(null);
   };
 
+  // 广播状态统一走公共 StatusTag
   const getStatusTag = (status: string) => {
     const map: Record<string, { color: string; text: string }> = {
-      draft: { color: 'gray', text: '草稿' },
-      published: { color: 'green', text: '已发布' },
-      archived: { color: 'orange', text: '已归档' },
+      draft: { color: 'default', text: '草稿' },
+      published: { color: 'success', text: '已发布' },
+      archived: { color: 'warning', text: '已归档' },
     };
-    const info = map[status] || { color: 'gray', text: status };
-    return <Tag color={info.color}>{info.text}</Tag>;
+    const info = map[status] || { color: 'default', text: status };
+    return <StatusTag status={status} statusMap={{ [status]: { label: info.text, color: info.color } }} />;
   };
 
   const getRecipientTypeText = (type: string) => {
@@ -173,19 +176,24 @@ export default function BroadcastsPage() {
       width: 220,
       render: (_: any, record: Broadcast) => (
         <Space>
+          {/* 「查看」不属管理写操作，始终渲染 */}
           <Button size="small" type="text" onClick={() => handleViewDetail(record)}>查看</Button>
-          {record.status === 'draft' && (
-            <Button size="small" type="text" disabled={!can('system:broadcast:manage')} onClick={() => handlePublish(record)}>发布</Button>
-          )}
-          <Button size="small" type="text" status="danger" disabled={!can('system:broadcast:manage')} onClick={() => handleDelete(record)}>删除</Button>
+          {/* 按钮级权限：无 system:broadcast:manage 时发布/删除不渲染 */}
+          <PermissionGate code="system:broadcast:manage">
+            {record.status === 'draft' && (
+              <Button size="small" type="text" onClick={() => handlePublish(record)}>发布</Button>
+            )}
+            <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建公告', type: 'primary', disabled: !can('system:broadcast:manage'), onClick: () => Message.info('新建公告功能开发中') },
-  ];
+  // 工具栏为配置数组，无权限时返回空数组让「新建公告」整体不渲染
+  const toolbar: ProTableToolbarAction[] = can('system:broadcast:manage')
+    ? [{ key: 'add', label: '新建公告', type: 'primary', onClick: () => Message.info('新建公告功能开发中') }]
+    : [];
 
   return (
     <PageContainer >

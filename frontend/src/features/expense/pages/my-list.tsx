@@ -8,8 +8,9 @@ import StatusTag from '@/components/StatusTag';
 import { reimbursementApi, Reimbursement } from '@/services/reimbursement';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { useCachedData } from '@/hooks/use-cached-data';
-import useFetchState from '@/hooks/use-fetch-state';
+import { usePermission } from '@/hooks/use-permission';
 import { formatDateTime, formatMoney } from '@/lib/format';
+import MoneyText from '@/components/MoneyText';
 import ReimbursementForm, { resolveFileUrl } from '@/features/expense/components/ReimbursementForm';
 
 interface ReimbursementListEnvelope {
@@ -48,13 +49,28 @@ const statusMap: Record<string, { label: string; color: string }> = {
 type ConfirmAction = { type: 'delete' | 'cancel'; record: Reimbursement } | null;
 
 export default function MyReimbursementPage() {
+  const { can } = usePermission();
+  // 11.6-3：新建报销对应 reimbursement:create（seed 中 staff 角色含此自助点），无权限不渲染；
+  // 提交/撤销/删除是个人单据自助动作，不套管理权限点
+  const canCreate = can('reimbursement:create');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
   const [detailVisible, setDetailVisible] = useState(false);
-  const { data: currentReimbursement, loading: detailLoading, error: detailError, run: runFetchDetail } = useFetchState<Reimbursement>();
+  const [detailId, setDetailId] = useState<number | null>(null);
+  // SWR 缓存：详情按单据 id 共享缓存，detailId 变化自动重拉；未打开详情时不发请求
+  const { data: currentReimbursement, loading: detailLoading, error: detailError } =
+    useCachedData<Reimbursement>(
+      `expense:my-detail:${detailId ?? 'none'}`,
+      async () => {
+        if (!detailId) return null as unknown as Reimbursement;
+        const result = await reimbursementApi.getDetail(detailId);
+        if (result.code === 0 && result.data) return result.data;
+        throw new Error(result.message || '获取详情失败');
+      },
+    );
 
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -93,13 +109,8 @@ export default function MyReimbursementPage() {
   const handleCreateCancel = () => setCreateModalVisible(false);
 
   const viewDetail = (record: Reimbursement) => {
+    setDetailId(record.id);
     setDetailVisible(true);
-    void runFetchDetail(() =>
-      reimbursementApi.getDetail(record.id).then((result) => {
-        if (result.code === 0 && result.data) return result.data;
-        throw new Error(result.message || '获取详情失败');
-      }),
-    );
   };
 
   const handleDetailCancel = () => {
@@ -148,8 +159,9 @@ export default function MyReimbursementPage() {
       title: '金额',
       dataIndex: 'totalAmount',
       width: 120,
+      // 11.6-6：金额列负数红色标注
       render: (value: number) => (
-        <span style={{ fontWeight: 600 }}>¥ {formatMoney(value)}</span>
+        <span style={{ fontWeight: 600 }}>¥ <MoneyText value={value} /></span>
       ),
     },
     {
@@ -194,9 +206,10 @@ export default function MyReimbursementPage() {
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'create', label: '新建报销', type: 'primary', onClick: handleCreate },
-  ];
+  // 11.6-3：无 reimbursement:create 时工具栏不出现「新建报销」入口
+  const toolbar: ProTableToolbarAction[] = canCreate
+    ? [{ key: 'create', label: '新建报销', type: 'primary', onClick: handleCreate }]
+    : [];
 
   const renderDetailContent = () => {
     if (detailError) {
@@ -216,7 +229,7 @@ export default function MyReimbursementPage() {
             { label: '报销分类', value: currentReimbursement.typeName || '-' },
             { label: '申请人', value: currentReimbursement.applicantName },
             { label: '部门', value: currentReimbursement.departmentName || '-' },
-            { label: '总金额', value: `¥ ${formatMoney(currentReimbursement.totalAmount)}` },
+            { label: '总金额', value: <>¥ <MoneyText value={currentReimbursement.totalAmount} /></> },
             {
               label: '状态',
               value: statusMap[currentReimbursement.status]?.label || currentReimbursement.status,
@@ -331,7 +344,7 @@ export default function MyReimbursementPage() {
         okText="确认"
         cancelText="取消"
       >
-        <div style={{ fontSize: 14, color: 'var(--color-text-2)' }}>
+        <div style={{ fontSize: 14, color: 'var(--lx-text-2)' }}>
           {confirm?.type === 'delete'
             ? '删除后无法恢复，确定删除该报销单？'
             : '撤销后该报销单将变为草稿状态，确定撤销？'}

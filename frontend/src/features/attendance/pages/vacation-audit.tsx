@@ -26,19 +26,13 @@ import { useDepartments } from '@/hooks/use-departments';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { usePermission } from '@/hooks/use-permission';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate, todayStr, formatDateTime } from '@/lib/format';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { LEAVE_STATUS_MAP as statusMap } from '@/features/attendance/lib/status-maps';
 
 // 批次六 · 考勤申请聚合审计（对齐参考 CompensatoryApproval 的审批人审计信息层级）
-const statusMap: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'gray' },
-  pending: { label: '待提交', color: 'gray' },
-  approving: { label: '审批中', color: 'arcoblue' },
-  approved: { label: '已通过', color: 'green' },
-  rejected: { label: '已拒绝', color: 'red' },
-  cancelled: { label: '已取消', color: 'gray' },
-};
-
+// color 使用 StatusTag 语义色（Arco Design Pro 标准）
 const recordTypeMap: Record<string, string> = {
   leave: '请假',
   overtime: '加班',
@@ -169,8 +163,11 @@ export default function VacationAuditPage() {
   // 导出 Excel（前端本地导出当前筛选全量）
   const handleExport = async () => {
     try {
-      const res = await attendanceApi.getAuditList({ page: 1, pageSize: 10000, ...searchParams });
-      const list = (res.data?.list ?? []) as AttendanceAuditRow[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<AttendanceAuditRow>(async (page, pageSize) => {
+        const res = await attendanceApi.getAuditList({ page, pageSize, ...searchParams });
+        return { list: (res.data?.list ?? []) as AttendanceAuditRow[], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `考勤审计_${todayStr()}.xlsx`,
         '考勤审计',
@@ -329,9 +326,7 @@ export default function VacationAuditPage() {
               </div>
             ) : (
               <div className="p-4 rounded-lg bg-bg-secondary flex items-center justify-between">
-                <Tag color={current.status === 'approved' ? 'green' : 'red'} size="medium">
-                  {statusMap[current.status]?.label || current.status}
-                </Tag>
+                <StatusTag status={current.status} statusMap={statusMap} />
                 <span className="text-xs text-text-3">{current.approvalNote || '无审批备注'}</span>
               </div>
             )}

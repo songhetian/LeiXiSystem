@@ -1,10 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import EmployeeChangeLogsPage from '@/features/employee/pages/change-logs';
 import { employeeApi } from '@/services/employee';
 import { systemApi } from '@/services/system';
 import { clearDataCache } from '@/hooks/use-cached-data';
 import { clearDictCache } from '@/hooks/use-dict';
+import { exportToExcel } from '@/lib/excel';
 
 jest.mock('@/services/employee', () => ({
   employeeApi: {
@@ -16,6 +18,10 @@ jest.mock('@/services/system', () => ({
   systemApi: {
     listDepartments: jest.fn(),
   },
+}));
+
+jest.mock('@/lib/excel', () => ({
+  exportToExcel: jest.fn(),
 }));
 
 jest.mock('@/components/PageContainer', () => ({
@@ -46,7 +52,7 @@ jest.mock('@/components/ProTable', () => ({
       {toolbar && (
         <div data-testid="toolbar">
           {toolbar.map((t: any) => (
-            <button key={t.key} data-testid={`toolbar-${t.key}`}>{t.label}</button>
+            <button key={t.key} data-testid={`toolbar-${t.key}`} onClick={t.onClick}>{t.label}</button>
           ))}
         </div>
       )}
@@ -136,6 +142,39 @@ describe('员工变动流水页', () => {
     });
     // 「变动字段」列：resignReason 应显示为「离职原因」
     expect(screen.getByTestId('cell-1-变动字段')).toHaveTextContent('离职原因');
+  });
+
+  it('导出会翻页取全量（后端 pageSize 上限 100，不静默只导第一页）', async () => {
+    const user = userEvent.setup();
+    // 150 条流水：按后端上限需分 2 页才能取全
+    const rows = Array.from({ length: 150 }, (_, i) => ({ ...mockRows[0], id: i + 1 }));
+    (employeeApi.getChangeLogs as jest.Mock).mockImplementation(({ page, pageSize }: any) =>
+      Promise.resolve({
+        code: 0,
+        message: 'ok',
+        data: {
+          list: rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+          total: rows.length,
+          page,
+          pageSize,
+        },
+      }),
+    );
+
+    render(<EmployeeChangeLogsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('toolbar-export')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('toolbar-export'));
+
+    await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+    const exported = (exportToExcel as jest.Mock).mock.calls[0][3];
+    expect(exported).toHaveLength(150);
+    const pages = (employeeApi.getChangeLogs as jest.Mock).mock.calls
+      .map((c: any[]) => c[0])
+      .filter((p: any) => p.pageSize !== 20)
+      .map((p: any) => p.page);
+    expect(pages).toEqual([1, 2]);
   });
 
   it('变动时间按北京时间格式化，不泄漏 UTC 原始串', async () => {

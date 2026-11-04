@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ApprovalTodoPage from '@/features/approval/pages/todo';
 import { approvalApi } from '@/services/approval';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/approval', () => ({
   approvalApi: {
@@ -31,11 +32,45 @@ jest.mock('@/components/StatusTag', () => ({
   ),
 }));
 
-jest.mock('@/components/DataState', () => ({
+// 页面已迁公共组件 ProTable（内部依赖 SearchForm/DatePicker 等），按仓库约定直接 mock
+jest.mock('@/components/ProTable', () => ({
   __esModule: true,
-  default: ({ children, loading, error, isEmpty }: any) => (
-    <div data-testid="data-state" data-loading={loading ? 'true' : 'false'} data-error={error || ''} data-empty={isEmpty ? 'true' : 'false'}>
-      {children}
+  default: ({ columns, data, rowKey, pagination, onPageChange }: any) => (
+    <div data-testid="table">
+      <table>
+        <thead>
+          <tr>
+            {columns.map((col: any) => (
+              <th key={col.dataIndex} data-testid={`col-${col.dataIndex}`}>{col.title}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row: any) => (
+            <tr key={row[rowKey]} data-testid="table-row">
+              {columns.map((col: any) => (
+                <td key={col.dataIndex} data-testid={`cell-${row[rowKey]}-${col.dataIndex}`}>
+                  {col.render ? col.render(row[col.dataIndex], row) : row[col.dataIndex]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {pagination && (
+        <div data-testid="pagination">
+          <span data-testid="page-current">{pagination.current}</span>
+          <span data-testid="page-total">{pagination.total}</span>
+          <button
+            data-testid="page-prev"
+            onClick={() => onPageChange?.(pagination.current - 1, pagination.pageSize)}
+          >上一页</button>
+          <button
+            data-testid="page-next"
+            onClick={() => onPageChange?.(pagination.current + 1, pagination.pageSize)}
+          >下一页</button>
+        </div>
+      )}
     </div>
   ),
 }));
@@ -177,6 +212,8 @@ const mockSubmissions = [
 describe('ApprovalTodoPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // useCachedData 模块级共享缓存需在用例间清空，防止缓存串数据
+    clearDataCache();
     (approvalApi.listTodos as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: mockTodos, total: 2, page: 1, pageSize: 20 },
@@ -211,19 +248,14 @@ describe('ApprovalTodoPage', () => {
   describe('待办列表', () => {
     it('renders todo items with correct columns', async () => {
       render(<ApprovalTodoPage />);
-      await waitFor(() => {
-        expect(approvalApi.listTodos).toHaveBeenCalled();
-      });
-      expect(screen.getByText('请假申请-张三')).toBeInTheDocument();
+      // 数据层已迁 useCachedData（异步 setState），等数据渲染后再断言
+      await screen.findByText('请假申请-张三');
       expect(screen.getByText('加班申请-李四')).toBeInTheDocument();
     });
 
     it('renders workflow name and submitter info', async () => {
       render(<ApprovalTodoPage />);
-      await waitFor(() => {
-        expect(approvalApi.listTodos).toHaveBeenCalled();
-      });
-      expect(screen.getByText('请假审批')).toBeInTheDocument();
+      await screen.findByText('请假审批');
       expect(screen.getByText('张三')).toBeInTheDocument();
       expect(screen.getByText('技术部')).toBeInTheDocument();
     });
@@ -231,17 +263,15 @@ describe('ApprovalTodoPage', () => {
     it('renders status tag for pending items', async () => {
       render(<ApprovalTodoPage />);
       await waitFor(() => {
-        expect(approvalApi.listTodos).toHaveBeenCalled();
+        expect(screen.getAllByTestId('status-tag-pending').length).toBeGreaterThan(0);
       });
-      expect(screen.getAllByTestId('status-tag-pending').length).toBeGreaterThan(0);
     });
 
     it('has 同意 and 驳回 buttons on todo items', async () => {
       render(<ApprovalTodoPage />);
       await waitFor(() => {
-        expect(approvalApi.listTodos).toHaveBeenCalled();
+        expect(screen.getAllByTestId('btn-同意').length).toBeGreaterThan(0);
       });
-      expect(screen.getAllByTestId('btn-同意').length).toBeGreaterThan(0);
       expect(screen.getAllByTestId('btn-驳回').length).toBeGreaterThan(0);
     });
   });
@@ -342,6 +372,9 @@ describe('ApprovalTodoPage', () => {
       render(<ApprovalTodoPage />);
       await waitFor(() => {
         expect(approvalApi.listTodos).toHaveBeenCalledTimes(1);
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId('btn-同意').length).toBeGreaterThan(0);
       });
       const approveBtn = screen.getAllByTestId('btn-同意')[0];
       await user.click(approveBtn);

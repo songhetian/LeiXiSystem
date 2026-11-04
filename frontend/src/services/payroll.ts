@@ -143,7 +143,8 @@ export const payrollApi = {
   },
 
   updateSalaryItem(id: number, params: UpdateSalaryItemParams): Promise<DetailResult<SalaryItem>> {
-    return request.patch(`/payroll/items/${id}`, params);
+    // 后端更新走 PUT；PATCH /payroll/items/:id 是「启用/停用」，用错会静默改错字段
+    return request.put(`/payroll/items/${id}`, params);
   },
 
   getPayrollRuns(params: PayrollRunListParams = {}): Promise<ListResult<PayrollRun>> {
@@ -152,10 +153,6 @@ export const payrollApi = {
 
   createPayrollRun(params: CreatePayrollRunParams): Promise<DetailResult<PayrollRun>> {
     return request.post('/payroll/runs', params);
-  },
-
-  getPayrollRunDetail(id: number): Promise<DetailResult<PayrollRun>> {
-    return request.get(`/payroll/runs/${id}`);
   },
 
   getPayrollRunDetails(id: number): Promise<DetailResult<PayrollRunDetails>> {

@@ -64,7 +64,9 @@ interface Filters {
 
 export default function CyclesPage() {
   const { can } = usePermission();
-  const canManage = can('performance:manage');
+  // 后端周期 CRUD 均 @RequirePermission('performance:cycle:manage')，
+  // 11.6-3：无权限的新建/编辑/删除按钮不渲染（而非 disabled）
+  const canManage = can('performance:cycle:manage');
   const [filters, setFilters] = useState<Filters>({ type: '', status: '', keyword: '' });
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -278,9 +280,11 @@ export default function CyclesPage() {
         <span className="text-sm text-text-3">共 {filteredCount} 个绩效周期</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" onClick={handleAdd} disabled={!canManage}>
-            + 新建周期
-          </Button>
+          {canManage && (
+            <Button type="primary" onClick={handleAdd}>
+              + 新建周期
+            </Button>
+          )}
         </div>
       </div>
 
@@ -346,23 +350,25 @@ export default function CyclesPage() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      type="primary"
-                      size="small"
-                      style={{ flex: 1 }}
-                      disabled={!canManage}
-                      onClick={() => handleEdit(cycle)}
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      size="small"
-                      status="danger"
-                      disabled={!canManage}
-                      onClick={() => handleDelete(cycle)}
-                    >
-                      删除
-                    </Button>
+                    {canManage && (
+                      <Button
+                        type="primary"
+                        size="small"
+                        style={{ flex: 1 }}
+                        onClick={() => handleEdit(cycle)}
+                      >
+                        编辑
+                      </Button>
+                    )}
+                    {canManage && (
+                      <Button
+                        size="small"
+                        status="danger"
+                        onClick={() => handleDelete(cycle)}
+                      >
+                        删除
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

@@ -18,6 +18,12 @@ jest.mock('@/services/reimbursement', () => ({
   },
 }));
 
+// 权限门：默认有 reimbursement:create（staff 自助点），个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
+jest.mock('@/hooks/use-permission', () => ({
+  usePermission: () => ({ can: (perm: string) => mockCan(perm) }),
+}));
+
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -157,6 +163,7 @@ describe('MyReimbursementPage', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
     (reimbursementApi.getTypes as jest.Mock).mockResolvedValue({ code: 0, data: mockTypes });
     (reimbursementApi.getExpenseTypes as jest.Mock).mockResolvedValue({ code: 0, data: mockExpenseTypes });
     (reimbursementApi.getMyReimbursements as jest.Mock).mockResolvedValue({
@@ -172,8 +179,10 @@ describe('MyReimbursementPage', () => {
   });
 
   describe('正常用例', () => {
-    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', async () => {
       render(<MyReimbursementPage />);
+      // 冲刷挂载后的异步请求更新，避免同步用例结束时更新落在 act 空窗期产生告警
+      await screen.findByTestId('page-container');
       expect(screen.queryByTestId('page-title')).toBeNull();
     });
 
@@ -202,7 +211,8 @@ describe('MyReimbursementPage', () => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
       expect(screen.getByTestId('cell-1-title')).toHaveTextContent('8月北京出差报销');
-      expect(screen.getByTestId('cell-1-totalAmount')).toContainHTML('¥ 1,500.00');
+      // 金额经 MoneyText 组件渲染（负数标红），这里断言可读文本
+      expect(screen.getByTestId('cell-1-totalAmount')).toHaveTextContent('¥ 1,500.00');
     });
 
     it('renders status tags for each status', async () => {
@@ -419,6 +429,44 @@ describe('MyReimbursementPage', () => {
       await waitFor(() => {
         expect(reimbursementApi.getMyReimbursements).toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('权限门（11.6-3）', () => {
+    it('无 reimbursement:create 时新建报销不渲染，列表与个人自助操作不受影响', async () => {
+      mockCan.mockImplementation((code?: string) => code !== 'reimbursement:create');
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      expect(screen.queryByTestId('toolbar-create')).not.toBeInTheDocument();
+      // 个人自助动作（提交/撤销/删除）不套管理权限点，照常渲染
+      expect(screen.getAllByRole('button', { name: /提交/ }).length).toBe(1);
+    });
+
+    it('新建报销权限判定使用 reimbursement:create（staff 角色含此点，不误藏）', async () => {
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-create')).toBeInTheDocument();
+      });
+      expect(mockCan).toHaveBeenCalledWith('reimbursement:create');
+    });
+
+    it('金额列负数红色标注（11.6-6，MoneyText）', async () => {
+      (reimbursementApi.getMyReimbursements as jest.Mock).mockResolvedValue({
+        code: 0,
+        data: {
+          list: [{ ...mockReimbursements[0], totalAmount: -120 }],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      });
+      render(<MyReimbursementPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(1);
+      });
+      expect(screen.getByText('-120.00')).toHaveClass('lx-money-negative');
     });
   });
 });

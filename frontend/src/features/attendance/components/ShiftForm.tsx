@@ -55,7 +55,7 @@ export default function ShiftForm({
     initialValues.useGlobalThreshold ?? true,
   );
   // 颜色字段的响应式值（Form.getFieldValue 不会触发重渲染）
-  const colorValue = Form.useWatch('color', form) ?? (initialValues.color ?? '#3B82F6');
+  const colorValue = Form.useWatch('color', form) ?? (initialValues.color ?? '#2455D9');
   const startTimeValue = Form.useWatch('startTime', form);
   const endTimeValue = Form.useWatch('endTime', form);
   const restDurationValue = Form.useWatch('restDuration', form);
@@ -131,7 +131,7 @@ export default function ShiftForm({
       useGlobalThreshold: !!useGlobalThreshold,
       description: (values.description || '').trim(),
       isActive: values.isActive !== false,
-      color: values.color || '#3B82F6',
+      color: values.color || '#2455D9',
     };
     if (!useGlobalThreshold && (payload.lateThreshold < 0 || payload.earlyThreshold < 0)) return;
     setInternalLoading(true);

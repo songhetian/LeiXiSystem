@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Select, Input, Tag, Space } from '@arco-design/web-react';
+import { Message, Modal, Button, Select, Input, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable from '@/components/ProTable';
+import { PermissionGate } from '@/components/PermissionGate';
 import { notifyError } from '@/lib/request';
 import type { ProTableColumn } from '@/components/ProTable';
 import { attendanceLocationApi, AttendanceLocation, AttendanceLocationCreateDto, AttendanceLocationUpdateDto } from '@/services/employee';
@@ -14,9 +16,15 @@ import { todayStr } from '@/lib/format';
 
 /** 工作类型中文映射 */
 const WORK_TYPE_MAP: Record<string, { label: string; color: string }> = {
-  office: { label: '办公', color: 'arcoblue' },
+  office: { label: '办公', color: 'info' },
   home: { label: '居家', color: 'purple' },
-  field: { label: '外勤', color: 'orange' },
+  field: { label: '外勤', color: 'warning' },
+};
+
+// 启用/停用状态统一走公共 StatusTag
+const ENABLED_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  enabled: { label: '启用', color: 'success' },
+  disabled: { label: '停用', color: 'default' },
 };
 const WORK_TYPE_OPTIONS = [
   { value: 'office', label: '办公' },
@@ -32,6 +40,7 @@ interface LocationListEnvelope {
 
 export default function LocationsPage() {
   const { can } = usePermission();
+  // 打卡定位写操作（新建/编辑/启停/删除）→ attendance:location:manage（挂考勤模块），按钮无权限不渲染
   const canManage = can('attendance:location:manage');
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -194,27 +203,30 @@ export default function LocationsPage() {
       width: 100,
       render: (v: string) => {
         const map = WORK_TYPE_MAP[v];
-        return map ? <Tag color={map.color}>{map.label}</Tag> : v;
+        // 工作类型标签统一走公共 StatusTag
+        return map ? <StatusTag status={v} statusMap={{ [v]: map }} /> : v;
       },
     },
     {
       title: '状态',
       dataIndex: 'enabled',
       width: 90,
-      render: (v: boolean) => <Tag color={v ? 'green' : 'gray'}>{v ? '启用' : '停用'}</Tag>,
+      render: (v: boolean) => <StatusTag status={v ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />,
     },
     {
       title: '操作',
       dataIndex: 'actions',
       width: 200,
       render: (_: any, record: AttendanceLocation) => (
-        <Space size={4}>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleEdit(record)}>编辑</Button>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleToggleEnabled(record)}>
-            {record.enabled ? '停用' : '启用'}
-          </Button>
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleDelete(record)}>删除</Button>
-        </Space>
+        <PermissionGate code="attendance:location:manage">
+          <Space size={4}>
+            <Button size="small" type="text" onClick={() => handleEdit(record)}>编辑</Button>
+            <Button size="small" type="text" onClick={() => handleToggleEnabled(record)}>
+              {record.enabled ? '停用' : '启用'}
+            </Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
@@ -228,14 +240,18 @@ export default function LocationsPage() {
         loading={loading}
         error={error}
         onRetry={revalidate}
-        toolbar={[
-          {
-            key: 'add',
-            label: '+ 新建定位',
-            onClick: handleAdd,
-            disabled: !canManage,
-          },
-        ]}
+        // 新建定位为写操作 → attendance:location:manage，无权限不渲染
+        toolbar={
+          canManage
+            ? [
+                {
+                  key: 'add',
+                  label: '+ 新建定位',
+                  onClick: handleAdd,
+                },
+              ]
+            : []
+        }
         showExport
         onExport={handleExport}
         pagination={false}

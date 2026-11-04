@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
-import { Drawer, Spin, Empty } from '@arco-design/web-react';
+import { type ReactNode } from 'react';
+import { Drawer, Empty } from '@arco-design/web-react';
 import StatusTag from '@/components/StatusTag';
 import { employeeApi, Employee, EmployeeChangeLog } from '@/services/employee';
 import { formatDate, formatDateTime as formatDateTimeTz, formatMoney } from '@/lib/format';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
+import LoaderDots from '@/components/LoaderDots';
 
 interface TimelineItem {
   key: string;
@@ -114,20 +115,21 @@ interface Props {
 }
 
 export default function EmployeeDetailModal({ employeeId, visible, onClose }: Props) {
-  const { data, loading, run } = useFetchState<{ emp: Employee | null; logs: EmployeeChangeLog[] }>();
-  const emp = data?.emp ?? null;
-  const logs = data?.logs ?? [];
-
-  useEffect(() => {
-    if (!visible || !employeeId) return;
-    void run(async () => {
+  // SWR 缓存：employeeId 变化（打开不同员工）自动重拉；同一员工 60s 内复用缓存。
+  // employeeId 为 null（弹窗未打开）时不发请求，保持「打开时拉取」的时机语义。
+  const { data, loading } = useCachedData<{ emp: Employee | null; logs: EmployeeChangeLog[] }>(
+    `employee:detail-modal:${employeeId ?? 'none'}`,
+    async () => {
+      if (!employeeId) return { emp: null, logs: [] };
       const [detailRes, logRes] = await Promise.all([
         employeeApi.getById(employeeId),
         employeeApi.getEmployeeChangeLogs(employeeId),
       ]);
       return { emp: detailRes.data ?? null, logs: logRes.data ?? [] };
-    });
-  }, [visible, employeeId, run]);
+    },
+  );
+  const emp = data?.emp ?? null;
+  const logs = data?.logs ?? [];
 
   const timeline = buildTimeline(emp, logs);
 
@@ -143,8 +145,7 @@ export default function EmployeeDetailModal({ employeeId, visible, onClose }: Pr
     >
       {loading ? (
         <div className="ed-loading">
-          <Spin size={24} />
-          <span>加载中…</span>
+          <LoaderDots />
         </div>
       ) : !emp ? (
         <Empty description="未找到员工信息" />

@@ -7,7 +7,8 @@ import DataState from '@/components/DataState';
 import SalaryComposition from '@/features/payroll/components/SalaryComposition';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { payrollApi, PayrollRun, PayrollEmployeeDetail, SalaryItem } from '@/services/payroll';
-import { formatMoney } from '@/lib/format';
+import MoneyText from '@/components/MoneyText';
+import { exportToExcel } from '@/lib/excel';
 
 interface RunDetailsModalProps {
   run: PayrollRun;
@@ -111,7 +112,8 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
       if (!visible) {
         return { code: 0, message: '', data: { list: [], total: 0, page: 1, pageSize: 20 } } as Awaited<ReturnType<typeof payrollApi.getSalaryItems>>;
       }
-      const res = await payrollApi.getSalaryItems({ status: 'active' });
+      // 一次取满启用项：接口已改为 {list,total} 分页信封，默认页大小 20 会截断下拉选项
+      const res = await payrollApi.getSalaryItems({ status: 'active', pageSize: 100 });
       if (res.code !== 0) throw new Error(res.message || '工资项读取失败');
       return res;
     },
@@ -197,6 +199,43 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
     });
   };
 
+  /**
+   * 导出批次明细：按「员工 × 明细项」摊平导出，财务可在 Excel 里按项做对账。
+   * 只读操作，不受 payroll:manage 限制。
+   */
+  const handleExportDetails = () => {
+    const employees = details?.employees ?? [];
+    const exportRows = employees.flatMap((e) => [
+      ...e.items.map((item) => ({
+        employeeNo: e.employee.employeeNo,
+        name: e.employee.name,
+        type: '工资项',
+        itemName: item.name,
+        amount: item.amount,
+      })),
+      ...e.adjustments.map((adj) => ({
+        employeeNo: e.employee.employeeNo,
+        name: e.employee.name,
+        type: '调整项',
+        itemName: adj.reason || adj.itemCode,
+        amount: adj.amount,
+      })),
+    ]);
+    const exported = exportToExcel(
+      `算薪明细-${run.month}.xlsx`,
+      `${run.month}明细`,
+      [
+        { title: '工号', dataIndex: 'employeeNo', value: (row) => row.employeeNo },
+        { title: '姓名', dataIndex: 'name', value: (row) => row.name },
+        { title: '类型', dataIndex: 'type', value: (row) => row.type },
+        { title: '工资项', dataIndex: 'itemName', value: (row) => row.itemName },
+        { title: '金额', dataIndex: 'amount', value: (row) => row.amount },
+      ],
+      exportRows,
+    );
+    if (!exported) Message.info('该批次暂无员工明细');
+  };
+
   const columns = [
     { title: '工号', dataIndex: 'employeeNo', width: 90 },
     { title: '姓名', dataIndex: 'name', width: 100 },
@@ -205,7 +244,7 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
       dataIndex: 'total',
       width: 110,
       align: 'right' as const,
-      // 数据映射时统一走 formatMoney（含千分位/两位小数），列不再丢裸数值
+      // 合计统一经 MoneyText → formatMoney（含千分位/两位小数/负数标红），列不再丢裸数值
       render: (v: string) => v,
     },
   ];
@@ -214,7 +253,12 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
     key: e.employee.id,
     employeeNo: e.employee.employeeNo,
     name: e.employee.name,
-    total: `¥ ${formatMoney(e.total)}`,
+    // 11.6-6：扣减大于收入时合计可能为负，负数红色标注
+    total: (
+      <>
+        ¥ <MoneyText value={e.total} />
+      </>
+    ),
     _detail: e,
   }));
 
@@ -239,12 +283,17 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
         data={[
           { label: '批次状态', value: statusMapText[run.status] ?? run.status },
           { label: '员工数', value: `${run.totalEmployees}` },
-          { label: '总金额', value: `¥ ${formatMoney(run.totalAmount)}` },
+          { label: '总金额', value: <>¥ <MoneyText value={run.totalAmount} /></> },
         ]}
         column={3}
         style={{ marginBottom: 16 }}
       />
       <Space style={{ marginBottom: 12 }} wrap>
+        {details && rows.length > 0 && (
+          <Button size="small" onClick={handleExportDetails}>
+            导出明细
+          </Button>
+        )}
         {details && canManage && run.status === 'draft' && (
           <>
             <Button

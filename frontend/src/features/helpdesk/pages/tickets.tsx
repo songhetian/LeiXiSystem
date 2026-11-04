@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Tabs, Button, Space, Select, Modal, Form, Input, Message, Tag } from '@arco-design/web-react';
+import { Tabs, Button, Space, Select, Modal, Form, Input, Message } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable from '@/components/ProTable';
 import { PermissionGate } from '@/components/PermissionGate';
 import type { ProTableColumn } from '@/components/ProTable';
 import type { SearchFieldConfig } from '@/components/SearchForm';
 import { helpdeskApi, HelpdeskTicket, HelpdeskSla, TicketPriority } from '@/services/helpdesk';
 import { systemApi, type SysUser } from '@/services/system';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
@@ -18,12 +20,12 @@ import { notifyError } from '@/lib/request';
 const TabPane = Tabs.TabPane;
 const FormItem = Form.Item;
 
-/** 优先级中文映射 */
+/** 优先级/状态中文映射，统一走公共 StatusTag，颜色收敛到公共色规约 */
 const PRIORITY_MAP: Record<TicketPriority, { label: string; color: string }> = {
-  low: { label: '低', color: 'arcoblue' },
-  medium: { label: '中', color: 'gold' },
-  high: { label: '高', color: 'orange' },
-  urgent: { label: '紧急', color: 'red' },
+  low: { label: '低', color: 'info' },
+  medium: { label: '中', color: 'warning' },
+  high: { label: '高', color: 'warning' },
+  urgent: { label: '紧急', color: 'danger' },
 };
 const PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
   { value: 'low', label: '低' },
@@ -34,8 +36,14 @@ const PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
 
 /** 状态中文映射 */
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  open: { label: '处理中', color: 'arcoblue' },
-  resolved: { label: '已关闭', color: 'green' },
+  open: { label: '处理中', color: 'info' },
+  resolved: { label: '已关闭', color: 'success' },
+};
+
+// SLA 启用/停用状态统一走公共 StatusTag
+const ENABLED_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  enabled: { label: '启用', color: 'success' },
+  disabled: { label: '停用', color: 'default' },
 };
 
 /** 到期时间格式化：复用 lib/format 中的 formatDateTime，恒以北京时间渲染 */
@@ -45,7 +53,9 @@ function formatDateTime(v?: string | null): string {
 
 export default function HelpdeskTicketsPage() {
   const { can } = usePermission();
+  // 工单管理动作 → helpdesk:manage；SLA 配置（新建/编辑/删除）后端单独要求 helpdesk:sla:manage
   const canManage = can('helpdesk:manage');
+  const canManageSla = can('helpdesk:sla:manage');
 
   // ===== 工单 =====
   const [ticketPage, setTicketPage] = useState(1);
@@ -89,11 +99,14 @@ export default function HelpdeskTicketsPage() {
   // 处理人候选（assigneeId 为系统用户 ID）
   const [users, setUsers] = useState<SysUser[]>([]);
 
-  // 加载处理人用户列表
+  // 加载处理人用户列表：后端 pageSize 上限 100，必须翻页取全量，否则处理人候选缺人
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await systemApi.listUsers({ page: 1, pageSize: 200 });
-      if (res.code === 0 && res.data) setUsers(res.data.list);
+      const list = await fetchAllPages<SysUser>(async (page, pageSize) => {
+        const res = await systemApi.listUsers({ page, pageSize });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
+      setUsers(list);
     } catch {
       // 用户候选加载失败时忽略
     }
@@ -276,7 +289,7 @@ export default function HelpdeskTicketsPage() {
 
   // ===== SLA 操作 =====
   const handleAddSla = () => {
-    if (!canManage) return;
+    if (!canManageSla) return;
     setEditingSla(null);
     slaForm.resetFields();
     slaForm.setFieldsValue({ priority: 'medium', enabled: 'true' });
@@ -284,7 +297,7 @@ export default function HelpdeskTicketsPage() {
   };
 
   const handleEditSla = (record: HelpdeskSla) => {
-    if (!canManage) return;
+    if (!canManageSla) return;
     setEditingSla(record);
     slaForm.setFieldsValue({
       name: record.name,
@@ -333,7 +346,7 @@ export default function HelpdeskTicketsPage() {
   };
 
   const handleDeleteSla = (record: HelpdeskSla) => {
-    if (!canManage) return;
+    if (!canManageSla) return;
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除 SLA「${record.name}」吗？`,
@@ -399,7 +412,8 @@ export default function HelpdeskTicketsPage() {
       width: 90,
       render: (v: string) => {
         const map = PRIORITY_MAP[v as TicketPriority];
-        return map ? <Tag color={map.color}>{map.label}</Tag> : v;
+        // 优先级属于状态语义，统一走公共 StatusTag
+        return map ? <StatusTag status={v} statusMap={{ [v]: map }} /> : v;
       },
     },
     {
@@ -408,7 +422,8 @@ export default function HelpdeskTicketsPage() {
       width: 90,
       render: (v: string) => {
         const map = STATUS_MAP[v];
-        return map ? <Tag color={map.color}>{map.label}</Tag> : v;
+        // 工单状态统一走公共 StatusTag
+        return map ? <StatusTag status={v} statusMap={{ [v]: map }} /> : v;
       },
     },
     { title: '请求人', dataIndex: 'requesterName', width: 100, render: (_: any, r: HelpdeskTicket) => r.requester?.name || '--' },
@@ -440,7 +455,8 @@ export default function HelpdeskTicketsPage() {
       width: 100,
       render: (v: string) => {
         const map = PRIORITY_MAP[v as TicketPriority];
-        return map ? <Tag color={map.color}>{map.label}</Tag> : v;
+        // 优先级属于状态语义，统一走公共 StatusTag
+        return map ? <StatusTag status={v} statusMap={{ [v]: map }} /> : v;
       },
     },
     { title: '首次响应(分钟)', dataIndex: 'firstResponseMinutes', width: 140 },
@@ -449,14 +465,14 @@ export default function HelpdeskTicketsPage() {
       title: '启用',
       dataIndex: 'enabled',
       width: 90,
-      render: (v: boolean) => <Tag color={v ? 'green' : 'gray'}>{v ? '启用' : '停用'}</Tag>,
+      render: (v: boolean) => <StatusTag status={v ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />,
     },
     {
       title: '操作',
       dataIndex: 'actions',
       width: 140,
       render: (_: any, record: HelpdeskSla) => (
-        <PermissionGate code="helpdesk:manage">
+        <PermissionGate code="helpdesk:sla:manage">
           <Space size={4}>
             <Button size="small" type="text" onClick={() => handleEditSla(record)}>编辑</Button>
             <Button size="small" type="text" status="danger" onClick={() => handleDeleteSla(record)}>删除</Button>
@@ -484,14 +500,18 @@ export default function HelpdeskTicketsPage() {
             onReset={handleTicketReset}
             searchDebounceMs={300}
             searchInlineActions
-            toolbar={[
-              {
-                key: 'tickets-add',
-                label: '新建工单',
-                onClick: handleAddTicket,
-                disabled: !canManage,
-              },
-            ]}
+            // 新建工单为写操作 → helpdesk:manage，无权限不渲染
+            toolbar={
+              canManage
+                ? [
+                    {
+                      key: 'tickets-add',
+                      label: '新建工单',
+                      onClick: handleAddTicket,
+                    },
+                  ]
+                : []
+            }
             showExport
             onExport={handleExportTickets}
             pagination={{
@@ -516,14 +536,18 @@ export default function HelpdeskTicketsPage() {
             loading={slaLoading}
             error={slaErrorText}
             onRetry={() => revalidateSlas()}
-            toolbar={[
-              {
-                key: 'slas-add',
-                label: '新建 SLA',
-                onClick: handleAddSla,
-                disabled: !canManage,
-              },
-            ]}
+            // SLA 配置为写操作 → helpdesk:sla:manage，无权限不渲染
+            toolbar={
+              canManageSla
+                ? [
+                    {
+                      key: 'slas-add',
+                      label: '新建 SLA',
+                      onClick: handleAddSla,
+                    },
+                  ]
+                : []
+            }
             pagination={false}
             stripe
             emptyElement={<span className="text-text-3">暂无 SLA 规则</span>}

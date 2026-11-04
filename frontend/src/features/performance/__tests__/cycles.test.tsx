@@ -19,8 +19,10 @@ jest.mock('@/lib/excel', () => ({
   exportToExcel: jest.fn(() => true),
 }));
 
+// 权限门：默认有 performance:cycle:manage，无权限用例单独关闭
+const mockCan = jest.fn((_code?: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (perm: string) => mockCan(perm) }),
 }));
 
 jest.mock('@/components/PageContainer', () => ({
@@ -55,6 +57,7 @@ describe('CyclesPage 状态与错误处理', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
   });
 
   it('加载成功时渲染周期卡片', async () => {
@@ -138,5 +141,27 @@ describe('CyclesPage 状态与错误处理', () => {
 
     await waitFor(() => expect(Message.error).toHaveBeenCalledWith('开始日期不能晚于结束日期'));
     expect(performanceApi.createCycle).not.toHaveBeenCalled();
+  });
+
+  describe('权限门（11.6-3）', () => {
+    it('无 performance:cycle:manage 时新建/编辑/删除不渲染，导出保留', async () => {
+      mockCan.mockImplementation((code?: string) => code !== 'performance:cycle:manage');
+      (performanceApi.listCycles as jest.Mock).mockResolvedValue({ code: 0, data: { list: cycles } });
+      render(<CyclesPage />);
+      expect(await screen.findByText('2026 Q3 绩效周期')).toBeInTheDocument();
+
+      expect(screen.queryByRole('button', { name: '+ 新建周期' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument();
+      // 查看类操作不受影响
+      expect(screen.getByRole('button', { name: '导出 Excel' })).toBeInTheDocument();
+    });
+
+    it('写操作权限点校准为 performance:cycle:manage（对齐后端 controller）', async () => {
+      (performanceApi.listCycles as jest.Mock).mockResolvedValue({ code: 0, data: { list: cycles } });
+      render(<CyclesPage />);
+      await screen.findByText('2026 Q3 绩效周期');
+      expect(mockCan).toHaveBeenCalledWith('performance:cycle:manage');
+    });
   });
 });

@@ -9,6 +9,8 @@ import { clearDataCache } from '@/hooks/use-cached-data';
 jest.mock('@/services/system', () => ({
   systemApi: {
     listDepartments: jest.fn(),
+    // 组织架构页挂载了 PositionList（岗位 Tab），需提供岗位接口 mock
+    listPositions: jest.fn().mockResolvedValue({ code: 0, data: [] }),
     createDepartment: jest.fn(),
     updateDepartment: jest.fn(),
     deleteDepartment: jest.fn(),
@@ -16,8 +18,10 @@ jest.mock('@/services/system', () => ({
   },
 }));
 
+// 可切换的权限 mock：默认放行，无权限用例中 mockCan.mockReturnValue(false)
+const mockCan = jest.fn(() => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: mockCan }),
 }));
 
 jest.mock('@/lib/request', () => ({
@@ -89,6 +93,8 @@ describe('部门管理（描述/启停/回收站/恢复）', () => {
     jest.clearAllMocks();
     // 迁移到 useCachedData 后必须清空共享缓存，避免上一个用例残留数据串到下一个
     clearDataCache();
+    // jest.clearAllMocks 会清掉 mockCan 的返回值设定，恢复默认放行
+    mockCan.mockReturnValue(true);
     (systemApi.listDepartments as jest.Mock).mockImplementation((includeDeleted?: boolean) =>
       Promise.resolve({ code: 0, data: includeDeleted ? deletedDepts : activeDepts }),
     );
@@ -155,5 +161,16 @@ describe('部门管理（描述/启停/回收站/恢复）', () => {
         expect.objectContaining({ name: '市场部', description: '负责市场推广' }),
       );
     });
+  });
+
+  it('无 department:manage 时写操作按钮（新增/编辑/删除/启停开关）不渲染', async () => {
+    // REFACTOR_PLAN 11.6-3：按钮无权限不渲染（PermissionGate），而非禁用
+    mockCan.mockReturnValue(false);
+    render(<DepartmentsPage />);
+    expect(await screen.findByText('技术部')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /新增部门/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('status-switch')).not.toBeInTheDocument();
   });
 });

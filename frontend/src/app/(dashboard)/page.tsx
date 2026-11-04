@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Grid, Typography, Button } from '@arco-design/web-react';
 import {
@@ -15,6 +15,7 @@ import {
   IconEdit,
   IconArchive,
   IconLink,
+  IconHistory,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
@@ -22,9 +23,16 @@ import QuickActionsManager from '@/components/QuickActionsManager';
 import StatCard from '@/components/StatCard';
 import { useQuickActions, QuickActionDef } from '@/hooks/use-quick-actions';
 import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
+import { attendanceApi, PunchTodayResult, VacationBalance } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
+import { paletteCommandsFor } from '@/config/navigation';
+import { useAuthStore } from '@/store/auth';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { getTzParts } from '@/lib/format';
+import {
+  APPROVAL_INSTANCE_STATUS,
+  APPROVAL_STATUS_COLOR_VAR,
+} from '@/features/approval/lib/status-maps';
 
 const { Row, Col } = Grid;
 const { Text } = Typography;
@@ -33,23 +41,35 @@ interface QuickAction {
   label: string;
   path: string;
   icon: React.ComponentType<{ style?: React.CSSProperties }>;
+  /** 图标色调：indigo / teal / emerald / sky / violet / amber / rose / cyan */
+  tone: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: '员工管理', path: '/employees', icon: IconUserGroup },
-  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle },
-  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle },
-  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar },
-  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit },
-  { label: '报销申请', path: '/expense/my', icon: IconArchive },
-  { label: '知识库', path: '/knowledge', icon: IconBook },
-  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar },
-  { label: '工单客服', path: '/helpdesk', icon: IconUser },
+  { label: '员工管理', path: '/employees', icon: IconUserGroup, tone: 'indigo' },
+  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle, tone: 'teal' },
+  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle, tone: 'emerald' },
+  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar, tone: 'sky' },
+  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit, tone: 'violet' },
+  { label: '报销申请', path: '/expense/my', icon: IconArchive, tone: 'amber' },
+  { label: '知识库', path: '/knowledge', icon: IconBook, tone: 'indigo' },
+  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar, tone: 'rose' },
+  { label: '工单客服', path: '/helpdesk', icon: IconUser, tone: 'cyan' },
 ];
 
 /** 入口池（key 取 path，天然唯一）与图标映射：自定义入口无图标，统一用 IconLink 兜底 */
 const QUICK_POOL: QuickActionDef[] = QUICK_ACTIONS.map((a) => ({ key: a.path, label: a.label, path: a.path }));
 const QUICK_ICON = new Map<string, QuickAction['icon']>(QUICK_ACTIONS.map((a) => [a.path, a.icon]));
+const QUICK_TONE = new Map<string, string>(QUICK_ACTIONS.map((a) => [a.path, a.tone]));
+/** 8 种可用色调（与 CSS .dsh-quick-item[data-tone=...] 一一对应） */
+const TONE_POOL = ['indigo', 'teal', 'emerald', 'sky', 'violet', 'amber', 'rose', 'cyan'];
+/** 基于 key 字符串哈希取模，确定性分配色调：同 key 永远同色，不同 key 自动分散 */
+function quickToneOf(a: QuickActionDef): string {
+  if (QUICK_TONE.has(a.key)) return QUICK_TONE.get(a.key)!;
+  let h = 0;
+  for (let i = 0; i < a.key.length; i++) h = (h * 31 + a.key.charCodeAt(i)) >>> 0;
+  return TONE_POOL[h % TONE_POOL.length];
+}
 const quickIconOf = (a: QuickActionDef) => QUICK_ICON.get(a.key) ?? IconLink;
 
 function greeting() {
@@ -71,17 +91,32 @@ function todayText() {
   return `${Number(M)}月${Number(D)}日 · 星期${week}`;
 }
 
+/** 打卡状态 → 文案（与考勤日报 status 枚举同源） */
+const PUNCH_STATUS: Record<string, string> = {
+  normal: '正常',
+  late: '迟到',
+  early: '早退',
+  late_early: '迟到早退',
+  absent: '缺勤',
+  half_absent: '半天缺勤',
+  leave: '请假',
+  makeup: '补卡',
+};
+
+/** ISO 时间串 → 北京时间 HH:mm（不用本地时区 getter，避免宿主机时区偏移） */
+function formatClock(value?: string | null): string {
+  if (!value) return '—';
+  const t = new Date(value);
+  if (Number.isNaN(t.getTime())) return '—';
+  const { HH, mm } = getTzParts(t);
+  return `${HH}:${mm}`;
+}
+
 /**
  * 审批单状态 → 文案 + 颜色。
  * 枚举与「我的申请」页 approvalStatusMap 同源（prisma ApprovalInstanceStatus：
  * pending / approved / rejected / cancelled），色值映射到页面语义 token。
  */
-const SUBMISSION_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: '审批中', color: 'var(--lx-warning)' },
-  approved: { label: '已通过', color: 'var(--lx-success)' },
-  rejected: { label: '已驳回', color: 'var(--lx-danger)' },
-  cancelled: { label: '已撤销', color: 'var(--lx-text-3)' },
-};
 
 /** 通知圆点：未读用类型色点亮，已读灰化 */
 const notificationDotColor = (item: DashboardNotificationItem): string => {
@@ -118,12 +153,27 @@ export default function HomePage() {
   // 快捷操作：入口池 + 用户自定义（localStorage 持久化），管理面板可增删改查
   const quick = useQuickActions(QUICK_POOL);
   const [quickManagerOpen, setQuickManagerOpen] = useState(false);
+  // 自定义入口的可选页面：由导航真值源派生并按权限过滤，用户只选不手输
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const quickRoutes = useMemo(
+    () => (permissions ? paletteCommandsFor(permissions).map((c) => ({ path: c.path, label: c.label })) : []),
+    [permissions],
+  );
+  // 数据新鲜度：stats 成功返回时打时间戳，hero 展示「更新于 X 分钟前」
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  // 每 60s 触发一次重渲染，让相对时间自然走字（不发请求、不动缓存）
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // 统计指标走 SWR 共享缓存；失败提示由请求拦截器统一弹出，避免重复 Toast
   const fetchStats = useCallback(async () => {
     const res = await dashboardApi.getStats();
     // code 非 0 才算失败；data 为 null 是「暂无统计数据」的合法空态（新部署/空库）
     if (res.code !== 0) throw new Error(res.message || '获取统计数据失败');
+    setUpdatedAt(Date.now());
     return res.data ?? null;
   }, []);
   const { data: stats, loading, error, revalidate: refreshStats } = useCachedData<DashboardStats | null>(
@@ -137,21 +187,38 @@ export default function HomePage() {
     ? `今日有 ${pendingApprovals} 项审批待处理`
     : '祝工作顺利 · 今日待办与全局动态已为您汇总';
 
-  // KPI 从 6 张收敛为 4 张核心指标；待审批卡可点直达审批中心
-  const metrics: Metric[] = [
+  const isAdmin = can('system:user:view');
+
+  // 出勤率 = 今日出勤 / 在职员工，只在有分母时才算（空库/全员未建档不显示）
+  const attendanceRate =
+    stats && stats.employeeCount > 0
+      ? Math.round((stats.attendanceCount / stats.employeeCount) * 100)
+      : null;
+
+  /** 管理者视角：全局人力与审批负载 */
+  const adminMetrics: Metric[] = [
     {
       label: '在职员工',
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
       icon: IconUserGroup,
-      hint: '实时统计',
     },
     {
       label: '今日出勤',
       value: stats?.attendanceCount?.toString() ?? '0',
       suffix: '人',
       icon: IconCheckCircle,
-      hint: '今日打卡',
+      // 0 人时先说明「暂无记录」而不是让用户猜是没同步还是真没人打卡；
+      // 有迟到优先报异常，其次报出勤率（比「今日打卡」这种填充词有信息量）
+      hint: stats
+        ? stats.attendanceCount === 0
+          ? '今日暂无打卡记录'
+          : stats.todayLateCount > 0
+            ? `其中迟到 ${stats.todayLateCount} 人`
+            : attendanceRate != null
+              ? `出勤率 ${attendanceRate}%`
+              : undefined
+        : undefined,
     },
     {
       label: '待审批',
@@ -162,26 +229,64 @@ export default function HomePage() {
       onClick: () => router.push('/approval/todo'),
     },
     {
-      label: '本月工资',
-      // 注意：接口未核算完成时返回 null，展示「—」而非「¥0.00」——
-      // 0 会让人误以为工资真的为零（金额口径：后端以分存储，核算完成后换算展示）
-      value: stats?.monthlySalary != null ? `¥${(stats.monthlySalary / 10000).toFixed(1)}万` : '—',
-      icon: IconArchive,
-      hint: '本月合计',
+      label: '本月加班',
+      value: stats ? String(stats.monthOvertimeHours ?? 0) : '0',
+      suffix: '小时',
+      icon: IconHistory,
+      hint: '全员累计',
     },
   ];
+
+  /** 员工视角：只放「跟我有关」的数据，全局人力数字对普通员工没有决策价值 */
+  const staffMetrics: Metric[] = [
+    {
+      label: '本周出勤',
+      value: stats?.myWeek ? String(stats.myWeek.workDays) : '—',
+      suffix: '天',
+      icon: IconCheckCircle,
+      hint: stats?.myWeek
+        ? stats.myWeek.lateDays > 0
+          ? `迟到 ${stats.myWeek.lateDays} 天`
+          : '全勤'
+        : undefined,
+    },
+    {
+      label: '本周缺勤',
+      value: stats?.myWeek ? String(stats.myWeek.absentDays) : '—',
+      suffix: '天',
+      icon: IconHistory,
+      hint: stats?.myWeek && stats.myWeek.absentDays > 0 ? '需补交说明' : undefined,
+    },
+    {
+      label: '日均工时',
+      value: stats?.myWeek ? String(stats.myWeek.avgWorkHours) : '—',
+      suffix: 'h',
+      icon: IconClockCircle,
+      hint: '已扣班次休息',
+    },
+    {
+      label: '待我审批',
+      value: stats?.pendingApprovals?.toString() ?? '0',
+      suffix: '项',
+      icon: IconUserGroup,
+      hint: '待处理',
+      onClick: () => router.push('/approval/todo'),
+    },
+  ];
+
+  const metrics: Metric[] = isAdmin ? adminMetrics : staffMetrics;
 
   return (
     <PageContainer
       action={
         <Button
-          type="primary"
+          type="text"
+          size="small"
           icon={<IconRefresh />}
           loading={loading}
           onClick={refreshStats}
-        >
-          刷新
-        </Button>
+          aria-label="刷新数据"
+        />
       }
     >
       {/* 欢迎横幅 */}
@@ -195,6 +300,11 @@ export default function HomePage() {
             <IconCalendar style={{ color: 'var(--lx-primary)' }} />
             {todayText()}
           </span>
+          {updatedAt != null && (
+            <span className="dsh-hero-chip dsh-hero-chip-muted">
+              更新于 {relativeTime(new Date(updatedAt))}
+            </span>
+          )}
         </div>
       </div>
 
@@ -202,7 +312,7 @@ export default function HomePage() {
       <div style={{ marginBottom: 24 }}>
         <DataState loading={loading} skeleton skeletonRows={1} error={error} onRetry={refreshStats}>
           <Row gutter={[16, 16]}>
-            {metrics.map((m) => (
+            {metrics.map((m, i) => (
               <Col xs={12} md={6} key={m.label}>
                 <StatCard
                   label={m.label}
@@ -211,6 +321,7 @@ export default function HomePage() {
                   icon={m.icon}
                   hint={m.hint}
                   onClick={m.onClick}
+                  stagger={i}
                 />
               </Col>
             ))}
@@ -218,8 +329,8 @@ export default function HomePage() {
         </DataState>
       </div>
 
-      {/* 组织管理看板（管理员可见） */}
-      {can('system:user:view') && <OrgChart />}
+      {/* 今日状态：打卡 + 假期余额 —— 员工每天打开系统最常看的两块，从打卡页提到首屏 */}
+      <TodayStatus />
 
       {/* 快捷操作 */}
       <div style={{ marginBottom: 24 }}>
@@ -231,17 +342,19 @@ export default function HomePage() {
               className="dsh-panel-more"
               onClick={() => setQuickManagerOpen(true)}
             >
-              更多 <IconRight style={{ fontSize: 12 }} />
+              管理 <IconRight style={{ fontSize: 12 }} />
             </button>
           </div>
           <div className="dsh-quick-grid">
           {quick.visible.map((a) => {
             const Icon = quickIconOf(a);
+            const tone = quickToneOf(a);
             return (
               <button
                 key={a.key}
                 type="button"
                 className="dsh-quick-item"
+                data-tone={tone}
                 onClick={() => router.push(a.path)}
                 title={a.label}
               >
@@ -260,13 +373,14 @@ export default function HomePage() {
         visible={quickManagerOpen}
         onClose={() => setQuickManagerOpen(false)}
         api={quick}
+        routes={quickRoutes}
         renderIcon={(a) => {
           const Icon = quickIconOf(a);
           return <Icon />;
         }}
       />
 
-      {/* 待办事项 + 最新通知（数据来自 stats 服务端裁剪字段；面板始终渲染，无权限/空数据走空态） */}
+      {/* 审批域合并：别人等我办的 + 我提交的进度，同一区域连续呈现，不再被通知区块割裂 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={14}>
           <div className="dsh-panel">
@@ -289,7 +403,13 @@ export default function HomePage() {
               onEmptyAction={() => router.push('/approval/todo')}
             >
               {(stats?.todoTop ?? []).map((item) => (
-                <button type="button" className="dsh-feed-item" key={item.id} onClick={() => router.push('/approval/todo')}>
+                // 直达单据详情：原来跳列表页，用户还得在列表里再找一遍这条单
+                <button
+                  type="button"
+                  className="dsh-feed-item"
+                  key={item.id}
+                  onClick={() => router.push(`/approval/instances/${item.instanceId}`)}
+                >
                   <span className="dsh-feed-dot" style={{ background: 'var(--lx-primary)' }} />
                   <div className="dsh-feed-main">
                     <div className="dsh-feed-title">{item.title}</div>
@@ -301,6 +421,68 @@ export default function HomePage() {
           </div>
         </Col>
         <Col xs={24} lg={10}>
+          <div className="dsh-panel">
+            <div className="dsh-panel-head">
+              <h3 className="dsh-panel-title">我的申请进度</h3>
+              <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
+                查看全部 <IconRight style={{ fontSize: 12 }} />
+              </button>
+            </div>
+            <DataState
+              loading={loading}
+              skeleton
+              skeletonType="list"
+              skeletonRows={3}
+              error={error}
+              onRetry={refreshStats}
+              isEmpty={(stats?.mySubmissionsTop ?? []).length === 0}
+              emptyText="暂无申请"
+            >
+              {(stats?.mySubmissionsTop ?? []).map((item) => {
+                const s = APPROVAL_INSTANCE_STATUS[item.status] ?? {
+                  label: item.status,
+                  color: 'default',
+                };
+                return (
+                  // 原来是个只读 div：有状态文字但没有后续动作，点了没反应
+                  <button
+                    type="button"
+                    className="dsh-feed-item"
+                    key={item.id}
+                    onClick={() => router.push('/approval/submissions')}
+                  >
+                    <span
+                      className="dsh-feed-dot"
+                      style={{
+                        background:
+                          APPROVAL_STATUS_COLOR_VAR[item.status] ?? 'var(--lx-text-4)',
+                      }}
+                    />
+                    <div className="dsh-feed-main">
+                      <div className="dsh-feed-title">{item.title}</div>
+                    </div>
+                    <div className="dsh-feed-side">
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: APPROVAL_STATUS_COLOR_VAR[item.status] ?? 'var(--lx-text-3)',
+                          fontWeight: 400,
+                        }}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </DataState>
+          </div>
+        </Col>
+      </Row>
+
+      {/* 最新通知；本周考勤概览仅管理者展示 —— 员工的 myWeek 已在 KPI 卡呈现，重复出现等于同一份数据说两遍 */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={isAdmin ? 14 : 24}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
               <h3 className="dsh-panel-title">最新通知</h3>
@@ -330,91 +512,199 @@ export default function HomePage() {
             </DataState>
           </div>
         </Col>
+        {isAdmin && (
+          <Col xs={24} lg={10}>
+            <div className="dsh-panel">
+              <div className="dsh-panel-head">
+                <h3 className="dsh-panel-title">本周考勤概览</h3>
+                <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
+                  查看详情 <IconRight style={{ fontSize: 12 }} />
+                </button>
+              </div>
+              <DataState loading={loading} skeleton skeletonRows={1} error={error} onRetry={refreshStats}>
+              <div className="dsh-kpi">
+                <div className="dsh-kpi-item">
+                  <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>
+                    {stats?.myWeek ? stats.myWeek.workDays : '—'}
+                  </div>
+                  <div className="dsh-kpi-label">正常出勤</div>
+                </div>
+                <div className="dsh-kpi-divider" />
+                <div className="dsh-kpi-item">
+                  <div className="dsh-kpi-value" style={{ color: 'var(--lx-warning)' }}>
+                    {stats?.myWeek ? stats.myWeek.lateDays : '—'}
+                  </div>
+                  <div className="dsh-kpi-label">迟到</div>
+                </div>
+                <div className="dsh-kpi-divider" />
+                <div className="dsh-kpi-item">
+                  <div className="dsh-kpi-value" style={{ color: 'var(--lx-danger)' }}>
+                    {stats?.myWeek ? stats.myWeek.absentDays : '—'}
+                  </div>
+                  <div className="dsh-kpi-label">缺勤</div>
+                </div>
+                <div className="dsh-kpi-divider" />
+                <div className="dsh-kpi-item">
+                  <div className="dsh-kpi-value" style={{ color: 'var(--lx-primary)' }}>
+                    {stats?.myWeek ? `${stats.myWeek.avgWorkHours}h` : '—'}
+                  </div>
+                  <div className="dsh-kpi-label">平均工时</div>
+                </div>
+              </div>
+              </DataState>
+            </div>
+          </Col>
+        )}
       </Row>
 
-      {/* 考勤概览 + 我的申请进度（stats 服务端聚合字段） */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={14}>
-          <div className="dsh-panel">
-            <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">本周考勤概览</h3>
-              <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
-                查看详情 <IconRight style={{ fontSize: 12 }} />
-              </button>
-            </div>
-            <DataState loading={loading} skeleton skeletonRows={1} error={error} onRetry={refreshStats}>
-            <div className="dsh-kpi">
-              <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-success)' }}>
-                  {stats?.myWeek ? stats.myWeek.workDays : '—'}
-                </div>
-                <div className="dsh-kpi-label">正常出勤</div>
-              </div>
-              <div className="dsh-kpi-divider" />
-              <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-warning)' }}>
-                  {stats?.myWeek ? stats.myWeek.lateDays : '—'}
-                </div>
-                <div className="dsh-kpi-label">迟到</div>
-              </div>
-              <div className="dsh-kpi-divider" />
-              <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-danger)' }}>
-                  {stats?.myWeek ? stats.myWeek.absentDays : '—'}
-                </div>
-                <div className="dsh-kpi-label">缺勤</div>
-              </div>
-              <div className="dsh-kpi-divider" />
-              <div className="dsh-kpi-item">
-                <div className="dsh-kpi-value" style={{ color: 'var(--lx-primary)' }}>
-                  {stats?.myWeek ? `${stats.myWeek.avgWorkHours}h` : '—'}
-                </div>
-                <div className="dsh-kpi-label">平均工时</div>
-              </div>
-            </div>
-            </DataState>
-          </div>
-        </Col>
-        <Col xs={24} lg={10}>
-          <div className="dsh-panel">
-            <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">我的申请进度</h3>
-              <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
-                查看全部 <IconRight style={{ fontSize: 12 }} />
-              </button>
-            </div>
-            <DataState
-              loading={loading}
-              skeleton
-              skeletonType="list"
-              skeletonRows={2}
-              error={error}
-              onRetry={refreshStats}
-              isEmpty={(stats?.mySubmissionsTop ?? []).length === 0}
-              emptyText="暂无申请"
-            >
-              {(stats?.mySubmissionsTop ?? []).map((item) => {
-                const s = SUBMISSION_STATUS[item.status] ?? {
-                  label: item.status,
-                  color: 'var(--lx-text-3)',
-                };
-                return (
-                  <div className="dsh-feed-item" key={item.id}>
-                    <span className="dsh-feed-dot" style={{ background: s.color }} />
-                    <div className="dsh-feed-main">
-                      <div className="dsh-feed-title">{item.title}</div>
-                    </div>
-                    <div className="dsh-feed-side">
-                      <span style={{ fontSize: 12, color: s.color, fontWeight: 400 }}>{s.label}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </DataState>
-          </div>
-        </Col>
-      </Row>
+      {/* 组织管理看板：低频数据下沉到页面底部，不再挤占管理员第三屏 */}
+      {isAdmin && <OrgChart />}
     </PageContainer>
+  );
+}
+
+// ====== 今日状态（打卡 + 假期余额）：员工每天最关心的两块，从打卡页提到首页 ======
+
+type PunchToday = NonNullable<PunchTodayResult['data']>;
+
+/**
+ * 今日打卡状态 + 假期余额。
+ * 两个数据源各自独立订阅、独立降级：打卡接口不可用不影响假期余额展示，反之亦然。
+ */
+function TodayStatus() {
+  const router = useRouter();
+
+  const fetchPunch = useCallback(async () => {
+    const res = await attendanceApi.getTodayPunch();
+    if (res.code !== 0) throw new Error(res.message || '获取打卡状态失败');
+    return res.data ?? null;
+  }, []);
+  const {
+    data: punch,
+    loading: punchLoading,
+    error: punchError,
+    revalidate: revalidatePunch,
+  } = useCachedData<PunchToday | null>('dashboard:today-punch', fetchPunch);
+
+  const fetchBalances = useCallback(async () => {
+    const res = await attendanceApi.getMyBalances();
+    if (res.code !== 0) throw new Error(res.message || '获取假期余额失败');
+    return res.data ?? [];
+  }, []);
+  const {
+    data: balances,
+    loading: balanceLoading,
+    error: balanceError,
+    revalidate: revalidateBalances,
+  } = useCachedData<VacationBalance[]>('dashboard:my-balances', fetchBalances);
+
+  const rows = balances ?? [];
+  // 优先年假；没有年假退到第一个有薪假（无薪假剩余天数不能当假期用，会误导）
+  const primary =
+    rows.find((b) => b.vacationType?.code === 'annual') ??
+    rows.find((b) => b.vacationType?.isPaid) ??
+    rows[0];
+  const remainDays = primary ? Math.round((primary.totalDays - primary.usedDays) * 10) / 10 : null;
+
+  // 提示语优先级：休息日 > 未排班 > 可下班 > 可上班 > 其余准入文案
+  // （直接取后端返回的准入文案，与打卡页口径保持一致，避免两处说不同的话）
+  const punchTip = punch
+    ? punch.isRestDay
+      ? '休息日，无需打卡'
+      : !punch.hasSchedule
+        ? '今日未排班，请先联系排班人'
+        : punch.clockOut?.allowed
+          ? punch.clockOut.message
+          : punch.clockIn?.allowed
+            ? punch.clockIn.message
+            : punch.clockOut?.message || punch.clockIn?.message || ''
+    : '';
+
+  return (
+    <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Col xs={24} lg={14}>
+        <div className="dsh-panel">
+          <div className="dsh-panel-head">
+            <h3 className="dsh-panel-title">今日打卡</h3>
+            <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/punch')}>
+              去打卡 <IconRight style={{ fontSize: 12 }} />
+            </button>
+          </div>
+          <DataState
+            loading={punchLoading}
+            skeleton
+            skeletonRows={1}
+            error={punchError}
+            onRetry={revalidatePunch}
+            isEmpty={punch === null}
+            emptyText="暂无员工档案，无法查看打卡状态"
+          >
+            <div className="dsh-today">
+              <div className="dsh-today-cell">
+                <div className="dsh-today-label">上班</div>
+                <div className="dsh-today-value">{formatClock(punch?.firstPunch)}</div>
+              </div>
+              <div className="dsh-today-cell">
+                <div className="dsh-today-label">下班</div>
+                <div className="dsh-today-value">{formatClock(punch?.lastPunch)}</div>
+              </div>
+              <div className="dsh-today-cell">
+                <div className="dsh-today-label">班次</div>
+                <div className="dsh-today-value is-text">
+                  {punch?.shift ? `${punch.shift.startTime}–${punch.shift.endTime}` : '未排班'}
+                </div>
+              </div>
+              <div className="dsh-today-cell">
+                <div className="dsh-today-label">状态</div>
+                <div className="dsh-today-value is-text">
+                  {punch ? (PUNCH_STATUS[punch.status] ?? punch.status) : '—'}
+                </div>
+              </div>
+            </div>
+            {punchTip && <p className="dsh-today-tip">{punchTip}</p>}
+          </DataState>
+        </div>
+      </Col>
+      <Col xs={24} lg={10}>
+        <div className="dsh-panel">
+          <div className="dsh-panel-head">
+            <h3 className="dsh-panel-title">假期余额</h3>
+            <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/vacation/balance')}>
+              查看全部 <IconRight style={{ fontSize: 12 }} />
+            </button>
+          </div>
+          <DataState
+            loading={balanceLoading}
+            skeleton
+            skeletonRows={1}
+            error={balanceError}
+            onRetry={revalidateBalances}
+            isEmpty={!primary}
+            emptyText="暂无假期额度"
+          >
+            {primary && (
+              <div className="dsh-today">
+                <div className="dsh-today-cell">
+                  <div className="dsh-today-label">{primary.vacationType?.name ?? '假期'}剩余</div>
+                  <div className="dsh-today-value" style={{ color: 'var(--lx-primary)' }}>
+                    {remainDays}
+                    <span className="u">天</span>
+                  </div>
+                </div>
+                <div className="dsh-today-cell">
+                  <div className="dsh-today-label">已用</div>
+                  <div className="dsh-today-value is-text">{primary.usedDays} 天</div>
+                </div>
+                <div className="dsh-today-cell">
+                  <div className="dsh-today-label">总额度</div>
+                  <div className="dsh-today-value is-text">{primary.totalDays} 天</div>
+                </div>
+              </div>
+            )}
+          </DataState>
+        </div>
+      </Col>
+    </Row>
   );
 }
 

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import RunDetailsModal from '@/features/payroll/components/RunDetailsModal';
 import { payrollApi } from '@/services/payroll';
 import { clearDataCache } from '@/hooks/use-cached-data';
+import { exportToExcel } from '@/lib/excel';
 import { Modal, Message } from '@arco-design/web-react';
 
 jest.mock('@/services/payroll', () => ({
@@ -14,6 +15,8 @@ jest.mock('@/services/payroll', () => ({
     confirmPayrollRun: jest.fn(),
   },
 }));
+
+jest.mock('@/lib/excel', () => ({ exportToExcel: jest.fn() }));
 
 // Arco Modal/Message 精简为可测试容器
 jest.mock('@arco-design/web-react', () => {
@@ -171,8 +174,25 @@ describe('RunDetailsModal', () => {
     // 调整项：展示原因，扣减带负号
     expect(screen.getByText('迟到扣款')).toBeInTheDocument();
     expect(screen.getByText('−100.00')).toBeInTheDocument();
-    // 合计行
-    expect(screen.getByText('5,200.00')).toBeInTheDocument();
+    // 合计行：批次总金额、行合计、构成卡合计都输出 5,200.00（金额经 MoneyText 渲染）
+    expect(screen.getAllByText('5,200.00')).toHaveLength(3);
+  });
+
+  it('导出批次明细：按「员工 × 工资项」摊平，文件名带批次月份', async () => {
+    const user = userEvent.setup();
+    (exportToExcel as jest.Mock).mockReturnValue(true);
+    render(<RunDetailsModal canManage visible run={mockRun} onCancel={jest.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('导出明细')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('导出明细'));
+
+    expect(exportToExcel).toHaveBeenCalledTimes(1);
+    const [filename, , , rows] = (exportToExcel as jest.Mock).mock.calls[0];
+    expect(filename).toContain('2026-08');
+    // 2 个工资项 + 1 个调整项，逐行摊平便于 Excel 按项对账
+    expect(rows).toHaveLength(3);
   });
 
   it('draft 批次可添加调整并调用 adjustPayrollRun 后刷新', async () => {

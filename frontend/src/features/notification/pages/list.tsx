@@ -16,21 +16,17 @@ import {
   Radio,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
 import { notificationApi, Notification } from '@/services/notification';
 import { systemApi, SysUser } from '@/services/system';
 import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { fetchAllPages } from '@/lib/fetch-all';
+import { notificationTypeMeta } from '@/lib/notification-meta';
 
 const EMPTY_NOTIFICATIONS: Notification[] = [];
-
-const typeMap: Record<string, { label: string; color: string }> = {
-  approval: { label: '审批', color: 'arcoblue' },
-  system: { label: '系统', color: 'gray' },
-  attendance: { label: '考勤', color: 'green' },
-  broadcast: { label: '公告', color: 'orangered' },
-};
 
 const typeOptions = [
   { label: '审批', value: 'approval' },
@@ -87,8 +83,12 @@ export default function NotificationsPage() {
     sendForm.setFieldValue('targetType', 'all');
     sendForm.setFieldValue('type', 'notice');
     try {
-      const userRes = await systemApi.listUsers({ page: 1, pageSize: 200 });
-      if (userRes.code === 0 && userRes.data) setUsers(userRes.data.list);
+      // 收件人候选必须取全量：后端 pageSize 上限 100，只取第一页会让收件人缺人
+      const list = await fetchAllPages<SysUser>(async (page, pageSize) => {
+        const res = await systemApi.listUsers({ page, pageSize });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
+      setUsers(list);
     } catch (e) {
       // 目标数据加载失败不阻塞表单填写
     }
@@ -201,10 +201,11 @@ export default function NotificationsPage() {
                   <div style={{ fontSize: 12, color: 'var(--lx-text-3)', marginTop: 4 }}>{item.createdAt}</div>
                 </div>
                 <Space>
-                  <Tag color={typeMap[item.type]?.color || 'gray'}>
-                    {typeMap[item.type]?.label || item.type}
+                  {/* 通知类型为分类标签，保留 Tag；未读为状态，走公共 StatusTag */}
+                  <Tag color={notificationTypeMeta(item.type).color}>
+                    {notificationTypeMeta(item.type).label}
                   </Tag>
-                  {!item.read && <Tag color="red">未读</Tag>}
+                  {!item.read && <StatusTag status="unread" statusMap={{ unread: { label: '未读', color: 'danger' } }} />}
                 </Space>
               </button>
             )}

@@ -14,8 +14,10 @@ jest.mock('@/services/system', () => ({
   systemApi: { listUsers: jest.fn() },
 }));
 
+// 权限 mock 可配置：默认全放行，按钮级权限用例内单独覆盖（入参为权限点 code）
+const mockCan = jest.fn((_code: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: mockCan }),
 }));
 
 jest.mock('@/components/PageContainer', () => ({
@@ -54,6 +56,8 @@ describe('HelpdeskTicketsPage 筛选', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    // 重置为全放行，避免按钮级权限用例的实现泄漏到筛选用例
+    mockCan.mockImplementation(() => true);
     (helpdeskApi.listTickets as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: [], total: 0 },
@@ -110,5 +114,73 @@ describe('HelpdeskTicketsPage 筛选', () => {
 
     await waitFor(() => expect(screen.getByText('后端不可用')).toBeInTheDocument());
     expect(screen.queryByText('获取工单列表失败')).not.toBeInTheDocument();
+  });
+});
+
+describe('HelpdeskTicketsPage 按钮级权限（PermissionGate）', () => {
+  const mockTicket = {
+    id: 1,
+    ticketNo: 'T001',
+    title: '打印机故障',
+    category: '办公设备',
+    status: 'open',
+    priority: 'high',
+    requester: { id: 2, name: '王小明' },
+    assignee: null,
+  };
+  const mockSla = {
+    id: 1,
+    name: '紧急工单',
+    priority: 'urgent',
+    firstResponseMinutes: 60,
+    resolutionMinutes: 480,
+    enabled: true,
+  };
+
+  beforeEach(() => {
+    clearDataCache();
+    jest.clearAllMocks();
+    mockCan.mockImplementation(() => true);
+    (helpdeskApi.listTickets as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [mockTicket], total: 1 },
+    });
+    (helpdeskApi.listSlas as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [mockSla], total: 1 },
+    });
+    (systemApi.listUsers as jest.Mock).mockResolvedValue({ code: 0, data: { list: [] } });
+  });
+
+  it('有 helpdesk:manage 时工单写按钮渲染（新建工单/指派更新/删除）', async () => {
+    mockCan.mockImplementation(
+      (code: string) => code === 'helpdesk:view' || code === 'helpdesk:manage' || code === 'helpdesk:sla:manage',
+    );
+    render(<HelpdeskTicketsPage />);
+    expect(await screen.findByText('新建工单')).toBeInTheDocument();
+    expect(await screen.findByText('打印机故障')).toBeInTheDocument();
+    expect(screen.getByText('指派/更新')).toBeInTheDocument();
+    expect(screen.getByText('删除')).toBeInTheDocument();
+  });
+
+  it('无 helpdesk:manage 时工单写按钮不渲染，列表仍可查看', async () => {
+    mockCan.mockImplementation((code: string) => code === 'helpdesk:view' || code === 'helpdesk:sla:manage');
+    render(<HelpdeskTicketsPage />);
+    await waitFor(() => expect(helpdeskApi.listTickets).toHaveBeenCalled());
+    expect(screen.queryByText('新建工单')).not.toBeInTheDocument();
+    expect(screen.queryByText('指派/更新')).not.toBeInTheDocument();
+    // 工单数据本身仍展示（helpdesk:view 可看）
+    expect(await screen.findByText('打印机故障')).toBeInTheDocument();
+  });
+
+  it('无 helpdesk:sla:manage 时 SLA 配置按钮不渲染，工单按钮不受影响', async () => {
+    mockCan.mockImplementation((code: string) => code === 'helpdesk:view' || code === 'helpdesk:manage');
+    render(<HelpdeskTicketsPage />);
+    await waitFor(() => expect(helpdeskApi.listSlas).toHaveBeenCalled());
+    // SLA 写按钮（新建 + 行内编辑/删除）不渲染，与 helpdesk:manage 解耦
+    expect(screen.queryByText('新建 SLA')).not.toBeInTheDocument();
+    expect(screen.queryByText('编辑')).not.toBeInTheDocument();
+    // 工单管理按钮正常渲染
+    expect(screen.getByText('新建工单')).toBeInTheDocument();
   });
 });

@@ -90,8 +90,12 @@ jest.mock('@arco-design/web-react', () => {
         ))}
     </select>
   );
+  // Arco Skeleton：首屏骨架行用，用 data-testid 计数
+  const Skeleton = ({ text }: any) => (
+    <span data-testid="skeleton" data-width={text?.width} />
+  );
 
-  return { Table, Button, Card, Space, Empty, Popover, Checkbox, Select };
+  return { Table, Button, Card, Space, Empty, Popover, Checkbox, Select, Skeleton };
 });
 
 const mockColumns = [
@@ -178,11 +182,20 @@ describe('ProTable', () => {
       expect(onAdd).toHaveBeenCalled();
     });
 
-    it('shows loading state', () => {
+    it('首屏加载（无数据）渲染骨架行，不再渲染空表', () => {
       render(
         <ProTable columns={mockColumns} data={[]} rowKey="id" loading={true} />,
       );
+      expect(screen.queryByTestId('table')).not.toBeInTheDocument();
+      expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0);
+    });
+
+    it('已有数据时加载沿用表格 loading（翻页不闪骨架）', () => {
+      render(
+        <ProTable columns={mockColumns} data={mockData} rowKey="id" loading={true} />,
+      );
       expect(screen.getByTestId('table')).toHaveAttribute('data-loading', 'true');
+      expect(screen.queryByTestId('skeleton')).not.toBeInTheDocument();
     });
   });
 

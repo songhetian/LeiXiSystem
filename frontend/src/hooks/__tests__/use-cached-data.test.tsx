@@ -295,4 +295,75 @@ describe('useCachedData（SWR 语义：共享缓存 / 去重 / 失效）', () =>
     render(<FirstFrameProbe />);
     expect(frames[0]).toBe('data/false');
   });
+
+  // 回归背景：cacheKey 变化后首帧仍沿用上一个 key 的 state.data，
+  // 分页/筛选切换时会短暂展示上一页结果（C4）。
+  it('切换 cacheKey 且新 key 无缓存时，首帧返回空数据 + loading=true（C4）', async () => {
+    const frames: string[] = [];
+    function Wrapper() {
+      const [key, setKey] = useState('c4-old');
+      const { data, loading } = useCachedData(
+        key,
+        () => (key === 'c4-old' ? Promise.resolve('old-data') : new Promise(() => {})),
+        { staleTime: 5000 },
+      );
+      frames.push(`${key}:${data === undefined ? 'undefined' : data === null ? 'null' : 'data'}/${loading}`);
+      return (
+        <div>
+          <span data-testid="c4-data">
+            {data === undefined ? 'undefined' : data === null ? 'null' : JSON.stringify(data)}
+          </span>
+          <span data-testid="c4-loading">{String(loading)}</span>
+          <button data-testid="c4-switch" onClick={() => setKey('c4-new')}>switch</button>
+        </div>
+      );
+    }
+
+    render(<Wrapper />);
+    await waitFor(() => expect(screen.getByTestId('c4-data')).toHaveTextContent('"old-data"'));
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('c4-switch'));
+    });
+
+    // 切 key 后的首帧必须是 undefined/loading，而不是渲染旧 key 的数据
+    expect(frames).toContain('c4-new:undefined/true');
+    expect(screen.getByTestId('c4-data')).not.toHaveTextContent('"old-data"');
+    expect(screen.getByTestId('c4-loading')).toHaveTextContent('true');
+    expect(screen.getByTestId('c4-data')).toHaveTextContent('null');
+  });
+
+  // 回归背景：EmployeeSelect 把搜索词编进 cacheKey，长会话下 moduleCache 无界增长（C3）。
+  it('缓存条目超过容量上限时淘汰最久未使用的 key，并重新请求（C3）', async () => {
+    // 一次性挂载 201 个 key，超过 200 条上限；按挂载顺序写入，最早写入的最先被淘汰
+    const batch = render(
+      <>
+        {Array.from({ length: 201 }, (_, i) => (
+          <Probe
+            key={i}
+            cacheKey={`lru-${i}`}
+            fetcher={() => Promise.resolve(`lru-${i}`)}
+            label={`l${i}`}
+            staleTime={5000}
+          />
+        ))}
+      </>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('l200-data')).toHaveTextContent('"lru-200"'),
+    );
+    batch.unmount();
+
+    // 最早写入的 lru-0 已被 LRU 淘汰，重新订阅必须重新请求
+    const firstFetcher = jest.fn().mockResolvedValue('refetched');
+    render(<Probe cacheKey="lru-0" fetcher={firstFetcher} label="a" staleTime={5000} />);
+    await waitFor(() => expect(screen.getByTestId('a-data')).toHaveTextContent('"refetched"'));
+    expect(firstFetcher).toHaveBeenCalledTimes(1);
+
+    // 最近写入的 key 仍在缓存，重新订阅不应请求
+    const latestFetcher = jest.fn().mockResolvedValue('unexpected');
+    render(<Probe cacheKey="lru-200" fetcher={latestFetcher} label="b" staleTime={5000} />);
+    await waitFor(() => expect(screen.getByTestId('b-data')).toHaveTextContent('"lru-200"'));
+    expect(latestFetcher).not.toHaveBeenCalled();
+  });
 });

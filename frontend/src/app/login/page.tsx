@@ -76,10 +76,9 @@ export default function LoginPage() {
 
   return (
     <div className="lx-login-page flex items-center justify-center relative">
-      {/* 深色品牌侧栏（lg 以上显示）：渐变 + 极光光斑 + 能力点 */}
+      {/* 深色品牌侧栏（lg 以上显示）：静态柔光 + 细网格 + 能力点 */}
       <aside className="lx-login-aside hidden lg:flex" aria-hidden="true">
         <div className="lx-login-aside-orb lx-login-aside-orb-1" />
-        <div className="lx-login-aside-orb lx-login-aside-orb-2" />
         <div className="lx-login-aside-grid" />
 
         <div className="lx-login-aside-inner">

@@ -3,9 +3,27 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import HomePage from '@/app/(dashboard)/page';
 import { dashboardApi } from '@/services/dashboard';
+import { attendanceApi } from '@/services/attendance';
 import { clearDataCache } from '@/hooks/use-cached-data';
 
 const mockedGetStats = dashboardApi.getStats as jest.Mock;
+const mockedGetTodayPunch = attendanceApi.getTodayPunch as jest.Mock;
+const mockedGetMyBalances = attendanceApi.getMyBalances as jest.Mock;
+
+// 角色开关：工作台 KPI / 考勤概览按 isAdmin 分两套，测试按需切换
+let mockIsAdmin = true;
+jest.mock('@/hooks/use-permission', () => ({
+  usePermission: () => ({
+    can: (code?: string) => (code ? mockIsAdmin : false),
+  }),
+}));
+
+jest.mock('@/services/attendance', () => ({
+  attendanceApi: {
+    getTodayPunch: jest.fn().mockResolvedValue({ code: 0, data: null }),
+    getMyBalances: jest.fn().mockResolvedValue({ code: 0, data: [] }),
+  },
+}));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
@@ -31,6 +49,9 @@ jest.mock('@/components/AppLayout', () => ({
 jest.mock('@/services/dashboard', () => ({
   dashboardApi: {
     getStats: jest.fn().mockResolvedValue({ code: 0, data: null }),
+    // 组织看板（管理员可见）依赖这两个接口，缺 mock 会在渲染期抛「不是函数」
+    getDepartmentStats: jest.fn().mockResolvedValue({ code: 0, data: [] }),
+    getAttendanceTrend: jest.fn().mockResolvedValue({ code: 0, data: [] }),
   },
 }));
 
@@ -138,6 +159,7 @@ jest.mock('@arco-design/web-react', () => {
 describe('HomePage', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    mockIsAdmin = true;
   });
 
   it('wraps content with PageContainer', async () => {
@@ -168,7 +190,7 @@ describe('HomePage', () => {
       expect(screen.getByText('在职员工')).toBeInTheDocument();
       expect(screen.getByText('今日出勤')).toBeInTheDocument();
       expect(screen.getAllByText('待审批').length).toBeGreaterThan(0);
-      expect(screen.getByText('本月工资')).toBeInTheDocument();
+      expect(screen.getByText('本月加班')).toBeInTheDocument();
     });
   });
 
@@ -250,6 +272,7 @@ const FULL_STATS = {
 
 describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  beforeEach(() => {
     clearDataCache();
+    mockIsAdmin = true;
     mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
   });
 
@@ -258,14 +281,17 @@ describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  befor
     mockedGetStats.mockResolvedValue({ code: 0, data: null });
   });
 
-  it('待办事项渲染 todoTop 条目（点击跳转 /approval/todo）', async () => {
+  it('待办事项渲染 todoTop 条目并直达单据详情', async () => {
     const user = userEvent.setup();
     render(<HomePage />);
     await waitFor(() => expect(screen.getByText('张三的请假申请')).toBeInTheDocument());
     expect(screen.getByText('李四的报销申请')).toBeInTheDocument();
 
+    // 跳跃列表页直达详情，用户不必在列表里二次查找
     await user.click(screen.getByText('张三的请假申请'));
-    expect(mockPush).toHaveBeenCalledWith('/approval/todo');
+    expect(mockPush).toHaveBeenCalledWith('/approval/instances/3');
+    await user.click(screen.getByText('李四的报销申请'));
+    expect(mockPush).toHaveBeenCalledWith('/approval/instances/4');
   });
 
   it('最新通知渲染 notificationTop 条目', async () => {
@@ -279,6 +305,42 @@ describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  befor
     // KPI 数值随 stats 异步到达，需 waitFor
     await waitFor(() => expect(screen.getByText('4')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('8.5h')).toBeInTheDocument());
+  });
+
+  it('KPI 展示本月加班与今日迟到人数（后端已在算，别再挂着恒为 — 的假工资卡）', async () => {
+    render(<HomePage />);
+
+    // 本月加班：后端 monthOvertimeHours 的真实聚合值（StatCard 有数字滚动，需等终值）
+    await waitFor(() => expect(screen.getByText('本月加班')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('6.5')).toBeInTheDocument());
+    // 迟到人数作为「今日出勤」的补充说明，而不是摆一个空卡
+    expect(screen.getByText('其中迟到 1 人')).toBeInTheDocument();
+    // 恒为 null 的薪资字段不再占 KPI 位
+    expect(screen.queryByText('本月工资')).toBeNull();
+    expect(screen.queryByText(/¥/)).toBeNull();
+  });
+
+  it('没有迟到时「今日出勤」改报出勤率，不显示「其中迟到 0 人」', async () => {
+    mockedGetStats.mockResolvedValue({
+      code: 0,
+      data: { ...FULL_STATS, todayLateCount: 0 },
+    });
+    render(<HomePage />);
+
+    // 8 / 12 = 67%，比「今日打卡」这种把标签换个说法的填充词更有信息量
+    await waitFor(() => expect(screen.getByText('出勤率 67%')).toBeInTheDocument());
+    expect(screen.queryByText(/其中迟到/)).toBeNull();
+  });
+
+  it('今日无人打卡时明说「暂无打卡记录」，避免用户误判数据没同步', async () => {
+    mockedGetStats.mockResolvedValue({
+      code: 0,
+      data: { ...FULL_STATS, attendanceCount: 0, todayLateCount: 0 },
+    });
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('今日暂无打卡记录')).toBeInTheDocument());
+    expect(screen.queryByText(/出勤率/)).toBeNull();
   });
 
   it('我的申请进度渲染 mySubmissionsTop 并按状态映射文案与颜色', async () => {
@@ -333,5 +395,120 @@ describe('HomePage — 工作台四区块渲染 stats 新字段', () => {  befor
     await waitFor(() => expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0));
     expect(screen.queryByText('在职员工')).toBeNull();
     expect(screen.queryByText('暂无待办')).toBeNull();
+  });
+});
+
+// ============================================================
+// 角色差异化 / 今日状态 / 交互断链
+// ============================================================
+
+describe('HomePage — 角色差异化与今日状态', () => {
+  beforeEach(() => {
+    clearDataCache();
+    mockPush.mockClear();
+    mockIsAdmin = true;
+    mockedGetStats.mockResolvedValue({ code: 0, data: { ...FULL_STATS } });
+    mockedGetTodayPunch.mockResolvedValue({ code: 0, data: null });
+    mockedGetMyBalances.mockResolvedValue({ code: 0, data: [] });
+  });
+
+  afterEach(() => {
+    mockedGetStats.mockResolvedValue({ code: 0, data: null });
+  });
+
+  it('普通员工看不到全局人力数字，只看与自己相关的指标', async () => {
+    mockIsAdmin = false;
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('本周出勤')).toBeInTheDocument());
+    // 全局人力/全员加班对普通员工没有决策价值
+    expect(screen.queryByText('在职员工')).toBeNull();
+    expect(screen.queryByText('今日出勤')).toBeNull();
+    expect(screen.queryByText('本月加班')).toBeNull();
+    // 本周考勤概览与组织看板同属管理者视角，员工侧重复数据不再出现
+    expect(screen.queryByText('正常出勤')).toBeNull();
+  });
+
+  it('管理员保留全局视角，且组织看板下沉到页面末尾', async () => {
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('在职员工')).toBeInTheDocument());
+    // 管理员侧不出现员工专属指标，两套卡不混排
+    expect(screen.queryByText('本周出勤')).toBeNull();
+    // 组织看板标题在「最新通知」之后（DOM 顺序上处于页尾）
+    const headings = screen.getAllByRole('heading').map((h) => h.textContent);
+    expect(headings.indexOf('部门人力分布')).toBeGreaterThan(headings.indexOf('最新通知'));
+  });
+
+  it('今日打卡渲染上下班时间、班次与后端口径的准入提示', async () => {
+    mockedGetTodayPunch.mockResolvedValue({
+      code: 0,
+      data: {
+        status: 'normal',
+        firstPunch: '2026-10-30T01:02:00.000Z', // 北京时间 09:02
+        lastPunch: null,
+        hasSchedule: true,
+        isRestDay: false,
+        shift: { startTime: '09:00', endTime: '18:00' },
+        clockIn: { allowed: false, message: '已打卡上班' },
+        clockOut: { allowed: false, message: '还需等待 45 分钟' },
+      },
+    });
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('09:02')).toBeInTheDocument());
+    expect(screen.getByText('09:00–18:00')).toBeInTheDocument();
+    expect(screen.getByText('正常')).toBeInTheDocument();
+    // 提示文案直接取后端准入 message，与打卡页保持同一口径
+    expect(screen.getByText('还需等待 45 分钟')).toBeInTheDocument();
+  });
+
+  it('休息日 / 未排班给出明确原因，而不是把按钮置灰让人猜', async () => {
+    mockedGetTodayPunch.mockResolvedValue({
+      code: 0,
+      data: { status: 'rest', hasSchedule: true, isRestDay: true, clockIn: null, clockOut: null },
+    });
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('休息日，无需打卡')).toBeInTheDocument());
+  });
+
+  it('未排班时提示先去排班', async () => {
+    mockedGetTodayPunch.mockResolvedValue({
+      code: 0,
+      data: { status: 'absent', hasSchedule: false, isRestDay: false, clockIn: null, clockOut: null },
+    });
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('今日未排班，请先联系排班人')).toBeInTheDocument());
+  });
+
+  it('假期余额优先展示年假，剩余天数 = 总额度 − 已用', async () => {
+    mockedGetMyBalances.mockResolvedValue({
+      code: 0,
+      data: [
+        { id: 1, vacationType: { code: 'personal', name: '事假', isPaid: false }, totalDays: 10, usedDays: 3 },
+        { id: 2, vacationType: { code: 'annual', name: '年假', isPaid: true }, totalDays: 5, usedDays: 2 },
+      ],
+    });
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('年假剩余')).toBeInTheDocument());
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('已用')).toBeInTheDocument();
+  });
+
+  it('我的申请条目可点击（不再是只读死块）', async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('年假申请（2天）')).toBeInTheDocument());
+    await user.click(screen.getByText('年假申请（2天）'));
+    expect(mockPush).toHaveBeenCalledWith('/approval/submissions');
+  });
+
+  it('hero 展示数据更新时间，让「0 人」这类数值可自证新鲜度', async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText(/更新于/)).toBeInTheDocument());
   });
 });

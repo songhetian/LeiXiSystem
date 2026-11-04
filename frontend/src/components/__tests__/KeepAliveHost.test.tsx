@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import KeepAliveHost from '@/components/KeepAliveHost';
@@ -64,6 +64,35 @@ describe('KeepAliveHost', () => {
       </KeepAliveHost>,
     );
     expect(screen.getByTestId('counter')).toHaveTextContent('1');
+  });
+
+  it('入场动画只在首次打开时播放，切回已打开页签不再重播', () => {
+    const { rerender } = render(
+      <KeepAliveHost activePath="/a" alivePaths={['/a', '/b']}>
+        <div data-testid="p-a">Page A</div>
+      </KeepAliveHost>,
+    );
+
+    const paneA = screen.getByTestId('p-a').parentElement as HTMLElement;
+    expect(paneA).toHaveClass('page-enter');
+
+    // 模拟入场动画播放结束（jsdom 不跑 CSS 动画，手动派发 animationend）
+    fireEvent.animationEnd(paneA);
+
+    rerender(
+      <KeepAliveHost activePath="/b" alivePaths={['/a', '/b']}>
+        <div data-testid="p-b">Page B</div>
+      </KeepAliveHost>,
+    );
+    rerender(
+      <KeepAliveHost activePath="/a" alivePaths={['/a', '/b']}>
+        <div data-testid="p-a">Page A</div>
+      </KeepAliveHost>,
+    );
+
+    // 切回后应原地显示，不再出现第二次淡入/位移
+    expect(screen.getByTestId('p-a').parentElement).not.toHaveClass('page-enter');
+    expect(screen.getByTestId('p-a').parentElement).not.toHaveAttribute('hidden');
   });
 
   it('从 alivePaths 移除（关闭页签）后，对应缓存子树被卸载', () => {

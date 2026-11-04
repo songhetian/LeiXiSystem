@@ -39,6 +39,10 @@ export interface DashboardStats {
   todayLateCount: number;
   monthOvertimeHours: number;
   pendingApprovals: number;
+  /**
+   * 后端目前恒为 null（薪资核算未接入统计接口），工作台已不再展示该字段；
+   * 保留声明是为了兼容接口出参，取到非空值前不要拿它渲染金额。
+   */
   monthlySalary: number | null;
   employeeId: number | null;
   /** 待办前 4 条：无权限/异常时为 []（服务端静默降级，避免 403 噪音）；旧后端无此字段 */

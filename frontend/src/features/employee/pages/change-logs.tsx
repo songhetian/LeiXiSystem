@@ -1,21 +1,23 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Tag, Tooltip, Message, Space } from '@arco-design/web-react';
+import { Tooltip, Message, Space } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { employeeApi, EmployeeChangeLog, EmployeeChangeType, EmployeeChangeLogResult, EmployeeChangeLogParams } from '@/services/employee';
 import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { todayStr, formatDateTime } from '@/lib/format';
 import { notifyError } from '@/lib/request';
 
 // changeType 映射（后端 EmployeeChangeLog.changeType）
 const TYPE_META: Record<EmployeeChangeType, { label: string; color: string }> = {
   admin_update: { label: '管理员修改', color: 'arcoblue' },
-  self_update: { label: '本人修改', color: 'cyan' },
+  self_update: { label: '本人修改', color: 'blue' },
   resign: { label: '离职', color: 'red' },
   restore: { label: '恢复', color: 'green' },
   batch_update: { label: '批量调整', color: 'purple' },
@@ -81,8 +83,9 @@ const columns: ProTableColumn[] = [
     dataIndex: 'changeType',
     width: 110,
     render: (value: EmployeeChangeType) => {
-      const meta = TYPE_META[value] ?? { label: value, color: 'gray' };
-      return <Tag color={meta.color}>{meta.label}</Tag>;
+      const meta = TYPE_META[value] ?? { label: value, color: 'default' };
+      // 变更类型属于状态语义，统一走公共 StatusTag
+      return <StatusTag status={value} statusMap={{ [value]: meta }} />;
     },
   },
   {
@@ -161,8 +164,11 @@ export default function EmployeeChangeLogsPage() {
 
   const handleExport = async () => {
     try {
-      const res = await employeeApi.getChangeLogs({ page: 1, pageSize: 10000, ...searchParams });
-      const list = res.data?.list ?? [];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<EmployeeChangeLog>(async (page, pageSize) => {
+        const res = await employeeApi.getChangeLogs({ page, pageSize, ...searchParams });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `员工变动流水_${todayStr()}.xlsx`,
         '员工变动流水',

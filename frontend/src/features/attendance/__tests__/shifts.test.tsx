@@ -76,7 +76,7 @@ jest.mock('@/services/system', () => ({
 }));
 
 // 班次表单作为独立 seam mock；测试 ShiftsPage 与 ShiftForm 的集成（打开/提交）
-jest.mock('@/features/attendance/pages/ShiftForm', () => {
+jest.mock('@/features/attendance/components/ShiftForm', () => {
   const React = require('react');
   const defaults = {
     name: '新班次',
@@ -191,12 +191,20 @@ describe('ShiftsPage', () => {
       await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeEnabled());
     });
 
-    it('staff（无 attendance:manage）新建班次按钮禁用', async () => {
+    it('staff（无 attendance:manage）新建/编辑/启停/删除按钮全部不渲染', async () => {
       mockUseAuthStore.mockReturnValue({
         user: { id: 2, username: 'staff', name: '王小明', permissions: ['attendance:view'] },
       });
       render(<ShiftsPage />);
-      await waitFor(() => expect(screen.getByText('+ 新建班次')).toBeDisabled());
+      await waitFor(() => expect(screen.getByText('早班')).toBeInTheDocument());
+
+      // 按钮无权限不渲染（PermissionGate），而非禁用
+      expect(screen.queryByText('+ 新建班次')).not.toBeInTheDocument();
+      expect(screen.queryByText('编辑')).not.toBeInTheDocument();
+      expect(screen.queryByText('禁用')).not.toBeInTheDocument();
+      expect(screen.queryByText('删除')).not.toBeInTheDocument();
+      // 导出为查看类动作，不受权限点限制
+      expect(screen.getByText('导出 Excel')).toBeInTheDocument();
     });
   });
 

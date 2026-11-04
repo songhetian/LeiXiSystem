@@ -79,7 +79,13 @@ export default function NotificationSettingsPage() {
     return res.data ?? [];
   });
 
-  const { data: roles } = useCachedData<TargetRoleOption[]>(ROLES_KEY, async () => {
+  // 目标角色是各事件下拉的唯一数据源：失败时下拉会一个选项都没有，
+  // 用户会以为"系统里没有可推送角色"，必须明示失败 + 重试并禁用保存
+  const {
+    data: roles,
+    error: rolesError,
+    revalidate: revalidateRoles,
+  } = useCachedData<TargetRoleOption[]>(ROLES_KEY, async () => {
     const res = await notificationSettingApi.listRoles();
     if (res.code !== 0 || !res.data) throw new Error(res.message || '目标角色读取失败');
     return res.data;
@@ -133,6 +139,7 @@ export default function NotificationSettingsPage() {
         <Button
           type="primary"
           loading={savingGroup === group.key}
+          disabled={!!rolesError}
           onClick={() => saveGroup(group.key)}
         >
           {savingGroup === group.key ? '正在保存...' : '保存配置'}
@@ -150,9 +157,10 @@ export default function NotificationSettingsPage() {
             </div>
             <Select
               mode="multiple"
-              placeholder="选择推送目标"
+              placeholder={rolesError ? '目标角色加载失败' : '选择推送目标'}
               value={draft[type] ?? []}
               onChange={(val) => handleChange(type, val as string[])}
+              disabled={!!rolesError}
               options={roleOptions.map((r) => ({
                 ...r,
                 label: (
@@ -174,6 +182,17 @@ export default function NotificationSettingsPage() {
     <PageContainer>
       <div className="pro-card pro-card--tabs">
         <DataState loading={loading} error={error} onRetry={revalidate} isEmpty={isEmpty} emptyText="暂无推送配置">
+          {rolesError && (
+            <div
+              role="alert"
+              className="mb-3 flex items-center justify-between gap-3 rounded-md border border-danger bg-danger-light px-3 py-2 text-sm text-danger"
+            >
+              <span>推送目标角色加载失败，暂时无法修改配置：{rolesError}</span>
+              <Button size="mini" onClick={() => revalidateRoles()}>
+                重试
+              </Button>
+            </div>
+          )}
           <Tabs defaultActiveTab="attendance">{tabItems}</Tabs>
         </DataState>
       </div>

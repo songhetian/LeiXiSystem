@@ -58,7 +58,8 @@ export const NAV_TREE: NavNode[] = [
     children: [
       { key: 'employee-list', label: '员工列表', path: '/employees', permission: 'employee:view', keywords: '员工 人员 staff' },
       { key: 'employee-transactions', label: '员工事务', path: '/employees/transactions', permission: 'employee:view', keywords: '入职 离职 调动' },
-      { key: 'employee-timeline', label: '人员履历', path: '/employees/timeline', permission: 'employee:view', keywords: '履历 入职 离职 调动 晋升' },
+      // 人员履历数据来自调岗调薪时间线端点（employee-tx GET /timeline），后端要求 transfer:view
+      { key: 'employee-timeline', label: '人员履历', path: '/employees/timeline', permission: 'transfer:view', keywords: '履历 入职 离职 调动 晋升' },
       { key: 'employee-change-logs', label: '员工变动流水', path: '/employees/change-logs', permission: 'employee:view', keywords: '变动 流水 日志 change' },
       { key: 'employee-tags', label: '员工标签', path: '/employees/tags', permission: 'employee:view', keywords: '标签 tag' },
     ],
@@ -108,7 +109,8 @@ export const NAV_TREE: NavNode[] = [
       { key: 'attendance-settings', label: '考勤设置', path: '/attendance/settings', permission: 'attendance:manage', keywords: '考勤 设置 attendance settings' },
       { key: 'attendance-exception-rules', label: '考勤异常', path: '/attendance/exception-rules', permission: 'attendance:exception:view', keywords: '异常 exception' },
       { key: 'attendance-deduction-rules', label: '扣款规则', path: '/attendance/deduction-rules', permission: 'attendance:deduction:view', keywords: '扣款 deduction' },
-      { key: 'attendance-locations', label: '打卡定位', path: '/attendance/locations', permission: 'attendance:view', keywords: '打卡 定位 location' },
+      // 打卡定位列表端点（GET /attendance-locations）要求 employee:view，写操作才要求 attendance:location:manage
+      { key: 'attendance-locations', label: '打卡定位', path: '/attendance/locations', permission: 'employee:view', keywords: '打卡 定位 location' },
     ],
   },
   {
@@ -135,6 +137,7 @@ export const NAV_TREE: NavNode[] = [
     group: '薪酬',
     children: [
       { key: 'payroll-runs', label: '算薪批次', path: '/payroll/runs', permission: 'payroll:view', keywords: '算薪 payroll' },
+      { key: 'payroll-payslips', label: '工资条管理', path: '/payroll/payslips', permission: 'payroll:view', keywords: '工资条 台账 payslip' },
       { key: 'my-payslips', label: '我的工资条', path: '/payroll/my-payslips', permission: 'payroll:view', keywords: '工资条 payslip' },
     ],
   },
@@ -198,7 +201,8 @@ export const NAV_TREE: NavNode[] = [
       { key: 'system-positions', label: '岗位管理', path: '/system/positions', permission: 'position:manage', keywords: '岗位 position' },
       { key: 'system-users', label: '用户管理', path: '/system/users', permission: 'system:user:manage', keywords: '用户 user' },
       { key: 'system-roles', label: '角色权限', path: '/system/roles', permission: 'system:role:manage', keywords: '角色 role' },
-      { key: 'system-permissions', label: '权限管理', path: '/system/permissions', permission: 'system:role:manage', keywords: '权限 permission' },
+      // 权限管理为纯只读页（listPermissions/listRoles 均挂 system:role:view），无写端点
+      { key: 'system-permissions', label: '权限管理', path: '/system/permissions', permission: 'system:role:view', keywords: '权限 permission' },
       { key: 'system-broadcasts', label: '公告管理', path: '/system/broadcasts', permission: 'system:broadcast:manage', keywords: '公告 管理 broadcast' },
       { key: 'system-logs', label: '操作日志', path: '/system/logs', permission: 'system:log:view', keywords: '日志 log' },
     ],

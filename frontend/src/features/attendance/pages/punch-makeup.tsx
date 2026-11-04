@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Tag, Space, Button } from '@arco-design/web-react';
+import { Message, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { punchMakeupApi, PunchMakeupRecord, PunchMakeupType } from '@/services/attendance';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { todayStr, formatDateTime } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { LEAVE_STATUS_MAP as STATUS_MAP } from '@/features/attendance/lib/status-maps';
 
 // 值域必须与后端 punch-makeup-type.ts 一致（C3：上班卡=当日首次打卡，下班卡=当日最后一次打卡）
 const PUNCH_TYPE_OPTIONS: { label: string; value: PunchMakeupType }[] = [
@@ -18,13 +21,7 @@ const PUNCH_TYPE_OPTIONS: { label: string; value: PunchMakeupType }[] = [
   { label: '下班卡', value: 'check_out' },
 ];
 
-const STATUS_MAP: Record<string, { color: string; text: string }> = {
-  pending: { color: 'gray', text: '待提交' },
-  approving: { color: 'arcoblue', text: '审批中' },
-  approved: { color: 'green', text: '已通过' },
-  rejected: { color: 'red', text: '已拒绝' },
-};
-
+// color 使用 StatusTag 语义色（Arco Design Pro 标准）
 export default function PunchMakeupPage() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
@@ -66,8 +63,11 @@ export default function PunchMakeupPage() {
   // 导出补卡记录到 Excel
   const handleExport = async () => {
     try {
-      const res = await punchMakeupApi.list({ page: 1, pageSize: 10000, ...searchParams });
-      const list = (res.data?.list ?? []) as PunchMakeupRecord[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<PunchMakeupRecord>(async (page, pageSize) => {
+        const res = await punchMakeupApi.list({ page, pageSize, ...searchParams });
+        return { list: (res.data?.list ?? []) as PunchMakeupRecord[], total: res.data?.total ?? 0 };
+      });
       const typeLabel = (v: string) => PUNCH_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v;
       if (!exportToExcel(
         `补卡申请_${todayStr()}.xlsx`,
@@ -78,7 +78,7 @@ export default function PunchMakeupPage() {
           { title: '应打卡时间', dataIndex: 'originalTime' },
           { title: '实际打卡时间', dataIndex: 'makeupTime' },
           { title: '补卡原因', dataIndex: 'reason' },
-          { title: '状态', value: (r: PunchMakeupRecord) => STATUS_MAP[r.status]?.text ?? r.status },
+          { title: '状态', value: (r: PunchMakeupRecord) => STATUS_MAP[r.status]?.label ?? r.status },
           { title: '创建时间', value: (r: PunchMakeupRecord) => formatDateTime(r.createdAt) },
         ],
         list,
@@ -211,10 +211,7 @@ export default function PunchMakeupPage() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v: string) => {
-        const info = STATUS_MAP[v] || { color: 'gray', text: v };
-        return <Tag color={info.color}>{info.text}</Tag>;
-      },
+      render: (v: string) => <StatusTag status={v} statusMap={STATUS_MAP} />,
     },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v: unknown) => formatDateTime(v) },
     {

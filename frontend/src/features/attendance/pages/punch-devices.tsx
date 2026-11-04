@@ -1,13 +1,16 @@
 ﻿'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
+import { Message, Modal, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, PunchDevice, PunchDeviceCreateDto, PunchDeviceUpdateDto } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { ENABLED_STATUS_MAP } from '@/features/attendance/lib/status-maps';
 
 interface DeviceListEnvelope {
   code: number;
@@ -123,7 +126,7 @@ export default function PunchDevicesPage() {
       dataIndex: 'enabled',
       width: 100,
       render: (value: boolean) => (
-        <Tag color={value ? 'green' : 'gray'}>{value ? '启用' : '禁用'}</Tag>
+        <StatusTag status={value ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />
       ),
     },
     { title: '最后同步', dataIndex: 'lastSyncTime', width: 180 },
@@ -133,16 +136,20 @@ export default function PunchDevicesPage() {
       width: 180,
       render: (_: any, record: PunchDevice) => (
         <Space>
-          <Button size="small" type="text" onClick={() => handleEdit(record)}>编辑</Button>
-          <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          {/* 设备编辑/删除是考勤管理写操作：无 attendance:manage 不渲染 */}
+          <PermissionGate code="attendance:manage">
+            <Button size="small" type="text" onClick={() => handleEdit(record)}>编辑</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增设备', type: 'primary', onClick: handleAdd, disabled: !can('attendance:manage') },
-  ];
+  // 新增设备是考勤管理写操作：无权限时工具栏不渲染
+  const toolbar: ProTableToolbarAction[] = can('attendance:manage')
+    ? [{ key: 'add', label: '新增设备', type: 'primary', onClick: handleAdd }]
+    : [];
 
   return (
     <PageContainer >

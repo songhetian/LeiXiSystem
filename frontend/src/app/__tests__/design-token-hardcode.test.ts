@@ -10,6 +10,8 @@
  *  - 班次 / 员工标签调色板：颜色是**用户可选并持久化到数据库**的调色板
  *    （shifts.color / tag.color），本质是数据而非样式。
  *
+ * 范围：features / app / components（共享组件曾是盲区，2026-11 纳入）。
+ *
  * 注意扫描前会剔除注释与 `var(--x, #hex)` 回退值（回退值是有意为之的兼容写法）。
  */
 import fs from 'fs';
@@ -20,13 +22,17 @@ const SRC_ROOT = path.join(__dirname, '..', '..');
 const ALLOWLIST = new Set([
   'app/layout.tsx',
   'app/manifest.ts',
-  'features/attendance/pages/ShiftForm.tsx',
+  'features/attendance/components/ShiftForm.tsx',
   'features/attendance/pages/shifts.tsx',
   'features/employee/pages/tags.tsx',
   'features/employee/pages/list.tsx',
+  // 员工标签 pill：hex 是用户持久化到数据库的数据色（规范化 + alpha 拼接），非样式
+  'features/employee/components/EmployeeTagPill.tsx',
+  // 班次取色调色板预设：颜色随班次写入数据库，属数据而非主题样式
+  'components/ModalForm.tsx',
 ]);
 
-const SCAN_DIRS = ['features', 'app'];
+const SCAN_DIRS = ['features', 'app', 'components'];
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/g;
 
 function collectFiles(dir: string): string[] {

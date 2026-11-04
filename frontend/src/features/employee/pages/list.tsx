@@ -1,17 +1,21 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { Message, Button, Space, Modal, Form, Input, Tag } from '@arco-design/web-react';
+import { Message, Button, Space, Modal, Form, Input } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import EmployeeDetailModal from '@/features/employee/components/EmployeeDetailModal';
+import EmployeeTagPill from '@/features/employee/components/EmployeeTagPill';
+import { PermissionGate } from '@/components/PermissionGate';
 import { employeeApi, employeeTagApi, Employee, EmployeeListParams, EmployeeTagLite } from '@/services/employee';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
+import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate, todayStr } from '@/lib/format';
 import { getApiErrorMessage } from '@/lib/api-error';
 
@@ -140,6 +144,9 @@ function buildFormFields(
 }
 
 export default function EmployeeListPage() {
+  const { can } = usePermission();
+  // 写操作按钮统一 PermissionGate 控制：员工新增/编辑/离职/批量操作 → employee:manage
+  const canManage = can('employee:manage');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Omit<EmployeeListParams, 'page' | 'pageSize'>>({});
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -224,8 +231,11 @@ export default function EmployeeListPage() {
   // 导出 Excel：拉取符合当前筛选条件的全部员工
   const handleExport = async () => {
     try {
-      const res = await employeeApi.getList({ page: 1, pageSize: 10000, ...searchParams });
-      const list = (res.data?.list ?? []) as Employee[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<Employee>(async (page, pageSize) => {
+        const res = await employeeApi.getList({ page, pageSize, ...searchParams });
+        return { list: (res.data?.list ?? []) as Employee[], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `员工列表_${todayStr()}.xlsx`,
         '员工列表',
@@ -525,9 +535,7 @@ export default function EmployeeListPage() {
       render: (tags: EmployeeTagLite[] | undefined) =>
         tags && tags.length ? (
           <Space size={4} wrap>
-            {tags.map((t) => (
-              <Tag key={t.id} color={t.color || '#3B82F6'}>{t.name}</Tag>
-            ))}
+            {tags.map((t) => <EmployeeTagPill key={t.id} tag={t} />)}
           </Space>
         ) : (
           '-'
@@ -544,51 +552,58 @@ export default function EmployeeListPage() {
       dataIndex: 'action',
       width: 170,
       render: (_: any, record: Employee) => (
-        <Space>
-          <Button
-            type="text"
-            size="small"
-            onClick={() => handleEdit(record)}
-            data-testid={`btn-edit-${record.id}`}
-          >
-            编辑
-          </Button>
-          {record.status === 'active' && (
+        <PermissionGate code="employee:manage">
+          <Space>
             <Button
               type="text"
               size="small"
-              status="danger"
-              onClick={() => handleResign(record)}
-              data-testid={`btn-resign-${record.id}`}
+              onClick={() => handleEdit(record)}
+              data-testid={`btn-edit-${record.id}`}
             >
-              离职
+              编辑
             </Button>
-          )}
-          {record.status === 'resigned' && (
-            <Button
-              type="text"
-              size="small"
-              onClick={() => handleRestore(record)}
-              data-testid={`btn-restore-${record.id}`}
-            >
-              恢复
-            </Button>
-          )}
-        </Space>
+            {record.status === 'active' && (
+              <Button
+                type="text"
+                size="small"
+                status="danger"
+                onClick={() => handleResign(record)}
+                data-testid={`btn-resign-${record.id}`}
+              >
+                离职
+              </Button>
+            )}
+            {record.status === 'resigned' && (
+              <Button
+                type="text"
+                size="small"
+                onClick={() => handleRestore(record)}
+                data-testid={`btn-restore-${record.id}`}
+              >
+                恢复
+              </Button>
+            )}
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
 
+  // 工具栏：写操作（新增/导入）仅对拥有 employee:manage 的用户渲染；模板下载/导出为查看类不控权
   const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新增员工', type: 'primary', onClick: handleAdd },
-    {
-      key: 'import',
-      label: '导入',
-      type: 'primary',
-      status: 'success',
-      loading: importing,
-      onClick: () => importInputRef.current?.click(),
-    },
+    ...(canManage
+      ? [
+          { key: 'add', label: '新增员工', type: 'primary' as const, onClick: handleAdd },
+          {
+            key: 'import',
+            label: '导入',
+            type: 'primary' as const,
+            status: 'success' as const,
+            loading: importing,
+            onClick: () => importInputRef.current?.click(),
+          },
+        ]
+      : []),
     { key: 'template', label: '下载模板', type: 'outline', onClick: handleDownloadTemplate },
     {
       key: 'export',
@@ -656,27 +671,32 @@ export default function EmployeeListPage() {
           selectedRowKeys: selectedKeys,
           onChange: (keys) => setSelectedKeys(keys),
         }}
-        batchActions={[
-          {
-            key: 'batch-adjust',
-            label: '批量调整',
-            type: 'primary',
-            onClick: handleBatchOpen,
-          },
-          {
-            key: 'batch-active',
-            label: '恢复在职',
-            type: 'secondary',
-            onClick: () => handleBatchStatus('active'),
-          },
-          {
-            key: 'batch-resign',
-            label: '批量离职',
-            type: 'secondary',
-            danger: true,
-            onClick: () => handleBatchStatus('resigned'),
-          },
-        ]}
+        // 批量写操作（调整/恢复在职/批量离职）→ employee:manage，无权限不渲染
+        batchActions={
+          canManage
+            ? [
+                {
+                  key: 'batch-adjust',
+                  label: '批量调整',
+                  type: 'primary',
+                  onClick: handleBatchOpen,
+                },
+                {
+                  key: 'batch-active',
+                  label: '恢复在职',
+                  type: 'secondary',
+                  onClick: () => handleBatchStatus('active'),
+                },
+                {
+                  key: 'batch-resign',
+                  label: '批量离职',
+                  type: 'secondary',
+                  danger: true,
+                  onClick: () => handleBatchStatus('resigned'),
+                },
+              ]
+            : []
+        }
       />
       <ModalForm
         visible={modalVisible}
@@ -762,12 +782,14 @@ export default function EmployeeListPage() {
         width={460}
       />
 
-      {/* 员工详情（含在职履历） */}
-      <EmployeeDetailModal
-        employeeId={detailId}
-        visible={detailVisible}
-        onClose={() => { setDetailVisible(false); setDetailId(null); }}
-      />
+      {/* 员工详情（含在职履历）：条件渲染，打开即挂载并按 detailId 拉取，关闭即卸载 */}
+      {detailVisible && (
+        <EmployeeDetailModal
+          employeeId={detailId}
+          visible
+          onClose={() => { setDetailVisible(false); setDetailId(null); }}
+        />
+      )}
     </PageContainer>
   );
 }

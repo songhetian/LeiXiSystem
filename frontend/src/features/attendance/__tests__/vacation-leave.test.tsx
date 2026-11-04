@@ -305,7 +305,7 @@ describe('VacationLeavePage', () => {
   it('shows status tags for different statuses', async () => {
     render(<VacationLeavePage />);
     await waitFor(() => {
-      expect(screen.getAllByTestId('tag').length).toBeGreaterThan(0);
+      expect(screen.getAllByTestId('status-tag').length).toBeGreaterThan(0);
     });
   });
 

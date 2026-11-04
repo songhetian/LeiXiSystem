@@ -17,6 +17,15 @@ jest.mock('@/store/auth', () => ({
   useAuthStore: jest.fn(),
 }));
 
+// 启动态会展示系统品牌信息：测试里给固定值，避免真实请求干扰
+jest.mock('@/hooks/use-system-info', () => ({
+  useSystemInfo: () => ({
+    info: { name: '雷犀管理系统', logoUrl: '' },
+    loading: false,
+    revalidate: jest.fn(),
+  }),
+}));
+
 describe('ProtectedRoute', () => {
   beforeEach(() => {
     mockReplace.mockClear();
@@ -74,9 +83,10 @@ describe('ProtectedRoute', () => {
         </ProtectedRoute>,
       );
 
-      expect(screen.getByText(/加载中/i)).toBeInTheDocument();
+      expect(screen.getByText(/正在进入工作台/i)).toBeInTheDocument();
       // 用 min-h-dvh 而非 100vh，避免移动端地址栏占高导致内容被推出视口（SC 1.4.10）
-      expect(screen.getByText(/加载中/i).closest('div')).toHaveClass('min-h-dvh');
+      expect(screen.getByText(/正在进入工作台/i).closest('.min-h-dvh')).toBeInTheDocument();
+      expect(screen.getByText('雷犀管理系统')).toBeInTheDocument();
     });
   });
 
@@ -209,7 +219,9 @@ describe('ProtectedRoute', () => {
       { path: '/expense/approval', parentPerm: 'reimbursement:view', required: 'reimbursement:approve' },
       { path: '/knowledge/admin', parentPerm: 'knowledge:view', required: 'knowledge:manage' },
       { path: '/system/roles', parentPerm: 'system:user:view', required: 'system:role:manage' },
-      { path: '/system/permissions', parentPerm: 'system:user:view', required: 'system:role:manage' },
+      { path: '/system/permissions', parentPerm: 'system:user:view', required: 'system:role:view' },
+      { path: '/employees/timeline', parentPerm: 'employee:view', required: 'transfer:view' },
+      { path: '/attendance/locations', parentPerm: 'attendance:view', required: 'employee:view' },
       { path: '/system/departments', parentPerm: 'system:user:view', required: 'department:manage' },
       { path: '/system/positions', parentPerm: 'system:user:view', required: 'position:manage' },
       { path: '/system/broadcasts', parentPerm: 'system:user:view', required: 'system:broadcast:manage' },

@@ -343,6 +343,74 @@ describe('SearchForm', () => {
     });
   });
 
+  describe('统一布局与成对字段保护', () => {
+    it('默认即为单行内联布局（字段与查询/重置同一行）', () => {
+      render(<SearchForm fields={mockFields} onSearch={() => {}} />);
+      expect(screen.getByTestId('search-form')).toHaveClass('lx-search-form-inline');
+    });
+
+    it('折叠时不会把 start/end 拆开：补上配对的结束字段', () => {
+      // 回归背景：column 截断会只显示「开始日期」而隐藏「结束日期」，
+      // 用户设了起始却没地方设结束，区间筛选直接废掉
+      const fields: SearchFieldConfig[] = [
+        { key: 'keyword', label: '关键词', type: 'input' },
+        { key: 'startDate', label: '开始日期', type: 'date' },
+        { key: 'endDate', label: '结束日期', type: 'date' },
+        { key: 'owner', label: '负责人', type: 'input' },
+      ];
+      render(<SearchForm fields={fields} onSearch={() => {}} column={2} />);
+
+      expect(screen.getByTestId('form-item-keyword')).toBeInTheDocument();
+      expect(screen.getByTestId('form-item-startDate')).toBeInTheDocument();
+      expect(screen.getByTestId('form-item-endDate')).toBeInTheDocument();
+      expect(screen.queryByTestId('form-item-owner')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('已生效条件回显', () => {
+    it('未查询时不展示条件胶囊', () => {
+      render(<SearchForm fields={mockFields} onSearch={() => {}} />);
+      expect(screen.queryByTestId('search-active')).not.toBeInTheDocument();
+    });
+
+    it('查询后以「字段名：可读值」形式回显已生效条件', async () => {
+      const user = userEvent.setup();
+      render(<SearchForm fields={mockFields} onSearch={() => {}} expandable={false} />);
+      await user.selectOptions(screen.getByTestId('select-departmentId'), '1');
+      await user.click(screen.getByTestId('btn-查询'));
+
+      const active = screen.getByTestId('search-active');
+      expect(active).toHaveTextContent('部门');
+      // 回显人话（技术部），而不是提交给接口的原始 id
+      expect(active).toHaveTextContent('技术部');
+    });
+
+    it('点击条件胶囊移除该条件并立即重新查询', async () => {
+      const user = userEvent.setup();
+      const onSearch = jest.fn();
+      render(<SearchForm fields={mockFields} onSearch={onSearch} expandable={false} />);
+      await user.selectOptions(screen.getByTestId('select-departmentId'), '1');
+      await user.click(screen.getByTestId('btn-查询'));
+      expect(onSearch).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByTestId('chip-departmentId'));
+      const lastValues = onSearch.mock.calls[onSearch.mock.calls.length - 1][0];
+      expect(lastValues.departmentId).toBeUndefined();
+      expect(screen.queryByTestId('chip-departmentId')).not.toBeInTheDocument();
+    });
+
+    it('重置后清空已生效条件', async () => {
+      const user = userEvent.setup();
+      render(<SearchForm fields={mockFields} onSearch={() => {}} expandable={false} />);
+      await user.selectOptions(screen.getByTestId('select-departmentId'), '1');
+      await user.click(screen.getByTestId('btn-查询'));
+      expect(screen.getByTestId('search-active')).toBeInTheDocument();
+
+      await user.click(screen.getByTestId('btn-重置'));
+      expect(screen.queryByTestId('search-active')).not.toBeInTheDocument();
+    });
+  });
+
   describe('起止日期成对校验', () => {
     // 回归背景：开始日期晚于结束日期时，此前照样发请求，接口返回空列表，
     // 用户看到的是「没有数据」而不是「你填反了」。

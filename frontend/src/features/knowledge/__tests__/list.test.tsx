@@ -84,7 +84,7 @@ describe('KnowledgeListPage', () => {
     });
     (knowledgeApi.getArticles as jest.Mock).mockResolvedValue({
       code: 0,
-      data: { list: mockArticles, total: 3, page: 1, pageSize: 200 },
+      data: { list: mockArticles, total: 3, page: 1, pageSize: 100 },
     });
     (knowledgeApi.getArticleDetail as jest.Mock).mockResolvedValue({
       code: 0,
@@ -126,6 +126,33 @@ describe('KnowledgeListPage', () => {
       render(<KnowledgeListPage />);
       await screen.findByText('公司制度');
       expect(screen.getByTestId('keyword-search')).toHaveAttribute('data-disabled', 'true');
+    });
+
+    it('文章列表按后端上限翻页取全量（pageSize 100，统计与文件夹计数不缺数据）', async () => {
+      // 150 篇文档：按后端上限需分 2 页才能取全
+      const articles = Array.from({ length: 150 }, (_, i) => ({
+        ...mockArticles[0],
+        id: i + 1,
+        title: `文档${i + 1}`,
+      }));
+      (knowledgeApi.getArticles as jest.Mock).mockImplementation(({ page, pageSize }: any) =>
+        Promise.resolve({
+          code: 0,
+          data: {
+            list: articles.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+            total: articles.length,
+            page,
+            pageSize,
+          },
+        }),
+      );
+
+      render(<KnowledgeListPage />);
+
+      expect(await screen.findByText(/150 篇文档/)).toBeInTheDocument();
+      const calls = (knowledgeApi.getArticles as jest.Mock).mock.calls.map((c: any[]) => c[0]);
+      expect(calls.map((p: any) => p.page)).toEqual([1, 2]);
+      expect(calls.every((p: any) => p.pageSize === 100)).toBe(true);
     });
 
     it('根视图不直接平铺文章列表', async () => {
@@ -219,7 +246,7 @@ describe('KnowledgeListPage', () => {
     it('空文章时根视图仍显示文件夹卡片（0 篇），不平铺文章', async () => {
       (knowledgeApi.getArticles as jest.Mock).mockResolvedValue({
         code: 0,
-        data: { list: [], total: 0, page: 1, pageSize: 200 },
+        data: { list: [], total: 0, page: 1, pageSize: 100 },
       });
       render(<KnowledgeListPage />);
       expect(await screen.findByText('公司制度')).toBeInTheDocument();

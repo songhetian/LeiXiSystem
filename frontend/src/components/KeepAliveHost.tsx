@@ -33,6 +33,9 @@ export default function KeepAliveHost({
 }: KeepAliveHostProps) {
   const cacheRef = useRef<Map<string, React.ReactNode>>(new Map());
   const cache = cacheRef.current;
+  // 已播放过入场的路径：Keep-Alive 的语义是「切回原地」，每次切回都重播淡入+位移
+  // 会让用户以为页面被重新加载（表格/图表尤其明显），因此入场动画只在首次打开时播一次。
+  const enteredRef = useRef<Set<string>>(new Set());
   // 路径 → 重挂载版本号；增量写入渲染 key，驱动目标页强制重挂载
   const refreshCountsRef = useRef<Map<string, number>>(new Map());
   const [, setVersion] = useState(0);
@@ -70,7 +73,17 @@ export default function KeepAliveHost({
         <div
           key={`${path}#${refreshCountsRef.current.get(path) ?? 0}`}
           hidden={path !== activePath}
-          className={path === activePath ? 'keep-alive-node page-enter' : 'keep-alive-node'}
+          className={
+            path === activePath && !enteredRef.current.has(path)
+              ? 'keep-alive-node page-enter'
+              : 'keep-alive-node'
+          }
+          // 只认节点自身的动画结束（子组件的 animationend 会冒泡上来，不能据此判定）
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget && path === activePath) {
+              enteredRef.current.add(path);
+            }
+          }}
           style={{ width: '100%', height: '100%' }}
         >
           {node}

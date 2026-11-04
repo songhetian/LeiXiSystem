@@ -35,6 +35,8 @@ function dateOnly(s?: string): string {
 }
 
 const DEFAULT_COLOR = 'var(--lx-primary-weak)';
+/** 后端 /schedules/my 的 pageSize 上限 */
+const MY_PAGE_SIZE = 400;
 
 export default function MySchedulePage() {
   // 「今天」按北京时间判定：在非 +08 时区的机器上，月初/月末会开错月份，
@@ -56,13 +58,25 @@ export default function MySchedulePage() {
   const { data: list, loading, error, revalidate } = useCachedData<Schedule[]>(
     cacheKey,
     async () => {
-      const res = await attendanceApi.getMyScheduleList({
-        startDate: monthStart,
-        endDate: monthEnd,
-        pageSize: 400,
-      });
-      if (res.code !== 0) throw new Error(res.message || '排班加载失败');
-      return res.data?.list ?? [];
+      // 后端 /schedules/my 的 pageSize 上限是 400，超过单页时循环拉全量，
+      // 否则当月排班只显示前 400 条（多班次/补排场景会被静默截断）
+      const rows: Schedule[] = [];
+      let page = 1;
+      while (true) {
+        const res = await attendanceApi.getMyScheduleList({
+          startDate: monthStart,
+          endDate: monthEnd,
+          page,
+          pageSize: MY_PAGE_SIZE,
+        });
+        if (res.code !== 0) throw new Error(res.message || '排班加载失败');
+        const pageList = res.data?.list ?? [];
+        rows.push(...pageList);
+        const total = res.data?.total ?? 0;
+        if (pageList.length === 0 || rows.length >= total) break;
+        page += 1;
+      }
+      return rows;
     },
     { staleTime: 30_000 },
   );

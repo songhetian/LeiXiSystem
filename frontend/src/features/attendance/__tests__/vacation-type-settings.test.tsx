@@ -105,8 +105,10 @@ jest.mock('@/components/ModalForm', () => {
   };
 });
 
+// 权限门：默认全放行，个别用例切到无权限
+const mockCan = jest.fn((_code?: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (code?: string) => mockCan(code) }),
 }));
 
 jest.mock('@arco-design/web-react', () => {
@@ -146,6 +148,7 @@ describe('VacationTypeSettingsPage（月假额度配置）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearDataCache();
+    mockCan.mockReturnValue(true);
     (attendanceApi.getVacationTypes as jest.Mock).mockResolvedValue({
       code: 0,
       data: [YEARLY_TYPE, MONTHLY_TYPE],
@@ -237,5 +240,16 @@ describe('VacationTypeSettingsPage（月假额度配置）', () => {
     await waitFor(() =>
       expect(screen.getByTestId('table-error')).toHaveTextContent('查询假期类型失败'),
     );
+  });
+
+  it('无 vacation:manage 时新增/编辑/删除按钮不渲染', async () => {
+    mockCan.mockReturnValue(false);
+    render(<VacationTypeSettingsPage />);
+    await waitFor(() => expect(screen.getAllByTestId('table-row').length).toBe(2));
+
+    // 按钮无权限不渲染（PermissionGate），而非禁用
+    expect(screen.queryByTestId('toolbar-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('btn-编辑')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('btn-删除')).not.toBeInTheDocument();
   });
 });

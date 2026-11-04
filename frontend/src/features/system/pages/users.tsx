@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Message, Modal, Space, Button, Tag, Form, Input, Radio, Checkbox, Select, Typography, Popconfirm } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
@@ -11,6 +13,12 @@ import { usePermission } from '@/hooks/use-permission';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { formatDateTime } from '@/lib/format';
+
+// 启用/停用状态统一走公共 StatusTag
+const ENABLED_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  enabled: { label: '启用', color: 'success' },
+  disabled: { label: '停用', color: 'default' },
+};
 
 interface UserListEnvelope {
   code: number;
@@ -176,7 +184,7 @@ export default function SystemUsersPage() {
       title: '状态',
       dataIndex: 'status',
       width: 90,
-      render: (value: string) => <Tag color={value === 'active' ? 'green' : 'gray'}>{value === 'active' ? '启用' : '停用'}</Tag>,
+      render: (value: string) => <StatusTag status={value === 'active' ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />,
     },
     {
       title: '角色',
@@ -192,26 +200,30 @@ export default function SystemUsersPage() {
       dataIndex: 'actions',
       width: 260,
       render: (_: any, record: SysUser) => (
-        <Space>
-          <Button size="small" type="text" disabled={!can('system:user:manage')} onClick={() => openEdit(record)}>编辑</Button>
-          <Button size="small" type="text" disabled={!can('system:user:manage')} onClick={() => openAssignRoles(record)}>分配角色</Button>
-          <Popconfirm
-            title="确定删除该用户吗？"
-            content={`删除后「${record.name}」将无法登录系统。`}
-            okText="删除"
-            cancelText="取消"
-            onOk={() => handleDelete(record)}
-          >
-            <Button size="small" type="text" status="danger" disabled={!can('system:user:manage')}>删除</Button>
-          </Popconfirm>
-        </Space>
+        // 按钮级权限：无 system:user:manage 时整组写操作不渲染（编辑含重置密码，分配角色走独立弹窗）
+        <PermissionGate code="system:user:manage">
+          <Space>
+            <Button size="small" type="text" onClick={() => openEdit(record)}>编辑</Button>
+            <Button size="small" type="text" onClick={() => openAssignRoles(record)}>分配角色</Button>
+            <Popconfirm
+              title="确定删除该用户吗？"
+              content={`删除后「${record.name}」将无法登录系统。`}
+              okText="删除"
+              cancelText="取消"
+              onOk={() => handleDelete(record)}
+            >
+              <Button size="small" type="text" status="danger">删除</Button>
+            </Popconfirm>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建用户', type: 'primary', disabled: !can('system:user:manage'), onClick: openCreate },
-  ];
+  // 工具栏为配置数组，无权限时返回空数组让「新建用户」整体不渲染
+  const toolbar: ProTableToolbarAction[] = can('system:user:manage')
+    ? [{ key: 'add', label: '新建用户', type: 'primary', onClick: openCreate }]
+    : [];
 
   return (
     <PageContainer >

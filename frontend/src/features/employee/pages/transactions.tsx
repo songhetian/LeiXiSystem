@@ -1,14 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Tabs, Button, Space, Tag, Modal, Form, Input, Select, DatePicker, InputNumber, Message, Popconfirm, Upload, Grid as ArcoGrid } from '@arco-design/web-react';
+import { Tabs, Button, Space, Modal, Form, Input, Select, DatePicker, InputNumber, Message, Popconfirm, Upload, Grid as ArcoGrid } from '@arco-design/web-react';
 import { employeeApi } from '@/services/employee';
+import StatusTag from '@/components/StatusTag';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
+import { PermissionGate } from '@/components/PermissionGate';
 import { notifyError } from '@/lib/request';
 import { formatDate } from '@/lib/format';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { usePermission } from '@/hooks/use-permission';
 import { useDepartments, usePositions } from '@/hooks/use-departments';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { buildTxColumns, type TxKey } from '../lib/tx-columns';
 
 const TX_TYPES: { key: TxKey; label: string }[] = [
@@ -23,6 +27,23 @@ const TX_TYPES: { key: TxKey; label: string }[] = [
   { key: 'transfers', label: '调动记录' },
 ];
 
+/**
+ * 各页签写操作（新建/编辑/删除/提交审批）对应的后端权限点，
+ * 逐一对齐 employee-tx.controller.ts 的 @RequirePermission：
+ * 离职页签后端用 resignation:apply，申诉页签用 attendance:appeal:apply。
+ */
+const TX_WRITE_CODE: Record<TxKey, string> = {
+  onboardings: 'onboarding:manage',
+  resignations: 'resignation:apply',
+  probations: 'probation:manage',
+  contracts: 'contract:manage',
+  'attendance-appeals': 'attendance:appeal:apply',
+  certificates: 'certificate:manage',
+  rewards: 'reward:manage',
+  trainings: 'training:manage',
+  transfers: 'transfer:manage',
+};
+
 /** Arco Tabs 的 onChange 只给到 string，此处按白名单收窄，避免直接断言 */
 function isTxKey(k: string): k is TxKey {
   return TX_TYPES.some((t) => t.key === k);
@@ -30,18 +51,18 @@ function isTxKey(k: string): k is TxKey {
 
 /** 通用状态文案：按英文 value 映射，杜绝英文状态直出 */
 const STATUS_TEXT: Record<string, { text: string; color: string }> = {
-  draft: { text: '草稿', color: 'gray' },
-  pending: { text: '审批中', color: 'gold' },
-  approved: { text: '已通过', color: 'green' },
-  rejected: { text: '已拒绝', color: 'red' },
-  cancelled: { text: '已取消', color: 'gray' },
-  completed: { text: '已完成', color: 'green' },
-  success: { text: '已通过', color: 'green' },
-  active: { text: '生效中', color: 'green' },
-  expired: { text: '已到期', color: 'orange' },
-  finished: { text: '已完成', color: 'green' },
-  withdrawn: { text: '已撤回', color: 'gray' },
-  revoked: { text: '已作废', color: 'gray' },
+  draft: { text: '草稿', color: 'default' },
+  pending: { text: '审批中', color: 'warning' },
+  approved: { text: '已通过', color: 'success' },
+  rejected: { text: '已拒绝', color: 'danger' },
+  cancelled: { text: '已取消', color: 'default' },
+  completed: { text: '已完成', color: 'success' },
+  success: { text: '已通过', color: 'success' },
+  active: { text: '生效中', color: 'success' },
+  expired: { text: '已到期', color: 'warning' },
+  finished: { text: '已完成', color: 'success' },
+  withdrawn: { text: '已撤回', color: 'default' },
+  revoked: { text: '已作废', color: 'default' },
 };
 
 /** 各流程对通用状态的文案微调 */
@@ -52,10 +73,11 @@ const TYPE_LABEL: Record<string, Record<string, string>> = {
   trainings: { pending: '进行中', approved: '已完成' },
 };
 
-function StatusTag({ type, status }: { type: string; status: string }) {
+// 交易状态标签统一走公共 StatusTag；为避免与导入的公共组件同名，本地包装命名为 TxStatusTag
+function TxStatusTag({ type, status }: { type: string; status: string }) {
   const overridden = TYPE_LABEL[type]?.[status];
-  const base = STATUS_TEXT[status] || { text: status, color: 'gray' };
-  return <Tag color={base.color}>{overridden ?? base.text}</Tag>;
+  const base = STATUS_TEXT[status] || { text: status, color: 'default' };
+  return <StatusTag status={status} statusMap={{ [status]: { label: overridden ?? base.text, color: base.color } }} />;
 }
 
 /** 页签标题：待处理数大于 0 时显示圆形数字徽标 */
@@ -71,6 +93,7 @@ function TabTitle({ label, count }: { label: string; count: number }) {
 const FormInput = Form.Item;
 
 export default function EmployeeTransactions() {
+  const { can } = usePermission();
   const [activeKey, setActiveKey] = useState<TxKey>('onboardings');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -85,13 +108,23 @@ export default function EmployeeTransactions() {
   const [termTarget, setTermTarget] = useState<any>(null);
   const [termForm] = Form.useForm();
 
-  // 员工下拉参考数据：共享缓存，跨组件去重
+  // 员工下拉参考数据：共享缓存，跨组件去重；后端 pageSize 上限 100，翻页取全量避免缺人
   const { data: empRes } = useCachedData<{
     code: number;
     data?: { list: { id: number; name: string; employeeNo: string }[] };
   }>(
     'employee:all-options',
-    () => employeeApi.getList({ page: 1, pageSize: 10000 }),
+    async () => {
+      let code = 0;
+      const list = await fetchAllPages<{ id: number; name: string; employeeNo: string }>(
+        async (page, pageSize) => {
+          const result = await employeeApi.getList({ page, pageSize });
+          code = result.code;
+          return { list: result.data?.list ?? [], total: result.data?.total ?? 0 };
+        },
+      );
+      return { code, data: { list } };
+    },
     { staleTime: 60_000 },
   );
   const allList = empRes?.code === 0 && empRes.data ? empRes.data.list ?? [] : [];
@@ -153,6 +186,10 @@ export default function EmployeeTransactions() {
     { staleTime: 30_000 },
   );
   const pendingCounts = countsRes?.code === 0 && countsRes.data ? countsRes.data : {};
+
+  // 当前页签的写操作权限点：转正页签的「提交审批」后端单独要求 probation:apply
+  const writeCode = TX_WRITE_CODE[activeKey];
+  const submitCode = activeKey === 'probations' ? 'probation:apply' : writeCode;
 
   const handleCreate = () => {
     setEditingId(null);
@@ -257,7 +294,7 @@ export default function EmployeeTransactions() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v: string) => <StatusTag type={activeKey} status={v} />,
+      render: (v: string) => <TxStatusTag type={activeKey} status={v} />,
     };
 
     const ctx = {
@@ -282,33 +319,39 @@ export default function EmployeeTransactions() {
         render: (_: any, row: any) => (
           <Space>
             {row.status === 'draft' && (
-              <Button type="text" size="small" onClick={() => handleSubmitApproval(row.id)}>
-                提交审批
-              </Button>
+              <PermissionGate code={submitCode}>
+                <Button type="text" size="small" onClick={() => handleSubmitApproval(row.id)}>
+                  提交审批
+                </Button>
+              </PermissionGate>
             )}
             {activeKey === 'contracts' && row.status !== 'terminated' && row.status !== 'expired' && (
-              <>
-                <Button type="text" size="small" onClick={() => openRenew(row)}>
-                  续签
-                </Button>
-                <Button type="text" size="small" status="danger" onClick={() => openTerminate(row)}>
-                  终止
-                </Button>
-              </>
+              <PermissionGate code="contract:manage">
+                <>
+                  <Button type="text" size="small" onClick={() => openRenew(row)}>
+                    续签
+                  </Button>
+                  <Button type="text" size="small" status="danger" onClick={() => openTerminate(row)}>
+                    终止
+                  </Button>
+                </>
+              </PermissionGate>
             )}
-            <Button type="text" size="small" onClick={() => handleEdit(row)}>
-              编辑
-            </Button>
-            <Popconfirm title="确定删除吗？" onOk={() => handleDelete(row.id)}>
-              <Button type="text" size="small" status="danger">
-                删除
+            <PermissionGate code={writeCode}>
+              <Button type="text" size="small" onClick={() => handleEdit(row)}>
+                编辑
               </Button>
-            </Popconfirm>
+              <Popconfirm title="确定删除吗？" onOk={() => handleDelete(row.id)}>
+                <Button type="text" size="small" status="danger">
+                  删除
+                </Button>
+              </Popconfirm>
+            </PermissionGate>
           </Space>
         ),
       },
     ];
-  }, [activeKey, employeeMap, deptMap, posMap, openRenew, openTerminate]);
+  }, [activeKey, employeeMap, deptMap, posMap, openRenew, openTerminate, writeCode, submitCode]);
 
   const renderFormFields = () => {
     switch (activeKey) {
@@ -558,9 +601,14 @@ export default function EmployeeTransactions() {
         data={data.list ?? []}
         rowKey="id"
         loading={loading}
-        toolbar={[
-          { key: 'create', label: '新建', type: 'primary', onClick: handleCreate },
-        ]}
+        // 新建为各页签的写操作入口，无对应权限点不渲染
+        toolbar={
+          can(writeCode)
+            ? [
+                { key: 'create', label: '新建', type: 'primary' as const, onClick: handleCreate },
+              ]
+            : []
+        }
         pagination={{ current: page, pageSize, total: data.total ?? 0 }}
         onPageChange={(p, ps) => {
           setPage(p);

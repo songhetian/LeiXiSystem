@@ -27,8 +27,13 @@ jest.mock('@arco-design/web-react', () => {
   return {
     ...actual,
     Tabs,
-    Select: ({ value, options = [] }: any) => (
-      <div data-testid="target-select" data-value={JSON.stringify(value ?? [])}>
+    Select: ({ value, options = [], disabled, placeholder }: any) => (
+      <div
+        data-testid="target-select"
+        data-value={JSON.stringify(value ?? [])}
+        data-disabled={disabled ? 'true' : 'false'}
+        data-placeholder={placeholder}
+      >
         {(options as any[]).map((o) => (
           <span key={o.value ?? o.label}>{String(o.label)}</span>
         ))}
@@ -93,5 +98,40 @@ describe('NotificationSettingsPage', () => {
     (notificationSettingApi.list as jest.Mock).mockResolvedValue({ code: 500, message: '读取失败' });
     render(<NotificationSettingsPage />);
     expect(await screen.findByText('读取失败')).toBeInTheDocument();
+  });
+
+  it('目标角色加载失败时明示失败并禁用下拉，而不是给一个空下拉', async () => {
+    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({
+      code: 500,
+      message: '目标角色读取失败',
+    });
+    render(<NotificationSettingsPage />);
+
+    // 事件项本身照常可见（配置列表没挂）
+    expect(await screen.findByText('请假申请触发')).toBeInTheDocument();
+
+    const alert = screen.getByText(/推送目标角色加载失败/);
+    expect(alert).toHaveTextContent('推送目标角色加载失败');
+    expect(alert.closest('[role="alert"]') ?? alert).toHaveTextContent('目标角色读取失败');
+
+    // 下拉禁用 + 保存禁用，避免用户在空角色下"保存成功"把配置清空
+    expect(screen.getAllByTestId('target-select')[0]).toHaveAttribute('data-disabled', 'true');
+    const saveBtns = screen.getAllByText('保存配置');
+    expect(saveBtns[0].closest('button')).toBeDisabled();
+  });
+
+  it('角色列表失败后点重试恢复可选', async () => {
+    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValueOnce({
+      code: 500,
+      message: '目标角色读取失败',
+    });
+    render(<NotificationSettingsPage />);
+    const retry = await screen.findByText('重试');
+
+    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({ code: 0, data: roles });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(screen.queryByText(/推送目标角色加载失败/)).not.toBeInTheDocument());
+    expect(screen.getAllByTestId('target-select')[0]).toHaveAttribute('data-disabled', 'false');
   });
 });

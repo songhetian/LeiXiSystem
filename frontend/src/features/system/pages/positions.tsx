@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Message,
   Modal,
@@ -11,15 +11,15 @@ import {
   Popconfirm,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable from '@/components/ProTable';
+import { PermissionGate } from '@/components/PermissionGate';
 import { systemApi, SysPosition } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 // 岗位列表：被「组织架构」页的岗位 Tab 与独立「岗位管理」页复用，
 // 避免重复组件（新标准：一份实现，多处引用）
 export function PositionList() {
-  const { data: list, loading, error, run: runFetch, setData: setList } = useFetchState<SysPosition[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [editItem, setEditItem] = useState<SysPosition | null>(null);
@@ -27,19 +27,17 @@ export function PositionList() {
   const [submitting, setSubmitting] = useState(false);
   const { can } = usePermission();
 
-  const fetchData = async () => {
-    await runFetch(async () => {
+  // 列表数据统一走 useCachedData（SWR 共享缓存，跨页签去重）；增删改成功后 revalidate()
+  const { data: list, loading, error, revalidate } = useCachedData<SysPosition[]>(
+    'system:positions',
+    async () => {
       const res = await systemApi.listPositions();
       if (res.code === 0 && res.data) {
         return res.data;
       }
       throw new Error(res.message || '获取岗位列表失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+    },
+  );
 
   const openCreate = () => {
     setIsEdit(false);
@@ -64,7 +62,7 @@ export function PositionList() {
         if (res.code === 0) {
           Message.success('更新成功');
           setModalVisible(false);
-          fetchData();
+          void revalidate();
         } else {
           Message.error(res.message || '更新失败');
         }
@@ -73,7 +71,7 @@ export function PositionList() {
         if (res.code === 0) {
           Message.success('创建成功');
           setModalVisible(false);
-          fetchData();
+          void revalidate();
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -90,7 +88,7 @@ export function PositionList() {
       const res = await systemApi.deletePosition(item.id);
       if (res.code === 0) {
         Message.success('删除成功');
-        fetchData();
+        void revalidate();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -99,52 +97,46 @@ export function PositionList() {
     }
   };
 
+  const canManage = can('position:manage');
+
+  const columns = [
+    { title: '岗位名称', dataIndex: 'name' },
+    {
+      title: '操作',
+      dataIndex: 'op',
+      width: 140,
+      render: (_: unknown, item: SysPosition) => (
+        // 按钮级权限：无 position:manage 时编辑/删除整组不渲染
+        <PermissionGate code="position:manage">
+          <Space>
+            <Button size="mini" onClick={() => openEdit(item)}>
+              编辑
+            </Button>
+            <Popconfirm title="确定删除吗？" onOk={() => handleDelete(item)}>
+              <Button size="mini" status="danger">
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        </PermissionGate>
+      ),
+    },
+  ];
+
   return (
-    <div className="bg-bg-secondary rounded-md p-4 border border-border-2">
-      <div className="mb-4 flex justify-between">
-        <span className="font-medium text-text-1">岗位列表</span>
-        {can('position:manage') && (
-          <Button type="primary" size="small" onClick={openCreate}>
-            新增岗位
-          </Button>
-        )}
-      </div>
-      <DataState loading={loading} error={error} onRetry={fetchData} isEmpty={!list || list.length === 0}>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b border-border-2">
-            <th className="text-left py-2.5 px-3">岗位名称</th>
-            {can('position:manage') && (
-              <th className="text-right py-2.5 px-3">操作</th>
-            )}
-          </tr>
-          </thead>
-          <tbody>
-            {(list || []).map((item) => (
-              <tr key={item.id} className="border-b border-border-2">
-                <td className="py-2.5 px-3">{item.name}</td>
-                {can('position:manage') && (
-                  <td className="py-2.5 px-3 text-right">
-                    <Space>
-                      <Button size="mini" onClick={() => openEdit(item)}>
-                        编辑
-                      </Button>
-                      <Popconfirm
-                        title="确定删除吗？"
-                        onOk={() => handleDelete(item)}
-                      >
-                        <Button size="mini" status="danger">
-                          删除
-                        </Button>
-                      </Popconfirm>
-                    </Space>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </DataState>
+    <>
+      <ProTable
+        columns={columns}
+        data={list || []}
+        rowKey="id"
+        loading={loading}
+        error={error}
+        onRetry={() => {
+          void revalidate();
+        }}
+        pagination={false}
+        toolbar={canManage ? [{ key: 'create', label: '新增岗位', onClick: openCreate }] : []}
+      />
 
       <Modal
         title={isEdit ? '编辑岗位' : '新增岗位'}
@@ -161,7 +153,7 @@ export function PositionList() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </>
   );
 }
 

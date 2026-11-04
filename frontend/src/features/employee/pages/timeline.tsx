@@ -1,17 +1,27 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Tag, Message, Tooltip } from '@arco-design/web-react';
+import { Message, Tooltip } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { employeeApi, TimelineRecord } from '@/services/employee';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useDepartments } from '@/hooks/use-departments';
 import { exportToExcel } from '@/lib/excel';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate, todayStr } from '@/lib/format';
 import { buildTimelineSearchFields, TYPE_META } from '../lib/timeline-fields';
 
 const EMPTY_TIMELINE: TimelineRecord[] = [];
+
+// 事件类型属于状态语义，统一走公共 StatusTag；cyan 不在公共色规约内，归入 info
+const TYPE_STATUS_MAP: Record<string, { label: string; color: string }> = Object.fromEntries(
+  Object.entries(TYPE_META).map(([key, meta]) => [
+    key,
+    { label: meta.label, color: meta.color === 'cyan' ? 'info' : meta.color },
+  ]),
+);
 
 const columns: ProTableColumn[] = [
   { title: '变动日期', dataIndex: 'occurredAt', width: 130 },
@@ -30,10 +40,7 @@ const columns: ProTableColumn[] = [
     title: '类型',
     dataIndex: 'type',
     width: 100,
-    render: (_, r: TimelineRecord) => {
-      const meta = TYPE_META[r.type] || TYPE_META.transfer;
-      return <Tag color={meta.color}>{meta.label}</Tag>;
-    },
+    render: (_, r: TimelineRecord) => <StatusTag status={r.type} statusMap={TYPE_STATUS_MAP} />,
   },
   {
     title: '详情',
@@ -116,8 +123,11 @@ export default function TimelinePage() {
 
   const handleExport = async () => {
     try {
-      const res = await employeeApi.getTimeline({ page: 1, pageSize: 10000, ...filters });
-      const list = (res.data?.list ?? []) as TimelineRecord[];
+      // 后端 pageSize 上限 100，写 10000 会被静默截断成第一页：必须翻页取全量
+      const list = await fetchAllPages<TimelineRecord>(async (page, pageSize) => {
+        const res = await employeeApi.getTimeline({ page, pageSize, ...filters });
+        return { list: (res.data?.list ?? []) as TimelineRecord[], total: res.data?.total ?? 0 };
+      });
       if (!exportToExcel(
         `人员履历_${todayStr()}.xlsx`,
         '人员履历',

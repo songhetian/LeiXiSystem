@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NotificationDropdown } from '../NotificationDropdown';
 import { notificationApi } from '@/services/notification';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 const mockPush = jest.fn();
 jest.mock('@/services/notification');
@@ -20,6 +21,8 @@ const mockNotifications = [
 describe('NotificationDropdown（通知下拉面板）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // 使用 useCachedData 的组件测试必须清空共享缓存，防止跨用例串数据
+    clearDataCache();
     mockedNotificationApi.list.mockResolvedValue({
       code: 0,
       data: { list: mockNotifications.slice(0, 2), total: 2, page: 1, pageSize: 5 },

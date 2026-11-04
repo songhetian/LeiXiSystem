@@ -65,7 +65,7 @@ function parseStored(raw: string | null): QuickActionsPersisted | null {
 function validate(label: string, path: string): string | null {
   if (!label || !label.trim()) return '请输入名称';
   if (label.trim().length > 12) return '名称不超过 12 个字';
-  if (!path || !path.trim()) return '请输入路径';
+  if (!path || !path.trim()) return '请选择页面';
   if (!path.trim().startsWith('/')) return '路径必须以 / 开头';
   return null;
 }

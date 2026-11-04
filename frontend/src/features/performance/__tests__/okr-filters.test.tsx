@@ -22,8 +22,10 @@ jest.mock('@/services/system', () => ({
   systemApi: {},
 }));
 
+// 权限门：默认有 okr:manage，无权限用例单独关闭
+const mockCan = jest.fn((_code?: string) => true);
 jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (perm: string) => mockCan(perm) }),
 }));
 
 jest.mock('@/hooks/use-departments', () => ({
@@ -66,6 +68,7 @@ describe('OkrPage 筛选清空', () => {
   beforeEach(() => {
     clearDataCache();
     jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
     (okrApi.listObjectives as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: mockObjectives },
@@ -160,5 +163,52 @@ describe('OkrPage 筛选清空', () => {
     const byTitle = (title: string) => columns.find((c: any) => c.title === title);
     expect(byTitle('开始日期').value(row)).toBe('2026-07-01');
     expect(byTitle('结束日期').value(row)).toBe('2026-09-30');
+  });
+
+  it('负责人姓名映射翻页取全量：第 2 页员工也能显示姓名', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      name: `员工${i + 1}`,
+      employeeNo: `E${i + 1}`,
+      departmentId: 1,
+    }));
+    const page2 = [{ id: 150, name: '远程负责人', employeeNo: 'E150', departmentId: 1 }];
+    (employeeApi.getList as jest.Mock).mockImplementation(({ page }: { page: number }) =>
+      Promise.resolve(
+        page === 1
+          ? { code: 0, data: { list: page1, total: 101 } }
+          : { code: 0, data: { list: page2, total: 101 } },
+      ),
+    );
+    (okrApi.listObjectives as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: { list: [{ ...mockObjectives[0], id: 3, ownerId: 150 }] },
+    });
+
+    render(<OkrPage />);
+
+    expect(await screen.findByText('远程负责人')).toBeInTheDocument();
+    // 旧的 pageSize: 200 会被后端压成 100，只取第一页 → 只能回落成「负责人#150」
+    expect(screen.queryByText('负责人#150')).not.toBeInTheDocument();
+  });
+
+  describe('权限门（11.6-3）', () => {
+    it('无 okr:manage 时新建目标/编辑/删除不渲染，导出保留', async () => {
+      mockCan.mockImplementation((code?: string) => code !== 'okr:manage');
+      render(<OkrPage />);
+      await waitFor(() => expect(screen.getByText('共 2 个 OKR 目标')).toBeInTheDocument());
+
+      expect(screen.queryByRole('button', { name: '+ 新建目标' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument();
+      // 查看类操作不受影响
+      expect(screen.getByRole('button', { name: '导出 Excel' })).toBeInTheDocument();
+    });
+
+    it('写操作权限点校准为 okr:manage（对齐后端 okr controller）', async () => {
+      render(<OkrPage />);
+      await waitFor(() => expect(screen.getByText('共 2 个 OKR 目标')).toBeInTheDocument());
+      expect(mockCan).toHaveBeenCalledWith('okr:manage');
+    });
   });
 });

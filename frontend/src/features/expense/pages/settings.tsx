@@ -10,23 +10,30 @@ import {
   Input,
   Select,
   Popconfirm,
-  Tag,
   Tabs,
   InputNumber,
+  Table,
+  type TableColumnProps,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
 import { PermissionGate } from '@/components/PermissionGate';
 import { reimbursementApi, ReimbursementType, ExpenseType } from '@/services/reimbursement';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
 
+// 报销类型状态统一走公共 StatusTag
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  active: { label: '启用', color: 'green' },
-  inactive: { label: '停用', color: 'red' },
+  active: { label: '启用', color: 'success' },
+  inactive: { label: '停用', color: 'danger' },
 };
 
 export default function ReimbursementSettingsPage() {
+  const { can } = usePermission();
+  // 操作列只在有管理权限时出现（Arco Table 的列无法用 PermissionGate 包裹）
+  const canManage = can('reimbursement:manage');
   // ===== 一级报销类型（参考数据跨页共享缓存，避免切页重复请求）=====
   const fetchTypes = useCallback(
     () =>
@@ -196,6 +203,74 @@ export default function ReimbursementSettingsPage() {
     }
   };
 
+  const typeColumns: TableColumnProps<ReimbursementType>[] = [
+    { title: 'ID', dataIndex: 'id', width: 72 },
+    { title: '编码', dataIndex: 'code', width: 140 },
+    { title: '名称', dataIndex: 'name' },
+    { title: '说明', dataIndex: 'description', render: (value) => value || '-' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 96,
+      render: (value) => <StatusTag status={value} statusMap={STATUS_MAP} />,
+    },
+    ...(canManage
+      ? [
+          {
+            title: '操作',
+            width: 140,
+            align: 'right' as const,
+            render: (_: unknown, item: ReimbursementType) => (
+              <Space>
+                <Button size="mini" onClick={() => openTypeEdit(item)}>
+                  编辑
+                </Button>
+                <Popconfirm title="确定删除吗？" onOk={() => handleTypeDelete(item)}>
+                  <Button size="mini" status="danger">
+                    删除
+                  </Button>
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  const expenseColumns: TableColumnProps<ExpenseType>[] = [
+    { title: 'ID', dataIndex: 'id', width: 72 },
+    { title: '名称', dataIndex: 'name' },
+    { title: '单位', dataIndex: 'unit', width: 96, render: (value) => value || '-' },
+    { title: '排序', dataIndex: 'sortOrder', width: 88 },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 96,
+      render: (value) => <StatusTag status={value} statusMap={STATUS_MAP} />,
+    },
+    ...(canManage
+      ? [
+          {
+            title: '操作',
+            width: 140,
+            align: 'right' as const,
+            render: (_: unknown, item: ExpenseType) => (
+              <Space>
+                <Button size="mini" onClick={() => openExpenseEdit(item)}>
+                  编辑
+                </Button>
+                <Popconfirm title="确定删除吗？" onOk={() => handleExpenseDelete(item)}>
+                  <Button size="mini" status="danger">
+                    删除
+                  </Button>
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <PageContainer>
       <Tabs defaultActiveTab="type">
@@ -210,45 +285,14 @@ export default function ReimbursementSettingsPage() {
               </PermissionGate>
             </div>
             <DataState loading={loading} error={error} onRetry={revalidateTypes} isEmpty={!list || list.length === 0}>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border-2">
-                    <th className="text-left py-2.5 px-3">ID</th>
-                    <th className="text-left py-2.5 px-3">编码</th>
-                    <th className="text-left py-2.5 px-3">名称</th>
-                    <th className="text-left py-2.5 px-3">说明</th>
-                    <th className="text-left py-2.5 px-3">状态</th>
-                    <PermissionGate code="reimbursement:manage">
-                      <th className="text-right py-2.5 px-3">操作</th>
-                    </PermissionGate>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(list || []).map((item) => (
-                    <tr key={item.id} className="border-b border-border-2">
-                      <td className="py-2.5 px-3">{item.id}</td>
-                      <td className="py-2.5 px-3">{item.code}</td>
-                      <td className="py-2.5 px-3">{item.name}</td>
-                      <td className="py-2.5 px-3">{item.description || '-'}</td>
-                      <td className="py-2.5 px-3">
-                        <Tag color={STATUS_MAP[item.status]?.color || 'gray'}>
-                          {STATUS_MAP[item.status]?.label || item.status}
-                        </Tag>
-                      </td>
-                      <PermissionGate code="reimbursement:manage">
-                        <td className="py-2.5 px-3 text-right">
-                          <Space>
-                            <Button size="mini" onClick={() => openTypeEdit(item)}>编辑</Button>
-                            <Popconfirm title="确定删除吗？" onOk={() => handleTypeDelete(item)}>
-                              <Button size="mini" status="danger">删除</Button>
-                            </Popconfirm>
-                          </Space>
-                        </td>
-                      </PermissionGate>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <Table
+                rowKey="id"
+                size="small"
+                border={false}
+                pagination={false}
+                columns={typeColumns}
+                data={list || []}
+              />
             </DataState>
           </div>
         </Tabs.TabPane>
@@ -267,45 +311,14 @@ export default function ReimbursementSettingsPage() {
               </PermissionGate>
             </div>
             <DataState loading={expenseLoading} error={expenseError} onRetry={revalidateExpense} isEmpty={!expenseList || expenseList.length === 0}>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border-2">
-                    <th className="text-left py-2.5 px-3">ID</th>
-                    <th className="text-left py-2.5 px-3">名称</th>
-                    <th className="text-left py-2.5 px-3">单位</th>
-                    <th className="text-left py-2.5 px-3">排序</th>
-                    <th className="text-left py-2.5 px-3">状态</th>
-                    <PermissionGate code="reimbursement:manage">
-                      <th className="text-right py-2.5 px-3">操作</th>
-                    </PermissionGate>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(expenseList || []).map((item) => (
-                    <tr key={item.id} className="border-b border-border-2">
-                      <td className="py-2.5 px-3">{item.id}</td>
-                      <td className="py-2.5 px-3">{item.name}</td>
-                      <td className="py-2.5 px-3">{item.unit || '-'}</td>
-                      <td className="py-2.5 px-3">{item.sortOrder}</td>
-                      <td className="py-2.5 px-3">
-                        <Tag color={STATUS_MAP[item.status]?.color || 'gray'}>
-                          {STATUS_MAP[item.status]?.label || item.status}
-                        </Tag>
-                      </td>
-                      <PermissionGate code="reimbursement:manage">
-                        <td className="py-2.5 px-3 text-right">
-                          <Space>
-                            <Button size="mini" onClick={() => openExpenseEdit(item)}>编辑</Button>
-                            <Popconfirm title="确定删除吗？" onOk={() => handleExpenseDelete(item)}>
-                              <Button size="mini" status="danger">删除</Button>
-                            </Popconfirm>
-                          </Space>
-                        </td>
-                      </PermissionGate>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <Table
+                rowKey="id"
+                size="small"
+                border={false}
+                pagination={false}
+                columns={expenseColumns}
+                data={expenseList || []}
+              />
             </DataState>
           </div>
         </Tabs.TabPane>

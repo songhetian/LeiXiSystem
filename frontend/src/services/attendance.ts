@@ -733,6 +733,11 @@ export const attendanceApi = {
   batchCreateSchedule(data: ScheduleBatchDto): Promise<BatchResult> {
     return request.post('/schedules/batch', data);
   },
+  /** 批量清除排班：一次请求删除整天多条，避免逐条 DELETE 产生 N 次往返 */
+  batchDeleteSchedules(ids: number[]): Promise<BatchResult> {
+    // axios 的 DELETE 不走第二参数，需显式放在 config.data
+    return request.delete('/schedules/batch', { data: { ids } });
+  },
   updateSchedule(id: number, data: ScheduleUpdateDto): Promise<ScheduleResult> {
     return request.put(`/schedules/${id}`, data);
   },

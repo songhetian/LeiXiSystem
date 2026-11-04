@@ -345,17 +345,18 @@ describe('PayrollRunsPage', () => {
   });
 
   describe('权限门', () => {
-    it('无 payroll:manage 时创建/核对确认/发布/撤回全部禁用', async () => {
+    // 11.6-3：无权限写操作按钮不渲染（而非 disabled 灰置）
+    it('无 payroll:manage 时创建/核对确认/发布/撤回不渲染，明细仍可见', async () => {
       mockCan.mockReturnValue(false);
       render(<PayrollRunsPage />);
       await waitFor(() => {
         expect(screen.getAllByTestId('table-row')).toHaveLength(3);
       });
 
-      expect(screen.getByTestId('toolbar-create')).toBeDisabled();
-      expect(screen.getByText('核对确认').closest('button')).toBeDisabled();
-      expect(screen.getByTestId('confirm-发布工资条')).toBeDisabled();
-      expect(screen.getByTestId('confirm-撤回工资条')).toBeDisabled();
+      expect(screen.queryByTestId('toolbar-create')).not.toBeInTheDocument();
+      expect(screen.queryByText('核对确认')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('confirm-发布工资条')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('confirm-撤回工资条')).not.toBeInTheDocument();
       // 只读角色仍可查看明细
       expect(screen.getAllByText('明细')[0].closest('button')).toBeEnabled();
     });

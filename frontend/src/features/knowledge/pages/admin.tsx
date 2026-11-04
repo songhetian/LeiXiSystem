@@ -10,11 +10,10 @@ import {
   Form,
   Input,
   Select,
-  Table,
   Tag,
   Popconfirm,
   Upload,
-  type TableColumnProps,
+  Empty,
 } from '@arco-design/web-react';
 import {
   IconUpload,
@@ -30,6 +29,8 @@ import {
 import PageContainer from '@/components/PageContainer';
 import { notifyError } from '@/lib/request';
 import DataState from '@/components/DataState';
+import ProTable, { ProTableColumn } from '@/components/ProTable';
+import StatusTag from '@/components/StatusTag';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
   knowledgeApi,
@@ -37,17 +38,28 @@ import {
   KnowledgeArticle,
   KnowledgeAttachment,
 } from '@/services/knowledge';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { formatDateTime } from '@/lib/format';
+import LoaderDots from '@/components/LoaderDots';
 
 const { TabPane } = Tabs;
 const { TextArea } = Input;
 
+// 状态色收敛到 StatusTag 允许的语义色：green→success、gray→default、orange→warning
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  published: { label: '已发布', color: 'green' },
-  draft: { label: '草稿', color: 'gray' },
-  archived: { label: '已归档', color: 'orange' },
+  published: { label: '已发布', color: 'success' },
+  draft: { label: '草稿', color: 'default' },
+  archived: { label: '已归档', color: 'warning' },
 };
+
+/** 分类参考数据的统一 fetcher（失败抛错交由 useCachedData 捕获进 error） */
+async function fetchKnowledgeCategories(): Promise<KnowledgeCategory[]> {
+  const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
+  if (res.code === 0 && res.data) {
+    return res.data;
+  }
+  throw new Error(res.message || '获取分类失败');
+}
 
 /** 附件大小展示：B / KB / MB */
 function formatFileSize(bytes?: number) {
@@ -116,7 +128,14 @@ export default function KnowledgeAdminPage() {
 
 // ===== 分类管理 =====
 function CategoryManage() {
-  const { data: list, loading, error, run: runFetch, setData: setList } = useFetchState<KnowledgeCategory[]>([]);
+  // 分类列表走共享缓存（SWR）：挂载即拉，CRUD 后 revalidate() 强制绕缓存重拉
+  const { data, loading, error, revalidate } = useCachedData<KnowledgeCategory[]>(
+    'knowledge:categories',
+    fetchKnowledgeCategories,
+  );
+  // 拖拽排序的乐观覆盖：先按拖拽结果渲染，接口返回后再以服务端数据兜底
+  const [optimisticList, setOptimisticList] = useState<KnowledgeCategory[] | null>(null);
+  const list = optimisticList ?? data ?? [];
   const [modalVisible, setModalVisible] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [editItem, setEditItem] = useState<KnowledgeCategory | null>(null);
@@ -126,21 +145,6 @@ function CategoryManage() {
   // 拖拽排序：记录当前拖拽的分类 id
   const dragId = useRef<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
-
-  const fetchList = async () => {
-    await runFetch(async () => {
-      const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
-      if (res.code === 0 && res.data) {
-        return res.data;
-      }
-      throw new Error(res.message || '获取分类失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const openCreate = () => {
     setIsEdit(false);
@@ -165,7 +169,7 @@ function CategoryManage() {
         if (res.code === 0) {
           Message.success('更新成功');
           setModalVisible(false);
-          fetchList();
+          await revalidate();
         } else {
           Message.error(res.message || '更新失败');
         }
@@ -174,7 +178,7 @@ function CategoryManage() {
         if (res.code === 0) {
           Message.success('创建成功');
           setModalVisible(false);
-          fetchList();
+          await revalidate();
         } else {
           Message.error(res.message || '创建失败');
         }
@@ -191,7 +195,7 @@ function CategoryManage() {
       const res = await knowledgeApi.deleteCategory(item.id);
       if (res.code === 0) {
         Message.success('删除成功');
-        fetchList();
+        await revalidate();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -200,10 +204,10 @@ function CategoryManage() {
     }
   };
 
-  // 拖拽完成后：本地重排 + 持久化顺序
+  // 拖拽完成后：乐观重排 + 持久化顺序
   const handleDrop = async (fromId: number, toId: number) => {
     if (fromId === toId) return;
-    const current = list || [];
+    const current = data ?? [];
     const fromIndex = current.findIndex((c) => c.id === fromId);
     const toIndex = current.findIndex((c) => c.id === toId);
     if (fromIndex < 0 || toIndex < 0) return;
@@ -211,7 +215,8 @@ function CategoryManage() {
     const next = [...current];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
-    setList(next);
+    // 乐观更新：立即按拖拽结果渲染
+    setOptimisticList(next);
 
     try {
       const res = await knowledgeApi.reorderCategories(next.map((c) => c.id));
@@ -219,12 +224,13 @@ function CategoryManage() {
         Message.success('排序已保存');
       } else {
         Message.error(res.message || '排序保存失败');
-        fetchList();
       }
     } catch (e) {
       Message.error('排序保存失败');
-      fetchList();
     }
+    // 成功则同步共享缓存（分类顺序被浏览页等复用），失败则恢复服务端顺序；最后移除乐观覆盖
+    await revalidate();
+    setOptimisticList(null);
   };
 
   return (
@@ -239,9 +245,9 @@ function CategoryManage() {
         </Button>
       </div>
 
-      <DataState loading={loading} error={error} onRetry={fetchList} isEmpty={!list || list.length === 0}>
+      <DataState loading={loading} error={error} onRetry={() => revalidate()} isEmpty={list.length === 0}>
         <div className="kb-cat-list">
-          {(list || []).map((cat) => (
+          {list.map((cat) => (
             <div
               key={cat.id}
               data-testid={`cat-${cat.id}`}
@@ -311,9 +317,36 @@ interface ArticleListResult {
 }
 
 function ArticleManage() {
-  const { data: listResult, loading, error, run: runFetch, setData: setListResult } = useFetchState<ArticleListResult>();
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
-  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
+  // 文章分页列表：分页参数拼进 cacheKey，key 变化自动重拉（SWR 共享缓存）
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const {
+    data: listResult,
+    loading,
+    error,
+    revalidate: revalidateList,
+  } = useCachedData<ArticleListResult>(`knowledge:articles:${pagination.current}:${pagination.pageSize}`, async () => {
+    const res = await knowledgeApi.getArticles({
+      page: pagination.current,
+      pageSize: pagination.pageSize,
+      includeUnpublished: true,
+    });
+    if (res.code === 0 && res.data) {
+      return {
+        list: res.data.list || [],
+        page: res.data.page || 1,
+        pageSize: res.data.pageSize || 20,
+        total: res.data.total || 0,
+      };
+    }
+    throw new Error(res.message || '获取文章列表失败');
+  });
+
+  // 分类下拉参考数据：与分类管理/浏览页共享同一份缓存（key: knowledge:categories）
+  const { data: catsData, error: catsError } = useCachedData<KnowledgeCategory[]>(
+    'knowledge:categories',
+    fetchKnowledgeCategories,
+  );
+  const categories = catsData ?? [];
 
   const [modalVisible, setModalVisible] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -325,44 +358,10 @@ function ArticleManage() {
   const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
   const [attLoading, setAttLoading] = useState(false);
 
-  const fetchCategories = async () => {
-    try {
-      const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
-      if (res.code === 0 && res.data) {
-        setCategories(res.data);
-      }
-    } catch (e) {
-      // 静默失败会让分类下拉变空，用户无法归类文章却不知原因 → 显式提示
-      notifyError(e, '知识分类加载失败，请刷新重试');
-    }
-  };
-
-  const fetchList = async (page = 1, pageSize = 20) => {
-    await runFetch(async () => {
-      const res = await knowledgeApi.getArticles({ page, pageSize, includeUnpublished: true });
-      if (res.code === 0 && res.data) {
-        const result = {
-          list: res.data.list || [],
-          page: res.data.page || 1,
-          pageSize: res.data.pageSize || 20,
-          total: res.data.total || 0,
-        };
-        setPagination({
-          current: result.page,
-          pageSize: result.pageSize,
-          total: result.total,
-        });
-        return result;
-      }
-      throw new Error(res.message || '获取文章列表失败');
-    });
-  };
-
+  // 分类加载失败显式提示：静默失败会让下拉变空，用户无法归类文章却不知原因
   useEffect(() => {
-    fetchCategories();
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (catsError) notifyError(new Error(catsError), '知识分类加载失败，请刷新重试');
+  }, [catsError]);
 
   const openCreate = () => {
     setIsEdit(false);
@@ -397,7 +396,7 @@ function ArticleManage() {
         if (res.code === 0) {
           Message.success('更新成功');
           setModalVisible(false);
-          fetchList();
+          await revalidateList();
         } else {
           Message.error(res.message || '更新失败');
         }
@@ -412,7 +411,7 @@ function ArticleManage() {
             setAttachments([]);
           } else {
             setModalVisible(false);
-            fetchList();
+            await revalidateList();
           }
         } else {
           Message.error(res.message || '创建失败');
@@ -430,7 +429,7 @@ function ArticleManage() {
       const res = await knowledgeApi.deleteArticle(item.id);
       if (res.code === 0) {
         Message.success('删除成功');
-        fetchList();
+        await revalidateList();
       } else {
         Message.error(res.message || '删除失败');
       }
@@ -466,7 +465,7 @@ function ArticleManage() {
     }
   };
 
-  const columns = useMemo<TableColumnProps<KnowledgeArticle>[]>(
+  const columns = useMemo<ProTableColumn[]>(
     () => [
       {
         title: '标题',
@@ -491,10 +490,7 @@ function ArticleManage() {
         title: '状态',
         dataIndex: 'status',
         width: 100,
-        render: (v) => {
-          const info = STATUS_MAP[v] || STATUS_MAP.draft;
-          return <Tag color={info.color}>{info.label}</Tag>;
-        },
+        render: (v) => <StatusTag status={STATUS_MAP[v] ? v : 'draft'} statusMap={STATUS_MAP} />,
       },
       { title: '浏览量', dataIndex: 'viewCount', width: 90 },
       {
@@ -505,6 +501,7 @@ function ArticleManage() {
       },
       {
         title: '操作',
+        dataIndex: 'actions',
         width: 170,
         render: (_v, record) => (
           <PermissionGate code="knowledge:manage">
@@ -529,31 +526,26 @@ function ArticleManage() {
   return (
     <div>
       <div className="kb-toolbar">
-        <div className="kb-hint">共 {pagination.total} 篇文章</div>
+        <div className="kb-hint">共 {listResult?.total ?? 0} 篇文章</div>
         <Button type="primary" icon={<IconPlus />} onClick={openCreate}>
           新增文章
         </Button>
       </div>
-      <DataState
+      {/* 文章列表统一 ProTable：loading/error/分页内聚（原 DataState 包装拆除） */}
+      <ProTable
+        columns={columns}
+        data={listResult?.list || []}
+        rowKey="id"
         loading={loading}
         error={error}
-        onRetry={() => fetchList(pagination.current, pagination.pageSize)}
-        isEmpty={!listResult || listResult.list.length === 0}
-      >
-        <Table
-          columns={columns}
-          data={listResult?.list || []}
-          scroll={{ x: true }}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showTotal: true,
-            onChange: (page, pageSize) => fetchList(page, pageSize),
-          }}
-          rowKey="id"
-        />
-      </DataState>
+        onRetry={() => revalidateList()}
+        pagination={{
+          current: pagination.current,
+          pageSize: pagination.pageSize,
+          total: listResult?.total ?? 0,
+        }}
+        onPageChange={(page, pageSize) => setPagination({ current: page, pageSize })}
+      />
 
       <Modal
         title={isEdit ? '编辑文章' : '新增文章'}
@@ -570,7 +562,7 @@ function ArticleManage() {
             <Form.Item label="附件上传">
               <div>
                 {attLoading ? (
-                  <div style={{ fontSize: 13, color: 'var(--lx-text-3)', padding: '12px 0' }}>加载附件中…</div>
+                  <LoaderDots text="加载附件中…" />
                 ) : attachments.length > 0 ? (
                   <div className="kb-att-list">
                     {attachments.map((att) => (
@@ -587,7 +579,7 @@ function ArticleManage() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, color: 'var(--lx-text-3)', padding: '12px 0' }}>暂无附件</div>
+                  <Empty description="暂无附件" />
                 )}
                 <Upload
                   drag

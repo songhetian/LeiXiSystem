@@ -60,7 +60,7 @@ export default function SystemPermissionsPage() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '6px 10px',
-                        borderRadius: 6,
+                        borderRadius: 4,
                         background: 'var(--lx-bg-2)',
                       }}
                     >

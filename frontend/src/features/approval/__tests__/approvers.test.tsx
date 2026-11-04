@@ -80,6 +80,38 @@ describe('ApproverManagementPage', () => {
     expect(await screen.findByText('张三')).toBeInTheDocument();
   });
 
+  it('审批组与用户参考数据翻页取全量：第 2 页的数据也能显示', async () => {
+    const groupPage1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      name: `审批组${i + 1}`,
+      code: `AG${i + 1}`,
+      status: 1,
+      members: [],
+    }));
+    const groupPage2 = [
+      { id: 150, name: '第二页审批组', code: 'AG150', status: 1, members: [{ id: 1501, groupId: 150, userId: 150 }] },
+    ];
+    (approvalApi.listGroups as jest.Mock).mockImplementation(({ page }: { page: number }) =>
+      Promise.resolve({ code: 0, data: { list: page === 1 ? groupPage1 : groupPage2, total: 101 } }),
+    );
+
+    const userPage1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      username: `u${i + 1}`,
+      name: `用户${i + 1}`,
+    }));
+    const userPage2 = [{ id: 150, username: 'u150', name: '第二页用户' }];
+    (systemApi.listUsers as jest.Mock).mockImplementation(({ page }: { page: number }) =>
+      Promise.resolve({ code: 0, data: { list: page === 1 ? userPage1 : userPage2, total: 101 } }),
+    );
+
+    render(<ApproverManagementPage />);
+
+    // 旧实现只取第一页（pageSize 100），第 101 个审批组和用户都不会出现
+    expect(await screen.findByText('第二页审批组')).toBeInTheDocument();
+    expect(await screen.findByText('第二页用户')).toBeInTheDocument();
+  });
+
   it('staleTime 内二次挂载复用缓存，listGroups 仅请求一次', async () => {
     const { unmount } = render(<ApproverManagementPage />);
     await waitFor(() => expect(approvalApi.listGroups).toHaveBeenCalledTimes(1));

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Message, Tag, Space, Button } from '@arco-design/web-react';
+import { Message, Space, Button } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import { notifyError } from '@/lib/request';
 import { getApiErrorMessage } from '@/lib/api-error';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
@@ -102,15 +103,15 @@ export default function VacationLeavePage() {
   }, []);
 
   const getStatusTag = (status: string) => {
-    const map: Record<string, { color: string; text: string }> = {
-      pending: { color: 'gray', text: '待提交' },
-      approving: { color: 'arcoblue', text: '审批中' },
-      approved: { color: 'green', text: '已通过' },
-      rejected: { color: 'red', text: '已拒绝' },
-      cancelled: { color: 'gray', text: '已取消' },
+    // 状态列统一用公共 StatusTag（Arco Design Pro 标准），color 为语义色
+    const map: Record<string, { label: string; color: string }> = {
+      pending: { label: '待提交', color: 'default' },
+      approving: { label: '审批中', color: 'info' },
+      approved: { label: '已通过', color: 'success' },
+      rejected: { label: '已拒绝', color: 'danger' },
+      cancelled: { label: '已取消', color: 'default' },
     };
-    const info = map[status] || { color: 'gray', text: status };
-    return <Tag color={info.color}>{info.text}</Tag>;
+    return <StatusTag status={status} statusMap={map} />;
   };
 
   const handleAddLeave = () => {

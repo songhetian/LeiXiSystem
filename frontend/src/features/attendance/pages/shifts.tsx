@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Button, Spin } from '@arco-design/web-react';
+import { Message, Modal, Button } from '@arco-design/web-react';
 import {
   IconClockCircle,
   IconCalendarClock,
@@ -10,14 +10,16 @@ import {
   IconFile,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import { PermissionGate } from '@/components/PermissionGate';
 import SearchForm, { SearchFieldConfig } from '@/components/SearchForm';
 import { attendanceApi, Shift, ShiftCreateDto, ShiftUpdateDto } from '@/services/attendance';
 import { useDepartments } from '@/hooks/use-departments';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
-import ShiftForm, { ShiftFormValues } from './ShiftForm';
+import ShiftForm, { ShiftFormValues } from '@/features/attendance/components/ShiftForm';
 import { exportToExcel } from '@/lib/excel';
 import { todayStr } from '@/lib/format';
+import LoaderDots from '@/components/LoaderDots';
 
 const EMPTY_SHIFTS: Shift[] = [];
 
@@ -244,14 +246,20 @@ export default function ShiftsPage() {
         <span className="text-sm text-text-2">共 {filteredCount} 个班次</span>
         <div className="flex gap-2">
           <Button onClick={handleExport}>导出 Excel</Button>
-          <Button type="primary" icon={null} onClick={handleAdd} disabled={!canManage}>
-            + 新建班次
-          </Button>
+          {/* 新建班次是考勤管理写操作：无 attendance:manage 直接不渲染 */}
+          <PermissionGate code="attendance:manage">
+            <Button type="primary" icon={null} onClick={handleAdd}>
+              + 新建班次
+            </Button>
+          </PermissionGate>
         </div>
       </div>
 
       {/* 班次卡片 */}
-      <Spin loading={loading} style={{ display: 'block' }}>
+      {loading ? (
+        <LoaderDots />
+      ) : (
+        <>
         {error ? (
           <div className="text-center py-16 bg-surface border border-border-1 rounded-md">
             <p className="text-text-3 mb-3">{error}</p>
@@ -263,7 +271,7 @@ export default function ShiftsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.map((shift) => {
-              const color = shift.color || '#3B82F6';
+              const color = shift.color || '#2455D9';
               const isActive = shift.isActive !== false;
               return (
                 <div
@@ -343,23 +351,27 @@ export default function ShiftsPage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button type="primary" size="small" disabled={!canManage} onClick={() => handleEdit(shift)}>
-                      编辑
-                    </Button>
-                    <Button size="small" disabled={!canManage} onClick={() => handleToggleActive(shift)}>
-                      {isActive ? '禁用' : '启用'}
-                    </Button>
-                    <Button size="small" status="danger" disabled={!canManage} onClick={() => handleDelete(shift)}>
-                      删除
-                    </Button>
-                  </div>
+                  {/* 编辑/启停/删除均为考勤管理写操作：无权限不渲染 */}
+                  <PermissionGate code="attendance:manage">
+                    <div className="flex gap-2">
+                      <Button type="primary" size="small" onClick={() => handleEdit(shift)}>
+                        编辑
+                      </Button>
+                      <Button size="small" onClick={() => handleToggleActive(shift)}>
+                        {isActive ? '禁用' : '启用'}
+                      </Button>
+                      <Button size="small" status="danger" onClick={() => handleDelete(shift)}>
+                        删除
+                      </Button>
+                    </div>
+                  </PermissionGate>
                 </div>
               );
             })}
           </div>
         )}
-      </Spin>
+      </>
+      )}
 
       <ShiftForm
         visible={modalVisible}
@@ -377,7 +389,7 @@ export default function ShiftsPage() {
           useGlobalThreshold: editingShift.useGlobalThreshold !== false,
           description: editingShift.description || '',
           isActive: editingShift.isActive !== false,
-          color: editingShift.color || '#3B82F6',
+          color: editingShift.color || '#2455D9',
         } : {
           name: '',
           departmentId: 'global',

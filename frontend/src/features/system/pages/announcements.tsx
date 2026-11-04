@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Message, Tag, Space, Badge, Button, Modal } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import { broadcastApi, Broadcast } from '@/services/broadcast';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -11,6 +12,13 @@ import { sanitizeHtml } from '@/lib/sanitize';
 // 批次七 · 公告公开查看页（对齐参考 BroadcastList 查看视图，与 BroadcastManagement 发布端分离）
 const priorityText: Record<string, string> = { normal: '普通', important: '重要', urgent: '紧急' };
 const recipientText: Record<string, string> = { all: '全员', department: '指定部门', user: '指定人员' };
+
+// 优先级属于状态语义，统一走公共 StatusTag（urgent→danger、important→warning、其余 default）
+const PRIORITY_COLOR: Record<string, string> = { urgent: 'danger', important: 'warning' };
+function PriorityStatusTag({ priority }: { priority: string | number }) {
+  const key = String(priority);
+  return <StatusTag status={key} statusMap={{ [key]: { label: priorityText[key] || key, color: PRIORITY_COLOR[key] || 'default' } }} />;
+}
 
 interface AnnouncementListEnvelope {
   code: number;
@@ -75,10 +83,7 @@ export default function AnnouncementsPage() {
       title: '优先级',
       dataIndex: 'priority',
       width: 100,
-      render: (value: string | number) => {
-        const key = String(value);
-        return <Tag color={key === 'urgent' ? 'red' : key === 'important' ? 'orange' : undefined}>{priorityText[key] || value}</Tag>;
-      },
+      render: (value: string | number) => <PriorityStatusTag priority={value} />,
     },
     { title: '发布时间', dataIndex: 'publishedAt', width: 180 },
     {
@@ -115,9 +120,7 @@ export default function AnnouncementsPage() {
             <h3 style={{ marginBottom: 12 }}>{current.title}</h3>
             <Space style={{ marginBottom: 16 }}>
               <Tag>{recipientText[current.recipientType] || current.recipientType}</Tag>
-              <Tag color={String(current.priority) === 'urgent' ? 'red' : undefined}>
-                {priorityText[String(current.priority)] || current.priority}
-              </Tag>
+              <PriorityStatusTag priority={current.priority} />
             </Space>
             <div
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(current.content) }}

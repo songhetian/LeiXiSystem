@@ -4,6 +4,7 @@ import { useState, useRef, useMemo } from 'react';
 import { Message, Modal, Space, Button, Tag, Form, Input, Checkbox, Typography, Popconfirm } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import { PermissionGate } from '@/components/PermissionGate';
 import { notifyError } from '@/lib/request';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { systemApi, SysRole, SysPermission } from '@/services/system';
@@ -187,32 +188,36 @@ export default function SystemRolesPage() {
       dataIndex: 'actions',
       width: 240,
       render: (_: any, record: SysRole) => (
-        <Space>
-          <Button size="small" type="text" disabled={!can('system:role:manage')} onClick={() => openEdit(record)}>
-            编辑
-          </Button>
-          <Button size="small" type="text" disabled={!can('system:role:manage')} onClick={() => openAssign(record)}>
-            分配权限
-          </Button>
-          <Popconfirm
-            title="确定删除该角色吗？"
-            content="删除后关联该角色的用户将失去对应权限。"
-            okText="删除"
-            cancelText="取消"
-            onOk={() => handleDelete(record)}
-          >
-            <Button size="small" type="text" status="danger" disabled={!can('system:role:manage')}>
-              删除
+        // 按钮级权限：无 system:role:manage 时整组写操作不渲染（分配权限走独立弹窗）
+        <PermissionGate code="system:role:manage">
+          <Space>
+            <Button size="small" type="text" onClick={() => openEdit(record)}>
+              编辑
             </Button>
-          </Popconfirm>
-        </Space>
+            <Button size="small" type="text" onClick={() => openAssign(record)}>
+              分配权限
+            </Button>
+            <Popconfirm
+              title="确定删除该角色吗？"
+              content="删除后关联该角色的用户将失去对应权限。"
+              okText="删除"
+              cancelText="取消"
+              onOk={() => handleDelete(record)}
+            >
+              <Button size="small" type="text" status="danger">
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        </PermissionGate>
       ),
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'add', label: '新建角色', type: 'primary', disabled: !can('system:role:manage'), onClick: openCreate },
-  ];
+  // 工具栏为配置数组，无权限时返回空数组让「新建角色」整体不渲染
+  const toolbar: ProTableToolbarAction[] = can('system:role:manage')
+    ? [{ key: 'add', label: '新建角色', type: 'primary', onClick: openCreate }]
+    : [];
 
   return (
     <PageContainer >
@@ -291,20 +296,10 @@ export default function SystemRolesPage() {
           </Space>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, height: 420 }}>
+        <div className="roles-split">
           {/* 左：模块导航 */}
-          <div
-            style={{
-              width: 224,
-              flexShrink: 0,
-              border: '1px solid var(--lx-border-1)',
-              borderRadius: 6,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--lx-border-1)' }}>
+          <div className="roles-pane roles-pane--nav">
+            <div className="roles-pane-search">
               <Input
                 size="small"
                 allowClear
@@ -314,9 +309,9 @@ export default function SystemRolesPage() {
                 onChange={setModuleSearch}
               />
             </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+            <div className="roles-pane-body roles-pane-body--nav">
               {filteredModules.length === 0 && (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--lx-text-3)', fontSize: 13 }}>无匹配模块</div>
+                <div className="roles-empty">无匹配模块</div>
               )}
               {filteredModules.map((m) => {
                 const perms = groupedPerms[m];
@@ -363,28 +358,10 @@ export default function SystemRolesPage() {
           </div>
 
           {/* 右：权限点 */}
-          <div
-            style={{
-              flex: 1,
-              border: '1px solid var(--lx-border-1)',
-              borderRadius: 6,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
+          <div className="roles-pane roles-pane--main">
             {selectedModule ? (
               <>
-                <div
-                  style={{
-                    padding: '8px 10px',
-                    borderBottom: '1px solid var(--lx-border-1)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
+                <div className="roles-pane-search roles-pane-head">
                   <Typography.Text bold>{moduleLabel(selectedModule)}</Typography.Text>
                   <Space size={8}>
                     <Input
@@ -405,11 +382,11 @@ export default function SystemRolesPage() {
                     </Checkbox>
                   </Space>
                 </div>
-                <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
+                <div className="roles-pane-body roles-pane-body--perm">
                   {filteredPerms.length === 0 ? (
-                    <div style={{ color: 'var(--lx-text-3)', fontSize: 13 }}>无匹配权限</div>
+                    <div className="roles-empty">无匹配权限</div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 14px' }}>
+                    <div className="roles-perm-grid">
                       {filteredPerms.map((p) => (
                         <Checkbox key={p.id} checked={permIds.includes(p.id)} onChange={(c) => togglePerm(c, p.id)}>
                           {p.name}

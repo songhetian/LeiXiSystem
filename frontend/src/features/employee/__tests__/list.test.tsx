@@ -6,6 +6,28 @@ import { employeeApi, employeeTagApi } from '@/services/employee';
 import { systemApi } from '@/services/system';
 import { clearDataCache } from '@/hooks/use-cached-data';
 import { clearDictCache } from '@/hooks/use-dict';
+import { useAuthStore } from '@/store/auth';
+import { exportToExcel } from '@/lib/excel';
+
+jest.mock('@/store/auth', () => ({
+  useAuthStore: jest.fn(),
+}));
+const mockUseAuthStore = useAuthStore as unknown as jest.Mock;
+
+/** 管理员权限集：覆盖员工列表全部写操作按钮所需权限点（对齐 backend seed.ts） */
+const ADMIN_USER = {
+  id: 1,
+  username: 'admin',
+  name: '系统管理员',
+  permissions: ['employee:view', 'employee:manage', 'employee:tag:manage'],
+};
+/** 普通员工：仅 employee:view（对齐 seed.ts STAFF_PERMISSIONS），写按钮应全部不渲染 */
+const STAFF_USER = {
+  id: 2,
+  username: 'staff',
+  name: '王小明',
+  permissions: ['employee:view'],
+};
 
 jest.mock('@/services/employee', () => ({
   employeeApi: {
@@ -25,6 +47,10 @@ jest.mock('@/services/system', () => ({
     listDepartments: jest.fn(),
     listPositions: jest.fn(),
   },
+}));
+
+jest.mock('@/lib/excel', () => ({
+  exportToExcel: jest.fn(),
 }));
 
 
@@ -164,6 +190,8 @@ describe('EmployeeListPage', () => {
     clearDataCache();
     clearDictCache();
     jest.clearAllMocks();
+    // 默认以管理员视角渲染（写按钮可见）；无权限用例内单独覆盖
+    mockUseAuthStore.mockReturnValue({ isAuthenticated: true, user: ADMIN_USER });
     (employeeApi.getList as jest.Mock).mockResolvedValue({
       code: 0,
       message: 'ok',
@@ -204,8 +232,10 @@ describe('EmployeeListPage', () => {
   });
 
   describe('正常用例', () => {
-    it('不渲染冗余页面大标题（顶部已有全局面包屑）', () => {
+    it('不渲染冗余页面大标题（顶部已有全局面包屑）', async () => {
       render(<EmployeeListPage />);
+      // 冲刷挂载后的异步请求更新，避免同步用例结束时更新落在 act 空窗期产生告警
+      await screen.findByTestId('page-container');
       // 页面已省略 title，不再显示「员工管理」大标题
       expect(screen.queryByTestId('page-title')).toBeNull();
     });
@@ -307,6 +337,43 @@ describe('EmployeeListPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('page-total')).toHaveTextContent('3');
       });
+    });
+
+    it('导出会翻页取全量（后端 pageSize 上限 100，不静默只导第一页）', async () => {
+      const user = userEvent.setup();
+      // 150 名员工：按后端上限需分 2 页才能取全
+      const rows = Array.from({ length: 150 }, (_, i) => ({
+        ...mockEmployees[0],
+        id: i + 1,
+        employeeNo: `E${String(i + 1).padStart(3, '0')}`,
+      }));
+      (employeeApi.getList as jest.Mock).mockImplementation(({ page, pageSize }: any) =>
+        Promise.resolve({
+          code: 0,
+          message: 'ok',
+          data: {
+            list: rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
+            total: rows.length,
+            page,
+            pageSize,
+          },
+        }),
+      );
+
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId('toolbar-export')).toBeInTheDocument();
+      });
+      await user.click(screen.getByTestId('toolbar-export'));
+
+      await waitFor(() => expect(exportToExcel).toHaveBeenCalled());
+      const exported = (exportToExcel as jest.Mock).mock.calls[0][3];
+      expect(exported).toHaveLength(150);
+      const pages = (employeeApi.getList as jest.Mock).mock.calls
+        .map((c: any[]) => c[0])
+        .filter((p: any) => p.pageSize !== 20)
+        .map((p: any) => p.page);
+      expect(pages).toEqual([1, 2]);
     });
   });
 
@@ -815,6 +882,37 @@ describe('EmployeeListPage', () => {
       const incomplete = toEmployeeListQuery({ hireDate: ['2026-01-01', undefined] });
       expect(incomplete.dateFrom).toBeUndefined();
       expect(incomplete.dateTo).toBeUndefined();
+    });
+  });
+
+  describe('按钮级权限（PermissionGate）', () => {
+    it('普通员工（仅 employee:view）看不到新增/导入/编辑/离职等写按钮', async () => {
+      mockUseAuthStore.mockReturnValue({ isAuthenticated: true, user: STAFF_USER });
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      // 工具栏写按钮不渲染
+      expect(screen.queryByTestId('toolbar-add')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('toolbar-import')).not.toBeInTheDocument();
+      // 行内写按钮不渲染
+      expect(screen.queryByTestId('btn-edit-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('btn-resign-1')).not.toBeInTheDocument();
+      // 查看类按钮不受影响：详情链接与导出/模板下载仍渲染
+      expect(screen.getByTestId('btn-detail-1')).toBeInTheDocument();
+      expect(screen.getByTestId('toolbar-template')).toBeInTheDocument();
+      expect(screen.getByTestId('toolbar-export')).toBeInTheDocument();
+    });
+
+    it('管理员（employee:manage）可见新增/编辑/离职按钮', async () => {
+      render(<EmployeeListPage />);
+      await waitFor(() => {
+        expect(screen.getAllByTestId('table-row')).toHaveLength(3);
+      });
+      expect(screen.getByTestId('toolbar-add')).toBeInTheDocument();
+      expect(screen.getByTestId('toolbar-import')).toBeInTheDocument();
+      expect(screen.getAllByTestId('btn-edit-1').length).toBeGreaterThan(0);
+      expect(screen.getAllByTestId('btn-resign-1').length).toBeGreaterThan(0);
     });
   });
 });

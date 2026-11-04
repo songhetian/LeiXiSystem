@@ -70,10 +70,6 @@ jest.mock('@/components/ProTable', () => ({
   ),
 }));
 
-jest.mock('@/hooks/use-permission', () => ({
-  usePermission: () => ({ can: () => true }),
-}));
-
 jest.mock('@arco-design/web-react', () => {
   const Tag = ({ color, children }: any) => (
     <span data-testid="tag" data-color={color}>{children}</span>

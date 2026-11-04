@@ -302,7 +302,7 @@ export default function PageTabs() {
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <IconClose style={{ fontSize: 10 }} />
+                  <IconClose style={{ fontSize: 12 }} />
                 </button>
               )}
             </div>

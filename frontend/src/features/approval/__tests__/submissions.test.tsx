@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ApprovalSubmissionsPage from '@/features/approval/pages/submissions';
 import { approvalApi } from '@/services/approval';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -29,6 +30,49 @@ jest.mock('@/components/StatusTag', () => ({
   __esModule: true,
   default: ({ status }: any) => (
     <span data-testid={`status-tag-${status}`}>{status}</span>
+  ),
+}));
+
+// 页面已迁公共组件 ProTable（内部依赖 SearchForm/DatePicker 等），按仓库约定直接 mock
+jest.mock('@/components/ProTable', () => ({
+  __esModule: true,
+  default: ({ columns, data, rowKey, pagination, onPageChange }: any) => (
+    <div data-testid="table">
+      <table>
+        <thead>
+          <tr>
+            {columns.map((col: any) => (
+              <th key={col.dataIndex} data-testid={`col-${col.dataIndex}`}>{col.title}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row: any) => (
+            <tr key={row[rowKey]} data-testid="table-row">
+              {columns.map((col: any) => (
+                <td key={col.dataIndex} data-testid={`cell-${row[rowKey]}-${col.dataIndex}`}>
+                  {col.render ? col.render(row[col.dataIndex], row) : row[col.dataIndex]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {pagination && (
+        <div data-testid="pagination">
+          <span data-testid="page-current">{pagination.current}</span>
+          <span data-testid="page-total">{pagination.total}</span>
+          <button
+            data-testid="page-prev"
+            onClick={() => onPageChange?.(pagination.current - 1, pagination.pageSize)}
+          >上一页</button>
+          <button
+            data-testid="page-next"
+            onClick={() => onPageChange?.(pagination.current + 1, pagination.pageSize)}
+          >下一页</button>
+        </div>
+      )}
+    </div>
   ),
 }));
 
@@ -180,6 +224,8 @@ const mockSubmissions = [
 describe('ApprovalSubmissionsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // useCachedData 模块级共享缓存需在用例间清空，防止缓存串数据
+    clearDataCache();
     (approvalApi.listMySubmissions as jest.Mock).mockResolvedValue({
       code: 0,
       data: { list: mockSubmissions, total: 2, page: 1, pageSize: 20 },
@@ -202,10 +248,8 @@ describe('ApprovalSubmissionsPage', () => {
 
     it('renders submission items with correct columns', async () => {
       render(<ApprovalSubmissionsPage />);
-      await waitFor(() => {
-        expect(approvalApi.listMySubmissions).toHaveBeenCalled();
-      });
-      expect(screen.getByText('调休申请')).toBeInTheDocument();
+      // 数据层已迁 useCachedData（异步 setState），等数据渲染后再断言
+      await screen.findByText('调休申请');
       expect(screen.getByText('出差申请')).toBeInTheDocument();
       expect(screen.getByText('调休审批')).toBeInTheDocument();
       expect(screen.getByText('出差审批')).toBeInTheDocument();
@@ -214,9 +258,8 @@ describe('ApprovalSubmissionsPage', () => {
     it('shows status tags for different statuses', async () => {
       render(<ApprovalSubmissionsPage />);
       await waitFor(() => {
-        expect(approvalApi.listMySubmissions).toHaveBeenCalled();
+        expect(screen.getAllByTestId('status-tag-pending').length).toBeGreaterThan(0);
       });
-      expect(screen.getAllByTestId('status-tag-pending').length).toBeGreaterThan(0);
       expect(screen.getAllByTestId('status-tag-approved').length).toBeGreaterThan(0);
     });
   });

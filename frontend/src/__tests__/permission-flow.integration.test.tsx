@@ -159,7 +159,8 @@ describe('权限流程集成测试', () => {
         </ProtectedRoute>,
       );
 
-      expect(screen.getByText(/加载中/i)).toBeInTheDocument();
+      // 启动态改为品牌化过渡画面（系统名 + 波点 + 文案），不再是纯白底转圈
+      expect(screen.getByText(/正在进入工作台/i)).toBeInTheDocument();
       expect(screen.queryByText('403')).not.toBeInTheDocument();
     });
   });

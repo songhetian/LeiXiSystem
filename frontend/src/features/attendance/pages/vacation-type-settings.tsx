@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Message, Tag, Space, Button, Modal } from '@arco-design/web-react';
+import { Message, Space, Button, Modal } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
 import { attendanceApi, VacationType, VacationTypeCreateDto } from '@/services/attendance';
@@ -10,6 +12,13 @@ import { useCachedData } from '@/hooks/use-cached-data';
 import { usePermission } from '@/hooks/use-permission';
 import { notifyError } from '@/lib/request';
 import { isMonthlyDays } from '@/lib/vacation-type';
+import { ENABLED_STATUS_MAP } from '@/features/attendance/lib/status-maps';
+
+// 标签映射（color 为 StatusTag 语义色，Arco Design Pro 标准）
+const PAID_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  paid: { label: '有薪', color: 'info' },
+  unpaid: { label: '无薪', color: 'warning' },
+};
 
 interface TypeEnvelope {
   code: number;
@@ -246,15 +255,17 @@ export default function VacationTypeSettingsPage() {
       title: '计薪',
       dataIndex: 'isPaid',
       width: 90,
-      render: (_: any, r: VacationType) =>
-        r.isPaid ? <Tag color="blue">有薪</Tag> : <Tag color="orange">无薪</Tag>,
+      render: (_: any, r: VacationType) => (
+        <StatusTag status={r.isPaid ? 'paid' : 'unpaid'} statusMap={PAID_STATUS_MAP} />
+      ),
     },
     {
       title: '状态',
       dataIndex: 'enabled',
       width: 90,
-      render: (_: any, r: VacationType) =>
-        r.enabled ? <Tag color="green">启用</Tag> : <Tag color="gray">停用</Tag>,
+      render: (_: any, r: VacationType) => (
+        <StatusTag status={r.enabled ? 'enabled' : 'disabled'} statusMap={ENABLED_STATUS_MAP} />
+      ),
     },
     {
       title: '操作',
@@ -262,12 +273,11 @@ export default function VacationTypeSettingsPage() {
       width: 140,
       render: (_: any, r: VacationType) => (
         <Space>
-          {canManage && (
-            <>
-              <Button size="small" type="text" onClick={() => openEdit(r)}>编辑</Button>
-              <Button size="small" type="text" status="danger" onClick={() => handleDelete(r)}>删除</Button>
-            </>
-          )}
+          {/* 类型编辑/删除是假期设置写操作：无 vacation:manage 不渲染 */}
+          <PermissionGate code="vacation:manage">
+            <Button size="small" type="text" onClick={() => openEdit(r)}>编辑</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleDelete(r)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
@@ -282,6 +292,7 @@ export default function VacationTypeSettingsPage() {
         loading={loading}
         error={errorText}
         onRetry={revalidate}
+        // 新增假期类型是假期设置写操作：无权限时工具栏不渲染
         toolbar={canManage ? [{ key: 'add', label: '新增假期类型', type: 'primary', onClick: openCreate }] : []}
         pagination={false}
       />

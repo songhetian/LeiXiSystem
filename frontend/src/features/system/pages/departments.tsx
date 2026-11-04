@@ -11,13 +11,13 @@ import {
   Select,
   Tabs,
   Empty,
-  Table,
   Switch,
-  Tag,
   Checkbox,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable, { ProTableColumn } from '@/components/ProTable';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import { systemApi, SysDepartment } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -196,7 +196,7 @@ function DepartmentManager() {
     .filter((d) => !editItem || d.id !== editItem.id)
     .map((d) => ({ label: d.name, value: d.id }));
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     {
       title: '部门名称',
       dataIndex: 'name',
@@ -205,7 +205,10 @@ function DepartmentManager() {
     {
       title: '职责描述',
       dataIndex: 'description',
-      render: (v: string | null) => v || '-',
+      // 不给 width 又不给 ellipsis 时，该列在 table-layout:fixed 下只能吃剩余宽度：
+      // 1366@125%（内容区约 797px）时会被压到 65px 左右，长描述直接压到「在册人数」上。
+      ellipsis: true,
+      render: (v: string | null) => <span title={v || '-'}>{v || '-'}</span>,
     },
     {
       title: '在册人数',
@@ -219,16 +222,19 @@ function DepartmentManager() {
       width: 120,
       render: (_: any, row: SysDepartment) => {
         if (row.deletedAt) {
-          return <Tag color="red">已销毁</Tag>;
+          return <StatusTag status="destroyed" statusMap={{ destroyed: { label: '已销毁', color: 'danger' } }} />;
         }
+        // 按钮级权限：启停是写操作，无 department:manage 时不渲染开关
         return (
-          <Switch
-            size="small"
-            checked={row.status === 'active'}
-            checkedText="启用"
-            uncheckedText="停用"
-            onChange={(checked) => handleStatusToggle(row, Boolean(checked))}
-          />
+          <PermissionGate code="department:manage">
+            <Switch
+              size="small"
+              checked={row.status === 'active'}
+              checkedText="启用"
+              uncheckedText="停用"
+              onChange={(checked) => handleStatusToggle(row, Boolean(checked))}
+            />
+          </PermissionGate>
         );
       },
     },
@@ -244,21 +250,27 @@ function DepartmentManager() {
       width: 170,
       render: (_: any, row: SysDepartment) => {
         if (row.deletedAt) {
+          // 按钮级权限：恢复是写操作，无 department:manage 时不渲染
           return (
-            <Button size="mini" type="text" status="success" onClick={() => handleRestore(row)}>
-              恢复
-            </Button>
+            <PermissionGate code="department:manage">
+              <Button size="mini" type="text" status="success" onClick={() => handleRestore(row)}>
+                恢复
+              </Button>
+            </PermissionGate>
           );
         }
+        // 按钮级权限：无 department:manage 时编辑/删除整组不渲染
         return (
-          <Space>
-            <Button size="mini" type="text" onClick={() => openEdit(row)}>
-              编辑
-            </Button>
-            <Button size="mini" type="text" status="danger" onClick={() => handleDelete(row)}>
-              删除
-            </Button>
-          </Space>
+          <PermissionGate code="department:manage">
+            <Space>
+              <Button size="mini" type="text" onClick={() => openEdit(row)}>
+                编辑
+              </Button>
+              <Button size="mini" type="text" status="danger" onClick={() => handleDelete(row)}>
+                删除
+              </Button>
+            </Space>
+          </PermissionGate>
         );
       },
     },
@@ -275,33 +287,24 @@ function DepartmentManager() {
             显示回收站（已删除）
           </Checkbox>
         </div>
-        {can('department:manage') && (
-          <Button type="primary" onClick={openCreate}>
-            新增部门
-          </Button>
-        )}
       </div>
 
-      <DataState
+      {/* 列表统一 ProTable：loading/error 内聚；「新增部门」挪入表格工具栏；回收站空态走 emptyElement */}
+      <ProTable
+        columns={columns}
+        data={showDeleted ? recycleList : activeList}
+        rowKey="id"
         loading={loading}
         error={error}
         onRetry={revalidate}
-        isEmpty={!list || list.length === 0}
-      >
-        {showDeleted && recycleList.length === 0 ? (
-          <Empty description="回收站暂无已删除部门" />
-        ) : (
-          <div className="pro-card">
-            <Table
-              rowKey="id"
-              columns={columns}
-              data={showDeleted ? recycleList : activeList}
-              pagination={false}
-              scroll={{ x: 900 }}
-            />
-          </div>
-        )}
-      </DataState>
+        pagination={false}
+        toolbar={
+          can('department:manage')
+            ? [{ key: 'create-department', label: '新增部门', onClick: openCreate }]
+            : []
+        }
+        emptyElement={showDeleted ? <Empty description="回收站暂无已删除部门" /> : undefined}
+      />
 
       <Modal
         title={isEdit ? '编辑部门' : '新增部门'}

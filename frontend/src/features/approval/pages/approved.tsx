@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Table, Button, Select, Tag } from '@arco-design/web-react';
+import { Button, Select, Empty } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { approvalApi, ApprovedItem } from '@/services/approval';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -16,9 +16,10 @@ const instanceStatusMap: Record<string, { label: string; color: string }> = {
   cancelled: { label: '已撤销', color: 'gray' },
 };
 
+// 审批动作状态（StatusTag 色值规范：green→success、red→danger）
 const actionMap: Record<string, { label: string; color: string }> = {
-  approved: { label: '已同意', color: 'green' },
-  rejected: { label: '已驳回', color: 'red' },
+  approved: { label: '已同意', color: 'success' },
+  rejected: { label: '已驳回', color: 'danger' },
 };
 
 const { Option } = Select;
@@ -47,7 +48,7 @@ export default function ApprovalApprovedPage() {
     setPagination({ ...pageResult, current: page, pageSize });
   };
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     {
       title: '标题',
       dataIndex: 'title',
@@ -68,11 +69,7 @@ export default function ApprovalApprovedPage() {
       title: '我的操作',
       dataIndex: 'action',
       width: 100,
-      render: (v: string) => (
-        <Tag color={actionMap[v]?.color || 'gray'}>
-          {actionMap[v]?.label || v}
-        </Tag>
-      ),
+      render: (v: string) => <StatusTag status={v} statusMap={actionMap} />,
     },
     {
       title: '当前状态',
@@ -118,27 +115,21 @@ export default function ApprovalApprovedPage() {
             </Select>
           </div>
         </div>
-        <DataState
+        <ProTable
+          columns={columns}
+          data={data}
+          rowKey="id"
           loading={loading}
           error={error}
           onRetry={revalidate}
-          isEmpty={data.length === 0}
-          emptyText="暂无已办审批"
-        >
-          <Table
-            columns={columns}
-            data={data}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{
-              current: pageResult.current,
-              pageSize: pageResult.pageSize,
-              total: pageResult.total,
-              onChange: handlePageChange,
-              showTotal: true,
-            }}
-          />
-        </DataState>
+          pagination={{
+            current: pageResult.current,
+            pageSize: pageResult.pageSize,
+            total: pageResult.total,
+          }}
+          onPageChange={handlePageChange}
+          emptyElement={<Empty description="暂无已办审批" />}
+        />
       </div>
     </PageContainer>
   );

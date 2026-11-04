@@ -5,12 +5,13 @@ import {
   Message,
   Modal,
   Button,
-  Tag,
   Space,
   Tabs,
 } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable from '@/components/ProTable';
+import StatusTag from '@/components/StatusTag';
+import { PermissionGate } from '@/components/PermissionGate';
 import type { ProTableColumn } from '@/components/ProTable';
 import type { SearchFieldConfig } from '@/components/SearchForm';
 import ModalForm, { FormFieldConfig } from '@/components/ModalForm';
@@ -24,6 +25,7 @@ import { notifyError } from '@/lib/request';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { exportToExcel } from '@/lib/excel';
 import { formatDate, todayStr } from '@/lib/format';
+import { ENABLED_STATUS_MAP as RULE_STATUS_MAP } from '@/features/attendance/lib/status-maps';
 
 interface ExceptionFilters {
   status: string;
@@ -38,6 +40,12 @@ function exceptionStatusLabel(status?: string): string {
   if (status === 'resolved') return '已处理';
   return status || '--';
 }
+
+/** 异常记录状态标签映射（color 为 StatusTag 语义色，Arco Design Pro 标准） */
+const EXCEPTION_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  pending: { label: '待处理', color: 'warning' },
+  resolved: { label: '已处理', color: 'success' },
+};
 
 /** 日期字段格式化：workDate 可能是 Date 序列化后的字符串 */
 function fmtDate(d?: string | null): string {
@@ -359,9 +367,7 @@ export default function ExceptionRulesPage() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v) => (
-        <Tag color={v === 'resolved' ? 'green' : 'orange'}>{exceptionStatusLabel(v)}</Tag>
-      ),
+      render: (v) => <StatusTag status={v} statusMap={EXCEPTION_STATUS_MAP} />,
     },
     { title: '扣款分钟', dataIndex: 'deductMinutes', width: 100, render: (v) => v ?? '--' },
     { title: '处理人', dataIndex: 'handledBy', width: 100, render: (v) => v ?? '--' },
@@ -371,8 +377,11 @@ export default function ExceptionRulesPage() {
       width: 160,
       render: (_: any, record: ExceptionRecord) => (
         <Space>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleExceptionOpen(record)}>处理</Button>
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleExceptionDelete(record)}>删除</Button>
+          {/* 异常处理/删除是考勤异常管理写操作：无权限不渲染 */}
+          <PermissionGate code="attendance:exception:manage">
+            <Button size="small" type="text" onClick={() => handleExceptionOpen(record)}>处理</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleExceptionDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
@@ -394,7 +403,7 @@ export default function ExceptionRulesPage() {
       title: '状态',
       dataIndex: 'status',
       width: 90,
-      render: (v) => <Tag color={v === 'enabled' ? 'green' : 'gray'}>{v === 'enabled' ? '启用' : '停用'}</Tag>,
+      render: (v) => <StatusTag status={v} statusMap={RULE_STATUS_MAP} />,
     },
     { title: '描述', dataIndex: 'description', ellipsis: true },
     {
@@ -403,11 +412,14 @@ export default function ExceptionRulesPage() {
       width: 200,
       render: (_: any, record: ExceptionRule) => (
         <Space>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleRuleToggle(record)}>
-            {record.status === 'enabled' ? '停用' : '启用'}
-          </Button>
-          <Button size="small" type="text" disabled={!canManage} onClick={() => handleRuleEdit(record)}>编辑</Button>
-          <Button size="small" type="text" status="danger" disabled={!canManage} onClick={() => handleRuleDelete(record)}>删除</Button>
+          {/* 规则启停/编辑/删除是考勤异常规则配置写操作：无权限不渲染 */}
+          <PermissionGate code="attendance:exception:manage">
+            <Button size="small" type="text" onClick={() => handleRuleToggle(record)}>
+              {record.status === 'enabled' ? '停用' : '启用'}
+            </Button>
+            <Button size="small" type="text" onClick={() => handleRuleEdit(record)}>编辑</Button>
+            <Button size="small" type="text" status="danger" onClick={() => handleRuleDelete(record)}>删除</Button>
+          </PermissionGate>
         </Space>
       ),
     },
@@ -498,14 +510,10 @@ export default function ExceptionRulesPage() {
             onSearch={handleExceptionSearch}
             onReset={handleExceptionReset}
             searchInlineActions
-            toolbar={[
-              {
-                key: 'add',
-                label: '+ 新增异常记录',
-                onClick: handleExceptionAdd,
-                disabled: !canManage,
-              },
-            ]}
+            // 新增异常记录是考勤异常管理写操作：无权限时工具栏不渲染
+            toolbar={canManage
+              ? [{ key: 'add', label: '+ 新增异常记录', onClick: handleExceptionAdd }]
+              : []}
             showExport
             onExport={handleExportExceptions}
             pagination={false}
@@ -522,14 +530,10 @@ export default function ExceptionRulesPage() {
             loading={ruleLoading}
             error={ruleError}
             onRetry={fetchRules}
-            toolbar={[
-              {
-                key: 'add',
-                label: '+ 新增规则',
-                onClick: handleRuleAdd,
-                disabled: !canManage,
-              },
-            ]}
+            // 新增规则是考勤异常规则配置写操作：无权限时工具栏不渲染
+            toolbar={canManage
+              ? [{ key: 'add', label: '+ 新增规则', onClick: handleRuleAdd }]
+              : []}
             showExport
             onExport={handleExportRules}
             pagination={false}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Button, Message, Modal, Tag,
+  Button, Message, Modal,
 } from '@arco-design/web-react';
 import {
   IconCalendar,
@@ -17,10 +17,12 @@ import {
   IconExclamation,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
+import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
 import { attendanceApi, type Shift } from '@/services/attendance';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { todayStr } from '@/lib/format';
 
 // 状态 → 中文徽标（对齐旧项目 getStatusBadge 语义）
 // 用语义色 token：-text 保证 WCAG AA 对比度、-bg 随明暗主题切换，
@@ -30,6 +32,11 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; bo
   late: { label: '迟到', color: 'var(--lx-danger-text)', bg: 'var(--lx-danger-bg)', border: 'var(--lx-danger)' },
   early: { label: '早退', color: 'var(--lx-warning-text)', bg: 'var(--lx-warning-bg)', border: 'var(--lx-warning)' },
   late_early: { label: '迟到且早退', color: 'var(--lx-danger-text)', bg: 'var(--lx-danger-bg)', border: 'var(--lx-danger)' },
+};
+
+// 今日打卡状态徽标统一用公共 StatusTag（Arco Design Pro 标准）
+const NORMAL_TAG_MAP: Record<string, { label: string; color: string }> = {
+  normal: { label: '正常', color: 'success' },
 };
 
 // 仅时分（HH:mm），用于打卡时间展示
@@ -105,7 +112,6 @@ function PunchClock() {
 }
 
 export default function PunchPage() {
-  const { data: todayData, loading, error, run: runFetch } = useFetchState<TodayPunchData>();
   const [punching, setPunching] = useState(false);
 
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
@@ -114,17 +120,16 @@ export default function PunchPage() {
   const [selectedShiftId, setSelectedShiftId] = useState<number | undefined>();
   const [scheduling, setScheduling] = useState(false);
 
-  const fetchToday = useCallback(async () => {
-    await runFetch(async () => {
+  // SWR 缓存：cacheKey 编入当天日期防跨天串数据。原页面无轮询/定时刷新，
+  // 实时性靠 revalidateOnFocus（默认开）+ 打卡/排班写操作后 revalidate() 强刷。
+  const { data: todayData, loading, error, revalidate } = useCachedData<TodayPunchData>(
+    `attendance:today-punch:${todayStr()}`,
+    async () => {
       const res = await attendanceApi.getTodayPunch();
-      if (res.code === 0) return res.data ?? null;
+      if (res.code === 0) return (res.data ?? null) as unknown as TodayPunchData;
       throw new Error(res.message || '获取打卡数据失败');
-    });
-  }, [runFetch]);
-
-  useEffect(() => {
-    fetchToday();
-  }, [fetchToday]);
+    },
+  );
 
   const fetchAvailableShifts = async () => {
     try {
@@ -141,7 +146,7 @@ export default function PunchPage() {
       const res = await attendanceApi.clockIn();
       if (res.code === 0 && res.data) {
         Message.success(res.data.status === 'late' ? '打卡成功，但您迟到了' : '打卡成功');
-        fetchToday();
+        await revalidate();
       } else {
         Message.error(res.message || '打卡失败');
       }
@@ -159,7 +164,7 @@ export default function PunchPage() {
       if (res.code === 0 && res.data) {
         const early = res.data.earlyMinutes && res.data.earlyMinutes > 0;
         Message.success(early ? '打卡成功，但您早退了' : '打卡成功');
-        fetchToday();
+        await revalidate();
       } else {
         Message.error(res.message || '打卡失败');
       }
@@ -187,7 +192,7 @@ export default function PunchPage() {
       if (res.code === 0) {
         Message.success('排班设置成功');
         setScheduleModalVisible(false);
-        fetchToday();
+        await revalidate();
       } else {
         Message.error(res.message || '设置失败');
       }
@@ -246,7 +251,7 @@ export default function PunchPage() {
 
   return (
     <PageContainer title="打卡" subTitle="今日签到签退与个人考勤记录">
-      <DataState loading={loading} error={error} onRetry={fetchToday}>
+      <DataState loading={loading} error={error} onRetry={() => { void revalidate(); }}>
         <div className="max-w-5xl mx-auto">
           {/* ─── 顶部信息卡：标题 + 服务器时间（时钟独立子组件，避免整页每秒重渲） ─── */}
           <div className="punch-card mb-4 flex justify-between items-center">
@@ -295,9 +300,12 @@ export default function PunchPage() {
                 {hasClockedIn && (
                   <div className="mt-2 flex justify-center">
                     {todayData?.lateMinutes ? (
-                      <Tag color="red">迟到 {todayData.lateMinutes} 分钟</Tag>
+                      <StatusTag
+                        status="late"
+                        statusMap={{ late: { label: `迟到 ${todayData.lateMinutes} 分钟`, color: 'danger' } }}
+                      />
                     ) : (
-                      <Tag color="green">正常</Tag>
+                      <StatusTag status="normal" statusMap={NORMAL_TAG_MAP} />
                     )}
                   </div>
                 )}
@@ -310,9 +318,12 @@ export default function PunchPage() {
                 {hasClockedOut && (
                   <div className="mt-2 flex justify-center">
                     {todayData?.earlyMinutes ? (
-                      <Tag color="gold">早退 {todayData.earlyMinutes} 分钟</Tag>
+                      <StatusTag
+                        status="early_leave"
+                        statusMap={{ early_leave: { label: `早退 ${todayData.earlyMinutes} 分钟`, color: 'warning' } }}
+                      />
                     ) : (
-                      <Tag color="green">正常</Tag>
+                      <StatusTag status="normal" statusMap={NORMAL_TAG_MAP} />
                     )}
                   </div>
                 )}
@@ -323,7 +334,7 @@ export default function PunchPage() {
                   {hasClockedOut ? workHoursOf(todayData?.firstPunch, todayData?.lastPunch) : '--'}
                 </div>
                 <div className="mt-2 text-xs text-text-4 text-center">
-                  {todayData?.status === 'normal' ? <Tag color="green">正常</Tag> : '下班后统计'}
+                  {todayData?.status === 'normal' ? <StatusTag status="normal" statusMap={NORMAL_TAG_MAP} /> : '下班后统计'}
                 </div>
               </div>
               <div className="punch-stat">
@@ -447,7 +458,7 @@ export default function PunchPage() {
           </div>
           {availableShifts.length === 0 ? (
             <div className="py-10 text-center text-sm text-text-4">
-              <IconFile style={{ fontSize: 22, marginBottom: 6 }} />
+              <IconFile style={{ fontSize: 20, marginBottom: 6 }} />
               <div>暂无可用的班次</div>
             </div>
           ) : (
@@ -466,7 +477,7 @@ export default function PunchPage() {
                     }`}
                   >
                     <span
-                      className="w-3 h-3 rounded-full shrink-0 mt-0.5"
+                      className="w-2 h-2 rounded-full shrink-0 mt-1"
                       style={{ background: s.color || 'var(--lx-primary)' }}
                     />
                     <div className="flex-1 min-w-0">

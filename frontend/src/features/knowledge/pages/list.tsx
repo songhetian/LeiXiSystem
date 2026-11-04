@@ -9,7 +9,6 @@ import {
   Button,
   Input,
   Empty,
-  Spin,
   List,
   Typography,
 } from '@arco-design/web-react';
@@ -17,11 +16,12 @@ import { IconFolder, IconFile, IconLeft, IconSearch, IconEye } from '@arco-desig
 import PageContainer from '@/components/PageContainer';
 import { knowledgeApi, KnowledgeArticle, KnowledgeCategory, KnowledgeAttachment } from '@/services/knowledge';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getKnowledgeFolders, getFolderArticles, FOLDER_UNCAT } from '../view';
 import FilePreviewModal, { PreviewFile } from '../components/FilePreviewModal';
 import { useCachedData } from '@/hooks/use-cached-data';
-import useFetchState from '@/hooks/use-fetch-state';
+import LoaderDots from '@/components/LoaderDots';
 
 /** 空回退引用（保持稳定，避免每次渲染生成新数组触发依赖 effect 死循环） */
 const EMPTY_CATEGORIES: KnowledgeCategory[] = [];
@@ -70,35 +70,42 @@ export default function KnowledgeListPage() {
   const [keyword, setKeyword] = useState('');
 
   const [detailVisible, setDetailVisible] = useState(false);
-  const { data: detailData, loading: detailLoading, error: detailError, run: runFetchDetail } = useFetchState<{
-    article: KnowledgeArticle;
-    attachments: KnowledgeAttachment[];
-  }>();
-  const currentArticle = detailData?.article ?? null;
-  const attachments = detailData?.attachments ?? EMPTY_ATTACHMENTS;
+  // 详情弹窗按需挂载：记录当前查看的文章 id，数据由 ArticleDetailModal 内的 useCachedData 拉取
+  const [detailArticleId, setDetailArticleId] = useState<number | null>(null);
 
   const [preview, setPreview] = useState<PreviewFile | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // 分类参考数据：共享缓存，跨组件去重
-  const { data: catsRes, loading: catLoading } = useCachedData<{ code: number; data?: KnowledgeCategory[] }>(
+  // 分类参考数据：与管理页共享同一缓存（key: knowledge:categories），fetcher 统一解包为数组
+  const { data: catsData, loading: catLoading, error: catError } = useCachedData<KnowledgeCategory[]>(
     'knowledge:categories',
-    () => knowledgeApi.getCategories({ page: 1, pageSize: 100 }),
+    async () => {
+      const res = await knowledgeApi.getCategories({ page: 1, pageSize: 100 });
+      if (res.code === 0 && res.data) return res.data;
+      throw new Error(res.message || '获取分类失败');
+    },
     { staleTime: 60_000 },
   );
-  const categories = catsRes?.code === 0 && catsRes.data ? catsRes.data : EMPTY_CATEGORIES;
+  const categories = catsData ?? EMPTY_CATEGORIES;
 
-  // 文章列表
-  const { data: artsRes, loading: artLoading, error } = useCachedData<{ code: number; data?: { list: KnowledgeArticle[] } }>(
+  // 文章列表：页面按分类汇总文档数、不做分页展示，需要全量；后端 pageSize 上限 100，翻页取
+  const { data: artsRes, loading: artLoading, error: artError } = useCachedData<{ code: number; data?: { list: KnowledgeArticle[] } }>(
     'knowledge:articles',
     async () => {
-      const res = await knowledgeApi.getArticles({ page: 1, pageSize: 200 });
-      return { code: res.code, data: res.data ?? undefined };
+      let code = 0;
+      const list = await fetchAllPages<KnowledgeArticle>(async (page, pageSize) => {
+        const res = await knowledgeApi.getArticles({ page, pageSize });
+        code = res.code;
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
+      return { code, data: { list } };
     },
     { staleTime: 30_000 },
   );
   const allArticles = artsRes?.code === 0 && artsRes.data ? artsRes.data.list : EMPTY_ARTICLES;
   const loading = catLoading || artLoading;
+  // 分类或文章任一失败都展示错误（分类失败若静默，页面会误显示「暂无分类」）
+  const error = artError ?? catError;
 
   // 根视图文件夹 + 分类内文章
   const folders = getKnowledgeFolders(categories, allArticles);
@@ -122,25 +129,13 @@ export default function KnowledgeListPage() {
   };
 
   const handleOpenDetail = (record: KnowledgeArticle) => {
+    setDetailArticleId(record.id);
     setDetailVisible(true);
-    void runFetchDetail(async () => {
-      const [articleResult, attachmentsResult] = await Promise.all([
-        knowledgeApi.getArticleDetail(record.id),
-        knowledgeApi.getAttachments(record.id),
-      ]);
-      if (articleResult.code !== 0 || !articleResult.data) {
-        throw new Error(articleResult.message || '获取文章详情失败');
-      }
-      return {
-        article: articleResult.data,
-        attachments:
-          attachmentsResult.code === 0 && attachmentsResult.data ? attachmentsResult.data : EMPTY_ATTACHMENTS,
-      };
-    });
   };
 
   const handleDetailCancel = () => {
     setDetailVisible(false);
+    setDetailArticleId(null);
   };
 
   const handlePreview = async (attachment: KnowledgeAttachment) => {
@@ -209,36 +204,22 @@ export default function KnowledgeListPage() {
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 56 }}>
-          <Spin />
+          <LoaderDots />
         </div>
       ) : error ? (
         <Empty description={error} />
       ) : activeFolder ? (
         /* 分类内：文章卡片网格 */
         folderArticles.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
+          <div className="kb-grid">
             {folderArticles.map((item) => (
               <button
                 type="button"
                 key={item.id}
-                className="lx-clickable"
+                className="lx-clickable kb-card"
                 onClick={() => handleOpenDetail(item)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '20px 12px',
-                  background: 'var(--lx-bg-card)',
-                  border: '1px solid var(--lx-border-1)',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  transition: 'all var(--lx-transition-fast)',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'var(--lx-shadow-card)')}
-                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
               >
-                <IconFile style={{ fontSize: 34, color: 'var(--lx-primary)' }} />
+                <IconFile style={{ fontSize: 32, color: 'var(--lx-primary)' }} />
                 <Text
                   ellipsis={{ rows: 2 }}
                   style={{
@@ -263,31 +244,15 @@ export default function KnowledgeListPage() {
       ) : (
         /* 根视图：分类文件夹卡片网格 */
         folders.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: 16 }}>
+          <div className="kb-grid">
             {folders.map((folder) => (
               <button
                 type="button"
                 key={folder.key}
-                className="lx-clickable"
+                className="lx-clickable kb-card kb-card--folder"
                 onClick={() => enterFolder(folder.key)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 12,
-                  minHeight: 128,
-                  padding: 20,
-                  background: 'var(--lx-bg-card)',
-                  border: '1px solid var(--lx-border-1)',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  transition: 'all var(--lx-transition-fast)',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'var(--lx-shadow-card)')}
-                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
               >
-                <IconFolder style={{ fontSize: 42, color: 'var(--lx-primary)' }} />
+                <IconFolder style={{ fontSize: 32, color: 'var(--lx-primary)' }} />
                 <Text bold style={{ fontSize: 14, color: 'var(--lx-text-1)' }}>
                   {folder.name}
                 </Text>
@@ -302,22 +267,72 @@ export default function KnowledgeListPage() {
         )
       )}
 
-      {/* 文章预览弹窗 */}
-      <Modal
-        title={currentArticle?.title || '文章详情'}
-        visible={detailVisible}
-        onCancel={handleDetailCancel}
-        footer={
-          <Button type="primary" onClick={handleDetailCancel}>
-            关闭
-          </Button>
-        }
-        style={{ width: 760 }}
-      >
-        {detailError ? (
-          <Empty description={detailError} />
-        ) : (
-          currentArticle && (
+      {/* 文章预览弹窗：按需挂载，数据在子组件内经 useCachedData（key 含文章 id）共享缓存拉取 */}
+      {detailArticleId != null && (
+        <ArticleDetailModal
+          articleId={detailArticleId}
+          visible={detailVisible}
+          onCancel={handleDetailCancel}
+          onPreview={handlePreview}
+          previewLoading={previewLoading}
+        />
+      )}
+
+      {preview && <FilePreviewModal file={preview} onClose={handlePreviewClose} />}
+    </PageContainer>
+  );
+}
+
+/** 文章详情弹窗：数据走共享缓存（key: knowledge:article-detail:{id}），挂载即并行拉详情与附件 */
+function ArticleDetailModal({
+  articleId,
+  visible,
+  onCancel,
+  onPreview,
+  previewLoading,
+}: {
+  articleId: number;
+  visible: boolean;
+  onCancel: () => void;
+  onPreview: (att: KnowledgeAttachment) => void;
+  previewLoading: boolean;
+}) {
+  const { data, error } = useCachedData<{
+    article: KnowledgeArticle;
+    attachments: KnowledgeAttachment[];
+  }>(`knowledge:article-detail:${articleId}`, async () => {
+    const [articleResult, attachmentsResult] = await Promise.all([
+      knowledgeApi.getArticleDetail(articleId),
+      knowledgeApi.getAttachments(articleId),
+    ]);
+    if (articleResult.code !== 0 || !articleResult.data) {
+      throw new Error(articleResult.message || '获取文章详情失败');
+    }
+    return {
+      article: articleResult.data,
+      attachments:
+        attachmentsResult.code === 0 && attachmentsResult.data ? attachmentsResult.data : EMPTY_ATTACHMENTS,
+    };
+  });
+  const currentArticle = data?.article ?? null;
+  const attachments = data?.attachments ?? EMPTY_ATTACHMENTS;
+
+  return (
+    <Modal
+      title={currentArticle?.title || '文章详情'}
+      visible={visible}
+      onCancel={onCancel}
+      footer={
+        <Button type="primary" onClick={onCancel}>
+          关闭
+        </Button>
+      }
+      style={{ width: 760 }}
+    >
+      {error ? (
+        <Empty description={error} />
+      ) : (
+        currentArticle && (
           <div>
             <div
               style={{
@@ -382,7 +397,7 @@ export default function KnowledgeListPage() {
                         type="primary"
                         icon={<IconEye />}
                         loading={previewLoading}
-                        onClick={() => handlePreview(item)}
+                        onClick={() => onPreview(item)}
                       >
                         预览
                       </Button>
@@ -392,11 +407,8 @@ export default function KnowledgeListPage() {
               </>
             )}
           </div>
-          )
-        )}
-      </Modal>
-
-      {preview && <FilePreviewModal file={preview} onClose={handlePreviewClose} />}
-    </PageContainer>
+        )
+      )}
+    </Modal>
   );
 }

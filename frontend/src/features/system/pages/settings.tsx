@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Message, Card, Input, Button, Space, Upload } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
+import { PermissionGate } from '@/components/PermissionGate';
 import { settingsApi, SystemSetting } from '@/services/settings';
-import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useSystemInfo } from '@/hooks/use-system-info';
 
@@ -39,7 +39,6 @@ const ACTIVE_ATTENDANCE_KEYS = new Set([
 ]);
 
 export default function SettingsPage() {
-  const { can } = usePermission();
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   // 品牌信息独立状态（系统名称 / Logo），不依赖数据库已有记录，保存时 upsert 创建
@@ -151,14 +150,16 @@ export default function SettingsPage() {
 
   return (
     <PageContainer extra={
-        <Button
-          type="primary"
-          loading={saving}
-          onClick={handleSave}
-          disabled={!can('system:setting:update')}
-        >
-          保存更改
-        </Button>
+        // 按钮级权限：无 system:setting:update 时「保存更改」不渲染
+        <PermissionGate code="system:setting:update">
+          <Button
+            type="primary"
+            loading={saving}
+            onClick={handleSave}
+          >
+            保存更改
+          </Button>
+        </PermissionGate>
       }
     >
       {/* 品牌卡片不依赖设置列表数据：加载中/失败时同样可编辑（bulkUpdate 自带 upsert） */}
@@ -190,14 +191,16 @@ export default function SettingsPage() {
               <div className="lx-brand-upload">
                 <div className="lx-brand-name-tip">系统 Logo</div>
                 <Space size={12}>
-                  <Upload
-                    accept="image/*"
-                    showUploadList={false}
-                    beforeUpload={handleUploadLogo}
-                    disabled={!can('system:setting:update')}
-                  >
-                    <Button>上传 Logo</Button>
-                  </Upload>
+                  {/* 按钮级权限：无 system:setting:update 时 Logo 上传入口不渲染 */}
+                  <PermissionGate code="system:setting:update">
+                    <Upload
+                      accept="image/*"
+                      showUploadList={false}
+                      beforeUpload={handleUploadLogo}
+                    >
+                      <Button>上传 Logo</Button>
+                    </Upload>
+                  </PermissionGate>
                   {brandLogo && (
                     <Button type="text" onClick={() => setBrandLogo('')}>
                       移除

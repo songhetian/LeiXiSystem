@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Message, Card, Statistic, Grid, Button, Space, DatePicker } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
@@ -110,6 +110,17 @@ export default function ReportsPage() {
   // 查询按钮的忙碌态：只跟「随月份变化」的两路请求走
   const queryLoading = attLoading || laborLoading;
 
+  // 导出任务是异步生成的：有排队中/生成中的任务时自动轮询，
+  // 否则用户点了「导出」后只能反复点「查询」才知道什么时候能下载
+  const hasActiveTask = tasks.some((t) => t.status === 'pending' || t.status === 'processing');
+  useEffect(() => {
+    if (!hasActiveTask) return;
+    const timer = setInterval(() => {
+      void tasksRevalidate();
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, [hasActiveTask, tasksRevalidate]);
+
   const handleQuery = () => {
     void attRevalidate();
     void laborRevalidate();
@@ -126,8 +137,9 @@ export default function ReportsPage() {
       } else {
         Message.error(res.message || '导出失败');
       }
-    } catch {
-      Message.error('导出失败');
+    } catch (e) {
+      // 透出后端原因（如「该月尚未生成考勤月报」），而不是笼统的「导出失败」
+      Message.error(e instanceof Error ? e.message : '导出失败');
     }
   };
 
@@ -141,8 +153,8 @@ export default function ReportsPage() {
       } else {
         Message.error(res.message || '重试失败');
       }
-    } catch {
-      Message.error('重试失败');
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : '重试失败');
     }
   };
 

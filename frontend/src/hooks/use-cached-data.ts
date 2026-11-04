@@ -13,6 +13,37 @@ interface CacheEntry<T> {
 }
 
 const moduleCache = new Map<string, CacheEntry<unknown>>();
+
+// ========== 缓存容量与过期控制 ==========
+// EmployeeSelect 等组件会把搜索词编进 cacheKey，长会话下条目只增不减；
+// 用 LRU 上限兜底，避免内存无界增长。写入时顺手清理超过 TTL 的陈旧条目。
+const MAX_CACHE_SIZE = 200;
+const CACHE_TTL = 5 * 60_000;
+
+/** 读取缓存并刷新 LRU 顺序（命中即移到末尾） */
+function readCache<T>(key: string): CacheEntry<T> | undefined {
+  const entry = moduleCache.get(key);
+  if (!entry) return undefined;
+  moduleCache.delete(key);
+  moduleCache.set(key, entry);
+  return entry as CacheEntry<T>;
+}
+
+/** 写入缓存：先清理过期条目，再按 LRU 淘汰最久未使用的 key */
+function writeCache(key: string, entry: CacheEntry<unknown>) {
+  const now = Date.now();
+  for (const [k, v] of moduleCache) {
+    if (k !== key && now - v.timestamp > CACHE_TTL) moduleCache.delete(k);
+  }
+  if (moduleCache.has(key)) moduleCache.delete(key);
+  moduleCache.set(key, entry);
+  while (moduleCache.size > MAX_CACHE_SIZE) {
+    const oldest = moduleCache.keys().next().value;
+    if (oldest === undefined) break;
+    moduleCache.delete(oldest);
+  }
+}
+
 // 在途请求：同 key 复用（去重）。记录请求序号，避免迟到返回的旧请求覆盖新请求结果。
 const inflight = new Map<string, { promise: Promise<unknown>; id: number }>();
 // 每个 key 最新一次请求的序号：只有最新请求才允许写缓存 / 写状态
@@ -27,7 +58,8 @@ export function clearDataCache() {
 }
 
 export interface UseCachedDataResult<T> {
-  data: T | null;
+  /** 切换 cacheKey 后的首帧为 undefined，避免短暂展示上一个 key 的旧数据 */
+  data: T | null | undefined;
   loading: boolean;
   error: string | null;
   /** 强制重新请求（绕过 staleTime 与缓存）并更新数据 */
@@ -57,18 +89,22 @@ export function useCachedData<T>(
   // 当前活跃的 cacheKey：用于丢弃已切走后的旧请求结果，避免竞态覆盖新 key 数据
   const activeKeyRef = useRef(cacheKey);
 
-  const [state, setState] = useState<{ data: T | null; loading: boolean; error: string | null }>(
-    () => {
-      const cached = moduleCache.get(cacheKey);
-      if (cached) {
-        return { data: cached.data as T, loading: false, error: null };
-      }
-      // 无缓存时首帧就是 loading：mounted effect 里马上会发请求，若首帧
-      // 返回 loading=false + data=null，页面会先闪一下「暂无数据」再切骨架屏，
-      // 用户看到的是「刚说有数据、又说没有、又变成加载中」。
-      return { data: null, loading: true, error: null };
-    },
-  );
+  // state 同时记录「这份 data 属于哪个 cacheKey」：key 一变，首帧就不能再渲染旧数据
+  const [state, setState] = useState<{
+    key: string;
+    data: T | null;
+    loading: boolean;
+    error: string | null;
+  }>(() => {
+    const cached = readCache<T>(cacheKey);
+    if (cached) {
+      return { key: cacheKey, data: cached.data, loading: false, error: null };
+    }
+    // 无缓存时首帧就是 loading：mounted effect 里马上会发请求，若首帧
+    // 返回 loading=false + data=null，页面会先闪一下「暂无数据」再切骨架屏，
+    // 用户看到的是「刚说有数据、又说没有、又变成加载中」。
+    return { key: cacheKey, data: null, loading: true, error: null };
+  });
 
   // 组件卸载守卫：在途请求返回时不再对已卸载实例 setState（模块级缓存仍照常
   // 写入，供后续订阅复用）。否则 React 会对已卸载组件排队更新，测试中表现为
@@ -90,19 +126,20 @@ export function useCachedData<T>(
   const load = useCallback(
     (force = false) => {
       const myKey = cacheKey;
-      const cached = moduleCache.get(cacheKey);
+      const cached = readCache<T>(cacheKey);
       const fresh = cached && Date.now() - cached.timestamp < staleTime;
 
       // 命中新鲜缓存：直接返回，不发请求
       if (cached && fresh && !force) {
-        setState({ data: cached.data as T, loading: false, error: null });
-        return Promise.resolve(cached.data as T);
+        setState({ key: cacheKey, data: cached.data, loading: false, error: null });
+        return Promise.resolve(cached.data);
       }
 
       // 有旧数据（stale）时先展示旧数据、后台刷新（SWR）；无缓存则清空，避免串页残留
       setState((s) => ({
         ...s,
-        data: cached ? (cached.data as T) : null,
+        key: myKey,
+        data: cached ? cached.data : null,
         loading: true,
         error: null,
       }));
@@ -136,16 +173,22 @@ export function useCachedData<T>(
           // 已被更新的请求（同 key 后续 revalidate）取代时丢弃结果，防止旧数据覆盖新数据
           if (latestRequestId.get(cacheKey) !== requestId) return data;
           // 无论是否为活跃 key / 实例是否卸载，都写入缓存供后续订阅复用
-          moduleCache.set(cacheKey, { data, timestamp: Date.now() });
+          writeCache(cacheKey, { data, timestamp: Date.now() });
           // 已切走（非当前活跃 key）或实例已卸载时不再 setState
           if (activeKeyRef.current !== myKey || !mountedRef.current) return data;
-          setState({ data, loading: false, error: null });
+          setState({ key: myKey, data, loading: false, error: null });
           return data;
         })
         .catch((e) => {
           if (latestRequestId.get(cacheKey) !== requestId) return null;
           if (activeKeyRef.current !== myKey || !mountedRef.current) return null;
-          setState((s) => ({ ...s, loading: false, error: getApiErrorMessage(e, '加载失败') }));
+          // 新 key 失败时不能沿用旧 key 的数据，只有同一 key 才保留
+          setState((s) => ({
+            key: myKey,
+            data: s.key === myKey ? s.data : null,
+            loading: false,
+            error: getApiErrorMessage(e, '加载失败'),
+          }));
           return null;
         });
     },
@@ -179,5 +222,13 @@ export function useCachedData<T>(
 
   const revalidate = useCallback(() => load(true), [load]);
 
-  return { data: state.data, loading: state.loading, error: state.error, revalidate };
+  // 派生判断而非同步 setState：cacheKey 变化后的首帧直接视为「新 key 加载中」，
+  // 不渲染上一个 key 的 data；随后 effect 里 load() 会把 state.key 对齐并恢复。
+  const keyMatched = state.key === cacheKey;
+  return {
+    data: keyMatched ? state.data : undefined,
+    loading: keyMatched ? state.loading : true,
+    error: keyMatched ? state.error : null,
+    revalidate,
+  };
 }

@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import '@testing-library/jest-dom';
 import KnowledgeAdminPage from '@/features/knowledge/pages/admin';
 import { knowledgeApi } from '@/services/knowledge';
+import { clearDataCache } from '@/hooks/use-cached-data';
 
 // 控制 Tabs mock 只渲染哪一个 TabPane：categories=仅分类管理；articles=仅文章管理
 let mockTabsMode: 'categories' | 'articles' = 'categories';
@@ -146,6 +147,7 @@ const mockedApi = knowledgeApi as jest.Mocked<typeof knowledgeApi>;
 describe('知识库管理 - 分类管理（卡片式 / 拖拽排序 / 隐藏 ID 与排序）', () => {
   beforeEach(() => {
     mockTabsMode = 'categories';
+    clearDataCache();
     jest.clearAllMocks();
     mockedApi.getCategories.mockResolvedValue({
       code: 0,
@@ -186,6 +188,7 @@ describe('知识库管理 - 分类管理（卡片式 / 拖拽排序 / 隐藏 ID 
 describe('知识库管理 - 文章管理（创建后出现上传区）', () => {
   beforeEach(() => {
     mockTabsMode = 'articles';
+    clearDataCache();
     jest.clearAllMocks();
     mockedApi.getCategories.mockResolvedValue({
       code: 0,

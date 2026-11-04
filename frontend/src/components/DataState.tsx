@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { Empty, Button, Result, Skeleton } from '@arco-design/web-react';
+import LoaderDots from '@/components/LoaderDots';
 
 export interface DataStateProps {
   loading?: boolean;
@@ -78,20 +79,8 @@ export default function DataState({
       );
     }
 
-    return (
-      // role="status" + aria-live：异步加载态需要被屏幕阅读器播报（WCAG SC 4.1.3 Status Messages AA）。
-      // 全站此前仅 1 处有 aria-live，这里统一补上。
-      // 波点 Loader 用 Galaxy 层的 .lx-loader-dots（Galaxy Round 2 工具类），替代 Arco Spin。
-      <div role="status" aria-live="polite" className="data-state-loading">
-        <div className="lx-loader-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-        <span className="data-state-loading-text">{loadingText}</span>
-      </div>
-    );
+    // 与非骨架加载态共用同一组件：文案、波点动画、延迟播报只维护一处，避免两套实现漂移
+    return <LoaderDots text={loadingText} />;
   }
 
   if (error) {

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
-  Table,
   Button,
   Space,
   Modal,
@@ -30,24 +29,30 @@ import {
   IconApps,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
-import DataState from '@/components/DataState';
+import ProTable, { ProTableColumn } from '@/components/ProTable';
+import StatusTag from '@/components/StatusTag';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { PermissionGate } from '@/components/PermissionGate';
 import { approvalApi, Workflow, WorkflowNode } from '@/services/approval';
 import { notifyError } from '@/lib/request';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import {
+  BUSINESS_WORKFLOWS,
+  BUSINESS_MODULE_LABELS,
+  businessModuleOf,
+  businessNameOf,
+} from '@/lib/workflow-codes';
 
 const { Option } = Select;
 const { Text } = Typography;
 
-const MODULE_OPTIONS = [
-  { label: '报销', value: 'reimbursement' },
-  { label: '请假', value: 'leave' },
-  { label: '加班', value: 'overtime' },
-  { label: '采购', value: 'procurement' },
-  { label: '通用', value: 'general' },
-];
+// 业务编码选项：流程设置页新建的流程只有使用登记的业务编码，
+// 才会被对应业务流（请假/加班/报销/入职…）真正使用（ADR-0020）
+const BUSINESS_OPTIONS = BUSINESS_WORKFLOWS.map((w) => ({
+  label: `${w.name}（${w.code}）`,
+  value: w.code,
+}));
 
 const NODE_TYPE_OPTIONS = [
   { label: '角色审批', value: 'role', icon: <IconTag />, desc: '指定角色的用户可审批' },
@@ -56,10 +61,11 @@ const NODE_TYPE_OPTIONS = [
   { label: '申请人', value: 'initiator', icon: <IconUser />, desc: '申请人本人确认节点' },
 ];
 
+// 审批流状态（StatusTag 色值规范：gray→default、green→success、red→danger）
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'gray' },
-  active: { label: '启用', color: 'green' },
-  inactive: { label: '停用', color: 'red' },
+  draft: { label: '草稿', color: 'default' },
+  active: { label: '启用', color: 'success' },
+  inactive: { label: '停用', color: 'danger' },
 };
 
 function getNodeTypeMeta(type: string) {
@@ -82,6 +88,20 @@ export default function ApprovalSettingsPage() {
     'config:approval:workflows',
     fetchList,
   );
+
+  // ===== 审批流列表分页（数据整表返回，前端分页展示） =====
+  const [listPage, setListPage] = useState(1);
+
+  // 已被占用的业务编码：seed 会为 13 个登记业务各铺一条流程，若下拉不禁用，
+  // 新建时选任何编码都会撞唯一键（6301「审批流编码已存在」），用户只能反复试错。
+  const usedCodes = useMemo(
+    () => new Set((data ?? []).map((w) => w.code)),
+    [data],
+  );
+  // 列表还没回来（loading/error）时 usedCodes 是空集，此时若允许选择，用户会选中
+  // 已占用的编码，提交必撞 6301。所以「编码是否可用」未知时一律禁用下拉。
+  const codesReady = !loading && !error && Array.isArray(data);
+  const allCodesUsed = codesReady && BUSINESS_OPTIONS.every((m) => usedCodes.has(m.value));
 
   // ===== 基本信息弹窗 =====
   const [baseModalVisible, setBaseModalVisible] = useState(false);
@@ -109,7 +129,6 @@ export default function ApprovalSettingsPage() {
     baseForm.setFieldsValue({
       code: record.code,
       name: record.name,
-      module: record.module,
       status: record.status,
     });
     setBaseModalVisible(true);
@@ -120,11 +139,24 @@ export default function ApprovalSettingsPage() {
       const values = await baseForm.validate();
       setBaseSaving(true);
 
+      // module 由业务编码推导：同一业务归属固定分组，避免手选模块与编码不一致
+      const module = businessModuleOf(values.code) ?? 'general';
+
       let res;
       if (editingBase) {
-        res = await approvalApi.updateWorkflow(editingBase.id, values);
+        res = await approvalApi.updateWorkflow(editingBase.id, {
+          name: values.name,
+          module,
+          status: values.status,
+        });
       } else {
-        res = await approvalApi.createWorkflow({ ...values, nodes: [] });
+        res = await approvalApi.createWorkflow({
+          code: values.code,
+          name: values.name,
+          module,
+          status: values.status,
+          nodes: [],
+        });
       }
 
       if (res.code === 0) {
@@ -217,14 +249,19 @@ export default function ApprovalSettingsPage() {
 
   const activeNode = nodes.find((n) => n.nodeKey === activeNodeKey) || null;
 
-  const columns = [
+  const columns: ProTableColumn[] = [
     { title: '流程名称', dataIndex: 'name', width: 200 },
-    { title: '编码', dataIndex: 'code', width: 150 },
     {
-      title: '适用模块',
+      title: '业务编码',
+      dataIndex: 'code',
+      width: 220,
+      render: (v: string) => `${businessNameOf(v)}（${v}）`,
+    },
+    {
+      title: '业务分组',
       dataIndex: 'module',
       width: 120,
-      render: (v: string) => MODULE_OPTIONS.find((m) => m.value === v)?.label || v,
+      render: (v: string) => BUSINESS_MODULE_LABELS[v] || v,
     },
     {
       title: '节点数',
@@ -236,9 +273,7 @@ export default function ApprovalSettingsPage() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v: string) => (
-        <Tag color={STATUS_MAP[v]?.color || 'gray'}>{STATUS_MAP[v]?.label || v}</Tag>
-      ),
+      render: (v: string) => <StatusTag status={v} statusMap={STATUS_MAP} />,
     },
     {
       title: '操作',
@@ -295,15 +330,16 @@ export default function ApprovalSettingsPage() {
             </Button>
           </PermissionGate>
         </div>
-        <DataState loading={loading} error={error} onRetry={revalidateList} isEmpty={!data || data.length === 0}>
-          <Table
-            columns={columns}
-            data={data || []}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{ pageSize: 20, showTotal: true }}
-          />
-        </DataState>
+        <ProTable
+          columns={columns}
+          data={data || []}
+          rowKey="id"
+          loading={loading}
+          error={error}
+          onRetry={revalidateList}
+          pagination={{ current: listPage, pageSize: 20, total: (data || []).length }}
+          onPageChange={setListPage}
+        />
       </div>
 
       {/* ===== 基本信息弹窗 ===== */}
@@ -322,17 +358,36 @@ export default function ApprovalSettingsPage() {
           <Form.Item label="流程名称" field="name" rules={[{ required: true, message: '请输入流程名称' }]}>
             <Input placeholder="请输入流程名称" />
           </Form.Item>
-          <Form.Item label="流程编码">
-            <Input disabled placeholder="保存后由系统自动生成" />
-          </Form.Item>
-          <Form.Item label="适用模块" field="module" rules={[{ required: true, message: '请选择适用模块' }]}>
-            <Select placeholder="请选择适用模块">
-              {MODULE_OPTIONS.map((m) => (
-                <Option key={m.value} value={m.value}>
-                  {m.label}
-                </Option>
-              ))}
-            </Select>
+          <Form.Item
+            label="业务编码"
+            field="code"
+            rules={[{ required: true, message: '请选择业务编码' }]}
+            extra={
+              editingBase
+                ? '业务编码创建后不可修改'
+                : allCodesUsed
+                  ? '全部业务编码均已有流程，请直接在列表中编辑，或先删除不再使用的流程'
+                  : !codesReady
+                    ? '正在读取已配置的流程，请稍候…'
+                    : '选择业务编码后，该流程才会被对应业务流使用；已配置的业务编码不可重复新建，请直接编辑列表中对应的流程'
+            }
+          >
+            {editingBase ? (
+              <Input disabled />
+            ) : (
+              <Select
+                showSearch
+                placeholder={allCodesUsed ? '全部业务编码均已有流程' : '请选择业务编码'}
+                disabled={!codesReady || allCodesUsed}
+              >
+                {BUSINESS_OPTIONS.map((m) => (
+                  <Option key={m.value} value={m.value} disabled={usedCodes.has(m.value)}>
+                    {m.label}
+                    {usedCodes.has(m.value) ? '（已配置）' : ''}
+                  </Option>
+                ))}
+              </Select>
+            )}
           </Form.Item>
           <Form.Item label="状态" field="status">
             <Select>
@@ -362,10 +417,10 @@ export default function ApprovalSettingsPage() {
         maskClosable={false}
         style={{ width: 980 }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 260px', minHeight: 480 }}>
+        <div className="appr-flow-grid">
           {/* 左侧：节点列表 */}
-          <div style={{ borderRight: '1px solid var(--lx-border-2)', padding: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div className="appr-flow-col appr-flow-col--left">
+            <div className="appr-flow-col-head">
               <Text bold style={{ fontSize: 13 }}>节点列表</Text>
               <Button
                 size="mini"
@@ -377,60 +432,31 @@ export default function ApprovalSettingsPage() {
             {nodes.length === 0 ? (
               <Empty description="暂无节点" style={{ marginTop: 40 }} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="appr-node-list">
                 {nodes.map((node, index) => {
                   const meta = getNodeTypeMeta(node.type);
                   const isActive = activeNodeKey === node.nodeKey;
                   return (
                     <div
                       key={node.nodeKey}
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: `1px solid ${isActive ? 'var(--lx-primary-100)' : 'var(--lx-border-2)'}`,
-                        backgroundColor: isActive ? 'var(--color-primary-light-1)' : 'var(--color-bg-2)',
-                        transition: 'all 0.2s',
-                      }}
+                      className={`appr-node-item${isActive ? ' appr-node-item--active' : ''}`}
                     >
                       {/* 选中该节点用 <button> 承载，保证键盘可达（WCAG SC 2.1.1）；
                           不给整张卡加 role="button"，以免与下方操作按钮形成「可聚焦后代嵌套」 */}
                       <button
                         type="button"
-                        className="lx-clickable"
+                        className="lx-clickable appr-node-hit"
                         onClick={() => setActiveNodeKey(node.nodeKey)}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          padding: 0,
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                        }}
                       >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 20,
-                            height: 20,
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--lx-primary-100)',
-                            color: 'var(--color-primary-5)',
-                            fontSize: 11,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {index + 1}
-                        </span>
+                      <div className="appr-node-row">
+                        <span className="appr-node-num">{index + 1}</span>
                         <Text style={{ fontSize: 12, fontWeight: 500 }}>{node.name}</Text>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 26 }}>
-                        <Text style={{ fontSize: 11, color: 'var(--lx-text-3)' }}>{meta.label}</Text>
+                      <div className="appr-node-sub">
+                        <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>{meta.label}</Text>
                       </div>
                       </button>
-                      <div style={{ display: 'flex', gap: 2, marginTop: 6, paddingLeft: 26 }}>
+                      <div className="appr-node-actions">
                         <Button
                           size="mini"
                           type="text"
@@ -473,37 +499,14 @@ export default function ApprovalSettingsPage() {
           </div>
 
           {/* 中间：流程预览 */}
-          <div style={{ padding: 16, backgroundColor: 'var(--color-bg-1)' }}>
-            <Text bold style={{ fontSize: 13, marginBottom: 12, display: 'block' }}>流程预览</Text>
-            <div
-              style={{
-                padding: '16px 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2,
-                minHeight: 380,
-              }}
-            >
-              <div
-                style={{
-                  width: 100,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  backgroundColor: 'var(--color-success-light-1)',
-                  border: '1px solid var(--color-success-light-3)',
-                  color: 'var(--color-success-6)',
-                  textAlign: 'center',
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                开始
-              </div>
+          <div className="appr-flow-col">
+            <Text bold className="appr-flow-col-title">流程预览</Text>
+            <div className="appr-flow-stage">
+              <div className="appr-flow-cap appr-flow-cap--start">开始</div>
 
               {nodes.length === 0 ? (
                 <>
-                  <div style={{ color: 'var(--color-border-3)', fontSize: 20 }}>↓</div>
+                  <div className="appr-flow-arrow">↓</div>
                   <Empty description="点击左侧 + 添加节点" style={{ marginTop: 20 }} />
                 </>
               ) : (
@@ -518,50 +521,21 @@ export default function ApprovalSettingsPage() {
                         alignItems: 'center',
                       }}
                     >
-                      <div style={{ color: 'var(--color-border-3)', fontSize: 16, lineHeight: 1.5 }}>↓</div>
+                      <div className="appr-flow-arrow">↓</div>
                       <button
                         type="button"
-                        className="lx-clickable"
+                        className={`lx-clickable appr-flow-node${
+                          activeNodeKey === node.nodeKey ? ' appr-flow-node--active' : ''
+                        }`}
                         onClick={() => setActiveNodeKey(node.nodeKey)}
-                        style={{
-                          width: 160,
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          backgroundColor:
-                            activeNodeKey === node.nodeKey
-                              ? 'var(--color-primary-light-1)'
-                              : 'var(--color-bg-2)',
-                          border: `1.5px solid ${
-                            activeNodeKey === node.nodeKey
-                              ? 'var(--color-primary-5)'
-                              : 'var(--lx-border-2)'
-                          }`,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          transition: 'all 0.2s',
-                          boxShadow:
-                            activeNodeKey === node.nodeKey
-                              ? '0 4px 12px color-mix(in srgb, var(--lx-primary) 15%, transparent)'
-                              : 'none',
-                        }}
                       >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 4,
-                            marginBottom: 2,
-                          }}
-                        >
-                          <span style={{ color: 'var(--color-primary-5)', fontSize: 12 }}>
-                            {meta.icon}
-                          </span>
+                        <div className="appr-flow-node-head">
+                          <span className="appr-flow-node-icon">{meta.icon}</span>
                           <Text bold style={{ fontSize: 12 }}>
                             {node.name}
                           </Text>
                         </div>
-                        <Text style={{ fontSize: 10, color: 'var(--lx-text-3)' }}>
+                        <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
                           {meta.label} · 第 {index + 1} 节点
                         </Text>
                       </button>
@@ -570,34 +544,20 @@ export default function ApprovalSettingsPage() {
                 })
               )}
 
-              <div style={{ color: 'var(--color-border-3)', fontSize: 20, lineHeight: 1.5 }}>↓</div>
-              <div
-                style={{
-                  width: 100,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  backgroundColor: 'var(--color-info-light-1)',
-                  border: '1px solid var(--color-info-light-3)',
-                  color: 'var(--color-info-6)',
-                  textAlign: 'center',
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                结束
-              </div>
+              <div className="appr-flow-arrow">↓</div>
+              <div className="appr-flow-cap appr-flow-cap--end">结束</div>
             </div>
           </div>
 
           {/* 右侧：节点配置 */}
-          <div style={{ borderLeft: '1px solid var(--lx-border-2)', padding: 16 }}>
-            <Text bold style={{ fontSize: 13, marginBottom: 12, display: 'block' }}>
+          <div className="appr-flow-col appr-flow-col--right">
+            <Text bold className="appr-flow-col-title">
               节点配置
             </Text>
             {!activeNode ? (
               <Empty description="选择左侧节点" style={{ marginTop: 60 }} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="appr-flow-form">
                 <Form.Item label="节点名称" style={{ marginBottom: 0 }}>
                   <Input
                     value={activeNode.name}
@@ -624,7 +584,7 @@ export default function ApprovalSettingsPage() {
                   </Select>
                 </Form.Item>
 
-                <Text style={{ fontSize: 11, color: 'var(--lx-text-3)' }}>
+                <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
                   {getNodeTypeMeta(activeNode.type).desc}
                 </Text>
 
@@ -656,7 +616,7 @@ export default function ApprovalSettingsPage() {
                 <Divider style={{ margin: '4px 0' }} />
 
                 <div>
-                  <Text style={{ fontSize: 11, color: 'var(--lx-text-3)', fontWeight: 500 }}>
+                  <Text style={{ fontSize: 12, color: 'var(--lx-text-3)', fontWeight: 500 }}>
                     高级配置
                   </Text>
                   <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>

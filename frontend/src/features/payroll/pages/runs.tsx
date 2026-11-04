@@ -63,7 +63,8 @@ const createFormFields: FormFieldConfig[] = [
 
 export default function PayrollRunsPage() {
   const { can } = usePermission();
-  // 后端 create/confirm/publish/recall 均要求 payroll:manage，前端同步做权限门
+  // 后端 create/confirm/publish/recall 均要求 payroll:manage；
+  // 11.6-3：无权限的写操作按钮一律不渲染（而非 disabled）
   const canManage = can('payroll:manage');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [searchParams, setSearchParams] = useState<Record<string, any>>({});
@@ -196,24 +197,22 @@ export default function PayrollRunsPage() {
           <Button type="text" size="mini" onClick={() => handleViewDetails(record)}>
             明细
           </Button>
-          {record.status === 'draft' && (
+          {canManage && record.status === 'draft' && (
             // 确认必须先抽检 ≥3 名员工（后端强校验），所以入口指向批次明细里的勾选确认
             <Button
               type="text"
               size="mini"
               status="success"
-              disabled={!canManage}
               onClick={() => handleViewDetails(record)}
             >
               核对确认
             </Button>
           )}
-          {record.status === 'confirmed' && (
+          {canManage && record.status === 'confirmed' && (
             <ConfirmButton
               type="text"
               size="mini"
               status="success"
-              disabled={!canManage}
               title="发布工资条"
               content={`发布后 ${record.month} 批次的工资条将推送给 ${record.totalEmployees} 名员工，员工可见即不可再修改。确定发布吗？`}
               okText="发布"
@@ -222,12 +221,11 @@ export default function PayrollRunsPage() {
               发布
             </ConfirmButton>
           )}
-          {record.status === 'published' && (
+          {canManage && record.status === 'published' && (
             <ConfirmButton
               type="text"
               size="mini"
               status="warning"
-              disabled={!canManage}
               title="撤回工资条"
               content={`确定撤回 ${record.month} 批次吗？撤回后员工将无法查看该月工资条，需重新发布。`}
               okText="撤回"
@@ -241,9 +239,10 @@ export default function PayrollRunsPage() {
     },
   ];
 
-  const toolbar: ProTableToolbarAction[] = [
-    { key: 'create', label: '创建批次', type: 'primary', disabled: !canManage, onClick: handleCreate },
-  ];
+  // 11.6-3：无 payroll:manage 时工具栏不出现「创建批次」入口
+  const toolbar: ProTableToolbarAction[] = canManage
+    ? [{ key: 'create', label: '创建批次', type: 'primary', onClick: handleCreate }]
+    : [];
 
   return (
     <PageContainer >

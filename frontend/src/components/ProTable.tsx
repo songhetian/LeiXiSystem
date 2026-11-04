@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Table, Button, Space, Empty, Popover, Checkbox, Select } from '@arco-design/web-react';
+import { Table, Button, Space, Empty, Popover, Checkbox, Select, Message, Skeleton } from '@arco-design/web-react';
 import SearchForm, { SearchFieldConfig } from './SearchForm';
 import DataState from './DataState';
 import { sanitizeCell } from '@/lib/excel';
@@ -17,6 +17,8 @@ export interface ProTableColumn {
   align?: 'left' | 'center' | 'right';
   ellipsis?: boolean;
   hideable?: boolean;
+  /** 横向滚动时固定列；操作列固定在右侧，避免窄屏下滚出可视区 */
+  fixed?: 'left' | 'right';
 }
 
 export interface ProTableToolbarAction {
@@ -87,6 +89,11 @@ export interface ProTableProps {
   showDensity?: boolean;
   exportFilename?: string;
   onExport?: (data: any[]) => void;
+  /**
+   * 全量导出的数据源：传入后「导出 CSV」会等待该函数返回全部行，
+   * 而不是只导出当前页。未传入时保持原有「导出当前页」行为。
+   */
+  onExportAll?: () => Promise<Record<string, any>[]>;
   batchActions?: ProTableBatchAction[];
   /** 启用虚拟滚动（适用于大列表 + 大 pageSize，Arco Table 原生支持） */
   virtual?: boolean;
@@ -125,6 +132,7 @@ export default function ProTable({
   showDensity = false,
   exportFilename = 'export.csv',
   onExport,
+  onExportAll,
   batchActions,
   virtual = false,
   maxHeight = 480,
@@ -132,6 +140,7 @@ export default function ProTable({
 }: ProTableProps) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [density, setDensity] = useState<TableDensity>('default');
+  const [exporting, setExporting] = useState(false);
 
   const visibleColumns = useMemo(() => {
     return columns.filter((col) => {
@@ -190,6 +199,10 @@ export default function ProTable({
         pageSizeOptions: [10, 20, 50, 100],
       };
 
+  // 首屏（还没有任何数据）用骨架行；翻页/刷新已有数据时继续用表格 loading，
+  // 否则每次翻页都会把整表替换成骨架，产生一次无意义的内容闪动。
+  const firstLoading = loading && data.length === 0;
+
   const handleRowClick = (record: any) => {
     onRowClick?.(record);
   };
@@ -232,12 +245,26 @@ export default function ProTable({
     });
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (onExport) {
       onExport(data);
       return;
-    }    const headers = visibleColumns.map((col) => col.title).join(',');
-    const rows = data.map((row) =>
+    }
+    let exportData: Record<string, any>[] = data;
+    if (onExportAll) {
+      // 全量导出：分页拉取在页面侧完成，这里只负责等待与降级提示
+      setExporting(true);
+      try {
+        exportData = await onExportAll();
+      } catch (e) {
+        Message.error((e as Error).message || '导出失败');
+        return;
+      } finally {
+        setExporting(false);
+      }
+    }
+    const headers = visibleColumns.map((col) => col.title).join(',');
+    const rows = exportData.map((row) =>
       visibleColumns
         .map((col) => {
           const val = row[col.dataIndex];
@@ -285,7 +312,7 @@ export default function ProTable({
   const utilities = (
     <div className="flex items-center gap-2.5">
       {showExport && (
-        <Button size="small" onClick={handleExportCSV}>导出 CSV</Button>
+        <Button size="small" loading={exporting} onClick={handleExportCSV}>导出 CSV</Button>
       )}
       {showDensity && (
         <Select
@@ -381,6 +408,26 @@ export default function ProTable({
         {onRowClick && (
           <span className="lx-sr-only">表格行可用方向键上下移动，按回车键或空格键打开详情</span>
         )}
+        {firstLoading ? (
+          // 骨架行：列数与可见列一致（上限 6），首屏不再出现「空表 + 转圈遮罩」
+          <div role="status" aria-live="polite" aria-busy="true" className="protable-skeleton">
+            <span className="sr-only">正在加载列表数据</span>
+            <div className="protable-skeleton-head" aria-hidden="true">
+              {visibleColumns.slice(0, 6).map((col) => (
+                <div key={col.key || col.dataIndex} className="protable-skeleton-cell" />
+              ))}
+            </div>
+            {Array.from({ length: 5 }).map((_, rowIndex) => (
+              <div key={rowIndex} className="protable-skeleton-row" aria-hidden="true">
+                {visibleColumns.slice(0, 6).map((col, colIndex) => (
+                  <div key={col.key || col.dataIndex} className="protable-skeleton-cell">
+                    <Skeleton text={{ rows: 1, width: colIndex === 0 ? '50%' : '80%' }} animation />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
         <Table
           columns={visibleColumns}
           data={data}
@@ -413,6 +460,7 @@ export default function ProTable({
             ? { virtual: true, pageSize: (pagination === false ? undefined : pagination?.pageSize) || 20 }
             : {})}
         />
+        )}
       </DataState>
     </div>
   );

@@ -101,13 +101,15 @@ describe('SettingsPage · 按钮级权限（T26）', () => {
     });
   });
 
-  it('staff（无 system:setting:update）保存按钮禁用', async () => {
+  it('staff（无 system:setting:update）保存按钮与 Logo 上传入口不渲染', async () => {
     mockUseAuthStore.mockReturnValue({
       user: { id: 2, username: 'staff', name: '王小明', permissions: ['attendance:view'] },
     });
     render(<SettingsPage />);
+    // REFACTOR_PLAN 11.6-3：按钮无权限不渲染（PermissionGate），而非禁用
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /保存更改/i })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: /保存更改/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '上传 Logo' })).not.toBeInTheDocument();
     });
   });
 

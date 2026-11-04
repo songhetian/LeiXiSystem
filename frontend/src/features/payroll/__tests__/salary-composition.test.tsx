@@ -48,4 +48,16 @@ describe('SalaryComposition', () => {
     expect(screen.getByText('收入 2 项')).toBeInTheDocument();
     expect(screen.getByText('合计')).toBeInTheDocument();
   });
+
+  it('合计为负时红色标注（11.6-6，MoneyText）', () => {
+    render(
+      <SalaryComposition
+        items={[{ code: 'base', name: '基础工资', amount: 100 }]}
+        adjustments={[{ id: 9, itemCode: 'penalty', amount: -150, reason: '扣款冲减', createdAt: '2026-08-03T00:00:00+08:00' }]}
+        total={-50}
+      />,
+    );
+    const neg = screen.getByText('-50.00');
+    expect(neg).toHaveClass('lx-money-negative');
+  });
 });

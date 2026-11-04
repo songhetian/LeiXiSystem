@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -20,20 +20,12 @@ import StatusTag from '@/components/StatusTag';
 import DataState from '@/components/DataState';
 import { approvalApi, InstanceDetail, ApprovalRecord } from '@/services/approval';
 import { usePermission } from '@/hooks/use-permission';
-import useFetchState from '@/hooks/use-fetch-state';
+import { useCachedData } from '@/hooks/use-cached-data';
+import {
+  APPROVAL_INSTANCE_STATUS as approvalStatusMap,
+  APPROVAL_RECORD_STATUS as recordStatusMap,
+} from '@/features/approval/lib/status-maps';
 
-const approvalStatusMap: Record<string, { label: string; color: string }> = {
-  pending: { label: '审批中', color: 'arcoblue' },
-  approved: { label: '已通过', color: 'green' },
-  rejected: { label: '已驳回', color: 'red' },
-  cancelled: { label: '已撤销', color: 'gray' },
-};
-
-const recordStatusMap: Record<string, { label: string; color: string }> = {
-  pending: { label: '待审批', color: 'arcoblue' },
-  approved: { label: '已通过', color: 'green' },
-  rejected: { label: '已驳回', color: 'red' },
-};
 
 const MODULE_LABEL: Record<string, string> = {
   leave: '请假',
@@ -49,27 +41,21 @@ export default function ApprovalDetailPage() {
   const { can } = usePermission();
   const id = Number(params?.id);
 
-  const { data: detail, loading, error, run: runFetch, setData: setDetail } = useFetchState<InstanceDetail>();
+  // SWR 共享缓存：详情按 id 编入 cacheKey，id 变化自动重拉
+  const { data: detail, loading, error, revalidate } = useCachedData<InstanceDetail>(
+    `approval:detail:${id}`,
+    async () => {
+      if (!id) throw new Error('获取详情失败');
+      const res = await approvalApi.getInstance(id);
+      if (res.code === 0 && res.data) return res.data;
+      throw new Error(res.message || '获取详情失败');
+    },
+  );
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-
-  const fetchDetail = async () => {
-    if (!id) return;
-    await runFetch(async () => {
-      const res = await approvalApi.getInstance(id);
-      if (res.code === 0 && res.data) {
-        return res.data;
-      }
-      throw new Error(res.message || '获取详情失败');
-    });
-  };
-
-  useEffect(() => {
-    fetchDetail();
-  }, [id]);
 
   const openApproveModal = () => {
     setActionType('approve');
@@ -96,7 +82,8 @@ export default function ApprovalDetailPage() {
       if (result.code === 0) {
         Message.success(actionType === 'approve' ? '同意成功' : '驳回成功');
         setActionModalVisible(false);
-        fetchDetail();
+        // 审批完成后强制重拉详情（绕过缓存取最新状态与审批记录）
+        revalidate();
       } else {
         Message.error(result.message || '操作失败');
       }
@@ -168,7 +155,7 @@ export default function ApprovalDetailPage() {
   return (
       <PageContainer
       >
-        <DataState loading={loading} error={error} onRetry={fetchDetail} isEmpty={!detail}>
+        <DataState loading={loading} error={error} onRetry={revalidate} isEmpty={!detail}>
           {detail && (
             <>
               <Card style={{ marginBottom: 16 }}>

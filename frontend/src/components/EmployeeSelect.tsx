@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Select, Spin } from '@arco-design/web-react';
+import { useState, useRef, useMemo } from 'react';
+import { Select } from '@arco-design/web-react';
 import type { ComponentProps } from 'react';
 import { employeeApi, type Employee } from '@/services/employee';
+import LoaderDots from '@/components/LoaderDots';
+import { useCachedData } from '@/hooks/use-cached-data';
 
 type ArcoSelectProps = ComponentProps<typeof Select>;
 
@@ -35,6 +37,15 @@ interface OptionData {
   raw: Employee;
 }
 
+/** 将 Employee 转为 Arco Select option（模块级：保持引用稳定，便于 useMemo 依赖） */
+function toOption(emp: Employee): OptionData {
+  return {
+    label: `${emp.employeeNo} - ${emp.name}${emp.departmentName ? ` (${emp.departmentName})` : ''}`,
+    value: emp.id,
+    raw: emp,
+  };
+}
+
 export default function EmployeeSelect({
   value,
   onChange,
@@ -47,63 +58,42 @@ export default function EmployeeSelect({
   className,
   id,
 }: EmployeeSelectProps) {
-  const [options, setOptions] = useState<OptionData[]>([]);
-  const [loading, setLoading] = useState(false);
-  // 加载失败与「确实没有员工」是两件事：不区分会让用户以为库里查无此人
-  const [loadFailed, setLoadFailed] = useState(false);
+  // 搜索词（防抖后才进 cacheKey，避免每次按键都发请求）
+  const [keyword, setKeyword] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fetchedRef = useRef(false);
 
   const isMultiple = mode === 'multiple';
 
-  // 将 Employee 转为 Arco Select option
-  const toOption = (emp: Employee): OptionData => ({
-    label: `${emp.employeeNo} - ${emp.name}${emp.departmentName ? ` (${emp.departmentName})` : ''}`,
-    value: emp.id,
-    raw: emp,
-  });
-
-  // 远程搜索
-  const fetchEmployees = async (keyword: string) => {
-    setLoading(true);
-    try {
-      const res = await employeeApi.getList({
+  // 列表数据统一走 useCachedData：同一「部门 + 关键词」在不同表单间共享缓存
+  const { data: res, loading, error } = useCachedData(
+    `employees:select:${departmentId ?? 'all'}:${keyword || 'all'}`,
+    async () => {
+      const result = await employeeApi.getList({
         name: keyword || undefined,
         page: 1,
         pageSize: 50,
         departmentId,
       });
       // 业务码非 0 不是「没有员工」，必须走失败分支
-      if (res.code !== 0) throw new Error(res.message || '员工列表加载失败');
-      const list = res.data?.list ?? [];
-      setOptions(list.map(toOption));
-      setLoadFailed(false);
-    } catch {
-      setOptions([]);
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (result.code !== 0) throw new Error(result.message || '员工列表加载失败');
+      return result;
+    },
+    { staleTime: 30_000 },
+  );
 
-  // 首次加载（无搜索词时取前 50 条）
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    fetchEmployees('');
-  }, []);
+  const options = useMemo<OptionData[]>(
+    () => (res?.code === 0 && res.data ? (res.data.list ?? []).map(toOption) : []),
+    [res],
+  );
 
-  // departmentId 变化时重新加载
-  useEffect(() => {
-    fetchEmployees('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [departmentId]);
+  // 加载失败与「确实没有员工」是两件事：不区分会让用户以为库里查无此人
+  const loadFailed = !!error;
 
-  // 搜索防抖
+  // 搜索防抖：300ms 内连续输入只保留最后一次
   const handleSearch = (val: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchEmployees(val);
+      setKeyword(val);
     }, 300);
   };
 
@@ -139,7 +129,7 @@ export default function EmployeeSelect({
     style: { width: '100%', ...style },
     className,
     notFoundContent: loading ? (
-      <Spin />
+      <LoaderDots />
     ) : loadFailed ? (
       // 失败时说清是「加载失败」，用户还能重试（收起再展开触发重新搜索）
       '员工列表加载失败，请收起后重试'
