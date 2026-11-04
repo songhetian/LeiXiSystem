@@ -37,9 +37,8 @@ export class SchedulesService {
 
   // 批量排班：事务内逐条 upsert，冲突覆盖而非报错（幂等）
   async batch(items: { employeeId: number; shiftId: number; workDate: string }[], userId: number) {
-    for (const item of items) {
-      await this.assertInScope(item.employeeId, userId);
-    }
+    // 权限校验一次查全：逐条 assertInScope 会按人数放大成 N 次 employee 查询
+    await this.assertManyInScope(items.map((item) => item.employeeId), userId);
     try {
       const count = await this.prisma.$transaction(async (tx) => {
         let n = 0;
@@ -218,6 +217,27 @@ export class SchedulesService {
     return { success: true };
   }
 
+  /**
+   * 批量清除：一次查存在性/越权 + 一次 deleteMany。
+   * 前端「清除当日」可能一次删几十上百条，逐条 remove 就是 N 次查询 + N 次删除。
+   * 整体校验：任一记录不存在或越权即整体拒绝（不半删），保持与 batch 写一样的原子语义。
+   */
+  async batchRemove(ids: number[], userId: number) {
+    // 去重：重复 id 会让「查到的行数 ≠ 传入条数」误判成记录不存在
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return { count: 0 };
+    const rows = await this.prisma.schedule.findMany({ where: { id: { in: uniqueIds } } });
+    if (rows.length !== uniqueIds.length) {
+      throw new NotFoundException({ code: ERROR_CODES.SCHEDULE_NOT_FOUND, message: '排班不存在' });
+    }
+    await this.assertManyInScope(
+      rows.map((r) => r.employeeId),
+      userId,
+    );
+    const { count } = await this.prisma.schedule.deleteMany({ where: { id: { in: uniqueIds } } });
+    return { count };
+  }
+
   private async assertInScope(employeeId: number, userId: number) {
     const scope = await this.dataScope.visibleScope(userId);
     if (scope.selfEmployeeId) {
@@ -229,6 +249,33 @@ export class SchedulesService {
     if (scope.all) return;
     const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee || !scope.ids.includes(employee.departmentId)) {
+      throw new ForbiddenException({ code: 5003, message: '无权限为该员工排班' });
+    }
+  }
+
+  /**
+   * 批量权限校验：一次 visibleScope + 一次 employee.findMany。
+   * 与 assertInScope 语义一致（自助用户只能排自己、主管只能排负责部门），但不按人数放大查询。
+   */
+  private async assertManyInScope(employeeIds: number[], userId: number) {
+    const unique = Array.from(new Set(employeeIds));
+    if (unique.length === 0) return;
+    const scope = await this.dataScope.visibleScope(userId);
+    if (scope.selfEmployeeId) {
+      if (unique.some((id) => id !== scope.selfEmployeeId)) {
+        throw new ForbiddenException({ code: 5003, message: '无权限为该员工排班' });
+      }
+      return;
+    }
+    if (scope.all) return;
+    const employees = await this.prisma.employee.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, departmentId: true },
+    });
+    const allowed = new Set(
+      employees.filter((e) => scope.ids.includes(e.departmentId)).map((e) => e.id),
+    );
+    if (unique.some((id) => !allowed.has(id))) {
       throw new ForbiddenException({ code: 5003, message: '无权限为该员工排班' });
     }
   }

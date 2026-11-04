@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -56,6 +57,14 @@ describe('S06 · 请假/加班/休假额度', () => {
     const permManage = await prisma.permission.create({
       data: { code: 'attendance:manage', name: '考勤管理', module: 'attendance', type: 'menu' },
     });
+    // 员工自助发起请假/加班挂个人自助权限点（不是 attendance:manage）：
+    // 这里刻意不给 staff 绑 manage，用来证明普通员工在没有管理权时也能提交申请。
+    const permLeaveApply = await prisma.permission.create({
+      data: { code: 'personal:leave:apply', name: '请假申请', module: 'personal', type: 'menu' },
+    });
+    const permOvertimeApply = await prisma.permission.create({
+      data: { code: 'personal:overtime:apply', name: '加班申请', module: 'personal', type: 'menu' },
+    });
     const permApprovalWorkflowManage = await prisma.permission.create({
       data: { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'menu' },
     });
@@ -74,6 +83,8 @@ describe('S06 · 请假/加班/休假额度', () => {
     await prisma.rolePermission.createMany({
       data: [
         { roleId: staffRole.id, permissionId: permView.id },
+        { roleId: staffRole.id, permissionId: permLeaveApply.id },
+        { roleId: staffRole.id, permissionId: permOvertimeApply.id },
         { roleId: staffRole.id, permissionId: permApprovalTodoView.id },
         { roleId: staffRole.id, permissionId: permApprovalSubmittedView.id },
         { roleId: managerRole.id, permissionId: permView.id },
@@ -93,16 +104,16 @@ describe('S06 · 请假/加班/休假额度', () => {
     });
 
     const staff = await prisma.user.create({
-      data: { username: 'staff_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
+      data: { username: 'staff_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工', status: 'active' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' },
+      data: { username: 'manager_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管', status: 'active' },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR' },
+      data: { username: 'hr_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR', status: 'active' },
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
+      data: { username: 'admin_leave', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员', status: 'active' },
     });
 
     await prisma.userRole.createMany({
@@ -175,6 +186,19 @@ describe('S06 · 请假/加班/休假额度', () => {
     app.setGlobalPrefix('api/v1');
     await app.register(cookie as any);
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
 
     staffCookie = await login(app, 'staff_leave');
     managerCookie = await login(app, 'manager_leave');
@@ -256,7 +280,7 @@ describe('S06 · 请假/加班/休假额度', () => {
       expect(monthly.vacationType.monthlyDays).toHaveLength(12);
     });
 
-    it('加班审批后可兑换调休（按8小时=1天换算）', async () => {
+    it('加班审批后自动转调休（按8小时=1天换算），同一笔重复兑换被拒', async () => {
       const otRes = await inject(app, {
         method: 'POST',
         url: '/api/v1/overtime-records',
@@ -264,8 +288,9 @@ describe('S06 · 请假/加班/休假额度', () => {
         payload: {
           employeeId,
           overtimeDate: '2026-08-10',
-          startTime: '2026-08-10T18:00:00.000Z',
-          endTime: '2026-08-10T21:00:00.000Z',
+          // 服务端以起止时间推算时长（忽略客户端 hours），8 小时跨度才折算 1 天调休
+          startTime: '2026-08-10T00:00:00.000Z',
+          endTime: '2026-08-10T08:00:00.000Z',
           hours: 8,
           reason: '项目上线加班',
         },
@@ -275,6 +300,7 @@ describe('S06 · 请假/加班/休假额度', () => {
       expect(otBody.code).toBe(0);
       const overtimeId = otBody.data.id;
       expect(otBody.data.status).toBe('pending');
+      expect(Number(otBody.data.hours)).toBe(8);
 
       await inject(app, {
         method: 'POST',
@@ -291,6 +317,24 @@ describe('S06 · 请假/加班/休假额度', () => {
       const approveBody = JSON.parse(approveRes.payload);
       expect(approveBody.data.status).toBe('approved');
 
+      // 审批通过后由 approval.approved 监听器自动转调休（fire-and-forget），
+      // 轮询等待 compensatory 额度入账（8 小时按 8 小时/天 = 1 天）
+      let compensatory: any;
+      for (let i = 0; i < 30; i++) {
+        const balRes = await inject(app, {
+          method: 'GET',
+          url: '/api/v1/vacation/balances/mine',
+          headers: { cookie: staffCookie },
+        });
+        const balBody = JSON.parse(balRes.payload);
+        compensatory = balBody.data.find((b: any) => b.vacationType.code === 'compensatory');
+        if (compensatory && Number(compensatory.totalDays) === 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(compensatory).toBeDefined();
+      expect(Number(compensatory.totalDays)).toBe(1);
+
+      // 手动兑换是独立路径，与监听共用一次性令牌：同一笔加班已被自动兑换，再兑应 422
       const convertRes = await inject(app, {
         method: 'POST',
         url: '/api/v1/vacation/convert',
@@ -302,19 +346,9 @@ describe('S06 · 请假/加班/休假额度', () => {
           hours: 8,
         },
       });
-      const convertBody = JSON.parse(convertRes.payload);
-      expect(convertRes.statusCode).toBe(200);
-      expect(convertBody.code).toBe(0);
-
-      const balRes = await inject(app, {
-        method: 'GET',
-        url: '/api/v1/vacation/balances/mine',
-        headers: { cookie: staffCookie },
-      });
-      const balBody = JSON.parse(balRes.payload);
-      const compensatory = balBody.data.find((b: any) => b.vacationType.code === 'compensatory');
-      expect(compensatory).toBeDefined();
-      expect(Number(compensatory.totalDays)).toBe(1);
+      expect(convertRes.statusCode).toBe(422);
+      // ERROR_CODES.OVERTIME_ALREADY_COMPENSATED = 2212（加班已兑换调休）
+      expect(JSON.parse(convertRes.payload).code).toBe(2212);
     });
 
     it('额度变动记录可查询', async () => {

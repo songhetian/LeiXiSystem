@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { seedRealData } from './seed-real-data';
+import { BUSINESS_WORKFLOWS } from '../src/approval/workflow-codes';
 
 // ===== 权限点全集（操作级粒度，对齐各 controller @RequirePermission 实际使用） =====
 export const PERMISSIONS = [
@@ -87,6 +88,7 @@ export const PERMISSIONS = [
   { code: 'approval:submitted:view', name: '我的申请查看', module: 'approval', type: 'menu' },
   { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'api' },
   { code: 'approval:apply', name: '发起审批', module: 'approval', type: 'api' },
+  { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
   { code: 'approval:manage', name: '审批管理', module: 'approval', type: 'api' },
 
   // ---- 薪酬管理（payroll）----
@@ -161,13 +163,29 @@ export const STAFF_PERMISSIONS: string[] = [
   'knowledge:view',
   // 工资条
   'payroll:my:view',
-  // 审批：我的待办/我的申请
+  // 审批：查看待办/申请；发起审批（approval:apply）；
+  // 处理待办（approval:process，staff 含审批人场景，见 ADR-0019）
   'approval:todo:view',
   'approval:submitted:view',
+  'approval:apply',
+  'approval:process',
 ];
 
+/**
+ * 是否写入演示数据。
+ * 未设置时默认开启（开发/试用不变）；生产初始化设 SEED_DEMO=false，
+ * 只建权限点/角色/管理员/部门/默认审批流程等基础数据。
+ */
+export function isDemoSeedEnabled(): boolean {
+  return process.env.SEED_DEMO !== 'false';
+}
+
 /** 权限点 + 角色绑定（幂等：upsert 权限点，重建 admin/staff 的角色绑定） */
-export async function seedPermissions(prisma: PrismaClient) {
+export async function seedPermissions(
+  prisma: PrismaClient,
+  options: { demo?: boolean } = {},
+) {
+  const demo = options.demo ?? isDemoSeedEnabled();
   for (const p of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { code: p.code },
@@ -206,32 +224,38 @@ export async function seedPermissions(prisma: PrismaClient) {
     ],
   });
 
-  // 演示账号（灰度试用密码，首次登录建议修改）
+  // 管理员账号：无论是否演示数据都必须存在，否则系统无人可登录
+  // （初始密码 123456，首次登录务必修改）
   const hash = await bcrypt.hash('123456', 10);
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: { passwordHash: hash, realName: '系统管理员' },
     create: { username: 'admin', passwordHash: hash, realName: '系统管理员', status: 'active' },
   });
-  const staff = await prisma.user.upsert({
-    where: { username: 'staff' },
-    update: { passwordHash: hash, realName: '王小明' },
-    create: { username: 'staff', passwordHash: hash, realName: '王小明', status: 'active' },
-  });
   await prisma.userRole.upsert({
     where: { userId_roleId: { userId: admin.id, roleId: adminRole.id } },
     update: {},
     create: { userId: admin.id, roleId: adminRole.id },
   });
-  await prisma.userRole.upsert({
-    where: { userId_roleId: { userId: staff.id, roleId: staffRole.id } },
-    update: {},
-    create: { userId: staff.id, roleId: staffRole.id },
-  });
 
-  // 重建权限绑定后失效 admin/staff 的 Redis 权限缓存，
+  // 演示账号 staff：仅演示数据开启时创建
+  let staff: { id: number } | null = null;
+  if (demo) {
+    staff = await prisma.user.upsert({
+      where: { username: 'staff' },
+      update: { passwordHash: hash, realName: '王小明' },
+      create: { username: 'staff', passwordHash: hash, realName: '王小明', status: 'active' },
+    });
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: staff.id, roleId: staffRole.id } },
+      update: {},
+      create: { userId: staff.id, roleId: staffRole.id },
+    });
+  }
+
+  // 重建权限绑定后失效相关用户的 Redis 权限缓存，
   // 避免已登录用户继续使用旧权限（按钮无反应 / 菜单不全）
-  await invalidateUserPermCache([admin.id, staff.id]);
+  await invalidateUserPermCache(staff ? [admin.id, staff.id] : [admin.id]);
 
   return { admin, staff };
 }
@@ -284,17 +308,37 @@ export async function invalidateUserPermCache(
   }
 }
 
-/** 真实业务数据（幂等：唯一键 upsert / createMany skipDuplicates / findFirst 跳过） */
-export async function seedBusiness(prisma: PrismaClient) {
-  const { admin, staff } = await seedPermissions(prisma);
-  const staffRole = await prisma.role.findUniqueOrThrow({ where: { code: 'staff' } });
+/** 非演示初始化：至少保证有一个可挂靠的部门（否则无法建员工/挂考勤） */
+async function ensureBaseDepartment(prisma: PrismaClient) {
+  const existing = await prisma.department.findFirst({ where: { name: '总部' } });
+  if (!existing) {
+    await prisma.department.create({
+      data: { name: '总部', description: '系统初始化默认部门' },
+    });
+  }
+}
 
-  // ---- 1) 真实业务数据：部门/职位/30 名员工（各绑定 User 账号）/员工事务/履历/变动流水/考勤/薪资/报销 ----
-  await seedRealData(prisma, {
-    adminUser: { id: admin.id },
-    staffUser: { id: staff.id },
-    staffRoleId: staffRole.id,
-  });
+/** 基础 + 业务数据（幂等：唯一键 upsert / createMany skipDuplicates / findFirst 跳过） */
+export async function seedBusiness(
+  prisma: PrismaClient,
+  options: { demo?: boolean } = {},
+) {
+  const demo = options.demo ?? isDemoSeedEnabled();
+  const { admin, staff } = await seedPermissions(prisma, { demo });
+
+  if (demo) {
+    const staffRole = await prisma.role.findUniqueOrThrow({ where: { code: 'staff' } });
+
+    // ---- 1) 演示业务数据：部门/职位/30 名员工（各绑定 User 账号）/员工事务/履历/变动流水/考勤/薪资/报销 ----
+    await seedRealData(prisma, {
+      adminUser: { id: admin.id },
+      staffUser: { id: staff!.id },
+      staffRoleId: staffRole.id,
+    });
+  } else {
+    // ---- 1) 非演示初始化：不写演示组织与员工，只保证基础部门存在 ----
+    await ensureBaseDepartment(prisma);
+  }
 
   // ---- 系统设置 ----
   const systemSettings = [
@@ -369,120 +413,142 @@ export async function seedBusiness(prisma: PrismaClient) {
     });
   }
 
-  // ---- 审批演示（请假 2 待审批 + 1 已通过；按 title 幂等跳过）----
-  const wf = await prisma.approvalWorkflow.upsert({
-    where: { code: 'leave' },
-    update: {},
-    create: { code: 'leave', name: '请假审批', module: 'attendance', status: 'active' },
-  });
-  const node = await prisma.approvalWorkflowNode.upsert({
-    where: { workflowId_nodeKey: { workflowId: wf.id, nodeKey: 'manager' } },
-    update: {},
-    create: {
-      workflowId: wf.id,
-      nodeKey: 'manager',
-      name: '直属上级审批',
-      type: 'role',
-      roleCode: 'admin',
-      order: 1,
-    },
-  });
-  const empE1 = await prisma.employee.findUniqueOrThrow({ where: { employeeNo: 'E013' } });
-  const staffDept = await prisma.department.findFirstOrThrow({ where: { name: '客服部' } });
-  const demoInstances = [
-    { title: '演示请假1-年假-8月20日', start: '2026-08-20', days: 1, status: 'pending' as const },
-    { title: '演示请假2-事假-8月22日', start: '2026-08-22', days: 0.5, status: 'pending' as const },
-    { title: '演示请假3-年假-8月5日(已通过)', start: '2026-08-05', days: 2, status: 'approved' as const },
-  ];
-  for (const it of demoInstances) {
-    const existing = await prisma.approvalInstance.findFirst({ where: { title: it.title } });
-    if (existing) continue;
-    const inst = await prisma.approvalInstance.create({
-      data: {
-        workflowId: wf.id,
-        workflowCode: 'leave',
-        title: it.title,
-        applicantId: staff.id,
-        applicantName: '王小明',
-        departmentId: staffDept.id,
-        status: it.status,
-        currentNodeKey: it.status === 'pending' ? 'manager' : null,
-        currentNodeName: it.status === 'pending' ? '直属上级审批' : null,
-      },
+  // ---- 默认审批流程：按业务流程登记表逐条幂等补齐（ADR-0020）----
+  // 业务侧发起审批时硬编码 workflowCode，缺流程会直接「审批流不存在」；
+  // 这里为每个登记业务铺一条可用默认流程，管理员可在流程设置页调整节点。
+  const wfByCode = new Map<string, { id: number }>();
+  const nodeByCode = new Map<string, { id: number }>();
+  for (const biz of BUSINESS_WORKFLOWS) {
+    const w = await prisma.approvalWorkflow.upsert({
+      where: { code: biz.code },
+      // update 只做「复活」：流程被管理员软删后，重跑 seed 必须能恢复，
+      // 否则该业务从此发起审批都直接 404「审批流不存在」，而种子看起来是成功的。
+      // 名称/模块/节点不动，避免覆盖管理员在设置页的配置。
+      update: { deletedAt: null },
+      create: { code: biz.code, name: biz.name, module: biz.module, status: 'active' },
     });
-    await prisma.approvalRecord.create({
-      data: {
-        instanceId: inst.id,
-        nodeId: node.id,
-        nodeKey: 'manager',
-        nodeName: '直属上级审批',
-        status: it.status === 'pending' ? 'pending' : 'approved',
-        approverId: it.status === 'approved' ? admin.id : null,
-        approverName: it.status === 'approved' ? '管理员' : null,
-        handledAt: it.status === 'approved' ? new Date('2026-08-06') : null,
-        comment: it.status === 'approved' ? '同意' : null,
-        order: 1,
-      },
-    });
-    await prisma.leaveRecord.create({
-      data: {
-        employeeId: empE1.id,
-        vacationTypeId: vacTypeIds[it.title.includes('事假') ? 'personal' : 'annual'],
-        startDate: new Date(it.start),
-        endDate: new Date(it.start),
-        days: it.days,
-        // 演示假（年假/事假）均为年度型额度：按 createLeave 口径固定 month=0。
-        // 原先用本地 getMonth()+1 既与口径不符（年度型额度只认 month=0 那一行），
-        // 也会在负时区宿主机上把 UTC 午夜的月初日期串到上一个月。
-        month: 0,
-        reason: '演示请假数据',
-        status: it.status,
-      },
-    });
+    // 只在「流程下还没有任何节点」时铺默认节点。
+    // 不能用 upsert(update:{}) 按 nodeKey 补：管理员在设置页改过节点后，原来的
+    // manager 节点已被 updateWorkflow 整体重建删除，重跑 seed 会把它复活成
+    // order=1，与管理员配置的节点撞同一个 order（审批链按 order 排序，两道都会进链）。
+    let n = await prisma.approvalWorkflowNode.findFirst({ where: { workflowId: w.id } });
+    if (!n) {
+      n = await prisma.approvalWorkflowNode.create({
+        data: {
+          workflowId: w.id,
+          nodeKey: 'manager',
+          name: '直属上级审批',
+          type: 'role',
+          roleCode: 'admin',
+          order: 1,
+        },
+      });
+    }
+    wfByCode.set(biz.code, w);
+    nodeByCode.set(biz.code, n);
   }
-
-  // ---- 知识库 ----
-  const catRows = [
-    { name: '入职指南', sortOrder: 1 },
-    { name: '制度手册', sortOrder: 2 },
-    { name: 'FAQ', sortOrder: 3 },
-  ];
-  const catIds: Record<string, number> = {};
-  for (const c of catRows) {
-    let cat = await prisma.knowledgeCategory.findFirst({ where: { name: c.name } });
-    if (!cat) cat = await prisma.knowledgeCategory.create({ data: c });
-    catIds[c.name] = cat.id;
-  }
-  const articles: Array<[string, string, string]> = [
-    ['新员工入职流程', '入职指南', '欢迎入职！请按以下步骤办理：1. 领取工牌；2. 加入部门群；3. 完成系统账号激活。'],
-    ['考勤打卡规范', '制度手册', '工作日上下班需使用打卡机考勤，迟到/早退将计入考勤记录，月度汇总后与薪资挂钩。'],
-    ['如何申请年假？', 'FAQ', '年假申请路径：考勤 → 休假 → 新建请假申请，选择年假类型并提交审批。'],
-  ];
-  for (const [title, catName, content] of articles) {
-    const ex = await prisma.knowledgeArticle.findFirst({ where: { title } });
-    if (!ex) {
-      await prisma.knowledgeArticle.create({
-        data: { categoryId: catIds[catName], title, content, createdBy: admin.id },
+  // ---- 审批演示单（演示内容，SEED_DEMO=false 时跳过）----
+  if (demo) {
+    const wf = wfByCode.get('leave')!;
+    const node = nodeByCode.get('leave')!;
+    const empE1 = await prisma.employee.findUniqueOrThrow({ where: { employeeNo: 'E013' } });
+    const staffDept = await prisma.department.findFirstOrThrow({ where: { name: '客服部' } });
+    const demoInstances = [
+      { title: '演示请假1-年假-8月20日', start: '2026-08-20', days: 1, status: 'pending' as const },
+      { title: '演示请假2-事假-8月22日', start: '2026-08-22', days: 0.5, status: 'pending' as const },
+      { title: '演示请假3-年假-8月5日(已通过)', start: '2026-08-05', days: 2, status: 'approved' as const },
+    ];
+    for (const it of demoInstances) {
+      const existing = await prisma.approvalInstance.findFirst({ where: { title: it.title } });
+      if (existing) continue;
+      const inst = await prisma.approvalInstance.create({
+        data: {
+          workflowId: wf.id,
+          workflowCode: 'leave',
+          title: it.title,
+          applicantId: staff!.id,
+          applicantName: '王小明',
+          departmentId: staffDept.id,
+          status: it.status,
+          currentNodeKey: it.status === 'pending' ? 'manager' : null,
+          currentNodeName: it.status === 'pending' ? '直属上级审批' : null,
+        },
+      });
+      await prisma.approvalRecord.create({
+        data: {
+          instanceId: inst.id,
+          nodeId: node.id,
+          nodeKey: 'manager',
+          nodeName: '直属上级审批',
+          status: it.status === 'pending' ? 'pending' : 'approved',
+          approverId: it.status === 'approved' ? admin.id : null,
+          approverName: it.status === 'approved' ? '管理员' : null,
+          handledAt: it.status === 'approved' ? new Date('2026-08-06') : null,
+          comment: it.status === 'approved' ? '同意' : null,
+          order: 1,
+        },
+      });
+      await prisma.leaveRecord.create({
+        data: {
+          employeeId: empE1.id,
+          vacationTypeId: vacTypeIds[it.title.includes('事假') ? 'personal' : 'annual'],
+          startDate: new Date(it.start),
+          endDate: new Date(it.start),
+          days: it.days,
+          // 演示假（年假/事假）均为年度型额度：按 createLeave 口径固定 month=0。
+          // 原先用本地 getMonth()+1 既与口径不符（年度型额度只认 month=0 那一行），
+          // 也会在负时区宿主机上把 UTC 午夜的月初日期串到上一个月。
+          month: 0,
+          reason: '演示请假数据',
+          status: it.status,
+        },
       });
     }
   }
 
-  // ---- 公告 ----
-  const bc = await prisma.broadcast.findFirst({
-    where: { title: '欢迎使用雷犀客服管理系统' },
-  });
-  if (!bc) {
-    await prisma.broadcast.create({
-      data: {
-        title: '欢迎使用雷犀客服管理系统',
-        content: '系统已上线，请各位同事及时查看公告、完善个人资料。',
-        status: 'published',
-        type: 'notice',
-        createdBy: admin.id,
-        publishedBy: admin.id,
-        publishedAt: new Date(),
-      },
+  // ---- 知识库 / 公告（演示内容，SEED_DEMO=false 时跳过）----
+  if (demo) {
+    const catRows = [
+      { name: '入职指南', sortOrder: 1 },
+      { name: '制度手册', sortOrder: 2 },
+      { name: 'FAQ', sortOrder: 3 },
+    ];
+    const catIds: Record<string, number> = {};
+    for (const c of catRows) {
+      let cat = await prisma.knowledgeCategory.findFirst({ where: { name: c.name } });
+      if (!cat) cat = await prisma.knowledgeCategory.create({ data: c });
+      catIds[c.name] = cat.id;
+    }
+    const articles: Array<[string, string, string]> = [
+      ['新员工入职流程', '入职指南', '欢迎入职！请按以下步骤办理：1. 领取工牌；2. 加入部门群；3. 完成系统账号激活。'],
+      ['考勤打卡规范', '制度手册', '工作日上下班需使用打卡机考勤，迟到/早退将计入考勤记录，月度汇总后与薪资挂钩。'],
+      ['如何申请年假？', 'FAQ', '年假申请路径：考勤 → 休假 → 新建请假申请，选择年假类型并提交审批。'],
+    ];
+    for (const [title, catName, content] of articles) {
+      const ex = await prisma.knowledgeArticle.findFirst({ where: { title } });
+      if (!ex) {
+        await prisma.knowledgeArticle.create({
+          data: { categoryId: catIds[catName], title, content, createdBy: admin.id },
+        });
+      }
+    }
+
+    const bc = await prisma.broadcast.findFirst({
+      where: { title: '欢迎使用雷犀客服管理系统' },
     });
+    if (!bc) {
+      await prisma.broadcast.create({
+        data: {
+          title: '欢迎使用雷犀客服管理系统',
+          content: '系统已上线，请各位同事及时查看公告、完善个人资料。',
+          status: 'published',
+          type: 'notice',
+          createdBy: admin.id,
+          publishedBy: admin.id,
+          publishedAt: new Date(),
+        },
+      });
+    }
   }
 
   // ---- 员工编号序列初始化（幂等）----
@@ -510,8 +576,9 @@ export async function seedBusiness(prisma: PrismaClient) {
 
 export async function main(prisma = new PrismaClient()) {
   try {
-    await seedPermissions(prisma);
-    await seedBusiness(prisma);
+    const demo = isDemoSeedEnabled();
+    // 权限点/角色/账号由 seedBusiness 内部首步完成（它需要 admin 账号 id 建演示数据）
+    await seedBusiness(prisma, { demo });
     const [
       employees, departments, shifts, schedules, punches, dailies,
       payrollRuns, payslips, approvals, leaves, articles, broadcasts,
@@ -536,7 +603,14 @@ export async function main(prisma = new PrismaClient()) {
     console.log(
       `[seed] 薪资批次=${payrollRuns} 工资条=${payslips} 审批单=${approvals} 请假单=${leaves} 知识库=${articles} 公告=${broadcasts}`,
     );
-    console.log('[seed] 演示账号: admin/123456（全部权限） staff/123456（员工+考勤+知识库）');
+    console.log(
+      `[seed] 模式：${demo ? '演示数据（SEED_DEMO 未关闭）' : '仅基础数据（SEED_DEMO=false）'}`,
+    );
+    if (demo) {
+      console.log('[seed] 演示账号: admin/123456（全部权限） staff/123456（员工+考勤+知识库）');
+    } else {
+      console.log('[seed] 管理员账号: admin/123456（全部权限，首次登录请立即修改密码）');
+    }
   } finally {
     await prisma.$disconnect();
   }

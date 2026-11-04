@@ -74,8 +74,11 @@ export class RoleWorkflowService {
   /**
    * 解析申请人角色绑定的首个已激活流程。
    * 未绑定或绑定流程不可用时返回 null（走通用流程）。
+   *
+   * `module` 用于限制兜底范围：只有与请求业务同 module 的绑定流程才可用，
+   * 避免绑定流程跨业务串流（ADR-0020）。不传则不限制。
    */
-  async resolveWorkflowForUser(userId: number) {
+  async resolveWorkflowForUser(userId: number, options: { module?: string } = {}) {
     const bindings = await this.prisma.userRole.findMany({
       where: { userId },
       select: {
@@ -87,9 +90,9 @@ export class RoleWorkflowService {
 
     for (const ur of bindings) {
       const workflow = ur.role.workflow?.workflow;
-      if (workflow && workflow.status === 'active' && !workflow.deletedAt) {
-        return workflow;
-      }
+      if (!workflow || workflow.status !== 'active' || workflow.deletedAt) continue;
+      if (options.module && workflow.module !== options.module) continue;
+      return workflow;
     }
     return null;
   }

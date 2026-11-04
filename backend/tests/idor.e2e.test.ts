@@ -9,6 +9,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -76,6 +77,7 @@ describe('IDOR · 越权访问防护 (22 endpoints)', () => {
     const permCodes = [
       'employee:view', 'attendance:view', 'attendance:manage',
       'payroll:view', 'payroll:manage', 'approval:todo:view', 'approval:submitted:view',
+      'payroll:my:view', 'personal:leave:apply', 'personal:overtime:apply',
     ];
     const perms: Record<string, number> = {};
     for (const code of permCodes) {
@@ -101,12 +103,12 @@ describe('IDOR · 越权访问防护 (22 endpoints)', () => {
 
     // ===== Users =====
     const admin = await prisma.user.create({
-      data: { username: 'idor_admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
+      data: { username: 'idor_admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员', status: 'active' },
     });
     await prisma.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } });
 
     const staff = await prisma.user.create({
-      data: { username: 'idor_staff', passwordHash: await bcrypt.hash('123456', 10), realName: '测试员工' },
+      data: { username: 'idor_staff', passwordHash: await bcrypt.hash('123456', 10), realName: '测试员工', status: 'active' },
     });
     await prisma.userRole.create({ data: { userId: staff.id, roleId: staffRole.id } });
 
@@ -290,6 +292,19 @@ describe('IDOR · 越权访问防护 (22 endpoints)', () => {
     app.setGlobalPrefix('api/v1');
     await app.register(cookie as any);
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
 
     adminCookie = await login(app, 'idor_admin');
     staffCookie = await login(app, 'idor_staff');

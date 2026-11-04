@@ -194,7 +194,7 @@ describe('EmployeeTxService - 错误码语义（员工不存在不得复用本�
       employee: { userId: 9 },
     });
 
-    const payload = await catchPayload(() => service.submitReward(1, 9, 'reward'));
+    const payload = await catchPayload(() => service.submitReward(1, 9));
 
     expect(payload.code).toBe(9602);
     expect(messageOf(payload.code)).toBe('只有草稿状态可操作');
@@ -208,7 +208,7 @@ describe('EmployeeTxService - 错误码语义（员工不存在不得复用本�
       employee: { userId: 9 },
     });
 
-    const payload = await catchPayload(() => service.submitReward(1, 9, 'reward'));
+    const payload = await catchPayload(() => service.submitReward(1, 9));
 
     expect(payload.code).toBe(9603);
     expect(messageOf(payload.code)).toBe('已提交审批');

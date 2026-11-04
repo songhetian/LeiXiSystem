@@ -1,6 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RedisService } from '../common/redis/redis.service';
+import { LocalFallbackStore } from '../common/local-fallback-store';
 import { ERROR_CODES } from '../common/error-codes';
 
 function blacklistKey(jti: string): string {
@@ -19,6 +20,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    @Optional() private readonly local?: LocalFallbackStore,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -46,29 +48,33 @@ export class JwtAuthGuard implements CanActivate {
       });
     }
 
-    // RedisService.get 内部已 try/catch 降级（Redis 不可用时返回 null），不会抛出
-    if (this.redis.isEnabled) {
-      // 已退出登录的 token 进黑名单
-      if (payload.jti) {
-        const blacklisted = await this.redis.get(blacklistKey(payload.jti));
-        if (blacklisted) {
-          throw new UnauthorizedException({
-            code: ERROR_CODES.AUTH_TOKEN_INVALID,
-            message: 'token 已失效，请重新登录',
-          });
-        }
+    // RedisService.get 内部已 try/catch 降级（Redis 不可用时返回 null），不会抛出。
+    // S23 A3 / D2：Redis 只作为首选来源，进程内镜像（AuthService 双写）在 Redis 故障时
+    // 继续承担黑名单与会话校验，避免「登出后 token 仍可用到 7 天过期」。
+    const redisOn = this.redis.isEnabled;
+    // 已退出登录的 token 进黑名单
+    if (payload.jti) {
+      const blacklisted = redisOn ? await this.redis.get(blacklistKey(payload.jti)) : null;
+      if (blacklisted || this.local?.get(blacklistKey(payload.jti))) {
+        throw new UnauthorizedException({
+          code: ERROR_CODES.AUTH_TOKEN_INVALID,
+          message: 'token 已失效，请重新登录',
+        });
       }
-      // 单设备登录（Q16）：Redis 中登记的会话 token 与请求 token 不一致，
-      // 说明账号已在其他设备登录、或改密后重新登录，当前 token 立即失效。
-      // 会话 key 不存在时放行（Redis 重启/清空后不误踢全部在线用户）。
-      if (payload.sub) {
-        const activeToken = await this.redis.get(sessionKey(payload.sub));
-        if (activeToken && activeToken !== token) {
-          throw new UnauthorizedException({
-            code: ERROR_CODES.AUTH_TOKEN_INVALID,
-            message: '您的账号在其他设备登录，已被迫下线',
-          });
-        }
+    }
+    // 单设备登录（Q16）：Redis 中登记的会话 token 与请求 token 不一致，
+    // 说明账号已在其他设备登录、或改密后重新登录，当前 token 立即失效。
+    // 会话 key 不存在时放行（Redis 重启/清空后不误踢全部在线用户）。
+    if (payload.sub) {
+      const activeToken =
+        (redisOn ? await this.redis.get(sessionKey(payload.sub)) : null) ??
+        this.local?.get(sessionKey(payload.sub)) ??
+        null;
+      if (activeToken && activeToken !== token) {
+        throw new UnauthorizedException({
+          code: ERROR_CODES.AUTH_TOKEN_INVALID,
+          message: '您的账号在其他设备登录，已被迫下线',
+        });
       }
     }
 

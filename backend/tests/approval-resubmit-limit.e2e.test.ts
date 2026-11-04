@@ -6,6 +6,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -30,23 +31,44 @@ describe('审批重新提交次数限制', () => {
     await prisma.employee.deleteMany();
     await prisma.department.deleteMany();
     await prisma.userRole.deleteMany();
+    await prisma.rolePermission.deleteMany();
+    await prisma.permission.deleteMany();
     await prisma.role.deleteMany();
     await prisma.user.deleteMany();
 
     const dept = await prisma.department.create({ data: { name: '研发部' } });
 
     const empUser = await prisma.user.create({
-      data: { username: 'rs_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲' },
+      data: { username: 'rs_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲', status: 'active' },
     });
     const approverUser = await prisma.user.create({
-      data: { username: 'rs_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批人' },
+      data: { username: 'rs_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批人', status: 'active' },
     });
 
     const approverRole = await prisma.role.create({
       data: { code: 'approver', name: '审批员' },
     });
-    await prisma.userRole.create({
-      data: { userId: approverUser.id, roleId: approverRole.id },
+    const empRole = await prisma.role.create({
+      data: { code: 'staff', name: '普通员工' },
+    });
+    // ADR-0019：发起/重提审批需 approval:apply，驳回处理需 approval:process
+    const permApply = await prisma.permission.create({
+      data: { code: 'approval:apply', name: '发起审批', module: 'approval', type: 'api' },
+    });
+    const permProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
+    await prisma.rolePermission.createMany({
+      data: [
+        { roleId: approverRole.id, permissionId: permProcess.id },
+        { roleId: empRole.id, permissionId: permApply.id },
+      ],
+    });
+    await prisma.userRole.createMany({
+      data: [
+        { userId: approverUser.id, roleId: approverRole.id },
+        { userId: empUser.id, roleId: empRole.id },
+      ],
     });
 
     await prisma.employee.create({
@@ -60,6 +82,20 @@ describe('审批重新提交次数限制', () => {
     await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
+
     empCookie = await login(app, 'rs_emp');
     approverCookie = await login(app, 'rs_approver');
   });
@@ -156,7 +192,8 @@ describe('审批重新提交次数限制', () => {
     const result = await resubmitInstance(empCookie, instance.id);
 
     expect(result.statusCode).toBe(400);
-    expect(result.body.code).toBe(6310);
+    // ERROR_CODES.APPROVAL_RESUBMIT_LIMIT = 6305（重新提交次数已达上限）
+    expect(result.body.code).toBe(6305);
   });
 
   it('不同工作流可有不同的 maxResubmits', async () => {

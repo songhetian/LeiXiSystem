@@ -56,28 +56,63 @@ describe('ApprovalService.startInstance 职责授权解析', () => {
     svc = built.svc;
   });
 
-  it('申请人角色绑定了已激活流程时，优先使用绑定流程而非入参编码', async () => {
+  it('业务已配置流程时，即使角色绑定了流程也使用业务配置的流程（ADR-0020）', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 1, realName: '张三' });
     roleWorkflowService.resolveWorkflowForUser.mockResolvedValue({
       id: 2,
-      code: 'bound_flow',
+      code: 'leave',
+      module: 'attendance',
       status: 'active',
       deletedAt: null,
     });
-    prisma.approvalWorkflow.findUnique.mockResolvedValue(baseWorkflow);
+    prisma.approvalWorkflow.findUnique.mockResolvedValue({
+      ...baseWorkflow,
+      code: 'reimbursement',
+    });
     prisma.department.findMany.mockResolvedValue([]);
     prisma.approvalInstance.create.mockResolvedValue({ id: 10 });
 
     await svc.startInstance({
-      workflowCode: 'other_flow',
+      workflowCode: 'reimbursement',
       title: '报销申请',
       userId: 1,
       userName: '',
     });
 
-    expect(roleWorkflowService.resolveWorkflowForUser).toHaveBeenCalledWith(1);
+    // 业务配置优先：既不查询职责授权，也不会去取绑定流程（避免跨业务串流）
+    expect(roleWorkflowService.resolveWorkflowForUser).not.toHaveBeenCalled();
     const callArgs = prisma.approvalWorkflow.findUnique.mock.calls[0][0] as any;
-    expect(callArgs.where.code).toBe('bound_flow');
+    expect(callArgs.where.code).toBe('reimbursement');
+  });
+
+  it('业务未配置流程时，用同 module 的角色绑定流程兜底，并携带 module 过滤条件', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 1, realName: '张三' });
+    roleWorkflowService.resolveWorkflowForUser.mockResolvedValue({
+      id: 2,
+      code: 'bound_flow',
+      module: 'reimbursement',
+      status: 'active',
+      deletedAt: null,
+    });
+    prisma.approvalWorkflow.findUnique
+      .mockResolvedValueOnce(null) // 请求的 reimbursement 未配置
+      .mockResolvedValueOnce(baseWorkflow); // 绑定流程存在
+    prisma.department.findMany.mockResolvedValue([]);
+    prisma.approvalInstance.create.mockResolvedValue({ id: 10 });
+
+    await svc.startInstance({
+      workflowCode: 'reimbursement',
+      title: '报销申请',
+      userId: 1,
+      userName: '',
+    });
+
+    expect(roleWorkflowService.resolveWorkflowForUser).toHaveBeenCalledWith(1, {
+      module: 'reimbursement',
+    });
+    const calls = prisma.approvalWorkflow.findUnique.mock.calls as any[];
+    expect(calls[0][0].where.code).toBe('reimbursement');
+    expect(calls[1][0].where.code).toBe('bound_flow');
   });
 
   it('申请人角色无绑定流程时，使用入参流程编码', async () => {

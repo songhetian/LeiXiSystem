@@ -85,6 +85,7 @@ export class EmployeesController {
   }
 
   @Patch('me/profile')
+  @RequirePermission('personal:profile:update')
   async updateMyProfile(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateMyProfileSchema.safeParse(body);
     if (!parsed.success) {

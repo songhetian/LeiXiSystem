@@ -53,6 +53,7 @@ function createMockPrisma() {
       update: jest.fn(),
       create: jest.fn(),
       upsert: jest.fn(),
+      createMany: jest.fn(),
       groupBy: jest.fn(),
     },
     vacationBalanceChange: {
@@ -91,7 +92,10 @@ function createMockPrisma() {
     userRole: {
       findMany: jest.fn(),
     },
-    $transaction: jest.fn((fn) => fn(mockTx)),
+    // 支持函数式事务（历史用法）与数组式事务（批量结转一次提交）
+    $transaction: jest.fn((arg: unknown) =>
+      typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(mockTx) : Promise.all(arg as unknown[]),
+    ),
     _mockTx: mockTx,
   } as any;
 }
@@ -1307,36 +1311,43 @@ describe('VacationService', () => {
       enabled: true,
     };
 
-    it('初始化年度额度使用 upsert，避免并发重复写入撞唯一键', async () => {
+    it('初始化年度额度一次性批量写入，已存在的额度不再改动', async () => {
       prisma.vacationType.findMany.mockResolvedValue([annualType]);
       prisma.employee.findMany.mockResolvedValue([{ id: 10, hireDate: new Date('2020-01-01') }]);
-      prisma.vacationBalance.upsert.mockResolvedValue({} as any);
+      prisma.vacationBalance.findMany.mockResolvedValue([
+        { employeeId: 10, vacationTypeId: 1, month: 0 },
+      ]);
 
       await service.initializeYearBalances(2026);
 
-      expect(prisma.vacationBalance.upsert).toHaveBeenCalledWith({
-        where: {
-          employeeId_vacationTypeId_year_month: {
-            employeeId: 10,
-            vacationTypeId: 1,
-            year: 2026,
-            month: 0,
-          },
-        },
-        // update: {} —— 已存在的额度不改动，仅保证不存在时补齐
-        update: {},
-        create: {
-          employeeId: 10,
-          vacationTypeId: 1,
-          year: 2026,
-          month: 0,
-          totalDays: new Prisma.Decimal(10),
-          usedDays: 0,
-        },
-      });
-      // 不再走 findUnique + create 的竞态写法
-      expect(prisma.vacationBalance.findUnique).not.toHaveBeenCalled();
-      expect(prisma.vacationBalance.create).not.toHaveBeenCalled();
+      expect(prisma.vacationBalance.findMany).toHaveBeenCalledTimes(1);
+      // 唯一一条已存在 → 不产生任何写入（不是逐条 upsert，也不会覆盖手工调整）
+      expect(prisma.vacationBalance.createMany).not.toHaveBeenCalled();
+      expect(prisma.vacationBalance.upsert).not.toHaveBeenCalled();
+    });
+
+    it('初始化年度额度按「员工 × 类型」批量补齐，查询次数不随人数增长', async () => {
+      prisma.vacationType.findMany.mockResolvedValue([annualType]);
+      prisma.employee.findMany.mockResolvedValue([
+        { id: 10, hireDate: new Date('2020-01-01') },
+        { id: 11, hireDate: new Date('2020-01-01') },
+        { id: 12, hireDate: new Date('2020-01-01') },
+      ]);
+      prisma.vacationBalance.findMany.mockResolvedValue([]);
+      prisma.vacationBalance.createMany.mockResolvedValue({ count: 3 });
+
+      await service.initializeYearBalances(2026);
+
+      // 3 人只查 1 次、写 1 次（旧实现是 3 次 upsert + 每类每日历月的循环）
+      expect(prisma.vacationBalance.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.vacationBalance.createMany).toHaveBeenCalledTimes(1);
+      // skipDuplicates 承担并发下的幂等语义（另一个实例先写入也不会撞唯一键）
+      expect(prisma.vacationBalance.createMany.mock.calls[0][0].skipDuplicates).toBe(true);
+      expect(prisma.vacationBalance.createMany.mock.calls[0][0].data).toEqual([
+        { employeeId: 10, vacationTypeId: 1, year: 2026, month: 0, totalDays: new Prisma.Decimal(10), usedDays: 0 },
+        { employeeId: 11, vacationTypeId: 1, year: 2026, month: 0, totalDays: new Prisma.Decimal(10), usedDays: 0 },
+        { employeeId: 12, vacationTypeId: 1, year: 2026, month: 0, totalDays: new Prisma.Decimal(10), usedDays: 0 },
+      ]);
     });
 
     it('额度初始化与跨年结转都把试用期员工视为在职（与考勤统计口径一致）', async () => {
@@ -1347,7 +1358,7 @@ describe('VacationService', () => {
       };
       prisma.vacationType.findMany.mockResolvedValue([carryOverType]);
       prisma.employee.findMany.mockResolvedValue([{ id: 10, hireDate: new Date('2020-01-01') }]);
-      prisma.vacationBalance.upsert.mockResolvedValue({} as any);
+      prisma.vacationBalance.findMany.mockResolvedValue([]);
 
       await service.initializeYearBalances(2026);
       await service.carryOverBalances(2025, 2026);
@@ -1380,7 +1391,7 @@ describe('VacationService', () => {
       );
     });
 
-    it('跨年结转命中已存在的结转流水时跳过，避免重复执行二次累加', async () => {
+    it('跨年结转一次查全上下年余额，命中已存在的结转流水时跳过', async () => {
       // 1) initializeYearBalances(toYear)：无启用的假期类型，直接返回
       prisma.vacationType.findMany.mockResolvedValueOnce([]);
       // 2) carryOverBalances：取支持结转的假期类型 + 在职员工
@@ -1388,18 +1399,19 @@ describe('VacationService', () => {
         { ...annualType, carryOverMaxDays: null, carryOverRatio: null },
       ]);
       prisma.employee.findMany.mockResolvedValue([{ id: 10 }]);
-      // 3) 上年余额：总 5 天、已用 1 天 → 剩余 4 天
-      prisma.vacationBalance.findUnique
-        .mockResolvedValueOnce({ id: 11, totalDays: new Prisma.Decimal(5), usedDays: new Prisma.Decimal(1) })
-        .mockResolvedValueOnce({ id: 20, totalDays: new Prisma.Decimal(10), usedDays: new Prisma.Decimal(0) });
-      // 4) 该 (员工, 目标额度, 来源额度) 已有结转流水 → 跳过
-      prisma.vacationBalanceChange.count.mockResolvedValue(1);
+      // 上下年额度一次查出：上年剩余 4 天、目标年 10 天
+      prisma.vacationBalance.findMany.mockResolvedValue([
+        { id: 11, employeeId: 10, vacationTypeId: 1, year: 2025, month: 0, totalDays: new Prisma.Decimal(5), usedDays: new Prisma.Decimal(1) },
+        { id: 20, employeeId: 10, vacationTypeId: 1, year: 2026, month: 0, totalDays: new Prisma.Decimal(10), usedDays: new Prisma.Decimal(0) },
+      ]);
+      // 该来源额度已有结转流水 → 跳过
+      prisma.vacationBalanceChange.findMany.mockResolvedValue([{ referenceId: 11 }]);
 
       await service.carryOverBalances(2025, 2026);
 
-      expect(prisma.vacationBalanceChange.count).toHaveBeenCalledWith({
-        where: { referenceType: 'vacation_carry_over', referenceId: 11 },
-      });
+      expect(prisma.vacationBalance.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.vacationBalance.findUnique).not.toHaveBeenCalled();
+      expect(prisma.vacationBalanceChange.count).not.toHaveBeenCalled();
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma._mockTx.vacationBalance.update).not.toHaveBeenCalled();
     });
@@ -1410,21 +1422,25 @@ describe('VacationService', () => {
         { ...annualType, carryOverMaxDays: null, carryOverRatio: null },
       ]);
       prisma.employee.findMany.mockResolvedValue([{ id: 10 }]);
-      prisma.vacationBalance.findUnique
-        .mockResolvedValueOnce({ id: 11, totalDays: new Prisma.Decimal(5), usedDays: new Prisma.Decimal(1) })
-        .mockResolvedValueOnce({ id: 20, totalDays: new Prisma.Decimal(10), usedDays: new Prisma.Decimal(2) });
-      prisma.vacationBalanceChange.count.mockResolvedValue(0);
-      prisma._mockTx.vacationBalance.update.mockResolvedValue({});
-      prisma._mockTx.vacationBalanceChange.create.mockResolvedValue({});
+      prisma.vacationBalance.findMany.mockResolvedValue([
+        { id: 11, employeeId: 10, vacationTypeId: 1, year: 2025, month: 0, totalDays: new Prisma.Decimal(5), usedDays: new Prisma.Decimal(1) },
+        { id: 20, employeeId: 10, vacationTypeId: 1, year: 2026, month: 0, totalDays: new Prisma.Decimal(10), usedDays: new Prisma.Decimal(2) },
+      ]);
+      prisma.vacationBalanceChange.findMany.mockResolvedValue([]);
+      prisma.vacationBalance.update.mockResolvedValue({});
+      prisma.vacationBalanceChange.create.mockResolvedValue({});
 
       await service.carryOverBalances(2025, 2026);
 
+      // 所有结转写操作合成一次事务提交（数组式 $transaction）
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(Array.isArray(prisma.$transaction.mock.calls[0][0])).toBe(true);
       // 结转 4 天 → 目标额度总天数 10 + 4 = 14
-      expect(prisma._mockTx.vacationBalance.update).toHaveBeenCalledWith({
+      expect(prisma.vacationBalance.update).toHaveBeenCalledWith({
         where: { id: 20 },
         data: { totalDays: new Prisma.Decimal(14) },
       });
-      const change = prisma._mockTx.vacationBalanceChange.create.mock.calls[0][0].data;
+      const change = prisma.vacationBalanceChange.create.mock.calls[0][0].data;
       expect(Number(change.amount)).toBe(4);
       // 流水口径为「剩余天」：调整前 10-2=8，调整后 14-2=12
       expect(Number(change.balanceBefore)).toBe(8);

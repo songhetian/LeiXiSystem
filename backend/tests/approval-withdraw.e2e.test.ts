@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -41,10 +42,10 @@ describe('S17 · 审批撤回', () => {
     const dept = await prisma.department.create({ data: { name: '研发部' } });
 
     const empUser = await prisma.user.create({
-      data: { username: 'wd_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲' },
+      data: { username: 'wd_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲', status: 'active' },
     });
     const otherUser = await prisma.user.create({
-      data: { username: 'wd_other', passwordHash: await bcrypt.hash('123456', 10), realName: '其他员工' },
+      data: { username: 'wd_other', passwordHash: await bcrypt.hash('123456', 10), realName: '其他员工', status: 'active' },
     });
 
     const employee = await prisma.employee.create({
@@ -72,6 +73,20 @@ describe('S17 · 审批撤回', () => {
     await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
+
     empCookie = await login(app, 'wd_emp');
     otherCookie = await login(app, 'wd_other');
   });
@@ -82,10 +97,12 @@ describe('S17 · 审批撤回', () => {
   });
 
   async function createAndSubmitMakeup(cookie: string) {
+    // 补卡日期动态取 2 天前：写死日期会随时间推移超出「最近 30 天」补卡窗口而 400
+    const punchDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const createRes = await inject(app, {
       method: 'POST', url: '/api/v1/attendance/punch/makeup',
       headers: { cookie },
-      payload: { punchDate: '2026-08-10', punchType: 'checkin', originalTime: '08:55:00', reason: '地铁延误' },
+      payload: { punchDate, punchType: 'check_in', originalTime: '08:55:00', reason: '地铁延误' },
     });
     const makeup = JSON.parse(createRes.payload).data;
     const submitRes = await inject(app, {

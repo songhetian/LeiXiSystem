@@ -554,3 +554,89 @@ describe('ReimbursementService · listPending 数据范围（fail-closed）', ()
     expect(where.applicantId).toEqual({ in: [21] });
   });
 });
+
+/**
+ * 审批人通过/驳回：动作必须经 APPROVAL_CLIENT 落到审批实例上（ADR-0013），
+ * 报销单状态由 reimbursement.listener 监听审批事件同步，service 不直接写审批表。
+ * 未提交（无 approvalInstanceId）的单据不得放行，否则会带着空实例去调审批流。
+ */
+describe('ReimbursementService · 审批人通过/驳回', () => {
+  function buildService(findUnique: jest.Mock, approvalClient: any) {
+    return new ReimbursementService(
+      { reimbursement: { findUnique } } as any,
+      {} as any,
+      approvalClient,
+    );
+  }
+
+  async function catchException(fn: () => Promise<unknown>): Promise<any> {
+    try {
+      await fn();
+    } catch (e) {
+      return e;
+    }
+    throw new Error('期望抛出异常，但未抛出');
+  }
+
+  it('通过时调用 approvalClient.approve 并传入报销单的 approvalInstanceId', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 11, status: 'approving', approvalInstanceId: 88 })
+      .mockResolvedValueOnce({ id: 11, status: 'approving' });
+    const approvalClient = { approve: jest.fn().mockResolvedValue({ status: 'pending' }) };
+    const service = buildService(findUnique, approvalClient);
+
+    const result = await service.approveForApprover(11, 7, '', '同意');
+
+    expect(approvalClient.approve).toHaveBeenCalledWith({
+      instanceId: 88,
+      userId: 7,
+      userName: '',
+      comment: '同意',
+    });
+    expect(result).toEqual({ id: 11, status: 'approving' });
+  });
+
+  it('无 approvalInstanceId 时返回 409 REIMBURSEMENT_STATUS_INVALID，且不调用审批流', async () => {
+    const findUnique = jest.fn().mockResolvedValue({ id: 11, status: 'pending', approvalInstanceId: null });
+    const approvalClient = { approve: jest.fn(), reject: jest.fn() };
+    const service = buildService(findUnique, approvalClient);
+
+    const err = await catchException(() => service.approveForApprover(11, 7));
+
+    expect(err.getStatus()).toBe(409);
+    expect(err.getResponse().code).toBe(ERROR_CODES.REIMBURSEMENT_STATUS_INVALID);
+    expect(approvalClient.approve).not.toHaveBeenCalled();
+  });
+
+  it('驳回原因为空（空串 / 纯空格）时返回 400 PARAM_INVALID，且不查询与调用审批流', async () => {
+    const findUnique = jest.fn();
+    const approvalClient = { approve: jest.fn(), reject: jest.fn() };
+    const service = buildService(findUnique, approvalClient);
+
+    const err = await catchException(() => service.rejectForApprover(11, 7, '', '   '));
+
+    expect(err.getStatus()).toBe(400);
+    expect(err.getResponse().code).toBe(ERROR_CODES.PARAM_INVALID);
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(approvalClient.reject).not.toHaveBeenCalled();
+  });
+
+  it('驳回原因正常时调用 approvalClient.reject（原因首尾空格被裁剪）', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 11, status: 'approving', approvalInstanceId: 88 })
+      .mockResolvedValueOnce({ id: 11, status: 'rejected' });
+    const approvalClient = { approve: jest.fn(), reject: jest.fn().mockResolvedValue(undefined) };
+    const service = buildService(findUnique, approvalClient);
+
+    await service.rejectForApprover(11, 7, '', '  发票不齐全  ');
+
+    expect(approvalClient.reject).toHaveBeenCalledWith({
+      instanceId: 88,
+      userId: 7,
+      userName: '',
+      comment: '发票不齐全',
+    });
+  });
+});

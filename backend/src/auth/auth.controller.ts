@@ -6,6 +6,10 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CsrfService } from '../common/csrf.service';
 import { loginSchema, type LoginDto } from './dto/login.dto';
+import {
+  setPrivacyPasswordSchema,
+  resetPrivacyPasswordSchema,
+} from './dto/privacy-password.dto';
 import type { RequestContext } from '../types/fastify';
 
 @ApiTags('认证')
@@ -68,6 +72,41 @@ export class AuthController {
     }
     await this.authService.changePassword(req.user.id, body.oldPassword, body.newPassword);
     return { code: 0, message: '修改成功' };
+  }
+
+  // ===== 隐私二级密码（工资条等高敏数据独立二次验证） =====
+
+  @Get('privacy-password/status')
+  @UseGuards(JwtAuthGuard)
+  async getPrivacyPasswordStatus(@Req() req: RequestContext) {
+    const data = await this.authService.getPrivacyPasswordStatus(req.user.id);
+    return { code: 0, message: 'ok', data };
+  }
+
+  @Post('privacy-password')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async setPrivacyPassword(@Body() body: unknown, @Req() req: RequestContext) {
+    const parsed = setPrivacyPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 4000, message: parsed.error.errors[0].message });
+    }
+    const { password, oldPassword } = parsed.data;
+    await this.authService.setPrivacyPassword(req.user.id, password, oldPassword);
+    return { code: 0, message: oldPassword ? '二级密码修改成功' : '二级密码设置成功' };
+  }
+
+  @Post('privacy-password/reset')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async resetPrivacyPassword(@Body() body: unknown, @Req() req: RequestContext) {
+    const parsed = resetPrivacyPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 4000, message: parsed.error.errors[0].message });
+    }
+    const { loginPassword, password } = parsed.data;
+    await this.authService.resetPrivacyPassword(req.user.id, loginPassword, password);
+    return { code: 0, message: '二级密码重置成功' };
   }
 
   @Post('logout')

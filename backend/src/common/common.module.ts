@@ -7,16 +7,18 @@ import { ResponseEnvelopeInterceptor } from './interceptors/response-envelope.in
 import { MetricsService } from './metrics.service';
 import { MetricsController } from './metrics.controller';
 import { MetricsInterceptor } from './metrics.interceptor';
+import { LocalFallbackStore } from './local-fallback-store';
 
 @Global()
 @Module({
   controllers: [MetricsController],
   providers: [
     MetricsService,
+    LocalFallbackStore,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseEnvelopeInterceptor },
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
-  exports: [MetricsService],
+  exports: [MetricsService, LocalFallbackStore],
 })
 export class CommonModule {}

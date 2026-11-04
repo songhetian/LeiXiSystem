@@ -1,23 +1,29 @@
 import { SchedulesService } from './schedules.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { messageOf } from '../common/error-messages';
+import { ERROR_CODES } from '../common/error-codes';
 
 function createMockPrisma() {
-  return {
+  const prisma: any = {
     user: {
       findUnique: jest.fn(),
     },
     schedule: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      upsert: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
       count: jest.fn(),
     },
     employee: {
       findMany: jest.fn(),
     },
-  } as any;
+  };
+  // 事务内操作直接落到同一个 mock 上，便于断言「一共查了几次」
+  prisma.$transaction = jest.fn(async (fn: (tx: any) => Promise<unknown>) => fn(prisma));
+  return prisma;
 }
 
 describe('SchedulesService.mySchedule', () => {
@@ -201,5 +207,100 @@ describe('SchedulesService - 错误码语义（排班不存在不得复用 2002 
     expect(payload.code).not.toBe(1002);
     expect(payload.code).toBe(2019);
     expect(messageOf(payload.code)).toBe('员工或班次不存在');
+  });
+});
+
+describe('SchedulesService — 批量操作不得产生 N+1 查询', () => {
+  let service: SchedulesService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  const dataScope = { visibleScope: jest.fn() } as unknown as { visibleScope: jest.Mock };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService);
+    dataScope.visibleScope.mockReset();
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('批量排班对 N 条只做一次员工范围查询，不再逐条查库', async () => {
+    dataScope.visibleScope.mockResolvedValue({ all: false, ids: [2], selfEmployeeId: null });
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 1, departmentId: 2 },
+      { id: 2, departmentId: 2 },
+    ]);
+    prisma.schedule.upsert.mockResolvedValue({});
+
+    await service.batch(
+      [
+        { employeeId: 1, shiftId: 3, workDate: '2026-08-01' },
+        { employeeId: 2, shiftId: 3, workDate: '2026-08-01' },
+      ],
+      9,
+    );
+
+    expect(dataScope.visibleScope).toHaveBeenCalledTimes(1);
+    expect(prisma.employee.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.employee.findMany.mock.calls[0][0].where).toEqual({ id: { in: [1, 2] } });
+  });
+
+  it('批量排班里有不在负责部门的员工时整体拒绝，且不写任何排班', async () => {
+    dataScope.visibleScope.mockResolvedValue({ all: false, ids: [2], selfEmployeeId: null });
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 1, departmentId: 2 },
+      { id: 2, departmentId: 5 },
+    ]);
+
+    const payload = await catchPayload(() =>
+      service.batch(
+        [
+          { employeeId: 1, shiftId: 3, workDate: '2026-08-01' },
+          { employeeId: 2, shiftId: 3, workDate: '2026-08-01' },
+        ],
+        9,
+      ),
+    );
+
+    expect(payload.code).toBe(5003);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('批量清除：一次查存在性 + 一次 deleteMany，不逐条 delete', async () => {
+    dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+    prisma.schedule.findMany.mockResolvedValue([
+      { id: 11, employeeId: 1 },
+      { id: 12, employeeId: 2 },
+    ]);
+    prisma.schedule.deleteMany.mockResolvedValue({ count: 2 });
+
+    const result = await service.batchRemove([11, 12], 9);
+
+    expect(result).toEqual({ count: 2 });
+    expect(prisma.schedule.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.schedule.findMany.mock.calls[0][0].where).toEqual({ id: { in: [11, 12] } });
+    expect(prisma.schedule.deleteMany).toHaveBeenCalledTimes(1);
+    expect(prisma.schedule.delete).not.toHaveBeenCalled();
+  });
+
+  it('批量清除里有不存在的排班时整体报「排班不存在」，不删除任何记录', async () => {
+    dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+    prisma.schedule.findMany.mockResolvedValue([{ id: 11, employeeId: 1 }]);
+
+    const payload = await catchPayload(() => service.batchRemove([11, 99], 9));
+
+    expect(payload.code).toBe(ERROR_CODES.SCHEDULE_NOT_FOUND);
+    expect(messageOf(payload.code)).toBe('排班不存在');
+    expect(prisma.schedule.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('批量清除越权员工排班时整体拒绝，且不删除', async () => {
+    dataScope.visibleScope.mockResolvedValue({ all: false, ids: [2], selfEmployeeId: null });
+    prisma.schedule.findMany.mockResolvedValue([{ id: 11, employeeId: 1 }]);
+    prisma.employee.findMany.mockResolvedValue([{ id: 1, departmentId: 5 }]);
+
+    const payload = await catchPayload(() => service.batchRemove([11], 9));
+
+    expect(payload.code).toBe(5003);
+    expect(prisma.schedule.deleteMany).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,8 @@ const DEFAULT_KEY_PREFIX = 'leixi:';
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private client: Redis | null = null;
+  /** 连接健康度：仅在收到 ready 事件后为 true，任何连接异常立即回退 false */
+  private healthy = false;
   readonly isEnabled: boolean = false;
   readonly keyPrefix: string;
 
@@ -31,8 +33,30 @@ export class RedisService implements OnModuleDestroy {
         keyPrefix: this.keyPrefix,
       });
       this.isEnabled = true;
-      this.client.on('error', (err) => this.logger.warn(`Redis 连接异常: ${err.message}`));
+      this.client.on('ready', () => {
+        this.healthy = true;
+      });
+      this.client.on('end', () => {
+        this.healthy = false;
+      });
+      this.client.on('close', () => {
+        this.healthy = false;
+      });
+      this.client.on('error', (err) => {
+        this.healthy = false;
+        this.logger.warn(`Redis 连接异常: ${err.message}`);
+      });
     }
+  }
+
+  /**
+   * Redis 是否「可用」：已配置且连接健康。
+   * 与 isEnabled 的区别：isEnabled 只表示配置了 REDIS_URL，进程刚启动或连接断开时
+   * 仍为 true。限流/鉴权/二级密码通行证等安全相关逻辑必须按可用性判断，
+   * 否则会出现「配置了但连不上 → get 返回 null → 校验 fail-open」（S23 A2/A3）。
+   */
+  isAvailable(): boolean {
+    return this.isEnabled && this.healthy;
   }
 
   getClient(): Redis {

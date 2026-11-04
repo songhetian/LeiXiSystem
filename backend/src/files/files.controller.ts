@@ -15,6 +15,7 @@ import { extname, basename } from 'path';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import type { AuthenticatedRequest } from '../types/fastify';
 
 const MIME_MAP: Record<string, string> = {
@@ -43,7 +44,7 @@ export class FilesController {
    */
   @Post('upload')
   @HttpCode(200)
-  // 上传/预览为已登录用户的基本能力，不绑定权限点（此前 file:upload 未注册导致任意角色 403）
+  @RequirePermission('file:upload')
   async upload(
     @Req() req: AuthenticatedRequest,
     @Query('bizType') bizType?: string,
@@ -62,6 +63,7 @@ export class FilesController {
    * 仅返回 uploads 目录内的文件，防目录穿越。
    */
   @Get('serve')
+  @RequirePermission('file:view')
   async serve(@Query('path') relativePath: string, @Res() res: FastifyReply) {
     if (!relativePath) {
       throw new BadRequestException({ code: 4000, message: '缺少文件路径' });

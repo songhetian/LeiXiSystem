@@ -1,4 +1,6 @@
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { LocalFallbackStore } from '../common/local-fallback-store';
 import { UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ERROR_CODES } from '../common/error-codes';
 import { messageOf } from '../common/error-messages';
@@ -415,5 +417,198 @@ describe('AuthService - changePassword 密码强度校验', () => {
       'brand-new-token',
       expect.any(Number),
     );
+  });
+});
+
+/**
+ * 隐私二级密码：工资条等高敏数据的独立二次验证密码。
+ * - 未设置（privacyPasswordHash = null）时工资条验证回退登录密码，兼容存量用户；
+ * - 设置后仅认隐私密码；忘记时可用登录密码重置。
+ */
+describe('AuthService - 隐私二级密码', () => {
+  let service: AuthService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let redis: ReturnType<typeof createMockRedis>;
+
+  const LOGIN_HASH = bcrypt.hashSync('loginPass123', 10);
+  const PRIVACY_HASH = bcrypt.hashSync('654321', 10);
+  const mockUser = {
+    id: 1,
+    username: 'admin',
+    passwordHash: LOGIN_HASH,
+    privacyPasswordHash: null as string | null,
+    status: 'active',
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    redis = createMockRedis();
+    const jwt = createMockJwt();
+    const rateLimit = createMockRateLimit();
+    const eventEmitter = createMockEventEmitter();
+    const settingsService = createMockSettingsService('medium');
+    const permCache = createMockPermCache();
+    service = new AuthService(prisma, jwt, rateLimit, redis, eventEmitter, settingsService as any, permCache as any);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  describe('getPrivacyPasswordStatus', () => {
+    it('未设置：enabled = false', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: null });
+      expect(await service.getPrivacyPasswordStatus(1)).toEqual({ enabled: false });
+    });
+
+    it('已设置：enabled = true', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+      expect(await service.getPrivacyPasswordStatus(1)).toEqual({ enabled: true });
+    });
+  });
+
+  describe('setPrivacyPassword — 首次设置', () => {
+    it('无需旧密码即可设置，且存储的是 bcrypt 哈希而非明文', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: null });
+
+      await service.setPrivacyPassword(1, '123456');
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      const data = prisma.user.update.mock.calls[0][0].data;
+      expect(data.privacyPasswordHash).not.toBe('123456');
+      expect(bcrypt.compareSync('123456', data.privacyPasswordHash)).toBe(true);
+    });
+  });
+
+  describe('setPrivacyPassword — 修改（已设置过）', () => {
+    it('已设置但未提供旧密码：抛 400 专属码「请输入原二级密码」', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      const err = await service.setPrivacyPassword(1, '999888').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      // 全局过滤器按 code 取中央文案覆盖 message，共用 4000 会变成「参数校验失败」
+      expect(err.getResponse().code).toBe(ERROR_CODES.AUTH_PRIVACY_OLD_PASSWORD_REQUIRED);
+      expect(messageOf(err.getResponse().code)).toBe('请输入原二级密码');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('旧二级密码错误：抛 401 专属码，「原二级密码错误」', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      const err = await service.setPrivacyPassword(1, '999888', '000000').catch((e) => e);
+      expect(err).toBeInstanceOf(UnauthorizedException);
+      expect(err.getResponse().code).toBe(ERROR_CODES.AUTH_PRIVACY_PASSWORD_WRONG);
+      expect(messageOf(err.getResponse().code)).toBe('原二级密码错误');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('旧二级密码正确：更新为新密码哈希', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      await service.setPrivacyPassword(1, '999888', '654321');
+
+      const data = prisma.user.update.mock.calls[0][0].data;
+      expect(bcrypt.compareSync('999888', data.privacyPasswordHash)).toBe(true);
+      expect(bcrypt.compareSync('654321', data.privacyPasswordHash)).toBe(false);
+    });
+
+    it('不能用登录密码冒充旧二级密码通过修改校验', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      await expect(service.setPrivacyPassword(1, '999888', 'loginPass123')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPrivacyPassword — 忘记二级密码时用登录密码重置', () => {
+    it('登录密码错误：抛 401 专属码，「登录密码错误」', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      const err = await service.resetPrivacyPassword(1, 'wrongLogin', '123456').catch((e) => e);
+      expect(err).toBeInstanceOf(UnauthorizedException);
+      expect(err.getResponse().code).toBe(ERROR_CODES.AUTH_LOGIN_PASSWORD_WRONG);
+      expect(messageOf(err.getResponse().code)).toBe('登录密码错误');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('登录密码正确：重置二级密码（无需旧二级密码）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: PRIVACY_HASH });
+
+      await service.resetPrivacyPassword(1, 'loginPass123', '123456');
+
+      const data = prisma.user.update.mock.calls[0][0].data;
+      expect(bcrypt.compareSync('123456', data.privacyPasswordHash)).toBe(true);
+    });
+
+    it('未设置过二级密码时也允许直接用登录密码设置', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...mockUser, privacyPasswordHash: null });
+
+      await service.resetPrivacyPassword(1, 'loginPass123', '123456');
+
+      const data = prisma.user.update.mock.calls[0][0].data;
+      expect(bcrypt.compareSync('123456', data.privacyPasswordHash)).toBe(true);
+    });
+  });
+});
+
+/**
+ * S23 / A3 端到端链路（故障注入）：Redis 已配置但不可用，
+ * 登出仍必须把 jti 写进进程内黑名单，且守卫读得到 → 旧 token 立即 401。
+ */
+describe('AuthService - Redis 故障时登出仍写本地黑名单', () => {
+  let service: AuthService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let jwt: ReturnType<typeof createMockJwt>;
+  let redis: any;
+  let local: LocalFallbackStore;
+
+  const payload = { sub: 1, username: 'admin', jti: 'j1' };
+  const OLD_TOKEN = 'old-token';
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    jwt = createMockJwt();
+    redis = {
+      isEnabled: true,
+      isAvailable: jest.fn().mockReturnValue(false),
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      del: jest.fn().mockResolvedValue(undefined),
+    };
+    local = new LocalFallbackStore();
+    service = new AuthService(
+      prisma,
+      jwt,
+      createMockRateLimit(),
+      redis,
+      createMockEventEmitter(),
+      createMockSettingsService('medium') as any,
+      createMockPermCache() as any,
+      local,
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    local.onModuleDestroy();
+  });
+
+  it('logout 双写黑名单：Redis 读不到时本地镜像让旧 token 立即失效', async () => {
+    jwt.verifyAsync.mockResolvedValue({ ...payload, exp: Math.floor(Date.now() / 1000) + 600 });
+
+    await service.logout(OLD_TOKEN);
+
+    expect(local.get('auth:blacklist:j1')).toBe('1');
+    expect(redis.set).toHaveBeenCalledWith('auth:blacklist:j1', '1', expect.any(Number));
+
+    // 同一台实例上的守卫：Redis 返回 null，只能靠本地镜像命中黑名单
+    const guard = new JwtAuthGuard(jwt, redis, local);
+    const req: any = { headers: { cookie: `access_token=${OLD_TOKEN}` } };
+    const ctx: any = {
+      switchToHttp: () => ({ getRequest: () => req }),
+    };
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 });

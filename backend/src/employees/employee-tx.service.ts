@@ -115,7 +115,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitOnboarding(id: number, userId: number, workflowCode: string) {
+  async submitOnboarding(id: number, userId: number) {
     const record = await this.prisma.onboarding.findUnique({ where: { id } });
     if (!record) throw new NotFoundException({ code: 9001, message: '入职登记不存在' });
     if (record.status !== 'draft') throw new BadRequestException({ code: 9002, message: '只有草稿状态可提交' });
@@ -123,7 +123,9 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      // 业务编码由服务端写死：允许客户端传，等于允许把离职单塞进请假审批链，
+      // 审批通过后按 workflowCode 分派的回调会全部错派（ADR-0020）。
+      workflowCode: 'onboarding',
       title: `入职登记 - ${record.name}`,
       formData: { onboardingId: record.id, name: record.name },
       userId,
@@ -179,7 +181,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitResignation(id: number, userId: number, workflowCode: string) {
+  async submitResignation(id: number, userId: number) {
     const record = await this.prisma.resignation.findUnique({
       where: { id },
       include: { employee: true },
@@ -191,7 +193,7 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'resignation',
       title: `离职申请 - ${record.employee.name}`,
       formData: { resignationId: record.id, reason: record.reason },
       userId,
@@ -251,7 +253,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitProbation(id: number, userId: number, workflowCode: string) {
+  async submitProbation(id: number, userId: number) {
     const record = await this.prisma.probation.findUnique({
       where: { id },
       include: { employee: true },
@@ -263,7 +265,7 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'probation',
       title: `转正申请 - ${record.employee.name}`,
       formData: { probationId: record.id },
       userId,
@@ -456,7 +458,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitAppeal(id: number, userId: number, workflowCode: string) {
+  async submitAppeal(id: number, userId: number) {
     const record = await this.prisma.attendanceAppeal.findUnique({
       where: { id },
       include: { employee: true },
@@ -468,7 +470,7 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'attendance_appeal',
       title: `考勤申诉 - ${record.employee.name}`,
       formData: { appealId: record.id, appealType: record.appealType },
       userId,
@@ -642,7 +644,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitReward(id: number, userId: number, workflowCode: string, options?: { checkOwnership?: boolean }) {
+  async submitReward(id: number, userId: number, options?: { checkOwnership?: boolean }) {
     const record = await this.prisma.employeeReward.findUnique({
       where: { id },
       include: { employee: true },
@@ -656,7 +658,7 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'reward_punishment',
       title: `${record.type === 'reward' ? '奖励' : '惩罚'}申请 - ${record.employee.name}`,
       formData: { rewardId: record.id, type: record.type },
       userId,
@@ -731,7 +733,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitCertRequest(id: number, userId: number, workflowCode: string, options?: { checkOwnership?: boolean }) {
+  async submitCertRequest(id: number, userId: number, options?: { checkOwnership?: boolean }) {
     const record = await this.prisma.certificateRequest.findUnique({
       where: { id },
       include: { employee: true },
@@ -748,7 +750,7 @@ export class EmployeeTxService {
     };
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'cert_request',
       title: `${typeName[record.type] || '证明申请'} - ${record.employee.name}`,
       formData: { requestId: record.id, type: record.type },
       userId,
@@ -876,7 +878,7 @@ export class EmployeeTxService {
     return { success: true };
   }
 
-  async submitTransfer(id: number, userId: number, workflowCode: string) {
+  async submitTransfer(id: number, userId: number) {
     const record = await this.prisma.employeeTransfer.findUnique({
       where: { id },
       include: { employee: true },
@@ -887,7 +889,7 @@ export class EmployeeTxService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const instance = await this.approvalService.startInstance({
-      workflowCode,
+      workflowCode: 'transfer',
       title: `调动申请 - ${record.employee.name}`,
       formData: { transferId: record.id },
       userId,

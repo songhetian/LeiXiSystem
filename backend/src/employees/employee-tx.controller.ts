@@ -103,7 +103,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('onboarding:manage')
   async submitOnboarding(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitOnboarding(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitOnboarding(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -157,7 +157,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('resignation:apply')
   async submitResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitResignation(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitResignation(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -211,7 +211,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('probation:apply')
   async submitProbation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitProbation(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitProbation(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -329,7 +329,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('attendance:appeal:apply')
   async submitAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitAppeal(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitAppeal(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -451,7 +451,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('reward:manage')
   async submitReward(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitReward(id, req!.user.id, body.workflowCode, { checkOwnership: false });
+    const data = await this.txService.submitReward(id, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
@@ -507,7 +507,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('cert_request:manage')
   async submitCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitCertRequest(id, req!.user.id, body.workflowCode, { checkOwnership: false });
+    const data = await this.txService.submitCertRequest(id, req!.user.id, { checkOwnership: false });
     return { code: 0, data };
   }
 
@@ -650,7 +650,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @RequirePermission('transfer:manage')
   async submitTransfer(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitTransfer(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitTransfer(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -665,7 +665,8 @@ export class EmployeeTxController {
 
   @Put('me/profile')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('personal:profile:update')
   async updateMyProfile(@Body() body: unknown, @Req() req: RequestContext) {
     const parsed = updateMyProfileSchema.safeParse(body);
     if (!parsed.success) {
@@ -705,7 +706,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   async submitMyResignation(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitResignation(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitResignation(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -739,7 +740,7 @@ export class EmployeeTxController {
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   async submitMyAppeal(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitAppeal(id, req!.user.id, body.workflowCode);
+    const data = await this.txService.submitAppeal(id, req!.user.id);
     return { code: 0, data };
   }
 
@@ -806,7 +807,9 @@ export class EmployeeTxController {
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   async submitMyCertRequest(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: RequestContext) {
-    const data = await this.txService.submitCertRequest(id, req!.user.id, body.workflowCode);
+    // 员工自助端点必须走归属校验（第 3 参为 options，不能透传 body —— 否则
+    // body.workflowCode={"checkOwnership":false} 可直接关掉归属校验，替他人提单）。
+    const data = await this.txService.submitCertRequest(id, req!.user.id);
     return { code: 0, data };
   }
 

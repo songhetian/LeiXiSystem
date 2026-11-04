@@ -92,8 +92,11 @@ describe('功能缺失全景 · TDD 综合测试', () => {
         { code: 'approval:workflow:manage', name: '审批流管理', module: 'approval', type: 'menu' },
         { code: 'approval:todo:view', name: '待办查看', module: 'approval', type: 'menu' },
         { code: 'approval:submitted:view', name: '我的申请', module: 'approval', type: 'menu' },
+        { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
         { code: 'reports:view', name: '报表查看', module: 'reports', type: 'menu' },
         { code: 'reimbursement:view', name: '报销查看', module: 'reimbursement', type: 'menu' },
+        { code: 'reimbursement:create', name: '报销申请', module: 'reimbursement', type: 'api' },
+        { code: 'personal:profile:update', name: '修改个人资料', module: 'employee', type: 'api' },
         { code: 'payroll:view', name: '薪资查看', module: 'payroll', type: 'menu' },
       ],
     });
@@ -110,16 +113,16 @@ describe('功能缺失全景 · TDD 综合测试', () => {
       data: [
         ...allPerms.map(p => ({ roleId: adminRole.id, permissionId: p.id })),
         ...allPerms.map(p => ({ roleId: hrRole.id, permissionId: p.id })),
-        ...allPerms.filter(p => ['employee:view', 'attendance:view', 'approval:todo:view', 'approval:submitted:view', 'reports:view', 'reimbursement:view'].includes(p.code)).map(p => ({ roleId: managerRole.id, permissionId: p.id })),
-        ...allPerms.filter(p => ['attendance:view', 'attendance:appeal:view', 'attendance:appeal:apply', 'resignation:view', 'resignation:apply', 'approval:submitted:view', 'reimbursement:view'].includes(p.code)).map(p => ({ roleId: staffRole.id, permissionId: p.id })),
+        ...allPerms.filter(p => ['employee:view', 'attendance:view', 'approval:todo:view', 'approval:submitted:view', 'approval:process', 'reports:view', 'reimbursement:view'].includes(p.code)).map(p => ({ roleId: managerRole.id, permissionId: p.id })),
+        ...allPerms.filter(p => ['attendance:view', 'attendance:appeal:view', 'attendance:appeal:apply', 'resignation:view', 'resignation:apply', 'approval:submitted:view', 'reimbursement:view', 'reimbursement:create', 'personal:profile:update'].includes(p.code)).map(p => ({ roleId: staffRole.id, permissionId: p.id })),
       ],
     });
 
-    const admin = await prisma.user.create({ data: { username: 'fg_admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' } });
-    const hr = await prisma.user.create({ data: { username: 'fg_hr', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR' } });
-    const manager = await prisma.user.create({ data: { username: 'fg_mgr', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' } });
-    const staff = await prisma.user.create({ data: { username: 'fg_staff', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' } });
-    const staff2 = await prisma.user.create({ data: { username: 'fg_staff2', passwordHash: await bcrypt.hash('123456', 10), realName: '赵员工' } });
+    const admin = await prisma.user.create({ data: { username: 'fg_admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员', status: 'active' } });
+    const hr = await prisma.user.create({ data: { username: 'fg_hr', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR', status: 'active' } });
+    const manager = await prisma.user.create({ data: { username: 'fg_mgr', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管', status: 'active' } });
+    const staff = await prisma.user.create({ data: { username: 'fg_staff', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工', status: 'active' } });
+    const staff2 = await prisma.user.create({ data: { username: 'fg_staff2', passwordHash: await bcrypt.hash('123456', 10), realName: '赵员工', status: 'active' } });
 
     await prisma.userRole.createMany({
       data: [
@@ -211,12 +214,14 @@ describe('功能缺失全景 · TDD 综合测试', () => {
       const redis = app.get(RedisService);
       if (redis.isEnabled) {
         const client = redis.getClient();
-        const keys = await client.keys('approval:workflow:*');
-        if (keys.length > 0) await client.del(...keys);
-        const permKeys = await client.keys('user:perm:*');
-        if (permKeys.length > 0) await client.del(...permKeys);
-        const deptKeys = await client.keys('system:depts:*');
-        if (deptKeys.length > 0) await client.del(...deptKeys);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const strip = (k: string) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k);
+        for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+          // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+          const keys = await client.keys(redis.keyPrefix + pattern);
+          const logical = keys.map(strip);
+          if (logical.length > 0) await client.del(...logical);
+        }
       }
     } catch {
       // ignore
@@ -348,7 +353,7 @@ describe('功能缺失全景 · TDD 综合测试', () => {
       });
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(200);
-      const allMine = body.data.items;
+      const allMine = body.data.list;
       expect(allMine.every((item: any) => item.applicantName === '王员工')).toBe(true);
     });
 
@@ -372,7 +377,7 @@ describe('功能缺失全景 · TDD 综合测试', () => {
         headers: { cookie: managerCookie },
       });
       const body = JSON.parse(pendingRes.payload);
-      const applicantNames = body.data.items.map((item: any) => item.applicantName);
+      const applicantNames = body.data.list.map((item: any) => item.applicantName);
       expect(applicantNames).not.toContain('赵员工');
     });
   });
@@ -447,9 +452,10 @@ describe('功能缺失全景 · TDD 综合测试', () => {
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
-      expect(body.data.monthly).toBeDefined();
-      expect(Array.isArray(body.data.monthly)).toBe(true);
-      const janData = body.data.monthly.find((m: any) => m.month === '2026-01');
+      // 接口返回结构为 { periods: [{ period, hired, ... }], byDepartment, summary }
+      expect(body.data.periods).toBeDefined();
+      expect(Array.isArray(body.data.periods)).toBe(true);
+      const janData = body.data.periods.find((m: any) => m.period === '2026-01');
       expect(janData).toBeDefined();
       expect(janData.hired).toBe(2);
     });
@@ -461,9 +467,9 @@ describe('功能缺失全景 · TDD 综合测试', () => {
         headers: { cookie: hrCookie },
       });
       const body = JSON.parse(res.payload);
-      const janData = body.data.monthly.find((m: any) => m.month === '2026-01');
+      const janData = body.data.periods.find((m: any) => m.period === '2026-01');
       expect(janData.resigned).toBe(1);
-      const febData = body.data.monthly.find((m: any) => m.month === '2026-02');
+      const febData = body.data.periods.find((m: any) => m.period === '2026-02');
       expect(febData.resigned).toBe(1);
     });
 
@@ -567,9 +573,10 @@ describe('功能缺失全景 · TDD 综合测试', () => {
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
-      expect(body.data.total).toBeDefined();
-      expect(body.data.approved).toBeDefined();
-      expect(body.data.rejected).toBeDefined();
+      // 接口返回结构为 { totalDue, passed, failed, pending, passRate, periods, byDepartment }
+      expect(body.data.totalDue).toBeDefined();
+      expect(body.data.passed).toBeDefined();
+      expect(body.data.failed).toBeDefined();
       expect(body.data.passRate).toBeDefined();
       expect(Number(body.data.passRate)).toBeGreaterThan(0);
     });

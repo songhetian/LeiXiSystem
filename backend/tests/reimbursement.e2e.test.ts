@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 import { ERROR_CODES } from '../src/common/error-codes';
 
 const prisma = new PrismaClient();
@@ -42,12 +43,17 @@ describe('S13 · 报销', () => {
     await prisma.approvalWorkflow.deleteMany();
     await prisma.userRole.deleteMany();
     await prisma.user.deleteMany();
+    await prisma.department.deleteMany();
     await prisma.role.deleteMany();
     await prisma.rolePermission.deleteMany();
     await prisma.permission.deleteMany();
 
     const permReim = await prisma.permission.create({
       data: { code: 'reimbursement:view', name: '报销使用', module: 'reimbursement', type: 'menu' },
+    });
+    // ADR-0019 时代守卫：创建/提交报销端点需 reimbursement:create
+    const permReimCreate = await prisma.permission.create({
+      data: { code: 'reimbursement:create', name: '报销申请', module: 'reimbursement', type: 'api' },
     });
     const permApprovalWorkflowManage = await prisma.permission.create({
       data: { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'menu' },
@@ -58,6 +64,10 @@ describe('S13 · 报销', () => {
     const permApprovalSubmittedView = await prisma.permission.create({
       data: { code: 'approval:submitted:view', name: '我的申请查看', module: 'approval', type: 'menu' },
     });
+    // ADR-0019：审批处理端点（approve/reject）需 approval:process
+    const permApprovalProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
     const managerRole = await prisma.role.create({ data: { code: 'dept_manager', name: '部门主管' } });
     const hrRole = await prisma.role.create({ data: { code: 'hr', name: 'HR' } });
@@ -65,14 +75,17 @@ describe('S13 · 报销', () => {
     await prisma.rolePermission.createMany({
       data: [
         { roleId: staffRole.id, permissionId: permReim.id },
+        { roleId: staffRole.id, permissionId: permReimCreate.id },
         { roleId: staffRole.id, permissionId: permApprovalTodoView.id },
         { roleId: staffRole.id, permissionId: permApprovalSubmittedView.id },
         { roleId: managerRole.id, permissionId: permReim.id },
         { roleId: managerRole.id, permissionId: permApprovalTodoView.id },
         { roleId: managerRole.id, permissionId: permApprovalSubmittedView.id },
+        { roleId: managerRole.id, permissionId: permApprovalProcess.id },
         { roleId: hrRole.id, permissionId: permReim.id },
         { roleId: hrRole.id, permissionId: permApprovalTodoView.id },
         { roleId: hrRole.id, permissionId: permApprovalSubmittedView.id },
+        { roleId: hrRole.id, permissionId: permApprovalProcess.id },
         { roleId: adminRole.id, permissionId: permReim.id },
         { roleId: adminRole.id, permissionId: permApprovalWorkflowManage.id },
         { roleId: adminRole.id, permissionId: permApprovalTodoView.id },
@@ -80,17 +93,20 @@ describe('S13 · 报销', () => {
       ],
     });
 
+    // listPending 的部门过滤（getDepartmentUserIds）以 User.departmentId 为口径：
+    // 主管与申请员工需同属一个部门，待审批列表才能命中申请人的部门成员集合
+    const dept = await prisma.department.create({ data: { name: '研发部' } });
     const staff = await prisma.user.create({
-      data: { username: 'staff_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
+      data: { username: 'staff_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工', status: 'active', departmentId: dept.id },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '李主管' },
+      data: { username: 'manager_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '李主管', status: 'active', departmentId: dept.id },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '张HR' },
+      data: { username: 'hr_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '张HR', status: 'active' },
     });
     const admin = await prisma.user.create({
-      data: { username: 'admin_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
+      data: { username: 'admin_reim', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员', status: 'active' },
     });
     await prisma.userRole.createMany({
       data: [
@@ -112,6 +128,19 @@ describe('S13 · 报销', () => {
     app.setGlobalPrefix('api/v1');
     await app.register(cookie as any);
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
 
     staffCookie = await login(app, 'staff_reim');
     managerCookie = await login(app, 'manager_reim');
@@ -147,6 +176,7 @@ describe('S13 · 报销', () => {
     await prisma.approvalWorkflow.deleteMany();
     await prisma.userRole.deleteMany();
     await prisma.user.deleteMany();
+    await prisma.department.deleteMany();
     await prisma.role.deleteMany();
     await prisma.rolePermission.deleteMany();
     await prisma.permission.deleteMany();
@@ -225,7 +255,7 @@ describe('S13 · 报销', () => {
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
-      expect(body.data.items.length).toBeGreaterThanOrEqual(1);
+      expect(body.data.list.length).toBeGreaterThanOrEqual(1);
     });
 
     it('应该能查看报销详情', async () => {
@@ -265,7 +295,7 @@ describe('S13 · 报销', () => {
       const body = JSON.parse(res.payload);
       expect(res.statusCode).toBe(200);
       expect(body.code).toBe(0);
-      expect(body.data.items.length).toBeGreaterThanOrEqual(1);
+      expect(body.data.list.length).toBeGreaterThanOrEqual(1);
     });
 
     it('主管同意后，流转到HR审批', async () => {

@@ -1099,6 +1099,21 @@ export class VacationService {
       const employees = await this.prisma.employee.findMany({ where });
       if (employees.length === 0) return;
 
+      // 先一次查出已存在额度，再一次性补齐缺的：旧实现是「员工 × 类型 × 月份」逐条 upsert，
+      // 人数一多就是几千次查询 + 写入，年结任务会被拖成分钟级。
+      const existing = await this.prisma.vacationBalance.findMany({
+        where: {
+          year,
+          employeeId: { in: employees.map((e) => e.id) },
+          vacationTypeId: { in: vacationTypes.map((t) => t.id) },
+        },
+        select: { employeeId: true, vacationTypeId: true, month: true },
+      });
+      const existingKeys = new Set(
+        existing.map((b) => `${b.employeeId}_${b.vacationTypeId}_${b.month}`),
+      );
+
+      const rows: Prisma.VacationBalanceCreateManyInput[] = [];
       for (const emp of employees) {
         for (const vt of vacationTypes) {
           const monthly = getMonthlyDays(vt.monthlyDays);
@@ -1107,34 +1122,27 @@ export class VacationService {
           const monthsToInit = monthly ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [0];
 
           for (const month of monthsToInit) {
+            // 已存在一律不改动（避免覆盖管理员手工调整过的 totalDays）
+            if (existingKeys.has(`${emp.id}_${vt.id}_${month}`)) continue;
             const totalDays = monthly
               ? new Prisma.Decimal(monthly[month - 1] ?? 0)
               : await this.calculateAnnualLeaveDays(emp, vt);
 
-            // upsert 而非 findUnique + create：唯一键（员工+类型+年+月）天然幂等，
-            // 并发下也不会撞唯一键报错；已存在的额度一律不改动（update: {}），
-            // 避免覆盖管理员手工调整过的 totalDays。
-            await this.prisma.vacationBalance.upsert({
-              where: {
-                employeeId_vacationTypeId_year_month: {
-                  employeeId: emp.id,
-                  vacationTypeId: vt.id,
-                  year,
-                  month,
-                },
-              },
-              update: {},
-              create: {
-                employeeId: emp.id,
-                vacationTypeId: vt.id,
-                year,
-                month,
-                totalDays,
-                usedDays: 0,
-              },
+            rows.push({
+              employeeId: emp.id,
+              vacationTypeId: vt.id,
+              year,
+              month,
+              totalDays,
+              usedDays: 0,
             });
           }
         }
+      }
+
+      if (rows.length > 0) {
+        // skipDuplicates：并发下另一个实例已写入也不报错，幂等语义与 upsert(update:{}) 一致
+        await this.prisma.vacationBalance.createMany({ data: rows, skipDuplicates: true });
       }
     });
   }
@@ -1156,23 +1164,44 @@ export class VacationService {
       });
       if (employees.length === 0) return;
 
-      for (const emp of employees) {
-        for (const vt of vacationTypes) {
-          // 月假月度作废、不自动结转，仅年假支持跨年结转
-          const isMonthlyType = isMonthlyDays(vt.monthlyDays);
-          if (isMonthlyType) continue;
+      const employeeIds = employees.map((e) => e.id);
+      // 月假月度作废、不自动结转，仅年假支持跨年结转
+      const carryTypes = vacationTypes.filter((vt) => !isMonthlyDays(vt.monthlyDays));
+      if (carryTypes.length === 0) return;
 
-          const fromBalance = await this.prisma.vacationBalance.findUnique({
-            where: {
-              employeeId_vacationTypeId_year_month: {
-                employeeId: emp.id,
-                vacationTypeId: vt.id,
-                year: fromYear,
-                month: 0,
+      // 一次查全上下年额度：旧写法是每对「员工 × 类型」两次 findUnique，人数×类型数放大量最大
+      const balances = await this.prisma.vacationBalance.findMany({
+        where: {
+          year: { in: [fromYear, toYear] },
+          month: 0,
+          employeeId: { in: employeeIds },
+          vacationTypeId: { in: carryTypes.map((t) => t.id) },
+        },
+      });
+      const balanceKey = (employeeId: number, vacationTypeId: number, targetYear: number) =>
+        `${employeeId}_${vacationTypeId}_${targetYear}`;
+      const balanceMap = new Map(
+        balances.map((b) => [balanceKey(b.employeeId, b.vacationTypeId, b.year), b]),
+      );
+
+      // 哪些「上一年额度」已经结转过了：一次查流水即得（旧写法每对 count 一次）
+      const fromBalances = balances.filter((b) => b.year === fromYear);
+      const carriedChanges =
+        fromBalances.length > 0
+          ? await this.prisma.vacationBalanceChange.findMany({
+              where: {
+                referenceType: CARRY_OVER_REFERENCE_TYPE,
+                referenceId: { in: fromBalances.map((b) => b.id) },
               },
-            },
-          });
+              select: { referenceId: true },
+            })
+          : [];
+      const carriedIds = new Set(carriedChanges.map((c) => c.referenceId));
 
+      const ops: Prisma.PrismaPromise<unknown>[] = [];
+      for (const emp of employees) {
+        for (const vt of carryTypes) {
+          const fromBalance = balanceMap.get(balanceKey(emp.id, vt.id, fromYear));
           if (!fromBalance) continue;
 
           const remaining = new Prisma.Decimal(fromBalance.totalDays).minus(fromBalance.usedDays);
@@ -1196,34 +1225,19 @@ export class VacationService {
 
           if (carryOverDays.lessThanOrEqualTo(0)) continue;
 
-          const toBalance = await this.prisma.vacationBalance.findUnique({
-            where: {
-              employeeId_vacationTypeId_year_month: {
-                employeeId: emp.id,
-                vacationTypeId: vt.id,
-                year: toYear,
-                month: 0,
-              },
-            },
-          });
+          // 幂等：同一条「上一年额度」只允许结转一次，否则重复执行会反复累加
+          if (carriedIds.has(fromBalance.id)) continue;
 
+          const toBalance = balanceMap.get(balanceKey(emp.id, vt.id, toYear));
           if (!toBalance) continue;
 
-          // 幂等：同一条「上一年额度」只允许结转一次。结转量由 fromYear 余额唯一确定，
-          // 重复执行会把上一年余额反复累加到当年，因此以结转流水为幂等标记跳过。
-          const alreadyCarried = await this.prisma.vacationBalanceChange.count({
-            where: { referenceType: CARRY_OVER_REFERENCE_TYPE, referenceId: fromBalance.id },
-          });
-          if (alreadyCarried > 0) continue;
-
-          await this.prisma.$transaction(async (tx) => {
-            const newTotal = new Prisma.Decimal(toBalance.totalDays).plus(carryOverDays);
-            await tx.vacationBalance.update({
+          const newTotal = new Prisma.Decimal(toBalance.totalDays).plus(carryOverDays);
+          ops.push(
+            this.prisma.vacationBalance.update({
               where: { id: toBalance.id },
               data: { totalDays: newTotal },
-            });
-
-            await tx.vacationBalanceChange.create({
+            }),
+            this.prisma.vacationBalanceChange.create({
               data: {
                 employeeId: emp.id,
                 balanceId: toBalance.id,
@@ -1235,9 +1249,14 @@ export class VacationService {
                 referenceType: CARRY_OVER_REFERENCE_TYPE,
                 referenceId: fromBalance.id,
               },
-            });
-          });
+            }),
+          );
         }
+      }
+
+      if (ops.length > 0) {
+        // 所有结转合并成一次事务：要么全部结转成功，要么一条都不写
+        await this.prisma.$transaction(ops);
       }
     });
   }

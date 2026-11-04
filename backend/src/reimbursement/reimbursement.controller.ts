@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { parsePagination } from '../common/pagination.util';
+import { ApproveReimbursementDto, RejectReimbursementDto } from './dto/reimbursement-action.dto';
 import type { RequestContext } from '../types/fastify';
 
 @Controller('reimbursements')
@@ -108,7 +109,7 @@ export class ReimbursementController {
 
   @Post()
   @HttpCode(200)
-  @RequirePermission('reimbursement:view')
+  @RequirePermission('reimbursement:create')
   async create(@Body() body: any, @Req() req: RequestContext) {
     const data = await this.reimbursementService.create({
       userId: req.user.id,
@@ -166,7 +167,7 @@ export class ReimbursementController {
 
   @Post(':id/submit')
   @HttpCode(200)
-  @RequirePermission('reimbursement:view')
+  @RequirePermission('reimbursement:create')
   async submit(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.submit(Number(id), req.user.id);
     return { code: 0, data };
@@ -174,15 +175,55 @@ export class ReimbursementController {
 
   @Post(':id/cancel')
   @HttpCode(200)
-  @RequirePermission('reimbursement:view')
+  @RequirePermission('reimbursement:create')
   async cancel(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.cancel(Number(id), req.user.id);
     return { code: 0, data };
   }
 
+  /**
+   * 审批人通过报销单。
+   * 业务状态由审批实例事件驱动（reimbursement.listener），这里只负责推进审批流，
+   * 因此权限点用 reimbursement:approve 而非 reimbursement:create。
+   */
+  @Post(':id/approve')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:approve')
+  async approveForApprover(
+    @Param('id') id: string,
+    @Body() body: ApproveReimbursementDto,
+    @Req() req: RequestContext,
+  ) {
+    const data = await this.reimbursementService.approveForApprover(
+      Number(id),
+      req.user.id,
+      '',
+      body?.comment,
+    );
+    return { code: 0, data };
+  }
+
+  /** 审批人驳回报销单：驳回原因必填由 RejectReimbursementDto 强制（400 PARAM_INVALID） */
+  @Post(':id/reject')
+  @HttpCode(200)
+  @RequirePermission('reimbursement:approve')
+  async rejectForApprover(
+    @Param('id') id: string,
+    @Body() body: RejectReimbursementDto,
+    @Req() req: RequestContext,
+  ) {
+    const data = await this.reimbursementService.rejectForApprover(
+      Number(id),
+      req.user.id,
+      '',
+      body?.comment,
+    );
+    return { code: 0, data };
+  }
+
   @Delete(':id')
   @HttpCode(200)
-  @RequirePermission('reimbursement:view')
+  @RequirePermission('reimbursement:create')
   async remove(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.reimbursementService.remove(Number(id), req.user.id);
     return { code: 0, data };

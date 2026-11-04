@@ -54,12 +54,14 @@ describe('算薪批次 · 数据范围（P1-3 / P2-6）', () => {
     expect(prisma.payrollRun.count).not.toHaveBeenCalled();
   });
 
-  it('listRuns：部门范围（无对应工资条）→ 同样返回空集合', async () => {
-    const { service, getWhere } = makeService({ all: false, ids: [3] });
+  it('listRuns：部门范围 → 按明细所属部门过滤（不再依赖工资条，草稿批次也可见）', async () => {
+    const { service, prisma, getWhere } = makeService({ all: false, ids: [3] });
 
     await service.listRuns({ userId: 42, page: 1, pageSize: 10 });
 
-    expect(getWhere()).toEqual({ id: { in: [] } });
+    // B8/D5①：口径与 getRunDetails 一致；payslip 在草稿/已确认阶段尚未生成
+    expect(getWhere()).toEqual({ details: { some: { employee: { departmentId: { in: [3] } } } } });
+    expect(prisma.payslip.findMany).not.toHaveBeenCalled();
   });
 
   it('listRuns：全量范围 → 不加过滤', async () => {

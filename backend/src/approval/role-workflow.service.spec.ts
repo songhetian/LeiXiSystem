@@ -171,5 +171,30 @@ describe('RoleWorkflowService 职责授权', () => {
 
       expect((await service.resolveWorkflowForUser(1))?.id).toBe(3);
     });
+
+    it('指定 module 时只返回同 module 的绑定流程（ADR-0020 防跨业务串流）', async () => {
+      const leave = { id: 21, code: 'leave', module: 'attendance', status: 'active', deletedAt: null };
+      const reimbursement = { id: 22, code: 'reimbursement', module: 'reimbursement', status: 'active', deletedAt: null };
+      mockPrisma.userRole.findMany.mockResolvedValue([
+        { role: { workflow: { workflow: leave } } },
+        { role: { workflow: { workflow: reimbursement } } },
+      ]);
+
+      expect((await service.resolveWorkflowForUser(1, { module: 'reimbursement' }))?.id).toBe(22);
+    });
+
+    it('指定 module 且无匹配绑定流程时返回 null', async () => {
+      mockPrisma.userRole.findMany.mockResolvedValue([
+        {
+          role: {
+            workflow: {
+              workflow: { id: 21, code: 'leave', module: 'attendance', status: 'active', deletedAt: null },
+            },
+          },
+        },
+      ]);
+
+      expect(await service.resolveWorkflowForUser(1, { module: 'general' })).toBeNull();
+    });
   });
 });

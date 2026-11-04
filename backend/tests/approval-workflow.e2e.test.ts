@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -55,6 +56,13 @@ describe('S09 · 审批工作流', () => {
     const permWorkflowManage = await prisma.permission.create({
       data: { code: 'approval:workflow:manage', name: '审批流程管理', module: 'approval', type: 'menu' },
     });
+    // ADR-0019：发起/重提审批走 approval:apply，审批处理走 approval:process
+    const permApply = await prisma.permission.create({
+      data: { code: 'approval:apply', name: '发起审批', module: 'approval', type: 'api' },
+    });
+    const permProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
 
     // 角色
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
@@ -69,25 +77,28 @@ describe('S09 · 审批工作流', () => {
         { roleId: adminRole.id, permissionId: permWorkflowManage.id },
         { roleId: deptMgrRole.id, permissionId: permTodoView.id },
         { roleId: deptMgrRole.id, permissionId: permSubmittedView.id },
+        { roleId: deptMgrRole.id, permissionId: permProcess.id },
         { roleId: hrRole.id, permissionId: permTodoView.id },
         { roleId: hrRole.id, permissionId: permSubmittedView.id },
+        { roleId: hrRole.id, permissionId: permProcess.id },
         { roleId: staffRole.id, permissionId: permTodoView.id },
         { roleId: staffRole.id, permissionId: permSubmittedView.id },
+        { roleId: staffRole.id, permissionId: permApply.id },
       ],
     });
 
-    // 用户
+    // 用户（users.status 列默认 pending，登录要求 active，需显式传入）
     const admin = await prisma.user.create({
-      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员' },
+      data: { username: 'admin', passwordHash: await bcrypt.hash('123456', 10), realName: '管理员', status: 'active' },
     });
     const manager = await prisma.user.create({
-      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管' },
+      data: { username: 'manager', passwordHash: await bcrypt.hash('123456', 10), realName: '张主管', status: 'active' },
     });
     const hr = await prisma.user.create({
-      data: { username: 'hr', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR' },
+      data: { username: 'hr', passwordHash: await bcrypt.hash('123456', 10), realName: '李HR', status: 'active' },
     });
     const staff = await prisma.user.create({
-      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工' },
+      data: { username: 'staff', passwordHash: await bcrypt.hash('123456', 10), realName: '王员工', status: 'active' },
     });
 
     await prisma.userRole.createMany({
@@ -133,6 +144,19 @@ describe('S09 · 审批工作流', () => {
     app.setGlobalPrefix('api/v1');
     await app.register(cookie as any);
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
 
     adminCookie = await login(app, 'admin');
     managerCookie = await login(app, 'manager');
@@ -424,7 +448,8 @@ describe('S09 · 审批工作流', () => {
           payload: {},
         });
         const body = JSON.parse(res.body);
-        expect(res.statusCode).toBe(200);
+        // 服务层对非 rejected/cancelled 状态抛 BadRequestException（HTTP 400 + 业务错误码）
+        expect(res.statusCode).toBe(400);
         expect(body.code).not.toBe(0);
       });
 
@@ -461,7 +486,8 @@ describe('S09 · 审批工作流', () => {
           payload: {},
         });
         const body = JSON.parse(res.body);
-        expect(res.statusCode).toBe(200);
+        // 服务层对非 rejected/cancelled 状态抛 BadRequestException（HTTP 400 + 业务错误码）
+        expect(res.statusCode).toBe(400);
         expect(body.code).not.toBe(0);
       });
     });

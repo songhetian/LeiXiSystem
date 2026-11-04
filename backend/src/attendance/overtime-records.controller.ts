@@ -37,7 +37,9 @@ export class OvertimeRecordsController {
 
   @Post()
   @HttpCode(200)
-  @RequirePermission('attendance:view')
+  // 员工自助发起加班：同请假，挂个人自助权限点（staff 未绑 attendance:manage）。
+  // service 层按数据范围限制只能为本人建单。
+  @RequirePermission(['personal:overtime:apply', 'attendance:manage'])
   async create(@Body() body: CreateOvertimeDto, @Req() req: RequestContext) {
     const record = await this.vacationService.createOvertime({
       employeeId: body.employeeId,
@@ -52,7 +54,9 @@ export class OvertimeRecordsController {
 
   @Post(':id/submit')
   @HttpCode(200)
-  @RequirePermission('attendance:view')
+  // 同请假：提交只能本人（service 校验 emp.userId === userId），
+  // 挂 attendance:manage 是走不通的死分支，代录单由员工本人提交。
+  @RequirePermission('personal:overtime:apply')
   async submit(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.vacationService.submitOvertime(parseInt(id), req!.user.id);
     return { code: 0, data };

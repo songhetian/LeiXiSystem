@@ -45,7 +45,7 @@ describe('S18 · 考勤申诉审批 → 自动修正考勤', () => {
 
     const dept = await prisma.department.create({ data: { name: '研发部' } });
     const hrUser = await prisma.user.create({
-      data: { username: 'hr_appeal', passwordHash: await bcrypt.hash('123456', 10), realName: 'HR' },
+      data: { username: 'hr_appeal', passwordHash: await bcrypt.hash('123456', 10), realName: 'HR', status: 'active' },
     });
     const emp = await prisma.employee.create({
       data: {
@@ -62,6 +62,11 @@ describe('S18 · 考勤申诉审批 → 自动修正考勤', () => {
       const p = await prisma.permission.create({ data: { code, name: code, module: 'attendance' } });
       await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: p.id } });
     }
+    // ADR-0019：审批处理端点（approve）需 approval:process
+    const permProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
+    await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: permProcess.id } });
     await prisma.userRole.create({ data: { userId: hrUser.id, roleId: role.id } });
 
     // 创建考勤日报：迟到状态
@@ -96,10 +101,17 @@ describe('S18 · 考勤申诉审批 → 自动修正考勤', () => {
     app.setGlobalPrefix('api/v1');
     await app.init();
 
-    // 清 Redis 缓存，避免旧 workflow 干扰
+    // 清 Redis 缓存，避免旧 workflow / 权限缓存干扰
     const redis = app.get(RedisService);
     if (redis.isEnabled) {
-      await redis.del('approval:workflow:code:attendance_appeal');
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
     }
 
     hrCookie = await login(app, 'hr_appeal');

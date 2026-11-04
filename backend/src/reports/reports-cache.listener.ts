@@ -4,6 +4,30 @@ import { ReportsService } from './reports.service';
 import { withEventRetry } from '../common/event-retry.util';
 import { EVENT_PAYROLL_STATUS_CHANGED } from '../common/events';
 
+/** 报表缓存域：与 `clear*ReportsCache` 方法一一对应 */
+type ReportCacheDomain = 'attendance' | 'employee';
+
+/**
+ * 业务编码 → 需要失效的报表缓存域。
+ *
+ * 此前是三个 handler 里各写一遍 `if (leave || overtime || punch_makeup)` 的硬编码，
+ * 新增业务编码时容易漏登记：`transfer` 审批通过会改员工部门、`attendance_appeal`
+ * 通过会修正考勤日报，二者的缓存却一直没清，报表脏到 TTL 到期才恢复。
+ * 审批域（approval-efficiency）对所有业务无条件失效，不在此表。
+ */
+const REPORT_CACHE_DOMAINS: Record<string, ReportCacheDomain[]> = {
+  leave: ['attendance'],
+  overtime: ['attendance'],
+  punch_makeup: ['attendance'],
+  attendance_appeal: ['attendance'],
+  probation: ['employee'],
+  onboarding: ['employee'],
+  resignation: ['employee'],
+  transfer: ['employee'],
+  reward_punishment: ['employee'],
+  cert_request: ['employee'],
+};
+
 @Injectable()
 export class ReportsCacheListener {
   private readonly logger = new Logger(ReportsCacheListener.name);
@@ -14,14 +38,7 @@ export class ReportsCacheListener {
   async handleApprovalApproved(payload: any) {
     await withEventRetry(
       async () => {
-        await this.clearApprovalReportsCache();
-        const { workflowCode } = payload;
-        if (workflowCode === 'leave' || workflowCode === 'overtime' || workflowCode === 'punch_makeup') {
-          await this.clearAttendanceReportsCache();
-        }
-        if (workflowCode === 'probation' || workflowCode === 'onboarding' || workflowCode === 'resignation') {
-          await this.clearEmployeeReportsCache();
-        }
+        await this.clearReportsForWorkflow(payload?.workflowCode);
       },
       'approval.approved (clear report cache)',
       payload,
@@ -33,14 +50,7 @@ export class ReportsCacheListener {
   async handleApprovalRejected(payload: any) {
     await withEventRetry(
       async () => {
-        await this.clearApprovalReportsCache();
-        const { workflowCode } = payload;
-        if (workflowCode === 'leave' || workflowCode === 'overtime' || workflowCode === 'punch_makeup') {
-          await this.clearAttendanceReportsCache();
-        }
-        if (workflowCode === 'probation' || workflowCode === 'onboarding' || workflowCode === 'resignation') {
-          await this.clearEmployeeReportsCache();
-        }
+        await this.clearReportsForWorkflow(payload?.workflowCode);
       },
       'approval.rejected (clear report cache)',
       payload,
@@ -52,14 +62,7 @@ export class ReportsCacheListener {
   async handleApprovalWithdrawn(payload: any) {
     await withEventRetry(
       async () => {
-        await this.clearApprovalReportsCache();
-        const { workflowCode } = payload;
-        if (workflowCode === 'leave' || workflowCode === 'overtime' || workflowCode === 'punch_makeup') {
-          await this.clearAttendanceReportsCache();
-        }
-        if (workflowCode === 'probation' || workflowCode === 'onboarding' || workflowCode === 'resignation') {
-          await this.clearEmployeeReportsCache();
-        }
+        await this.clearReportsForWorkflow(payload?.workflowCode);
       },
       'approval.withdrawn (clear report cache)',
       payload,
@@ -101,6 +104,24 @@ export class ReportsCacheListener {
       payload,
       this.logger,
     );
+  }
+
+  /**
+   * 审批状态变化后按业务编码清理报表缓存。
+   * 未登记的编码只清审批域，并留一条 debug 日志 —— 静默跳过是「新增业务后
+   * 报表变脏且无人知情」的根因。
+   */
+  private async clearReportsForWorkflow(workflowCode?: string) {
+    await this.clearApprovalReportsCache();
+    if (!workflowCode) return;
+
+    const domains = REPORT_CACHE_DOMAINS[workflowCode];
+    if (!domains) {
+      this.logger.debug(`业务编码 ${workflowCode} 未登记报表缓存域，仅清理审批报表`);
+      return;
+    }
+    if (domains.includes('attendance')) await this.clearAttendanceReportsCache();
+    if (domains.includes('employee')) await this.clearEmployeeReportsCache();
   }
 
   private async clearEmployeeReportsCache() {

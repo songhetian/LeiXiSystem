@@ -25,9 +25,11 @@ describe('PunchMakeupService · 补卡时间按北京时间解析', () => {
   });
 
   it('create：北京 08:55 的补卡落库为 00:55Z', async () => {
+    // 日期动态取「今天 - 5 天」：硬编码日期会随真实时间流逝跌出 30 天补卡窗口（时间炸弹）
+    const day = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
     await service.create({
       userId: 7,
-      punchDate: '2026-09-25',
+      punchDate: day,
       punchType: 'check_in',
       originalTime: '08:55',
       makeupTime: '09:02',
@@ -35,10 +37,10 @@ describe('PunchMakeupService · 补卡时间按北京时间解析', () => {
     });
 
     const data = prisma.punchMakeup.create.mock.calls[0][0].data;
-    expect(data.originalTime.toISOString()).toBe('2026-09-25T00:55:00.000Z');
-    expect(data.makeupTime.toISOString()).toBe('2026-09-25T01:02:00.000Z');
+    expect(data.originalTime.toISOString()).toBe(`${day}T00:55:00.000Z`);
+    expect(data.makeupTime.toISOString()).toBe(`${day}T01:02:00.000Z`);
     // 业务日仍为 UTC 午夜
-    expect(data.punchDate.toISOString()).toBe('2026-09-25T00:00:00.000Z');
+    expect(data.punchDate.toISOString()).toBe(`${day}T00:00:00.000Z`);
   });
 
   it('update：未重填日期时，时间沿用该业务日的北京时间', async () => {

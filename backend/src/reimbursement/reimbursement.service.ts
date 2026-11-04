@@ -304,7 +304,9 @@ export class ReimbursementService {
       }),
       this.prisma.reimbursement.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    // 分页信封统一为 { list, ... }（与前端 ListResult 契约一致），
+    // 返回 items 会让前端 res.data.list 恒为 undefined，列表整页空白。
+    return { list: items, total, page, pageSize };
   }
 
   // ===== 待我审批的报销 =====
@@ -342,7 +344,60 @@ export class ReimbursementService {
       this.prisma.reimbursement.count({ where }),
     ]);
 
-    return { items, total, page, pageSize };
+    // 同 listMine：统一分页信封，前端（报销审批页）按 res.data.list 渲染。
+    return { list: items, total, page, pageSize };
+  }
+
+  // ===== 审批人通过 / 驳回 =====
+  /**
+   * 取出可审批的报销单。
+   * 审批动作必须落在已提交的审批实例上：approvalInstanceId 为空（未提交）或状态已是终态时
+   * 直接 409 REIMBURSEMENT_STATUS_INVALID，避免带着空实例去调审批流（那里只会返回 404）。
+   */
+  private async getApprovableReimbursement(id: number) {
+    const reim = await this.prisma.reimbursement.findUnique({
+      where: { id },
+      select: { id: true, status: true, approvalInstanceId: true },
+    });
+    if (!reim) {
+      throw new NotFoundException({ code: ERROR_CODES.REIMBURSEMENT_NOT_FOUND, message: '报销单不存在' });
+    }
+    if (!reim.approvalInstanceId || !['pending', 'approving'].includes(reim.status)) {
+      throw new ConflictException({ code: ERROR_CODES.REIMBURSEMENT_STATUS_INVALID, message: '当前状态不可审批' });
+    }
+    return reim;
+  }
+
+  /**
+   * 审批人通过报销单。
+   * 跨模块边界（ADR-0013）：只通过 APPROVAL_CLIENT 推进审批实例，
+   * 报销单状态由 reimbursement.listener 监听 approval.approved 事件同步。
+   */
+  async approveForApprover(id: number, userId: number, userName = '', comment?: string) {
+    const reim = await this.getApprovableReimbursement(id);
+    await this.approvalClient.approve({
+      instanceId: reim.approvalInstanceId!,
+      userId,
+      userName,
+      comment,
+    });
+    return this.prisma.reimbursement.findUnique({ where: { id } });
+  }
+
+  /** 审批人驳回报销单：驳回原因必填（空串/纯空格 → 400 PARAM_INVALID 4000） */
+  async rejectForApprover(id: number, userId: number, userName = '', comment?: string) {
+    const trimmed = (comment ?? '').trim();
+    if (!trimmed) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '驳回原因不能为空' });
+    }
+    const reim = await this.getApprovableReimbursement(id);
+    await this.approvalClient.reject({
+      instanceId: reim.approvalInstanceId!,
+      userId,
+      userName,
+      comment: trimmed,
+    });
+    return this.prisma.reimbursement.findUnique({ where: { id } });
   }
 
   /**

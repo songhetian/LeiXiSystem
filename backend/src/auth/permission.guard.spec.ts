@@ -3,7 +3,7 @@ import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { REQUIRED_PERMISSION_KEY } from '../auth/require-permission.decorator';
 
-function createMockReflector(requiredPerm: string | undefined) {
+function createMockReflector(requiredPerm: string | string[] | undefined) {
   return {
     getAllAndOverride: jest.fn().mockReturnValue(requiredPerm),
   } as unknown as Reflector;
@@ -100,6 +100,24 @@ describe('PermissionGuard', () => {
       const ctx = createMockContext(1);
 
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('权限点数组按 OR 判定：命中任意一个即放行', async () => {
+      // 员工端自建请假挂 ['personal:leave:apply','attendance:manage']：
+      // 普通员工只有前者，HR 只有后者，两种身份都必须能提交
+      const reflector = createMockReflector(['personal:leave:apply', 'attendance:manage']);
+      const permCache = createMockPermCache(['personal:leave:apply']);
+      const guard = new PermissionGuard(reflector, permCache as any);
+
+      await expect(guard.canActivate(createMockContext(1))).resolves.toBe(true);
+    });
+
+    it('权限点数组内一个都不命中 → 403', async () => {
+      const reflector = createMockReflector(['personal:leave:apply', 'attendance:manage']);
+      const permCache = createMockPermCache(['attendance:view']);
+      const guard = new PermissionGuard(reflector, permCache as any);
+
+      await expect(guard.canActivate(createMockContext(1))).rejects.toThrow(ForbiddenException);
     });
   });
 });

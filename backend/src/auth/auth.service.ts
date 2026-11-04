@@ -1,13 +1,15 @@
-import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
+import { LocalFallbackStore } from '../common/local-fallback-store';
 import { SettingsService } from '../settings/settings.service';
 import { LoginRateLimitService } from './login-rate-limit.service';
 import { validatePasswordStrength, PasswordStrengthLevel } from '../common/password-strength.util';
 import { ERROR_CODES } from '../common/error-codes';
 import { PermissionCacheService } from '../common/permission-cache.service';
+import { payslipPrivacyKey } from '../common/privacy-key';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import type { User, UserRole, Role, RolePermission, Permission } from '@prisma/client';
@@ -63,6 +65,7 @@ export class AuthService {
     private readonly eventEmitter: EventEmitter2,
     private readonly settingsService: SettingsService,
     private readonly permCache: PermissionCacheService,
+    @Optional() private readonly local?: LocalFallbackStore,
   ) {}
 
   /**
@@ -105,17 +108,21 @@ export class AuthService {
     const payload: JwtPayload = { sub: user.id, username: user.username, jti };
     const accessToken = await this.jwt.signAsync(payload);
 
-    // 单设备登录（Q16）：检查 Redis 中是否已有会话，如有则踢旧会话
+    // 单设备登录（Q16）：检查 Redis 中是否已有会话，如有则踢旧会话。
+    // S23 A3：Redis 故障时用进程内镜像继续判断，避免「新设备登录不踢旧设备」。
+    const existingToken =
+      (this.redis.isEnabled ? await this.redis.get(this.sessionKey(user.id)) : null) ??
+      this.local?.get(this.sessionKey(user.id)) ??
+      null;
+    // 撤销哨兵（改密后）不是真实会话，用户本人重新登录不应收到「被迫下线」提示
+    if (existingToken && existingToken !== REVOKED_SESSION && existingToken !== accessToken) {
+      // 旧会话存在且 token 不同 → 发出 kicked_out 事件
+      this.eventEmitter.emit('auth.session_replaced', {
+        userId: user.id,
+        message: '您的账号在其他设备登录，已被迫下线',
+      });
+    }
     if (this.redis.isEnabled) {
-      const existingToken = await this.redis.get(this.sessionKey(user.id));
-      // 撤销哨兵（改密后）不是真实会话，用户本人重新登录不应收到「被迫下线」提示
-      if (existingToken && existingToken !== REVOKED_SESSION && existingToken !== accessToken) {
-        // 旧会话存在且 token 不同 → 发出 kicked_out 事件
-        this.eventEmitter.emit('auth.session_replaced', {
-          userId: user.id,
-          message: '您的账号在其他设备登录，已被迫下线',
-        });
-      }
       // 存储/覆盖当前 session
       await this.redis.set(
         this.sessionKey(user.id),
@@ -123,6 +130,8 @@ export class AuthService {
         JWT_EXPIRES_IN_SECONDS,
       );
     }
+    // 进程内镜像：Redis 故障时 JwtAuthGuard 仍能校验单设备会话
+    this.local?.set(this.sessionKey(user.id), accessToken, JWT_EXPIRES_IN_SECONDS);
 
     // 登录即失效旧权限缓存：保证 seed.ts / 角色调整后下一次登录立即生效，
     // 避免 admin 看到「按钮无反应」需要再登一次的体验。
@@ -138,10 +147,14 @@ export class AuthService {
   async logout(token: string) {
     try {
       const payload = await this.jwt.verifyAsync<JwtPayload>(token);
-      if (this.redis.isEnabled) {
-        const exp = payload.exp;
-        const ttl = exp ? Math.max(1, exp - Math.floor(Date.now() / 1000)) : JWT_EXPIRES_IN_SECONDS;
-        await this.redis.set(this.blacklistKey(payload.jti), '1', ttl);
+      const exp = payload.exp;
+      const ttl = exp ? Math.max(1, exp - Math.floor(Date.now() / 1000)) : JWT_EXPIRES_IN_SECONDS;
+      if (payload.jti) {
+        // 进程内镜像：Redis 故障时登出也必须立刻生效（S23 A3）
+        this.local?.set(this.blacklistKey(payload.jti), '1', ttl);
+        if (this.redis.isEnabled) {
+          await this.redis.set(this.blacklistKey(payload.jti), '1', ttl);
+        }
       }
       this.eventEmitter.emit('auth.logout', { userId: payload.sub });
     } catch {
@@ -184,6 +197,83 @@ export class AuthService {
       // 只有写入一个与任何 JWT 都不相等的值，旧 token 才会立即被拒。
       await this.redis.set(this.sessionKey(userId), REVOKED_SESSION, JWT_EXPIRES_IN_SECONDS);
     }
+    // 进程内镜像同步撤销（S23 A3）：Redis 故障时改密也要立即踢掉旧 token
+    this.local?.set(this.sessionKey(userId), REVOKED_SESSION, JWT_EXPIRES_IN_SECONDS);
+    return true;
+  }
+
+  /** 隐私二级密码是否已启用（工资条等高敏数据的独立二次验证） */
+  async getPrivacyPasswordStatus(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { privacyPasswordHash: true },
+    });
+    return { enabled: !!user?.privacyPasswordHash };
+  }
+
+  /**
+   * 设置/修改隐私二级密码。
+   * 首次设置（从未设置过）无需旧密码；已设置则必须携带原二级密码。
+   * 强度策略独立于登录密码（常见为 6 位数字），仅由 DTO 限制长度。
+   */
+  async setPrivacyPassword(userId: number, password: string, oldPassword?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { privacyPasswordHash: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException({
+        code: ERROR_CODES.AUTH_USER_NOT_FOUND,
+        message: '用户不存在',
+      });
+    }
+    if (user.privacyPasswordHash) {
+      if (!oldPassword) {
+        // 专属码：全局过滤器按 code 取中央文案，共用 4000 会被覆盖成「参数校验失败」
+        throw new BadRequestException({
+          code: ERROR_CODES.AUTH_PRIVACY_OLD_PASSWORD_REQUIRED,
+          message: '请输入原二级密码',
+        });
+      }
+      if (!(await bcrypt.compare(oldPassword, user.privacyPasswordHash))) {
+        throw new UnauthorizedException({
+          code: ERROR_CODES.AUTH_PRIVACY_PASSWORD_WRONG,
+          message: '原二级密码错误',
+        });
+      }
+    }
+    const privacyPasswordHash = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { privacyPasswordHash } });
+    // 密码一改，之前那张「已验证」通行证必须立刻作废：否则 5 分钟内旧会话
+    // 仍可免验证查看工资条，改密码这个动作等于没生效。
+    this.local?.del(payslipPrivacyKey(userId));
+    await this.redis.del(payslipPrivacyKey(userId));
+    return true;
+  }
+
+  /** 忘记二级密码：用登录密码核身后重置（已设置/未设置均可，未设置时等价于直接设置） */
+  async resetPrivacyPassword(userId: number, loginPassword: string, password: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true, status: true, deletedAt: true },
+    });
+    // 与登录/工资条验证同一口径：停用、软删除、密码错误统一拒绝，不区分原因
+    if (
+      !user ||
+      user.deletedAt ||
+      user.status !== 'active' ||
+      !(await bcrypt.compare(loginPassword, user.passwordHash))
+    ) {
+      throw new UnauthorizedException({
+        code: ERROR_CODES.AUTH_LOGIN_PASSWORD_WRONG,
+        message: '登录密码错误',
+      });
+    }
+    const privacyPasswordHash = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { privacyPasswordHash } });
+    // 同 setPrivacyPassword：重置后旧通行证作废（怀疑泄露时的第一反应就是重置）
+    this.local?.del(payslipPrivacyKey(userId));
+    await this.redis.del(payslipPrivacyKey(userId));
     return true;
   }
 

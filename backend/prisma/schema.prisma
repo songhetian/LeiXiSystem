@@ -14,6 +14,8 @@ model User {
   id                  Int       @id @default(autoincrement())
   username            String    @unique @map("username") @db.VarChar(50)
   passwordHash        String    @map("password_hash") @db.VarChar(255)
+  // 隐私二级密码（工资条等高敏数据二次验证）；null = 未设置，验证时回退登录密码
+  privacyPasswordHash String?   @map("privacy_password_hash") @db.VarChar(255)
   realName            String    @map("real_name") @db.VarChar(50)
   email               String?   @unique @map("email") @db.VarChar(100)
   phone               String?   @unique @map("phone") @db.VarChar(20)

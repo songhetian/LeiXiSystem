@@ -6,6 +6,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -50,6 +51,9 @@ describe('L1-1 · 审批流程（完整链路）', () => {
     const p1 = await prisma.permission.create({ data: { code: 'approval:todo:view', name: '待办查看', module: 'approval', type: 'menu' } });
     const p2 = await prisma.permission.create({ data: { code: 'approval:submitted:view', name: '申请查看', module: 'approval', type: 'menu' } });
     const p3 = await prisma.permission.create({ data: { code: 'approval:workflow:manage', name: '流程管理', module: 'approval', type: 'api' } });
+    // ADR-0019：发起/重提审批走 approval:apply，审批处理走 approval:process
+    const p4 = await prisma.permission.create({ data: { code: 'approval:apply', name: '发起审批', module: 'approval', type: 'api' } });
+    const p5 = await prisma.permission.create({ data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' } });
 
     // 创建角色
     const adminRole = await prisma.role.create({ data: { code: 'admin', name: '管理员' } });
@@ -63,7 +67,9 @@ describe('L1-1 · 审批流程（完整链路）', () => {
         { roleId: adminRole.id, permissionId: p2.id },
         { roleId: adminRole.id, permissionId: p3.id },
         { roleId: hrRole.id, permissionId: p1.id },
+        { roleId: hrRole.id, permissionId: p5.id },
         { roleId: staffRole.id, permissionId: p2.id },
+        { roleId: staffRole.id, permissionId: p4.id },
       ],
     });
 
@@ -95,6 +101,19 @@ describe('L1-1 · 审批流程（完整链路）', () => {
     await prisma.employee.create({
       data: { employeeNo: 'E002', name: '李人事', departmentId: dept1.id, hireDate: new Date('2023-03-20'), userId: hrUser.id },
     });
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
 
     adminCookie = await login(app, 'admin');
     staffCookie = await login(app, 'staff');

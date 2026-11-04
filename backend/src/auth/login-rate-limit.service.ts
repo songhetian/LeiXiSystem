@@ -1,5 +1,6 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Optional } from '@nestjs/common';
 import { RedisService } from '../common/redis/redis.service';
+import { LocalFallbackStore } from '../common/local-fallback-store';
 import { ERROR_CODES } from '../common/error-codes';
 
 /**
@@ -7,7 +8,7 @@ import { ERROR_CODES } from '../common/error-codes';
  * 维度：
  *   - username：5 次 / 15 分钟（防暴力破解单账号）
  *   - ip：20 次 / 15 分钟（防 cc 攻击，单 IP 批量尝试）
- * Redis 未启用时全部直通（不阻断登录）。
+ * Redis 未配置或连接未就绪时改用进程内固定窗口（见下方降级说明），不再直通。
  *
  * 安全设计：使用 INCR 原子操作替代 GET+判断，消除竞态条件。
  * INCR 返回自增后的值，首次自增（返回1）时设置过期时间，
@@ -15,6 +16,10 @@ import { ERROR_CODES } from '../common/error-codes';
  *
  * 注意：`assertNotBlocked` 为快速预检（只读），极端并发下可能有 ±1 误差，
  * 真正的计数由 `registerFailure` / `checkAndRecordFailure` 的原子 INCR 保证。
+ *
+ * Redis 降级（S23 A2 / D2）：REDIS_URL 已配置但连接不可用时，RedisService 的 get/incr
+ * 会返回 null/0，若直接使用就会「计数归零 → 暴力破解防护失效」。因此这里按可用性分流：
+ * 可用走 Redis，不可用走进程内固定窗口（多实例部署精度退化为单实例）。
  */
 @Injectable()
 export class LoginRateLimitService {
@@ -23,7 +28,31 @@ export class LoginRateLimitService {
   readonly ipWindowSec = 15 * 60;
   readonly ipMaxAttempts = 20;
 
-  constructor(private readonly redis: RedisService) {}
+  constructor(
+    private readonly redis: RedisService,
+    @Optional() private readonly local?: LocalFallbackStore,
+  ) {}
+
+  /** Redis 是否可用于计数：未配置或连接未就绪都走本地兜底 */
+  private useRedis(): boolean {
+    return this.redis.isEnabled && (this.redis.isAvailable?.() ?? true);
+  }
+
+  private async readCount(key: string): Promise<number> {
+    if (this.useRedis()) {
+      const value = await this.redis.get(key);
+      return value ? Number(value) : 0;
+    }
+    const value = this.local?.get(key);
+    return value ? Number(value) : 0;
+  }
+
+  private async bumpCount(key: string, windowSec: number): Promise<number> {
+    if (this.useRedis()) {
+      return this.redis.incr(key);
+    }
+    return this.local?.incr(key, windowSec) ?? 0;
+  }
 
   private usernameKey(identifier: string): string {
     return `login:fail:user:${identifier}`;
@@ -33,14 +62,9 @@ export class LoginRateLimitService {
     return `login:fail:ip:${ip}`;
   }
 
-  /** 快速预检（用户名 + IP 任一超限即阻止）；Redis 未启用时直通 */
+  /** 快速预检（用户名 + IP 任一超限即阻止）；Redis 不可用时用本地窗口兜底 */
   async assertNotBlocked(username: string, ip?: string): Promise<void> {
-    if (!this.redis.isEnabled) return;
-    const [userCount, ipCount] = await Promise.all([
-      this.redis.get(this.usernameKey(username)),
-      ip ? this.redis.get(this.ipKey(ip)) : Promise.resolve(null),
-    ]);
-    const userCurrent = userCount ? Number(userCount) : 0;
+    const userCurrent = await this.readCount(this.usernameKey(username));
     if (userCurrent >= this.usernameMaxAttempts) {
       throw new HttpException(
         { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: '登录失败次数过多，请 15 分钟后再试' },
@@ -48,7 +72,7 @@ export class LoginRateLimitService {
       );
     }
     if (ip) {
-      const ipCurrent = ipCount ? Number(ipCount) : 0;
+      const ipCurrent = await this.readCount(this.ipKey(ip));
       if (ipCurrent >= this.ipMaxAttempts) {
         throw new HttpException(
           { code: ERROR_CODES.RATE_LIMIT_EXCEEDED, message: '该 IP 登录请求过于频繁，请 15 分钟后再试' },
@@ -63,19 +87,18 @@ export class LoginRateLimitService {
    * 返回 { userCount, ipCount } 自增后的计数。
    */
   async registerFailure(username: string, ip?: string): Promise<{ userCount: number; ipCount: number }> {
-    if (!this.redis.isEnabled) return { userCount: 0, ipCount: 0 };
-
+    const onRedis = this.useRedis();
     const userKey = this.usernameKey(username);
-    const userCount = await this.redis.incr(userKey);
-    if (userCount === 1) {
+    const userCount = await this.bumpCount(userKey, this.usernameWindowSec);
+    if (onRedis && userCount === 1) {
       await this.redis.expire(userKey, this.usernameWindowSec);
     }
 
     let ipCount = 0;
     if (ip) {
       const ipK = this.ipKey(ip);
-      ipCount = await this.redis.incr(ipK);
-      if (ipCount === 1) {
+      ipCount = await this.bumpCount(ipK, this.ipWindowSec);
+      if (onRedis && ipCount === 1) {
         await this.redis.expire(ipK, this.ipWindowSec);
       }
     }
@@ -85,7 +108,6 @@ export class LoginRateLimitService {
 
   /** 检查并记录失败：原子地自增计数，如超限则直接抛 429 */
   async checkAndRecordFailure(username: string, ip?: string): Promise<void> {
-    if (!this.redis.isEnabled) return;
     const { userCount, ipCount } = await this.registerFailure(username, ip);
     if (userCount >= this.usernameMaxAttempts) {
       throw new HttpException(
@@ -101,9 +123,12 @@ export class LoginRateLimitService {
     }
   }
 
-  /** 登录成功：清除失败计数（用户名维度） */
+  /** 登录成功：清除失败计数（用户名维度），Redis 与本地镜像同时清理 */
   async reset(username: string): Promise<void> {
-    if (!this.redis.isEnabled) return;
-    await this.redis.del(this.usernameKey(username));
+    const key = this.usernameKey(username);
+    this.local?.del(key);
+    if (this.redis.isEnabled) {
+      await this.redis.del(key);
+    }
   }
 }

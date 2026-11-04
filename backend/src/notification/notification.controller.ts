@@ -13,6 +13,7 @@ export class NotificationController {
 
   @Get()
   @HttpCode(200)
+  @RequirePermission('personal:notification:view')
   async list(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -32,6 +33,7 @@ export class NotificationController {
 
   @Get('unread-count')
   @HttpCode(200)
+  @RequirePermission('personal:notification:view')
   async unreadCount(@Req() req: RequestContext) {
     const data = await this.notificationService.unreadCount(req!.user.id);
     return { code: 0, data };
@@ -39,6 +41,7 @@ export class NotificationController {
 
   @Post(':id/read')
   @HttpCode(200)
+  @RequirePermission('personal:notification:view')
   async markRead(@Param('id') id: string, @Req() req: RequestContext) {
     const data = await this.notificationService.markRead(parseInt(id), req!.user.id);
     return { code: 0, data };
@@ -46,6 +49,7 @@ export class NotificationController {
 
   @Post('read-all')
   @HttpCode(200)
+  @RequirePermission('personal:notification:view')
   async readAll(@Req() req: RequestContext) {
     const data = await this.notificationService.markAllRead(req!.user.id);
     return { code: 0, data };

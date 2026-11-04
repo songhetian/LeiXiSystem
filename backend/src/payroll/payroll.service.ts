@@ -12,6 +12,18 @@ import { DistributedLockService, LockAcquisitionError } from '../common/distribu
 import { EVENT_PAYROLL_STATUS_CHANGED } from '../common/events';
 
 const LOCK_TTL_MS = 120_000;
+/** 算薪创建事务超时：批量取数后事务内只剩写操作，但仍需容纳上百员工的明细写入 */
+const CREATE_RUN_TX_TIMEOUT_MS = 30_000;
+/** 批次列表允许的月份格式（YYYY-MM） */
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** 批次状态枚举（与 Prisma PayrollRunStatus 一致，非法值按参数错误处理） */
+const RUN_STATUSES = ['draft', 'confirmed', 'published', 'recalled'] as const;
+type RunStatusValue = (typeof RUN_STATUSES)[number];
+/** 通知投递重试：最多 3 次，退避 1s / 2s（调用方在 setImmediate 内，不阻塞主请求） */
+const NOTIFY_MAX_ATTEMPTS = 3;
+const NOTIFY_RETRY_DELAYS_MS = [1_000, 2_000];
+/** 缺月报阻断时最多列出的员工数 */
+const MISSING_EMPLOYEE_DETAIL_LIMIT = 5;
 
 @Injectable()
 export class PayrollService {
@@ -39,29 +51,24 @@ export class PayrollService {
    * 规则（CONTEXT.md）：发薪为「本月发上月」，薪资变更自带生效月。
    * 取「生效月 ≤ 计薪月」的最新一条薪资调整（同一生效月按更新时间倒序取最新）；
    * 无任何调整记录时回退员工当前薪资（初始工资），即默认次月生效。
+   *
+   * 取数异常一律向上抛出（非 HttpException 由全局过滤器按 500/5000 留痕）：
+   * 此前吞掉异常并回退「员工当前薪资」会在 DB 故障时按错误基数计薪，
+   * 且故障被静默掩盖，对账时无法追溯。
    */
   async getEffectiveSalary(
     employeeId: number,
     month: string,
     fallback: number,
   ): Promise<number> {
-    try {
-      const adj = await this.prisma.salaryAdjustment.findFirst({
-        where: {
-          employeeId,
-          effectiveMonth: { lte: month },
-        },
-        orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
-      });
-      if (adj) {
-        return Number(adj.amount);
-      }
-    } catch (err) {
-      this.logger.warn(
-        `读取薪资生效月失败，回退员工当前薪资：employeeId=${employeeId}, month=${month}`,
-      );
-    }
-    return fallback;
+    const adj = await this.prisma.salaryAdjustment.findFirst({
+      where: {
+        employeeId,
+        effectiveMonth: { lte: month },
+      },
+      orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
+    });
+    return adj ? Number(adj.amount) : fallback;
   }
 
   async createRun(month: string, userId: number) {
@@ -78,6 +85,26 @@ export class PayrollService {
 
       if (confirmedMonthlies.length === 0) {
         throw new ConflictException({ code: ERROR_CODES.PAYROLL_MONTHLY_NOT_CONFIRMED, message: '该月份考勤月报尚未确认' });
+      }
+
+      // C5（决策 D6①）：在职员工缺当月已确认月报会静默漏发，创建前直接阻断
+      await this.assertAllActiveEmployeesCovered(confirmedMonthlies.map((m) => m.employeeId));
+
+      // B6：事务前一次性批量取「生效月 ≤ 计薪月」的薪资调整，
+      // 事务内只做写操作，避免上百员工时交互式事务超时（P2028）。
+      const employeeIds = Array.from(new Set(confirmedMonthlies.map((m) => m.employeeId)));
+      const salaryAdjustments = employeeIds.length > 0
+        ? await this.prisma.salaryAdjustment.findMany({
+            where: { employeeId: { in: employeeIds }, effectiveMonth: { lte: month } },
+            orderBy: [{ effectiveMonth: 'desc' }, { createdAt: 'desc' }],
+          })
+        : [];
+      // 结果已按生效月/创建时间倒序，同一员工取首条即「生效月 ≤ 计薪月」的最新一条
+      const effectiveSalaryMap = new Map<number, number>();
+      for (const adj of salaryAdjustments) {
+        if (!effectiveSalaryMap.has(adj.employeeId)) {
+          effectiveSalaryMap.set(adj.employeeId, Number(adj.amount));
+        }
       }
 
       let run;
@@ -98,11 +125,8 @@ export class PayrollService {
           }> = [];
           for (const m of confirmedMonthlies) {
             // 取计薪月生效薪资（默认次月生效），无调整记录回退员工当前薪资
-            const basicSalary = await this.getEffectiveSalary(
-              m.employeeId,
-              month,
-              Number(m.employee.salary),
-            );
+            const basicSalary =
+              effectiveSalaryMap.get(m.employeeId) ?? Number(m.employee.salary);
             const result = calculatePayroll(
               { name: m.employee.name, basicSalary },
               {
@@ -154,7 +178,7 @@ export class PayrollService {
           });
 
           return updatedRun;
-        });
+        }, { timeout: CREATE_RUN_TX_TIMEOUT_MS });
       } catch (err) {
         if (
           err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -177,8 +201,24 @@ export class PayrollService {
     });
   }
 
-  async listRuns(params: { userId: number; page: number; pageSize: number }) {
-    const { userId, page, pageSize } = params;
+  async listRuns(params: {
+    userId: number;
+    page: number;
+    pageSize: number;
+    month?: string;
+    status?: string;
+  }) {
+    const { userId, page, pageSize, month, status } = params;
+
+    // B2：筛选参数校验（空串视同未传，避免前端清空筛选框后变成非法参数）
+    if (month) {
+      if (!MONTH_PATTERN.test(month)) {
+        throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '月份格式不合法，应为 YYYY-MM' });
+      }
+    }
+    if (status && !RUN_STATUSES.includes(status as RunStatusValue)) {
+      throw new BadRequestException({ code: ERROR_CODES.PARAM_INVALID, message: '批次状态不合法' });
+    }
 
     // IDOR fix: filter runs by data scope
     const scope = await this.dataScope.visibleScope(userId);
@@ -187,39 +227,31 @@ export class PayrollService {
     if (scopeIsEmpty(scope)) {
       return { list: [], total: 0, page, pageSize };
     }
-    let where: Prisma.PayrollRunWhereInput | undefined = undefined;
 
+    // 筛选条件与数据权限条件「合并」而非覆盖：任一侧条件丢失都会造成越权或筛了却没生效
+    const where: Prisma.PayrollRunWhereInput = {};
+    if (month) where.month = month;
+    if (status) where.status = status as RunStatusValue;
+
+    // B8（决策 D5①）：可见性按「明细所属员工/部门」判定，与 getRunDetails 一致。
+    // 不再依赖 payslip.runId——草稿/已确认批次还没有工资条，主管会整批看不到。
     if (scope.selfEmployeeId) {
-      // For self-only scope, only show runs where the employee has a payslip
-      const payslipRuns = await this.prisma.payslip.findMany({
-        where: { employeeId: scope.selfEmployeeId },
-        select: { runId: true },
-        distinct: ['runId'],
-      });
-      const runIds = payslipRuns.map((p) => p.runId);
-      where = { id: { in: runIds } };
+      where.details = { some: { employeeId: scope.selfEmployeeId } };
     } else if (!scope.all) {
-      // For manager scope, show runs where any employee in their department has a payslip
-      const empRuns = await this.prisma.payslip.findMany({
-        where: { employee: { departmentId: { in: scope.ids } } },
-        select: { runId: true },
-        distinct: ['runId'],
-      });
-      const runIds = empRuns.map((p) => p.runId);
-      where = { id: { in: runIds } };
-    } else {
-      // 全量：不加过滤
-      where = undefined;
+      where.details = { some: { employee: { departmentId: { in: scope.ids } } } };
     }
+
+    // 无任何条件时保持 undefined（Prisma 语义等价，但避免无谓的 where: {}）
+    const effectiveWhere = Object.keys(where).length > 0 ? where : undefined;
 
     const [list, total] = await Promise.all([
       this.prisma.payrollRun.findMany({
-        where,
+        where: effectiveWhere,
         orderBy: { month: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.payrollRun.count({ where }),
+      this.prisma.payrollRun.count({ where: effectiveWhere }),
     ]);
     return { list, total, page, pageSize };
   }
@@ -379,15 +411,21 @@ export class PayrollService {
             select: { employee: { select: { userId: true } } },
           });
           for (const p of payslips) {
-            if (!p.employee?.userId) continue;
-            await this.notificationService.create({
-              userId: p.employee.userId,
-              title: '工资条已发布',
-              content: `您${run.month}月的工资条已发布，请前往工资条页面查看`,
-              type: 'payslip',
-              relatedId: runId,
-              relatedType: 'payroll_run',
-            });
+            const userId = p.employee?.userId;
+            if (!userId) continue;
+            // C8：单条通知投递失败重试，全部失败只留痕，不拖垮整批发布
+            await this.deliverWithRetry(
+              `工资条发布通知 run=${runId} userId=${userId}`,
+              () =>
+                this.notificationService.create({
+                  userId,
+                  title: '工资条已发布',
+                  content: `您${run.month}月的工资条已发布，请前往工资条页面查看`,
+                  type: 'payslip',
+                  relatedId: runId,
+                  relatedType: 'payroll_run',
+                }),
+            );
           }
         } catch (err) {
           this.logger.error(
@@ -422,34 +460,47 @@ export class PayrollService {
         throw new ConflictException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅已发布状态可撤回' });
       }
 
-      const viewedCount = await this.prisma.payslip.count({
-        where: { runId, status: 'viewed' },
-      });
-      if (viewedCount > 0) {
-        // 「已查看工资条不可撤回」是撤回策略的专属失败原因，不能复用 3005
-        // （EMPLOYEE_NO_SALARY 员工无工资配置），否则前端无法据此给出正确提示。
-        throw new UnprocessableEntityException({ code: ERROR_CODES.PAYROLL_RECALL_VIEWED, message: '存在已查看的工资条，不可撤回' });
-      }
-
-      // 状态变更与工资条删除必须同事务提交（与 publishRun 对称）：
-      // 否则删条失败时批次已成 recalled、工资条却仍在库，listPayslips 不校验批次状态，
-      // 员工会继续查到一个「已撤回批次」的工资条。
+      // B7：状态变更、viewed 复查与工资条删除必须同事务提交（与 publishRun 对称）：
+      // - viewed 复查若留在事务外，员工在「count 之后、update 之前」查看工资条会被漏判，
+      //   撤回后已查看的工资条被删，审计口径直接失真；
+      // - 删条失败时也不能留下「批次已 recalled、工资条仍在库」的错账。
       const updated = await this.prisma.$transaction(async (tx) => {
-        const rec = await tx.payrollRun.update({
-          where: { id: runId },
+        const viewedCount = await tx.payslip.count({ where: { runId, status: 'viewed' } });
+        if (viewedCount > 0) {
+          // 「已查看工资条不可撤回」是撤回策略的专属失败原因，不能复用 3005
+          // （EMPLOYEE_NO_SALARY 员工无工资配置），否则前端无法据此给出正确提示。
+          throw new UnprocessableEntityException({ code: ERROR_CODES.PAYROLL_RECALL_VIEWED, message: '存在已查看的工资条，不可撤回' });
+        }
+
+        // 条件更新：状态在此期间被他人改变时 count=0，不再无条件覆盖
+        const stateResult = await tx.payrollRun.updateMany({
+          where: { id: runId, status: 'published' },
           data: { status: 'recalled', recalledBy: userId, recalledAt: new Date() },
         });
+        if (stateResult.count === 0) {
+          const existing = await tx.payrollRun.findUnique({ where: { id: runId } });
+          if (!existing) {
+            throw new NotFoundException({ code: ERROR_CODES.PAYROLL_RUN_NOT_FOUND, message: '算薪批次不存在' });
+          }
+          throw new ConflictException({ code: ERROR_CODES.PAYROLL_STATUS_INVALID, message: '仅已发布状态可撤回' });
+        }
 
+        // 事务内已复查过 viewed，此处可全删
         await tx.payslip.deleteMany({ where: { runId } });
 
-        return rec;
+        return tx.payrollRun.findUnique({ where: { id: runId } });
       });
 
       // 工资条已删除，发布时发出的「工资条已发布」通知必须同步清理，
-      // 否则用户点开通知会落到已不存在的单据
-      await this.notificationService.removeByRelated('payroll_run', runId);
+      // 否则用户点开通知会落到已不存在的单据（C8：清理失败重试，最终只留痕）
+      await this.deliverWithRetry(
+        `撤回批次通知清理 run=${runId}`,
+        () => this.notificationService.removeByRelated('payroll_run', runId),
+      );
 
-      this.emitPayrollStatusChanged(updated, 'published');
+      if (updated) {
+        this.emitPayrollStatusChanged(updated, 'published');
+      }
 
       return updated;
     }).catch((err) => {
@@ -457,6 +508,40 @@ export class PayrollService {
         throw new HttpException({ code: err.code, message: err.message }, HttpStatus.CONFLICT);
       }
       throw err;
+    });
+  }
+
+  /**
+   * C5（决策 D6①）：在职员工必须都有当月已确认的考勤月报。
+   * 缺月报的员工会被算薪静默漏发（名单里查无此人，工资条也不会生成），
+   * 因此在创建批次前阻断并回传缺失名单（工号+姓名，最多 5 人）。
+   *
+   * 「在职」口径：Employee.status = active（probation/resigned/retired 不计）；
+   * Employee 无软删列（schema 未定义 deletedAt），故不需额外的软删过滤。
+   */
+  private async assertAllActiveEmployeesCovered(monthlyEmployeeIds: number[]) {
+    const activeEmployees = await this.prisma.employee.findMany({
+      where: { status: 'active' },
+      select: { id: true, employeeNo: true, name: true },
+    });
+    const covered = new Set(monthlyEmployeeIds);
+    const missing = activeEmployees.filter((e) => !covered.has(e.id));
+    if (missing.length === 0) return;
+
+    const shown = missing
+      .slice(0, MISSING_EMPLOYEE_DETAIL_LIMIT)
+      .map((e) => `${e.employeeNo} ${e.name}`)
+      .join('、');
+    const detail =
+      missing.length > MISSING_EMPLOYEE_DETAIL_LIMIT
+        ? `${shown} 等 ${missing.length} 人`
+        : shown;
+
+    throw new UnprocessableEntityException({
+      code: ERROR_CODES.PAYROLL_MONTHLY_EMPLOYEE_MISSING,
+      message: '部分在职员工缺少已确认的考勤月报，无法生成工资批次',
+      // detail 由全局过滤器拼在中央文案之后，供 HR 直接定位补确认对象
+      detail,
     });
   }
 
@@ -510,10 +595,48 @@ export class PayrollService {
     });
   }
 
-  async listSalaryItems() {
-    return this.prisma.salaryItem.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    });
+  /**
+   * 通知投递有限重试（C8）：最多 3 次，失败按 1s / 2s 退避。
+   * 不引入 outbox 表，全部失败仅 logger.error 留痕；调用方在 setImmediate 内，
+   * 因此退避不会阻塞主请求。
+   */
+  private async deliverWithRetry<T>(label: string, deliver: () => Promise<T>): Promise<T | undefined> {
+    for (let attempt = 1; attempt <= NOTIFY_MAX_ATTEMPTS; attempt++) {
+      try {
+        return await deliver();
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        if (attempt >= NOTIFY_MAX_ATTEMPTS) {
+          this.logger.error(`通知投递失败（已重试 ${attempt} 次）：${label}：${reason}`);
+          return undefined;
+        }
+        this.logger.warn(`通知投递失败，${NOTIFY_RETRY_DELAYS_MS[attempt - 1]}ms 后重试：${label}：${reason}`);
+        await new Promise((resolve) => setTimeout(resolve, NOTIFY_RETRY_DELAYS_MS[attempt - 1]));
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * 薪资项目列表：统一分页信封 { list, total, page, pageSize }
+   * （前端按 ListResult.data.list 读取，此前返回裸数组导致调整项入口恒为空）。
+   * status=active → 只返回启用项；其它值按「未指定」处理（不下发条件），
+   * 与工资条列表的容错口径一致：脏值不应把列表筛成空。
+   */
+  async listSalaryItems(params: { page: number; pageSize: number; status?: string }) {
+    const { page, pageSize, status } = params;
+    const where: Prisma.SalaryItemWhereInput = status === 'active' ? { enabled: true } : {};
+
+    const [list, total] = await Promise.all([
+      this.prisma.salaryItem.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.salaryItem.count({ where }),
+    ]);
+    return { list, total, page, pageSize };
   }
 
   async createSalaryItem(data: {

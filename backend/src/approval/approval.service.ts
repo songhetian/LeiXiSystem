@@ -18,6 +18,7 @@ import { NotificationClientInterface } from '../notification/notification-client
 import { ERROR_CODES } from '../common/error-codes';
 import { generateAutoCode } from '../common/code-gen.util';
 import { errorCode } from '../common/error.util';
+import { businessModuleOf } from './workflow-codes';
 
 const WORKFLOW_CACHE_TTL = 30 * 60;
 
@@ -28,6 +29,10 @@ function workflowIdKey(id: number) {
 function workflowCodeKey(code: string) {
   return `approval:workflow:code:${code}`;
 }
+
+type WorkflowWithNodes = NonNullable<
+  Awaited<ReturnType<PrismaService['approvalWorkflow']['findUnique']>>
+> & { nodes: any[] };
 
 @Injectable()
 export class ApprovalService {
@@ -98,10 +103,49 @@ export class ApprovalService {
       conditionValue?: string;
     }>;
   }) {
+    const code = params.code || generateAutoCode('WF');
+    // 编码唯一约束包含软删除记录：管理员删过某业务流程后，该 code 仍占着唯一键，
+    // 直接 create 必然 P2002 → 6301「编码已存在」，设置页新建同编码流程永久不可用。
+    // 这里把「软删记录 + 同编码」视为重建：恢复该记录并用本次节点覆盖。
+    const tombstone = await this.prisma.approvalWorkflow.findUnique({ where: { code } });
+    if (tombstone?.deletedAt) {
+      const restored = await this.prisma.$transaction(async (tx) => {
+        await tx.approvalWorkflowNode.deleteMany({ where: { workflowId: tombstone.id } });
+        return tx.approvalWorkflow.update({
+          where: { id: tombstone.id },
+          data: {
+            name: params.name,
+            module: params.module,
+            status: (params.status as $Enums.ApprovalWorkflowStatus) || 'draft',
+            maxResubmits: params.maxResubmits ?? 3,
+            deletedAt: null,
+            nodes: {
+              create: params.nodes.map((n) => ({
+                nodeKey: n.nodeKey,
+                name: n.name,
+                type: n.type,
+                roleCode: n.roleCode,
+                approvalGroupId: n.approvalGroupId,
+                order: n.order,
+                conditionField: n.conditionField,
+                conditionOperator: n.conditionOperator,
+                conditionValue: n.conditionValue,
+              })),
+            },
+          },
+          include: { nodes: { orderBy: { order: 'asc' } } },
+        });
+      });
+      if (this.redis.isEnabled) {
+        await this.redis.del(workflowCodeKey(code));
+        await this.redis.del(workflowIdKey(restored.id));
+      }
+      return restored;
+    }
     try {
       return await this.prisma.approvalWorkflow.create({
         data: {
-          code: params.code || generateAutoCode('WF'),
+          code,
           name: params.name,
           module: params.module,
           status: params.status as $Enums.ApprovalWorkflowStatus || 'draft',
@@ -227,6 +271,33 @@ export class ApprovalService {
     return { success: true };
   }
 
+  /** 按编码读取流程定义（含节点），带 Redis 缓存；未找到返回 null */
+  private async loadWorkflowByCode(code: string): Promise<WorkflowWithNodes | null> {
+    const cacheKey = workflowCodeKey(code);
+    if (this.redis.isEnabled) {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        try {
+          return JSON.parse(cached) as WorkflowWithNodes;
+        } catch (err) {
+          this.logger.warn(
+            `workflow cache parse failed (code=${code}): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+
+    const workflow = await this.prisma.approvalWorkflow.findUnique({
+      where: { code, deletedAt: null },
+      include: { nodes: { orderBy: { order: 'asc' } } },
+    });
+    if (workflow && this.redis.isEnabled) {
+      await this.redis.set(workflowIdKey(workflow.id), JSON.stringify(workflow), WORKFLOW_CACHE_TTL);
+      await this.redis.set(cacheKey, JSON.stringify(workflow), WORKFLOW_CACHE_TTL);
+    }
+    return workflow ?? null;
+  }
+
   // ===== 发起审批 =====
   async startInstance(params: {
     workflowCode: string;
@@ -242,39 +313,28 @@ export class ApprovalService {
       throw new NotFoundException({ code: ERROR_CODES.APPROVAL_USER_NOT_FOUND, message: '用户不存在' });
     }
 
-    // 职责授权：按申请人角色绑定的已激活流程优先；否则使用入参流程编码
-    let workflowCode = params.workflowCode;
-    const boundWorkflow = this.roleWorkflowService
-      ? await this.roleWorkflowService.resolveWorkflowForUser(params.userId)
-      : null;
-    if (boundWorkflow?.code) {
-      workflowCode = boundWorkflow.code;
-    }
-
-    const cacheKey = workflowCodeKey(workflowCode);
-    type WorkflowWithNodes = NonNullable<
-      Awaited<ReturnType<PrismaService['approvalWorkflow']['findUnique']>>
-    > & { nodes: any[] };
-    let workflow: WorkflowWithNodes | null = null;
-
-    if (this.redis.isEnabled) {
-      const cached = await this.redis.get(cacheKey);
-      if (cached) {
-        try {
-          workflow = JSON.parse(cached);
-        } catch (err) {
-          this.logger.warn(`workflow cache parse failed (code=${workflowCode}): ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-    }
+    // 业务流程配置优先（ADR-0020）：流程设置页配置的业务流程必须生效。
+    // 职责授权只在业务未配置流程时兜底，且必须同 module —— 否则某角色绑定
+    // 请假流程后，该角色提交报销会被塞进请假审批链，审批回调也随之错位。
+    //
+    // 非登记编码（拼错的业务码、临时流程）一律不参与兜底：businessModuleOf 返回
+    // undefined 时若放行，`module?` 会退化成「不限制 module」，任意拼写错误都能
+    // 拿到角色绑定的任意流程并静默建单（跨分组串流）。
+    const requestedCode = params.workflowCode;
+    let workflow = await this.loadWorkflowByCode(requestedCode);
     if (!workflow) {
-      workflow = await this.prisma.approvalWorkflow.findUnique({
-        where: { code: workflowCode, deletedAt: null },
-        include: { nodes: { orderBy: { order: 'asc' } } },
-      });
-      if (workflow && this.redis.isEnabled) {
-        await this.redis.set(workflowIdKey(workflow.id), JSON.stringify(workflow), WORKFLOW_CACHE_TTL);
-        await this.redis.set(cacheKey, JSON.stringify(workflow), WORKFLOW_CACHE_TTL);
+      const requestedModule = businessModuleOf(requestedCode);
+      const boundWorkflow =
+        requestedModule && this.roleWorkflowService
+          ? await this.roleWorkflowService.resolveWorkflowForUser(params.userId, {
+              module: requestedModule,
+            })
+          : null;
+      if (boundWorkflow?.code) {
+        this.logger.warn(
+          `业务流程 ${requestedCode} 未配置，使用角色绑定流程兜底：${boundWorkflow.code}`,
+        );
+        workflow = await this.loadWorkflowByCode(boundWorkflow.code);
       }
     }
     if (!workflow) {
@@ -328,8 +388,12 @@ export class ApprovalService {
       const instance = await this.prisma.$transaction(async (tx) => {
         const instance = await tx.approvalInstance.create({
           data: {
+            // workflowId 指向「实际使用的流程定义」，workflowCode 记「发起时的业务编码」。
+            // 兜底场景下两者可能不同：审批链取自兜底流程，但业务回调（考勤入账、
+            // 员工异动）必须按请求业务分派，否则加班单会被当成请假单处理，
+            // 回调查不到对应业务记录后静默 return，单据永久停在 approving。
             workflowId: workflow.id,
-            workflowCode: workflow.code,
+            workflowCode: requestedCode,
             title: params.title,
             applicantId: params.userId,
             applicantName: user.realName,
@@ -443,12 +507,13 @@ export class ApprovalService {
     try {
       const workflow = await this.prisma.approvalWorkflow.findUnique({
         where: { id: instance.workflowId },
-        select: { code: true, module: true },
+        select: { module: true },
       });
       this.eventEmitter.emit('approval.withdrawn', {
         instanceId: instance.id,
         workflowId: instance.workflowId,
-        workflowCode: workflow?.code,
+        // 业务回调按发起时的业务编码分派（兜底流程 ≠ 请求业务，见 startInstance）
+        workflowCode: instance.workflowCode,
         module: workflow?.module,
         status: 'cancelled',
         reason: params.reason,
@@ -927,12 +992,13 @@ export class ApprovalService {
       try {
         const workflow = await this.prisma.approvalWorkflow.findUnique({
           where: { id: result.workflowId },
-          select: { code: true, module: true },
+          select: { module: true },
         });
         this.eventEmitter.emit(eventName, {
           instanceId: result.id,
           workflowId: result.workflowId,
-          workflowCode: workflow?.code,
+          // 同 startInstance：分派键是「发起时的业务编码」，不是实际使用的流程编码
+          workflowCode: result.workflowCode,
           module: workflow?.module,
           status: action === 'rejected' ? 'rejected' : 'approved',
           approverId: params.userId,

@@ -55,3 +55,43 @@ describe('PayrollController - confirm 参数校验须用统一校验码', () => 
     expect(result).toEqual({ code: 0, data: { ok: true } });
   });
 });
+
+// B3 / B2：列表接口的信封与查询参数透传
+describe('PayrollController - 列表接口信封与筛选透传', () => {
+  let controller: PayrollController;
+  let payrollService: { listSalaryItems: jest.Mock; listRuns: jest.Mock };
+
+  beforeEach(() => {
+    payrollService = { listSalaryItems: jest.fn(), listRuns: jest.fn() };
+    controller = new PayrollController(payrollService as any);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('GET payroll/items 返回统一分页信封 { list, total, page, pageSize }，并透传 status/page', async () => {
+    const envelope = { list: [{ id: 1, code: 'base' }], total: 1, page: 1, pageSize: 20 };
+    payrollService.listSalaryItems.mockResolvedValue(envelope);
+
+    const result = await controller.listItems('1', '20', 'active');
+
+    expect(payrollService.listSalaryItems).toHaveBeenCalledWith({ page: 1, pageSize: 20, status: 'active' });
+    // 前端 RunDetailsModal 读 data.list，裸数组会让调整项入口恒为空
+    expect(result).toEqual({ code: 0, data: envelope });
+  });
+
+  it('GET payroll/runs 透传 month/status（B2：此前只接收 page/pageSize，筛选被丢弃）', async () => {
+    const envelope = { list: [], total: 0, page: 1, pageSize: 20 };
+    payrollService.listRuns.mockResolvedValue(envelope);
+
+    const result = await controller.listRuns('1', '20', '2025-09', 'draft', { user: { id: 9 } } as any);
+
+    expect(payrollService.listRuns).toHaveBeenCalledWith({
+      userId: 9,
+      page: 1,
+      pageSize: 20,
+      month: '2025-09',
+      status: 'draft',
+    });
+    expect(result).toEqual({ code: 0, data: envelope });
+  });
+});

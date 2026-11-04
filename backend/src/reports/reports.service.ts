@@ -70,11 +70,14 @@ export class ReportsService {
     if (!this.redis.isEnabled) return;
     try {
       const client = this.redis.getClient();
-      const keys = await client.keys(pattern);
-      if (keys.length > 0) {
-        await client.del(...keys);
-        this.logger.log(`清除报表缓存: ${keys.length} 个 key`);
-      }
+      // ioredis 的 keyPrefix 只作用于「参数是 key」的命令：KEYS 的入参是匹配模式，
+      // 不会被自动加前缀（必须手动拼）；而 KEYS 返回的是带前缀的真实 key，直接交给
+      // DEL 会被再加一层前缀，导致一条都删不掉（日志却打印成功）。这里显式拼/剥前缀。
+      const keys = await client.keys(this.redis.keyPrefix + pattern);
+      if (keys.length === 0) return;
+      const logical = keys.map((k) => (k.startsWith(this.redis.keyPrefix) ? k.slice(this.redis.keyPrefix.length) : k));
+      const removed = await client.del(...logical);
+      this.logger.log(`清除报表缓存: ${removed} 个 key`);
     } catch (e) {
       this.logger.warn(`清除缓存失败: ${errorMessage(e)}`);
     }

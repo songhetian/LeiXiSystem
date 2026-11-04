@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const prisma = new PrismaClient();
@@ -50,16 +51,23 @@ describe('S15 · 审批事件驱动', () => {
     const permApprovalTodo = await prisma.permission.create({
       data: { code: 'approval:todo:view', name: '待办审批查看', module: 'approval', type: 'menu' },
     });
-    await prisma.rolePermission.create({
-      data: { roleId: approverRole.id, permissionId: permApprovalTodo.id },
+    // ADR-0019：审批处理端点（approve/reject）需 approval:process
+    const permApprovalProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
+    await prisma.rolePermission.createMany({
+      data: [
+        { roleId: approverRole.id, permissionId: permApprovalTodo.id },
+        { roleId: approverRole.id, permissionId: permApprovalProcess.id },
+      ],
     });
 
     const empUser = await prisma.user.create({
-      data: { username: 'evt_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲' },
+      data: { username: 'evt_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '员工甲', status: 'active' },
     });
 
     const approverUser = await prisma.user.create({
-      data: { username: 'evt_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批员乙' },
+      data: { username: 'evt_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批员乙', status: 'active' },
     });
     await prisma.userRole.create({
       data: { userId: approverUser.id, roleId: approverRole.id },
@@ -90,6 +98,20 @@ describe('S15 · 审批事件驱动', () => {
     await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
+
     eventEmitter = app.get(EventEmitter2);
     empCookie = await login(app, 'evt_emp');
     approverCookie = await login(app, 'evt_approver');
@@ -106,10 +128,12 @@ describe('S15 · 审批事件驱动', () => {
   });
 
   async function createAndSubmitMakeup() {
+    // 补卡日期动态取 2 天前：写死日期会随时间推移超出「最近 30 天」补卡窗口而 400
+    const punchDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const createRes = await inject(app, {
       method: 'POST', url: '/api/v1/attendance/punch/makeup',
       headers: { cookie: empCookie },
-      payload: { punchDate: '2026-08-10', punchType: 'checkin', originalTime: '08:55:00', reason: '地铁延误' },
+      payload: { punchDate, punchType: 'check_in', originalTime: '08:55:00', reason: '地铁延误' },
     });
     const makeup = JSON.parse(createRes.payload).data;
     const submitRes = await inject(app, {

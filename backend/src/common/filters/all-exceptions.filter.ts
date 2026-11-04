@@ -21,14 +21,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code: number | undefined;
     let message = '';
+    // 可选明细（如缺月报员工名单）：仅在 payload 显式提供时拼接，不影响其它异常输出
+    let detail: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
       if (typeof res === 'object' && res !== null) {
-        const r = res as { code?: unknown; message?: unknown };
+        const r = res as { code?: unknown; message?: unknown; detail?: unknown };
         if (typeof r.code === 'number') code = r.code;
         if (typeof r.message === 'string' && r.message) message = r.message;
+        if (typeof r.detail === 'string' && r.detail) detail = r.detail;
       } else if (typeof res === 'string') {
         message = res;
       }
@@ -52,7 +55,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // 中央 message 优先；缺失时回退到抛出的 message；再缺失用通用文案
     const canonical = messageOf(code);
     if (canonical) {
-      message = canonical;
+      // 有明细时拼成「中央文案（明细）」，无明细的输出与之前完全一致
+      message = detail ? `${canonical}（${detail}）` : canonical;
     } else if (!message) {
       message = code === ERROR_CODES.INTERNAL_ERROR ? '服务器内部错误' : '请求失败';
     }

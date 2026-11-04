@@ -18,7 +18,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { ApprovalService } from './approval.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { StartInstanceDto } from './dto/start-instance.dto';
-import { ApprovalActionDto } from './dto/approval-action.dto';
+import { ApprovalActionDto, RejectApprovalActionDto } from './dto/approval-action.dto';
 import { parsePagination } from '../common/pagination.util';
 import type { RequestContext } from '../types/fastify';
 
@@ -103,7 +103,7 @@ export class ApprovalController {
   // ===== 发起审批 =====
   @Post('instances')
   @HttpCode(200)
-  @RequirePermission('approval:submitted:view')
+  @RequirePermission('approval:apply')
   async startInstance(@Body() body: StartInstanceDto, @Req() req: RequestContext) {
     const data = await this.approvalService.startInstance({
       workflowCode: body.workflowCode,
@@ -127,7 +127,7 @@ export class ApprovalController {
   // ===== 审批处理 =====
   @Post('instances/:id/approve')
   @HttpCode(200)
-  @RequirePermission('approval:todo:view')
+  @RequirePermission('approval:process')
   async approve(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: ApprovalActionDto,
@@ -144,10 +144,10 @@ export class ApprovalController {
 
   @Post('instances/:id/reject')
   @HttpCode(200)
-  @RequirePermission('approval:todo:view')
+  @RequirePermission('approval:process')
   async reject(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: ApprovalActionDto,
+    @Body() body: RejectApprovalActionDto,
     @Req() req: RequestContext,
   ) {
     const data = await this.approvalService.reject({
@@ -192,7 +192,7 @@ export class ApprovalController {
 
   @Post('instances/:id/transfer')
   @HttpCode(200)
-  @RequirePermission('approval:todo:view')
+  @RequirePermission('approval:process')
   async transfer(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { targetUserId: number; comment?: string },
@@ -209,7 +209,7 @@ export class ApprovalController {
 
   @Post('instances/:id/add-sign')
   @HttpCode(200)
-  @RequirePermission('approval:todo:view')
+  @RequirePermission('approval:process')
   async addSign(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { targetUserId: number; position: 'before' | 'after'; comment?: string },

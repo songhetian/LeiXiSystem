@@ -58,6 +58,14 @@ describe('S06+S09 · 请假接入真实审批流', () => {
     const permManage = await prisma.permission.create({
       data: { code: 'attendance:manage', name: '考勤管理', module: 'attendance', type: 'menu' },
     });
+    // 员工自助发起请假/加班（ADR-0019）：staff 没有 attendance:manage，
+    // 这两个端点必须挂个人自助权限点，否则普通员工提交请假必然 403。
+    const permLeaveApply = await prisma.permission.create({
+      data: { code: 'personal:leave:apply', name: '请假申请', module: 'personal', type: 'menu' },
+    });
+    const permOvertimeApply = await prisma.permission.create({
+      data: { code: 'personal:overtime:apply', name: '加班申请', module: 'personal', type: 'menu' },
+    });
 
     const staffRole = await prisma.role.create({ data: { code: 'staff', name: '普通员工' } });
     const managerRole = await prisma.role.create({ data: { code: 'dept_manager', name: '部门主管' } });
@@ -67,12 +75,20 @@ describe('S06+S09 · 请假接入真实审批流', () => {
     await prisma.rolePermission.createMany({
       data: [
         { roleId: staffRole.id, permissionId: permView.id },
+        { roleId: staffRole.id, permissionId: permLeaveApply.id },
+        { roleId: staffRole.id, permissionId: permOvertimeApply.id },
+        { roleId: managerRole.id, permissionId: permLeaveApply.id },
+        { roleId: managerRole.id, permissionId: permOvertimeApply.id },
         { roleId: managerRole.id, permissionId: permView.id },
         { roleId: managerRole.id, permissionId: permManage.id },
         { roleId: hrRole.id, permissionId: permView.id },
         { roleId: hrRole.id, permissionId: permManage.id },
+        { roleId: hrRole.id, permissionId: permLeaveApply.id },
+        { roleId: hrRole.id, permissionId: permOvertimeApply.id },
         { roleId: adminRole.id, permissionId: permView.id },
         { roleId: adminRole.id, permissionId: permManage.id },
+        { roleId: adminRole.id, permissionId: permLeaveApply.id },
+        { roleId: adminRole.id, permissionId: permOvertimeApply.id },
       ],
     });
 

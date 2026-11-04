@@ -12,11 +12,11 @@ export class PermissionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<string>(REQUIRED_PERMISSION_KEY, [
+    const required = this.reflector.getAllAndOverride<string | string[]>(REQUIRED_PERMISSION_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required) return true;
+    if (!required || (Array.isArray(required) && required.length === 0)) return true;
 
     const req = context.switchToHttp().getRequest();
     const userId = req.user?.id;
@@ -28,7 +28,9 @@ export class PermissionGuard implements CanActivate {
     }
     const permissionCodes = await this.permCache.getUserPermissions(userId);
 
-    if (!permissionCodes.has(required)) {
+    // 数组按 OR 判定：任一权限点命中即放行
+    const requiredList = Array.isArray(required) ? required : [required];
+    if (!requiredList.some((code) => permissionCodes.has(code))) {
       throw new ForbiddenException({ code: ERROR_CODES.DATA_NO_PERMISSION, message: '无权限访问该资源' });
     }
     return true;

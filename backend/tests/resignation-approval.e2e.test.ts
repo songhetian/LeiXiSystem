@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 const prisma = new PrismaClient();
 const inject = (app: NestFastifyApplication, opts: any) =>
@@ -44,20 +45,29 @@ describe('S16 · 离职审批 → 自动更新员工状态', () => {
     const permApprovalTodo = await prisma.permission.create({
       data: { code: 'approval:todo:view', name: '待办审批查看', module: 'approval', type: 'menu' },
     });
+    // ADR-0019：审批处理端点（approve）需 approval:process
+    const permApprovalProcess = await prisma.permission.create({
+      data: { code: 'approval:process', name: '审批处理', module: 'approval', type: 'api' },
+    });
     const permResignationApply = await prisma.permission.create({
       data: { code: 'resignation:apply', name: '离职申请', module: 'employee', type: 'menu' },
     });
-    await prisma.rolePermission.create({ data: { roleId: approverRole.id, permissionId: permApprovalTodo.id } });
+    await prisma.rolePermission.createMany({
+      data: [
+        { roleId: approverRole.id, permissionId: permApprovalTodo.id },
+        { roleId: approverRole.id, permissionId: permApprovalProcess.id },
+      ],
+    });
 
     const staffRole = await prisma.role.create({ data: { name: '员工', code: 'staff' } });
     await prisma.rolePermission.create({ data: { roleId: staffRole.id, permissionId: permResignationApply.id } });
 
     const empUser = await prisma.user.create({
-      data: { username: 'res_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '离职员工' },
+      data: { username: 'res_emp', passwordHash: await bcrypt.hash('123456', 10), realName: '离职员工', status: 'active' },
     });
     await prisma.userRole.create({ data: { userId: empUser.id, roleId: staffRole.id } });
     const approverUser = await prisma.user.create({
-      data: { username: 'res_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批员' },
+      data: { username: 'res_approver', passwordHash: await bcrypt.hash('123456', 10), realName: '审批员', status: 'active' },
     });
     await prisma.userRole.create({ data: { userId: approverUser.id, roleId: approverRole.id } });
 
@@ -86,6 +96,20 @@ describe('S16 · 离职审批 → 自动更新员工状态', () => {
     await app.register(cookie as any);
     app.setGlobalPrefix('api/v1');
     await app.init();
+
+    // 清 Redis 中上轮测试遗留的审批流/权限/部门缓存（按 code 命中旧 id 会污染本轮数据）
+    const redis = app.get(RedisService);
+    if (redis.isEnabled) {
+      const client = redis.getClient();
+      for (const pattern of ['approval:workflow:*', 'user:perm:*', 'system:depts:*']) {
+        // ioredis 的 keyPrefix 只作用于 get/set/del 等，keys() 需手动拼前缀；返回值再剥前缀给 del
+        const keys = await client.keys(redis.keyPrefix + pattern);
+        // keys() 返回的实际 key 已带 keyPrefix，del 会再加一层导致删不掉，先剥掉前缀
+        const logical = keys.map((k) => (k.startsWith(redis.keyPrefix) ? k.slice(redis.keyPrefix.length) : k));
+        if (logical.length > 0) await client.del(...logical);
+      }
+    }
+
     empCookie = await login(app, 'res_emp');
     approverCookie = await login(app, 'res_approver');
   });

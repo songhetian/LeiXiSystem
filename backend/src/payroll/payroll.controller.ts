@@ -22,8 +22,17 @@ export class PayrollController {
   @Get('items')
   @HttpCode(200)
   @RequirePermission('payroll:view')
-  async listItems() {
-    const data = await this.payrollService.listSalaryItems();
+  async listItems(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
+    const data = await this.payrollService.listSalaryItems({
+      page: pageNum,
+      pageSize: pageSizeNum,
+      status,
+    });
     return { code: 0, data };
   }
 
@@ -72,6 +81,8 @@ export class PayrollController {
   async listRuns(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('month') month?: string,
+    @Query('status') status?: string,
     @Req() req?: RequestContext,
   ) {
     const { page: pageNum, pageSize: pageSizeNum } = parsePagination({ page, pageSize });
@@ -79,6 +90,8 @@ export class PayrollController {
       userId: req!.user.id,
       page: pageNum,
       pageSize: pageSizeNum,
+      month,
+      status,
     });
     return { code: 0, data };
   }

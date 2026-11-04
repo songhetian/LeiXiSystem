@@ -17,6 +17,9 @@ const scheduleItemSchema = z.object({
 const createSchema = scheduleItemSchema;
 const updateSchema = scheduleItemSchema.partial();
 const batchSchema = z.object({ items: z.array(scheduleItemSchema).min(1, '至少一条排班') });
+const batchRemoveSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1, '至少一条排班').max(500, '一次最多清除 500 条'),
+});
 
 @Controller('schedules')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -48,7 +51,7 @@ export class SchedulesController {
   }
 
   @Get()
-  @RequirePermission('attendance:manage')
+  @RequirePermission('attendance:view')
   async list(
     @Req() req: RequestContext,
     @Query('employeeId') employeeId?: string,
@@ -69,7 +72,7 @@ export class SchedulesController {
   }
 
   @Get('matrix')
-  @RequirePermission('attendance:manage')
+  @RequirePermission('attendance:view')
   async matrix(
     @Req() req: RequestContext,
     @Query('departmentId') departmentId?: string,
@@ -117,6 +120,19 @@ export class SchedulesController {
     }
     const schedule = await this.schedulesService.update(id, parsed.data, req.user.id);
     return { code: 0, message: 'ok', data: schedule };
+  }
+
+  // 批量清除必须声明在 @Delete(':id') 之前，否则 'batch' 会被当成 :id 参数
+  @Delete('batch')
+  @HttpCode(200)
+  @RequirePermission('attendance:manage')
+  async batchRemove(@Body() body: unknown, @Req() req: RequestContext) {
+    const parsed = batchRemoveSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new UnprocessableEntityException({ code: ERROR_CODES.PARAM_INVALID, message: '参数校验失败' });
+    }
+    const result = await this.schedulesService.batchRemove(parsed.data.ids, req.user.id);
+    return { code: 0, message: 'ok', data: result };
   }
 
   @Delete(':id')
