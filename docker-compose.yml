@@ -78,6 +78,10 @@ services:
       # 是否在容器启动时执行种子数据（幂等演示数据）。默认 false：
       # 生产库一旦有真实数据，绝不能被种子脚本覆盖，需要时显式置 true。
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      # 种子脚本写入范围开关。默认 true 保持与开发一致（含演示员工/工资条/公告/演示账号）；
+      # 首次部署生产库时与 SEED_ON_BOOT=true 一起把本项设为 false，
+      # 只灌权限点/角色/admin 账号/默认部门/13 条默认审批流程等基础数据。
+      SEED_DEMO: ${SEED_DEMO:-true}
       # 文件存储驱动：local = 容器内磁盘（本地部署），oss = 阿里云 OSS（生产）。
       # 必须显式传入，否则 .env.production 的 FILE_STORAGE=oss 不会生效。
       FILE_STORAGE: ${FILE_STORAGE:-local}

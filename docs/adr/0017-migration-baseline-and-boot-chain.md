@@ -100,3 +100,18 @@
 - 容器 5/5 healthy；`/`、`/_next/static/css/*`、`/api/v1/health`、`/metrics` 均 200；`POST /iclock/cdata` → 401（路由存在，需设备鉴权）。
 - schema 漂移核验：`prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script` 输出**仅** 11 组 `MODIFY ... DATETIME`，即第 28 行已记录的 `@db.DateTime`（精度 0）比对伪差，无缺表缺列；schema 87 个 model 与基线迁移 87 条 `CREATE TABLE` 数量一致。
 - 上述各项均有静态断言钉死：`backend/tests/entrypoint-boot-chain.unit.test.ts`（45 条）、`backend/tests/nginx-metrics-whitelist.unit.test.ts`（8 条）、`backend/tests/backend-dockerfile.unit.test.ts`（11 条，覆盖第 5、6、7 项）。改 Dockerfile / compose / nginx / prisma 配置前先看这三个文件。
+
+## 增补（2026-10-29 种子写入范围开关 `SEED_DEMO`）
+
+`SEED_ON_BOOT` 只能控制「跑不跑种子」，而种子本身把基础配置与演示数据绑在一起：权限点/角色/admin/默认部门/13 条默认审批流程（`BUSINESS_WORKFLOWS`，ADR-0020）是**任何环境都必须有**的，演示员工/工资条/知识库/公告/staff 演示账号则只该出现在试用环境。初次部署若不开种子，系统无人可登录；开了种子又会把演示数据灌进生产库。
+
+定案：新增 `SEED_DEMO` 二级开关，`prisma/seed.ts` 内 `isDemoSeedEnabled()` 判定，**未设置时默认开启**（开发/试用行为不变）：
+
+| 变量 | 默认 | 语义 |
+| --- | --- | --- |
+| `SEED_ON_BOOT` | `false` | 是否执行种子脚本（不变） |
+| `SEED_DEMO` | `true` | 是否写入演示数据；`false` 时只写权限点/角色/admin 账号/默认部门/13 条默认审批流程，另保证「总部」部门存在以便挂员工 |
+
+- 实现：`seedPermissions(prisma, { demo })` 仅创建 admin 账号，staff 演示账号按 `demo` 跳过；`seedBusiness(prisma, { demo })` 的 `seedRealData` 调用、审批演示单、知识库/公告全部包裹在 `if (demo)` 内，非演示分支改走 `ensureBaseDepartment`。
+- 部署：生产首次初始化设 `SEED_ON_BOOT=true` + `SEED_DEMO=false`，灌完把 `SEED_ON_BOOT` 改回 `false`（种子幂等，重复执行不会重复插入，但没必要每次重启都跑）。`admin/123456` 首次登录必须立即改密。
+- 测试：`backend/prisma/__tests__/seed-demo-switch.spec.ts` 钉死开关语义（默认 true、`false` 时不建 staff/不调 `seedRealData`/不写知识库与公告、基础配置仍写入）。
