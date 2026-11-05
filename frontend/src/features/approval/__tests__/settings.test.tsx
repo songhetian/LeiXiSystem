@@ -16,7 +16,7 @@ jest.mock('@/services/approval', () => ({
     updateWorkflowNodes: jest.fn(),
     // 节点配置弹窗的参考数据：审批组 / 角色
     listGroups: jest.fn(),
-    listRoleWorkflows: jest.fn(),
+    listRoleOptions: jest.fn(),
   },
 }));
 
@@ -104,7 +104,7 @@ describe('ApprovalSettingsPage（流程设置）', () => {
       code: 0,
       data: { list: [], total: 0 },
     });
-    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: [] });
+    (approvalApi.listRoleOptions as jest.Mock).mockResolvedValue({ code: 0, data: [] });
     (systemApi.listUsers as jest.Mock).mockResolvedValue({ code: 0, data: { list: [], total: 0 } });
   });
 

@@ -48,25 +48,30 @@ model Role {
   code        String          @unique @map("code") @db.VarChar(50)
   name        String          @map("name") @db.VarChar(50)
   description String?         @map("description") @db.VarChar(200)
-  users       UserRole[]
-  permissions RolePermission[]
-  workflow    RoleWorkflow?
+  users           UserRole[]
+  permissions     RolePermission[]
+  /// 该角色适用的审批流程（一个流程可适用多个角色；一个角色在不同业务模块可各绑一条）
+  workflowBindings RoleWorkflow[]
 
   @@map("roles")
 }
 
-// 职责授权：角色绑定审批流程（role_workflows）
+// 职责授权：审批流程的适用角色（role_workflows）
+//
+// 方向是「流程 → 角色」：一行 = 某流程适用某角色。主键因此是 (workflow_id, role_id)，
+// 同一个角色可以在请假、报销等不同模块各绑一条流程（这正是早期主键 [roleId] 做不到的，
+// 它让一个角色全局只能绑一条流程）。同模块内一个角色仍只允许绑一条，由服务层校验。
 model RoleWorkflow {
-  roleId     Int              @map("role_id")
   workflowId Int              @map("workflow_id")
-  role       Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId     Int              @map("role_id")
   workflow   ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  role       Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
   createdAt  DateTime         @default(now()) @map("created_at")
   updatedAt  DateTime         @updatedAt @map("updated_at")
 
-  @@id([roleId])
+  @@id([workflowId, roleId])
+  /// 按角色反查用户可用流程（resolveWorkflowForUser）走这个索引
   @@unique([roleId, workflowId])
-  @@index([workflowId])
   @@map("role_workflows")
 }
 

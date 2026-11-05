@@ -38,7 +38,7 @@ import {
   Workflow,
   WorkflowNode,
   ApprovalGroup,
-  RoleWorkflowItem,
+  RoleBrief,
 } from '@/services/approval';
 import { notifyError } from '@/lib/request';
 import { usePermission } from '@/hooks/use-permission';
@@ -225,9 +225,9 @@ export default function ApprovalSettingsPage() {
     },
   );
 
-  // 角色下拉复用「职责授权」接口：权限同样是 approval:workflow:manage，必定可读
-  const { data: roles } = useCachedData<RoleWorkflowItem[]>(ROLES_KEY, async () => {
-    const res = await approvalApi.listRoleWorkflows();
+  // 角色下拉复用「职责授权」的角色接口：权限同样是 approval:workflow:manage，必定可读
+  const { data: roles } = useCachedData<RoleBrief[]>(ROLES_KEY, async () => {
+    const res = await approvalApi.listRoleOptions();
     if (res.code !== 0 || !res.data) throw new Error(res.message || '获取角色列表失败');
     return res.data;
   });

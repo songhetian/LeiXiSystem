@@ -126,7 +126,7 @@ export const NAV_TREE: NavNode[] = [
       { key: 'approval-submissions', label: '我的申请', path: '/approval/submissions', permission: 'approval:submitted:view', keywords: '申请 submissions' },
       { key: 'approval-settings', label: '流程设置', path: '/approval/settings', permission: 'approval:workflow:manage', keywords: '流程 工作流 workflow' },
       { key: 'approval-approvers', label: '审批人管理', path: '/approval/approvers', permission: 'approval:manage', keywords: '审批人 管理人 approver' },
-      { key: 'approval-role-workflow', label: '职责授权', path: '/approval/role-workflow', permission: 'approval:workflow:manage', keywords: '职责 授权 授权角色 role' },
+      { key: 'approval-role-workflow', label: '流程适用角色', path: '/approval/role-workflow', permission: 'approval:workflow:manage', keywords: '职责 授权 适用 角色 role 流程' },
     ],
   },
   {

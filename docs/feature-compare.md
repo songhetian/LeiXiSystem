@@ -66,7 +66,7 @@
 
 | 当前系统 | 参考对应 | 参考怎么展示/实现 | 状态 |
 |---|---|---|---|
-| 待办 / 已办 / 我的申请 / 流程设置 / 职责授权 `/approval/*` | 报销相关的 `Reimbursement(Apply/List/Approval)` + 审批中心 | 参考以**报销审批流**为核心，含 `ApproverManagement 审批人管理`、`ApprovalWorkflowConfig 报销流程`、`RoleWorkflowConfig 职责授权`、`WorkflowSettings 资产流程` | **对齐** 已补可配置审批流程 + 按角色授权：新增 `/approval/role-workflow` 职责授权页（角色↔审批流程绑定），发起审批时按申请人角色优先解析绑定流程 |
+| 待办 / 已办 / 我的申请 / 流程设置 / 职责授权 `/approval/*` | 报销相关的 `Reimbursement(Apply/List/Approval)` + 审批中心 | 参考以**报销审批流**为核心，含 `ApproverManagement 审批人管理`、`ApprovalWorkflowConfig 报销流程`、`RoleWorkflowConfig 职责授权`、`WorkflowSettings 资产流程` | **对齐** 已补可配置审批流程 + 按角色授权：新增 `/approval/role-workflow` 流程适用角色页（流程↔适用角色绑定，一名角色可跨业务各绑一条；解析口径见 ADR-0024） |
 | 我的报销 `/expense/my`、报销审批 `/expense/approval` | `ReimbursementApply/List/Approval` | 参考：报销申请表单 + 审批链 | **对齐** |
 | 报销配置 `/expense/settings`、审批人管理 `/approval/approvers`、职责授权 `/approval/role-workflow` | `ReimbursementSettings`、`ApproverManagement`、`RoleWorkflowConfig` | 参考：报销类型/审批组/角色流程绑定配置 | **对齐** 已拆独立页 |
 | 算薪批次 `/payroll/runs` | 工资条管理 `PayslipManagement` | 参考：工资条生成/发放管理 | **对齐**（批次按员工聚合工资构成明细项 + 调整项，`GET /payroll/runs/:id/details` 经数据范围隔离；前端运行批次列表 + `RunDetailsModal` 钻取单员工工资构成/调整项可展开查看 + draft 批次添加调整项，对齐参考单员工薪资构成展示） |

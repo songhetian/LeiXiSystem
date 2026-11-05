@@ -1,143 +1,167 @@
 ﻿'use client';
 
-import { useState } from 'react';
-import { Message, Select, Tag, Tooltip, Button } from '@arco-design/web-react';
+import { useMemo, useState } from 'react';
+import { Message, Select, Tag } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
-import { approvalApi, RoleWorkflowItem, Workflow } from '@/services/approval';
+import {
+  approvalApi,
+  RoleBrief,
+  WorkflowRoleBinding,
+  WorkflowRoleBindingList,
+} from '@/services/approval';
+import { BUSINESS_MODULE_LABELS } from '@/lib/workflow-codes';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
 
-const ROLE_WORKFLOW_KEY = 'config:approval:role-workflows';
-const WORKFLOW_KEY = 'config:approval:workflows-bind';
+const BINDINGS_KEY = 'config:approval:workflow-role-bindings';
 
-// 绑定状态（StatusTag 色值规范：green→success，未绑定用 default）
-const bindStatusMap: Record<string, { label: string; color: string }> = {
-  bound: { label: '已绑定', color: 'success' },
-  general: { label: '通用流程', color: 'default' },
-  // 绑定的流程后来被停用/删除：后端 resolveWorkflowForUser 只认 active，
-  // 实际走的仍是通用流程，这里必须如实标出来
-  invalid: { label: '绑定已失效', color: 'danger' },
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  active: { label: '启用', color: 'success' },
+  inactive: { label: '停用', color: 'danger' },
 };
 
-// 职责授权：为每个角色绑定一个已激活的审批流程。绑定后该角色用户在发起审批时
-// 优先走所绑定的流程（RoleWorkflowConfig / role_workflows），未绑定角色走通用流程。
+/**
+ * 职责授权：审批流程的适用角色。
+ *
+ * 方向是 **流程 → 角色**（一条流程适用哪些角色），不是「一个角色绑哪条流程」。
+ * 后者受旧主键 (role_id) 限制，一个角色全局只能绑一条流程，请假绑了报销就没得绑，
+ * 页面上就只能看到「每种角色只有一个流程」。
+ *
+ * 同一业务模块下，一个角色只允许出现在一条流程里 —— 否则发起审批时两条都「匹配」，
+ * 走哪条取决于查询顺序。冲突由后端拦截并点名冲突的角色与流程。
+ */
 export default function RoleWorkflowPage() {
   const { can } = usePermission();
   const managePerm = can('approval:workflow:manage');
 
-  const { data: list, loading, error, revalidate: revalidateList } = useCachedData<RoleWorkflowItem[]>(
-    ROLE_WORKFLOW_KEY,
+  const {
+    data,
+    loading,
+    error,
+    revalidate,
+  } = useCachedData<WorkflowRoleBindingList>(BINDINGS_KEY, async () => {
+    const res = await approvalApi.listWorkflowRoleBindings();
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取流程角色配置失败');
+  });
+
+  // 保存失败时多选框里仍是用户点选的值（受控组件的内部态已经变了），
+  // 用一个递增 token 让**那一行**重挂载，回到服务端的真实绑定；其它行的状态与焦点不动
+  const [resetToken, setResetToken] = useState<{ id: number; tick: number } | null>(null);
+
+  const roleOptions = useMemo(
     () =>
-      approvalApi.listRoleWorkflows().then((res) => {
-        if (res.code === 0 && res.data) {
-          return res.data;
-        }
-        throw new Error(res.message || '获取角色授权列表失败');
-      }),
+      (data?.roles ?? []).map((r) => ({
+        label: r.name,
+        value: r.id,
+        // 搜索口径：姓名 + 编码。Arco 用 options 数组时只透传 value/disabled/extra，
+        // 自定义字段会被丢掉，所以搜索串必须放在 extra 里
+        extra: `${r.name} ${r.code}`,
+      })),
+    [data?.roles],
   );
 
-  // 可选流程列表是绑定下拉的数据源：失败时不能静默留空，
-  // 否则下拉里「一个流程都没有」，用户会以为系统里没有已激活流程。
-  const { data: workflows, error: workflowsError, revalidate: revalidateWorkflows } = useCachedData<Workflow[]>(
-    WORKFLOW_KEY,
-    () =>
-      approvalApi.listWorkflows().then((res) => {
-        if (res.code === 0 && res.data) {
-          return res.data.filter((w) => w.status === 'active');
-        }
-        throw new Error(res.message || '获取审批流程列表失败');
-      }),
-  );
+  // 模块按业务顺序排（考勤 → 报销 → 员工事务 → 通用），而不是按英文 module 字母序：
+  // 后端只能按内部值排，'reimbursement' 会排到 'employees'/'general' 后面，读起来是乱的
+  const workflows = useMemo(() => {
+    const order = Object.keys(BUSINESS_MODULE_LABELS);
+    const rank = (m: string) => (order.includes(m) ? order.indexOf(m) : order.length);
+    return [...(data?.workflows ?? [])].sort(
+      (a, b) => rank(a.module) - rank(b.module) || a.id - b.id,
+    );
+  }, [data?.workflows]);
+  const boundCount = workflows.filter((w) => w.roles.length > 0).length;
 
-  const handleChange = async (roleId: number, workflowId: number | undefined, roleName: string) => {
+  const handleChange = async (workflow: WorkflowRoleBinding, roleIds: number[]) => {
     try {
-      const res = await approvalApi.setRoleWorkflow(roleId, workflowId ?? null);
+      const res = await approvalApi.setWorkflowRoles(workflow.id, roleIds);
       if (res.code === 0) {
-        Message.success(workflowId ? `已为「${roleName}」绑定流程` : `「${roleName}」已恢复为通用流程`);
-        await revalidateList();
+        Message.success(
+          roleIds.length > 0
+            ? `「${workflow.name}」已适用于 ${roleIds.length} 个角色`
+            : `「${workflow.name}」已解除全部角色`,
+        );
+        await revalidate();
       } else {
-        // 受控 Select 值未变，失败时自动回显原值
-        Message.error(res.message || '绑定失败');
+        Message.error(res.message || '保存失败');
+        setResetToken((prev) => ({ id: workflow.id, tick: (prev?.tick ?? 0) + 1 }));
       }
     } catch (e) {
-      notifyError(e, '绑定失败');
+      notifyError(e, '保存失败');
+      setResetToken((prev) => ({ id: workflow.id, tick: (prev?.tick ?? 0) + 1 }));
     }
   };
 
-  // 可选流程只列「已激活」的；但已绑定却已停用的流程也要出现在选项里，
-  // 否则下拉匹配不到选项，会直接显示成裸 ID（用户看不出绑的是哪个流程）
-  const activeOptions = (workflows || []).map((w) => ({ label: `${w.name}（${w.module}）`, value: w.id }));
-  const unavailableOptions = (list || [])
-    .filter(
-      (r) =>
-        r.workflowId != null &&
-        // 状态缺失（老接口/裁剪出参）时不臆断为失效，避免把正常绑定误标成红色
-        !!r.workflowStatus &&
-        r.workflowStatus !== 'active' &&
-        !activeOptions.some((o) => o.value === r.workflowId),
-    )
-    .map((r) => ({
-      label: `${r.workflowName ?? `流程 #${r.workflowId}`}（已停用）`,
-      value: r.workflowId as number,
-    }));
-  const workflowOptions = [...activeOptions, ...unavailableOptions];
-
   const columns: ProTableColumn[] = [
-    { title: '角色', dataIndex: 'name', width: 160, render: (v: string) => <span className="font-medium text-text-1">{v}</span> },
-    { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <Tag color="arcoblue">{v}</Tag> },
-    { title: '说明', dataIndex: 'description', ellipsis: true, render: (v: string) => <span className="text-text-3">{v || '-'}</span> },
     {
-      title: '绑定的审批流程',
-      dataIndex: 'workflowId',
-      width: 280,
-      render: (_: any, role: RoleWorkflowItem) =>
-        managePerm ? (
-          <Select
-            placeholder={workflowsError ? '流程列表加载失败' : '默认（通用流程）'}
-            allowClear
-            showSearch
-            style={{ width: '100%' }}
-            options={workflowOptions}
-            disabled={!!workflowsError}
-            value={role.workflowId ?? undefined}
-            onChange={(v) => handleChange(role.id, v as number | undefined, role.name)}
-            filterOption={(input, option) =>
-              (String(option.props?.children ?? '')).toLowerCase().includes(input.toLowerCase())
-            }
-          />
-        ) : role.workflowName ? (
-          <span>{role.workflowName}</span>
+      title: '审批流程',
+      dataIndex: 'name',
+      width: 240,
+      render: (v: string, w: WorkflowRoleBinding) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-text-1">{v}</span>
+          <span className="text-text-3 text-xs">{w.code}</span>
+        </div>
+      ),
+    },
+    {
+      title: '业务模块',
+      dataIndex: 'module',
+      width: 120,
+      render: (v: string) => <span className="text-text-2">{BUSINESS_MODULE_LABELS[v] || v}</span>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 110,
+      render: (v: string) =>
+        v === 'active' ? (
+          <StatusTag status={v} statusMap={STATUS_MAP} />
         ) : (
-          <span className="text-text-3">默认（通用流程）</span>
+          <div className="flex flex-col gap-1">
+            <StatusTag status={v} statusMap={STATUS_MAP} />
+            {/* 停用流程不参与解析：绑定能存下来但不生效，必须在行内说清楚 */}
+            <span className="text-text-3 text-xs">绑定暂不生效</span>
+          </div>
         ),
     },
     {
-      title: '当前状态',
-      dataIndex: 'workflowIdState',
-      width: 130,
-      render: (_: any, role: RoleWorkflowItem) => {
-        if (!role.workflowId) {
-          return (
-            <Tooltip content="未绑定，该角色用户走通用流程">
-              <StatusTag status="general" statusMap={bindStatusMap} />
-            </Tooltip>
-          );
-        }
-        // 绑定关系还在，但流程已停用 → 发起审批时后端会跳过它走通用流程
-        if (role.workflowStatus && role.workflowStatus !== 'active') {
-          return (
-            <Tooltip content="绑定的流程已停用或删除，该角色用户实际走通用流程，请重新绑定">
-              <StatusTag status="invalid" statusMap={bindStatusMap} />
-            </Tooltip>
+      title: '适用角色',
+      dataIndex: 'roles',
+      render: (_: RoleBrief[], w: WorkflowRoleBinding) => {
+        if (!managePerm) {
+          return w.roles.length > 0 ? (
+            <span className="flex flex-wrap gap-1">
+              {w.roles.map((r) => (
+                <Tag key={r.id}>{r.name}</Tag>
+              ))}
+            </span>
+          ) : (
+            <span className="text-text-3">未指定</span>
           );
         }
         return (
-          <Tooltip content="已绑定专属流程，该角色用户审批优先走此流程">
-            <StatusTag status="bound" statusMap={bindStatusMap} />
-          </Tooltip>
+          <Select
+            // 保存失败时只让这一行重挂载 → 回到服务端值，不打断其它行的编辑
+            key={`${w.id}-${resetToken?.id === w.id ? resetToken.tick : 0}`}
+            mode="multiple"
+            allowClear
+            showSearch
+            placeholder="未指定角色"
+            style={{ width: '100%' }}
+            options={roleOptions}
+            value={w.roles.map((r) => r.id)}
+            onChange={(v) => handleChange(w, (v as number[]) ?? [])}
+            filterOption={(input, option) => {
+              const props = (option as unknown as { props?: Record<string, unknown> })?.props;
+              const text = `${String(props?.children ?? '')} ${String(props?.extra ?? '')}`;
+              return text.toLowerCase().includes(input.toLowerCase());
+            }}
+          />
         );
       },
     },
@@ -145,26 +169,23 @@ export default function RoleWorkflowPage() {
 
   return (
     <PageContainer
-      action={<span className="text-text-3 text-sm">未绑定角色的用户发起审批时走所选模块的通用流程</span>}
+      action={
+        <span className="text-text-3 text-sm">
+          {workflows.length} 条流程 · {boundCount} 条已指定角色
+        </span>
+      }
     >
-      {managePerm && workflowsError && (
-        <div
-          role="alert"
-          className="mb-3 flex items-center justify-between gap-3 rounded-md border border-danger bg-danger-light px-3 py-2 text-sm text-danger"
-        >
-          <span>审批流程列表加载失败，暂时无法绑定：{workflowsError}</span>
-          <Button size="mini" onClick={() => revalidateWorkflows()}>
-            重试
-          </Button>
-        </div>
-      )}
+      <p className="mb-3 text-text-3 text-sm">
+        一条流程可适用于多个角色；同一业务下，一个角色只能绑定一条流程。业务已在「流程设置」配好流程时以那里为准，
+        这里的绑定用于该业务尚未配置流程时按申请人角色兜底。
+      </p>
       <ProTable
         columns={columns}
-        data={list || []}
+        data={workflows}
         rowKey="id"
         loading={loading}
         error={error}
-        onRetry={revalidateList}
+        onRetry={revalidate}
         pagination={false}
       />
     </PageContainer>

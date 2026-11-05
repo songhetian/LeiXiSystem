@@ -186,21 +186,33 @@ export interface GroupUpdateDto {
   memberIds?: number[];
 }
 
-// 职责授权 · 角色 ↔ 审批流程绑定
-export interface RoleWorkflowItem {
+// 职责授权 · 流程 → 适用角色（role_workflows）
+export interface RoleBrief {
   id: number;
   code: string;
   name: string;
-  description?: string;
-  workflowId?: number | null;
-  workflowName?: string | null;
-  workflowStatus?: string | null;
 }
 
-export interface RoleWorkflowListResult {
+/** 一条审批流程及其适用角色；`roles` 为空表示还没绑定任何角色 */
+export interface WorkflowRoleBinding {
+  id: number;
+  code: string;
+  name: string;
+  module: string;
+  status: string;
+  roles: RoleBrief[];
+}
+
+export interface WorkflowRoleBindingList {
+  /** 可分配角色全集（页面多选框的数据源，随列表一起下发避免再要一套角色权限） */
+  roles: RoleBrief[];
+  workflows: WorkflowRoleBinding[];
+}
+
+export interface WorkflowRoleBindingListResult {
   code: number;
   message?: string;
-  data?: RoleWorkflowItem[];
+  data?: WorkflowRoleBindingList;
 }
 
 export const approvalApi = {
@@ -276,11 +288,18 @@ export const approvalApi = {
     return request.delete(`/approval/groups/${id}`);
   },
 
-  listRoleWorkflows(): Promise<RoleWorkflowListResult> {
-    return request.get('/approval/roles/workflows');
+  /** 流程 → 适用角色（含可分配角色全集） */
+  listWorkflowRoleBindings(): Promise<WorkflowRoleBindingListResult> {
+    return request.get('/approval/role-bindings');
   },
 
-  setRoleWorkflow(roleId: number, workflowId: number | null): Promise<DetailResult<any>> {
-    return request.put(`/approval/roles/${roleId}/workflow`, { workflowId });
+  /** 覆盖式保存某条流程的适用角色；空数组 = 解除全部绑定 */
+  setWorkflowRoles(workflowId: number, roleIds: number[]): Promise<DetailResult<any>> {
+    return request.put(`/approval/role-bindings/${workflowId}`, { roleIds });
+  },
+
+  /** 可分配角色（审批节点「按角色审批」下拉复用） */
+  listRoleOptions(): Promise<DetailResult<RoleBrief[]>> {
+    return request.get('/approval/role-options');
   },
 };

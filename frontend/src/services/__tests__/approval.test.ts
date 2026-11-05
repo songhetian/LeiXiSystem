@@ -168,41 +168,56 @@ describe('approvalApi', () => {
     });
   });
 
-  describe('职责授权 · 角色流程绑定', () => {
-    const mockRoleWorkflow = {
-      id: 1,
-      code: 'hr',
-      name: '人事',
-      description: '人事专员',
-      workflowId: 10,
-      workflowName: '人事流程',
-      workflowStatus: 'active',
+  describe('职责授权 · 流程适用角色', () => {
+    const mockBindings = {
+      roles: [
+        { id: 1, code: 'hr', name: '人事' },
+        { id: 2, code: 'staff', name: '普通员工' },
+      ],
+      workflows: [
+        {
+          id: 10,
+          code: 'leave',
+          name: '请假审批',
+          module: 'attendance',
+          status: 'active',
+          roles: [{ id: 1, code: 'hr', name: '人事' }],
+        },
+      ],
     };
 
-    it('listRoleWorkflows sends GET request to /approval/roles/workflows', async () => {
-      mockedRequest.get.mockResolvedValueOnce({ code: 0, data: [mockRoleWorkflow] });
-      const result = await approvalApi.listRoleWorkflows();
-      expect(mockedRequest.get).toHaveBeenCalledWith('/approval/roles/workflows');
+    it('listWorkflowRoleBindings sends GET request to /approval/role-bindings', async () => {
+      mockedRequest.get.mockResolvedValueOnce({ code: 0, data: mockBindings });
+      const result = await approvalApi.listWorkflowRoleBindings();
+      expect(mockedRequest.get).toHaveBeenCalledWith('/approval/role-bindings');
       expect(result.code).toBe(0);
-      expect(result.data).toHaveLength(1);
-      expect(result.data![0].workflowName).toBe('人事流程');
+      // 方向是流程 → 角色：一条流程带着它的适用角色一起返回
+      expect(result.data!.workflows[0].roles[0].name).toBe('人事');
+      expect(result.data!.roles).toHaveLength(2);
     });
 
-    it('setRoleWorkflow sends PUT request to bind a workflow', async () => {
+    it('setWorkflowRoles sends PUT request with the full role set', async () => {
       mockedRequest.put.mockResolvedValueOnce({ code: 0, data: { success: true } });
-      const result = await approvalApi.setRoleWorkflow(1, 10);
-      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/roles/1/workflow', {
-        workflowId: 10,
+      const result = await approvalApi.setWorkflowRoles(10, [1, 2]);
+      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/role-bindings/10', {
+        roleIds: [1, 2],
       });
       expect(result.code).toBe(0);
     });
 
-    it('setRoleWorkflow sends PUT request with null to unbind / use default', async () => {
+    it('setWorkflowRoles sends an empty array to clear all bindings', async () => {
       mockedRequest.put.mockResolvedValueOnce({ code: 0, data: { success: true } });
-      await approvalApi.setRoleWorkflow(1, null);
-      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/roles/1/workflow', {
-        workflowId: null,
+      await approvalApi.setWorkflowRoles(10, []);
+      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/role-bindings/10', {
+        roleIds: [],
       });
+    });
+
+    it('listRoleOptions sends GET request to /approval/role-options', async () => {
+      mockedRequest.get.mockResolvedValueOnce({ code: 0, data: mockBindings.roles });
+      const result = await approvalApi.listRoleOptions();
+      expect(mockedRequest.get).toHaveBeenCalledWith('/approval/role-options');
+      expect(result.data).toHaveLength(2);
     });
   });
 });

@@ -6,25 +6,20 @@ import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/approval', () => ({
   approvalApi: {
-    listRoleWorkflows: jest.fn(),
-    listWorkflows: jest.fn(),
-    setRoleWorkflow: jest.fn(),
+    listWorkflowRoleBindings: jest.fn(),
+    setWorkflowRoles: jest.fn(),
   },
 }));
 
 jest.mock('@/components/PageContainer', () => ({
   __esModule: true,
-  default: ({ title, children }: any) => (
+  default: ({ title, action, children }: any) => (
     <div data-testid="page-container">
       <h2>{title}</h2>
+      {action}
       {children}
     </div>
   ),
-}));
-
-jest.mock('@/components/DataState', () => ({
-  __esModule: true,
-  default: ({ children }: any) => <div data-testid="data-state">{children}</div>,
 }));
 
 jest.mock('@/hooks/use-permission', () => ({
@@ -35,129 +30,168 @@ jest.mock('@arco-design/web-react', () => {
   const actual = jest.requireActual('@arco-design/web-react');
   return {
     ...actual,
-    Tag: ({ color, children }: any) => <span data-testid="tag" data-color={color}>{children}</span>,
-    Select: ({ options, disabled, placeholder }: any) => (
-      <select
-        data-testid="workflow-select"
-        data-options={JSON.stringify(options || [])}
-        data-disabled={disabled ? 'true' : 'false'}
+    Tag: ({ children }: any) => <span data-testid="tag">{children}</span>,
+    // 多选语义：勾选/取消勾选后把完整集合回传给 onChange
+    Select: ({ options = [], value = [], onChange, placeholder }: any) => (
+      <div
+        data-testid="role-select"
+        data-value={JSON.stringify(value ?? [])}
         data-placeholder={placeholder}
       >
-        <option value="">默认</option>
-        {(options || []).map((o: any) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+        {options.map((o: any) => (
+          <label key={o.value}>
+            <input
+              type="checkbox"
+              data-testid={`role-opt-${o.value}`}
+              checked={(value ?? []).includes(o.value)}
+              onChange={() => {
+                const next = new Set<number>(value ?? []);
+                if (next.has(o.value)) next.delete(o.value);
+                else next.add(o.value);
+                onChange?.(Array.from(next));
+              }}
+            />
+            {o.label}
+          </label>
         ))}
-      </select>
+      </div>
     ),
   };
 });
 
-const roleWorkflows = [
-  { id: 1, code: 'ROLE001', name: '普通员工', description: '默认员工角色', workflowId: null },
-  { id: 2, code: 'ROLE002', name: '部门主管', description: '主管角色', workflowId: 10, workflowName: '主管审批流程' },
-];
+const bindings = {
+  roles: [
+    { id: 205, code: 'hr', name: 'HR' },
+    { id: 206, code: 'admin', name: '管理员' },
+    { id: 207, code: 'staff', name: '普通员工' },
+  ],
+  workflows: [
+    {
+      id: 101,
+      code: 'leave',
+      name: '请假审批',
+      module: 'attendance',
+      status: 'active',
+      roles: [{ id: 205, code: 'hr', name: 'HR' }],
+    },
+    {
+      id: 104,
+      code: 'reimbursement',
+      name: '报销审批',
+      module: 'reimbursement',
+      status: 'active',
+      roles: [],
+    },
+    {
+      id: 105,
+      code: 'onboarding',
+      name: '入职审批',
+      module: 'employees',
+      status: 'inactive',
+      roles: [{ id: 206, code: 'admin', name: '管理员' }],
+    },
+  ],
+};
 
-const workflows = [
-  { id: 10, code: 'WF01', name: '主管审批流程', module: 'attendance', status: 'active', nodes: [], createdAt: '', updatedAt: '' },
-  { id: 11, code: 'WF02', name: 'HR审批流程', module: 'attendance', status: 'active', nodes: [], createdAt: '', updatedAt: '' },
-];
-
-describe('RoleWorkflowPage', () => {
+describe('RoleWorkflowPage（流程 → 适用角色）', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearDataCache();
-    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: roleWorkflows });
-    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: workflows });
-  });
-
-  it('加载角色流程绑定列表并展示角色名与编码', async () => {
-    render(<RoleWorkflowPage />);
-    expect(await screen.findByText('普通员工')).toBeInTheDocument();
-    expect(await screen.findByText('部门主管')).toBeInTheDocument();
-    expect(screen.getAllByTestId('tag').length).toBeGreaterThan(0);
-  });
-
-  it('staleTime 内二次挂载复用缓存，listRoleWorkflows 仅请求一次', async () => {
-    const { unmount } = render(<RoleWorkflowPage />);
-    await waitFor(() => expect(approvalApi.listRoleWorkflows).toHaveBeenCalledTimes(1));
-    unmount();
-    render(<RoleWorkflowPage />);
-    // useCachedData 模块级缓存未清空，二次挂载直接复用缓存，不重复请求
-    await waitFor(() => expect(screen.getAllByText('普通员工').length).toBeGreaterThan(0));
-    expect(approvalApi.listRoleWorkflows).toHaveBeenCalledTimes(1);
-  });
-
-  it('可选流程加载失败时明示失败并禁用绑定下拉，而非静默空下拉', async () => {
-    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({
-      code: 500,
-      message: '获取审批流程列表失败',
-    });
-    render(<RoleWorkflowPage />);
-
-    // 角色列表本身可用，仍要能看见角色行
-    expect(await screen.findByText('普通员工')).toBeInTheDocument();
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('审批流程列表加载失败');
-    expect(alert).toHaveTextContent('获取审批流程列表失败');
-
-    // 下拉禁用 + 占位文案点明原因，避免用户以为系统里没有可用流程
-    const select = screen.getAllByTestId('workflow-select')[0];
-    expect(select).toHaveAttribute('data-disabled', 'true');
-    expect(select).toHaveAttribute('data-placeholder', '流程列表加载失败');
-  });
-
-  it('流程列表失败后点重试恢复下拉可选', async () => {
-    (approvalApi.listWorkflows as jest.Mock).mockResolvedValueOnce({
-      code: 500,
-      message: '获取审批流程列表失败',
-    });
-    render(<RoleWorkflowPage />);
-    const retry = await screen.findByText('重试');
-
-    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: workflows });
-    fireEvent.click(retry);
-
-    await waitFor(() => {
-      const select = screen.getAllByTestId('workflow-select')[0];
-      expect(select).toHaveAttribute('data-disabled', 'false');
-    });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('绑定的流程已停用时不谎称「已绑定」，标出「绑定已失效」（实际走通用流程）', async () => {
-    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({
+    (approvalApi.listWorkflowRoleBindings as jest.Mock).mockResolvedValue({
       code: 0,
-      data: [
-        // 正常绑定：流程仍激活
-        { id: 2, code: 'ROLE002', name: '部门主管', workflowId: 10, workflowName: '主管审批流程', workflowStatus: 'active' },
-        // 绑定关系还在，但流程被停用 → 后端解析时会跳过，实际走通用流程
-        { id: 3, code: 'ROLE003', name: '财务主管', workflowId: 12, workflowName: '旧财务流程', workflowStatus: 'disabled' },
-      ],
+      data: bindings,
     });
-    render(<RoleWorkflowPage />);
-
-    expect(await screen.findByText('财务主管')).toBeInTheDocument();
-    expect(screen.getAllByText('已绑定').length).toBe(1);
-    expect(screen.getByText('绑定已失效')).toBeInTheDocument();
   });
 
-  it('已停用的绑定也要出现在下拉选项里，否则下拉显示裸 ID', async () => {
-    (approvalApi.listRoleWorkflows as jest.Mock).mockResolvedValue({
-      code: 0,
-      data: [
-        { id: 3, code: 'ROLE003', name: '财务主管', workflowId: 12, workflowName: '旧财务流程', workflowStatus: 'disabled' },
-      ],
-    });
+  it('以流程为行展示：流程名、业务编码、模块中文名', async () => {
     render(<RoleWorkflowPage />);
 
-    await waitFor(() => expect(screen.getByTestId('workflow-select')).toBeInTheDocument());
-    const options = JSON.parse(screen.getByTestId('workflow-select').getAttribute('data-options') || '[]');
-    expect(options).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ value: 10 }),
-        expect.objectContaining({ value: 12, label: '旧财务流程（已停用）' }),
-      ]),
+    expect(await screen.findByText('请假审批')).toBeInTheDocument();
+    expect(screen.getByText('报销审批')).toBeInTheDocument();
+    expect(screen.getByText('入职审批')).toBeInTheDocument();
+    // 模块显示中文，而不是 attendance / reimbursement 这种内部值
+    expect(screen.getByText('考勤')).toBeInTheDocument();
+    expect(screen.getByText('报销')).toBeInTheDocument();
+    expect(screen.getByText('员工事务')).toBeInTheDocument();
+    // 业务编码作为副标题，便于和「流程设置」里的编码对上
+    expect(screen.getByText('leave')).toBeInTheDocument();
+  });
+
+  it('多选框的选项是全部角色，当前值是该流程已绑定的角色', async () => {
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    const selects = screen.getAllByTestId('role-select');
+    expect(selects).toHaveLength(3);
+    // 三个角色都可选（流程方向下，一个角色当然可以出现在多条流程里）
+    expect(screen.getAllByTestId('role-opt-205').length).toBe(3);
+    expect(screen.getAllByTestId('role-opt-207').length).toBe(3);
+    // 请假审批当前绑定 HR
+    expect(selects[0]).toHaveAttribute('data-value', JSON.stringify([205]));
+    // 报销审批还没绑定任何角色
+    expect(selects[1]).toHaveAttribute('data-value', JSON.stringify([]));
+  });
+
+  it('勾选角色后按流程 id 提交完整角色集合（覆盖式保存）', async () => {
+    (approvalApi.setWorkflowRoles as jest.Mock).mockResolvedValue({ code: 0, data: { success: true } });
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    // 给「请假审批」再加一个普通员工
+    fireEvent.click(screen.getAllByTestId('role-opt-207')[0]);
+
+    await waitFor(() =>
+      expect(approvalApi.setWorkflowRoles).toHaveBeenCalledWith(101, [205, 207]),
     );
+  });
+
+  it('取消最后一个角色后提交空数组（解除绑定，不删流程）', async () => {
+    (approvalApi.setWorkflowRoles as jest.Mock).mockResolvedValue({ code: 0, data: { success: true } });
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    fireEvent.click(screen.getAllByTestId('role-opt-205')[0]);
+
+    await waitFor(() => expect(approvalApi.setWorkflowRoles).toHaveBeenCalledWith(101, []));
+  });
+
+  it('保存被后端拒绝时提示原因，且不误报成功', async () => {
+    (approvalApi.setWorkflowRoles as jest.Mock).mockResolvedValue({
+      code: 6317,
+      message: '同一业务下每个角色只能绑定一条流程：「普通员工」已绑定「加班审批」',
+    });
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    fireEvent.click(screen.getAllByTestId('role-opt-207')[0]);
+
+    await waitFor(() => expect(approvalApi.setWorkflowRoles).toHaveBeenCalled());
+    // 允许失败：Message 走 portal，这里只断言页面仍是服务端的真实绑定（205），
+    // 而不是把用户勾上的 207 留在界面上
+    await waitFor(() =>
+      expect(screen.getAllByTestId('role-select')[0]).toHaveAttribute(
+        'data-value',
+        JSON.stringify([205]),
+      ),
+    );
+  });
+
+  it('停用流程明确标注「绑定暂不生效」，未绑定的行占位说明未指定角色', async () => {
+    render(<RoleWorkflowPage />);
+    await screen.findByText('入职审批');
+
+    expect(screen.getByText('绑定暂不生效')).toBeInTheDocument();
+    // 未绑定角色的流程：多选框占位点明「未指定」，不留一个空白框
+    expect(screen.getAllByTestId('role-select')[1]).toHaveAttribute(
+      'data-placeholder',
+      '未指定角色',
+    );
+  });
+
+  it('顶部汇总已指定角色的流程条数', async () => {
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    expect(screen.getByText('3 条流程 · 2 条已指定角色')).toBeInTheDocument();
   });
 });
