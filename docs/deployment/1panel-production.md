@@ -312,7 +312,8 @@ CORS_ORIGIN=https://www.leixidianshang.com
 DATABASE_URL=mysql://<RDS账号>:<URL编码后的密码>@<RDS连接地址>:3306/leixin_v2
 MYSQL_DATABASE=leixin_v2
 
-# 本栈自带 Redis 容器，不要设置 REDIS_URL（会覆盖编排拼出的容器地址）
+# 本栈自带 Redis 容器，编排已显式注入 REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379
+# 只需给 REDIS_PASSWORD；--env-file 不注入容器，在这里设 REDIS_URL 无效
 REDIS_PASSWORD=<16字节随机hex>
 REDIS_KEY_PREFIX=leixi-prod:
 
@@ -335,8 +336,11 @@ API_PROXY_TARGET=http://backend:4001
    Prisma 拿到错误密码（表现为 `Access denied`）。`@`、`:`、`/` 等特殊字符同理要 URL 编码。
 2. **`CORS_ORIGIN` 必须完整**：`https://www.leixidianshang.com`（含协议、不带端口、不带结尾斜杠）。  
    `NODE_ENV=production` 时登录 cookie 带 `; Secure`，**用 HTTP 明文访问会登录失败**。
-3. **不要设 `REDIS_URL`**：编排里 `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379` 指向本栈容器；  
-   一旦在 env 里设了，会覆盖它。若日后改用阿里云 Redis，才在这里设 `REDIS_URL`。
+3. **Redis 只填 `REDIS_PASSWORD`**：编排用它同时设置 redis 容器的 `--requirepass` 和 backend 的  
+   `REDIS_URL=redis://:<REDIS_PASSWORD>@redis:6379`，两端同源必然一致。注意 `--env-file` 只提供  
+   `${VAR}` 插值、**不会把 env 的键注入容器**，所以在这里单独设 `REDIS_URL` 是无效的（实测会被  
+   编排里显式的 `environment.REDIS_URL` 覆盖）。日后接阿里云 Redis 要改三处：env 里设 `REDIS_URL`、  
+   删掉编排中 backend 的 `REDIS_URL` 覆盖行、删掉 `redis` 服务与 `depends_on.redis`；应用代码零改动。
 
 ---
 
