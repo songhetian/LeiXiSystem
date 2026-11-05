@@ -6,6 +6,9 @@
 >
 > **本文档会进入 Git 仓库，禁止写入任何真实密钥、账号或密码。** 真实值只放服务器上的  
 > `.env.production`（该文件已被 `.gitignore` 排除）。
+>
+> **路径约定**：正文以 `/opt/leixi` 为示例目录，命令里的路径请替换成你的实际 clone 位置  
+> （本次部署在 `/root/LeiXiSystem`）。目录名同时是 compose 项目名，改名不影响容器互相解析。
 
 ---
 
@@ -29,10 +32,46 @@ docker --version                 # Docker CE
 docker compose version           # 必须 v2.x，旧版 Python compose v1 会因 BuildKit 语法失败
 docker buildx version            # Dockerfile 用了 RUN --mount=type=cache，必须可用
 git --version
-free -h                          # 现场构建需 ≥4G 内存，2G 小机容易 OOM
+free -h                          # 重点看 Mem 与 Swap 两行
+df -h /                          # 加 swap 需要磁盘余量
 ```
 
 1Panel 需已安装且「应用商店 → OpenResty」状态为运行中。服务器**不需要**装 Node.js、npm、pnpm。
+
+#### 步骤 1.1 · 内存不足先加 swap（**4G 及以下必做**）
+
+`next build` 在「Linting and checking validity of types」阶段会同时跑 webpack 与 tsc，  
+实测峰值 RSS 约 **2.3～2.5G**；再叠加 1Panel、Docker、nginx 等常驻进程，3.5G 内存的机器  
+（4G 规格）会被内核 OOM killer 直接杀掉，表现为：
+
+```
+✓ Compiled successfully
+  Linting and checking validity of types ...
+Killed                                    ← SIGKILL，docker build 报 exit code 137
+```
+
+先取证，确认是 OOM 而不是别的原因：
+
+```bash
+free -h                                   # Swap 为 0B 时要加
+dmesg -T | grep -i 'killed process' | tail -3
+# 典型输出：Out of memory: Killed process 826081 (node) anon-rss:2445300kB ...
+```
+
+确认后加 4G swap（**一次性，重启后仍生效**）：
+
+```bash
+fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+free -h                                   # Swap 行应显示 4.0Gi
+```
+
+> swap 是「能构建完」的兜底，不是性能方案：构建会明显变慢，且每次发版都在赌内存。  
+> 长期做法见 6.3 末尾「镜像预构建」一段。
+
 
 ### 步骤 2 · 拉取代码
 
@@ -85,14 +124,28 @@ OSS RAM 具备 `PutObject` + `GetObject`、域名 A 记录指向 ECS 且已备�
 
 ### 步骤 5 · 首次启动（构建 + 迁移 + 种子）
 
+> **不要用 `up -d --build` 一条命令起首次构建。** Compose 会**并行**构建 backend 与 frontend，  
+> 两个 Node 编译进程同时吃内存，4G 机器上大概率复现 137。按下面顺序分成两条 build 命令串行执行。
+
 ```bash
 cd /opt/leixi
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+# ① 先构建后端镜像（含 prisma generate）
+docker compose -f docker-compose.prod.yml --env-file .env.production build backend
+
+# ② 再单独构建前端镜像（next build，内存峰值在这一步）
+docker compose -f docker-compose.prod.yml --env-file .env.production build frontend
+
+# ③ 镜像都就绪后再启动，不再触发构建
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+# ④ 跟启动链日志
 docker compose -f docker-compose.prod.yml --env-file .env.production logs -f backend
 ```
 
-首次构建要跑 `pnpm install` + `next build` + `prisma generate`，**约 5–15 分钟**，期间 `logs`  
-可能暂时无输出属正常。等日志出现「数据库迁移完成」+「种子数据」后按 `Ctrl+C` 退出跟踪（容器不会停）。
+首次构建要跑 `pnpm install` + `next build` + `prisma generate`，**约 5–15 分钟**（加 swap 后更慢），  
+期间 `logs` 可能暂时无输出属正常。等日志出现「数据库迁移完成」+「种子数据」后按 `Ctrl+C`  
+退出跟踪（容器不会停）。
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.production ps
@@ -100,6 +153,10 @@ curl -fsS http://127.0.0.1:8088/api/v1/health
 ```
 
 `ps` 里 4 个服务都 healthy、`curl` 返回成功，再继续下一步。
+
+> 构建期间另开一个终端 `watch -n 2 'free -h | head -3'` 观察：只要 Swap 的 `used` 在涨、  
+> `available` 没有掉到几百 M，就说明撑得住；如果又出现 `Killed`，回到步骤 1.1 检查 swap 是否真的生效。
+
 
 ### 步骤 6 · 关掉种子开关（**必做**）
 
@@ -112,7 +169,28 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 否则以后每次发版/重启都会重跑种子。种子本身幂等，但没必要反复执行。
 
+> `up -d` 检测到 `.env.production` 内容变化会**重建** backend 容器，新值才生效。  
+> `docker restart` / 1Panel 里点「重启」只是重启进程，**环境变量仍是旧值**——这是最常踩的坑。  
+> 只想改这一个变量时，也可以只重建后端：  
+> `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --force-recreate backend`
+
 ### 步骤 7 · 1Panel 建反代站点 + SSL
+
+> **先明确一个边界**：宿主机 `curl 127.0.0.1:8088/api/v1/health` 通、甚至浏览器打开  
+> `http://<公网IP>:8088` 能看到登录页，都**只说明内层栈起来了**。此时登录一定失败  
+> （回车后回到登录页 / 无反应），因为 `NODE_ENV=production` 的 `access_token` cookie 带  
+> `; Secure`，HTTP 明文下浏览器不会回传。这是预期行为，不是 bug，**不要为此去改代码**。  
+> 真正的可用性验收必须走 HTTPS 域名，也就是本章。
+
+上线前确认三件事（缺一项后面都会卡住）：
+
+```bash
+# ① 域名解析是否已指向本机公网 IP
+ping -c 2 www.leixidianshang.com
+# ② 80 端口从公网是否可达（Let's Encrypt 走 HTTP 验证，必须通）
+curl -I http://www.leixidianshang.com
+# ③ 备案：中国大陆 ECS 的 80/443 必须已备案，否则访问会被云厂商拦截、证书也签不下来
+```
 
 1. 「网站 → 创建网站 → **反向代理**」，域名填 `www.leixidianshang.com`。
 2. 代理目标填 **宿主机内网 IP 或 docker0 网关 `172.17.0.1` 的 8088**，  
@@ -122,7 +200,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 4. 「SSL → 申请 Let's Encrypt 证书」→ 开启**强制 HTTPS**。  
    `NODE_ENV=production` 时登录 cookie 带 `; Secure`，**用 HTTP 明文访问会登录失败**。
 
-### 步骤 8 · 外层三个必做补丁（第 6 章有完整片段）
+### 步骤 8 · 外层三个必做补丁（7.2 节有完整片段）
 
 编辑 `/opt/1panel/www/sites/<域名>/proxy/root.conf` 的 `location ^~ /` 块：
 
@@ -132,22 +210,39 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 改完在 1Panel 重载 OpenResty。
 
-### 步骤 9 · 验收（第 9 章有 10 项清单）
+### 步骤 9 · 验收（第 8 章有 10 项清单）
 
 浏览器打开 `https://www.leixidianshang.com` → 用 `admin / 123456` 登录 → **立刻改密码**。  
 再上传一张报销发票：OSS 的 `uploads/reimbursement/` 出现新文件且前端能预览，  
 即证明 OSS 读写链路与本次修复的 `/api/v1/files/serve` 都正常。
+
+### 步骤 10 · 上线检查点（按顺序过，每步通过再进下一步）
+
+| 阶段        | 验证方式                                               | 通过标准                                     |
+| --------- | -------------------------------------------------- | ---------------------------------------- |
+| ① 内层栈     | `curl -fsS http://127.0.0.1:8088/api/v1/health`    | 返回健康 JSON，`ps` 里 4 个容器 healthy           |
+| ② 域名解析    | `ping -c 2 www.leixidianshang.com`                 | 解析到 ECS 公网 IP                           |
+| ③ 外层反代    | `curl -I http://www.leixidianshang.com`            | 200 / 302，**不是 502**                     |
+| ④ HTTPS   | `curl -I https://www.leixidianshang.com`           | 200，证书有效且已强制跳转                           |
+| ⑤ 真实登录    | 浏览器登录 `admin / 123456`                             | 进入首页（**立刻改密码**）                          |
+| ⑥ 端口收口    | 外网 `curl -m 5 -I http://<公网IP>:8088/`              | **超时**（说明安全组已收回 8088）                    |
+| ⑦ 业务链路    | 上传一张发票附件                                           | OSS `uploads/reimbursement/` 有新文件且能预览     |
+
+> ① 通过、②③ 没通过，是 DNS/反代问题；③ 通、⑤ 失败，八成是 `CORS_ORIGIN` 或 HTTPS 没强制。  
+> ⑤ 在 `http://IP:8088` 下失败是**设计如此**，不要当成 bug 去改代码。
 
 ### 日常发版
 
 ```bash
 cd /opt/leixi
 git pull
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.production build backend
+docker compose -f docker-compose.prod.yml --env-file .env.production build frontend
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml --env-file .env.production logs -f backend
 ```
 
-> `up -d --build` 不会重建配置未变的 redis 容器，在线用户不会被踢下线；  
+> `build` + `up -d` 不会重建配置未变的 redis 容器，在线用户不会被踢下线；  
 > 只有服务器/Docker 重启或 `--force-recreate` 才会清空 Redis 缓存（可重建，业务数据在 RDS）。
 
 **架构一句话**：每套应用栈自带 nginx 做内层按路径反代（`/api/v1`→backend、`/`→frontend、`/ws`→backend），  
@@ -172,7 +267,7 @@ leixi-nginx（内层：按路径分发）
 
 | #  | 项目       | 要求                                                       | 检查方式                                                                |
 | -- | -------- | -------------------------------------------------------- | ------------------------------------------------------------------- |
-| 1  | 服务器      | Linux（Ubuntu 22.04 / CentOS 等）、**≥4G 内存**、≥20G 磁盘        | **镜像内**会跑 `pnpm install` + `next build` + `prisma generate`，2G 小机易 OOM |
+| 1  | 服务器      | Linux（Ubuntu 22.04 / CentOS 等）、**≥4G 内存**、≥20G 磁盘        | 镜像内会跑 `pnpm install` + `next build` + `prisma generate`，实测峰值 ~2.4G；4G 及以下必须按步骤 1.1 加 swap |
 | 2  | Docker   | **Docker CE + Compose v2**（不要用 Python 版 v1）              | `docker compose version`、`docker buildx version`                    |
 | 2a | Node.js  | **宿主机不需要安装，也不要跑 `npm install`**                       | 依赖由 Dockerfile 装进镜像；详见第 0 章开头与第 3 章                            |
 | 3  | BuildKit | 必须可用，两个 Dockerfile 用了 `RUN --mount=type=cache`           | `DOCKER_BUILDKIT=1 docker build ...` 能跑                             |
@@ -393,7 +488,10 @@ cd /opt/leixi
 docker compose -f docker-compose.prod.yml --env-file .env.production config -q && echo OK
 
 # 首次启动：先确认 .env.production 里 SEED_ON_BOOT=true
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# 构建分两步串行执行，不要用 up -d --build 并行构建（4G 机器会 OOM，见步骤 5）
+docker compose -f docker-compose.prod.yml --env-file .env.production build backend
+docker compose -f docker-compose.prod.yml --env-file .env.production build frontend
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 # 观察启动链：迁移 → 种子 → 服务
 docker compose -f docker-compose.prod.yml --env-file .env.production logs -f backend
@@ -408,7 +506,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs -f bac
 看到「数据库迁移完成」+ 种子执行完成后：
 
 ```bash
-# 把 SEED_ON_BOOT 改回 false（下次重启生效，无需立即重启）
+# 把 SEED_ON_BOOT 改回 false（下次 up -d 重建容器时生效；docker restart 不生效）
 sed -i 's/^SEED_ON_BOOT=true/SEED_ON_BOOT=false/' .env.production
 
 # 本机验收
@@ -437,9 +535,25 @@ curl -s  http://127.0.0.1:8088/api/v1/health
 | 现象                                        | 原因                                                                                 |
 | ----------------------------------------- | ---------------------------------------------------------------------------------- |
 | `failed to solve: ... --mount=type=cache` | Docker Compose v1 或 BuildKit 未开，装 docker-ce + compose-plugin v2                    |
-| 构建中途 OOM / 极慢                             | 内存 <4G；改走「本地/CI 预构建镜像 → compose 用 `image:`」                                        |
+| 日志末尾 `Killed`，`exit code 137`             | **内核 OOM killer**，不是代码错。`next build` 类型检查阶段峰值 ~2.4G；见步骤 1.1 加 swap + 串行构建        |
+| `Failed to patch lockfile` / `reading 'os'` | 构建上下文里混进了 `frontend/package-lock.json`，Next 会联网补 swc 依赖。`.dockerignore` 已排除，属历史残留，不影响构建 |
 | `pnpm` 报 `ERR_PNPM_IGNORED_BUILDS`        | 构建白名单需在 `pnpm-workspace.yaml` 的 `allowBuilds`（pnpm 11 已废弃 `onlyBuiltDependencies`） |
 | nginx 502 / 健康检查一直不通过                     | `PORT` 没传 4001（main.ts 兜底 3001），或 backend 迁移失败                                     |
+| `pnpm install` 卡住或反复超时                    | 构建走 `registry.npmmirror.com`；`--fetch-timeout` 等调优参数必须写成 CLI 参数，pnpm 11 不读 `npm_config_*` |
+
+**镜像预构建（内存长期方案）**：现场编译本质是在生产机上跑一次前端构建，4G 机器每次发版都要赌  
+内存。更稳的做法是本地或 CI 构建、推阿里云 ACR，服务器只拉镜像：
+
+```bash
+# 本地/CI（架构必须是 linux/amd64，与 ECS 一致）
+docker buildx build --platform linux/amd64 -f backend/Dockerfile  -t registry.cn-beijing.aliyuncs.com/<ns>/leixi-backend:<tag>  --push .
+docker buildx build --platform linux/amd64 -f frontend/Dockerfile -t registry.cn-beijing.aliyuncs.com/<ns>/leixi-frontend:<tag> --push .
+
+# 服务器：把编排里的 build: 段替换成 image:，之后发版只需
+docker compose -f docker-compose.prod.yml --env-file .env.production pull
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+```
+
 
 ---
 
@@ -465,17 +579,11 @@ curl -s  http://127.0.0.1:8088/api/v1/health
 > 验证方法（在 1Panel「主机 → 终端」）：
 >
 > ```bash
-> ```
-
-|   |   |
-| - | - |
-
-> docker ps | grep -i openresty          # 找到 OpenResty 容器名  
+> docker ps | grep -i openresty          # 找到 OpenResty 容器名
 > docker exec -it <openresty容器名> sh -c "wget -qO- http://<候选地址>:8088/api/v1/health"
+> ```
 >
-> ```
 > 哪个能返回健康响应就用哪个。宿主机上 `curl 127.0.0.1:8088` 能通**不能**证明容器里也能通。
-> ```
 
 ### 7.2 修改反代配置（**必做**，三个坑一次解决）
 
@@ -547,6 +655,13 @@ location ^~ /iclock/ {
   ⚠️ 但这样 OpenResty 容器就访问不到了，需先确认 7.1 选的是宿主机可达地址；  
   两者要一起调整，改完务必重新验证。
 - 若启用了 `ufw`，注意它会默认拒绝其他入站端口，别把已有服务一起挡掉。
+- **排查期临时放行过 8088 的，上线后必须收回。** 典型过程：为了用 `IP:8088` 看页面，  
+  在安全组开了 `8088/TCP 0.0.0.0/0`，验完 HTTPS 就忘了关，等于把内层 nginx 直接暴露公网。  
+  收回后自检（应全部超时）：
+  ```bash
+  curl -m 5 -I http://<公网IP>:8088/     # 期望超时，而不是 200
+  ```
+  注意：`8088` 的可用性判断不能只看「浏览器能不能打开」，要用上面的 `curl` 从**外网**测。
 
 ---
 
@@ -586,12 +701,20 @@ location ^~ /iclock/ {
 ```bash
 cd /opt/leixi
 git pull
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+# 串行构建，避免两个 Node 编译进程并发把内存打满（见步骤 5）
+docker compose -f docker-compose.prod.yml --env-file .env.production build backend
+docker compose -f docker-compose.prod.yml --env-file .env.production build frontend
+
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml --env-file .env.production logs -f backend
 ```
 
-`up -d --build` 会自动执行 `migrate deploy`。redis 服务配置未变时 compose 不会重建它，  
+`up -d` 会自动执行 `migrate deploy`。redis 服务配置未变时 compose 不会重建它，  
 不会把在线用户的登录态清掉。
+
+> 只改了前端时，`build backend` 那一步会命中缓存、几乎瞬间结束，不必刻意跳过。
+
 
 ### 9.3 改了 env 之后
 
@@ -617,7 +740,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --for
 cp -a /opt/leixi /opt/leixi-b       # 或用 git clone 新目录
 cd /opt/leixi-b
 # 编辑 .env.production，逐项重填（见下）
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# 同样串行构建，避免与 A 客户同时在跑的容器抢内存
+docker compose -f docker-compose.prod.yml --env-file .env.production build backend
+docker compose -f docker-compose.prod.yml --env-file .env.production build frontend
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
 **每客户必改 8 项**：
@@ -665,10 +791,42 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 | 上传大文件 413                          | 外层/内层 `client_max_body_size` 过小                 | 7.2 ② 两处一起改                                                                                      |
 | `/metrics` 公网能访问                   | 外层没单独 deny                                      | 7.2 ③                                                                                            |
 | 前台 502、backend 起不来                 | `PORT` 不是 4001                                  | 编排已显式传 4001，检查是否被 env 覆盖                                                                         |
-| 登录 IP 限流"一个人试错全公司被锁"               | 反代后后端 `req.ip` 是代理容器 IP                         | 见 11.1 已知限制                                                                                      |
+| 登录 IP 限流"一个人试错全公司被锁"               | 反代后后端 `req.ip` 是代理容器 IP                         | 见 11.2 已知限制                                                                                      |
+| 外网打不开 `http://<IP>:8088`，服务器内 `curl` 却通 | 安全组/防火墙没放行，或根本没监听                       | 见 11.1 三层定位                                                                                      |
+| `IP:8088` 能开登录页、登录没反应              | HTTP 下 `Secure` cookie 不回传，属预期行为                | 走 HTTPS 域名（步骤 7），不要改代码                                                                         |
+| 构建日志 `Killed` / `exit code 137`    | 内存不足被 OOM killer 杀掉                            | 步骤 1.1 加 swap + 步骤 5 串行构建                                                                         |
 | OSS 里出现 `test-connection.txt` 等旧目录 | 历史遗留，非当前系统生成                                    | 先开版本控制，核对 RDS 引用后再清                                                                              |
 
-### 11.1 已知限制（上线后建议修复）
+### 11.1 `8088` 不通的三层定位
+
+外网打不开时不要先怀疑 nginx 配置，按「本机 → 端口映射 → 网络放行」自下而上排：
+
+```bash
+cd /opt/leixi
+
+# ① 容器是否在跑、nginx 是否 healthy
+docker compose -f docker-compose.prod.yml --env-file .env.production ps
+
+# ② 端口映射是否真是 8088（WEB_PORT 可能被改成别的值）
+docker compose -f docker-compose.prod.yml --env-file .env.production port nginx 80
+
+# ③ 宿主机能不能访问（绕过公网）
+curl -I http://127.0.0.1:8088/
+```
+
+对号入座：
+
+| ③ 的结果 | 结论 | 处理 |
+| --- | --- | --- |
+| 有响应（200/302/502） | 栈是好的，问题在网络层 | 阿里云安全组入方向放行 `8088/TCP`（仅排查期）+ 1Panel 防火墙；验完收回 |
+| 连接被拒 / 无响应，且 ① 里 nginx 不是 `healthy` | 容器没起来 | 回步骤 5 看构建与启动链日志 |
+| ② 输出的不是 `0.0.0.0:8088` | `WEB_PORT` 不是 8088 | 改 `.env.production` 后 `up -d --force-recreate nginx` |
+
+> 云厂商安全组对未放行端口是 **DROP**（超时），不是 REJECT（连接被拒）。所以「浏览器一直转圈  
+> 最后超时」几乎一定是放行问题；「立刻提示无法连接」更可能是本机没监听。
+
+
+### 11.2 已知限制（上线后建议修复）
 
 |   |   |   |
 | - | - | - |
@@ -688,7 +846,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 ## 12. 回滚与应急
 
 1. **变更前备份**：`mysqldump` 一份 RDS 库 + OSS 开版本控制 + ECS 快照。
-2. **应用回滚**：`git checkout <上一个提交>` 后重新 `up -d --build`；  
+2. **应用回滚**：`git checkout <上一个提交>` 后按步骤 5 串行重建（`build backend` → `build frontend` → `up -d`）；  
    注意迁移是单向的，**代码回退不等于数据库结构回退**，必要时用备份恢复库。
 3. **站点回滚**：1Panel「网站」停用该反代站点，或把代理地址临时指回旧栈端口。
 4. **紧急只读**：先把 `/api/v1/files/upload`、`/iclock/` 在外层 deny，保留查询能力再排查。
