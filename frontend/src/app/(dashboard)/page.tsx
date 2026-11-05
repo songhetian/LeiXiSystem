@@ -24,7 +24,7 @@ import { useQuickActions, QuickActionDef } from '@/hooks/use-quick-actions';
 import { dashboardApi, DashboardStats, DashboardNotificationItem, AttendanceTrendPoint, DepartmentStat } from '@/services/dashboard';
 import { attendanceApi, PunchTodayResult, VacationBalance } from '@/services/attendance';
 import { usePermission } from '@/hooks/use-permission';
-import { paletteCommandsFor } from '@/config/navigation';
+import { paletteCommandsFor, toneOfPath } from '@/config/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { getTzParts } from '@/lib/format';
@@ -59,6 +59,11 @@ const QUICK_POOL: QuickActionDef[] = QUICK_ACTIONS.map((a) => ({ key: a.path, la
 const QUICK_ICON = new Map<string, QuickAction['icon']>(QUICK_ACTIONS.map((a) => [a.path, a.icon]));
 const quickIconOf = (a: QuickActionDef) => QUICK_ICON.get(a.key) ?? IconLink;
 
+/** 面板标题竖条的颜色：按该面板对应的业务域取（与侧栏分组点、快捷入口同源） */
+function panelTone(path: string): React.CSSProperties {
+  return { '--panel-tone': toneOfPath(path).fg } as React.CSSProperties;
+}
+
 function todayText() {
   const { Y, M, D } = getTzParts(new Date());
   const week = ['日', '一', '二', '三', '四', '五', '六'][
@@ -77,6 +82,19 @@ const PUNCH_STATUS: Record<string, string> = {
   half_absent: '半天缺勤',
   leave: '请假',
   makeup: '补卡',
+};
+
+/** 打卡状态 → 文字色：正常绿、迟到早退黄、缺勤红。
+    取「文字态」深档（--lx-*-text），亮档 #22c55e 作 12px 文字对比度只有 2.3:1。 */
+const PUNCH_STATUS_TONE: Record<string, string> = {
+  normal: 'var(--lx-success-text)',
+  late: 'var(--lx-warning-text)',
+  early: 'var(--lx-warning-text)',
+  late_early: 'var(--lx-warning-text)',
+  absent: 'var(--lx-danger-text)',
+  half_absent: 'var(--lx-danger-text)',
+  leave: 'var(--lx-primary)',
+  makeup: 'var(--lx-text-2)',
 };
 
 /** ISO 时间串 → 北京时间 HH:mm（不用本地时区 getter，避免宿主机时区偏移） */
@@ -119,6 +137,10 @@ interface Metric {
   value: string;
   suffix?: string;
   hint?: string;
+  /** 数值强调：只给「等你处理」或「数据异常」，不要为了好看给每张卡都上色 */
+  tone?: 'attention' | 'warning' | 'danger';
+  /** 标签前的分类色点（业务域色），四张卡各归其位，不会四张全同 */
+  accent?: string;
   onClick?: () => void;
 }
 
@@ -159,7 +181,7 @@ export default function HomePage() {
   // hero 描述数据化：有待办时直说数字，不再用寒暄句填充
   const pendingApprovals = stats?.pendingApprovals ?? null;
   const heroDesc = pendingApprovals != null && pendingApprovals > 0
-    ? `今日有 ${pendingApprovals} 项审批待处理`
+    ? <>今日有 <b className="dsh-hero-em">{pendingApprovals}</b> 项审批待处理</>
     : '今日暂无待审批';
 
   const isAdmin = can('system:user:view');
@@ -176,11 +198,15 @@ export default function HomePage() {
       label: '在职员工',
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
+      accent: 'var(--lx-primary)',
     },
     {
       label: '今日出勤',
       value: stats?.attendanceCount?.toString() ?? '0',
       suffix: '人',
+      accent: 'var(--lx-teal-text)',
+      // 迟到是今天要先处理的异常，数字亮起来；正常则保持中性
+      tone: stats && stats.todayLateCount > 0 ? 'warning' : undefined,
       // 0 人时先说明「暂无记录」而不是让用户猜是没同步还是真没人打卡；
       // 有迟到优先报异常，其次报出勤率（比「今日打卡」这种填充词有信息量）
       hint: stats
@@ -198,12 +224,16 @@ export default function HomePage() {
       value: stats?.pendingApprovals?.toString() ?? '0',
       suffix: '项',
       hint: '待处理',
+      accent: 'var(--lx-purple-text)',
+      // 有待办才亮：0 项时这一格必须安静，否则"亮"就不代表任何事了
+      tone: stats && stats.pendingApprovals > 0 ? 'attention' : undefined,
       onClick: () => router.push('/approval/todo'),
     },
     {
       label: '本月加班',
       value: stats ? String(stats.monthOvertimeHours ?? 0) : '0',
       suffix: '小时',
+      accent: 'var(--lx-coral-text)',
       hint: '全员累计',
     },
   ];
@@ -214,6 +244,8 @@ export default function HomePage() {
       label: '本周出勤',
       value: stats?.myWeek ? String(stats.myWeek.workDays) : '—',
       suffix: '天',
+      accent: 'var(--lx-teal-text)',
+      tone: stats?.myWeek && stats.myWeek.lateDays > 0 ? 'warning' : undefined,
       hint: stats?.myWeek
         ? stats.myWeek.lateDays > 0
           ? `迟到 ${stats.myWeek.lateDays} 天`
@@ -224,12 +256,15 @@ export default function HomePage() {
       label: '本周缺勤',
       value: stats?.myWeek ? String(stats.myWeek.absentDays) : '—',
       suffix: '天',
+      accent: 'var(--lx-danger)',
+      tone: stats?.myWeek && stats.myWeek.absentDays > 0 ? 'danger' : undefined,
       hint: stats?.myWeek && stats.myWeek.absentDays > 0 ? '需补交说明' : undefined,
     },
     {
       label: '日均工时',
       value: stats?.myWeek ? String(stats.myWeek.avgWorkHours) : '—',
       suffix: 'h',
+      accent: 'var(--lx-coral-text)',
       hint: '已扣班次休息',
     },
     {
@@ -237,6 +272,8 @@ export default function HomePage() {
       value: stats?.pendingApprovals?.toString() ?? '0',
       suffix: '项',
       hint: '待处理',
+      accent: 'var(--lx-purple-text)',
+      tone: stats && stats.pendingApprovals > 0 ? 'attention' : undefined,
       onClick: () => router.push('/approval/todo'),
     },
   ];
@@ -286,6 +323,8 @@ export default function HomePage() {
                   value={m.value}
                   suffix={m.suffix}
                   hint={m.hint}
+                  tone={m.tone}
+                  accent={m.accent}
                   onClick={m.onClick}
                   stagger={i}
                 />
@@ -302,7 +341,7 @@ export default function HomePage() {
       <div style={{ marginBottom: 24 }}>
         <div className="dsh-panel">
           <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title">快捷操作</h3>
+            <h3 className="dsh-panel-title" style={panelTone('/')}>快捷操作</h3>
             <button
               type="button"
               className="dsh-panel-more"
@@ -314,6 +353,7 @@ export default function HomePage() {
           <div className="dsh-quick-grid">
           {quick.visible.map((a) => {
             const Icon = quickIconOf(a);
+            const tone = toneOfPath(a.path);
             return (
               <button
                 key={a.key}
@@ -322,7 +362,10 @@ export default function HomePage() {
                 onClick={() => router.push(a.path)}
                 title={a.label}
               >
-                <span className="dsh-quick-ic">
+                <span
+                  className="dsh-quick-ic"
+                  style={{ '--quick-fg': tone.fg, '--quick-bg': tone.bg } as React.CSSProperties}
+                >
                   <Icon />
                 </span>
                 <span className="dsh-quick-label">{a.label}</span>
@@ -349,7 +392,7 @@ export default function HomePage() {
         <Col xs={24} lg={14}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">待办事项</h3>
+              <h3 className="dsh-panel-title" style={panelTone('/approval/todo')}>待办事项</h3>
               <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/todo')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
               </button>
@@ -387,7 +430,7 @@ export default function HomePage() {
         <Col xs={24} lg={10}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">我的申请进度</h3>
+              <h3 className="dsh-panel-title" style={panelTone('/approval/submissions')}>我的申请进度</h3>
               <button type="button" className="dsh-panel-more" onClick={() => router.push('/approval/submissions')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
               </button>
@@ -449,7 +492,7 @@ export default function HomePage() {
         <Col xs={24} lg={isAdmin ? 14 : 24}>
           <div className="dsh-panel">
             <div className="dsh-panel-head">
-              <h3 className="dsh-panel-title">最新通知</h3>
+              <h3 className="dsh-panel-title" style={panelTone('/notifications')}>最新通知</h3>
               <button type="button" className="dsh-panel-more" onClick={() => router.push('/notifications')}>
                 查看全部 <IconRight style={{ fontSize: 12 }} />
               </button>
@@ -480,7 +523,7 @@ export default function HomePage() {
           <Col xs={24} lg={10}>
             <div className="dsh-panel">
               <div className="dsh-panel-head">
-                <h3 className="dsh-panel-title">本周考勤概览</h3>
+                <h3 className="dsh-panel-title" style={panelTone('/attendance/daily')}>本周考勤概览</h3>
                 <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/daily')}>
                   查看详情 <IconRight style={{ fontSize: 12 }} />
                 </button>
@@ -589,7 +632,7 @@ function TodayStatus() {
       <Col xs={24} lg={14}>
         <div className="dsh-panel">
           <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title">今日打卡</h3>
+            <h3 className="dsh-panel-title" style={panelTone('/attendance/punch')}>今日打卡</h3>
             <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/punch')}>
               去打卡 <IconRight style={{ fontSize: 12 }} />
             </button>
@@ -620,7 +663,10 @@ function TodayStatus() {
               </div>
               <div className="dsh-today-cell">
                 <div className="dsh-today-label">状态</div>
-                <div className="dsh-today-value is-text">
+                <div
+                  className="dsh-today-value is-text"
+                  style={{ color: punch ? PUNCH_STATUS_TONE[punch.status] : undefined }}
+                >
                   {punch ? (PUNCH_STATUS[punch.status] ?? punch.status) : '—'}
                 </div>
               </div>
@@ -632,7 +678,7 @@ function TodayStatus() {
       <Col xs={24} lg={10}>
         <div className="dsh-panel">
           <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title">假期余额</h3>
+            <h3 className="dsh-panel-title" style={panelTone('/attendance/vacation/balance')}>假期余额</h3>
             <button type="button" className="dsh-panel-more" onClick={() => router.push('/attendance/vacation/balance')}>
               查看全部 <IconRight style={{ fontSize: 12 }} />
             </button>
@@ -647,23 +693,40 @@ function TodayStatus() {
             emptyText="暂无假期额度"
           >
             {primary && (
-              <div className="dsh-today">
-                <div className="dsh-today-cell">
-                  <div className="dsh-today-label">{primary.vacationType?.name ?? '假期'}剩余</div>
-                  <div className="dsh-today-value" style={{ color: 'var(--lx-primary)' }}>
-                    {remainDays}
-                    <span className="u">天</span>
+              <>
+                <div className="dsh-today">
+                  <div className="dsh-today-cell">
+                    <div className="dsh-today-label">{primary.vacationType?.name ?? '假期'}剩余</div>
+                    <div className="dsh-today-value" style={{ color: 'var(--lx-primary)' }}>
+                      {remainDays}
+                      <span className="u">天</span>
+                    </div>
+                  </div>
+                  <div className="dsh-today-cell">
+                    <div className="dsh-today-label">已用</div>
+                    <div className="dsh-today-value is-text">{primary.usedDays} 天</div>
+                  </div>
+                  <div className="dsh-today-cell">
+                    <div className="dsh-today-label">总额度</div>
+                    <div className="dsh-today-value is-text">{primary.totalDays} 天</div>
                   </div>
                 </div>
-                <div className="dsh-today-cell">
-                  <div className="dsh-today-label">已用</div>
-                  <div className="dsh-today-value is-text">{primary.usedDays} 天</div>
-                </div>
-                <div className="dsh-today-cell">
-                  <div className="dsh-today-label">总额度</div>
-                  <div className="dsh-today-value is-text">{primary.totalDays} 天</div>
-                </div>
-              </div>
+                {/* 用量条：把「剩余/已用/总额度」三个数字压成一次可扫读的对比，
+                    否则这格只是三个并排的数字，看不出还剩多少 */}
+                {primary.totalDays > 0 && (
+                  <div
+                    className="dsh-leave-bar"
+                    role="img"
+                    aria-label={`已用 ${primary.usedDays} 天，共 ${primary.totalDays} 天`}
+                  >
+                    <i
+                      style={{
+                        width: `${Math.min(100, Math.round((primary.usedDays / primary.totalDays) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </DataState>
         </div>
@@ -708,7 +771,7 @@ function OrgChart() {
       <Col xs={24} lg={10}>
         <div className="dsh-panel">
           <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title">部门人力分布</h3>
+            <h3 className="dsh-panel-title" style={panelTone('/employees')}>部门人力分布</h3>
           </div>
           <DataState
             loading={deptsLoading}
@@ -746,7 +809,7 @@ function OrgChart() {
       <Col xs={24} lg={14}>
         <div className="dsh-panel">
           <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title">近 7 日考勤趋势</h3>
+            <h3 className="dsh-panel-title" style={panelTone('/attendance/daily')}>近 7 日考勤趋势</h3>
           </div>
           <DataState
             loading={trendLoading}

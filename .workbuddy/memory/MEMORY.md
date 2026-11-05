@@ -33,6 +33,7 @@
 - 金额一律以「分」做整数定点运算（`common/money.util.ts`），写库边界才转 `Prisma.Decimal`；薪资有「明细累加 == 批次总额」对账断言。
 - 时区：业务日以 **UTC 午夜**存储，取年月/月份区间一律用 `getUTC*`；「当前年月」类判断必须按**北京时间**（UTC 容器每月 1 日 00:00~08:00 会算错生效月）。
 - 数据隔离：显式部门过滤必须与可见范围**取交集**（不能覆盖）；范围解析为空要 fail-closed。
+- **审批节点「谁审批」口径（ADR-0023）**：`type` 支持 `user`（指定人员，落 `approval_workflow_nodes.user_id`）/ `role` / `group` / `department_manager` / `initiator`。解析审批人的**四处必须同源**：`approval.service#notifyApproversForNode`（待办通知）、`#canUserApprove`（审批/转交/加签鉴权）、`#buildTodoWhere`（待办中心）、`ApprovalReminderService#getApproverIdsForNode`（超时催办）；漏一处即「能审但收不到通知 / 看不到待办」。`type='user'` 且 `user_id` 为空必须 fail-closed（不产生待办，也不能退化成全员可审）。`startInstance`/`resubmit` 构造 `engineNodes` 时**必须把 `userId` 与 `approvalGroupId` 一起传给引擎**——引擎只读 `node.userId` / `node.approvalGroupId || node.groupId`，不透传等于节点在链上展开为空（`group` 节点曾因此长期 `approvers` 为空）。
 
 ## 前端样式规约
 - **Arco 2.x 类名必须先取证再写**：真相在 `node_modules/@arco-design/web-react/dist/css/arco.css` + `es/<Comp>/*.js`（DOM 上真正拼出的类）。Input 实际 DOM 是 `.arco-input-inner-wrapper > input.arco-input`（焦点态由 JS 打 `-focus` 类），**`.arco-input-wrapper` 不存在**；写在死类名上的样式静默失效（已出现多次）。常见真名：`.arco-form-label-item`(字号在 `> label`)、`.arco-modal-title`/`-content`、`.arco-drawer-content`、`.arco-table-row-checked`、`.arco-table-cell-expand-icon`、`.arco-table-no-data`、`.arco-select-focused`(边框在 `-view`)、`.arco-dropdown-menu`/`-item`、`.arco-radio-text`/`.arco-checkbox-text`、`.arco-card-header-extra`。
@@ -41,6 +42,13 @@
 - **主题化色值一律走 token**：`--lx-*` 在 `:root`/`[data-theme="dark"]` 成对定义；登录卡片曾硬编码 `rgba(255,255,255,.88)`，暗色下变成浅字压白卡（≈1.1:1）。现为 `--lx-login-card-bg`，`design-tokens-a11y.test.ts` 有对比度闸门。
 - **不用就删**：Ribbon/Countdown/Steps/Transfer/Cascader/BackTop/AutoComplete/VirtualList 及独立 Menu 全仓 0 处使用，覆写已整段删除；侧栏是自研 `.side-item`，唯一的 `<Menu>` 在 Dropdown 内（prefixCls 变成 `arco-dropdown-menu`），故 `.arco-menu-*` 一条都命中不了。
 - **禁止用通配符清除焦点样式**：`.xxx *:focus-within{outline:none}` 会把祖先的 `:focus-within` 光晕一起清掉（登录页曾因此整页无焦点提示，违反 WCAG 2.4.7）。输入框用 `--lx-focus-ring`（3px 品牌光晕），复选框描边挂 label，其余交全局 `:focus-visible`。
+- **全屏遮罩禁止 `backdrop-filter`**：`.arco-modal-mask` 曾加 `blur(4px)`，遮罩淡入的每个动画帧都要把整页重采样一次，叠加大表格 + keep-alive 多页签在 2K 下直接卡成「所有弹窗都有延迟」。压暗用 `var(--lx-mask)` 即可。
+- **整站已无 `backdrop-filter`**（2026-11-06）：`.cmdk-mask`(6px) / `.cmdk-panel`(20px saturate) / `.app-header`(12px) / `.page-tabs`(8px) 全部移除。顶栏与页签不是 `position:fixed`、下方没有内容滚过，模糊只是把纯色底再模糊一遍，零视觉收益却各生成一个合成层，任何全屏浮层出现时都要重新合成。`--lx-glass-*` token 随之删除，命令面板改实色卡。
+- **浮层入场动画禁止 `scale`**：Arco Modal 默认 `.zoomModal-*` 是 `scale(0.5)→1`、400ms、`cubic-bezier(.3,1.3,.3,1)` 过冲曲线，整棵子树（表单/大表格）每帧重新光栅化，弹窗越大越卡。已覆盖为「opacity + translateY(8px)」160ms；遮罩 `fadeModal` 同步收到 160ms。命令面板同理去掉 framer-motion 的 scale。
+- **业务域色 `GROUP_TONE`（`config/navigation.tsx`）是全站唯一的分类配色**：常用=蓝、人事=青、流程=紫、薪酬=橙、工具=靛、设置=中性。侧栏分组点 / 命令面板分组点+条目图标 / 首页快捷入口图标 / 面板标题竖条 / KPI 卡标签点 全部取自它（`toneOfGroup` / `toneOfPath`）。新增页面不要自己挑色相；未登记分组回落中性。文字/图标态取 `--lx-teal-text` 等深档（4.5:1），亮档 `--lx-teal` 只给图表与圆点。
+- **登录页/首页曾因「unslop」删色过狠导致观感单调**：克制的做法不是全灰，而是把颜色放回小面积的分类记号（6px 点、3px 竖条、34px 图标块），卡片与背景保持中性。
+- **Arco `Select` 用 `options` 数组时的搜索陷阱**：`extendChildren`（`es/Select/utils.js`）只把 `value/disabled/extra` 透传给内部 Option，自定义字段全被丢弃，`filterOption(input, option)` 的 `option` 是 **React 元素**（要读 `option.props.extra` / `.props.children`）。想按「别名/成员名」搜，搜索串必须塞进 `option.extra`。
+- **不要装饰性 AI 味（2026-11-06 unslop）**：品牌面禁止 hue→hue 渐变（蓝→紫）、`blur()` 光团、网格纹理、`background-clip:text` 渐变文字、半透明玻璃卡；应用内禁止时段问候语（「早上好，欢迎回来」）、每个入口一个色相的图标、KPI 卡上的图标填充。`--lx-tone-*` 已整组删除；purple/teal/coral/pink/indigo/emerald 只作业务分类编码（绩效周期类型、OKR 范围、附件类型），不再用于图标着色。中文标题不做负字距、不做 `text-transform:uppercase`（对中文无效）。
 - 一次性的存量数据回填写成**只含 DML 的新 migration**（幂等 `WHERE 旧值<>新值`），且**不得改 `updated_at`** —— 否则会把 ApprovalReconciler 的「最近 1 小时终态单」窗口撑大、重放陈年事件。验证手法：`$transaction` 内逐条执行后抛错强制回滚（不落库）。
 
 ## 本地环境与演示账号

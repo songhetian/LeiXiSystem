@@ -56,6 +56,11 @@ export interface StatCardProps {
   suffix?: string;
   /** 卡片右上角的说明小字（如「实时统计」） */
   hint?: string;
+  /** 数值强调色：只在「等你处理」或「数据异常」时传，其余保持中性 */
+  tone?: 'attention' | 'warning' | 'danger';
+  /** 标签前的分类色点（6px，取业务域色）。同一个点在侧栏分组和命令面板里也出现，
+      是全站唯一的「分类记号」，用一处小面积换掉整卡刷色 */
+  accent?: string;
   /** 传入则整卡为可点按钮（键盘可达），点击跳转 */
   onClick?: () => void;
 }
@@ -67,16 +72,28 @@ export interface StatCardProps {
  * 首页读起来像模板。真正要读的是那个数字。
  * 可点（onClick）时渲染为 <button> 保证键盘可达（WCAG SC 2.1.1）。
  */
-function StatCard({ label, value, suffix, hint, onClick, stagger = 0 }: StatCardProps & { stagger?: number }) {
+function StatCard({
+  label,
+  value,
+  suffix,
+  hint,
+  tone,
+  accent,
+  onClick,
+  stagger = 0,
+}: StatCardProps & { stagger?: number }) {
   const body = (
     <>
       {/* 固定高度的一行：有无 hint 都占位，四张卡才等高 */}
       <div className="dsh-stat-top">{hint && <span className="dsh-stat-hint">{hint}</span>}</div>
-      <div className="dsh-stat-value">
+      <div className="dsh-stat-value" data-tone={tone}>
         <Ticker text={value} />
         {suffix && <span className="u">{suffix}</span>}
       </div>
-      <div className="dsh-stat-label">{label}</div>
+      <div className="dsh-stat-label">
+        <i className="dsh-stat-dot" style={{ background: accent }} aria-hidden="true" />
+        {label}
+      </div>
     </>
   );
 

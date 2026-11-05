@@ -361,7 +361,9 @@ export interface PaletteCommand {
   keywords?: string;
 }
 
-/** 沿树收集叶子，paletteGroup 取最近祖先的 paletteGroup 或顶层 group */
+/** 沿树收集叶子，group 依次取：节点自身的 paletteGroup → 自身 group → 祖先分组。
+ *  缺了 `node.group` 这一档会导致**顶层叶子节点**（工作台、我的排班…）拿到空字符串，
+ *  命令面板第一组的标题就是空白的（只剩一个分组点）。 */
 function collectCommands(
   nodes: NavNode[],
   inheritedGroup: string,
@@ -369,7 +371,7 @@ function collectCommands(
   out: PaletteCommand[],
 ) {
   for (const node of nodes) {
-    const group = node.paletteGroup ?? inheritedGroup;
+    const group = node.paletteGroup ?? node.group ?? inheritedGroup;
     if (node.children) {
       collectCommands(node.children, group, permissions, out);
       continue;
@@ -396,6 +398,55 @@ export function paletteCommandsFor(permissions?: string[]): PaletteCommand[] {
   const out: PaletteCommand[] = [];
   collectCommands(NAV_TREE, '', permissions, out);
   return out;
+}
+
+// ---------- 业务域强调色 ----------
+
+/**
+ * 业务域 → 强调色。**一色一义**，全站只此一份：
+ *
+ *   常用 = 蓝（品牌）  人事 = 青  流程 = 紫  薪酬 = 橙  工具 = 靛  设置 = 中性
+ *
+ * 侧栏分组点、快捷入口图标、命令面板条目图标都从这里取。之所以共用一套而不是
+ * 各页面各挑一个好看的颜色：颜色在这里是**分类编码**，用户记住"橙色是钱"之后，
+ * 薪资/报销/预算在哪都认得出；九个入口九种色只会变成装饰。
+ *
+ * fg 取「文字态」（深一档，18px 图标叠在 8% 同色底上可达 4.5:1），
+ * bg 是同色低透明度底，不做彩色描边、不做渐变。
+ */
+export interface DomainTone {
+  fg: string;
+  bg: string;
+}
+
+export const GROUP_TONE: Record<string, DomainTone> = {
+  常用: { fg: 'var(--lx-primary)', bg: 'var(--lx-primary-bg)' },
+  人事: { fg: 'var(--lx-teal-text)', bg: 'var(--lx-teal-bg)' },
+  流程: { fg: 'var(--lx-purple-text)', bg: 'var(--lx-purple-bg)' },
+  薪酬: { fg: 'var(--lx-coral-text)', bg: 'var(--lx-coral-bg)' },
+  工具: { fg: 'var(--lx-indigo-text)', bg: 'var(--lx-indigo-bg)' },
+  设置: { fg: 'var(--lx-neutral-text)', bg: 'var(--lx-neutral-tag-bg)' },
+};
+
+/** 未登记的分组一律回落中性，不发明新色相 */
+const NEUTRAL_TONE = GROUP_TONE['设置'];
+
+export function toneOfGroup(group?: string): DomainTone {
+  return (group && GROUP_TONE[group]) || NEUTRAL_TONE;
+}
+
+/** 路径 → 所属顶层分组（叶子继承父级 group），用于按入口路径取域色 */
+const PATH_TO_GROUP = new Map<string, string>();
+(function indexPathToGroup(nodes: NavNode[], inherited?: string) {
+  for (const node of nodes) {
+    const group = node.group ?? inherited;
+    if (node.path && group && !PATH_TO_GROUP.has(node.path)) PATH_TO_GROUP.set(node.path, group);
+    if (node.children) indexPathToGroup(node.children, group);
+  }
+})(NAV_TREE, undefined);
+
+export function toneOfPath(path?: string): DomainTone {
+  return toneOfGroup(path ? PATH_TO_GROUP.get(path) : undefined);
 }
 
 /** 导航树关键词（供测试与调用方校验派生完整性） */

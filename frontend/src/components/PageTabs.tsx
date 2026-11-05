@@ -370,8 +370,9 @@ export default function PageTabs() {
               </button>
             </div>
           </>,
-          // portal 到 body 顶层：.page-tabs 的 backdrop-filter 会为 fixed 子元素建立包含块，
-          // 将菜单渲染在 body 下可让其按视口坐标正确定位，解决右键弹出框消失/错位问题。
+          // portal 到 body 顶层。原先是因为 .page-tabs 的 backdrop-filter 会给 fixed 子元素
+          // 建立包含块、导致菜单按错误坐标定位；毛玻璃已移除，但这里仍保持 portal：
+          // 今后若父级再引入 transform / filter / contain，菜单不会重蹈错位。
           document.body,
         )}
     </div>

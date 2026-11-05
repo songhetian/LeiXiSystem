@@ -56,6 +56,16 @@
   --lx-neutral-text: #475569;
   --lx-neutral-tag-bg: #f1f5f9;
 
+  /* ---- 业务域色「图标/文字态」 ----
+     全站一色一义（映射见 config/navigation.tsx 的 GROUP_TONE）：
+     常用=蓝、人事=青、流程=紫、薪酬=橙、工具=靛、设置=中性。
+     与 --lx-teal / --lx-coral 这些「图形色」分开：图形色（圆点、图表段）取亮档，
+     这里取深一档，保证 18px 图标与 12px 小字叠在 8% 同色底上 ≥4.5:1。
+     侧栏分组点、快捷入口图标、命令面板图标都只用这一套，不再各自取色。 */
+  --lx-teal-text: #0f766e;
+  --lx-coral-text: #c2410c;
+  --lx-indigo-text: #4338ca;
+
   /* ---- 分类色（仅用于业务分类标签：绩效周期类型、OKR 范围、附件类型等） ----
      它们是「数据有分类」的编码，不是装饰：不再新增同族色，也不用于图标着色。
      新代码若要表达状态，优先用 --lx-success / --lx-warning / --lx-danger。 */
@@ -111,10 +121,11 @@
   --lx-border-2: #f1f5f9;
   --lx-border-3: #cbd5e1;
 
-  /* ---- 模态遮罩 / 毛玻璃面板（命令面板等浮层） ---- */
+  /* ---- 模态遮罩 ----
+     命令面板曾是"毛玻璃"面板（--lx-glass-bg/border + backdrop-filter），
+     但 0.95 不透明度的玻璃与实色卡几乎无差别，模糊却让每次开面板都要全屏
+     重采样一次。现改实色卡，这两个 token 一并删除。 */
   --lx-mask: rgba(15, 23, 42, 0.4);
-  --lx-glass-bg: rgba(255, 255, 255, 0.95);
-  --lx-glass-border: rgba(255, 255, 255, 0.8);
 
   /* ---- 应用外壳（顶栏 / 页签栏 / 侧栏抽屉遮罩）半透明玻璃底色 ----
      必须走 token：暗色下若沿用浅色半透明，合成结果与浅色文字对比度仅 1.2~1.8:1 */
@@ -294,10 +305,8 @@
   --lx-border-2: #1e2640;
   --lx-border-3: #333f5c;
 
-  /* 模态遮罩 / 毛玻璃面板 */
+  /* 模态遮罩（命令面板已改实色面板，毛玻璃 token 一并移除） */
   --lx-mask: rgba(0, 0, 0, 0.6);
-  --lx-glass-bg: rgba(21, 26, 40, 0.95);
-  --lx-glass-border: rgba(255, 255, 255, 0.08);
 
   /* 应用外壳半透明玻璃底色：暗色反转（否则浅色玻璃 + 浅色文字 = 不可读） */
   --lx-header-bg: rgba(21, 26, 40, 0.85);
@@ -341,6 +350,10 @@
   --lx-info-text: #9db7f5;
   --lx-neutral-text: #cbd5e1;
   --lx-neutral-tag-bg: #222a3d;
+  /* 业务域色：深底反向提亮，与 --lx-*-bg 的 16% 底配合达标 */
+  --lx-teal-text: #2dd4bf;
+  --lx-coral-text: #fb923c;
+  --lx-indigo-text: #a5b4fc;
   --lx-purple-bg: rgba(139, 92, 246, 0.16);
   --lx-teal-bg: rgba(20, 184, 166, 0.16);
   --lx-coral-bg: rgba(249, 115, 22, 0.16);
@@ -2265,6 +2278,18 @@ html, body {
   color: var(--lx-text-1);
   letter-spacing: -0.02em;
   line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+/* 只在「需要你处理 / 数据异常」时给数字上色，平时一律 text-1。
+   四张卡全部有色 = 等于没有颜色；一张卡亮起来才说明"看这里"。 */
+.dsh-stat-value[data-tone='attention'] {
+  color: var(--lx-primary);
+}
+.dsh-stat-value[data-tone='warning'] {
+  color: var(--lx-warning-text);
+}
+.dsh-stat-value[data-tone='danger'] {
+  color: var(--lx-danger-text);
 }
 .dsh-stat-value .u {
   font-size: var(--lx-font-sm);
@@ -2273,9 +2298,20 @@ html, body {
   margin-left: 3px;
 }
 .dsh-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 4px;
   font-size: var(--lx-font-xs);
   color: var(--lx-text-3);
+}
+/* 分类记号点：全站唯一的「颜色 ↔ 分类」记号，侧栏分组、命令面板、KPI 卡三处同形同尺寸 */
+.dsh-stat-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-text-4);
 }
 
 /* 今日状态（打卡 + 假期余额）：横向数值格，与 KPI 卡视觉同族但更轻 */
@@ -2332,6 +2368,31 @@ html, body {
   color: var(--lx-text-3);
 }
 
+/* 假期用量条：已用 / 总额度。
+   做成"已用填满"而不是"剩余填满"，因为真正想知道的是"用掉了多少"，
+   剩余天数就在上面那个大数字里，不必再说一遍。 */
+.dsh-leave-bar {
+  height: 4px;
+  margin-top: 14px;
+  border-radius: var(--lx-radius-full);
+  /* 轨道要有可见度：0% 时整个条只剩轨道，用 bg-tertiary 会看不见（等于这格空着） */
+  background: var(--lx-border-1);
+  overflow: hidden;
+}
+.dsh-leave-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lx-primary);
+}
+
+/* hero 里的关键数字：只给"待处理件数"上色，其余文字维持 text-3 */
+.dsh-hero-em {
+  font-weight: 600;
+  color: var(--lx-primary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 快捷操作入口（统一小卡网格）
    注意：这些类渲染为 <button>（保证键盘可达 WCAG SC 2.1.1），
    故在规则内显式抹掉按钮默认样式，使其与原来的 <div> 视觉完全一致 */
@@ -2374,6 +2435,8 @@ html, body {
 .dsh-quick-item:active {
   transform: scale(0.98);
 }
+/* 图标按业务域着色：--quick-fg/--quick-bg 由页面内联注入（toneOfPath）。
+   一色一义，与侧栏分组点、命令面板条目同源，不是给每个入口随手挑一个色相。 */
 .dsh-quick-ic {
   display: flex;
   align-items: center;
@@ -2382,20 +2445,15 @@ html, body {
   height: 34px;
   border-radius: var(--lx-radius-md);
   font-size: 18px;
-  color: var(--lx-text-3);
-  background: var(--lx-bg-secondary);
-  border: 1px solid var(--lx-border-1);
+  color: var(--quick-fg, var(--lx-text-3));
+  background: var(--quick-bg, var(--lx-bg-secondary));
+  border: 1px solid transparent;
   transition: background-color var(--lx-transition-base), color var(--lx-transition-base),
     border-color var(--lx-transition-base);
 }
 
-/* 图标统一中性：不给每个入口一个色相（8 种彩底会让首页读起来像模板），
-   只在 hover 时露出主色，表示「这个能点」 */
-.dsh-quick-item:hover .dsh-quick-ic {
-  background: var(--lx-primary-bg);
-  color: var(--lx-primary);
-  border-color: var(--lx-primary-weak);
-}
+/* 悬停反馈交给整卡（阴影 + 标签变深），图标保持原色：
+   颜色已经表达归属，hover 再换一次色只会让"这个色是干嘛的"变模糊。 */
 
 /* ===== 员工事务页签 · 待处理数圆形徽标 ===== */
 .tx-count-badge {
@@ -2574,7 +2632,10 @@ html, body {
   width: 3px;
   height: 12px;
   border-radius: var(--lx-radius-2xs);
-  background: var(--lx-primary);
+  /* 面板竖条取该面板所属业务域的色（内联 --panel-tone）。
+     它本来只是装饰，让它同时承担"这块属于人事/流程/工具"的索引，
+     就不必为了"有颜色"再去给卡片刷底色。 */
+  background: var(--panel-tone, var(--lx-primary));
   margin-right: 8px;
   flex-shrink: 0;
 }
@@ -3121,12 +3182,16 @@ html, body {
   justify-content: center;
   padding-top: 12vh;
 }
+/* 遮罩与面板都**不要 backdrop-filter**。
+   遮罩是全屏 fixed：毛玻璃要求浏览器在淡入的每一帧（十几帧）把整页重新采样，
+   叠加大表格 + keep-alive 多页签，2K 下就是几百毫秒的开面板延迟。
+   面板更狠 —— 它带 scale 入场动画，模糊每帧都要随缩放重建，成本翻倍。
+   视觉上遮罩已有 40% 压暗，6px 模糊看不出来；面板本来接近不透明（0.95），
+   模糊同样没有收益。 */
 .cmdk-mask {
   position: absolute;
   inset: 0;
   background: var(--lx-mask);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 .cmdk-panel {
   position: relative;
@@ -3136,12 +3201,10 @@ html, body {
   max-width: 92vw;
   max-height: 60vh;
   overflow: hidden;
-  background: var(--lx-glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--lx-glass-border);
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
   border-radius: 16px;
-  box-shadow: 0 20px 60px var(--lx-primary-weak), var(--lx-shadow-xl);
+  box-shadow: var(--lx-shadow-dropdown);
 }
 
 /* 搜索输入区 */
@@ -3196,6 +3259,18 @@ html, body {
   color: var(--lx-text-4);
   /* 同侧栏分组标题：中文字距归零，不做 uppercase（对中文无意义） */
   letter-spacing: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 分组点与条目图标同色，取业务域色（--group-tone / --item-fg） */
+.cmdk-group-title::before {
+  content: '';
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--lx-radius-full);
+  background: var(--group-tone, var(--lx-text-4));
 }
 
 /* 单条命令 */
@@ -3221,13 +3296,13 @@ html, body {
   height: 32px;
   font-size: 16px;
   border-radius: 8px;
-  color: var(--lx-text-3);
-  background: var(--lx-bg-hover);
+  color: var(--item-fg, var(--lx-text-3));
+  background: var(--item-bg, var(--lx-bg-hover));
   transition: background-color var(--lx-transition-fast), color var(--lx-transition-fast);
 }
+/* 选中态只提亮表面，图标保持域色：换色会让"这个入口属于哪一块"在选中瞬间丢失 */
 .cmdk-item.is-selected .cmdk-item-icon {
-  color: var(--lx-primary);
-  background: var(--lx-primary-bg);
+  background: var(--item-bg, var(--lx-bg-hover));
 }
 .cmdk-item-label {
   flex: 1;
@@ -3237,7 +3312,9 @@ html, body {
 }
 .cmdk-item.is-selected .cmdk-item-label {
   font-weight: 500;
-  color: var(--lx-primary);
+  /* 选中靠「底色 + 字重」表达，文字不再染成主色 ——
+     否则图标的业务域色会被主色顶掉，选中一行就丢一次分类信息 */
+  color: var(--lx-text-1);
 }
 .cmdk-item-enter {
   font-family: monospace;

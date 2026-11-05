@@ -10,7 +10,7 @@ import {
 import { useAuthStore } from '@/store/auth';
 import { useSystemInfo } from '@/hooks/use-system-info';
 import { useApprovalTodoCount } from '@/hooks/use-menu-badges';
-import { NAV_TREE, type NavNode } from '@/config/navigation';
+import { NAV_TREE, toneOfGroup, type NavNode } from '@/config/navigation';
 
 export interface MenuItemConfig extends NavNode {}
 
@@ -222,7 +222,14 @@ function AppSider({
       <div className="side-menu">
         {groupedItems.map((group) => (
           <div key={group.group} className="side-group">
-            <div className="side-group-title">{group.group}</div>
+            {/* 分组点用业务域色（一色一义，见 navigation.tsx GROUP_TONE）：
+                把"颜色"放在这一处小面积上，菜单项本身保持中性，不整片染色 */}
+            <div
+              className="side-group-title"
+              style={{ '--group-tone': toneOfGroup(group.group).fg } as React.CSSProperties}
+            >
+              {group.group}
+            </div>
             {group.items.map((item) => renderMenuItem(item))}
           </div>
         ))}

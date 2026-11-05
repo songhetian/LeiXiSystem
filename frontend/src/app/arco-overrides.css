@@ -465,10 +465,50 @@
  * 大表格 + 多标签 keep-alive（已打开的页签都还挂载着），2K 分辨率下这一项能把
  * 一次开弹窗拖到几百毫秒，表现就是「所有页面的弹窗都发卡、有明显延迟」。
  * 视觉上遮罩本身已有 40% 压暗，4px 模糊几乎看不出来，去掉是纯收益。
- * 顶栏 / 页签栏的毛玻璃是小面积静态层，保留。
  */
 .arco-modal-mask {
   background-color: var(--lx-mask) !important;
+}
+
+/* ---- Modal 入场动画 ----
+ *
+ * Arco 默认用 `.zoomModal-*`：scale(0.5) → scale(1)，400ms，配
+ * cubic-bezier(.3, 1.3, .3, 1) 的过冲曲线（末端冲到 ~1.07 再回落）。
+ * 问题不在"弹窗有个缩放动画"，而在于缩放的是**整棵子树**：弹窗里的表单、
+ * 大表格都要按新尺寸重新光栅化，弹窗越大越卡；过冲曲线还多出几帧反向缩放。
+ * 这就是「每个弹窗都有明显延迟、越复杂的弹窗越明显」的主因。
+ *
+ * 改成只走合成层的「淡入 + 上移 8px」：文字不重排、不重栅格化，160ms 就位，
+ * 观感上反而更利落（快速开合的工具型弹窗不该有 0.4 秒的表演）。
+ * 选择器权重 (0,2,0) > arco 的 (0,1,0)，且本文件后加载，无需 !important。
+ */
+.arco-modal.zoomModal-enter,
+.arco-modal.zoomModal-appear {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.arco-modal.zoomModal-enter-active,
+.arco-modal.zoomModal-appear-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 160ms var(--lx-ease-standard), transform 160ms var(--lx-ease-standard);
+}
+.arco-modal.zoomModal-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+.arco-modal.zoomModal-exit-active {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 120ms var(--lx-ease-standard), transform 120ms var(--lx-ease-standard);
+}
+/* 遮罩淡入同样从 400ms 收到 160ms，与面板同步收尾，不出现"面板已停、遮罩还在渐变" */
+.arco-modal-mask.fadeModal-enter-active,
+.arco-modal-mask.fadeModal-appear-active {
+  transition: opacity 160ms var(--lx-ease-standard);
+}
+.arco-modal-mask.fadeModal-exit-active {
+  transition: opacity 120ms var(--lx-ease-standard);
 }
 
 /* ---- Modal 标题字重修正 ----
@@ -521,8 +561,7 @@
 /* ---- Toast 容器定位与层级 ----
    根因：Arco 的 .arco-message-wrapper 默认 z-index 1003、top 40px，
    而主区顶栏是 --lx-z-sticky(1020)、高 var(--lx-header-height)(60px)，
-   Toast 恰好整块落在顶栏的纵向范围内，被顶栏（含 backdrop-filter 毛玻璃）
-   盖掉了上半部分。
+   Toast 恰好整块落在顶栏的纵向范围内，上半部分被顶栏盖掉。
    修法：容器提到 --lx-z-toast（全站最高层），并下移到顶栏之下，
    这样即便页签栏、抽屉打开时也不会被遮挡。
    .arco-notification-wrapper 有同样的 1003 / top 20px 问题，一并处理。 */
@@ -1275,15 +1314,17 @@
   gap: 6px;
 }
 
-/* 分组标题：统一品牌蓝记号点（六色循环已去除，单主色更符合企业级克制） */
+/* 分组记号点：按业务域取色（内联 --group-tone，来源 navigation.tsx GROUP_TONE）。
+   与早先那个「六色循环」的区别：循环是按序号轮转，颜色不与任何东西对应，纯装饰；
+   这里是固定映射 —— 青=人事、紫=流程、橙=薪酬，同一个色还会出现在快捷入口与
+   命令面板里，颜色本身携带"这块是干什么的"这条信息。 */
 .side-group-title::before {
   content: '';
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: var(--lx-primary-600, var(--lx-primary));
-  opacity: 0.55;
+  background: var(--group-tone, var(--lx-primary));
 }
 
 .side-item {
@@ -1511,14 +1552,18 @@
 }
 
 /* ========================================
-   AppHeader 顶部导航样式（玻璃拟态 + 智能交互）
+   AppHeader 顶部导航样式
    ======================================== */
 
+/* 顶栏 / 页签栏不做毛玻璃。
+   它们不是 position:fixed，下方没有内容滚过，模糊的只是同一块纯色底 ——
+   视觉上没有任何收益，但每个 backdrop-filter 都会独立生成合成层：
+   任何全屏浮层（Modal / 命令面板 / Drawer）出现时，浏览器必须把这两层
+   连同其下的内容重新合成一次，是「打开浮层有延迟」的固定开销。
+   引擎背景仍保留半透明 token，视觉与之前一致。 */
 .app-header {
   height: var(--lx-header-height);
   background: var(--lx-header-bg);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--lx-border-1);
   display: flex;
   align-items: center;
@@ -1738,8 +1783,6 @@
   height: var(--lx-tabs-height);
   flex-shrink: 0;
   background: var(--lx-tabs-bg);
-  backdrop-filter: blur(8px) saturate(160%);
-  -webkit-backdrop-filter: blur(8px) saturate(160%);
   border-bottom: 1px solid var(--lx-border-1);
   padding: 0 var(--lx-tabs-padding-x);
   gap: 8px;

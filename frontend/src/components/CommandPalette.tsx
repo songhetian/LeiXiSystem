@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import useFocusTrap from '@/hooks/use-focus-trap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconSearch, IconCommand, IconUser } from '@arco-design/web-react/icon';
-import { paletteCommandsFor } from '@/config/navigation';
+import { paletteCommandsFor, toneOfGroup } from '@/config/navigation';
 import { usePaletteStore } from '@/store/palette';
 import { useAuthStore } from '@/store/auth';
 import { employeeApi, type Employee } from '@/services/employee';
@@ -130,7 +130,6 @@ export default function CommandPalette() {
     }
     return entries;
   }, [filteredCommands, employees]);
-
   // 扁平化用于键盘导航
   const flatList = useMemo(() => groupedResults.flatMap(([, items]) => items), [groupedResults]);
 
@@ -176,12 +175,13 @@ export default function CommandPalette() {
           {/* 遮罩层 */}
           <div className="cmdk-mask" />
 
-          {/* 面板主体 */}
+          {/* 面板主体：入场只做「淡入 + 上移 8px」。
+              不用 scale —— 缩放会让整个面板子树每帧重新光栅化，文字发虚且掉帧。 */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -10 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.16, ease: [0.4, 0, 0.2, 1] }}
             ref={panelRef}
             role="dialog"
             aria-modal="true"
@@ -212,9 +212,17 @@ export default function CommandPalette() {
               {flatList.length === 0 ? (
                 <div className="cmdk-empty">未找到匹配结果</div>
               ) : (
-                groupedResults.map(([group, items]) => (
+                groupedResults.map(([group, items]) => {
+                  // 分组与条目同色（业务域色），与侧栏分组点、首页快捷入口是同一套映射
+                  const tone = toneOfGroup(group);
+                  return (
                   <div key={group} className="cmdk-group">
-                    <div className="cmdk-group-title">{group}</div>
+                    <div
+                      className="cmdk-group-title"
+                      style={{ '--group-tone': tone.fg } as React.CSSProperties}
+                    >
+                      {group}
+                    </div>
                     {items.map((entry) => {
                       runningIndex++;
                       const idx = runningIndex;
@@ -229,7 +237,12 @@ export default function CommandPalette() {
                           className={`cmdk-item ${isSelected ? 'is-selected' : ''}`}
                           onMouseEnter={() => setSelectedIndex(idx)}
                         >
-                          <span className="cmdk-item-icon">{entry.icon}</span>
+                          <span
+                            className="cmdk-item-icon"
+                            style={{ '--item-fg': tone.fg, '--item-bg': tone.bg } as React.CSSProperties}
+                          >
+                            {entry.icon}
+                          </span>
                           <span className="cmdk-item-label">{entry.label}</span>
                           {entry.sublabel && (
                             <span className="cmdk-item-sublabel">{entry.sublabel}</span>
@@ -239,7 +252,8 @@ export default function CommandPalette() {
                       );
                     })}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 
