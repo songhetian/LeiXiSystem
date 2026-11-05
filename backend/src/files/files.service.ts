@@ -52,9 +52,29 @@ export class FilesService {
   }
 
   /**
+   * 入库 URL 的统一前置校验：OSS 驱动的 readStream 直接把 URL 当 object key，
+   * 缺少本地驱动那层「是否落在 uploads 内」的保护，需在驱动之前拦一次穿越。
+   * 只拦危险构造（空/../反斜杠/NUL），不限制业务目录与文件名字符集，
+   * 避免误伤历史数据里的文件名。
+   */
+  private assertSafeFileUrl(fileUrl: string): void {
+    const cleaned = String(fileUrl).replace(/^\/+/, '');
+    if (
+      !cleaned ||
+      cleaned.includes('..') ||
+      cleaned.includes('\\') ||
+      cleaned.includes('\0')
+    ) {
+      throw new BadRequestException({ code: 4000, message: '非法的文件路径' });
+    }
+  }
+
+  /**
    * 按入库 URL 打开文件读流（本地磁盘 / OSS 由驱动决定），供下载/预览使用。
+   * serve、知识库附件、公开 Logo 三个入口共用，确保 OSS 模式均可读。
    */
   async openStream(fileUrl: string): Promise<{ stream: import('stream').Readable }> {
+    this.assertSafeFileUrl(fileUrl);
     return this.driver.readStream(fileUrl);
   }
 }

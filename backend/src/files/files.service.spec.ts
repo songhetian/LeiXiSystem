@@ -113,6 +113,16 @@ describe('FilesService - 通用文件上传（本地磁盘）', () => {
     it('拒绝目录穿越路径', async () => {
       await expect(service.openStream('/uploads/../secret.txt')).rejects.toThrow(BadRequestException);
     });
+
+    it('在调用驱动之前就拦下穿越（OSS 驱动自身不做 uploads 边界校验时的兜底）', async () => {
+      const readStream = jest.fn();
+      (service as any).driver = { save: jest.fn(), readStream };
+
+      await expect(service.openStream('/uploads/../secret.txt')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(readStream).not.toHaveBeenCalled();
+    });
   });
 
   describe('FilesService - 按 FILE_STORAGE 切换存储驱动', () => {

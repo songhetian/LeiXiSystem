@@ -10,7 +10,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { createReadStream } from 'fs';
 import { extname, basename } from 'path';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -59,8 +58,11 @@ export class FilesController {
   }
 
   /**
-   * 读取上传的静态文件：GET /api/v1/files/serve?path=reimbursement/xx.png
-   * 仅返回 uploads 目录内的文件，防目录穿越。
+   * 读取上传文件：GET /api/v1/files/serve?path=reimbursement/xx.png
+   * 统一委托 FilesService.openStream：local 走磁盘、oss 走 OSS get。
+   * 旧实现用 createReadStream 直读容器本地磁盘，FILE_STORAGE=oss 时报销附件、
+   * 系统 Logo 会全部读不到（OSS 上文件不存在于容器磁盘）。
+   * 路径穿越校验由驱动 + service 双层保证；权限点 file:view 不变。
    */
   @Get('serve')
   @RequirePermission('file:view')
@@ -68,10 +70,10 @@ export class FilesController {
     if (!relativePath) {
       throw new BadRequestException({ code: 4000, message: '缺少文件路径' });
     }
-    const absPath = this.filesService.resolveDiskPath(relativePath);
     const ext = extname(basename(relativePath)).toLowerCase();
+    const { stream } = await this.filesService.openStream(relativePath);
     res.header('Content-Type', MIME_MAP[ext] || 'application/octet-stream');
     res.header('Cache-Control', 'no-store');
-    res.send(createReadStream(absPath));
+    res.send(stream);
   }
 }
