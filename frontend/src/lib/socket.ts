@@ -66,7 +66,13 @@ export function initSocket(token?: string): Socket {
   socket = io(wsUrl + '/ws', {
     auth: token ? { token } : undefined,
     withCredentials: true,
-    transports: ['websocket'],
+    // 注意：'/ws' 是命名空间，真实握手路径是 /socket.io/（由后端 gateway 的默认
+    // path 决定），nginx 必须反代 /socket.io/ 而不是 /ws/。
+    //
+    // 不再写死 transports: ['websocket']：那样一旦中间层（1Panel/OpenResty、CDN、
+    // 企业防火墙）把 Upgrade 头吞掉，连接会直接失败且没有兜底，表现为「页面一切
+    // 正常、实时通知永远不来」。默认的 polling → websocket 升级可以退化为长轮询，
+    // 仍在同一路径上工作。
     autoConnect: true,
     // 正常断开（网络抖动 / 服务重启）时自动重连；
     // kicked_out 场景下由 disconnectSocket() 主动断开，Socket.IO 不会对手动

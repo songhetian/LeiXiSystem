@@ -204,7 +204,7 @@ curl -I http://www.leixidianshang.com
 
 编辑 `/opt/1panel/www/sites/<域名>/proxy/root.conf` 的 `location ^~ /` 块：
 
-- WebSocket 升级头：`proxy_http_version 1.1` + `Upgrade` / `Connection "upgrade"`（否则 `/ws/` 通知不工作）；
+- WebSocket 升级头：`proxy_http_version 1.1` + `Upgrade` / `Connection "upgrade"`（否则 `/socket.io/` 握手失败，实时通知不工作）；
 - `client_max_body_size 20m;`（与内层一致，否则大附件 413）；
 - 单独加 `location = /metrics { deny all; }` 与 `/iclock/` 收口（否则指标/考勤机端点暴露公网）。
 
@@ -245,7 +245,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs -f bac
 > `build` + `up -d` 不会重建配置未变的 redis 容器，在线用户不会被踢下线；  
 > 只有服务器/Docker 重启或 `--force-recreate` 才会清空 Redis 缓存（可重建，业务数据在 RDS）。
 
-**架构一句话**：每套应用栈自带 nginx 做内层按路径反代（`/api/v1`→backend、`/`→frontend、`/ws`→backend），  
+**架构一句话**：每套应用栈自带 nginx 做内层按路径反代（`/api/v1`→backend、`/`→frontend、`/socket.io`→backend），  
 1Panel 的 OpenResty 只做外层"大门"，按域名把 80/443 的流量转到内层 nginx 的 8088，并负责证书、防火墙、备份。
 
 ```
@@ -256,9 +256,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs -f bac
         │ http://<宿主可达地址>:8088
         ▼
 leixi-nginx（内层：按路径分发）
-   ├─ /api/v1/  → leixi-backend:4001 ──→ 阿里云 RDS + OSS + 本栈 Redis
-   ├─ /ws/      → leixi-backend:4001
-   └─ /         → leixi-frontend:4000
+   ├─ /api/v1/     → leixi-backend:4001 ──→ 阿里云 RDS + OSS + 本栈 Redis
+   ├─ /socket.io/  → leixi-backend:4001   ← 实时通知握手（/ws 只是命名空间）
+   └─ /            → leixi-frontend:4000
 ```
 
 ---
@@ -600,7 +600,8 @@ location ^~ / {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header REMOTE-HOST $remote_addr;
 
-    # ① Socket.IO /ws/ 的 WebSocket 升级（不加会页面能开但实时通知不工作）
+    # ① Socket.IO 实时推送（不加会页面能开但实时通知收不到）
+    #    路径是 /socket.io/ —— `/ws` 只是 Socket.IO 的命名空间，不是 HTTP 路径
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -673,7 +674,7 @@ location ^~ /iclock/ {
 | 2  | 浏览器打开 `https://www.leixidianshang.com`        | 登录页，证书有效，地址栏是锁                                          |
 | 3  | 用 `admin / 123456` 登录                         | 登录成功进首页（**立刻改掉默认密码**）                                   |
 | 4  | 浏览器 F12 → Application → Cookies               | `access_token` 带 `HttpOnly` + `Secure` + `SameSite=Lax` |
-| 5  | 实时通知 / WebSocket                              | 控制台 `wss://www.leixidianshang.com/ws/` 连接成功（验证 7.2 ①）   |
+| 5  | 实时通知 / WebSocket                              | F12 → Network 里有 `socket.io/?EIO=4&transport=websocket` 且状态 **101**；用两个账号走一次审批，审批人**不刷新页面**就能弹提示（验证 7.2 ①） |
 | 6  | 上传一张报销发票附件                                    | OSS 的 `uploads/reimbursement/` 出现新文件，前端能预览/下载           |
 | 7  | 系统设置上传 Logo                                   | 登录页正常显示（后端走 OSS SDK 读取）                                 |
 | 8  | 上传一个 15MB 文件                                  | 不报 413（验证 7.2 ②）                                        |
@@ -787,7 +788,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 | `migrate deploy` 建表失败              | RDS 账号缺 DDL 权限 / 库不存在                           | 授权 + 建 `leixin_v2`                                                                               |
 | 启动日志出现 P3005 后退出                   | 非空库但无迁移历史                                       | `entrypoint.sh` 会自动 `migrate resolve --applied 0_init` 后重试；`_prisma_migrations` 已存在时不要手工 resolve |
 | 附件上传成功但预览 404/403                  | RAM 子账号缺 `GetObject`；或 `OSS_ENDPOINT` 内网不通      | 补权限 / 改外网 endpoint                                                                               |
-| 页面能开、实时通知不工作                       | 外层缺 WebSocket 升级头                               | 7.2 ①                                                                                            |
+| 页面能开、实时通知不工作                       | 内层 nginx 只反代了 `/ws/`（那是命名空间，握手走 `/socket.io/`）；或外层缺升级头 | 内层加 `location /socket.io/`（附录 B），外层按 7.2 ① |
+| 实时通知只在开发环境有效、域名上收不到            | 开发直连 4001 不经过 nginx，问题被掩盖                     | F12 Network 看 `socket.io/?EIO=4` 是否 101；404 即内层路径没配对                                              |
 | 上传大文件 413                          | 外层/内层 `client_max_body_size` 过小                 | 7.2 ② 两处一起改                                                                                      |
 | `/metrics` 公网能访问                   | 外层没单独 deny                                      | 7.2 ③                                                                                            |
 | 前台 502、backend 起不来                 | `PORT` 不是 4001                                  | 编排已显式传 4001，检查是否被 env 覆盖                                                                         |
@@ -885,13 +887,13 @@ curl -I http://127.0.0.1:8088/
 | 6379               | redis            | 否，**绝不**暴露公网  |
 | 3306               | 阿里云 RDS          | 仅 ECS 内网白名单   |
 
-| 路径         | 内层 nginx 转发                                  |
-| ---------- | -------------------------------------------- |
-| `/api/v1/` | `backend:4001`（带限流 `burst=20`）               |
-| `/ws/`     | `backend:4001`（WebSocket 升级）                 |
-| `/iclock/` | `backend:4001`（考勤机 Push，外层需收口）               |
-| `/metrics` | `backend:4001/api/v1/metrics`（外层必须 deny all） |
-| `/`        | `frontend:4000`                              |
+| 路径            | 内层 nginx 转发                                  |
+| ------------- | -------------------------------------------- |
+| `/api/v1/`    | `backend:4001`（带限流 `burst=20`）               |
+| `/socket.io/` | `backend:4001`（Socket.IO 握手 / WebSocket 升级）   |
+| `/iclock/`    | `backend:4001`（考勤机 Push，外层需收口）               |
+| `/metrics`    | `backend:4001/api/v1/metrics`（外层必须 deny all） |
+| `/`           | `frontend:4000`                              |
 
 ---
 

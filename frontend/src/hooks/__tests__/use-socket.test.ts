@@ -122,10 +122,12 @@ describe('useSocket · Socket.IO 实时通知（T-socket）', () => {
       'http://localhost:4001/ws',
       expect.objectContaining({
         withCredentials: true,
-        transports: ['websocket'],
         autoConnect: true,
       }),
     );
+    // 不能写死 websocket-only：中间层吞掉 Upgrade 时需要有长轮询兜底
+    const options = mockIo.mock.calls[0][1] as Record<string, unknown>;
+    expect(options.transports).toBeUndefined();
   });
 
   it('收到 notification 事件时弹出 Arco Message 并派发 socket-notification 事件', () => {
