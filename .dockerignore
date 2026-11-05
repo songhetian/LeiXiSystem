@@ -30,6 +30,14 @@ LICENSE
 **/build
 **/.next
 
+# 误入的 npm 锁文件（本仓库是 pnpm workspace，只认 pnpm-lock.yaml）
+# frontend/package-lock.json 是历史残留：Next 构建时会 findup 找到它，判定
+# 「lockfile 缺 @next/swc-*」并联网查 registry 打补丁，镜像源不可达时抛
+# TypeError: Cannot read properties of undefined (reading 'os')。
+# 排除后 Next 找不到 package-lock.json 会直接跳过该逻辑。
+**/package-lock.json
+**/yarn.lock
+
 # 日志
 logs
 *.log

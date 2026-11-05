@@ -50,8 +50,35 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store \
 COPY . .
 
 WORKDIR /app/frontend
-# 生产构建
-RUN npx next build
+
+# 构建期约束（都只作用于 builder 阶段）：
+#   NEXT_TELEMETRY_DISABLED        关闭 Next 遥测上报，少一次出网
+#   NEXT_IGNORE_INCORRECT_LOCKFILE 跳过 Next 的「自动补 @next/swc-* 依赖」逻辑。
+#       该逻辑用 findup 找 package-lock.json，命中就联网查 registry 并回写；
+#       pnpm workspace 下这一步既无意义（真正的锁文件是 pnpm-lock.yaml），
+#       镜像源不可达时还会抛 TypeError: Cannot read properties of undefined
+#       (reading 'os')。.dockerignore 已排除 package-lock.json，此处再加一道保险。
+#   NODE_OPTIONS                   限制 V8 堆上限，避免小内存机器被内核 OOM killer
+#       直接杀掉（表现为构建日志末尾 Killed / exit code 137）
+#   NEXT_BUILD_CPUS                构建 worker 并发降到 1（next.config.mjs 读取），
+#       峰值内存约减半；代价是构建耗时略增，对小内存 ECS 是必要交换
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_IGNORE_INCORRECT_LOCKFILE=1 \
+    NODE_OPTIONS=--max-old-space-size=1536 \
+    NEXT_BUILD_CPUS=1
+
+# 兜底开关：默认 0（保留 next build 内的 TypeScript 校验）。
+# 机器内存确实不足以跑完类型检查时，可这样构建：
+#   docker compose -f docker-compose.prod.yml --env-file .env.production \
+#     build --build-arg NEXT_SKIP_TYPECHECK=1 frontend
+# 此时请改为在本地/CI 单独执行 pnpm --filter @lei/frontend exec tsc --noEmit。
+ARG NEXT_SKIP_TYPECHECK=0
+ENV NEXT_SKIP_TYPECHECK=${NEXT_SKIP_TYPECHECK}
+
+# 生产构建。
+# 用 pnpm exec 而不是 npx：npx 在解析不到本地 bin 时会去 registry 拉一个 next
+# 跑构建（版本与锁文件不一致），pnpm exec 只会用本 workspace 已安装的那一份。
+RUN pnpm --filter @lei/frontend exec next build
 
 # 清掉 standalone 与 build cache：
 #   standalone —— 运行期不用（理由见文件头），且体积可观，留着只会白占镜像层
