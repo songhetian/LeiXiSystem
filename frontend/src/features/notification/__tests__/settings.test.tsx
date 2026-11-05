@@ -214,6 +214,45 @@ describe('NotificationSettingsPage（按审批流程配置节点通知）', () =
     });
   });
 
+  it('流程里的开始/结束节点不渲染成开关（它们不接收通知）', async () => {
+    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: [
+        {
+          id: 1,
+          code: 'leave',
+          name: '请假审批',
+          module: 'attendance',
+          status: 'active',
+          nodes: [
+            { nodeKey: 'start', name: '开始', type: 'start', order: 0 },
+            { nodeKey: 'manager', name: '主管审批', type: 'department_manager', order: 1 },
+            { nodeKey: 'end', name: '结束', type: 'end', order: 2 },
+          ],
+        },
+      ],
+    });
+    (notificationSettingApi.list as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: [{ eventType: 'leave_apply', targetRoles: [], targetNodes: null }],
+    });
+
+    render(<NotificationSettingsPage />);
+    await screen.findByText('请假审批');
+
+    expect(screen.queryByLabelText('开始 到达时通知')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('结束 到达时通知')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('主管审批 到达时通知')).toBeInTheDocument();
+
+    // 唯一可通知节点已全开 → 仍应存 null（start/end 不参与全开判定）
+    fireEvent.click(screen.getAllByText('保存')[0]);
+    await waitFor(() => {
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_apply', {
+        targetNodes: null,
+      });
+    });
+  });
+
   it('无流程事件退化为单收件方选择（不是多选）', async () => {
     render(<NotificationSettingsPage />);
     await screen.findByText('迟到行为提醒');

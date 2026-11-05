@@ -101,12 +101,19 @@ describe('ApprovalService · 通知策略（NOTIFICATION_POLICY）', () => {
       await expect((svc as any).shouldNotifyApplicant(5, 'approved')).resolves.toBe(false);
     });
 
-    it('流程没有登记的驳回事件时保持默认通知（加班/补卡无 rejection 事件）', async () => {
+    it('加班没有独立的驳回事件时，驳回回退到 approved 开关（关掉则驳回也不通知）', async () => {
       mockPrisma.approvalWorkflow.findUnique.mockResolvedValue({ code: 'overtime' });
       const policy = { getPolicy: jest.fn().mockResolvedValue({ targetRoles: [], targetNodes: null }) };
       const svc = buildService(policy);
+      await expect((svc as any).shouldNotifyApplicant(5, 'rejected')).resolves.toBe(false);
+      expect(policy.getPolicy).toHaveBeenCalledWith('overtime_approval');
+    });
+
+    it('加班终态开关打开时，驳回仍然通知', async () => {
+      mockPrisma.approvalWorkflow.findUnique.mockResolvedValue({ code: 'overtime' });
+      const policy = { getPolicy: jest.fn().mockResolvedValue({ targetRoles: ['applicant'], targetNodes: null }) };
+      const svc = buildService(policy);
       await expect((svc as any).shouldNotifyApplicant(5, 'rejected')).resolves.toBe(true);
-      expect(policy.getPolicy).not.toHaveBeenCalled();
     });
 
     it('实例不存在时不因查不到流程而吞掉通知', async () => {

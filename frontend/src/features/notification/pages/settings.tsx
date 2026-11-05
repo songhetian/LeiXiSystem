@@ -129,9 +129,18 @@ const GROUPS: Array<{ key: GroupKey; title: string; description: string }> = [
 const NODE_TYPE_LABEL: Record<string, string> = {
   role: '角色审批',
   group: '审批组',
+  user: '指定人员',
   department_manager: '部门主管',
   initiator: '申请人确认',
 };
+
+/**
+ * 流程里的 start / end 只是路由标记，路由引擎（routing-engine 第 193 行）直接跳过，
+ * 永远不会给它们发通知。若渲染成开关，管理員会看到「开始节点到达时通知」这类
+ * 无意义配置，而且它们会被算进 allKeys，影响「全开 → 存 null」的判定。
+ */
+const isNotifiableNode = (node: WorkflowNode): boolean =>
+  node.type !== 'start' && node.type !== 'end';
 
 const SETTINGS_KEY = 'config:notification:settings';
 const ROLES_KEY = 'config:notification:target-roles';
@@ -221,7 +230,7 @@ export default function NotificationSettingsPage() {
 
   const nodeKeysOf = (card: FlowCard): string[] => {
     const wf = workflowMap.get(card.workflowCode);
-    return (wf?.nodes ?? []).map((n) => n.nodeKey);
+    return (wf?.nodes ?? []).filter(isNotifiableNode).map((n) => n.nodeKey);
   };
 
   const isNodeOn = (eventType: string, nodeKey: string, allKeys: string[]): boolean => {
@@ -332,7 +341,7 @@ export default function NotificationSettingsPage() {
   const renderFlowCard = (card: FlowCard) => {
     const wf = workflowMap.get(card.workflowCode);
     const allKeys = nodeKeysOf(card);
-    const nodes = wf?.nodes ?? [];
+    const nodes = (wf?.nodes ?? []).filter(isNotifiableNode);
 
     return (
       <section key={card.workflowCode} className="lx-flow-notify-card">

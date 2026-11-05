@@ -1280,7 +1280,10 @@ export class ApprovalService {
       select: { code: true },
     });
     const config = workflow ? WORKFLOW_NOTIFY_EVENTS[workflow.code] : undefined;
-    const eventType = result === 'approved' ? config?.approved : config?.rejected;
+    // 加班/补卡没有单独的驳回事件，界面上却只有「结果通知申请人」一个开关。
+    // 驳回时回退到 approved 事件，保证「关掉开关 = 通过和驳回都不通知」，
+    // 否则开关只对通过生效，驳回仍然发通知，与页面文案不符。
+    const eventType = result === 'approved' ? config?.approved : (config?.rejected ?? config?.approved);
     if (!eventType) return true;
 
     const policy = await this.notificationPolicy.getPolicy(eventType);
