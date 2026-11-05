@@ -249,6 +249,31 @@ git clone <你的仓库地址> .
   `backend/entrypoint.sh`、`backend/prisma/migrations/0_init/migration.sql`，  
   外加**两个人工上传的文件**：`docker-compose.prod.yml`、`.env.production`。
 
+### 方式 C：离线 bundle（GitHub 不可达时的备选）
+
+若到 `github.com` 的网络不通（典型报错 `CONNECT tunnel failed, response 502`、  
+`TLS connect error: unexpected eof while reading`；常见于代理只放行 `api.github.com`），  
+可以完全绕过 GitHub，先把代码打包成一个文件：
+
+```bash
+# 本地执行（在已合并到 main 的仓库里）
+git bundle create leixisystem-main.bundle main
+git bundle verify leixisystem-main.bundle      # 应显示 "records a complete history"
+```
+
+把这个 `.bundle` 文件上传到服务器后**直接克隆**（同样不需要 npm install）：
+
+```bash
+git clone /opt/leixisystem-main.bundle /opt/leixi
+cd /opt/leixi
+# 然后照第 0 章「步骤 3」继续：人工补两个文件、chmod 600、启动
+```
+
+> bundle 含完整提交历史，服务器上的仓库是正常 git 仓库。等 GitHub 网络恢复、  
+> 远程 `main` 也推送成功后，再 `git remote set-url origin <仓库地址>` 即可正常 pull。  
+> ⚠️ bundle 只搬运代码：`.env.production` 与 `docker-compose.prod.yml` **不在任何 git 历史里**，  
+> 仍必须人工上传。
+
 ---
 
 ## 4. 配置 `.env.production`
