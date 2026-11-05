@@ -1,14 +1,23 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import NotificationSettingsPage from '@/features/notification/pages/settings';
 import { notificationSettingApi } from '@/services/notification';
+import { approvalApi } from '@/services/approval';
 import { clearDataCache } from '@/hooks/use-cached-data';
 
 jest.mock('@/services/notification', () => ({
   notificationSettingApi: {
     list: jest.fn(),
     listRoles: jest.fn(),
+    setTargets: jest.fn(),
     setTargetRoles: jest.fn(),
+  },
+}));
+
+jest.mock('@/services/approval', () => ({
+  approvalApi: {
+    listWorkflows: jest.fn(),
+    listGroups: jest.fn(),
   },
 }));
 
@@ -17,7 +26,7 @@ jest.mock('@/components/PageContainer', () => ({
   default: ({ children }: any) => <div data-testid="page-container">{children}</div>,
 }));
 
-// Tabs 简化：默认渲染全部 TabPane 内容，避免依赖 Arco 懒挂载行为
+// Tabs 简化：默认渲染全部 TabPane，避免依赖 Arco 懒挂载
 jest.mock('@arco-design/web-react', () => {
   const actual = jest.requireActual('@arco-design/web-react');
   const Tabs = ({ children }: any) => <div data-testid="tabs">{children}</div>;
@@ -27,15 +36,24 @@ jest.mock('@arco-design/web-react', () => {
   return {
     ...actual,
     Tabs,
-    Select: ({ value, options = [], disabled, placeholder }: any) => (
+    Switch: ({ checked, onChange, 'aria-label': ariaLabel }: any) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked ? 'true' : 'false'}
+        aria-label={ariaLabel}
+        onClick={() => onChange?.(!checked)}
+      />
+    ),
+    Select: ({ value, options = [], disabled, 'aria-label': ariaLabel }: any) => (
       <div
-        data-testid="target-select"
-        data-value={JSON.stringify(value ?? [])}
+        data-testid="standalone-select"
+        aria-label={ariaLabel}
+        data-value={value ?? ''}
         data-disabled={disabled ? 'true' : 'false'}
-        data-placeholder={placeholder}
       >
         {(options as any[]).map((o) => (
-          <span key={o.value ?? o.label}>{String(o.label)}</span>
+          <span key={o.value}>{String(o.label)}</span>
         ))}
       </div>
     ),
@@ -43,95 +61,182 @@ jest.mock('@arco-design/web-react', () => {
   };
 });
 
-const settings = [
-  { eventType: 'leave_apply', targetRoles: ['self', 'manager'] },
-  { eventType: 'absent_notify', targetRoles: ['hr'] },
+const workflows = [
+  {
+    id: 1,
+    code: 'leave',
+    name: '请假审批',
+    module: 'attendance',
+    status: 'active',
+    nodes: [
+      { nodeKey: 'manager_approve', name: '部门主管审批', type: 'department_manager', order: 1 },
+      { nodeKey: 'hr_approve', name: 'HR 审批', type: 'role', roleCode: 'HR', order: 2 },
+    ],
+  },
+  {
+    id: 2,
+    code: 'overtime',
+    name: '加班审批',
+    module: 'attendance',
+    status: 'active',
+    nodes: [{ nodeKey: 'ot_manager', name: '主管审批', type: 'department_manager', order: 1 }],
+  },
+  {
+    id: 3,
+    code: 'punch_makeup',
+    name: '补卡审批',
+    module: 'attendance',
+    status: 'active',
+    nodes: [{ nodeKey: 'mk_manager', name: '主管审批', type: 'department_manager', order: 1 }],
+  },
+  {
+    id: 4,
+    code: 'reimbursement',
+    name: '报销审批',
+    module: 'reimbursement',
+    status: 'active',
+    nodes: [{ nodeKey: 'fin_approve', name: '财务审核', type: 'group', approvalGroupId: 1, order: 1 }],
+  },
 ];
 
-const roles = [
-  { value: 'self', label: '本人' },
-  { value: 'manager', label: '主管' },
-  { value: 'hr', label: 'HR 角色' },
+const baseSettings = [
+  { eventType: 'leave_apply', targetRoles: [], targetNodes: ['manager_approve'] },
+  { eventType: 'leave_approval', targetRoles: ['applicant'], targetNodes: null },
+  { eventType: 'leave_rejection', targetRoles: ['applicant'], targetNodes: null },
+  { eventType: 'late_notify', targetRoles: ['dept_manager'], targetNodes: null },
 ];
 
-describe('NotificationSettingsPage', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    clearDataCache();
-    (notificationSettingApi.list as jest.Mock).mockResolvedValue({ code: 0, data: settings });
-    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({ code: 0, data: roles });
-    (notificationSettingApi.setTargetRoles as jest.Mock).mockResolvedValue({ code: 0 });
+beforeEach(() => {
+  jest.clearAllMocks();
+  clearDataCache();
+  (notificationSettingApi.list as jest.Mock).mockResolvedValue({ code: 0, data: baseSettings });
+  (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({
+    code: 0,
+    data: [
+      { value: 'dept_manager', label: '其所属部门主管' },
+      { value: 'applicant', label: '业务发起人（本人）' },
+    ],
+  });
+  (notificationSettingApi.setTargets as jest.Mock).mockResolvedValue({ code: 0 });
+  (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({ code: 0, data: workflows });
+  (approvalApi.listGroups as jest.Mock).mockResolvedValue({
+    code: 0,
+    data: { list: [{ id: 1, name: '财务组', code: 'finance' }], total: 1, page: 1, pageSize: 200 },
+  });
+});
+
+describe('NotificationSettingsPage（按审批流程配置节点通知）', () => {
+  it('以流程为单位渲染卡片，并展示节点与处理方', async () => {
+    render(<NotificationSettingsPage />);
+
+    expect(await screen.findByText('请假审批')).toBeInTheDocument();
+    expect(screen.getByText('加班审批')).toBeInTheDocument();
+    expect(screen.getByText('补卡审批')).toBeInTheDocument();
+    expect(screen.getByText('报销审批')).toBeInTheDocument();
+
+    expect(screen.getByText('部门主管审批')).toBeInTheDocument();
+    expect(screen.getByText('HR 审批')).toBeInTheDocument();
+    expect(screen.getByText(/审批组：财务组/)).toBeInTheDocument();
+    // 不再出现旧版的「事件 × 多选」项
+    expect(screen.queryByText('请假申请触发')).not.toBeInTheDocument();
   });
 
-  it('加载推送配置与目标角色，按分组渲染事件项', async () => {
+  it('节点开关按已保存的 targetNodes 回填：未列出的节点为关闭', async () => {
     render(<NotificationSettingsPage />);
-    expect(await screen.findByText('请假申请触发')).toBeInTheDocument();
-    expect(screen.getByText('缺勤自动告警')).toBeInTheDocument();
-    // 三个业务分组 Tab 均渲染
-    expect(screen.getByTestId('tab-考勤流转')).toBeInTheDocument();
-    expect(screen.getByTestId('tab-财务资产')).toBeInTheDocument();
-    expect(screen.getByTestId('tab-异常告警')).toBeInTheDocument();
+    await screen.findByText('请假审批');
+
+    expect(screen.getByLabelText('部门主管审批 到达时通知')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByLabelText('HR 审批 到达时通知')).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('已保存的目标角色回填到对应事件的选择器', async () => {
+  it('打开最后一个未开启的节点后即为全开，保存时提交 null（新节点自动继承）', async () => {
     render(<NotificationSettingsPage />);
-    const selects = await screen.findAllByTestId('target-select');
-    const values = selects.map((el) => el.getAttribute('data-value'));
-    expect(values).toContain(JSON.stringify(['self', 'manager']));
-    expect(values).toContain(JSON.stringify(['hr']));
-  });
+    await screen.findByText('请假审批');
 
-  it('点击保存对该分组下全部事件类型提交推送目标', async () => {
-    render(<NotificationSettingsPage />);
-    await screen.findByText('请假申请触发');
-    const saveBtns = screen.getAllByText('保存配置');
-    fireEvent.click(saveBtns[0]);
+    fireEvent.click(screen.getByLabelText('HR 审批 到达时通知'));
+    fireEvent.click(screen.getAllByText('保存')[0]);
+
     await waitFor(() => {
-      // 考勤流转分组含 7 个事件类型
-      expect(notificationSettingApi.setTargetRoles).toHaveBeenCalledTimes(7);
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_apply', {
+        targetNodes: null,
+      });
     });
-    expect(notificationSettingApi.setTargetRoles).toHaveBeenCalledWith('leave_apply', ['self', 'manager']);
-    expect(notificationSettingApi.setTargetRoles).toHaveBeenCalledWith('makeup_approval', []);
   });
 
-  it('接口失败时展示错误态并可重试', async () => {
+  it('关闭全部节点时提交空数组（显式全关）', async () => {
+    render(<NotificationSettingsPage />);
+    await screen.findByText('请假审批');
+
+    fireEvent.click(screen.getByLabelText('部门主管审批 到达时通知'));
+    fireEvent.click(screen.getAllByText('保存')[0]);
+
+    await waitFor(() => {
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_apply', {
+        targetNodes: [],
+      });
+    });
+  });
+
+  it('全部开启时提交 null，让流程新增节点自动继承通知', async () => {
+    (notificationSettingApi.list as jest.Mock).mockResolvedValue({
+      code: 0,
+      data: [{ eventType: 'leave_apply', targetRoles: [], targetNodes: null }],
+    });
+    render(<NotificationSettingsPage />);
+    await screen.findByText('请假审批');
+
+    fireEvent.click(screen.getAllByText('保存')[0]);
+
+    await waitFor(() => {
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_apply', {
+        targetNodes: null,
+      });
+    });
+  });
+
+  it('终态开关关闭时，通过/驳回两个事件都写入空数组', async () => {
+    render(<NotificationSettingsPage />);
+    await screen.findByText('请假审批');
+
+    const resultSwitch = screen.getByLabelText('请假审批 结果通知申请人');
+    expect(resultSwitch).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(resultSwitch);
+    fireEvent.click(screen.getAllByText('保存')[0]);
+
+    await waitFor(() => {
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_approval', {
+        targetRoles: [],
+      });
+      expect(notificationSettingApi.setTargets).toHaveBeenCalledWith('leave_rejection', {
+        targetRoles: [],
+      });
+    });
+  });
+
+  it('无流程事件退化为单收件方选择（不是多选）', async () => {
+    render(<NotificationSettingsPage />);
+    await screen.findByText('迟到行为提醒');
+
+    const select = screen.getByLabelText('迟到行为提醒 收件方');
+    expect(select).toHaveAttribute('data-value', 'dept_manager');
+  });
+
+  it('流程读取失败时提示且禁用节点保存，而不是静默显示空流程', async () => {
+    (approvalApi.listWorkflows as jest.Mock).mockResolvedValue({
+      code: 403,
+      message: '无审批流程查看权限',
+    });
+    render(<NotificationSettingsPage />);
+
+    const alerts = await screen.findAllByText(/审批流程读取失败/);
+    expect(alerts.length).toBeGreaterThan(0);
+    expect(alerts[0].textContent).toContain('无审批流程查看权限');
+  });
+
+  it('通知策略读取失败时展示错误态并可重试', async () => {
     (notificationSettingApi.list as jest.Mock).mockResolvedValue({ code: 500, message: '读取失败' });
     render(<NotificationSettingsPage />);
     expect(await screen.findByText('读取失败')).toBeInTheDocument();
-  });
-
-  it('目标角色加载失败时明示失败并禁用下拉，而不是给一个空下拉', async () => {
-    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({
-      code: 500,
-      message: '目标角色读取失败',
-    });
-    render(<NotificationSettingsPage />);
-
-    // 事件项本身照常可见（配置列表没挂）
-    expect(await screen.findByText('请假申请触发')).toBeInTheDocument();
-
-    const alert = screen.getByText(/推送目标角色加载失败/);
-    expect(alert).toHaveTextContent('推送目标角色加载失败');
-    expect(alert.closest('[role="alert"]') ?? alert).toHaveTextContent('目标角色读取失败');
-
-    // 下拉禁用 + 保存禁用，避免用户在空角色下"保存成功"把配置清空
-    expect(screen.getAllByTestId('target-select')[0]).toHaveAttribute('data-disabled', 'true');
-    const saveBtns = screen.getAllByText('保存配置');
-    expect(saveBtns[0].closest('button')).toBeDisabled();
-  });
-
-  it('角色列表失败后点重试恢复可选', async () => {
-    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValueOnce({
-      code: 500,
-      message: '目标角色读取失败',
-    });
-    render(<NotificationSettingsPage />);
-    const retry = await screen.findByText('重试');
-
-    (notificationSettingApi.listRoles as jest.Mock).mockResolvedValue({ code: 0, data: roles });
-    fireEvent.click(retry);
-
-    await waitFor(() => expect(screen.queryByText(/推送目标角色加载失败/)).not.toBeInTheDocument());
-    expect(screen.getAllByTestId('target-select')[0]).toHaveAttribute('data-disabled', 'false');
   });
 });

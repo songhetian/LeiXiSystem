@@ -267,7 +267,9 @@
   --lx-header-padding-x: 28px;
   --lx-tabs-padding-x: 12px;
   --lx-content-padding: 24px 28px;
-  --lx-content-max-width: 1640px;
+  /* 超宽屏上限：1920 覆盖 2K(2560) 与常见 1080p，避免内容缩成中间一窄条；
+     更宽的屏幕上仍保留左右留白，但表格/流程列表不再显得空旷。 */
+  --lx-content-max-width: 1920px;
 
   /* ---- Arco CSS 变量桥接 ---- */
   --color-primary-1: var(--lx-primary-bg);
@@ -1078,36 +1080,117 @@ html, body {
   color: var(--lx-text-3);
 }
 
-/* 通知推送配置：事件 × 推送目标 网格 */
-.lx-notify-setting-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 18px 40px;
-  padding: 18px 2px 4px;
-}
-.lx-notify-setting-item {
+/* 通知策略：按审批流程组织的节点开关列表 */
+.lx-flow-notify-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 16px;
+  padding-top: 4px;
 }
-.lx-notify-setting-item-head {
+.lx-flow-notify-card {
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  background: var(--lx-bg-card);
+  padding: 16px 20px 8px;
+}
+.lx-flow-notify-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+.lx-flow-notify-head-main {
+  min-width: 0;
+}
+.lx-flow-notify-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  font-size: var(--lx-font-md);
+  font-weight: 600;
+  color: var(--lx-text-1);
 }
-.lx-notify-setting-item-label {
+.lx-flow-notify-desc {
+  margin-top: 2px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+.lx-flow-notify-link {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lx-flow-notify-link:hover {
+  text-decoration: underline;
+}
+.lx-flow-notify-nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* 节点行同时用于流程节点、终态开关与无流程事件，保证三种列表视觉一致 */
+.lx-flow-notify-node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px dashed var(--lx-border-1);
+}
+.lx-flow-notify-nodes > .lx-flow-notify-node:first-child {
+  border-top: none;
+}
+.lx-flow-notify-node-index {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+  font-size: var(--lx-font-xs);
+  font-weight: 600;
+}
+.lx-flow-notify-node-main {
+  flex: 1;
+  min-width: 0;
+}
+.lx-flow-notify-node-name {
   font-size: var(--lx-font-sm);
   font-weight: 500;
   color: var(--lx-text-1);
 }
-.lx-notify-setting-item-code {
+.lx-flow-notify-node-role {
+  margin-top: 2px;
   font-size: var(--lx-font-xs);
-  color: var(--lx-text-4);
+  color: var(--lx-text-3);
 }
-.lx-notify-setting-pseudo {
-  color: var(--lx-primary);
-  font-weight: 600;
+.lx-flow-notify-node-type {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-secondary);
+  color: var(--lx-text-2);
+}
+.lx-flow-notify-result {
+  margin-top: 2px;
+  border-top: 1px solid var(--lx-border-1);
+}
+.lx-flow-notify-empty {
+  padding: 20px 0;
+}
+.lx-standalone-item {
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  background: var(--lx-bg-card);
+  padding: 12px 20px;
+}
+.lx-standalone-select {
+  width: 220px;
 }
 
 /* 我的排班：月历网格 */

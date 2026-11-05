@@ -59,10 +59,18 @@ export const notificationApi = {
   },
 };
 
-// ---- 通知推送目标角色配置（对齐参考 NotificationSettings 独立页） ----
+// ---- 通知推送策略（流程节点开关 + 非流程事件收件方） ----
 export interface NotificationSettingItem {
   eventType: string;
-  targetRoles: string[];
+  /** null=未配置（默认发送）；[]=显式关闭；[..]=指定收件方 */
+  targetRoles: string[] | null;
+  /** null=未配置（流程所有节点都通知）；[]=全部关闭；[..]=只通知这些节点 */
+  targetNodes: string[] | null;
+}
+
+export interface SetTargetsInput {
+  targetRoles?: string[];
+  targetNodes?: string[] | null;
 }
 
 export interface TargetRoleOption {
@@ -91,7 +99,14 @@ export const notificationSettingApi = {
   listRoles(): Promise<TargetRoleListResult> {
     return request.get('/notification-settings/roles');
   },
-  // 更新/新建某事件的目标角色
+  // 更新某事件的通知策略：只提交 targetNodes（流程节点）或 targetRoles（非流程收件方）
+  setTargets(
+    eventType: string,
+    input: SetTargetsInput,
+  ): Promise<{ code: number; message?: string }> {
+    return request.put(`/notification-settings/${eventType}`, input);
+  },
+  // 兼容旧调用
   setTargetRoles(eventType: string, targetRoles: string[]): Promise<{ code: number; message?: string }> {
     return request.put(`/notification-settings/${eventType}`, { targetRoles });
   },
