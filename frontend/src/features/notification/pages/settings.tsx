@@ -222,6 +222,13 @@ export default function NotificationSettingsPage() {
   }, [groups]);
 
   const roleOptions = useMemo(() => roles ?? [], [roles]);
+
+  /** roleCode → 中文角色名：节点行只展中文，不再把 admin/manager 之类编码摊给用户 */
+  const roleNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of roles ?? []) map.set(r.value, r.label);
+    return map;
+  }, [roles]);
   const isEmpty =
     settingsList != null &&
     settingsList.length === 0 &&
@@ -328,7 +335,11 @@ export default function NotificationSettingsPage() {
   };
 
   const resolveNodeTarget = (node: WorkflowNode): string => {
-    if (node.type === 'role') return node.roleCode ? `角色：${node.roleCode}` : '未指定角色';
+    if (node.type === 'role') {
+      if (!node.roleCode) return '未指定角色';
+      return `角色：${roleNameMap.get(node.roleCode) ?? node.roleCode}`;
+    }
+    if (node.type === 'user') return '指定人员';
     if (node.type === 'group') {
       const name = node.approvalGroupId ? groupNameMap.get(node.approvalGroupId) : undefined;
       return name ? `审批组：${name}` : '未指定审批组';

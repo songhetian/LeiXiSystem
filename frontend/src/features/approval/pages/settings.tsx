@@ -11,7 +11,6 @@ import {
   Message,
   Card,
   Tag,
-  InputNumber,
   Empty,
   Divider,
   Typography,
@@ -27,16 +26,25 @@ import {
   IconUser,
   IconUserGroup,
   IconApps,
+  IconIdcard,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { PermissionGate } from '@/components/PermissionGate';
-import { approvalApi, Workflow, WorkflowNode } from '@/services/approval';
+import {
+  approvalApi,
+  Workflow,
+  WorkflowNode,
+  ApprovalGroup,
+  RoleWorkflowItem,
+} from '@/services/approval';
 import { notifyError } from '@/lib/request';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { fetchAllPages } from '@/lib/fetch-all';
+import { systemApi, SysUser } from '@/services/system';
 import {
   BUSINESS_WORKFLOWS,
   BUSINESS_MODULE_LABELS,
@@ -54,12 +62,108 @@ const BUSINESS_OPTIONS = BUSINESS_WORKFLOWS.map((w) => ({
   value: w.code,
 }));
 
+/**
+ * 审批节点类型。
+ *
+ * 前三种是「点名到人」的三种粒度（单个用户 / 某个角色 / 某个审批组），
+ * 后两种是「按组织关系动态解析」（部门主管、申请人本人）。
+ * 下拉里保持这个顺序，与右栏「审批人」小节的说明一致。
+ */
 const NODE_TYPE_OPTIONS = [
-  { label: '角色审批', value: 'role', icon: <IconTag />, desc: '指定角色的用户可审批' },
-  { label: '审批组', value: 'group', icon: <IconApps />, desc: '从审批组中选择审批人' },
-  { label: '部门主管', value: 'department_manager', icon: <IconUserGroup />, desc: '申请人的部门主管审批' },
-  { label: '申请人', value: 'initiator', icon: <IconUser />, desc: '申请人本人确认节点' },
+  { label: '指定人员', value: 'user', icon: <IconIdcard />, desc: '由指定的某一位用户审批，不受角色变动影响' },
+  { label: '角色审批', value: 'role', icon: <IconTag />, desc: '由所选角色下的所有用户审批' },
+  { label: '审批组', value: 'group', icon: <IconApps />, desc: '由所选审批组内的成员审批' },
+  { label: '部门主管', value: 'department_manager', icon: <IconUserGroup />, desc: '由申请人所在部门的主管审批' },
+  { label: '申请人', value: 'initiator', icon: <IconUser />, desc: '由申请人本人确认' },
 ];
+
+// 审批组下拉 / 成员姓名的数据源：只读接口，权限与「审批组管理」页一致
+const GROUPS_KEY = 'config:approval:groups';
+const USERS_KEY = 'config:system:users-approvers';
+const ROLES_KEY = 'config:approval:roles';
+
+/**
+ * 生效条件字段。
+ *
+ * 这里的 value 是**各业务提交审批时 formData 的真实键名**（见后端
+ * vacation.service「days / hours」、reimbursement.service「totalAmount / type」），
+ * 写错键名不会报错、只会让条件永远不命中，因此必须给固定选项而不是让用户手打。
+ * 未登记的业务流程才用「其他字段」自行填写。
+ */
+const CONDITION_FIELDS = [
+  { label: '请假天数', value: 'days' },
+  { label: '加班小时数', value: 'hours' },
+  { label: '报销金额（元）', value: 'totalAmount' },
+  { label: '报销类型', value: 'type' },
+];
+const CUSTOM_FIELD = '__custom__';
+
+const CONDITION_OPERATORS = [
+  { label: '大于', value: 'gt' },
+  { label: '大于等于', value: 'gte' },
+  { label: '小于', value: 'lt' },
+  { label: '小于等于', value: 'lte' },
+  { label: '等于', value: 'eq' },
+  { label: '不等于', value: 'neq' },
+];
+
+/** 条件字段是否属于已登记的业务字段（否则是用户手填的「其他字段」） */
+function isKnownConditionField(field: string): boolean {
+  return CONDITION_FIELDS.some((f) => f.value === field);
+}
+
+/**
+ * Arco Select 用 `options` 数组渲染时，内部 `extendChildren` 只透传
+ * value / disabled / extra，自定义字段全被丢弃；`filterOption(input, option)`
+ * 收到的 option 是 React 元素，搜索串只能从 `props.extra` 或 `props.children` 读。
+ * 所有「按别名搜索」的下拉统一走这里。
+ */
+export function filterByExtra(input: string, option: unknown): boolean {
+  const props = (option as { props?: { extra?: string; children?: string } })?.props;
+  const hay = String(props?.extra ?? props?.children ?? '').toLowerCase();
+  return hay.includes(String(input).toLowerCase());
+}
+
+/**
+ * 节点的「谁审批」是否已配置完整。
+ *
+ * 只用于展示：未配置时摘要用警示色（角色未选 / 组未选 / 人未选），
+ * 与保存前的 validateWorkflowNodes 是两套口径——后者会阻断提交。
+ */
+export function isApproverConfigured(node: WorkflowNode): boolean {
+  if (node.type === 'role') return Boolean(node.roleCode);
+  if (node.type === 'group') return Boolean(node.approvalGroupId);
+  if (node.type === 'user') return Boolean(node.userId);
+  return true;
+}
+
+/**
+ * 保存前校验节点完整性（纯函数，便于单测）。
+ *
+ * 后端 resolveNextApprovers 的条件判定是「字段 + 运算符都要有才算条件」，缺一个
+ * 就会整条条件被忽略（节点对所有人无条件生效）；而 operator 有值、value 为空时
+ * Number('') = 0，会出现「大于 0」恒真的静默错误。这两类必须在前端拦下。
+ */
+export function validateWorkflowNodes(nodes: WorkflowNode[]): string | null {
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    const label = `第 ${i + 1} 个节点「${node.name || '未命名'}」`;
+    if (!node.name?.trim()) return `${label}未填写名称`;
+    if (node.type === 'role' && !node.roleCode) return `${label}未选择审批角色`;
+    if (node.type === 'user' && !node.userId) return `${label}未选择审批人`;
+    if (node.type === 'group' && !node.approvalGroupId) return `${label}未选择审批组`;
+
+    const hasCondition = Boolean(
+      node.conditionField || node.conditionOperator || node.conditionValue,
+    );
+    if (hasCondition) {
+      if (!node.conditionField) return `${label}的生效条件缺少字段`;
+      if (!node.conditionOperator) return `${label}的生效条件缺少运算符`;
+      if (!String(node.conditionValue ?? '').trim()) return `${label}的生效条件缺少比较值`;
+    }
+  }
+  return null;
+}
 
 // 审批流状态（StatusTag 色值规范：gray→default、green→success、red→danger）
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -88,6 +192,121 @@ export default function ApprovalSettingsPage() {
     'config:approval:workflows',
     fetchList,
   );
+
+  // ===== 节点配置所需的参考数据 =====
+  // 审批组读接口要 approval:manage，用户列表要 system:user:view，本页本身只要
+  // approval:workflow:manage —— 三者不是包含关系，缺权限时若照常发请求，请求层会
+  // 直接弹「没有权限执行此操作」，而用户在这个页面上明明是有权限的。
+  // 因此按各自权限点决定是否发请求，无权限时退化为空集并给出说明。
+  const canReadGroups = can('approval:manage');
+  const canReadUsers = can('system:user:view');
+
+  const { data: groups, loading: groupsLoading } = useCachedData<ApprovalGroup[]>(
+    canReadGroups ? GROUPS_KEY : `${GROUPS_KEY}:denied`,
+    async () => {
+      if (!canReadGroups) return [];
+      return fetchAllPages<ApprovalGroup>(async (page, pageSize) => {
+        const res = await approvalApi.listGroups({ page, pageSize });
+        if (res.code !== 0 || !res.data) throw new Error(res.message || '获取审批组失败');
+        return { list: res.data.list, total: res.data.total };
+      });
+    },
+  );
+
+  const { data: users } = useCachedData<SysUser[]>(
+    canReadUsers ? USERS_KEY : `${USERS_KEY}:denied`,
+    async () => {
+      if (!canReadUsers) return [];
+      return fetchAllPages<SysUser>(async (page, pageSize) => {
+        const res = await systemApi.listUsers({ page, pageSize });
+        if (res.code !== 0 || !res.data) throw new Error(res.message || '获取用户列表失败');
+        return { list: res.data.list, total: res.data.total };
+      });
+    },
+  );
+
+  // 角色下拉复用「职责授权」接口：权限同样是 approval:workflow:manage，必定可读
+  const { data: roles } = useCachedData<RoleWorkflowItem[]>(ROLES_KEY, async () => {
+    const res = await approvalApi.listRoleWorkflows();
+    if (res.code !== 0 || !res.data) throw new Error(res.message || '获取角色列表失败');
+    return res.data;
+  });
+
+  const userNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const u of users ?? []) map.set(u.id, u.name || u.username || `用户 ${u.id}`);
+    return map;
+  }, [users]);
+
+  /** 审批组成员姓名（无用户列表权限时退化为「共 N 人」） */
+  const memberNamesOf = useCallback(
+    (group: ApprovalGroup) => {
+      const ids = (group.members ?? []).map((m) => m.userId);
+      const names = ids.map((id) => userNameById.get(id)).filter(Boolean) as string[];
+      return { count: ids.length, names };
+    },
+    [userNameById],
+  );
+
+  const roleOptions = useMemo(
+    () => (roles ?? []).map((r) => ({ label: r.name, value: r.code })),
+    [roles],
+  );
+
+  const groupOptions = useMemo(
+    () =>
+      (groups ?? []).map((g) => {
+        const { count, names } = memberNamesOf(g);
+        return {
+          label: count > 0 ? `${g.name}（${count} 人）` : `${g.name}（暂无成员）`,
+          value: g.id,
+          // 搜索口径：组名 + 成员姓名，便于「只知道谁审批、不知道组名」时也能选到。
+          // 必须放在 extra 里：Arco 用 options 数组渲染时只透传 value/disabled/extra，
+          // 其余自定义字段会被丢掉，filterOption 拿到的 option 是 React 元素。
+          extra: `${g.name} ${g.code} ${names.join(' ')}`,
+        };
+      }),
+    [groups, memberNamesOf],
+  );
+
+  /** userId → 账号，用于把节点上的 userId 还原成「姓名（登录名）」 */
+  const userById = useMemo(() => {
+    const map = new Map<number, SysUser>();
+    for (const u of users ?? []) map.set(u.id, u);
+    return map;
+  }, [users]);
+
+  /**
+   * 指定人员候选。
+   *
+   * 停用账号不剔除：节点里已经存着它，剔除后下拉显示空、用户以为配置丢了，
+   * 反而更容易误存成「未选择审批人」。因此保留并在 label 上标注「已停用」。
+   */
+  const userOptions = useMemo(
+    () =>
+      (users ?? []).map((u) => {
+        const roleNames = (u.roles ?? []).map((r) => r.name).join(' ');
+        return {
+          label: `${u.name || u.username}（${u.username}）${u.status === 'active' ? '' : ' · 已停用'}`,
+          value: u.id,
+          // 搜索口径：姓名 + 登录名 + 角色名，任一项都能定位到人。
+          // 必须放在 extra 里：Arco 用 options 数组渲染时只透传 value/disabled/extra，
+          // 其余自定义字段会被丢弃，filterOption 收到的是 React 元素。
+          extra: `${u.name ?? ''} ${u.username} ${roleNames}`,
+        };
+      }),
+    [users],
+  );
+
+  /** 角色 → 在职人数（无用户列表权限时为空 Map，界面不展示人数） */
+  const roleUserCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const u of users ?? []) {
+      if (u.status !== 'active') continue;
+      for (const r of u.roles ?? []) map.set(r.code, (map.get(r.code) ?? 0) + 1);
+    }
+    return map;
+  }, [users]);
 
   // ===== 审批流列表分页（数据整表返回，前端分页展示） =====
   const [listPage, setListPage] = useState(1);
@@ -199,6 +418,22 @@ export default function ApprovalSettingsPage() {
     );
   };
 
+  /**
+   * 切换审批类型时清掉其它类型的审批人字段。
+   *
+   * 不清的话库里会同时存在 role_code 与 user_id：节点语义只由 type 决定，
+   * 剩下的字段是死数据，排查「为什么这个人能审」时极易看错，
+   * 类型来回切换后也容易把旧配置误当成新配置保存。
+   */
+  const handleTypeChange = (nodeKey: string, type: string) => {
+    updateNode(nodeKey, {
+      type,
+      ...(type !== 'role' ? { roleCode: undefined } : {}),
+      ...(type !== 'group' ? { approvalGroupId: undefined } : {}),
+      ...(type !== 'user' ? { userId: undefined } : {}),
+    });
+  };
+
   const removeNode = (nodeKey: string) => {
     const updated = nodes.filter((n) => n.nodeKey !== nodeKey);
     setNodes(updated.map((n, i) => ({ ...n, order: i + 1 })));
@@ -218,10 +453,16 @@ export default function ApprovalSettingsPage() {
 
   const handleNodeSubmit = async () => {
     if (!currentWorkflow) return;
+    const invalid = validateNodes();
+    if (invalid) {
+      Message.warning(invalid);
+      return;
+    }
     try {
       setNodeSaving(true);
       const res = await approvalApi.updateWorkflow(currentWorkflow.id, {
-        nodes: nodes.sort((a, b) => a.order - b.order),
+        // 排序不能原地 sort：会改掉 state 里的数组，取消弹窗后列表顺序也被改掉
+        nodes: [...nodes].sort((a, b) => a.order - b.order),
       });
       if (res.code === 0) {
         Message.success('节点配置保存成功');
@@ -248,6 +489,60 @@ export default function ApprovalSettingsPage() {
   };
 
   const activeNode = nodes.find((n) => n.nodeKey === activeNodeKey) || null;
+
+  // 当前选中的审批组 + 成员姓名：选中即可看到「到底谁会审」，不必再去审批组页核对
+  const selectedGroup =
+    activeNode?.type === 'group'
+      ? (groups ?? []).find((g) => g.id === activeNode.approvalGroupId)
+      : undefined;
+  const selectedMemberNames = selectedGroup
+    ? (selectedGroup.members ?? [])
+        .map((m) => userNameById.get(m.userId))
+        .filter((n): n is string => Boolean(n))
+    : [];
+
+  // 指定人员节点的审批人：把 userId 还原成账号，渲染「人员卡片」
+  const selectedUser =
+    activeNode?.type === 'user' && activeNode.userId
+      ? userById.get(activeNode.userId)
+      : undefined;
+
+  /** 节点审批人摘要：左侧列表与流程预览直接显示「谁来审」，避免只看得到节点类型 */
+  const approverSummaryOf = useCallback(
+    (node: WorkflowNode) => {
+      switch (node.type) {
+        case 'user': {
+          if (!node.userId) return '未选择审批人';
+          const user = userById.get(node.userId);
+          // 账号被物理删除时仍要能读出来，否则节点摘要只剩「未选择」，容易被误改
+          return user ? user.name || user.username : `用户 #${node.userId}`;
+        }
+        case 'role': {
+          const role = (roles ?? []).find((r) => r.code === node.roleCode);
+          return role?.name || '未选择角色';
+        }
+        case 'group': {
+          const group = (groups ?? []).find((g) => g.id === node.approvalGroupId);
+          if (!group) return '未选择审批组';
+          const { count } = memberNamesOf(group);
+          return count > 0 ? `${group.name} · ${count} 人` : `${group.name} · 暂无成员`;
+        }
+        case 'department_manager':
+          return '申请人部门主管';
+        case 'initiator':
+          return '申请人本人';
+        default:
+          return '未配置';
+      }
+    },
+    [roles, groups, memberNamesOf, userById],
+  );
+
+  /**
+   * 保存前校验节点完整性，规则见模块级 validateWorkflowNodes
+   * （条件字段/运算符/值三项要么全空、要么全填）。
+   */
+  const validateNodes = (): string | null => validateWorkflowNodes(nodes);
 
   const columns: ProTableColumn[] = [
     { title: '流程名称', dataIndex: 'name', width: 200 },
@@ -415,7 +710,7 @@ export default function ApprovalSettingsPage() {
         okText="保存配置"
         cancelText="取消"
         maskClosable={false}
-        style={{ width: 980 }}
+        style={{ width: 1080, maxWidth: '96vw' }}
       >
         <div className="appr-flow-grid">
           {/* 左侧：节点列表 */}
@@ -453,7 +748,14 @@ export default function ApprovalSettingsPage() {
                         <Text style={{ fontSize: 12, fontWeight: 500 }}>{node.name}</Text>
                       </div>
                       <div className="appr-node-sub">
-                        <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>{meta.label}</Text>
+                        <span className="appr-node-type">{meta.label}</span>
+                        <span
+                          className={`appr-node-approver${
+                            isApproverConfigured(node) ? '' : ' appr-approver--warn'
+                          }`}
+                        >
+                          {approverSummaryOf(node)}
+                        </span>
                       </div>
                       </button>
                       <div className="appr-node-actions">
@@ -535,8 +837,18 @@ export default function ApprovalSettingsPage() {
                             {node.name}
                           </Text>
                         </div>
-                        <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
-                          {meta.label} · 第 {index + 1} 节点
+                        <div className="appr-flow-node-approver">
+                          <span className="appr-flow-node-type">{meta.label}</span>
+                          <span
+                            className={`appr-flow-node-approver-name${
+                              isApproverConfigured(node) ? '' : ' appr-approver--warn'
+                            }`}
+                          >
+                            {approverSummaryOf(node)}
+                          </span>
+                        </div>
+                        <Text style={{ fontSize: 12, color: 'var(--lx-text-4)' }}>
+                          第 {index + 1} 节点
                         </Text>
                       </button>
                     </div>
@@ -558,102 +870,235 @@ export default function ApprovalSettingsPage() {
               <Empty description="选择左侧节点" style={{ marginTop: 60 }} />
             ) : (
               <div className="appr-flow-form">
-                <Form.Item label="节点名称" style={{ marginBottom: 0 }}>
+                <Form.Item label="节点名称" layout="vertical" style={{ marginBottom: 12 }}>
                   <Input
                     value={activeNode.name}
                     onChange={(v) => updateNode(activeNode.nodeKey, { name: v })}
                     size="small"
+                    placeholder="如：直属上级审批"
                   />
                 </Form.Item>
 
-                <Form.Item label="审批类型" style={{ marginBottom: 0 }}>
+                <Form.Item label="审批类型" layout="vertical" style={{ marginBottom: 6 }}>
                   <Select
                     value={activeNode.type}
-                    onChange={(v) => updateNode(activeNode.nodeKey, { type: v })}
+                    onChange={(v) => handleTypeChange(activeNode.nodeKey, v)}
                     size="small"
                     style={{ width: '100%' }}
-                  >
-                    {NODE_TYPE_OPTIONS.map((opt) => (
-                      <Option key={opt.value} value={opt.value}>
-                        <Space size="small">
-                          <span>{opt.icon}</span>
-                          <span>{opt.label}</span>
-                        </Space>
-                      </Option>
-                    ))}
-                  </Select>
+                    options={NODE_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.value }))}
+                  />
+                </Form.Item>
+                <div className="appr-flow-hint">{getNodeTypeMeta(activeNode.type).desc}</div>
+
+                {/* ---- 审批人：按类型给出可搜索、可定位到人的选择器 ---- */}
+                <div className="appr-approver-block">
+                  <div className="appr-flow-section-title">审批人</div>
+
+                  {activeNode.type === 'user' && (
+                    <>
+                      <Select
+                        showSearch
+                        allowClear
+                        size="small"
+                        style={{ width: '100%' }}
+                        placeholder="搜索姓名、登录名或角色"
+                        value={activeNode.userId}
+                        onChange={(v) =>
+                          updateNode(activeNode.nodeKey, {
+                            userId: typeof v === 'number' ? v : undefined,
+                          })
+                        }
+                        options={userOptions}
+                        filterOption={filterByExtra}
+                        notFoundContent={
+                          !canReadUsers ? '缺少「用户管理」查看权限' : '没有匹配的人员'
+                        }
+                      />
+                      {selectedUser ? (
+                        <div className="appr-approver-card">
+                          <span className="appr-approver-avatar" aria-hidden>
+                            {(selectedUser.name || selectedUser.username).slice(0, 1)}
+                          </span>
+                          <div className="appr-approver-info">
+                            <span className="appr-approver-name">
+                              {selectedUser.name || selectedUser.username}
+                            </span>
+                            <span className="appr-approver-meta">
+                              {selectedUser.username}
+                              {(selectedUser.roles ?? []).length > 0
+                                ? ` · ${(selectedUser.roles ?? []).map((r) => r.name).join(' / ')}`
+                                : ''}
+                            </span>
+                          </div>
+                          {selectedUser.status !== 'active' && (
+                            <Tag size="small" color="orange">
+                              已停用
+                            </Tag>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="appr-approver-empty">
+                          {!activeNode.userId
+                            ? '尚未选择审批人'
+                            : canReadUsers
+                              ? `账号已不存在（ID ${activeNode.userId}），请重新选择`
+                              : `已指定人员（ID ${activeNode.userId}），缺少「用户管理」查看权限，无法显示姓名`}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {activeNode.type === 'role' && (
+                    <>
+                      <Select
+                        showSearch
+                        allowClear
+                        size="small"
+                        style={{ width: '100%' }}
+                        placeholder="搜索角色名称"
+                        value={activeNode.roleCode}
+                        onChange={(v) => updateNode(activeNode.nodeKey, { roleCode: v })}
+                        options={roleOptions}
+                        filterOption={filterByExtra}
+                        notFoundContent={roles?.length ? '没有匹配的角色' : '暂无可选角色'}
+                      />
+                      <div className="appr-approver-note">
+                        {!activeNode.roleCode
+                          ? '该角色下的所有用户都会收到审批待办'
+                          : roleUserCount.has(activeNode.roleCode)
+                            ? `该角色下有 ${roleUserCount.get(activeNode.roleCode)} 个在职账号，均会收到审批待办`
+                            : '该角色下的所有用户都会收到审批待办'}
+                      </div>
+                    </>
+                  )}
+
+                  {activeNode.type === 'group' && (
+                    <>
+                      <Select
+                        showSearch
+                        allowClear
+                        size="small"
+                        style={{ width: '100%' }}
+                        placeholder="搜索组名或成员姓名"
+                        loading={groupsLoading}
+                        value={activeNode.approvalGroupId}
+                        onChange={(v) =>
+                          updateNode(activeNode.nodeKey, {
+                            approvalGroupId: typeof v === 'number' ? v : undefined,
+                          })
+                        }
+                        options={groupOptions}
+                        filterOption={filterByExtra}
+                        notFoundContent={
+                          canReadGroups ? '没有匹配的审批组' : '缺少「审批组管理」查看权限'
+                        }
+                      />
+                      {selectedGroup && (
+                        <div className="appr-flow-members">
+                          <span className="appr-flow-members-label">组内成员</span>
+                          {selectedMemberNames.length > 0 ? (
+                            <Space size={4} wrap>
+                              {selectedMemberNames.map((name) => (
+                                <Tag key={name} size="small">
+                                  {name}
+                                </Tag>
+                              ))}
+                            </Space>
+                          ) : (
+                            <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
+                              共 {selectedGroup.members?.length ?? 0} 人
+                              {!canReadUsers ? '（无成员姓名查看权限）' : '（尚未添加成员）'}
+                            </Text>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* 按组织关系动态解析的两种类型没有可选项，用只读卡片说明「谁会审」 */}
+                  {(activeNode.type === 'department_manager' || activeNode.type === 'initiator') && (
+                    <div className="appr-approver-static">
+                      <span className="appr-approver-static-icon" aria-hidden>
+                        {getNodeTypeMeta(activeNode.type).icon}
+                      </span>
+                      <div className="appr-approver-info">
+                        <span className="appr-approver-name">
+                          {activeNode.type === 'department_manager' ? '申请人所属部门主管' : '申请人本人'}
+                        </span>
+                        <span className="appr-approver-meta">
+                          {activeNode.type === 'department_manager'
+                            ? '按申请提交时填写的部门动态解析；部门未设负责人时本节点会被跳过'
+                            : '回到发起人确认，无需额外配置'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Divider style={{ margin: '10px 0' }} />
+
+                <div className="appr-flow-section-title">生效条件</div>
+                <div className="appr-flow-hint">
+                  申请数据满足条件时本节点才参与审批；三项都留空表示所有情况都走本节点。
+                </div>
+
+                <Form.Item label="条件字段" layout="vertical" style={{ marginBottom: 10 }}>
+                  <Select
+                    size="small"
+                    style={{ width: '100%' }}
+                    placeholder="不设置条件"
+                    allowClear
+                    value={
+                      activeNode.conditionField
+                        ? isKnownConditionField(activeNode.conditionField)
+                          ? activeNode.conditionField
+                          : CUSTOM_FIELD
+                        : undefined
+                    }
+                    onChange={(v) =>
+                      updateNode(activeNode.nodeKey, {
+                        conditionField: v === CUSTOM_FIELD ? '' : (v as string | undefined),
+                      })
+                    }
+                    options={[
+                      ...CONDITION_FIELDS,
+                      { label: '其他字段（手动输入）', value: CUSTOM_FIELD },
+                    ]}
+                  />
                 </Form.Item>
 
-                <Text style={{ fontSize: 12, color: 'var(--lx-text-3)' }}>
-                  {getNodeTypeMeta(activeNode.type).desc}
-                </Text>
-
-                {activeNode.type === 'role' && (
-                  <Form.Item label="角色编码" style={{ marginBottom: 0 }}>
-                    <Input
-                      value={activeNode.roleCode || ''}
-                      onChange={(v) => updateNode(activeNode.nodeKey, { roleCode: v })}
-                      placeholder="如：admin、manager、hr"
-                      size="small"
-                    />
-                  </Form.Item>
-                )}
-
-                {activeNode.type === 'group' && (
-                  <Form.Item label="审批组 ID" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      value={activeNode.approvalGroupId}
-                      onChange={(v) =>
-                        updateNode(activeNode.nodeKey, { approvalGroupId: v as number })
-                      }
-                      style={{ width: '100%' }}
-                      placeholder="审批组 ID"
-                      size="small"
-                    />
-                  </Form.Item>
-                )}
-
-                <Divider style={{ margin: '4px 0' }} />
-
-                <div>
-                  <Text style={{ fontSize: 12, color: 'var(--lx-text-3)', fontWeight: 500 }}>
-                    高级配置
-                  </Text>
-                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <Form.Item label="条件字段（可选）" style={{ marginBottom: 0 }}>
+                {activeNode.conditionField !== undefined &&
+                  !isKnownConditionField(activeNode.conditionField) && (
+                    <Form.Item label="字段键名" layout="vertical" style={{ marginBottom: 10 }}>
                       <Input
-                        value={activeNode.conditionField || ''}
+                        size="small"
+                        value={activeNode.conditionField}
                         onChange={(v) => updateNode(activeNode.nodeKey, { conditionField: v })}
-                        placeholder="如：amount、days"
-                        size="small"
+                        placeholder="该业务提交审批时使用的字段名"
                       />
                     </Form.Item>
-                    <Form.Item label="条件运算符" style={{ marginBottom: 0 }}>
-                      <Select
-                        value={activeNode.conditionOperator || ''}
-                        onChange={(v) => updateNode(activeNode.nodeKey, { conditionOperator: v })}
-                        size="small"
-                        allowClear
-                        placeholder="选择比较方式"
-                      >
-                        <Option value="gt">{'大于 (>)'}</Option>
-                        <Option value="gte">{'大于等于 (>=)'}</Option>
-                        <Option value="lt">{'小于 (<)'}</Option>
-                        <Option value="lte">{'小于等于 (<=)'}</Option>
-                        <Option value="eq">等于 (==)</Option>
-                        <Option value="neq">不等于 (!=)</Option>
-                      </Select>
-                    </Form.Item>
-                    <Form.Item label="条件值" style={{ marginBottom: 0 }}>
-                      <Input
-                        value={activeNode.conditionValue || ''}
-                        onChange={(v) => updateNode(activeNode.nodeKey, { conditionValue: v })}
-                        placeholder="如：1000、3"
-                        size="small"
-                      />
-                    </Form.Item>
-                  </div>
-                </div>
+                  )}
+
+                <Form.Item label="比较方式" layout="vertical" style={{ marginBottom: 10 }}>
+                  <Select
+                    size="small"
+                    style={{ width: '100%' }}
+                    placeholder="不比较"
+                    allowClear
+                    value={activeNode.conditionOperator}
+                    onChange={(v) => updateNode(activeNode.nodeKey, { conditionOperator: v })}
+                    options={CONDITION_OPERATORS}
+                  />
+                </Form.Item>
+
+                <Form.Item label="比较值" layout="vertical" style={{ marginBottom: 0 }}>
+                  <Input
+                    size="small"
+                    value={activeNode.conditionValue}
+                    onChange={(v) => updateNode(activeNode.nodeKey, { conditionValue: v })}
+                    placeholder="填写用于比较的数值或文字"
+                  />
+                </Form.Item>
               </div>
             )}
           </div>

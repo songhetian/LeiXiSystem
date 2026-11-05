@@ -100,6 +100,8 @@ export interface WorkflowNode {
   type: string;
   roleCode?: string;
   approvalGroupId?: number;
+  /** type='user' 时指定的审批人 userId */
+  userId?: number;
   order: number;
   conditionField?: string;
   conditionOperator?: string;

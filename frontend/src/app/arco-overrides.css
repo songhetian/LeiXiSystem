@@ -458,12 +458,17 @@
    弹出组件完整样式补充
    ======================================== */
 
-/* ---- Modal 遮罩毛玻璃效果 ---- */
+/* ---- Modal 遮罩 ----
+ *
+ * 这里**不要加 backdrop-filter**：遮罩是全屏 fixed，毛玻璃会让浏览器在遮罩淡入
+ * 动画的每一帧（约 200ms / 十几帧）把整个页面重新采样模糊一次。页面本身是
+ * 大表格 + 多标签 keep-alive（已打开的页签都还挂载着），2K 分辨率下这一项能把
+ * 一次开弹窗拖到几百毫秒，表现就是「所有页面的弹窗都发卡、有明显延迟」。
+ * 视觉上遮罩本身已有 40% 压暗，4px 模糊几乎看不出来，去掉是纯收益。
+ * 顶栏 / 页签栏的毛玻璃是小面积静态层，保留。
+ */
 .arco-modal-mask {
-  /* Safari 需 -webkit- 前缀（此前的写法在 Safari 上退化为无模糊） */
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  background-color: rgba(0, 0, 0, 0.35) !important;
+  background-color: var(--lx-mask) !important;
 }
 
 /* ---- Modal 标题字重修正 ----

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
-  Button, Message, Modal,
+  Button, Message, Modal, Empty,
 } from '@arco-design/web-react';
 import {
   IconCalendar,
@@ -22,6 +23,7 @@ import DataState from '@/components/DataState';
 import { attendanceApi, type Shift } from '@/services/attendance';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { usePermission } from '@/hooks/use-permission';
 import { todayStr } from '@/lib/format';
 
 // 状态 → 中文徽标（对齐旧项目 getStatusBadge 语义）
@@ -69,6 +71,8 @@ function getWeekday(d: Date): string {
 
 interface TodayPunchData {
   id?: number;
+  /** 账号未绑定员工档案时后端返回的状态标记（超级管理员等纯系统账号） */
+  noEmployeeProfile?: boolean;
   firstPunch?: string | null;
   lastPunch?: string | null;
   punchCount?: number;
@@ -113,6 +117,8 @@ function PunchClock() {
 
 export default function PunchPage() {
   const [punching, setPunching] = useState(false);
+  const { can } = usePermission();
+  const router = useRouter();
 
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   // 直接复用服务层 Shift 类型，避免再抄一份局部形状（抄的那份与真实返回不完全兼容，只能靠 as any 压过去）
@@ -248,6 +254,38 @@ export default function PunchPage() {
           ? `签退时段已开启（${shift.endTime}）`
           : ''
       : '';
+
+  // 账号没有员工档案：打卡、排班、假期都基于员工档案，纯系统账号（如超级管理员）
+  // 本来就可能没有。此时给「怎么绑定」的引导，而不是抛「员工不存在」的红色报错。
+  if (todayData?.noEmployeeProfile) {
+    return (
+      <PageContainer title="打卡" subTitle="今日签到签退与个人考勤记录">
+        <div className="punch-card max-w-3xl mx-auto">
+          <Empty description="当前账号还没有绑定员工档案" />
+          <div className="mx-auto mt-4 max-w-xl text-sm leading-6 text-text-2">
+            <p className="mb-2">
+              打卡、排班、假期余额、工资条这些个人功能都挂在员工档案上；系统账号
+              （例如超级管理员）默认不关联档案，所以这里没有可打卡的对象。
+            </p>
+            <p className="mb-2">
+              绑定方式：进入「员工列表」找到你本人的档案 → 编辑 → 把「关联账号」选成当前登录账号 →
+              保存，然后刷新本页。
+            </p>
+            <p className="mb-0 text-text-3">
+              如果列表里还没有你的档案，请先由人事创建员工档案，再按上面的步骤绑定。
+            </p>
+          </div>
+          {can('employee:view') && (
+            <div className="mt-5 text-center">
+              <Button type="primary" onClick={() => router.push('/employees')}>
+                前往员工列表
+              </Button>
+            </div>
+          )}
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer title="打卡" subTitle="今日签到签退与个人考勤记录">

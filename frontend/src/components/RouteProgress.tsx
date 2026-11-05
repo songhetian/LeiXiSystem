@@ -11,13 +11,18 @@ function RouteProgressInner() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
+    let stopTimer: ReturnType<typeof setTimeout>;
     let raf: number;
+    // 到达即停：原先这条链没有任何终止条件，进度条隐藏后仍会每 200ms 触发一次
+    // setState，一直空转到下一次路由切换 —— 属于常驻主线程开销。
+    let stopped = false;
     let current = 0;
 
     setVisible(true);
     setProgress(0);
 
     const animate = () => {
+      if (stopped) return;
       current += Math.random() * 15 + 5;
       if (current >= 90) current = 90;
       setProgress(current);
@@ -27,9 +32,15 @@ function RouteProgressInner() {
     };
 
     raf = requestAnimationFrame(animate);
+    // 下方 effect 会在 100ms 时补到 100%、300ms 内隐藏，这里留出余量后停链
+    stopTimer = setTimeout(() => {
+      stopped = true;
+    }, 600);
 
     return () => {
+      stopped = true;
       clearTimeout(timer);
+      clearTimeout(stopTimer);
       cancelAnimationFrame(raf);
     };
   }, [pathname, searchParams]);

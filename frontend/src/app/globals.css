@@ -3607,7 +3607,10 @@ body.arco-theme-dark .lx-salary-badge--income {
    ======================================== */
 .appr-flow-grid {
   display: grid;
-  grid-template-columns: 220px 1fr 260px;
+  /* 右栏承载「审批角色/审批组 + 成员 + 生效条件」，260px 时纵向排布的 label
+     会被挤成三行折字（截图里的「条件字段（可选）」），故把右栏固定到 372px，
+     中间预览列用 minmax(0,1fr) 吸收剩余宽度，窄屏时先压中间列。 */
+  grid-template-columns: 248px minmax(0, 1fr) 372px;
   min-height: 480px;
 }
 .appr-flow-col {
@@ -3650,7 +3653,36 @@ body.arco-theme-dark .lx-salary-badge--income {
   cursor: pointer;
 }
 .appr-node-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
-.appr-node-sub { display: flex; align-items: center; gap: 6px; padding-left: 26px; }
+/* 节点摘要一行显示（「审批组 · 财务审批组 · 3 人」不允许折成两行把卡片撑高）：
+   类型徽章固定宽度，审批人摘要吃剩余空间并省略 */
+.appr-node-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 26px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.appr-node-type {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-tertiary);
+  color: var(--lx-text-3);
+  font-size: 11px;
+  line-height: 17px;
+}
+.appr-node-approver {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+/* 审批人未配置：用警示色区分「还没选人」与「已选好人」，不靠文案猜 */
+.appr-approver--warn { color: var(--lx-warning-text); }
 .appr-node-num {
   display: inline-flex;
   align-items: center;
@@ -3759,7 +3791,7 @@ body.arco-theme-dark .lx-salary-badge--income {
 .appr-flow-cap--start { background: var(--lx-success-bg); color: var(--lx-success-text); }
 .appr-flow-cap--end { background: var(--lx-info-bg); color: var(--lx-info-text); }
 .appr-flow-node {
-  width: 160px;
+  width: 190px;
   padding: 10px 12px;
   border-radius: var(--lx-radius-md);
   background: var(--lx-bg-card);
@@ -3768,6 +3800,13 @@ body.arco-theme-dark .lx-salary-badge--income {
   text-align: center;
   transition: border-color var(--lx-transition-fast), background-color var(--lx-transition-fast),
     box-shadow var(--lx-transition-fast);
+}
+/* 预览节点里的审批人摘要同样一行显示，避免节点卡片高度随人名长度跳动 */
+.appr-flow-node .arco-typography {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .appr-flow-node--active {
   background: var(--lx-primary-bg);
@@ -3782,7 +3821,154 @@ body.arco-theme-dark .lx-salary-badge--income {
   margin-bottom: 2px;
 }
 .appr-flow-node-icon { color: var(--lx-primary); font-size: var(--lx-font-xs); }
+/* 预览节点内「类型徽章 + 审批人」同一行：节点宽度固定 190px，
+   人名过长时省略，不允许折行把整条流程拉高 */
+.appr-flow-node-approver {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+.appr-flow-node-type {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-tertiary);
+  color: var(--lx-text-3);
+  font-size: 11px;
+  line-height: 16px;
+}
+.appr-flow-node-approver-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-2);
+}
 .appr-flow-form { display: flex; flex-direction: column; gap: 10px; }
+
+/* 右栏字段标签统一单行：竖排布局下标签在上方，绝不允许被挤压折行
+   （旧实现是横向 Form.Item + 260px 栏宽，「条件字段（可选）」被折成三行） */
+.appr-flow-form .arco-form-label-item {
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.appr-flow-form .arco-form-label-item > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lx-text-3);
+}
+.appr-flow-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lx-text-3);
+}
+.appr-flow-section-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lx-text-1);
+}
+.appr-flow-members {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.appr-flow-members-label {
+  font-size: 12px;
+  color: var(--lx-text-3);
+}
+
+/* ---- 右栏「审批人」配置块：与「生效条件」形成两段式结构 ---- */
+.appr-approver-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-secondary);
+  border: 1px solid var(--lx-border-1);
+}
+/* 选中人员后的身份卡片：头像 + 姓名 + 登录名/角色，一眼确认「点对人了」 */
+.appr-approver-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-2);
+}
+.appr-approver-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+  font-size: var(--lx-font-sm);
+  font-weight: var(--lx-font-semibold, 600);
+}
+.appr-approver-static {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-card);
+  border: 1px dashed var(--lx-border-2);
+}
+.appr-approver-static-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-tertiary);
+  color: var(--lx-text-3);
+}
+.appr-approver-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.appr-approver-name {
+  overflow: hidden;
+  color: var(--lx-text-1);
+  font-size: var(--lx-font-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appr-approver-meta {
+  overflow: hidden;
+  color: var(--lx-text-3);
+  font-size: var(--lx-font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 未选人 / 账号已丢失：虚线框 + 警示色，和已配置状态形成明确对比 */
+.appr-approver-empty {
+  padding: 6px 10px;
+  border: 1px dashed var(--lx-border-3);
+  border-radius: var(--lx-radius-sm);
+  color: var(--lx-warning-text);
+  font-size: var(--lx-font-xs);
+}
+.appr-approver-note {
+  color: var(--lx-text-3);
+  font-size: var(--lx-font-xs);
+  line-height: 1.5;
+}
 
 /* 角色权限穿梭双栏（features/system/pages/roles.tsx）—— 内联结构样式抽出 */
 .roles-split {
