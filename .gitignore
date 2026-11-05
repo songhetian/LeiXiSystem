@@ -22,6 +22,11 @@ pnpm-debug.log*
 !.env.example
 !.env.production.example
 
+# ===== 生产编排：按部署约定由人工上传到服务器，不入库 =====
+# 它引用 .env.production 的变量名并描述生产拓扑，与真实凭据配套使用；
+# 如需改为纳入版本管理，删除下一行即可。
+docker-compose.prod.yml
+
 # ===== 编辑器与系统 =====
 .DS_Store
 Thumbs.db

@@ -1,7 +1,11 @@
-# 雷犀管理系统 · Docker 一键部署（开发/生产）
+# 雷犀管理系统 · Docker 一键部署（开发环境）
 # 密钥从项目根目录 .env 文件读取（docker-compose 自动加载，勿提交真实 .env）
-# 生产环境部署：
-#   docker compose --env-file .env.production up -d --build
+# 开发环境启动：
+#   docker compose up -d --build
+# ⚠️ 生产环境请勿使用本文件：下方 backend 的 DATABASE_URL / REDIS_URL 写死指向
+#    容器内的 mysql / redis，.env.production 里填的阿里云 RDS 地址不会生效。
+#    生产请改用独立编排（不启本地 mysql，直连 RDS + OSS）：
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 #
 # 端口分配：
 #   nginx 入口  8088（宿主机访问入口）
