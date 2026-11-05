@@ -54,6 +54,7 @@ function makeRedisMock() {
   };
   const redis = {
     isEnabled: true,
+    isAvailable: jest.fn(() => true),
     getClient: jest.fn(() => client),
     get: jest.fn((k: string) => Promise.resolve(store[k]?.[0] || null)),
     set: jest.fn(),
@@ -91,6 +92,7 @@ describe('CsrfService', () => {
     it('Redis 未启用时，仍返回 token 字符串（降级）', async () => {
       const { redis, client } = makeRedisMock();
       redis.isEnabled = false;
+      redis.isAvailable.mockReturnValue(false);
       const svc = new CsrfService(redis as any);
       const token = await svc.generateToken(1);
       expect(typeof token).toBe('string');
@@ -144,6 +146,7 @@ describe('CsrfService', () => {
     it('Redis 未启用时，返回 true（降级直通）', async () => {
       const { redis } = makeRedisMock();
       redis.isEnabled = false;
+      redis.isAvailable.mockReturnValue(false);
       const svc = new CsrfService(redis as any);
       const valid = await svc.validateToken(1, 'any-token');
       expect(valid).toBe(true);

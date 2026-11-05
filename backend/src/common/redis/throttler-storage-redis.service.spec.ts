@@ -3,6 +3,8 @@ import { ThrottlerStorageRedis } from './throttler-storage-redis.service';
 function createMockRedis(enabled = true) {
   return {
     isEnabled: enabled,
+    // 断连判断现在按 isAvailable()（只有连接就绪才发命令），测试替身需同步
+    isAvailable: jest.fn().mockReturnValue(enabled),
     getClient: jest.fn().mockReturnValue({
       pipeline: jest.fn().mockReturnValue({
         zremrangebyscore: jest.fn().mockReturnThis(),

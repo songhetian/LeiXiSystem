@@ -22,6 +22,7 @@ function makeRedisMock(store: Record<string, string> = {}) {
   };
   const redisMock = {
     isEnabled: true,
+    isAvailable: jest.fn(() => true),
     getClient: jest.fn(() => client),
   };
   return { redisMock, client, store: storeObj };
@@ -62,6 +63,7 @@ describe('DistributedLockService', () => {
     it('Redis 未启用时，默认 fail-closed 返回 false', async () => {
       const { redisMock, client } = makeRedisMock();
       redisMock.isEnabled = false;
+      redisMock.isAvailable.mockReturnValue(false);
       const lock = new DistributedLockService(redisMock as any);
       const result = await lock.tryAcquire('payroll:2026-07', 'worker-1', 30000);
       expect(result).toBe(false);
@@ -71,6 +73,7 @@ describe('DistributedLockService', () => {
     it('Redis 未启用且 failClosed=false 时，返回 true（放行）', async () => {
       const { redisMock, client } = makeRedisMock();
       redisMock.isEnabled = false;
+      redisMock.isAvailable.mockReturnValue(false);
       const lock = new DistributedLockService(redisMock as any);
       const result = await lock.tryAcquire('payroll:2026-07', 'worker-1', 30000, false);
       expect(result).toBe(true);
@@ -107,6 +110,7 @@ describe('DistributedLockService', () => {
     it('Redis 未启用时，release 返回 true（直通）', async () => {
       const { redisMock, client } = makeRedisMock();
       redisMock.isEnabled = false;
+      redisMock.isAvailable.mockReturnValue(false);
       const lock = new DistributedLockService(redisMock as any);
       const result = await lock.release('payroll:2026-07', 'anyone');
       expect(result).toBe(true);

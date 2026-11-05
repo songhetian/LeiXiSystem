@@ -31,6 +31,14 @@ export class RedisService implements OnModuleDestroy {
         lazyConnect: false,
         enableOfflineQueue: true,
         keyPrefix: this.keyPrefix,
+        // 命令级硬超时（毫秒）。没有它时，Redis 不可用期间命令会留在离线队列里
+        // 等待下一次重连：实测故障持续 >20s 后，get/set 可以挂住整个 HTTP 请求
+        // 十几秒甚至更久（登录接口 45s 不返回）。maxRetriesPerRequest 只在连接
+        // 已建立后按「重试次数」拒绝命令，管不住排队中的命令。
+        // 2s 足以覆盖正常 Redis（毫秒级）与高负载下的偶发排队，又能给降级
+        // 逻辑一个明确上界；连接不可用的常态由下面的「未就绪直接降级」兜住，
+        // 不会每个请求都白等这 2s。
+        commandTimeout: 2000,
       });
       this.isEnabled = true;
       this.client.on('ready', () => {
@@ -59,15 +67,25 @@ export class RedisService implements OnModuleDestroy {
     return this.isEnabled && this.healthy;
   }
 
+  /**
+   * 连接未就绪（未配置 / 正在重连 / 已断开）时，所有读写一律直接走降级。
+   *
+   * 不能只靠 commandTimeout 兜底：一次登录会串行触发 get → set → del → multi，
+   * 每个命令各等满超时，用户看到的是数秒级延迟。连接本就不可用时，排队等结果
+   * 没有任何收益——这些调用点都有明确的降级分支。
+   */
   getClient(): Redis {
     if (!this.client) throw new ServiceUnavailableException({ code: 5007, message: 'Redis 未启用（REDIS_URL 未配置）' });
     return this.client;
   }
 
   async ping(): Promise<string | null> {
-    if (!this.client) return null;
+    // 健康探针必须真的发一次 PING：不能用缓存的 healthy 直接返回 null，
+    // 否则启动瞬间与「刚恢复」时都会误报 down。
+    const client = this.client;
+    if (!client) return null;
     try {
-      return await this.client.ping();
+      return await client.ping();
     } catch (err) {
       this.logger.warn(`Redis ping 失败: ${errorMessage(err)}`);
       return null;
@@ -75,9 +93,10 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async incr(key: string): Promise<number> {
-    if (!this.client) return 0;
+    const client = this.client;
+    if (!client || !this.healthy) return 0;
     try {
-      return await this.client.incr(key);
+      return await client.incr(key);
     } catch (err) {
       this.logger.warn(`Redis incr 失败 [${key}]: ${errorMessage(err)}`);
       return 0;
@@ -85,18 +104,20 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async expire(key: string, seconds: number): Promise<void> {
-    if (!this.client) return;
+    const client = this.client;
+    if (!client || !this.healthy) return;
     try {
-      await this.client.expire(key, seconds);
+      await client.expire(key, seconds);
     } catch (err) {
       this.logger.warn(`Redis expire 失败 [${key}]: ${errorMessage(err)}`);
     }
   }
 
   async get(key: string): Promise<string | null> {
-    if (!this.client) return null;
+    const client = this.client;
+    if (!client || !this.healthy) return null;
     try {
-      return await this.client.get(key);
+      return await client.get(key);
     } catch (err) {
       this.logger.warn(`Redis get 失败 [${key}]: ${errorMessage(err)}`);
       return null;
@@ -104,12 +125,13 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-    if (!this.client) return;
+    const client = this.client;
+    if (!client || !this.healthy) return;
     try {
       if (ttlSeconds && ttlSeconds > 0) {
-        await this.client.set(key, value, 'EX', ttlSeconds);
+        await client.set(key, value, 'EX', ttlSeconds);
       } else {
-        await this.client.set(key, value);
+        await client.set(key, value);
       }
     } catch (err) {
       this.logger.warn(`Redis set 失败 [${key}]: ${errorMessage(err)}`);
@@ -117,9 +139,10 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async del(key: string): Promise<void> {
-    if (!this.client) return;
+    const client = this.client;
+    if (!client || !this.healthy) return;
     try {
-      await this.client.del(key);
+      await client.del(key);
     } catch (err) {
       this.logger.warn(`Redis del 失败 [${key}]: ${errorMessage(err)}`);
     }

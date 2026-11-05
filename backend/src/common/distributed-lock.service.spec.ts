@@ -10,7 +10,8 @@ import { ERROR_CODES } from './error-codes';
 function createRedis(opts: { isEnabled?: boolean; client?: any } = {}): any {
   return {
     isEnabled: opts.isEnabled ?? false,
-    isAvailable: jest.fn().mockReturnValue(false),
+    // 与生产实现一致：isAvailable 表示「已配置且连接就绪」
+    isAvailable: jest.fn().mockReturnValue(opts.isEnabled ?? false),
     getClient: jest.fn(() => {
       if (opts.client) return opts.client;
       throw new Error('Redis 连接异常');

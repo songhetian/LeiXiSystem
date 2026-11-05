@@ -29,7 +29,7 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
     blockDuration: number,
     throttlerName: string,
   ): Promise<ThrottlerStorageRecord> {
-    if (!this.redis.isEnabled) {
+    if (!this.redis.isAvailable()) {
       return this.incrementMemory(key, ttl, limit, blockDuration);
     }
 
@@ -92,7 +92,7 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
   }
 
   async getRecord(key: string): Promise<number[]> {
-    if (!this.redis.isEnabled) {
+    if (!this.redis.isAvailable()) {
       return this.getRecordMemory(key);
     }
 
@@ -116,7 +116,7 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
   }
 
   async addRecord(key: string, ttl: number): Promise<void> {
-    if (!this.redis.isEnabled) {
+    if (!this.redis.isAvailable()) {
       this.addRecordMemory(key, ttl);
       return;
     }
@@ -143,7 +143,7 @@ export class ThrottlerStorageRedis implements ThrottlerStorage {
   }
 
   async reset(key: string): Promise<void> {
-    if (!this.redis.isEnabled) {
+    if (!this.redis.isAvailable()) {
       this.memoryStore.delete(key);
       return;
     }

@@ -1,0 +1,7 @@
+# 行尾约定
+#
+# 容器入口脚本由 /bin/sh 直接执行，CRLF 会让 shebang 带上 \r，
+# 报错 "sh: : not found" 且容器启动失败。core.autocrlf=true 的
+# Windows 检出默认会写成 CRLF，这里强制 LF。
+# 对应回归测试：backend/tests/entrypoint-boot-chain.unit.test.ts
+backend/entrypoint.sh text eol=lf

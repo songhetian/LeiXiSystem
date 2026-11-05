@@ -26,7 +26,7 @@ export class CsrfService {
 
   async generateToken(userId: number): Promise<string> {
     const token = randomBytes(32).toString('hex');
-    if (this.redis.isEnabled) {
+    if (this.redis.isAvailable()) {
       const key = CSRF_KEY_PREFIX + userId;
       try {
         const client = this.redis.getClient();
@@ -44,7 +44,7 @@ export class CsrfService {
   }
 
   async validateToken(userId: number, token: string): Promise<boolean> {
-    if (!this.redis.isEnabled) {
+    if (!this.redis.isAvailable()) {
       this.logger.warn(`Redis 不可用，CSRF 校验放行 [user=${userId}]`);
       return true;
     }
@@ -69,7 +69,7 @@ export class CsrfService {
   }
 
   async invalidateToken(userId: number): Promise<void> {
-    if (this.redis.isEnabled) {
+    if (this.redis.isAvailable()) {
       try {
         await this.redis.del(CSRF_KEY_PREFIX + userId);
       } catch (err) {

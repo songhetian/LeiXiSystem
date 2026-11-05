@@ -69,7 +69,7 @@ export class DistributedLockService {
 
   /** 返回 true=抢到；false=被他人持有；null=Redis 不可用（未配置或连接异常） */
   private async acquireRedis(resource: string, ownerId: string, ttlMs: number): Promise<boolean | null> {
-    if (!this.redis.isEnabled) return null;
+    if (!this.redis.isAvailable()) return null;
     try {
       const client = this.redis.getClient();
       const result = await client.set(KEY_PREFIX + resource, ownerId, 'PX', ttlMs, 'NX');
@@ -103,7 +103,7 @@ export class DistributedLockService {
   }
 
   async release(resource: string, ownerId: string): Promise<boolean> {
-    if (!this.redis.isEnabled) return true;
+    if (!this.redis.isAvailable()) return true;
     const key = KEY_PREFIX + resource;
     try {
       const client = this.redis.getClient();
