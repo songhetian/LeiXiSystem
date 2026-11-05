@@ -25,15 +25,15 @@ export class NotificationSettingController {
     return { code: 0, data: await this.settingService.listRoles() };
   }
 
-  // 更新/新建某事件的目标角色
+  // 更新/新建某事件的通知策略
   @Put(':eventType')
   @HttpCode(200)
   @RequirePermission('system:notification:settings')
-  async setTargetRoles(
+  async setTargets(
     @Param('eventType') eventType: string,
-    @Body() body: { targetRoles: string[] },
+    @Body() body: { targetRoles?: string[]; targetNodes?: string[] },
   ) {
-    const data = await this.settingService.setTargetRoles(eventType, body.targetRoles);
+    const data = await this.settingService.setTargets(eventType, body ?? {});
     return { code: 0, data };
   }
 }

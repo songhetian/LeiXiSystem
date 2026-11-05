@@ -14,13 +14,32 @@ import { RedisService } from '../common/redis/redis.service';
 import { RoleWorkflowService } from './role-workflow.service';
 import { Prisma, $Enums } from '@prisma/client';
 import { buildApprovalChain, type WorkflowNode, type NodeCondition, type RoutingContext } from './engine/routing-engine';
-import { NotificationClientInterface } from '../notification/notification-client.interface';
+import { NotificationClientInterface, NotificationPolicyReader } from '../notification/notification-client.interface';
 import { ERROR_CODES } from '../common/error-codes';
 import { generateAutoCode } from '../common/code-gen.util';
 import { errorCode } from '../common/error.util';
 import { businessModuleOf } from './workflow-codes';
 
 const WORKFLOW_CACHE_TTL = 30 * 60;
+
+/**
+ * 业务流编码 → 通知事件类型的唯一映射（与前端「通知设置」页的分组必须一致）。
+ * apply 对应「节点到达待办人」，approved/rejected 对应「终态通知申请人」。
+ * 未登记的流程（入职/转正/离职等）一律走默认策略：全部节点都通知。
+ */
+const WORKFLOW_NOTIFY_EVENTS: Record<
+  string,
+  { apply?: string; approved?: string; rejected?: string }
+> = {
+  leave: { apply: 'leave_apply', approved: 'leave_approval', rejected: 'leave_rejection' },
+  overtime: { apply: 'overtime_apply', approved: 'overtime_approval' },
+  punch_makeup: { apply: 'makeup_apply', approved: 'makeup_approval' },
+  reimbursement: {
+    apply: 'reimbursement_progress',
+    approved: 'reimbursement_pass',
+    rejected: 'reimbursement_reject',
+  },
+};
 
 function workflowIdKey(id: number) {
   return `approval:workflow:id:${id}`;
@@ -44,6 +63,10 @@ export class ApprovalService {
     private eventEmitter: EventEmitter2,
     private redis: RedisService,
     @Optional() private roleWorkflowService?: RoleWorkflowService,
+    // 只读策略边界（token NOTIFICATION_POLICY）。测试里可缺省：缺省视为「未配置 → 默认全通知」。
+    @Optional()
+    @Inject('NOTIFICATION_POLICY')
+    private notificationPolicy?: NotificationPolicyReader,
   ) {}
 
   // ===== 审批流配置 =====
@@ -1090,6 +1113,9 @@ export class ApprovalService {
     title: string,
     ctx: { applicantDepartmentId?: number | null; applicantId?: number | null } = {},
   ): Promise<void> {
+    // 通知设置里该节点被关掉时不再打扰待办人；未配置（null）保持默认全通知。
+    if (!(await this.shouldNotifyNode(workflowId, nodeKey))) return;
+
     const node = await this.prisma.approvalWorkflowNode.findUnique({
       where: { workflowId_nodeKey: { workflowId, nodeKey } },
     });
@@ -1189,6 +1215,9 @@ export class ApprovalService {
     result: 'approved' | 'rejected',
     comment?: string,
   ) {
+    // 终态通知申请人可在「通知设置」里按流程关掉（targetRoles 不含 applicant）。
+    if (!(await this.shouldNotifyApplicant(instanceId, result))) return;
+
     const resultText = result === 'approved' ? '已通过' : '被驳回';
     const notificationTitle = `您的${title}${resultText}`;
     let content = '';
@@ -1206,6 +1235,57 @@ export class ApprovalService {
       relatedId: instanceId,
       relatedType: 'approval_instance',
     });
+  }
+
+  /**
+   * 节点到达时是否通知该节点处理人。
+   * - 流程未登记通知事件（入职/转正/离职…）→ 默认通知；
+   * - 事件未配置（targetNodes === null）→ 默认通知；
+   * - 配了数组 → 只通知数组内的 nodeKey（空数组即全部关闭）。
+   * 策略读取失败由 NotificationSettingService 内部降级为 null，因此不会阻断审批。
+   */
+  private async shouldNotifyNode(workflowId: number, nodeKey: string): Promise<boolean> {
+    if (!this.notificationPolicy) return true;
+
+    const workflow = await this.prisma.approvalWorkflow.findUnique({
+      where: { id: workflowId },
+      select: { code: true },
+    });
+    const eventType = workflow ? WORKFLOW_NOTIFY_EVENTS[workflow.code]?.apply : undefined;
+    if (!eventType) return true;
+
+    const policy = await this.notificationPolicy.getPolicy(eventType);
+    if (policy.targetNodes === null) return true;
+    return policy.targetNodes.includes(nodeKey);
+  }
+
+  /**
+   * 终态是否通知申请人。与 shouldNotifyNode 同语义，但读 targetRoles：
+   * 只有显式包含 `applicant` 才发；空数组或只配了别收件方都不发。
+   */
+  private async shouldNotifyApplicant(
+    instanceId: number,
+    result: 'approved' | 'rejected',
+  ): Promise<boolean> {
+    if (!this.notificationPolicy) return true;
+
+    const instance = await this.prisma.approvalInstance.findUnique({
+      where: { id: instanceId },
+      select: { workflowId: true },
+    });
+    if (!instance) return true;
+
+    const workflow = await this.prisma.approvalWorkflow.findUnique({
+      where: { id: instance.workflowId },
+      select: { code: true },
+    });
+    const config = workflow ? WORKFLOW_NOTIFY_EVENTS[workflow.code] : undefined;
+    const eventType = result === 'approved' ? config?.approved : config?.rejected;
+    if (!eventType) return true;
+
+    const policy = await this.notificationPolicy.getPolicy(eventType);
+    if (policy.targetRoles === null) return true;
+    return policy.targetRoles.includes('applicant');
   }
 
   // ===== 待办中心 =====

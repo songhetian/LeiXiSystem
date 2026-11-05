@@ -1000,11 +1000,16 @@ model Notification {
   @@map("notifications")
 }
 
-// 通知设置（对齐参考 NotificationSettings）：按事件类型(eventType)配置推送目标角色(targetRoles，JSON 数组)
+// 通知设置：按事件类型(eventType)保存推送策略。
+//   targetRoles —— 非流程事件的收件人语义（applicant / dept_manager / 角色名）；
+//                  null 表示未配置（按默认策略发送），[] 表示显式关闭。
+//   targetNodes —— 流程事件的节点级开关，元素为 approval_workflow_nodes.node_key；
+//                  null 表示未配置（该流程所有节点都通知），[] 表示全部关闭。
 model NotificationSetting {
   id          Int      @id @default(autoincrement())
   eventType   String   @unique @map("event_type") @db.VarChar(50)
   targetRoles Json     @map("target_roles") @db.Json
+  targetNodes Json?    @map("target_nodes") @db.Json
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

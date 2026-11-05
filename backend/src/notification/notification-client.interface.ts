@@ -37,3 +37,21 @@ export interface NotificationClientInterface {
     relatedId: number,
   ): Promise<{ count: number }>;
 }
+
+/**
+ * 通知策略快照（只读边界，token `NOTIFICATION_POLICY`）。
+ *
+ * 审批流等业务模块在「节点到达」「终态」两个时点决定是否发通知时使用：
+ *   targetNodes = null → 未配置，流程所有节点都通知；
+ *   targetNodes = []   → 显式关闭，一个节点都不通知；
+ *   targetNodes = [..] → 只通知数组内的 nodeKey。
+ *   targetRoles 语义相同，用于终态/非流程事件的收件方。
+ */
+export interface NotificationPolicySnapshot {
+  targetRoles: string[] | null;
+  targetNodes: string[] | null;
+}
+
+export interface NotificationPolicyReader {
+  getPolicy(eventType: string): Promise<NotificationPolicySnapshot>;
+}
