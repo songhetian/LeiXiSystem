@@ -1266,8 +1266,9 @@
   font-size: var(--lx-font-xs);
   color: var(--lx-sider-group-text);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  /* 中文没有大小写，text-transform:uppercase 永远不生效；原先的 0.8px 字距
+     又把 12px 中文字拉散，读起来像英文 tracked label。字距归零。 */
+  letter-spacing: 0;
   padding-left: 14px;
   display: flex;
   align-items: center;

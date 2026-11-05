@@ -15,7 +15,6 @@ import {
   IconEdit,
   IconArchive,
   IconLink,
-  IconHistory,
 } from '@arco-design/web-react/icon';
 import PageContainer from '@/components/PageContainer';
 import DataState from '@/components/DataState';
@@ -41,47 +40,24 @@ interface QuickAction {
   label: string;
   path: string;
   icon: React.ComponentType<{ style?: React.CSSProperties }>;
-  /** 图标色调：indigo / teal / emerald / sky / violet / amber / rose / cyan */
-  tone: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: '员工管理', path: '/employees', icon: IconUserGroup, tone: 'indigo' },
-  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle, tone: 'teal' },
-  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle, tone: 'emerald' },
-  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar, tone: 'sky' },
-  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit, tone: 'violet' },
-  { label: '报销申请', path: '/expense/my', icon: IconArchive, tone: 'amber' },
-  { label: '知识库', path: '/knowledge', icon: IconBook, tone: 'indigo' },
-  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar, tone: 'rose' },
-  { label: '工单客服', path: '/helpdesk', icon: IconUser, tone: 'cyan' },
+  { label: '员工管理', path: '/employees', icon: IconUserGroup },
+  { label: '打卡', path: '/attendance/punch', icon: IconClockCircle },
+  { label: '考勤日报', path: '/attendance/daily', icon: IconCheckCircle },
+  { label: '请假申请', path: '/attendance/vacation/leave', icon: IconCalendar },
+  { label: '加班申请', path: '/attendance/vacation/overtime', icon: IconEdit },
+  { label: '报销申请', path: '/expense/my', icon: IconArchive },
+  { label: '知识库', path: '/knowledge', icon: IconBook },
+  { label: '绩效管理', path: '/performance/cycles', icon: IconCalendar },
+  { label: '工单客服', path: '/helpdesk', icon: IconUser },
 ];
 
 /** 入口池（key 取 path，天然唯一）与图标映射：自定义入口无图标，统一用 IconLink 兜底 */
 const QUICK_POOL: QuickActionDef[] = QUICK_ACTIONS.map((a) => ({ key: a.path, label: a.label, path: a.path }));
 const QUICK_ICON = new Map<string, QuickAction['icon']>(QUICK_ACTIONS.map((a) => [a.path, a.icon]));
-const QUICK_TONE = new Map<string, string>(QUICK_ACTIONS.map((a) => [a.path, a.tone]));
-/** 8 种可用色调（与 CSS .dsh-quick-item[data-tone=...] 一一对应） */
-const TONE_POOL = ['indigo', 'teal', 'emerald', 'sky', 'violet', 'amber', 'rose', 'cyan'];
-/** 基于 key 字符串哈希取模，确定性分配色调：同 key 永远同色，不同 key 自动分散 */
-function quickToneOf(a: QuickActionDef): string {
-  if (QUICK_TONE.has(a.key)) return QUICK_TONE.get(a.key)!;
-  let h = 0;
-  for (let i = 0; i < a.key.length; i++) h = (h * 31 + a.key.charCodeAt(i)) >>> 0;
-  return TONE_POOL[h % TONE_POOL.length];
-}
 const quickIconOf = (a: QuickActionDef) => QUICK_ICON.get(a.key) ?? IconLink;
-
-function greeting() {
-  // 问候时段按北京时间判定：宿主机时区不同时，凌晨也可能显示「下午好」
-  const h = Number(getTzParts(new Date()).HH);
-  if (h < 6) return '夜深了';
-  if (h < 9) return '早上好';
-  if (h < 12) return '上午好';
-  if (h < 14) return '中午好';
-  if (h < 18) return '下午好';
-  return '晚上好';
-}
 
 function todayText() {
   const { Y, M, D } = getTzParts(new Date());
@@ -142,7 +118,6 @@ interface Metric {
   label: string;
   value: string;
   suffix?: string;
-  icon: React.ComponentType<{ style?: React.CSSProperties }>;
   hint?: string;
   onClick?: () => void;
 }
@@ -181,11 +156,11 @@ export default function HomePage() {
     fetchStats,
   );
 
-  // hero 描述数据化：有待办时直说数字，而不是一句固定寒暄
+  // hero 描述数据化：有待办时直说数字，不再用寒暄句填充
   const pendingApprovals = stats?.pendingApprovals ?? null;
   const heroDesc = pendingApprovals != null && pendingApprovals > 0
     ? `今日有 ${pendingApprovals} 项审批待处理`
-    : '祝工作顺利 · 今日待办与全局动态已为您汇总';
+    : '今日暂无待审批';
 
   const isAdmin = can('system:user:view');
 
@@ -201,13 +176,11 @@ export default function HomePage() {
       label: '在职员工',
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
-      icon: IconUserGroup,
     },
     {
       label: '今日出勤',
       value: stats?.attendanceCount?.toString() ?? '0',
       suffix: '人',
-      icon: IconCheckCircle,
       // 0 人时先说明「暂无记录」而不是让用户猜是没同步还是真没人打卡；
       // 有迟到优先报异常，其次报出勤率（比「今日打卡」这种填充词有信息量）
       hint: stats
@@ -224,7 +197,6 @@ export default function HomePage() {
       label: '待审批',
       value: stats?.pendingApprovals?.toString() ?? '0',
       suffix: '项',
-      icon: IconClockCircle,
       hint: '待处理',
       onClick: () => router.push('/approval/todo'),
     },
@@ -232,7 +204,6 @@ export default function HomePage() {
       label: '本月加班',
       value: stats ? String(stats.monthOvertimeHours ?? 0) : '0',
       suffix: '小时',
-      icon: IconHistory,
       hint: '全员累计',
     },
   ];
@@ -243,7 +214,6 @@ export default function HomePage() {
       label: '本周出勤',
       value: stats?.myWeek ? String(stats.myWeek.workDays) : '—',
       suffix: '天',
-      icon: IconCheckCircle,
       hint: stats?.myWeek
         ? stats.myWeek.lateDays > 0
           ? `迟到 ${stats.myWeek.lateDays} 天`
@@ -254,21 +224,18 @@ export default function HomePage() {
       label: '本周缺勤',
       value: stats?.myWeek ? String(stats.myWeek.absentDays) : '—',
       suffix: '天',
-      icon: IconHistory,
       hint: stats?.myWeek && stats.myWeek.absentDays > 0 ? '需补交说明' : undefined,
     },
     {
       label: '日均工时',
       value: stats?.myWeek ? String(stats.myWeek.avgWorkHours) : '—',
       suffix: 'h',
-      icon: IconClockCircle,
       hint: '已扣班次休息',
     },
     {
       label: '待我审批',
       value: stats?.pendingApprovals?.toString() ?? '0',
       suffix: '项',
-      icon: IconUserGroup,
       hint: '待处理',
       onClick: () => router.push('/approval/todo'),
     },
@@ -292,7 +259,7 @@ export default function HomePage() {
       {/* 欢迎横幅 */}
       <div className="dsh-hero">
         <div>
-          <h2 className="dsh-hero-title">{greeting()}，欢迎回来</h2>
+          <h2 className="dsh-hero-title">今日概览</h2>
           <p className="dsh-hero-desc">{heroDesc}</p>
         </div>
         <div className="dsh-hero-side">
@@ -318,7 +285,6 @@ export default function HomePage() {
                   label={m.label}
                   value={m.value}
                   suffix={m.suffix}
-                  icon={m.icon}
                   hint={m.hint}
                   onClick={m.onClick}
                   stagger={i}
@@ -348,13 +314,11 @@ export default function HomePage() {
           <div className="dsh-quick-grid">
           {quick.visible.map((a) => {
             const Icon = quickIconOf(a);
-            const tone = quickToneOf(a);
             return (
               <button
                 key={a.key}
                 type="button"
                 className="dsh-quick-item"
-                data-tone={tone}
                 onClick={() => router.push(a.path)}
                 title={a.label}
               >

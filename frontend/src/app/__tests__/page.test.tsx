@@ -172,14 +172,15 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.queryByTestId('page-title')).toBeNull());
   });
 
-  it('问候语与日期按北京时间渲染（不受宿主机时区影响）', async () => {
+  it('标题与日期按北京时间渲染（不受宿主机时区影响）', async () => {
     jest.useFakeTimers();
     // 2026-10-27T16:30:00Z = 北京时间 2026-10-28 00:30（周三）
     jest.setSystemTime(new Date('2026-10-27T16:30:00Z'));
 
     render(<HomePage />);
 
-    expect(screen.getByText('夜深了，欢迎回来')).toBeInTheDocument();
+    // 标题是页面名字，不再随时段变成「夜深了，欢迎回来」
+    expect(screen.getByText('今日概览')).toBeInTheDocument();
     expect(screen.getByText('10月28日 · 星期三')).toBeInTheDocument();
     jest.useRealTimers();
   });

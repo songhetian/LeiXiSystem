@@ -56,7 +56,9 @@
   --lx-neutral-text: #475569;
   --lx-neutral-tag-bg: #f1f5f9;
 
-  /* ---- 丰富点缀色（菜单分组/标签/图标着色） ---- */
+  /* ---- 分类色（仅用于业务分类标签：绩效周期类型、OKR 范围、附件类型等） ----
+     它们是「数据有分类」的编码，不是装饰：不再新增同族色，也不用于图标着色。
+     新代码若要表达状态，优先用 --lx-success / --lx-warning / --lx-danger。 */
   --lx-purple: #8b5cf6;
   --lx-purple-bg: rgba(139, 92, 246, 0.08);
   --lx-teal: #14b8a6;
@@ -128,15 +130,14 @@
   --lx-scrollbar: rgba(0, 0, 0, 0.1);
   --lx-scrollbar-hover: rgba(0, 0, 0, 0.18);
 
-  /* ---- 登录页专属（品牌渐变与柔光，属确认保留的设计意图） ---- */
-  --lx-login-bg: linear-gradient(160deg, #f5f7ff 0%, #eaf0ff 100%);
-  --lx-login-card-shadow: 0 16px 48px rgba(36, 85, 217, 0.08);
-  /* 卡片底色必须走 token：此前硬编码 rgba(255,255,255,.88)，
-     暗色主题下变浅字压白卡（对比度约 1.1:1，正文不可读）。
-     透明度保留，以便卡片底下的极光光斑仍能透出来。 */
-  --lx-login-card-bg: rgba(255, 255, 255, 0.88);
-  /* 登录页品牌侧栏：深靛蓝→紫（浅色主题下也保持深色，与右侧浅底卡片形成对比） */
-  --lx-login-aside-bg: linear-gradient(155deg, #0d1836 0%, #172a5e 45%, #2a1c4e 100%);
+  /* ---- 登录页专属 ----
+     用中性纸底 + 实色卡片：原先的浅蓝渐变底、88% 半透明玻璃卡与深靛→紫的品牌渐
+     都是纯装饰，与「考勤/算薪」这件实事无关，且半透明卡在暗色下出过对比度事故。 */
+  --lx-login-bg: #f6f7f9;
+  --lx-login-card-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --lx-login-card-bg: #ffffff;
+  /* 品牌侧栏：单色近黑（不偏紫），只靠留白、字号与一条主色分隔线立起来 */
+  --lx-login-aside-bg: #1a1d26;
 
   /* ---- 阴影（更精致的分层阴影） ---- */
   --lx-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
@@ -188,39 +189,6 @@
   --lx-radius-xl: 12px;
   --lx-radius-full: 9999px;
 
-  /* ---- 快捷入口图标色板（数据驱动 tone，浅底 + 深前景）---- */
-  --lx-tone-indigo-bg: #eef2ff;
-  --lx-tone-indigo-fg: #4f46e5;
-  --lx-tone-indigo-bg-hover: #e0e7ff;
-  --lx-tone-indigo-fg-hover: #4338ca;
-  --lx-tone-teal-bg: #f0fdfa;
-  --lx-tone-teal-fg: #0d9488;
-  --lx-tone-teal-bg-hover: #ccfbf1;
-  --lx-tone-teal-fg-hover: #0f766e;
-  --lx-tone-emerald-bg: #ecfdf5;
-  --lx-tone-emerald-fg: #059669;
-  --lx-tone-emerald-bg-hover: #d1fae5;
-  --lx-tone-emerald-fg-hover: #047857;
-  --lx-tone-sky-bg: #f0f9ff;
-  --lx-tone-sky-fg: #0284c7;
-  --lx-tone-sky-bg-hover: #e0f2fe;
-  --lx-tone-sky-fg-hover: #0369a1;
-  --lx-tone-violet-bg: #f5f3ff;
-  --lx-tone-violet-fg: #7c3aed;
-  --lx-tone-violet-bg-hover: #ede9fe;
-  --lx-tone-violet-fg-hover: #6d28d9;
-  --lx-tone-amber-bg: #fffbeb;
-  --lx-tone-amber-fg: #d97706;
-  --lx-tone-amber-bg-hover: #fef3c7;
-  --lx-tone-amber-fg-hover: #b45309;
-  --lx-tone-rose-bg: #fff1f2;
-  --lx-tone-rose-fg: #e11d48;
-  --lx-tone-rose-bg-hover: #ffe4e6;
-  --lx-tone-rose-fg-hover: #be123c;
-  --lx-tone-cyan-bg: #ecfeff;
-  --lx-tone-cyan-fg: #0891b2;
-  --lx-tone-cyan-bg-hover: #cffafe;
-  --lx-tone-cyan-fg-hover: #0e7490;
 
   /* ---- 表单控件统一基准宽度（一处修改，全站生效）---- */
   --lx-control-min-w: 150px;
@@ -344,14 +312,13 @@
   --lx-scrollbar: rgba(255, 255, 255, 0.18);
   --lx-scrollbar-hover: rgba(255, 255, 255, 0.3);
 
-  /* 登录页：暗色下的深色渐变与柔光，避免"暗色用户看到浅色登录页"的主题断裂 */
-  --lx-login-bg: linear-gradient(160deg, #101527 0%, #0b0f1a 100%);
-  --lx-login-card-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-  /* 暗色卡片底色：深藏青半透明，与 --lx-login-bg 同色系；
-     浅字（--lx-text-1 #f1f5f9）压此底色对比度 ≈ 14:1，满足 WCAG AA */
-  --lx-login-card-bg: rgba(21, 26, 40, 0.86);
-  /* 品牌侧栏在暗色下再压暗一档，与页面底色衔接更自然 */
-  --lx-login-aside-bg: linear-gradient(155deg, #080e20 0%, #101d42 45%, #1d1238 100%);
+  /* 登录页：暗色下同样保持中性，不再用深蓝→紫渐变 */
+  --lx-login-bg: #0f1013;
+  --lx-login-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  /* 暗色卡片底色为实色面（原为 86% 半透明，靠背景光斑透出层次） */
+  --lx-login-card-bg: #191b20;
+  /* 暗色下侧栏比页面再深一档，形成面与面的台阶 */
+  --lx-login-aside-bg: #131519;
 
   /* 语义底色统一压暗 */
   --lx-primary-light: #18203a;
@@ -1496,24 +1463,11 @@ html, body {
   overflow-x: hidden;
   overflow-y: auto;
 }
-.lx-login-glow-1 {
-  /* 兜底用主题内的主色淡底（浅色 6% / 暗色 18%），老浏览器只是柔光弱一档，不会消失 */
-  background: radial-gradient(circle, var(--lx-bg-active), transparent 70%);
-  background: radial-gradient(circle, color-mix(in srgb, var(--lx-primary) 18%, transparent), transparent 70%);
-  filter: blur(30px);
-}
-.lx-login-glow-2 {
-  background: radial-gradient(circle, var(--lx-bg-active), transparent 70%);
-  background: radial-gradient(circle, color-mix(in srgb, var(--lx-primary) 10%, transparent), transparent 70%);
-  filter: blur(34px);
-}
 .lx-login-card {
   border: none;
-  /* 阴影与底色都走 token：浅色为品牌淡蓝柔光、暗色为深黑柔光，两套都已定义 */
+  /* 阴影与底色都走 token：浅色为中性投影、暗色为深黑投影 */
   box-shadow: var(--lx-login-card-shadow);
   background: var(--lx-login-card-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   animation: lx-slideUp 0.36s var(--lx-ease-standard);
 }
 /*
@@ -1548,7 +1502,7 @@ html, body {
   box-shadow: var(--lx-shadow-md);
 }
 
-/* ---- 品牌侧栏（lg 以上）：深靛蓝渐变 + 极光光斑 + 细网格 ---- */
+/* ---- 品牌侧栏（lg 以上）：单色深面，靠留白与字号立起来 ---- */
 .lx-login-aside {
   position: relative;
   flex: 0 0 44%;
@@ -1562,61 +1516,20 @@ html, body {
   justify-content: center;
 }
 
-/* 极光光团（减装饰后仅留一团静态柔光）：原先蓝紫两团反向呼吸，
-   动画 + 双光团 + 网格三者叠加装饰密度过高 */
-.lx-login-aside-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  pointer-events: none;
-}
-.lx-login-aside-orb-1 {
-  width: 420px;
-  height: 420px;
-  top: -120px;
-  right: -80px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 68%);
-}
-
-/* 细网格：极淡白线，给深色面一点科技纹理 */
-.lx-login-aside-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 78%);
-  -webkit-mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 78%);
-}
-
 .lx-login-aside-inner {
   position: relative;
   z-index: 1;
   padding: 0 56px;
   max-width: 520px;
 }
-.lx-login-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: var(--lx-radius-full);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.86);
-}
 .lx-login-slogan {
-  margin: 20px 0 0;
+  margin: 0;
   font-size: var(--lx-font-4xl); /* 40→4xl(32)：登录页减装饰（m-008），标题收敛到字号体系最大档 */
   line-height: 1.22;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #ffffff 30%, #a5c4ff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 500;
+  /* 中文不加负字距：32px 下 -0.02em 会让「薪酬」这类相邻字轻微粘连 */
+  letter-spacing: 0;
+  color: #ffffff;
 }
 .lx-login-slogan-sub {
   margin: 16px 0 0;
@@ -1661,18 +1574,10 @@ html, body {
   flex-shrink: 0;
   border-radius: var(--lx-radius-md);
   font-size: var(--lx-font-xl); /* 17→xl(20)，归 token */
-  color: var(--lx-tone-sky-fg);
-  background: var(--lx-tone-sky-bg);
-}
-/* 减装饰（m-008）：原先蓝/青/紫三条渐变 + 三色投影，是典型 AI 模板配色；
-   收敛为 --lx-tone-* 浅底深字，同侧栏深底上仍可读（bg 为半透明浅色）。 */
-.lx-login-highlight:nth-child(2) .lx-login-highlight-ic {
-  color: var(--lx-tone-teal-fg);
-  background: var(--lx-tone-teal-bg);
-}
-.lx-login-highlight:nth-child(3) .lx-login-highlight-ic {
-  color: var(--lx-tone-violet-fg);
-  background: var(--lx-tone-violet-bg);
+  /* 图标不带自己的色相：深面上统一白 8% 底 + 白 78% 线，三条能力点靠文字区分 */
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .lx-login-highlight-text {
   display: flex;
@@ -1696,7 +1601,7 @@ html, body {
   bottom: 32px;
   z-index: 1;
   font-size: var(--lx-font-xs); /* 11.5→xs(12)，归 token */
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.38);
 }
 
@@ -2103,7 +2008,8 @@ html, body {
   font-size: 16px;
   font-weight: 500;
   color: var(--lx-text-1);
-  letter-spacing: -0.01em;
+  /* 中文标题不做负字距 */
+  letter-spacing: 0;
 }
 .dsh-hero-desc {
   margin: 3px 0 0;
@@ -2344,24 +2250,14 @@ html, body {
 .dsh-stat-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  justify-content: flex-end;
+  min-height: 16px;
+  margin-bottom: 8px;
 }
 /* 卡片右上角说明小字（替代 Typography.Text 内联） */
 .dsh-stat-hint {
   font-size: 12px;
   color: var(--lx-text-3);
-}
-.dsh-stat-ic {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--lx-radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--lx-primary-bg);
-  color: var(--lx-primary);
-  font-size: 18px;
 }
 .dsh-stat-value {
   font-size: var(--lx-font-2xl);
@@ -2486,26 +2382,20 @@ html, body {
   height: 34px;
   border-radius: var(--lx-radius-md);
   font-size: 18px;
-  transition: background-color var(--lx-transition-base), color var(--lx-transition-base);
+  color: var(--lx-text-3);
+  background: var(--lx-bg-secondary);
+  border: 1px solid var(--lx-border-1);
+  transition: background-color var(--lx-transition-base), color var(--lx-transition-base),
+    border-color var(--lx-transition-base);
 }
 
-/* ---- 9 种 tone：浅底 + 深图标，hover 略加深（色值收口在 :root --lx-tone-*）---- */
-.dsh-quick-item[data-tone="indigo"] .dsh-quick-ic { background: var(--lx-tone-indigo-bg); color: var(--lx-tone-indigo-fg); }
-.dsh-quick-item[data-tone="indigo"]:hover .dsh-quick-ic { background: var(--lx-tone-indigo-bg-hover); color: var(--lx-tone-indigo-fg-hover); }
-.dsh-quick-item[data-tone="teal"] .dsh-quick-ic { background: var(--lx-tone-teal-bg); color: var(--lx-tone-teal-fg); }
-.dsh-quick-item[data-tone="teal"]:hover .dsh-quick-ic { background: var(--lx-tone-teal-bg-hover); color: var(--lx-tone-teal-fg-hover); }
-.dsh-quick-item[data-tone="emerald"] .dsh-quick-ic { background: var(--lx-tone-emerald-bg); color: var(--lx-tone-emerald-fg); }
-.dsh-quick-item[data-tone="emerald"]:hover .dsh-quick-ic { background: var(--lx-tone-emerald-bg-hover); color: var(--lx-tone-emerald-fg-hover); }
-.dsh-quick-item[data-tone="sky"] .dsh-quick-ic { background: var(--lx-tone-sky-bg); color: var(--lx-tone-sky-fg); }
-.dsh-quick-item[data-tone="sky"]:hover .dsh-quick-ic { background: var(--lx-tone-sky-bg-hover); color: var(--lx-tone-sky-fg-hover); }
-.dsh-quick-item[data-tone="violet"] .dsh-quick-ic { background: var(--lx-tone-violet-bg); color: var(--lx-tone-violet-fg); }
-.dsh-quick-item[data-tone="violet"]:hover .dsh-quick-ic { background: var(--lx-tone-violet-bg-hover); color: var(--lx-tone-violet-fg-hover); }
-.dsh-quick-item[data-tone="amber"] .dsh-quick-ic { background: var(--lx-tone-amber-bg); color: var(--lx-tone-amber-fg); }
-.dsh-quick-item[data-tone="amber"]:hover .dsh-quick-ic { background: var(--lx-tone-amber-bg-hover); color: var(--lx-tone-amber-fg-hover); }
-.dsh-quick-item[data-tone="rose"] .dsh-quick-ic { background: var(--lx-tone-rose-bg); color: var(--lx-tone-rose-fg); }
-.dsh-quick-item[data-tone="rose"]:hover .dsh-quick-ic { background: var(--lx-tone-rose-bg-hover); color: var(--lx-tone-rose-fg-hover); }
-.dsh-quick-item[data-tone="cyan"] .dsh-quick-ic { background: var(--lx-tone-cyan-bg); color: var(--lx-tone-cyan-fg); }
-.dsh-quick-item[data-tone="cyan"]:hover .dsh-quick-ic { background: var(--lx-tone-cyan-bg-hover); color: var(--lx-tone-cyan-fg-hover); }
+/* 图标统一中性：不给每个入口一个色相（8 种彩底会让首页读起来像模板），
+   只在 hover 时露出主色，表示「这个能点」 */
+.dsh-quick-item:hover .dsh-quick-ic {
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+  border-color: var(--lx-primary-weak);
+}
 
 /* ===== 员工事务页签 · 待处理数圆形徽标 ===== */
 .tx-count-badge {
@@ -3304,8 +3194,8 @@ html, body {
   font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
   font-weight: 500;
   color: var(--lx-text-4);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  /* 同侧栏分组标题：中文字距归零，不做 uppercase（对中文无意义） */
+  letter-spacing: 0;
 }
 
 /* 单条命令 */

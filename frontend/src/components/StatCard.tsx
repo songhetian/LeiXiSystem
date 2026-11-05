@@ -54,7 +54,6 @@ export interface StatCardProps {
   value: string;
   /** 数值单位（人/项/小时），以小字缀在数值后 */
   suffix?: string;
-  icon: React.ComponentType<{ style?: React.CSSProperties }>;
   /** 卡片右上角的说明小字（如「实时统计」） */
   hint?: string;
   /** 传入则整卡为可点按钮（键盘可达），点击跳转 */
@@ -62,21 +61,17 @@ export interface StatCardProps {
 }
 
 /**
- * KPI 指标卡：统一品牌蓝图标 + 数值 + 标签。
+ * KPI 指标卡：数字 + 标签（+ 可选说明）。
+ *
+ * 不放图标：图标不携带任何信息，只是把卡片填满，四张卡各顶一个彩色方块会让
+ * 首页读起来像模板。真正要读的是那个数字。
  * 可点（onClick）时渲染为 <button> 保证键盘可达（WCAG SC 2.1.1）。
  */
-function StatCard({ label, value, suffix, icon, hint, onClick, stagger = 0 }: StatCardProps & { stagger?: number }) {
-  const Icon = icon;
+function StatCard({ label, value, suffix, hint, onClick, stagger = 0 }: StatCardProps & { stagger?: number }) {
   const body = (
     <>
-      <div className="dsh-stat-top">
-        <span className="dsh-stat-ic">
-          <Icon style={{ fontSize: 18 }} />
-        </span>
-        {hint && (
-          <span className="dsh-stat-hint">{hint}</span>
-        )}
-      </div>
+      {/* 固定高度的一行：有无 hint 都占位，四张卡才等高 */}
+      <div className="dsh-stat-top">{hint && <span className="dsh-stat-hint">{hint}</span>}</div>
       <div className="dsh-stat-value">
         <Ticker text={value} />
         {suffix && <span className="u">{suffix}</span>}

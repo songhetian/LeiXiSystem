@@ -140,7 +140,7 @@ function AppHeader({ title = '首页', isMobile = false, onMenuToggle, collapsed
               aria-label="搜索"
             >
               <IconSearch className="header-search-icon" />
-              <span className="header-search-text">搜索页面、员工...</span>
+              <span className="header-search-text">搜索</span>
               <kbd className="header-search-kbd">Ctrl K</kbd>
             </button>
           )}

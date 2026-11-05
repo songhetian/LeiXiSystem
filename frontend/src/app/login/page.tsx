@@ -76,13 +76,9 @@ export default function LoginPage() {
 
   return (
     <div className="lx-login-page flex items-center justify-center relative">
-      {/* 深色品牌侧栏（lg 以上显示）：静态柔光 + 细网格 + 能力点 */}
+      {/* 深色品牌侧栏（lg 以上显示）：单色深面 + 三条能力点，不做光斑/网格装饰 */}
       <aside className="lx-login-aside hidden lg:flex" aria-hidden="true">
-        <div className="lx-login-aside-orb lx-login-aside-orb-1" />
-        <div className="lx-login-aside-grid" />
-
         <div className="lx-login-aside-inner">
-          <div className="lx-login-badge">HR · 人事数字化平台</div>
           <h2 className="lx-login-slogan">
             让考勤与薪酬
             <br />
@@ -110,9 +106,6 @@ export default function LoginPage() {
 
       {/* 右侧登录区 */}
       <div className="lx-login-main flex flex-col items-center justify-center">
-        <div className="lx-login-glow-1 pointer-events-none absolute -top-[120px] -left-24 w-[380px] h-[380px] rounded-full" />
-        <div className="lx-login-glow-2 pointer-events-none absolute -bottom-[140px] -right-[120px] w-[440px] h-[440px] rounded-full" />
-
         <div className="lx-login-card relative z-10 w-full max-w-[400px] mx-4 px-6 sm:px-8 py-9 rounded-xl bg-surface">
           <div className="flex flex-col items-center mb-7">
             {systemInfo.logoUrl ? (
@@ -144,7 +137,7 @@ export default function LoginPage() {
           </div>
 
           {/* lx-form-glow（Galaxy Round 3）：表单内任一输入聚焦时容器亮起，控件级描边见 globals.css scoped 规则 */}
-          <Form layout="vertical" className="lx-form-glow" onSubmit={handleSubmit} style={{ rowGap: 2 }}>
+          <Form layout="vertical" className="lx-form-glow" onSubmit={handleSubmit}>
             <Form.Item label="用户名">
               <Input
                 size="large"
@@ -199,7 +192,7 @@ export default function LoginPage() {
         </div>
 
         <div className="lx-login-copyright relative z-10 mt-7 text-xs text-text-3">
-          © 2026 {systemInfo.name} · 企业数字化平台
+          © 2026 {systemInfo.name}
         </div>
       </div>
     </div>
