@@ -29,6 +29,11 @@ export class CreateWorkflowNodeDto {
   @IsOptional()
   approvalGroupId?: number;
 
+  /** type='user' 时指定的审批人 userId */
+  @IsInt()
+  @IsOptional()
+  userId?: number;
+
   @IsInt()
   order!: number;
 

@@ -1080,6 +1080,8 @@ model ApprovalWorkflowNode {
   type         String            @db.VarChar(20)
   roleCode     String?           @map("role_code") @db.VarChar(50)
   approvalGroupId Int?           @map("approval_group_id")
+  /// type='user' 时的唯一审批人（指定人员）
+  userId       Int?              @map("user_id")
   order        Int               @default(0)
   conditionField String?         @map("condition_field") @db.VarChar(50)
   conditionOperator String?      @map("condition_operator") @db.VarChar(10)

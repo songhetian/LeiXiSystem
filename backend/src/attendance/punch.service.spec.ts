@@ -505,9 +505,21 @@ describe('PunchService', () => {
       expect(result.clockOut.allowed).toBe(false);
     });
 
-    it('员工不存在时抛出 NotFoundException', async () => {
+    it('账号未绑定员工档案时返回可渲染的空状态，而不是抛 404（超级管理员常见）', async () => {
       prisma.employee.findFirst.mockResolvedValue(null);
-      await expect(service.getToday(999)).rejects.toThrow(NotFoundException);
+
+      const result = await service.getToday(999);
+
+      expect(result.noEmployeeProfile).toBe(true);
+      expect(result.firstPunch).toBeNull();
+      expect(result.hasSchedule).toBe(false);
+      // 两个按钮都必须禁用并给出原因，否则页面会出现「可点但一点就报错」的死按钮
+      expect(result.clockIn.allowed).toBe(false);
+      expect(result.clockOut.allowed).toBe(false);
+      expect(result.clockIn.message).toContain('未绑定员工档案');
+      // 没有员工档案就不该再按 employeeId 查任何考勤数据
+      expect(prisma.attendanceDaily.findUnique).not.toHaveBeenCalled();
+      expect(prisma.schedule.findFirst).not.toHaveBeenCalled();
     });
   });
 

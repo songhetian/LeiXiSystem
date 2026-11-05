@@ -120,6 +120,8 @@ export class ApprovalService {
       type: string;
       roleCode?: string;
       approvalGroupId?: number;
+      /** type='user' 时指定的审批人 */
+      userId?: number;
       order: number;
       conditionField?: string;
       conditionOperator?: string;
@@ -149,6 +151,7 @@ export class ApprovalService {
                 type: n.type,
                 roleCode: n.roleCode,
                 approvalGroupId: n.approvalGroupId,
+                userId: n.userId,
                 order: n.order,
                 conditionField: n.conditionField,
                 conditionOperator: n.conditionOperator,
@@ -208,6 +211,8 @@ export class ApprovalService {
       type: string;
       roleCode?: string;
       approvalGroupId?: number;
+      /** type='user' 时指定的审批人 */
+      userId?: number;
       order: number;
       conditionField?: string;
       conditionOperator?: string;
@@ -235,6 +240,7 @@ export class ApprovalService {
             type: n.type,
             roleCode: n.roleCode,
             approvalGroupId: n.approvalGroupId,
+            userId: n.userId,
             order: n.order,
             conditionField: n.conditionField,
             conditionOperator: n.conditionOperator,
@@ -372,6 +378,11 @@ export class ApprovalService {
       name: n.name,
       type: n.type as WorkflowNode['type'],
       roleCode: n.roleCode || undefined,
+      // group 节点此前没有把 approvalGroupId 传给引擎（引擎读 node.approvalGroupId
+      // || node.groupId，两者都是 undefined），审批组型节点在链上永远展开为空；
+      // user 节点同理必须有 userId，否则「指定人员」不会产生待办与通知。
+      approvalGroupId: n.approvalGroupId ?? undefined,
+      userId: n.userId ?? undefined,
       order: n.order,
       condition:
         n.conditionField && n.conditionOperator
@@ -584,6 +595,11 @@ export class ApprovalService {
       name: n.name,
       type: n.type as WorkflowNode['type'],
       roleCode: n.roleCode || undefined,
+      // group 节点此前没有把 approvalGroupId 传给引擎（引擎读 node.approvalGroupId
+      // || node.groupId，两者都是 undefined），审批组型节点在链上永远展开为空；
+      // user 节点同理必须有 userId，否则「指定人员」不会产生待办与通知。
+      approvalGroupId: n.approvalGroupId ?? undefined,
+      userId: n.userId ?? undefined,
       order: n.order,
       condition:
         n.conditionField && n.conditionOperator
@@ -1062,6 +1078,10 @@ export class ApprovalService {
       return userRoles.some((ur) => ur.role.code === node.roleCode);
     }
 
+    if (node.type === 'user') {
+      return node.userId !== null && node.userId === userId;
+    }
+
     if (node.type === 'group' && node.approvalGroupId) {
       const member = await this.prisma.approvalGroupMember.findUnique({
         where: {
@@ -1147,6 +1167,9 @@ export class ApprovalService {
         select: { userId: true },
       });
       userIds = userRoles.map((ur) => ur.userId);
+    } else if (node.type === 'user' && node.userId) {
+      // 指定人员：审批人直接落在节点上，无需反查角色 / 审批组
+      userIds = [node.userId];
     } else if (node.type === 'group' && node.approvalGroupId) {
       const members = await this.prisma.approvalGroupMember.findMany({
         where: { groupId: node.approvalGroupId },
@@ -1331,6 +1354,8 @@ export class ApprovalService {
       where: {
         OR: [
           { type: 'role', roleCode: { in: roleCodes } },
+          // 指定人员节点与实例无关（审批人写在节点上），可整体下推
+          { type: 'user', userId },
           { type: 'group', approvalGroupId: { in: groupIds } },
           { type: 'department_manager' },
           { type: 'initiator' },

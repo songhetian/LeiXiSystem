@@ -14,14 +14,17 @@ describe('ApprovalService', () => {
 
   // 简化版「节点表」，按传入的 where 条件筛选，模拟数据库行为
   const allNodes = [
-    { id: 50, type: 'group', approvalGroupId: 7, roleCode: null },
-    { id: 60, type: 'role', roleCode: 'manager', approvalGroupId: null },
+    { id: 50, type: 'group', approvalGroupId: 7, roleCode: null, userId: null },
+    { id: 60, type: 'role', roleCode: 'manager', approvalGroupId: null, userId: null },
+    // 指定人员节点：审批人写在节点上，与角色/审批组无关
+    { id: 70, type: 'user', approvalGroupId: null, roleCode: null, userId: 8 },
   ];
 
   function nodeMatches(node: any, cond: any): boolean {
     if (cond.type && node.type !== cond.type) return false;
     if (cond.roleCode && !cond.roleCode.in.includes(node.roleCode)) return false;
     if (cond.approvalGroupId && !cond.approvalGroupId.in.includes(node.approvalGroupId)) return false;
+    if (cond.userId !== undefined && node.userId !== cond.userId) return false;
     return true;
   }
 
@@ -85,6 +88,52 @@ describe('ApprovalService', () => {
 
       const where = todoQueryWhere();
       expect(where.nodeId.in).toContain(60);
+    });
+
+    it('指定人员节点只出现在被指定人的待办里', async () => {
+      const nodeIdsInWhere = (where: any): number[] =>
+        where.nodeId?.in ?? (where.OR ?? []).flatMap((c: any) => c.nodeId?.in ?? []);
+
+      prisma.userRole.findMany.mockResolvedValue([]);
+      prisma.approvalGroupMember.findMany.mockResolvedValue([]);
+
+      // userId=8 是节点上指定的人
+      await service.listTodos(8, { page: 1, pageSize: 10 });
+      expect(nodeIdsInWhere(todoQueryWhere())).toContain(70);
+
+      jest.clearAllMocks();
+      prisma.userRole.findMany.mockResolvedValue([]);
+      prisma.approvalGroupMember.findMany.mockResolvedValue([]);
+
+      // 其他人即使有角色 / 在审批组里，也不能看到该节点的待办
+      await service.listTodos(5, { page: 1, pageSize: 10 });
+      expect(nodeIdsInWhere(todoQueryWhere())).not.toContain(70);
+    });
+  });
+
+  describe('canUserApprove - 指定人员节点', () => {
+    it('只有节点上指定的 userId 本人可审批', async () => {
+      prisma.approvalWorkflowNode.findUnique = jest.fn().mockResolvedValue({
+        type: 'user',
+        userId: 8,
+        roleCode: null,
+        approvalGroupId: null,
+      });
+      const canApprove = (userId: number) =>
+        (service as any).canUserApprove(userId, 'n1', 3, {});
+
+      await expect(canApprove(8)).resolves.toBe(true);
+      await expect(canApprove(9)).resolves.toBe(false);
+    });
+
+    it('节点未配置 userId 时一律拒绝（fail-closed）', async () => {
+      prisma.approvalWorkflowNode.findUnique = jest.fn().mockResolvedValue({
+        type: 'user',
+        userId: null,
+        roleCode: null,
+        approvalGroupId: null,
+      });
+      await expect((service as any).canUserApprove(8, 'n1', 3, {})).resolves.toBe(false);
     });
   });
 

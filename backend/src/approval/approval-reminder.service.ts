@@ -152,6 +152,7 @@ export class ApprovalReminderService {
       type: string;
       roleCode?: string | null;
       approvalGroupId?: number | null;
+      userId?: number | null;
     },
     ctx: { applicantId?: number | null; applicantDepartmentId?: number | null } = {},
   ): Promise<number[]> {
@@ -161,6 +162,10 @@ export class ApprovalReminderService {
         select: { userId: true },
       });
       return userRoles.map((ur) => ur.userId);
+    }
+
+    if (node.type === 'user' && node.userId) {
+      return [node.userId];
     }
 
     if (node.type === 'group' && node.approvalGroupId) {

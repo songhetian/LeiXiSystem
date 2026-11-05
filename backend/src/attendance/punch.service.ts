@@ -285,7 +285,22 @@ export class PunchService {
   async getToday(userId: number) {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
     if (!employee) {
-      throw new NotFoundException({ code: ERROR_CODES.EMPLOYEE_NOT_FOUND, message: '员工不存在' });
+      // 「账号没有绑定员工档案」是可表达的正常状态，不是异常：
+      // 超级管理员等纯系统账号本来就可能没有档案。这里若抛 404，前端请求层会
+      // 直接弹「员工不存在」的红色错误，用户看到的是一句无从下手的报错。
+      // 返回空状态交给页面渲染引导（去员工档案里绑定本账号）更合适；
+      // 真正要写数据的 clockIn/clockOut 仍会拦（见各自的 EMPLOYEE_NOT_FOUND）。
+      return {
+        noEmployeeProfile: true,
+        workDate: this.businessDate(),
+        firstPunch: null,
+        lastPunch: null,
+        shift: null,
+        hasSchedule: false,
+        isRestDay: false,
+        clockIn: { allowed: false, message: '当前账号未绑定员工档案' },
+        clockOut: { allowed: false, message: '当前账号未绑定员工档案' },
+      };
     }
 
     // 与打卡保持一致：夜班跨天时凌晨仍归属昨日业务日
