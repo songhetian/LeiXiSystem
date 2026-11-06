@@ -215,6 +215,15 @@ export interface WorkflowRoleBindingListResult {
   data?: WorkflowRoleBindingList;
 }
 
+/** 批量写入方式：覆盖整组角色 / 只追加 / 只移除选中角色 */
+export type WorkflowRoleBindMode = 'replace' | 'append' | 'remove';
+
+export interface WorkflowRoleBatchParams {
+  workflowIds: number[];
+  roleIds: number[];
+  mode: WorkflowRoleBindMode;
+}
+
 export const approvalApi = {
   listTodos(params: PaginationParams = {}): Promise<ListResult<TodoItem>> {
     return request.get('/approval/todos', { params });
@@ -296,6 +305,17 @@ export const approvalApi = {
   /** 覆盖式保存某条流程的适用角色；空数组 = 解除全部绑定 */
   setWorkflowRoles(workflowId: number, roleIds: number[]): Promise<DetailResult<any>> {
     return request.put(`/approval/role-bindings/${workflowId}`, { roleIds });
+  },
+
+  /**
+   * 批量设置多条流程的适用角色（后端单事务写入）。
+   * 页面「一键全部覆盖」用它，而不是循环调 setWorkflowRoles：
+   * 后者中途失败会留下「一半新一半旧」的配置，管理员无从判断该重试哪些。
+   */
+  setWorkflowRolesBatch(
+    params: WorkflowRoleBatchParams,
+  ): Promise<DetailResult<{ success: boolean; workflowCount: number; roleCount: number }>> {
+    return request.put('/approval/role-bindings/batch', params);
   },
 
   /** 可分配角色（审批节点「按角色审批」下拉复用） */

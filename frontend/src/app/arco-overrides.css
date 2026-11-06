@@ -54,13 +54,27 @@
   background: #d13a3a;
 }
 
-.arco-btn-secondary {
+/* 次要按钮的底色**必须**补 `.arco-btn` 前缀：
+   Arco 的规则是 `.arco-btn-secondary:not(.arco-btn-disabled)`（特异性 0,2,0），
+   单类选择器（0,1,0）压不住 —— 此前这里写的 `.arco-btn-secondary{background:var(--lx-bg-card)}`
+   从未生效，一直露出 Arco 自带的浅灰底 rgb(242,243,245)。浅色主题下白/灰差别小没人发现，
+   暗色主题下就是一整块发白的按钮（实测：流程适用角色页分组头的「本组批量设置」）。
+   现在补齐到同一档特异性，靠本文件后加载胜出。 */
+.arco-btn.arco-btn-secondary {
   border-color: var(--lx-border-1);
   color: var(--lx-text-2);
   background: var(--lx-bg-card);
 }
 
-.arco-btn-secondary:hover {
+/* 禁用态要给回中性底：否则禁用按钮是「白底 + 浅灰字」，在暗色卡片上像一段空白 */
+.arco-btn.arco-btn-secondary.arco-btn-disabled {
+  border-color: var(--lx-border-1);
+  color: var(--lx-text-4);
+  background: var(--lx-bg-secondary);
+}
+
+/* hover 的 Arco 选择器是 (0,3,0)，这里同样补齐到 0,3,0 */
+.arco-btn.arco-btn-secondary:not(.arco-btn-disabled):hover {
   border-color: var(--lx-primary);
   color: var(--lx-primary);
   background: var(--lx-primary-bg);

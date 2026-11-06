@@ -219,5 +219,24 @@ describe('approvalApi', () => {
       expect(mockedRequest.get).toHaveBeenCalledWith('/approval/role-options');
       expect(result.data).toHaveLength(2);
     });
+
+    it('setWorkflowRolesBatch sends one PUT for many workflows (single transaction)', async () => {
+      mockedRequest.put.mockResolvedValueOnce({
+        code: 0,
+        data: { success: true, workflowCount: 3, roleCount: 2 },
+      });
+      await approvalApi.setWorkflowRolesBatch({
+        workflowIds: [10, 11, 12],
+        roleIds: [1, 2],
+        mode: 'replace',
+      });
+      // 一次请求写完，而不是循环打三次单条接口
+      expect(mockedRequest.put).toHaveBeenCalledTimes(1);
+      expect(mockedRequest.put).toHaveBeenCalledWith('/approval/role-bindings/batch', {
+        workflowIds: [10, 11, 12],
+        roleIds: [1, 2],
+        mode: 'replace',
+      });
+    });
   });
 });

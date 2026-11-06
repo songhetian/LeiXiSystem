@@ -2,18 +2,23 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { ERROR_CODES } from '../common/error-codes';
 
+/** 批量写入方式：覆盖整组角色 / 只追加 / 只移除选中角色 */
+export type RoleBindMode = 'replace' | 'append' | 'remove';
+
 /**
  * 职责授权：管理「审批流程 ↔ 适用角色」（`role_workflows`）。
  *
  * 方向是 **流程 → 角色**：一条流程适用于哪些角色，而不是「一个角色绑哪条流程」。
- * 前者才能表达「请假流程适用于员工+主管」「报销流程适用于员工」这类事实，
- * 而后者受主键 `(workflow_id, role_id)` 支持的多对多关系约束：
- * 同一个角色可以在请假、报销等不同模块各绑一条流程。
+ * 同一条角色可以出现在多条流程里（请假、加班、报销各自适用「普通员工」是常态），
+ * 页面因此可以「一键把同一组角色套用到全部流程」。
  *
- * 发起审批时的解析口径（ADR-0020 + ADR-0024）：
+ * 发起审批时的解析口径（ADR-0020 + ADR-0024 + ADR-0025）：
  * 1. 业务编码已配置流程 → 用业务配置的那条（职责授权不覆盖，避免跨业务串流）；
- * 2. 业务未配置流程 → 按申请人角色在**同一 module** 内找绑定的启用流程兜底；
+ * 2. 业务未配置流程 → 按申请人角色找绑定的启用流程兜底，按 workflowId 升序取第一条；
  * 3. 都没有 → 报「审批流不存在」。
+ *
+ * 第 2 步的「取第一条」是显式的确定性规则（不是随机）：兜底只在业务未配置流程时触发，
+ * 且此处按 id 升序 + take 1，同一申请重复发起始终落到同一条流程。
  */
 @Injectable()
 export class RoleWorkflowService {
@@ -65,14 +70,15 @@ export class RoleWorkflowService {
   /**
    * 覆盖式保存某条流程的适用角色（传空数组 = 该流程不绑定任何角色）。
    *
-   * 同一 module 内一个角色只允许绑一条流程：否则发起审批时哪条都「匹配」，
-   * 结果取决于查询顺序，配置看起来生效了实际随机。冲突时点名冲突的角色与流程，
-   * 让管理员知道该去改哪一行，而不是只丢一句「保存失败」。
+   * 这里**不做**「同一 module 内一个角色只能绑一条流程」的拦截：那条约束会让
+   * 「一键把同一组角色套用到全部流程」永远失败（考勤 4 条、员工事务 6 条流程
+   * 同属一个 module），而它想防的「随机解析」其实已经由
+   * `resolveWorkflowForUser` 的 orderBy workflowId + take 1 固化成确定性规则。
    */
   async setWorkflowRoles(workflowId: number, roleIds: number[]) {
     const workflow = await this.prisma.approvalWorkflow.findUnique({
       where: { id: workflowId, deletedAt: null },
-      select: { id: true, module: true },
+      select: { id: true },
     });
     if (!workflow) {
       throw new NotFoundException({
@@ -81,48 +87,7 @@ export class RoleWorkflowService {
       });
     }
 
-    // 去重 + 过滤非法值：前端多选理论上不会给脏数据，但接口是公开边界
-    const uniqueRoleIds = Array.from(new Set(roleIds)).filter(
-      (id) => Number.isInteger(id) && id > 0,
-    );
-
-    if (uniqueRoleIds.length > 0) {
-      const roles = await this.prisma.role.findMany({
-        where: { id: { in: uniqueRoleIds } },
-        select: { id: true },
-      });
-      if (roles.length !== uniqueRoleIds.length) {
-        throw new NotFoundException({
-          code: ERROR_CODES.SYSTEM_ROLE_NOT_FOUND,
-          message: '角色不存在',
-        });
-      }
-
-      // 只把「启用的同模块流程」算作冲突：停用流程本来就不参与解析，
-      // 阻止保存只会让管理员没法清理历史绑定
-      const conflicts = await this.prisma.roleWorkflow.findMany({
-        where: {
-          roleId: { in: uniqueRoleIds },
-          workflowId: { not: workflowId },
-          workflow: { module: workflow.module, status: 'active', deletedAt: null },
-        },
-        select: {
-          role: { select: { name: true } },
-          workflow: { select: { name: true } },
-        },
-      });
-      if (conflicts.length > 0) {
-        const detail = `${conflicts
-          .map((c) => `「${c.role.name}」已绑定「${c.workflow.name}」`)
-          .join('、')}，请先在对应流程中取消该角色`;
-        // 明细走 detail：异常过滤器会拼成「中央文案（明细）」，既统一文案又点出该改哪一行
-        throw new BadRequestException({
-          code: ERROR_CODES.APPROVAL_ROLE_WORKFLOW_CONFLICT,
-          message: '同一业务下每个角色只能绑定一条流程',
-          detail,
-        });
-      }
-    }
+    const uniqueRoleIds = await this.normalizeAndAssertRoles(roleIds);
 
     await this.prisma.$transaction([
       this.prisma.roleWorkflow.deleteMany({ where: { workflowId } }),
@@ -133,6 +98,90 @@ export class RoleWorkflowService {
     ]);
 
     return { success: true, roleCount: uniqueRoleIds.length };
+  }
+
+  /**
+   * 批量设置多条流程的适用角色（页面「批量设置 / 一键全部覆盖」的落点）。
+   *
+   * 做成一个事务而不是前端循环调单条接口：13 条流程各发一次请求时，
+   * 中途失败会留下一半流程是新角色、一半是旧角色，管理员无从判断该重试哪些；
+   * 且每次都要跑一遍角色校验，N 次往返叠加后点一次「保存」要等好几秒。
+   *
+   * `remove` 只删「这批流程 × 这批角色」的交集，不会误清其它角色的绑定。
+   */
+  async setRolesForWorkflows(params: {
+    workflowIds: number[];
+    roleIds: number[];
+    mode: RoleBindMode;
+  }) {
+    const mode = params.mode;
+    if (mode !== 'replace' && mode !== 'append' && mode !== 'remove') {
+      throw new BadRequestException({
+        code: ERROR_CODES.PARAM_INVALID,
+        message: '批量设置方式无效',
+        detail: '只支持覆盖、追加、移除三种方式',
+      });
+    }
+
+    const workflowIds = this.normalizeIds(params.workflowIds);
+    if (workflowIds.length === 0) {
+      throw new BadRequestException({
+        code: ERROR_CODES.PARAM_INVALID,
+        message: '请先选择要设置的流程',
+        detail: '未指定流程时批量设置会作用到全库，已拦截',
+      });
+    }
+
+    const roleIds = this.normalizeIds(params.roleIds);
+    if (mode !== 'replace' && roleIds.length === 0) {
+      throw new BadRequestException({
+        code: ERROR_CODES.PARAM_INVALID,
+        message: mode === 'remove' ? '请选择要移除的角色' : '请选择要添加的角色',
+        detail: mode === 'remove' ? '移除方式必须指明角色，否则等同于清空' : '追加方式必须指明角色',
+      });
+    }
+
+    const found = await this.prisma.approvalWorkflow.findMany({
+      where: { id: { in: workflowIds }, deletedAt: null },
+      select: { id: true },
+    });
+    if (found.length !== workflowIds.length) {
+      throw new NotFoundException({
+        code: ERROR_CODES.APPROVAL_WORKFLOW_NOT_FOUND,
+        message: '审批流程不存在',
+        detail: `有 ${workflowIds.length - found.length} 条流程已被删除，请刷新后重试`,
+      });
+    }
+
+    // replace 允许空集合（= 清空这批流程的全部角色），其余两种方式上面已拦掉空集合
+    const uniqueRoleIds = await this.normalizeAndAssertRoles(roleIds);
+
+    const rows = workflowIds.flatMap((workflowId) =>
+      uniqueRoleIds.map((roleId) => ({ workflowId, roleId })),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      if (mode === 'replace') {
+        await tx.roleWorkflow.deleteMany({ where: { workflowId: { in: workflowIds } } });
+        if (rows.length > 0) {
+          await tx.roleWorkflow.createMany({ data: rows, skipDuplicates: true });
+        }
+        return;
+      }
+      if (mode === 'append') {
+        await tx.roleWorkflow.createMany({ data: rows, skipDuplicates: true });
+        return;
+      }
+      await tx.roleWorkflow.deleteMany({
+        where: { workflowId: { in: workflowIds }, roleId: { in: uniqueRoleIds } },
+      });
+    });
+
+    return {
+      success: true,
+      workflowCount: workflowIds.length,
+      roleCount: uniqueRoleIds.length,
+    };
   }
 
   /**
@@ -160,5 +209,31 @@ export class RoleWorkflowService {
     });
 
     return bindings[0]?.workflow ?? null;
+  }
+
+  /** 去重 + 过滤非正整数：接口是公开边界，前端多选理论上不会给脏数据 */
+  private normalizeIds(ids: number[] | undefined | null): number[] {
+    if (!Array.isArray(ids)) return [];
+    return Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
+  }
+
+  private async assertRolesExist(roleIds: number[]) {
+    if (roleIds.length === 0) return;
+    const roles = await this.prisma.role.findMany({
+      where: { id: { in: roleIds } },
+      select: { id: true },
+    });
+    if (roles.length !== roleIds.length) {
+      throw new NotFoundException({
+        code: ERROR_CODES.SYSTEM_ROLE_NOT_FOUND,
+        message: '角色不存在',
+      });
+    }
+  }
+
+  private async normalizeAndAssertRoles(roleIds: number[] | undefined | null) {
+    const unique = this.normalizeIds(roleIds);
+    await this.assertRolesExist(unique);
+    return unique;
   }
 }

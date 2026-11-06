@@ -36,6 +36,27 @@ export class RoleWorkflowController {
     return { code: 0, data };
   }
 
+  // 职责授权：批量设置多条流程的适用角色（页面「一键全部覆盖」走这里，一次事务写完）
+  // 必须声明在 `role-bindings/:workflowId` 之前，否则 'batch' 会被当成 workflowId
+  @Put('role-bindings/batch')
+  @HttpCode(200)
+  @RequirePermission('approval:workflow:manage')
+  async setRolesForWorkflows(
+    @Body()
+    body: {
+      workflowIds?: number[];
+      roleIds?: number[];
+      mode?: 'replace' | 'append' | 'remove';
+    },
+  ) {
+    const data = await this.roleWorkflowService.setRolesForWorkflows({
+      workflowIds: body.workflowIds ?? [],
+      roleIds: body.roleIds ?? [],
+      mode: body.mode ?? 'replace',
+    });
+    return { code: 0, data };
+  }
+
   // 职责授权：覆盖式保存某条流程的适用角色（空数组 = 不绑定任何角色）
   @Put('role-bindings/:workflowId')
   @HttpCode(200)

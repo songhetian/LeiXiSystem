@@ -11,7 +11,10 @@ const mockPrisma: any = {
     deleteMany: jest.fn(),
     createMany: jest.fn(),
   },
-  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
+  // 单条保存走数组式事务、批量走回调式事务，两种都要能跑
+  $transaction: jest.fn(async (arg: any) =>
+    Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
+  ),
 };
 
 describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
@@ -106,47 +109,26 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
       expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
     });
 
-    it('角色已绑定同模块的另一条启用流程时，点名冲突且不写入', async () => {
+    it('同一 module 下允许同一角色出现在多条流程里（不再拦截冲突）', async () => {
+      // 「普通员工」既走请假审批也走加班审批是常态；旧实现会在这里抛 6317，
+      // 导致「一键把同一组角色套用到全部考勤流程」永远失败（ADR-0025）
       mockPrisma.approvalWorkflow.findUnique.mockResolvedValue({ id: 102, module: 'attendance' });
       mockPrisma.role.findMany.mockResolvedValue([{ id: 207 }]);
-      mockPrisma.roleWorkflow.findMany.mockResolvedValue([
-        { role: { name: '普通员工' }, workflow: { name: '请假审批' } },
-      ]);
 
-      await expect(service.setWorkflowRoles(102, [207])).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      // 文案要能让管理员直接找到该改哪一行，而不是只说「保存失败」
-      await expect(service.setWorkflowRoles(102, [207])).rejects.toMatchObject({
-        response: {
-          code: 6317,
-          detail: '「普通员工」已绑定「请假审批」，请先在对应流程中取消该角色',
-        },
+      const result = await service.setWorkflowRoles(102, [207]);
+
+      expect(result).toEqual({ success: true, roleCount: 1 });
+      expect(mockPrisma.roleWorkflow.createMany).toHaveBeenCalledWith({
+        data: [{ workflowId: 102, roleId: 207 }],
+        skipDuplicates: true,
       });
-      expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
-    });
-
-    it('冲突检查只看启用的同模块流程（停用的历史绑定不阻塞保存）', async () => {
-      mockPrisma.approvalWorkflow.findUnique.mockResolvedValue({ id: 102, module: 'attendance' });
-      mockPrisma.role.findMany.mockResolvedValue([{ id: 207 }]);
-      mockPrisma.roleWorkflow.findMany.mockResolvedValue([]);
-
-      await service.setWorkflowRoles(102, [207]);
-
-      expect(mockPrisma.roleWorkflow.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            workflowId: { not: 102 },
-            workflow: { module: 'attendance', status: 'active', deletedAt: null },
-          }),
-        }),
-      );
+      // 冲突查询整段删掉了，不该再为它多打一次库
+      expect(mockPrisma.roleWorkflow.findMany).not.toHaveBeenCalled();
     });
 
     it('保存时先清空该流程的旧绑定再写入新集合（覆盖式，不是增量）', async () => {
       mockPrisma.approvalWorkflow.findUnique.mockResolvedValue({ id: 101, module: 'attendance' });
       mockPrisma.role.findMany.mockResolvedValue([{ id: 205 }, { id: 207 }]);
-      mockPrisma.roleWorkflow.findMany.mockResolvedValue([]);
 
       const result = await service.setWorkflowRoles(101, [205, 207, 205]);
 
@@ -182,6 +164,139 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
     });
   });
 
+  describe('setRolesForWorkflows - 批量设置（页面一键覆盖）', () => {
+    beforeEach(() => {
+      // 存在性校验用「库里有哪几条」的真实口径模拟：请求里带不存在的 id 就少一条
+      const knownWorkflows = new Set([101, 102, 104]);
+      const knownRoles = new Set([205, 207]);
+      mockPrisma.approvalWorkflow.findMany.mockImplementation(async (args: any) =>
+        (args?.where?.id?.in ?? [])
+          .filter((id: number) => knownWorkflows.has(id))
+          .map((id: number) => ({ id })),
+      );
+      mockPrisma.role.findMany.mockImplementation(async (args: any) =>
+        (args?.where?.id?.in ?? [])
+          .filter((id: number) => knownRoles.has(id))
+          .map((id: number) => ({ id })),
+      );
+    });
+
+    it('replace：一次事务清空这批流程的旧绑定，再写入流程×角色笛卡尔积', async () => {
+      const result = await service.setRolesForWorkflows({
+        workflowIds: [101, 102, 104],
+        roleIds: [205, 207],
+        mode: 'replace',
+      });
+
+      expect(mockPrisma.roleWorkflow.deleteMany).toHaveBeenCalledWith({
+        where: { workflowId: { in: [101, 102, 104] } },
+      });
+      expect(mockPrisma.roleWorkflow.createMany).toHaveBeenCalledWith({
+        data: [
+          { workflowId: 101, roleId: 205 },
+          { workflowId: 101, roleId: 207 },
+          { workflowId: 102, roleId: 205 },
+          { workflowId: 102, roleId: 207 },
+          { workflowId: 104, roleId: 205 },
+          { workflowId: 104, roleId: 207 },
+        ],
+        skipDuplicates: true,
+      });
+      expect(result).toEqual({ success: true, workflowCount: 3, roleCount: 2 });
+    });
+
+    it('replace + 空角色：清空这批流程的全部角色（不写空行）', async () => {
+      const result = await service.setRolesForWorkflows({
+        workflowIds: [101, 102],
+        roleIds: [],
+        mode: 'replace',
+      });
+
+      expect(mockPrisma.roleWorkflow.deleteMany).toHaveBeenCalledWith({
+        where: { workflowId: { in: [101, 102] } },
+      });
+      expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true, workflowCount: 2, roleCount: 0 });
+    });
+
+    it('append：只追加，不清空既有绑定', async () => {
+      await service.setRolesForWorkflows({
+        workflowIds: [101],
+        roleIds: [207],
+        mode: 'append',
+      });
+
+      expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.roleWorkflow.createMany).toHaveBeenCalledWith({
+        data: [{ workflowId: 101, roleId: 207 }],
+        skipDuplicates: true,
+      });
+    });
+
+    it('remove：只删「这批流程 × 这批角色」的交集，不动其它角色', async () => {
+      await service.setRolesForWorkflows({
+        workflowIds: [101, 102],
+        roleIds: [207],
+        mode: 'remove',
+      });
+
+      expect(mockPrisma.roleWorkflow.deleteMany).toHaveBeenCalledWith({
+        where: { workflowId: { in: [101, 102] }, roleId: { in: [207] } },
+      });
+      expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
+    });
+
+    it('未选择流程时拒绝（避免误清空全库绑定）', async () => {
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [], roleIds: [205], mode: 'replace' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('append/remove 未选角色时拒绝', async () => {
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [101], roleIds: [], mode: 'append' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [101], roleIds: [], mode: 'remove' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('流程列表里有已被删除的流程时整体拒绝，并在 detail 里说明差了几条', async () => {
+      mockPrisma.approvalWorkflow.findMany.mockResolvedValue([{ id: 101 }]);
+
+      await expect(
+        service.setRolesForWorkflows({
+          workflowIds: [101, 999],
+          roleIds: [205],
+          mode: 'replace',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ detail: expect.stringContaining('1 条流程已被删除') }),
+      });
+      expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('角色不存在时整体拒绝，不做半截写入', async () => {
+      mockPrisma.role.findMany.mockResolvedValue([{ id: 205 }]);
+
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [101], roleIds: [205, 999], mode: 'append' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
+    });
+
+    it('方式非法时拒绝', async () => {
+      await expect(
+        service.setRolesForWorkflows({
+          workflowIds: [101],
+          roleIds: [205],
+          mode: 'merge' as any,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('resolveWorkflowForUser - 业务未配置流程时按角色兜底', () => {
     it('无绑定流程时返回 null', async () => {
       mockPrisma.roleWorkflow.findMany.mockResolvedValue([]);
@@ -214,7 +329,8 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
         deletedAt: null,
         module: 'reimbursement',
       });
-      // 多个角色都绑定同模块时结果必须稳定，否则同一张单刷新两次可能走不同审批链
+      // 同一角色可能绑了同模块的多条流程（ADR-0025）：结果必须稳定，
+      // 否则同一张单刷新两次可能走不同审批链
       expect(args.orderBy).toEqual({ workflowId: 'asc' });
       expect(args.take).toBe(1);
     });

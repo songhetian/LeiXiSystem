@@ -1060,6 +1060,275 @@ html, body {
   color: var(--lx-text-3);
 }
 
+/* ---- 流程适用角色：按业务模块分组的行列表 ----
+ * 原来是宽表格：5 列挤在一行，「适用角色」列最窄却承载最重的交互（多选框），
+ * 空行还留下大片白，读起来像一张没填满的表。改成行列表后每行是
+ * 「流程名 / 状态 / 角色 / 行内快捷」四段，模块做分组标题，扫码式阅读。
+ * 全部用 --lx-* token，明暗两套自动跟随。
+ */
+.rw-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rw-header-stat {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+
+.rw-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-secondary);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-2);
+  line-height: 1.6;
+}
+.rw-rules-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lx-primary);
+  font-size: var(--lx-font-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rw-rules-trigger:hover {
+  text-decoration: underline;
+}
+.rw-rules p {
+  max-width: 320px;
+  margin: 0 0 8px;
+  font-size: var(--lx-font-xs);
+  line-height: 1.7;
+  color: var(--lx-text-2);
+}
+.rw-rules p:last-child {
+  margin-bottom: 0;
+}
+
+.rw-group {
+  margin-bottom: 14px;
+}
+.rw-group:last-child {
+  margin-bottom: 0;
+}
+.rw-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--lx-bg-secondary);
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.rw-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--lx-font-md);
+  font-weight: 600;
+  color: var(--lx-text-1);
+}
+/* 6px 分类点：颜色只表示「哪个业务模块」，不做装饰 */
+.rw-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rw-group-count {
+  font-size: var(--lx-font-xs);
+  font-weight: 400;
+  color: var(--lx-text-3);
+}
+
+.rw-rows {
+  display: flex;
+  flex-direction: column;
+}
+.rw-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 124px minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--lx-border-1);
+  transition: background-color var(--lx-transition-fast);
+}
+.rw-row:first-child {
+  border-top: 0;
+}
+.rw-row:hover {
+  background: var(--lx-bg-hover);
+}
+.rw-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rw-name-title {
+  font-size: var(--lx-font-sm);
+  font-weight: var(--lx-font-medium);
+  color: var(--lx-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 业务编码：与「流程设置」里的 code 对齐，用等宽字避免 l/1、O/0 读混 */
+.rw-name-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--lx-text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rw-status {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.rw-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.rw-status[data-status='active'] {
+  color: var(--lx-success-text);
+}
+.rw-status[data-status='draft'] {
+  color: var(--lx-warning-text);
+}
+.rw-status-note {
+  width: 100%;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--lx-text-4);
+}
+.rw-roles {
+  min-width: 0;
+}
+.rw-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rw-tag {
+  padding: 1px 8px;
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-tertiary);
+  color: var(--lx-text-2);
+  font-size: var(--lx-font-xs);
+}
+.rw-muted {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-3);
+}
+.rw-ops {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 120px;
+}
+/* 行内快捷是「次要操作」：13 行 × 2 个主色文字按钮会让右边缘全是蓝字，
+   抢掉页头「批量设置」的注意力。常态用正文色，hover 才升主色。 */
+.rw-ops .arco-btn-text.rw-op:not(.arco-btn-disabled) {
+  color: var(--lx-text-2);
+}
+.rw-ops .arco-btn-text.rw-op:not(.arco-btn-disabled):hover {
+  color: var(--lx-primary);
+}
+/* Arco 的禁用文字按钮是 primary 浅蓝（rgb(148,191,255)），在白底上像一条「还能点的链接」。
+   行内快捷的禁用语义是「本来就没角色可清」，应当直接淡出成中性灰。 */
+.rw-ops .arco-btn-text.rw-op.arco-btn-disabled {
+  color: var(--lx-text-4);
+}
+
+/* 窄屏（含侧栏收起后的中等宽度）：角色与快捷操作换到第二行，避免流程名被压成省略号 */
+@media (max-width: 1180px) {
+  .rw-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+  .rw-roles,
+  .rw-ops {
+    grid-column: 1 / -1;
+  }
+  .rw-ops {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}
+
+/* 批量设置弹窗：字段块自己排版，不套 Form（Form 的行高与间距对开关组不合适） */
+.rw-field {
+  margin-bottom: 18px;
+}
+.rw-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--lx-font-sm);
+  font-weight: var(--lx-font-medium);
+  color: var(--lx-text-1);
+}
+.rw-field-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lx-primary);
+  font-size: var(--lx-font-xs);
+  cursor: pointer;
+}
+.rw-field-link:hover {
+  text-decoration: underline;
+}
+.rw-field-radio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rw-field-hint {
+  margin-top: 6px;
+  font-size: var(--lx-font-xs);
+  line-height: 1.6;
+  color: var(--lx-text-3);
+}
+/* 落库前先说清后果：覆盖会把未选中的旧绑定一起清掉 */
+.rw-bulk-summary {
+  padding: 10px 12px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-primary-bg);
+  color: var(--lx-text-2);
+  font-size: var(--lx-font-xs);
+  line-height: 1.7;
+}
+.rw-bulk-summary.is-warn {
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning-text);
+}
+
 /* 通知策略：按审批流程组织的节点开关列表 */
 .lx-flow-notify-list {
   display: flex;
