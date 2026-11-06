@@ -233,6 +233,21 @@ curl -I http://www.leixidianshang.com
 
 ### 日常发版
 
+> 快捷方式：仓库根 `package.json` 已内置生产指令，在服务器仓库目录里执行即可，
+> 与下方手敲命令等价（`deploy:prod` 等旧指令已删除——它们误用了开发编排 `docker-compose.yml`）：
+>
+> ```bash
+> pnpm prod:deploy          # 一条龙：git pull → 串行 build backend/frontend → up -d
+> pnpm prod:build           # 只重新构建（backend 在前，串行防 OOM）
+> pnpm prod:build:frontend  # 只构建前端镜像
+> pnpm prod:build:backend   # 只构建后端镜像
+> pnpm prod:up              # 用已构建的镜像启动（迁移随 backend 启动自动执行）
+> pnpm prod:nginx:restart   # 重启内层 nginx（只在改了 docker/nginx.local.conf 后需要）
+> pnpm prod:logs            # 跟后端启动链日志（-f 跟踪）
+> pnpm prod:ps              # 容器状态
+> pnpm prod:health          # 内层健康检查（WEB_PORT 改过时把 8088 换成实际值）
+> ```
+
 ```bash
 cd /opt/leixi
 git pull
@@ -698,6 +713,9 @@ location ^~ /iclock/ {
 > 迁移没有 down 脚本，**回滚依赖事前 mysqldump**（ADR-0017）。
 
 ### 9.2 发版
+
+> 快捷方式（服务器没装 pnpm 时用下方原始命令）：`pnpm prod:deploy` = pull + 串行构建 + up -d；
+> 分步用 `pnpm prod:build:frontend` / `pnpm prod:build:backend` / `pnpm prod:up`。
 
 ```bash
 cd /opt/leixi
