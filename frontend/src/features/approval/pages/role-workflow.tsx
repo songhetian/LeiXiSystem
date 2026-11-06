@@ -79,11 +79,18 @@ export default function RoleWorkflowPage() {
     },
   );
 
-  // 保存失败时多选框里仍是用户点选的值（受控组件的内部态已经变了），
-  // 用一个递增 token 让**那一行**重挂载，回到服务端的真实绑定；其它行的状态与焦点不动
-  const [resetToken, setResetToken] = useState<{ id: number; tick: number } | null>(null);
-  /** 正在保存的那条流程：禁用该行选择器，避免连点产生两个并发写 */
-  const [savingId, setSavingId] = useState<number | null>(null);
+  // Arco 的 Select 是**完全受控**的（props 里有 value 就永远用 props 的值，内部 setValue 被忽略），
+  // 所以「点完直接依赖服务端返回的新值」会出现一次回弹：新标签当场消失，等 revalidate 回来才重新出现。
+  // 这里挂一个乐观值顶上，写入结束（成功或失败）再摘掉，回落成服务端的真实绑定。
+  const [pendingRoles, setPendingRoles] = useState<Record<number, number[]>>({});
+  /**
+   * 正在保存的流程集合。只记一条会漏：第二行开始保存时，第一行会因为「当前保存的不是它」
+   * 被解除禁用，同一条流程就能并发出两个全量覆盖的写，落库顺序还不保证。
+   */
+  const [savingIds, setSavingIds] = useState<number[]>([]);
+
+  /** 该行当前应显示的角色：写入中的乐观值优先，否则用服务端值 */
+  const roleIdsOf = (w: WorkflowRoleBinding) => pendingRoles[w.id] ?? w.roles.map((r) => r.id);
 
   // ---- 批量设置 ----
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -148,7 +155,7 @@ export default function RoleWorkflowPage() {
   );
 
   const handleChange = async (workflow: WorkflowRoleBinding, roleIds: number[]) => {
-    setSavingId(workflow.id);
+    setSavingIds((ids) => (ids.includes(workflow.id) ? ids : [...ids, workflow.id]));
     try {
       const res = await approvalApi.setWorkflowRoles(workflow.id, roleIds);
       if (res.code === 0) {
@@ -160,13 +167,17 @@ export default function RoleWorkflowPage() {
         await revalidate();
       } else {
         Message.error(res.message || '保存失败');
-        setResetToken((prev) => ({ id: workflow.id, tick: (prev?.tick ?? 0) + 1 }));
       }
     } catch (e) {
       notifyError(e, '保存失败');
-      setResetToken((prev) => ({ id: workflow.id, tick: (prev?.tick ?? 0) + 1 }));
     } finally {
-      setSavingId(null);
+      setSavingIds((ids) => ids.filter((id) => id !== workflow.id));
+      // 成功时服务端值已经等于乐观值，失败时正好回弹到服务端的真实绑定
+      setPendingRoles((prev) => {
+        const next = { ...prev };
+        delete next[workflow.id];
+        return next;
+      });
     }
   };
 
@@ -192,14 +203,17 @@ export default function RoleWorkflowPage() {
       if (res.code === 0) {
         const n = bulkTargets.length;
         const m = bulkRoleIds.length;
+        // affected 是**实际落库的行数**：追加时已有绑定会被跳过、移除时有的流程本来就没绑，
+        // 用请求参数（n × m）当结果报出去会夸大改动量
+        const affected = res.data?.affected ?? 0;
         Message.success(
           bulkMode === 'replace'
             ? m > 0
               ? `已把 ${n} 条流程的适用角色设为 ${m} 个角色`
               : `已清空 ${n} 条流程的适用角色`
             : bulkMode === 'append'
-              ? `已为 ${n} 条流程追加 ${m} 个角色`
-              : `已从 ${n} 条流程中移除 ${m} 个角色`,
+              ? `已为 ${n} 条流程追加 ${affected} 条绑定`
+              : `已从 ${n} 条流程中移除 ${affected} 条绑定`,
         );
         setBulkOpen(false);
         await revalidate();
@@ -230,18 +244,20 @@ export default function RoleWorkflowPage() {
     }
     return (
       <Select
-        // 保存失败时只让这一行重挂载 → 回到服务端值，不打断其它行的编辑
-        key={`${w.id}-${resetToken?.id === w.id ? resetToken.tick : 0}`}
         mode="multiple"
         allowClear
         showSearch
         placeholder="未指定角色"
         style={{ width: '100%' }}
         options={roleOptions}
-        value={w.roles.map((r) => r.id)}
-        loading={savingId === w.id}
-        disabled={savingId === w.id}
-        onChange={(v) => handleChange(w, (v as number[]) ?? [])}
+        value={roleIdsOf(w)}
+        loading={savingIds.includes(w.id)}
+        disabled={savingIds.includes(w.id)}
+        onChange={(v) => {
+          const next = (v as number[]) ?? [];
+          setPendingRoles((prev) => ({ ...prev, [w.id]: next }));
+          void handleChange(w, next);
+        }}
         filterOption={(input, option) => {
           const props = (option as unknown as { props?: Record<string, unknown> })?.props;
           const text = `${String(props?.children ?? '')} ${String(props?.extra ?? '')}`;
@@ -252,9 +268,9 @@ export default function RoleWorkflowPage() {
   };
 
   const renderRow = (w: WorkflowRoleBinding) => {
-    const currentIds = w.roles.map((r) => r.id);
+    const currentIds = roleIdsOf(w);
     const allSelected = allRoleIds.length > 0 && allRoleIds.every((id) => currentIds.includes(id));
-    const rowBusy = savingId === w.id;
+    const rowBusy = savingIds.includes(w.id);
     return (
       <div className="rw-row" key={w.id}>
         <div className="rw-name">

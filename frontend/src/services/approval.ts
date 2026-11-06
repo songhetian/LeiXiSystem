@@ -314,7 +314,9 @@ export const approvalApi = {
    */
   setWorkflowRolesBatch(
     params: WorkflowRoleBatchParams,
-  ): Promise<DetailResult<{ success: boolean; workflowCount: number; roleCount: number }>> {
+  ): Promise<
+    DetailResult<{ success: boolean; workflowCount: number; roleCount: number; affected: number }>
+  > {
     return request.put('/approval/role-bindings/batch', params);
   },
 

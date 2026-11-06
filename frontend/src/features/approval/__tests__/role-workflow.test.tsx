@@ -156,6 +156,32 @@ describe('RoleWorkflowPage（流程 → 适用角色）', () => {
     );
   });
 
+  it('点选后立刻回显，不等服务端返回（否则标签会先消失、revalidate 回来才出现）', async () => {
+    // Arco 的 Select 完全受控：value 只认 props。若这里不挂乐观值，
+    // 点选后那次重渲染会把它弹回旧集合，用户看到的是「点了没反应」。
+    let finishSave: (v: unknown) => void = () => {};
+    (approvalApi.setWorkflowRoles as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        finishSave = resolve;
+      }),
+    );
+    render(<RoleWorkflowPage />);
+    await screen.findByText('请假审批');
+
+    fireEvent.click(screen.getAllByTestId('role-opt-207')[0]);
+
+    // 请求还悬着，界面必须已经显示新集合
+    expect(screen.getAllByTestId('role-select')[0]).toHaveAttribute(
+      'data-value',
+      JSON.stringify([205, 207]),
+    );
+
+    finishSave({ code: 0, data: {} });
+    await waitFor(() =>
+      expect(approvalApi.listWorkflowRoleBindings).toHaveBeenCalledTimes(2),
+    );
+  });
+
   it('行内「全部角色」一键套用全部角色，不再逐个人点选', async () => {
     render(<RoleWorkflowPage />);
     await screen.findByText('报销审批');

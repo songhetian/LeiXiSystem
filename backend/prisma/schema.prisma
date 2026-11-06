@@ -60,7 +60,11 @@ model Role {
 //
 // 方向是「流程 → 角色」：一行 = 某流程适用某角色。主键因此是 (workflow_id, role_id)，
 // 同一个角色可以在请假、报销等不同模块各绑一条流程（这正是早期主键 [roleId] 做不到的，
-// 它让一个角色全局只能绑一条流程）。同模块内一个角色仍只允许绑一条，由服务层校验。
+// 它让一个角色全局只能绑一条流程）。
+//
+// 不限制「一个角色只能绑一条流程/同模块一条」（ADR-0025）：考勤 4 条、员工事务 6 条流程
+// 同属一个 module，「把同一组角色套用到全部流程」是页面的主操作，加约束会让它必然失败。
+// 多条命中时的确定性由 resolveWorkflowForUser 的 orderBy workflowId + take 1 保证。
 model RoleWorkflow {
   workflowId Int              @map("workflow_id")
   roleId     Int              @map("role_id")

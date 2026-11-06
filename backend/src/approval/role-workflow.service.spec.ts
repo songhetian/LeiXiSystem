@@ -22,6 +22,9 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // 写操作都要读 .count 回来（批量接口会把它当成 affected 返给前端）
+    mockPrisma.roleWorkflow.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.roleWorkflow.createMany.mockResolvedValue({ count: 0 });
     service = new RoleWorkflowService(mockPrisma as unknown as PrismaService);
   });
 
@@ -182,6 +185,8 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
     });
 
     it('replace：一次事务清空这批流程的旧绑定，再写入流程×角色笛卡尔积', async () => {
+      mockPrisma.roleWorkflow.createMany.mockResolvedValue({ count: 6 });
+
       const result = await service.setRolesForWorkflows({
         workflowIds: [101, 102, 104],
         roleIds: [205, 207],
@@ -202,10 +207,18 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
         ],
         skipDuplicates: true,
       });
-      expect(result).toEqual({ success: true, workflowCount: 3, roleCount: 2 });
+      // affected = 实际写进去的行数，前端拿它出文案（不拿请求参数冒充结果）
+      expect(result).toEqual({
+        success: true,
+        workflowCount: 3,
+        roleCount: 2,
+        affected: 6,
+      });
     });
 
     it('replace + 空角色：清空这批流程的全部角色（不写空行）', async () => {
+      mockPrisma.roleWorkflow.deleteMany.mockResolvedValue({ count: 2 });
+
       const result = await service.setRolesForWorkflows({
         workflowIds: [101, 102],
         roleIds: [],
@@ -216,7 +229,12 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
         where: { workflowId: { in: [101, 102] } },
       });
       expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
-      expect(result).toEqual({ success: true, workflowCount: 2, roleCount: 0 });
+      expect(result).toEqual({
+        success: true,
+        workflowCount: 2,
+        roleCount: 0,
+        affected: 0,
+      });
     });
 
     it('append：只追加，不清空既有绑定', async () => {
@@ -294,6 +312,56 @@ describe('RoleWorkflowService 职责授权（流程 → 角色）', () => {
           mode: 'merge' as any,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('未指定方式时也拒绝（replace 是破坏性语义，不能靠默认值兜底）', async () => {
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [101], roleIds: [205] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockPrisma.roleWorkflow.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
+    });
+
+    it('id 非法时拒绝，不静默丢弃（丢弃会变成「提示成功但没写进去」）', async () => {
+      await expect(
+        service.setRolesForWorkflows({
+          workflowIds: [101],
+          roleIds: [205, '6' as any],
+          mode: 'append',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ detail: expect.stringContaining('正整数') }),
+      });
+      // 0 / 负数同样拒绝
+      await expect(
+        service.setRolesForWorkflows({ workflowIds: [101, 0], roleIds: [205], mode: 'append' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockPrisma.roleWorkflow.createMany).not.toHaveBeenCalled();
+    });
+
+    it('affected 取实际落库行数：append 跳过已存在的绑定时会小于 流程×角色', async () => {
+      // 2 条流程 × 1 个角色，但库里已有 1 条绑定 → 只新增 1 行
+      mockPrisma.roleWorkflow.createMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.setRolesForWorkflows({
+        workflowIds: [101, 102],
+        roleIds: [207],
+        mode: 'append',
+      });
+
+      expect(result).toMatchObject({ workflowCount: 2, roleCount: 1, affected: 1 });
+    });
+
+    it('affected 取实际删除行数：remove 只算真实存在的绑定', async () => {
+      mockPrisma.roleWorkflow.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.setRolesForWorkflows({
+        workflowIds: [101, 102, 104],
+        roleIds: [207],
+        mode: 'remove',
+      });
+
+      expect(result).toMatchObject({ workflowCount: 3, roleCount: 1, affected: 1 });
     });
   });
 

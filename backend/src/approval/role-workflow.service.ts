@@ -108,18 +108,22 @@ export class RoleWorkflowService {
    * 且每次都要跑一遍角色校验，N 次往返叠加后点一次「保存」要等好几秒。
    *
    * `remove` 只删「这批流程 × 这批角色」的交集，不会误清其它角色的绑定。
+   * 返回的 `affected` 是**实际落库的行数**（写作新增、移除为删除），
+   * 与请求里的 `roleCount × workflowCount` 可能不等 —— 追加时已有绑定会被跳过，
+   * 移除时有的流程本来就没绑。前端据此出文案，不拿请求参数冒充结果。
    */
   async setRolesForWorkflows(params: {
     workflowIds: number[];
     roleIds: number[];
-    mode: RoleBindMode;
+    /** 缺省/非法一律拒绝：replace 是破坏性语义，不能靠默认值兜底 */
+    mode?: RoleBindMode;
   }) {
     const mode = params.mode;
     if (mode !== 'replace' && mode !== 'append' && mode !== 'remove') {
       throw new BadRequestException({
         code: ERROR_CODES.PARAM_INVALID,
         message: '批量设置方式无效',
-        detail: '只支持覆盖、追加、移除三种方式',
+        detail: '必须明确指定 覆盖(replace) / 追加(append) / 移除(remove)',
       });
     }
 
@@ -160,27 +164,38 @@ export class RoleWorkflowService {
       uniqueRoleIds.map((roleId) => ({ workflowId, roleId })),
     );
 
+    let affected = 0;
     await this.prisma.$transaction(async (tx) => {
       if (mode === 'replace') {
         await tx.roleWorkflow.deleteMany({ where: { workflowId: { in: workflowIds } } });
         if (rows.length > 0) {
-          await tx.roleWorkflow.createMany({ data: rows, skipDuplicates: true });
+          const created = await tx.roleWorkflow.createMany({
+            data: rows,
+            skipDuplicates: true,
+          });
+          affected = created.count;
         }
         return;
       }
       if (mode === 'append') {
-        await tx.roleWorkflow.createMany({ data: rows, skipDuplicates: true });
+        const created = await tx.roleWorkflow.createMany({
+          data: rows,
+          skipDuplicates: true,
+        });
+        affected = created.count;
         return;
       }
-      await tx.roleWorkflow.deleteMany({
+      const deleted = await tx.roleWorkflow.deleteMany({
         where: { workflowId: { in: workflowIds }, roleId: { in: uniqueRoleIds } },
       });
+      affected = deleted.count;
     });
 
     return {
       success: true,
       workflowCount: workflowIds.length,
       roleCount: uniqueRoleIds.length,
+      affected,
     };
   }
 
@@ -211,10 +226,24 @@ export class RoleWorkflowService {
     return bindings[0]?.workflow ?? null;
   }
 
-  /** 去重 + 过滤非正整数：接口是公开边界，前端多选理论上不会给脏数据 */
+  /**
+   * 去重 + 校验 id 形状。
+   *
+   * 不静默丢弃非法值：`{ roleIds: [5, '6'] }` 若把 '6' 丢掉，接口会回
+   * 「已适用于 1 个角色」，用户以为 6 也加上了，实际只写进去 5 —— 提示成功却没生效
+   * 是最难自查的一类故障。宁可 400 让调用方看见自己发了什么。
+   */
   private normalizeIds(ids: number[] | undefined | null): number[] {
     if (!Array.isArray(ids)) return [];
-    return Array.from(new Set(ids)).filter((id) => Number.isInteger(id) && id > 0);
+    const invalid = ids.filter((id) => !Number.isInteger(id) || id <= 0);
+    if (invalid.length > 0) {
+      throw new BadRequestException({
+        code: ERROR_CODES.PARAM_INVALID,
+        message: '参数格式不正确',
+        detail: `id 必须是正整数，收到：${invalid.slice(0, 3).map(String).join('、')}`,
+      });
+    }
+    return Array.from(new Set(ids));
   }
 
   private async assertRolesExist(roleIds: number[]) {

@@ -52,7 +52,10 @@ export class RoleWorkflowController {
     const data = await this.roleWorkflowService.setRolesForWorkflows({
       workflowIds: body.workflowIds ?? [],
       roleIds: body.roleIds ?? [],
-      mode: body.mode ?? 'replace',
+      // 不设默认值：replace 会先清空这批流程的全部绑定，是最危险的语义，
+      // 任何漏带 mode 的调用（脚本、旧缓存的前端、手写 curl）都该被拒绝，
+      // 而不是「按最坏的那个方式执行」。
+      mode: body.mode,
     });
     return { code: 0, data };
   }
