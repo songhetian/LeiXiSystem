@@ -62,8 +62,13 @@ COPY . .
 # 报 "has no exported member 'EmployeeStatus'" / "Property 'Decimal' does not exist"。
 RUN pnpm --filter @lei/backend exec prisma generate
 
-# 编译 TypeScript（类型检查 + 生成 dist 产物，后者目前未用于运行期）
-RUN pnpm --filter @lei/backend exec tsc -p tsconfig.json
+# 编译 TypeScript（类型检查 + 生成 dist 产物，后者目前未用于运行期）。
+# 开 incremental 并把 tsbuildinfo 挂成 BuildKit cache：源码小改后的重复构建
+# 只重查变动的文件子图，类型检查时间显著缩短（全量 ~1 分钟 → 常态十几秒）。
+# tsc 自带内容哈希校验，缓存不会导致漏检。
+RUN --mount=type=cache,id=tsbuildinfo,target=/app/backend/.tscache \
+    pnpm --filter @lei/backend exec tsc -p tsconfig.json \
+      --incremental --tsBuildInfoFile /app/backend/.tscache/main.tsbuildinfo
 
 # ── Stage 2: Runner ───────────────────────────────────────────
 # 仅拷贝运行所需文件，排除测试/导出/前端/legacy 等

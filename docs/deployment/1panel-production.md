@@ -734,6 +734,12 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs -f bac
 
 > 只改了前端时，`build backend` 那一步会命中缓存、几乎瞬间结束，不必刻意跳过。
 
+> **加速小改发版**：依赖安装层始终走 pnpm store 缓存（不重装）；前端 `next build`  
+> 与后端 `tsc` 均挂了 BuildKit 增量编译缓存（`.next/cache` / tsbuildinfo），  
+> 只改源码的重复构建走增量，比全量快一半以上。改哪边就只构建哪边：  
+> 改前端 `pnpm prod:build:frontend && pnpm prod:up`；改后端 `pnpm prod:build:backend && pnpm prod:up`。  
+> 注意：改了 `package.json` / `pnpm-lock.yaml` / Dockerfile 本身，增量缓存会自然失效回退全量，属正常。
+
 
 ### 9.3 改了 env 之后
 
