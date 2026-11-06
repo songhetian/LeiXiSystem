@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { authApi } from '@/services/auth';
 import { clearDataCache } from '@/hooks/use-cached-data';
 import { clearDictCache } from '@/hooks/use-dict';
+import { clearCsrfToken, primeCsrfToken } from '@/lib/request';
 
 export interface User {
   id: number;
@@ -87,6 +88,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 清理共享数据/词典缓存，避免换账号后复用上一账号的脏数据
     clearDataCache();
     clearDictCache();
+    // CSRF token 是与会话绑定的，换账号后必须重新补取
+    clearCsrfToken();
     set({ user: null, isAuthenticated: false, isMockUser: false });
   },
 
@@ -96,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 清理共享数据/词典缓存，避免换账号后复用上一账号的脏数据
     clearDataCache();
     clearDictCache();
+    clearCsrfToken();
     set({ user: null, isAuthenticated: false, isMockUser: false });
   },
 
@@ -116,6 +120,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await authApi.me();
       if (res.code === 0 && res.data?.user) {
         set({ user: res.data.user, isAuthenticated: true });
+        // 刷新页面后内存里的 CSRF token 没了（登录时那颗已随内存消失），
+        // 这里补取一次，避免首个写请求先吃一个 5013 再靠重放兜底。
+        // 不 await：拿不到也不影响页面渲染，写请求会自己重放一次。
+        void primeCsrfToken();
         return true;
       }
     } catch {

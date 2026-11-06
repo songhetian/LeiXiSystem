@@ -46,11 +46,67 @@ const request = axios.create({
   timeout: 15000,
 });
 
+// ===== CSRF（双提交校验）=====
+// 后端对所有非安全方法校验 `X-CSRF-Token`：会话 Cookie 证明「是谁」，这个头证明
+// 「请求来自本站页面」。token 有两个来源：登录响应下发（data.csrfToken）、
+// 刷新页面后由 primeCsrfToken() 通过 GET /auth/csrf-token 补取。
+//
+// 刻意**不在请求拦截器里惰性取 token**：那会让每个写请求都挂在一个额外往返上，
+// 取不到时还得分清「取 token 失败」和「请求本身失败」。现在的口径是
+// 「有就带上，没有照发」—— 真缺了服务端会回 5012/5013，再由响应拦截器换一颗重放一次。
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const CSRF_TOKEN_MISSING_CODE = 5012;
+const CSRF_TOKEN_INVALID_CODE = 5013;
+let csrfToken: string | null = null;
+let csrfInFlight: Promise<string | null> | null = null;
+
+/** 丢弃缓存里的 token（登出/换账号/服务端判无效） */
+export function clearCsrfToken() {
+  csrfToken = null;
+  csrfInFlight = null;
+}
+
+/**
+ * 主动补取 CSRF token（页面初始化、或服务端判 token 失效时调用）。
+ * 失败返回 null 而不抛：拿不到 token 的后果是「写请求会 403」，
+ * 那是一个具体的、能被用户看见并重试的失败，不该变成一个没人处理的 Promise rejection。
+ */
+export function primeCsrfToken(): Promise<string | null> {
+  if (csrfToken) return Promise.resolve(csrfToken);
+  // 并发去重：一屏同时触发多次只补取一次
+  if (!csrfInFlight) {
+    csrfInFlight = request
+      .get('/auth/csrf-token')
+      .then((body) => {
+        // 响应拦截器已把信封拆开，这里拿到的是 { code, data: { token } }
+        const token = (body as unknown as { data?: { token?: string } } | undefined)?.data?.token;
+        csrfToken = typeof token === 'string' && token ? token : null;
+        return csrfToken;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfInFlight = null;
+      });
+  }
+  return csrfInFlight;
+}
+
+request.interceptors.request.use((config) => {
+  const method = String(config.method ?? 'get').toUpperCase();
+  if (SAFE_METHODS.has(method)) return config;
+  if (csrfToken) config.headers.set('X-CSRF-Token', csrfToken);
+  return config;
+});
+
 request.interceptors.response.use(
   (res) => {
     const data = res.data;
     if (data && typeof data === 'object' && 'code' in data) {
       if (data.code === 0) {
+        // 登录（以及换发）响应里带新 token，直接接管，
+        // 省掉每个写请求前多打一次 GET /auth/csrf-token
+        const issued = (data as { data?: { csrfToken?: unknown } }).data?.csrfToken;
+        if (typeof issued === 'string' && issued) csrfToken = issued;
         return data;
       }
       const err = new ApiError(data.code, data.message || '请求失败', data.data);
@@ -63,7 +119,7 @@ request.interceptors.response.use(
     }
     return data;
   },
-  (err) => {
+  async (err) => {
     const status = err.response?.status;
     const message = err.response?.data?.message || err.message || '网络错误';
     const isMockUser = useAuthStore.getState().isMockUser;
@@ -72,6 +128,23 @@ request.interceptors.response.use(
     // 登录密码错(5020)、缺少原二级密码(5021)。这类错误必须交给调用方内联展示，
     // 既不能跳登录页，也不能弹「没有权限」盖掉真实原因。
     const errCode = err.response?.data?.code;
+
+    // CSRF 头缺失/失效（会话变更、Redis 重启清空了 token 列表、切换账号）：
+    // 换一颗 token **重放一次**。可以安全重放 —— CSRF 守卫在 controller 之前就拒绝，
+    // 请求一定没有产生任何副作用。只重放一次，第二次仍失败就按普通错误抛出去。
+    const cfg = err.config as { __csrfRetried?: boolean } | undefined;
+    if (
+      cfg &&
+      !cfg.__csrfRetried &&
+      (errCode === CSRF_TOKEN_MISSING_CODE || errCode === CSRF_TOKEN_INVALID_CODE)
+    ) {
+      clearCsrfToken();
+      const fresh = await primeCsrfToken();
+      if (fresh) {
+        return request({ ...err.config, __csrfRetried: true });
+      }
+    }
+
     // 3016 = 二级密码格式不合法，属表单校验，同样内联展示
     const INLINE_AUTH_ERROR_CODES = [3013, 3014, 3016, 5019, 5020, 5021];
     const isInlineAuthError =

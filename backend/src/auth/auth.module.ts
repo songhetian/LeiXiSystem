@@ -40,6 +40,9 @@ import { CsrfService } from '../common/csrf.service';
     CsrfService,
     CsrfGuard,
     {
+      // 全局 CSRF 守卫。它自己从 Cookie 解析会话（不读 req.user），
+      // 因此不受「全局守卫先于 controller 级 JwtAuthGuard 执行」的顺序影响 ——
+      // 早期版本读 req.user，实际等于全站写接口从未校验过 CSRF（见 csrf.guard.ts 注释）。
       provide: APP_GUARD,
       useClass: CsrfGuard,
     },
