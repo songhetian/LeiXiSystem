@@ -6,11 +6,11 @@
   "scripts": {
     "============ 开发环境 ============": "",
     "dev": "pnpm -r --parallel dev",
-    "dev:fast": "pnpm -r --parallel dev",
     "dev:full": "pnpm --filter @lei/backend migrate && pnpm --filter @lei/backend db:seed && pnpm -r --parallel dev",
     "dev:frontend": "pnpm --filter @lei/frontend dev",
     "dev:backend": "pnpm --filter @lei/backend dev",
     "dev:seed": "pnpm --filter @lei/backend migrate && pnpm --filter @lei/backend db:seed",
+    "redis:start": "\"D:\\Program Files\\FlyEnv-Data\\env\\redis\\redis-server.exe\" --port 6379 --requirepass 123456",
 
     "============ 构建 ============": "",
     "build": "pnpm -r build",
@@ -21,6 +21,8 @@
     "test": "pnpm -r test",
     "test:backend": "pnpm --filter @lei/backend test",
     "test:frontend": "pnpm --filter @lei/frontend test",
+    "typecheck": "pnpm -r typecheck",
+    "verify": "pnpm typecheck && pnpm test",
 
     "============ 重启 ============": "",
     "restart": "npx kill-port 4000 4001 && pnpm -r --parallel dev",
