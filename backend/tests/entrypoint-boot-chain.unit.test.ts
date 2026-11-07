@@ -230,8 +230,14 @@ describe('frontend/Dockerfile —— 运行期形态', () => {
     expect(code).not.toMatch(/CMD \["node", "server\.js"\]/);
   });
 
-  it('builder 阶段清掉 standalone 与 build cache，避免无用产物进运行镜像', () => {
-    expect(code).toMatch(/rm -rf \.next\/standalone \.next\/cache/);
+  it('builder 阶段清掉 standalone，避免无用产物进运行镜像', () => {
+    // .next/cache 现在是 next build 的 BuildKit 增量编译缓存挂载点（挂载内容不进镜像层），
+    // 不能再 rm —— 原来的 `rm -rf .next/standalone .next/cache` 会把缓存清空，
+    // 使增量构建永远冷启动（2026-11-06 改为只删 standalone）。
+    expect(code).toMatch(/rm -rf \.next\/standalone/);
+    expect(code).not.toMatch(/rm -rf \.next\/standalone \.next\/cache/);
+    // 增量缓存挂载必须在：next build 的 RUN 上
+    expect(code).toMatch(/--mount=type=cache,id=next-cache,target=\/app\/frontend\/\.next\/cache/);
   });
 
   it('运行镜像内安装生产依赖（含 next 可执行文件）', () => {

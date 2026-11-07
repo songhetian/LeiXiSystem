@@ -864,3 +864,74 @@ async function catchPayload(fn: () => Promise<unknown>): Promise<any> {
   }
   throw new Error('预期抛出异常，但未抛出');
 }
+
+// =================================================================
+// selfSchedule —— 仅限「今日无排班」时使用。
+// 排班是管理员的权威口径：若允许员工在已有排班时自行改班次，迟到的员工
+// 可以把班次改成很晚的时刻，下一次日报重算（引擎按首末卡对新班次重推、
+// 不做提前打卡窗口校验）就会把迟到洗掉。前端打卡页只在无排班时给入口，
+ // 这里钉住后端的最终防线。
+// =================================================================
+describe('PunchService - selfSchedule 仅限今日无排班时使用', () => {
+  let service: PunchService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new PunchService(prisma, createMockLockService() as any);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('今日已有排班时拒绝自助设置，不写任何数据', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 1, employeeNo: 'E001' });
+    prisma.shift.findUnique.mockResolvedValue({ id: 3, name: '早班' });
+    prisma.schedule.findFirst.mockResolvedValue({ id: 11, employeeId: 1, shiftId: 2 });
+
+    await expect(service.selfSchedule(10, 3)).rejects.toThrow('今日已有排班');
+
+    expect(prisma.schedule.create).not.toHaveBeenCalled();
+    expect(prisma.schedule.update).not.toHaveBeenCalled();
+  });
+
+  it('今日无排班时允许自助设置，创建排班并返回班次', async () => {
+    prisma.employee.findFirst.mockResolvedValue({ id: 1, employeeNo: 'E001' });
+    prisma.shift.findUnique.mockResolvedValue({ id: 3, name: '早班' });
+    prisma.schedule.findFirst.mockResolvedValue(null);
+    prisma.schedule.create.mockResolvedValue({ id: 12, employeeId: 1, shiftId: 3 });
+
+    const result = await service.selfSchedule(10, 3);
+
+    expect(prisma.schedule.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ employeeId: 1, shiftId: 3 }) }),
+    );
+    expect(result.shift).toEqual({ id: 3, name: '早班' });
+  });
+
+  it('正常下班的 clockOut 会把脏状态修正回 normal（不沿用 existing.status）', async () => {
+    // 中途的排班变更重算会把「上班中」落成 early 之类的瞬时值；
+    // 员工正常下班时 status 应恢复 normal，而不是继承脏值
+    prisma.employee.findFirst.mockResolvedValue({ id: 1, employeeNo: 'E001' });
+    prisma.schedule.findFirst.mockResolvedValue(null);
+    prisma.attendanceDaily.findUnique.mockResolvedValue({
+      id: 5,
+      status: 'early',
+      lateMinutes: 0,
+      earlyMinutes: 0,
+      firstPunch: new Date('2026-08-14T01:00:00.000Z'),
+      lastPunch: null,
+      shift: { useGlobalThreshold: true, earlyThreshold: 30, startTime: '09:00', endTime: '18:00', isNextDay: false },
+    });
+    prisma.attendanceDaily.update.mockResolvedValue({});
+    prisma.punchLog.create.mockResolvedValue({});
+    prisma.systemSetting.findUnique.mockResolvedValue({ value: '30' });
+    jest.setSystemTime(new Date(2026, 7, 15, 10, 30, 0)); // 北京 18:30，班次 18:00 结束 → 正常下班
+
+    const result = await service.clockOut(10);
+
+    expect(result.status).toBe('normal');
+    expect(prisma.attendanceDaily.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'normal' }) }),
+    );
+  });
+});

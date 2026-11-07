@@ -171,7 +171,11 @@ export class PunchService {
         ((clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60)).toFixed(1),
       );
 
-      let status = existing.status as AttendanceDailyStatus;
+      // 不直接沿用 existing.status：中途的排班变更重算或其它写入路径可能把
+      // 「上班中」落成了 early/absent 之类的瞬时值。迟到标记从 lateMinutes 推导
+      // 保留（迟到 + 早退 = late_early），其余以本次下班结果为准 —— 正常下班时
+      // 顺带把脏状态修正回 normal。
+      let status: AttendanceDailyStatus = existing.lateMinutes > 0 ? 'late' : 'normal';
       let earlyMinutes = existing.earlyMinutes;
 
       // 打卡记录已带班次时以它为准；否则回退到业务日排班的班次
@@ -226,7 +230,10 @@ export class PunchService {
 
   /**
    * 员工自助设置今日排班
-   * - 员工可以给自己设置今日的班次（用于无排班时的灵活打卡）
+   * - 仅限「今日无排班」时使用：排班是管理员的权威口径，已有排班时不允许员工
+   *   自行改班次 —— 否则迟到的员工可以把班次改成很晚的时刻，下一次日报重算
+   *   （引擎按首末卡对新班次重推，不做提前打卡窗口校验）就会把迟到洗掉。
+   *   前端打卡页也只在无排班时给入口，此处是后端的最终防线。
    */
   async selfSchedule(userId: number, shiftId: number) {
     const employee = await this.prisma.employee.findFirst({ where: { userId } });
@@ -241,38 +248,20 @@ export class PunchService {
 
     const today = this.businessDate();
 
-    // 查找今日排班
-    let schedule = await this.prisma.schedule.findFirst({
+    const existing = await this.prisma.schedule.findFirst({
       where: { employeeId: employee.id, workDate: today },
     });
-
-    if (schedule) {
-      // 更新已有排班
-      schedule = await this.prisma.schedule.update({
-        where: { id: schedule.id },
-        data: { shiftId },
-      });
-    } else {
-      // 创建新排班
-      schedule = await this.prisma.schedule.create({
-        data: {
-          employeeId: employee.id,
-          shiftId,
-          workDate: today,
-        },
-      });
+    if (existing) {
+      throw new BadRequestException('今日已有排班，如需调整请联系考勤管理员');
     }
 
-    // 如果已有今日打卡记录，同步更新 shiftId
-    const daily = await this.prisma.attendanceDaily.findUnique({
-      where: { employeeId_workDate: { employeeId: employee.id, workDate: today } },
+    const schedule = await this.prisma.schedule.create({
+      data: {
+        employeeId: employee.id,
+        shiftId,
+        workDate: today,
+      },
     });
-    if (daily) {
-      await this.prisma.attendanceDaily.update({
-        where: { id: daily.id },
-        data: { shiftId, scheduleId: schedule.id },
-      });
-    }
 
     return { schedule, shift };
   }

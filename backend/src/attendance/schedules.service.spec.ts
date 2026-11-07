@@ -1,7 +1,13 @@
 import { SchedulesService } from './schedules.service';
+import { AttendanceDailyService } from './attendance-daily.service';
 import { DataScopeService } from '../common/data-scope.service';
 import { messageOf } from '../common/error-messages';
 import { ERROR_CODES } from '../common/error-codes';
+
+/** 排班变更后的日报重算依赖 AttendanceDailyService，测试里只关心「有没有被调、怎么调」 */
+function createMockDaily(): AttendanceDailyService {
+  return { recalculate: jest.fn().mockResolvedValue({ count: 1 }) } as unknown as AttendanceDailyService;
+}
 
 function createMockPrisma() {
   const prisma: any = {
@@ -33,7 +39,7 @@ describe('SchedulesService.mySchedule', () => {
   beforeEach(() => {
     prisma = createMockPrisma();
     const dataScope = {} as DataScopeService;
-    service = new SchedulesService(prisma, dataScope);
+    service = new SchedulesService(prisma, dataScope, createMockDaily());
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -98,7 +104,7 @@ describe('SchedulesService.matrix（部门×月份矩阵）', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService);
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService, createMockDaily());
     dataScope.visibleScope.mockReset();
   });
 
@@ -173,7 +179,7 @@ describe('SchedulesService - 错误码语义（排班不存在不得复用 2002 
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService);
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService, createMockDaily());
     dataScope.visibleScope.mockReset();
   });
 
@@ -217,7 +223,7 @@ describe('SchedulesService — 批量操作不得产生 N+1 查询', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService);
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService, createMockDaily());
     dataScope.visibleScope.mockReset();
   });
 
@@ -268,8 +274,8 @@ describe('SchedulesService — 批量操作不得产生 N+1 查询', () => {
   it('批量清除：一次查存在性 + 一次 deleteMany，不逐条 delete', async () => {
     dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
     prisma.schedule.findMany.mockResolvedValue([
-      { id: 11, employeeId: 1 },
-      { id: 12, employeeId: 2 },
+      { id: 11, employeeId: 1, workDate: new Date('2026-08-01') },
+      { id: 12, employeeId: 2, workDate: new Date('2026-08-01') },
     ]);
     prisma.schedule.deleteMany.mockResolvedValue({ count: 2 });
 
@@ -302,5 +308,95 @@ describe('SchedulesService — 批量操作不得产生 N+1 查询', () => {
 
     expect(payload.code).toBe(5003);
     expect(prisma.schedule.deleteMany).not.toHaveBeenCalled();
+  });
+});
+describe('SchedulesService — 排班变更后重算受影响日报', () => {
+  let service: SchedulesService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let daily: ReturnType<typeof createMockDaily>;
+  const dataScope = { visibleScope: jest.fn() } as unknown as { visibleScope: jest.Mock };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    daily = createMockDaily();
+    service = new SchedulesService(prisma, dataScope as unknown as DataScopeService, daily);
+    dataScope.visibleScope.mockReset();
+    dataScope.visibleScope.mockResolvedValue({ all: true, ids: [], selfEmployeeId: null });
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('创建过去的排班后，重算该员工该日的日报', async () => {
+    prisma.schedule.upsert.mockResolvedValue({ id: 1 });
+
+    await service.create({ employeeId: 7, shiftId: 3, workDate: '2026-08-01' }, 9);
+
+    expect(daily.recalculate).toHaveBeenCalledWith(
+      expect.objectContaining({ employeeId: 7, startDate: '2026-08-01', endDate: '2026-08-01' }),
+    );
+  });
+
+  it('今天与未来的排班不触发重算（当天口径由打卡路径决定，次日定时重算兜底）', async () => {
+    prisma.schedule.upsert.mockResolvedValue({ id: 1 });
+
+    await service.create({ employeeId: 7, shiftId: 3, workDate: '2099-01-01' }, 9);
+
+    expect(daily.recalculate).not.toHaveBeenCalled();
+  });
+
+  it('编辑挪动日期时，新旧两个日期都会重算', async () => {
+    prisma.schedule.findUnique.mockResolvedValue({
+      id: 1,
+      employeeId: 7,
+      workDate: new Date('2026-08-01'),
+    });
+    prisma.schedule.update.mockResolvedValue({ id: 1, workDate: new Date('2026-08-02') });
+
+    await service.update(1, { workDate: '2026-08-02' }, 9);
+
+    const dates = (daily.recalculate as jest.Mock).mock.calls
+      .map((c: any[]) => c[0].startDate as string)
+      .sort();
+    expect(dates).toEqual(['2026-08-01', '2026-08-02']);
+  });
+
+  it('删除排班后，所在日期重算', async () => {
+    prisma.schedule.findUnique.mockResolvedValue({
+      id: 1,
+      employeeId: 7,
+      workDate: new Date('2026-08-01'),
+    });
+    prisma.schedule.delete.mockResolvedValue({});
+
+    await service.remove(1, 9);
+
+    expect(daily.recalculate).toHaveBeenCalledWith(
+      expect.objectContaining({ employeeId: 7, startDate: '2026-08-01', endDate: '2026-08-01' }),
+    );
+  });
+
+  it('重算失败（如该月月报已确认）不影响排班写入本身', async () => {
+    (daily.recalculate as jest.Mock).mockRejectedValue(new Error('该月已确认，不允许重算'));
+    prisma.schedule.upsert.mockResolvedValue({ id: 1 });
+
+    const saved = await service.create({ employeeId: 7, shiftId: 3, workDate: '2026-08-01' }, 9);
+
+    expect(saved).toEqual({ id: 1 });
+    expect(daily.recalculate).toHaveBeenCalledTimes(1);
+  });
+
+  it('批量排班后按 (员工, 日期) 去重重算，不重复调用', async () => {
+    prisma.employee.findMany.mockResolvedValue([{ id: 7, departmentId: 2 }]);
+    prisma.schedule.upsert.mockResolvedValue({ id: 1 });
+
+    await service.batch(
+      [
+        { employeeId: 7, shiftId: 3, workDate: '2026-08-01' },
+        { employeeId: 7, shiftId: 4, workDate: '2026-08-01' },
+      ],
+      9,
+    );
+
+    expect(daily.recalculate).toHaveBeenCalledTimes(1);
   });
 });
