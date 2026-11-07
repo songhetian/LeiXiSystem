@@ -48,11 +48,20 @@ def main():
     password, reason = default_password(c)
     print(f"   初始密码: {password}（{reason}）")
 
-    print("== 7. 创建账号")
+    print("== 7. 创建账号（默认挂「普通员工」角色）")
+    role_id = None
+    for r in c.roles():
+        if r.get("code") == "staff" or r.get("name") == "普通员工":
+            role_id = r["id"]
+            break
+    print("   默认角色 staff id =", role_id)
     dept = next(d for d in depts if d.get("deletedAt") is None)
     created = c.create_user(username, password, NAME, dept["id"],
-                            positions[0]["id"] if positions else None)
+                            positions[0]["id"] if positions else None,
+                            [role_id] if role_id else None)
     print("   创建成功:", created)
+    role_names = [r.get("name") for r in created.get("roles", [])]
+    assert role_id is None or "普通员工" in role_names, f"角色未挂上：{role_names}"
 
     print("== 8. 重名复查（应命中）")
     dup = check_name_exists(c, NAME)
@@ -65,10 +74,22 @@ def main():
     print("   新账号登录成功:", u2.get("username"))
     c2.logout()
 
-    print("== 10. 清理（软删除测试账号）")
+    print("== 10. 清理（接口软删 + SQL 硬删测试数据）")
     uid = created["id"]
     del_res = c._request("DELETE", f"/system/users/{uid}")
-    print("   删除:", del_res)
+    print("   软删:", del_res)
+    import pymysql
+    conn = pymysql.connect(host="localhost", user="root", password="root",
+                           database="leixin_v2", charset="utf8mb4")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM user_roles WHERE user_id=%s", (uid,))
+    cur.execute("DELETE FROM employees WHERE user_id=%s", (uid,))
+    n_emp = cur.rowcount
+    cur.execute("DELETE FROM users WHERE id=%s", (uid,))
+    n_user = cur.rowcount
+    conn.commit()
+    conn.close()
+    print(f"   硬删: employees={n_emp} users={n_user}（createUser 是用户+档案同事务，必须一起清）")
 
     # 重名冲突重试路径：再造一个同名（换名字）
     print("== 11. 无 CSRF 头直接写（应 403）")

@@ -104,6 +104,9 @@ class LeiXiClient:
         return self._request("POST", "/system/positions", json={"name": name})
 
     # ---- 用户 / 员工 ----
+    def roles(self) -> list[dict]:
+        return self._request("GET", "/system/roles") or []
+
     def search_users(self, keyword: str, page: int = 1, page_size: int = 100) -> dict:
         return self._request("GET", "/system/users", params={
             "keyword": keyword, "page": page, "pageSize": page_size,
@@ -115,13 +118,16 @@ class LeiXiClient:
         }) or {"list": [], "total": 0, "page": page, "pageSize": page_size}
 
     def create_user(self, username: str, password: str, name: str,
-                    department_id: int, position_id: int | None = None) -> dict:
+                    department_id: int, position_id: int | None = None,
+                    role_ids: list[int] | None = None) -> dict:
         payload: dict[str, Any] = {
             "username": username, "password": password, "name": name,
             "departmentId": department_id, "status": "active",
         }
         if position_id is not None:
             payload["positionId"] = position_id
+        if role_ids:
+            payload["roleIds"] = role_ids
         return self._request("POST", "/system/users", json=payload)
 
     # ---- 设置 ----

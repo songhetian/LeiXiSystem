@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """雷犀管理系统 · 快速登记桌面工具。
 
-流程：登录管理员账号 → 输入姓名 + 部门（可输入新部门自动创建）→ 一键创建
-→ 返回登录账号 + 初始密码（按系统密码强度智能适配）。
+免登录设计：服务器地址与账号内置（可在「设置」里改），启动自动连接；
+输入姓名 + 部门（可输入新部门自动创建）→ 一键创建 → 返回登录账号 + 初始密码，
+新账号默认挂「普通员工」角色（角色库 code=staff）。
 """
 from __future__ import annotations
 
@@ -11,11 +12,13 @@ import os
 import sys
 import threading
 from datetime import datetime
+from urllib.parse import urlparse
 
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -25,7 +28,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -42,6 +44,13 @@ from api import (
 )
 from theme import app_mark, build_qss
 
+# ---- 内置默认配置（可在「设置」里改，持久化到 ~/.leixi_quick_register.json） ----
+DEFAULT_BASE = "https://www.leixidianshang.com/api/v1"
+DEFAULT_USERNAME = "admin"
+DEFAULT_PASSWORD = "123456"
+DEFAULT_ROLE_CODE = "staff"       # 角色库：普通员工
+DEFAULT_ROLE_NAME = "普通员工"
+
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".leixi_quick_register.json")
 
 HISTORY_COLS = ["时间", "姓名", "登录账号", "初始密码", "部门", "岗位"]
@@ -50,11 +59,19 @@ HISTORY_COLS = ["时间", "姓名", "登录账号", "初始密码", "部门", "�
 # ---------- 配置持久化 ----------
 
 def load_config() -> dict:
+    cfg = {
+        "base_url": DEFAULT_BASE,
+        "username": DEFAULT_USERNAME,
+        "password": DEFAULT_PASSWORD,
+    }
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if isinstance(data, dict):
+            cfg.update({k: v for k, v in data.items() if k in cfg and v})
     except Exception:
-        return {}
+        pass
+    return cfg
 
 
 def save_config(cfg: dict) -> None:
@@ -117,99 +134,90 @@ def vwrap(f: QFrame) -> QVBoxLayout:
     return lay
 
 
-# ---------- 登录页 ----------
+# ---------- 设置对话框（连接失败 / 手动切换环境时出现） ----------
 
-class LoginPage(QWidget):
-    submitted = Signal(str, str, str)  # base_url, username, password
+class SettingsDialog(QDialog):
+    connect_requested = Signal(str, str, str)  # base_url, username, password
 
-    def __init__(self):
-        super().__init__()
-        root = QVBoxLayout(self)
-        root.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("连接设置")
+        self.setFixedWidth(420)
+        self._busy = False
 
-        box = card()
-        box.setFixedWidth(400)
-        lay = vwrap(box)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 18, 20, 18)
         lay.setSpacing(8)
 
-        top = QHBoxLayout()
+        head = QHBoxLayout()
         mark = QLabel()
-        mark.setPixmap(app_mark(44))
-        mark.setFixedSize(44, 44)
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        t1 = QLabel("雷犀管理系统")
-        t1.setProperty("class", "h1")
-        t2 = QLabel("员工快速登记工具")
-        t2.setProperty("class", "sub")
-        title_col.addWidget(t1)
-        title_col.addWidget(t2)
-        top.addWidget(mark)
-        top.addSpacing(10)
-        top.addLayout(title_col)
-        top.addStretch(1)
-        lay.addLayout(top)
-        lay.addSpacing(10)
+        mark.setPixmap(app_mark(36))
+        head.addWidget(mark)
+        head.addSpacing(8)
+        t = QLabel("连接设置")
+        t.setProperty("class", "h2")
+        head.addWidget(t)
+        head.addStretch(1)
+        lay.addLayout(head)
 
         self.server = QLineEdit()
-        self.server.setPlaceholderText("http://localhost:4001/api/v1")
         self.server.setProperty("site", "1")
         self.username = QLineEdit()
-        self.username.setPlaceholderText("admin")
         self.password = QLineEdit()
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
-
-        # 标签与输入框成对添加，保证视觉分组
         for text, w in (("服务器地址", self.server),
-                        ("管理员账号", self.username),
+                        ("账号", self.username),
                         ("密码", self.password)):
             cap = QLabel(text)
             cap.setProperty("class", "field")
             lay.addWidget(cap)
             lay.addWidget(w)
-        lay.addSpacing(6)
 
         self.tip = QLabel()
         self.tip.setWordWrap(True)
         self.tip.setVisible(False)
         lay.addWidget(self.tip)
 
-        self.login_btn = QPushButton("登 录")
-        self.login_btn.setProperty("class", "primary")
-        self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        lay.addWidget(self.login_btn)
-        lay.addSpacing(4)
+        self.ok_btn = QPushButton("保存并连接")
+        self.ok_btn.setProperty("class", "primary")
+        self.ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        lay.addWidget(self.ok_btn)
 
-        hint = QLabel("需要具备「系统用户管理 + 部门管理」权限的账号")
-        hint.setProperty("class", "muted")
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(hint)
-
-        root.addWidget(box)
-
-        self.login_btn.clicked.connect(self._emit)
+        self.ok_btn.clicked.connect(self._emit)
         self.password.returnPressed.connect(self._emit)
 
+    def fill(self, base: str, username: str, password: str) -> None:
+        self.server.setText(base)
+        self.username.setText(username)
+        self.password.setText(password)
+
+    def show_error(self, message: str) -> None:
+        self._busy = False
+        self.ok_btn.setEnabled(True)
+        self.ok_btn.setText("保存并连接")
+        set_tip(self.tip, message, "errTip")
+
     def _emit(self) -> None:
-        base = self.server.text().strip() or "http://localhost:4001/api/v1"
+        if self._busy:
+            return
+        base = self.server.text().strip()
         user = self.username.text().strip()
         pwd = self.password.text()
-        if not user or not pwd:
-            set_tip(self.tip, "请输入账号和密码", "warnTip")
+        if not base or not user or not pwd:
+            set_tip(self.tip, "请完整填写服务器地址、账号和密码", "warnTip")
             return
-        self.login_btn.setEnabled(False)
-        self.login_btn.setText("登录中…")
-        self.submitted.emit(base, user, pwd)
-
-    def reset(self) -> None:
-        self.login_btn.setEnabled(True)
-        self.login_btn.setText("登 录")
+        self._busy = True
+        self.ok_btn.setEnabled(False)
+        self.ok_btn.setText("连接中…")
+        set_tip(self.tip, "")
+        self.connect_requested.emit(base, user, pwd)
 
 
 # ---------- 主操作页 ----------
 
 class MainPage(QWidget):
     create_clicked = Signal(dict)  # {"name","dept_name","dept_new","pos_name","pos_new"}
+    settings_clicked = Signal()
 
     def __init__(self):
         super().__init__()
@@ -232,10 +240,10 @@ class MainPage(QWidget):
         self.badge = QLabel()
         self.badge.setProperty("class", "badge")
         head.addWidget(self.badge)
-        self.logout_btn = QPushButton("退出登录")
-        self.logout_btn.setProperty("class", "ghost")
-        self.logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        head.addWidget(self.logout_btn)
+        self.settings_btn = QPushButton("设置")
+        self.settings_btn.setProperty("class", "ghost")
+        self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        head.addWidget(self.settings_btn)
         root.addLayout(head)
 
         # 表单卡
@@ -271,7 +279,7 @@ class MainPage(QWidget):
         self.tip.setVisible(False)
         flay.addWidget(self.tip)
 
-        self.create_btn = QPushButton("创建账号")
+        self.create_btn = QPushButton("创建账号（默认「普通员工」角色）")
         self.create_btn.setProperty("class", "primary")
         self.create_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         flay.addWidget(self.create_btn)
@@ -327,7 +335,6 @@ class MainPage(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setAlternatingRowColors(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
@@ -339,10 +346,11 @@ class MainPage(QWidget):
         self.name_edit.returnPressed.connect(self._on_create)
         self.copy_btn.clicked.connect(self._copy_result)
         self.clear_btn.clicked.connect(lambda: self.table.setRowCount(0))
+        self.settings_btn.clicked.connect(self.settings_clicked)
 
     # ---- 数据填充 ----
-    def populate(self, user: dict, depts: list[dict], positions: list[dict]) -> None:
-        self.badge.setText(f"{user.get('realName') or user.get('username')}（{user.get('username')}）")
+    def populate(self, host: str, username: str, depts: list[dict], positions: list[dict]) -> None:
+        self.badge.setText(f"{host} · {username}")
         self.dept_combo.clear()
         for d in depts:
             if not d.get("deletedAt"):
@@ -352,7 +360,7 @@ class MainPage(QWidget):
         for p in positions:
             self.pos_combo.addItem(p["name"], p["id"])
 
-    def set_busy(self, busy: bool, text: str = "创建账号") -> None:
+    def set_busy(self, busy: bool, text: str = "创建账号（默认「普通员工」角色）") -> None:
         self.create_btn.setEnabled(not busy)
         self.create_btn.setText(text)
 
@@ -430,30 +438,27 @@ class MainWindow(QMainWindow):
         self.resize(660, 840)
         self.setMinimumSize(620, 760)
 
+        self.cfg = load_config()
         self.client: LeiXiClient | None = None
+        self.role_id: int | None = None
         self.depts: list[dict] = []
+        self.settings_dialog: SettingsDialog | None = None
+        self.connected = False
 
-        self.stack = QStackedWidget()
-        self.setCentralWidget(self.stack)
-        self.login_page = LoginPage()
         self.main_page = MainPage()
-        self.stack.addWidget(self.login_page)
-        self.stack.addWidget(self.main_page)
+        self.setCentralWidget(self.main_page)
 
-        cfg = load_config()
-        self.login_page.server.setText(cfg.get("base_url", ""))
-        self.login_page.username.setText(cfg.get("username", ""))
-
-        # 登录页
-        self.login_page.submitted.connect(self._login)
-        # 主页
         self.main_page.create_clicked.connect(self._create)
-        self.main_page.logout_btn.clicked.connect(self._logout)
+        self.main_page.settings_clicked.connect(self._open_settings)
 
-    # ---- 登录 ----
-    def _login(self, base: str, username: str, password: str) -> None:
-        set_tip(self.login_page.tip, "正在连接服务器…", "warnTip")
+        # 启动即自动连接（免登录）；LEIXI_QR_NO_AUTOCONNECT=1 供离屏测试跳过
+        if os.environ.get("LEIXI_QR_NO_AUTOCONNECT") != "1":
+            self.main_page.set_busy(True, "正在连接服务器…")
+            self._connect(self.cfg["base_url"], self.cfg["username"], self.cfg["password"])
 
+    # ---- 连接（启动 / 设置对话框共用） ----
+    def _connect(self, base: str, username: str, password: str,
+                 dialog: SettingsDialog | None = None) -> None:
         def fn(report):
             report("登录中…")
             client = LeiXiClient(base)
@@ -464,33 +469,66 @@ class MainWindow(QMainWindow):
                 positions = client.positions()
             except ApiError:
                 positions = []  # 无岗位管理权限不阻断登记
-            return client, depts, positions
+            report("解析默认角色…")
+            role_id = None
+            try:
+                for r in client.roles():
+                    if r.get("code") == DEFAULT_ROLE_CODE or r.get("name") == DEFAULT_ROLE_NAME:
+                        role_id = r["id"]
+                        break
+            except ApiError:
+                pass  # 无角色查看权限时跳过，仅影响新账号默认角色
+            return client, depts, positions, role_id
 
         task = AsyncTask(fn, self)
-        task.progress.connect(lambda t: set_tip(self.login_page.tip, t, "warnTip"))
-        task.ok.connect(self._on_login_ok)
-        task.fail.connect(self._on_login_fail)
-        task.relogin.connect(lambda m: self._on_login_fail(m))
+        task.progress.connect(lambda t: self._on_connect_progress(t, dialog))
+        task.ok.connect(lambda result, d=dialog: self._on_connect_ok(result, base, username, password, d))
+        task.fail.connect(lambda msg, d=dialog: self._on_connect_fail(msg, d))
+        task.relogin.connect(lambda msg, d=dialog: self._on_connect_fail(msg, d))
         task.start()
 
-    def _on_login_ok(self, result) -> None:
-        self.client, self.depts, positions = result
-        save_config({
-            "base_url": self.client.base,
-            "username": self.client.user.get("username", ""),
-        })
-        set_tip(self.login_page.tip, "")
-        self.login_page.reset()
-        self.login_page.password.clear()
-        self.main_page.populate(self.client.user or {}, self.depts, positions)
+    def _on_connect_progress(self, text: str, dialog: SettingsDialog | None) -> None:
+        if dialog:
+            set_tip(dialog.tip, text, "warnTip")
+
+    def _on_connect_ok(self, result, base: str, username: str, password: str,
+                       dialog: SettingsDialog | None) -> None:
+        self.client, self.depts, positions, self.role_id = result
+        self.cfg.update({"base_url": base, "username": username, "password": password})
+        save_config(self.cfg)
+        self.connected = True
+        host = urlparse(base).netloc or base
+        role_note = "" if self.role_id else "（未找到「普通员工」角色，新账号将不挂角色）"
+        self.main_page.populate(host, username, self.depts, positions)
+        self.main_page.set_busy(False)
         self.main_page.result.setVisible(False)
-        set_tip(self.main_page.tip, "")
-        self.stack.setCurrentWidget(self.main_page)
+        set_tip(self.main_page.tip, f"已连接 {host}，默认角色已就绪{role_note}", "okTip")
+        if dialog:
+            dialog.accept()
+            self.settings_dialog = None
         self.main_page.name_edit.setFocus()
 
-    def _on_login_fail(self, message: str) -> None:
-        self.login_page.reset()
-        set_tip(self.login_page.tip, message, "errTip")
+    def _on_connect_fail(self, message: str, dialog: SettingsDialog | None) -> None:
+        self.connected = False
+        self.main_page.set_busy(True, "未连接 · 请在设置里检查服务器与账号")
+        if dialog:
+            dialog.show_error(message)
+        else:
+            self._open_settings(error=message)
+
+    # ---- 设置 ----
+    def _open_settings(self, error: str | None = None) -> None:
+        if self.settings_dialog is None:
+            self.settings_dialog = SettingsDialog(self)
+            self.settings_dialog.connect_requested.connect(
+                lambda b, u, p: self._connect(b, u, p, self.settings_dialog))
+        self.settings_dialog.fill(self.cfg["base_url"], self.cfg["username"], self.cfg["password"])
+        if error:
+            set_tip(self.settings_dialog.tip, error, "errTip")
+        else:
+            set_tip(self.settings_dialog.tip, "")
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
 
     # ---- 创建 ----
     def _create(self, payload: dict) -> None:
@@ -524,10 +562,11 @@ class MainWindow(QMainWindow):
             username = next_username(client, payload["name"])
             password, pwd_reason = default_password(client)
 
-            # 4. 创建
+            # 4. 创建（默认挂「普通员工」角色）
             report(f"创建账号 {username}…")
+            role_ids = [self.role_id] if self.role_id else None
             created = client.create_user(username, password, payload["name"],
-                                         dept_id, pos_id)
+                                         dept_id, pos_id, role_ids)
             return {
                 "name": payload["name"],
                 "username": created.get("username", username),
@@ -541,7 +580,7 @@ class MainWindow(QMainWindow):
         task.progress.connect(lambda t: set_tip(self.main_page.tip, t, "warnTip"))
         task.ok.connect(self._on_create_ok)
         task.fail.connect(self._on_create_fail)
-        task.relogin.connect(self._on_relogin)
+        task.relogin.connect(self._on_session_expired)
         task.start()
 
     def _resolve_or_create(self, client, report, name: str, is_new: bool,
@@ -573,23 +612,12 @@ class MainWindow(QMainWindow):
         if kind == "warnTip":
             QMessageBox.information(self, "已存在", message)
 
-    def _on_relogin(self, message: str) -> None:
+    def _on_session_expired(self, message: str) -> None:
+        """会话过期：用内置配置静默重连，成功后界面提示「已连接」，用户再点一次创建即可。"""
         self.main_page.set_busy(False)
-        self._logout_silent()
-        set_tip(self.login_page.tip, message, "errTip")
-        self.stack.setCurrentWidget(self.login_page)
-
-    # ---- 退出 ----
-    def _logout(self) -> None:
-        self._logout_silent()
-        self.stack.setCurrentWidget(self.login_page)
-        self.login_page.password.setFocus()
-
-    def _logout_silent(self) -> None:
-        if self.client:
-            self.client.logout()
-        self.client = None
-        self.login_page.reset()
+        self.connected = False
+        set_tip(self.main_page.tip, "会话已过期，正在自动重新登录…", "warnTip")
+        self._connect(self.cfg["base_url"], self.cfg["username"], self.cfg["password"])
 
 
 def register_fonts(app: QApplication) -> None:
