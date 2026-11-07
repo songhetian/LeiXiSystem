@@ -589,7 +589,8 @@ export default function EmployeeListPage() {
     },
   ];
 
-  // 工具栏：写操作（新增/导入）仅对拥有 employee:manage 的用户渲染；模板下载/导出为查看类不控权
+  // 工具栏：写操作（新增/导入）仅对拥有 employee:manage 的用户渲染；模板下载/导出为查看类不控权。
+  // 色彩纪律：只有「新增员工」一个主按钮，导入/模板/导出都是查看或次要动作，不做彩色按钮。
   const toolbar: ProTableToolbarAction[] = [
     ...(canManage
       ? [
@@ -597,8 +598,7 @@ export default function EmployeeListPage() {
           {
             key: 'import',
             label: '导入',
-            type: 'primary' as const,
-            status: 'success' as const,
+            type: 'outline' as const,
             loading: importing,
             onClick: () => importInputRef.current?.click(),
           },
@@ -608,8 +608,7 @@ export default function EmployeeListPage() {
     {
       key: 'export',
       label: '导出 Excel',
-      type: 'primary',
-      status: 'warning',
+      type: 'outline',
       onClick: handleExport,
     },
   ];

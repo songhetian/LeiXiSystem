@@ -245,14 +245,17 @@ export const RS_REIMBURSEMENTS: RSReimbursement[] = [
 
 // ===== 主要写库入口 =====
 /** 计算一个月的应工作日（去掉周末），返回 YYYY-MM-DD 数组（只到 upperDate 为止） */
-function workdays(month: string, upperDate: Date): Date[] {
-  const [y, m] = month.split('-').map(Number);
+/**
+ * 演示考勤日期：从「今天」往前回溯 N 个自然日内的全部工作日（周一至周五）。
+ * 旧种子把考勤硬编码在 2026-07，任何晚于 8 月的部署/重置，
+ * 工作台的趋势图和出勤统计都是一排零 —— 演示数据必须跟着日历走。
+ */
+function recentWorkdays(lookbackDays: number): Date[] {
   const out: Date[] = [];
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const today = upperDate;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dt = new Date(y, m - 1, d);
-    if (dt > today) break;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = lookbackDays; i >= 0; i--) {
+    const dt = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
     const dow = dt.getDay();
     if (dow === 0 || dow === 6) continue;
     out.push(dt);
@@ -480,7 +483,8 @@ export async function seedRealData(
     shiftId.set(s.name, row.id);
   }
 
-  const monthDays = workdays('2026-07', new Date(2026, 7, 27));
+  // 近 60 天的工作日：趋势图/出勤统计/月度汇总在任何时间演示都「活着」
+  const monthDays = recentWorkdays(60);
   if ((await prisma.schedule.count()) === 0) {
     const rows: any[] = [];
     for (const emp of activeEmps) {

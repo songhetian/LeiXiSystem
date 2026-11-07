@@ -224,23 +224,28 @@ export class DashboardService {
   async getAttendanceTrend(days: number = 7) {
     const result: { date: string; present: number; absent: number; late: number; leave: number }[] = [];
     const today = beijingBusinessDate();
+    const start = new Date(today.getTime() - (days - 1) * DAY_MS);
+
+    // 一次范围查询取回整段日报，按天在内存聚合：
+    // 旧实现按天循环 findMany，30 天就是 30 次串行查询，工作台每次加载都要付这个往返
+    const records = await this.prisma.attendanceDaily.findMany({
+      where: { workDate: { gte: start, lte: today } },
+      select: { workDate: true, status: true },
+    });
+    const byDate = new Map<string, { present: number; absent: number; late: number; leave: number }>();
+    for (const r of records) {
+      const key = r.workDate.toISOString().slice(0, 10);
+      const agg = byDate.get(key) ?? { present: 0, absent: 0, late: 0, leave: 0 };
+      if (PRESENT_STATUSES.has(r.status)) agg.present += 1;
+      if (ABSENT_STATUSES.has(r.status)) agg.absent += 1;
+      if (LATE_STATUSES.has(r.status)) agg.late += 1;
+      if (r.status === 'leave') agg.leave += 1;
+      byDate.set(key, agg);
+    }
 
     for (let i = days - 1; i >= 0; i--) {
-      const workDate = new Date(today.getTime() - i * DAY_MS);
-      const dateStr = workDate.toISOString().slice(0, 10);
-
-      const records = await this.prisma.attendanceDaily.findMany({
-        where: { workDate },
-        select: { status: true },
-      });
-
-      result.push({
-        date: dateStr,
-        present: records.filter((r) => r.status === 'normal' || r.status === 'late' || r.status === 'early' || r.status === 'late_early').length,
-        absent: records.filter((r) => r.status === 'absent' || r.status === 'half_absent').length,
-        late: records.filter((r) => r.status === 'late' || r.status === 'late_early').length,
-        leave: records.filter((r) => r.status === 'leave').length,
-      });
+      const dateStr = new Date(today.getTime() - i * DAY_MS).toISOString().slice(0, 10);
+      result.push({ date: dateStr, ...(byDate.get(dateStr) ?? { present: 0, absent: 0, late: 0, leave: 0 }) });
     }
 
     return result;

@@ -153,7 +153,8 @@ export default function AttendanceStatisticsPage() {
         searchExpandable={false}
         searchInlineActions
         toolbar={[
-          { key: 'export', label: '导出 Excel', type: 'primary', onClick: handleExport },
+          // 导出是查看类工具动作，不占主按钮位（主色留给页面真正的写操作）
+          { key: 'export', label: '导出 Excel', type: 'outline', onClick: handleExport },
         ]}
         pagination={false}
       />

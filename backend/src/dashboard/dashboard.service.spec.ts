@@ -190,7 +190,7 @@ describe('DashboardService — 业务日/月口径按北京时间（生产容器
     );
   });
 
-  it('近 7 天出勤趋势以北京业务日收尾', async () => {
+  it('近 7 天出勤趋势以北京业务日收尾，且一次范围查询取回（不再逐天 30 连查）', async () => {
     const trend = await service.getAttendanceTrend(7);
 
     expect(trend).toHaveLength(7);
@@ -198,9 +198,31 @@ describe('DashboardService — 业务日/月口径按北京时间（生产容器
     expect(trend[0].date).toBe('2026-09-25');
     expect(prisma.attendanceDaily.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: { workDate: new Date('2026-10-01T00:00:00.000Z') },
+        where: {
+          workDate: {
+            gte: new Date('2026-09-25T00:00:00.000Z'),
+            lte: new Date('2026-10-01T00:00:00.000Z'),
+          },
+        },
       }),
     );
+  });
+
+  it('范围查询的日报按天聚合进对应桶（出勤/迟到同 stats 口径，含 makeup）', async () => {
+    prisma.attendanceDaily.findMany.mockResolvedValue([
+      { workDate: new Date('2026-09-25T00:00:00.000Z'), status: 'normal' },
+      { workDate: new Date('2026-09-25T00:00:00.000Z'), status: 'late' },
+      { workDate: new Date('2026-09-25T00:00:00.000Z'), status: 'makeup' },
+      { workDate: new Date('2026-09-25T00:00:00.000Z'), status: 'absent' },
+      { workDate: new Date('2026-09-25T00:00:00.000Z'), status: 'leave' },
+      { workDate: new Date('2026-09-26T00:00:00.000Z'), status: 'leave' },
+    ]);
+
+    const trend = await service.getAttendanceTrend(7);
+
+    expect(trend[0]).toEqual({ date: '2026-09-25', present: 3, absent: 1, late: 1, leave: 1 });
+    expect(trend[1]).toEqual({ date: '2026-09-26', present: 0, absent: 0, late: 0, leave: 1 });
+    expect(trend[6]).toEqual({ date: '2026-10-01', present: 0, absent: 0, late: 0, leave: 0 });
   });
 });
 // ============================================================

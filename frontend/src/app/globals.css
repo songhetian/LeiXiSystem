@@ -1887,6 +1887,94 @@ html, body {
   color: rgba(255, 255, 255, 0.38);
 }
 
+/* ---- 工资条样卡：登录页的「品牌时刻」。
+   产品的世界就是工资单与工时表——用代码画一张真实的凭证（纸色、穿孔线、
+   mono 数字），比任何插画都更只属于这个产品；数据为静态演示值。 ---- */
+.lx-login-payslip {
+  position: relative;
+  margin-top: 40px;
+  max-width: 320px;
+  background: #faf9f6;
+  color: #26282e;
+  border-radius: 10px;
+  padding: 16px 20px 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  animation: lx-login-rise 0.5s var(--lx-ease-standard) both;
+  animation-delay: calc(3 * 90ms + 120ms);
+}
+/* 穿孔线两端的小缺口：用侧栏深色补出「撕票口」 */
+.lx-login-payslip-notch {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lx-login-aside-bg);
+}
+.lx-login-payslip-notch.left {
+  right: auto;
+  left: -7px;
+}
+.lx-login-payslip-stub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px dashed #d9d6cd;
+}
+.lx-login-payslip-title {
+  font-size: var(--lx-font-sm);
+  font-weight: 600;
+  color: #26282e;
+}
+.lx-login-payslip-state {
+  font-size: var(--lx-font-xs);
+  color: #1a7f4b;
+}
+.lx-login-payslip-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lx-login-payslip-rows > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--lx-font-sm);
+  line-height: 1.4;
+}
+.lx-login-payslip-rows dt {
+  color: #6b6e76;
+}
+.lx-login-payslip-rows dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--lx-font-xs);
+  color: #26282e;
+}
+.lx-login-payslip-net {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #eceae2;
+}
+.lx-login-payslip-net span {
+  font-size: var(--lx-font-sm);
+  color: #6b6e76;
+}
+.lx-login-payslip-net strong {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  color: #26282e;
+}
+
 /* ---- 右侧登录区 ---- */
 .lx-login-main {
   position: relative;
@@ -2301,27 +2389,26 @@ html, body {
 .dsh-hero-side {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
 }
+/* 日期与更新时间就是两段安静的元信息，不做胶囊：
+   一个没有语义的描边小药丸正是「模板感」的来源 */
 .dsh-hero-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--lx-font-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-2);
-  background: var(--lx-bg-secondary);
-  border: 1px solid var(--lx-border-2);
-  border-radius: var(--lx-radius-full);
-  padding: 5px 12px;
-}
-/* 数据新鲜度胶囊：弱化处理，不与日期胶囊抢注意力 */
-.dsh-hero-chip-muted {
-  color: var(--lx-text-3);
   background: transparent;
-  border-color: transparent;
-  padding-left: 4px;
-  padding-right: 4px;
+  border: none;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+/* 数据新鲜度：更弱一档 */
+.dsh-hero-chip-muted {
+  color: var(--lx-text-4);
+  font-size: var(--lx-font-xs);
 }
 .dsh-hero-chip b {
   font-weight: 600;
@@ -2662,63 +2749,63 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 快捷操作入口（统一小卡网格）
+/* 快捷操作入口（同面紧凑行）
+   不再一格一卡：九个等宽卡片排一排是最典型的模板样式。改为在一个面板面内
+   平铺「图标 + 文字」的紧凑行，颜色只留在图标字色（业务域深档），悬停走
+   表面步进而不是阴影 —— 视觉重心让给页面里的主图表。
    注意：这些类渲染为 <button>（保证键盘可达 WCAG SC 2.1.1），
-   故在规则内显式抹掉按钮默认样式，使其与原来的 <div> 视觉完全一致 */
-/* 网格容器：横向自动换行，每格最小 96px（此前缺失该定义导致条目竖排堆叠） */
+   故在规则内显式抹掉按钮默认样式 */
+/* 网格容器：每行最小 132px，自动换行 */
 .dsh-quick-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 4px;
 }
 @media (max-width: 640px) {
   .dsh-quick-grid {
-    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+    gap: 2px;
   }
 }
 .dsh-quick-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  padding: 16px 6px 14px;
-  border-radius: var(--lx-radius-lg);
+  padding: 8px 10px;
+  border-radius: var(--lx-radius-md);
   border: none;
-  background: var(--lx-bg-card);
+  background: transparent;
   cursor: pointer;
-  transition: background-color var(--lx-transition-base), box-shadow var(--lx-transition-base);
+  transition: background-color var(--lx-transition-base), color var(--lx-transition-base);
   color: var(--lx-text-2);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
-  text-align: center;
+  text-align: left;
 }
 .dsh-quick-item:hover {
-  background: var(--lx-bg-card);
-  box-shadow: var(--lx-shadow-card-hover);
+  background: var(--lx-bg-hover);
   color: var(--lx-text-1);
 }
 /* 触屏无 hover：补 :active 点按反馈 */
 .dsh-quick-item:active {
   transform: scale(0.98);
 }
-/* 图标按业务域着色：--quick-fg/--quick-bg 由页面内联注入（toneOfPath）。
-   一色一义，与侧栏分组点、命令面板条目同源，不是给每个入口随手挑一个色相。 */
+/* 图标只保留业务域字色（--quick-fg 由页面内联注入，toneOfPath 深档），
+   去掉色块底：一排九个小色块是「每个入口一种颜色」的模板味来源；
+   与侧栏分组点、命令面板同源的颜色编码仍然成立 */
 .dsh-quick-ic {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--lx-radius-md);
-  font-size: 18px;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  font-size: 17px;
   color: var(--quick-fg, var(--lx-text-3));
-  background: var(--quick-bg, var(--lx-bg-secondary));
-  border: 1px solid transparent;
-  transition: background-color var(--lx-transition-base), color var(--lx-transition-base),
-    border-color var(--lx-transition-base);
+  background: transparent;
+  transition: color var(--lx-transition-base);
 }
 
 /* 悬停反馈交给整卡（阴影 + 标签变深），图标保持原色：
@@ -2741,9 +2828,11 @@ html, body {
   font-weight: 500;
 }
 .dsh-quick-label {
-  font-size: var(--lx-font-xs);
+  font-size: var(--lx-font-sm);
   font-weight: 400;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== 快捷操作管理面板（QuickActionsManager） ===== */
@@ -2886,6 +2975,12 @@ html, body {
   color: var(--lx-primary);
   background: var(--lx-primary-bg);
 }
+/* 面板头右侧的口径说明（如「全员 · 按日」）：安静的元信息，不做胶囊 */
+.dsh-panel-note {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+}
 
 /* 面板统一标题（所有区块共用一致的靛蓝竖条记号，形成整页统一节奏） */
 .dsh-panel-title {
@@ -2993,7 +3088,7 @@ html, body {
   background: var(--lx-border-2);
 }
 
-/* ---- 近 7 日考勤趋势：零依赖堆叠柱（出勤/迟到/请假/缺勤） ---- */
+/* ---- 出勤趋势：零依赖堆叠柱（出勤/迟到/请假/缺勤） ---- */
 .trend-legend {
   display: flex;
   gap: 14px;
@@ -3024,12 +3119,13 @@ html, body {
 .trend-grid span {
   border-top: 1px dashed var(--lx-border-2);
 }
+/* 主图表位（工作台首屏）：柱距随天数自适应，容器高度比旧「7 日小图」高一档 */
 .trend-bars {
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  height: 134px;
+  gap: 6px;
+  height: 176px;
 }
 .trend-col {
   flex: 1;
@@ -3037,26 +3133,34 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 0;
 }
 .trend-stack {
-  width: 56%;
-  max-width: 26px;
-  min-width: 12px;
+  width: 62%;
+  max-width: 24px;
+  min-width: 8px;
   margin-top: auto;
   display: flex;
   flex-direction: column-reverse; /* 出勤段贴底，向上堆叠 */
   border-radius: 3px 3px 0 0;
   overflow: hidden;
+  transition: filter var(--lx-transition-base);
+}
+.trend-col:hover .trend-stack {
+  filter: brightness(1.12);
 }
 .trend-stack i {
   display: block;
   width: 100%;
 }
+/* 30 根柱只标关键刻度，其余留白；标签 mono + tabular 读起来像报表 */
 .trend-date {
   margin-top: 4px;
-  font-size: var(--lx-font-xs); /* 11→xs(12)，归 token */
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-4);
   line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ========================================

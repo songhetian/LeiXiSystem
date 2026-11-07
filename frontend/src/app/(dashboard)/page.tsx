@@ -300,10 +300,8 @@ export default function HomePage() {
           <p className="dsh-hero-desc">{heroDesc}</p>
         </div>
         <div className="dsh-hero-side">
-          <span className="dsh-hero-chip">
-            <IconCalendar style={{ color: 'var(--lx-primary)' }} />
-            {todayText()}
-          </span>
+          {/* 日期与更新时间就是两段元信息，不做胶囊装饰 */}
+          <span className="dsh-hero-chip">{todayText()}</span>
           {updatedAt != null && (
             <span className="dsh-hero-chip dsh-hero-chip-muted">
               更新于 {relativeTime(new Date(updatedAt))}
@@ -333,6 +331,10 @@ export default function HomePage() {
           </Row>
         </DataState>
       </div>
+
+      {/* 近 30 日出勤趋势：工作台的主图表 —— 全页最大最精的一块，
+          出勤节奏一眼可读；有考勤查看权才请求（接口按 attendance:view 收口） */}
+      {can('attendance:view') && <AttendanceTrendPanel />}
 
       {/* 今日状态：打卡 + 假期余额 —— 员工每天打开系统最常看的两块，从打卡页提到首屏 */}
       <TodayStatus />
@@ -564,8 +566,14 @@ export default function HomePage() {
         )}
       </Row>
 
-      {/* 组织管理看板：低频数据下沉到页面底部，不再挤占管理员第三屏 */}
-      {isAdmin && <OrgChart />}
+      {/* 组织管理看板：低频数据下沉到页面底部，半宽呈现不再拉伸铺满 */}
+      {isAdmin && (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12}>
+            <DeptPanel />
+          </Col>
+        </Row>
+      )}
     </PageContainer>
   );
 }
@@ -735,19 +743,104 @@ function TodayStatus() {
   );
 }
 
-// ====== 组织管理看板（仅有系统管理权限展示）：部门人力分布 + 近 7 日考勤趋势 ======
+// ====== 出勤趋势（主图表）：近 N 日出勤/迟到/请假/缺勤堆叠柱 ======
 
 /** 趋势柱可用的最大高度（px），date 行预留 18px */
-const TREND_STACK_H = 112;
+const TREND_STACK_H = 152;
 
-function OrgChart() {
+/** 30 根柱全部标注会挤成竖排，只留关键刻度；首尾必标 */
+function trendLabel(date: string, index: number, total: number): string {
+  if (index === 0 || index === total - 1) return date.slice(5);
+  return index % 5 === 4 ? date.slice(5) : '';
+}
+
+/**
+ * 近 30 日出勤趋势 —— 工作台的主图表。
+ * 一张图讲完最近的出勤节奏：出勤（主段）+ 迟到/请假/缺勤（异常段），
+ * 零依赖堆叠柱，异常日一眼可辨。
+ */
+function AttendanceTrendPanel({ days = 30 }: { days?: number }) {
+  const fetchTrend = useCallback(async () => {
+    const res = await dashboardApi.getAttendanceTrend(days);
+    if (res.code === 0 && res.data) return res.data;
+    throw new Error(res.message || '获取考勤趋势失败');
+  }, [days]);
+  const { data: trend, loading: trendLoading, error: trendError, revalidate: revalidateTrend } = useCachedData<AttendanceTrendPoint[]>(
+    `dashboard:attendance-trend:${days}`,
+    fetchTrend,
+  );
+
+  const trendList = trend ?? [];
+  // 堆叠柱总高按「最大日出勤人数」归一（present 是绝对主项，单独归一会把异常日放得巨大）
+  const maxTotal = Math.max(1, ...trendList.map((p) => p.present + p.late + p.leave + p.absent));
+
+  return (
+    <div className="dsh-panel" style={{ marginBottom: 24 }}>
+      <div className="dsh-panel-head">
+        <h3 className="dsh-panel-title" style={panelTone('/attendance/daily')}>近 30 日出勤趋势</h3>
+        <span className="dsh-panel-note">全员 · 按日</span>
+      </div>
+      <DataState
+        loading={trendLoading}
+        skeleton
+        skeletonType="list"
+        skeletonRows={3}
+        error={trendError}
+        isEmpty={trendList.length === 0}
+        emptyText="暂无考勤数据"
+        onRetry={revalidateTrend}
+      >
+        <div className="trend-legend">
+          <span><i style={{ background: 'var(--lx-primary)' }} />出勤</span>
+          <span><i style={{ background: 'var(--lx-warning)' }} />迟到</span>
+          <span><i style={{ background: 'var(--lx-teal)' }} />请假</span>
+          <span><i style={{ background: 'var(--lx-danger)' }} />缺勤</span>
+        </div>
+        <div className="trend-chart">
+          {/* 网格线（纯装饰）：水平 3 线均匀分布 */}
+          <div className="trend-grid" aria-hidden="true">
+            <span /><span /><span />
+          </div>
+          <div className="trend-bars" role="img" aria-label={`近 ${trendList.length} 日出勤趋势，出勤、迟到、请假、缺勤堆叠对比`}>
+            {trendList.map((p, i) => {
+              const total = p.present + p.late + p.leave + p.absent;
+              const stackH = Math.max(2, Math.round((total / maxTotal) * TREND_STACK_H));
+              // 段内按占比分高；零值段不渲染
+              const segPct = (v: number) => (total === 0 ? 0 : (v / total) * 100);
+              const segments = [
+                { v: p.present, color: 'var(--lx-primary)' },
+                { v: p.late, color: 'var(--lx-warning)' },
+                { v: p.leave, color: 'var(--lx-teal)' },
+                { v: p.absent, color: 'var(--lx-danger)' },
+              ].filter((s) => s.v > 0);
+              const label = trendLabel(p.date, i, trendList.length);
+              return (
+                <div key={p.date} className="trend-col">
+                  <div
+                    className="trend-stack"
+                    style={{ height: stackH }}
+                    title={`${p.date}：出勤 ${p.present}，迟到 ${p.late}，请假 ${p.leave}，缺勤 ${p.absent}`}
+                  >
+                    {segments.map((s) => (
+                      <i key={s.color} style={{ height: `${segPct(s.v)}%`, background: s.color }} />
+                    ))}
+                  </div>
+                  <span className="trend-date">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </DataState>
+    </div>
+  );
+}
+
+// ====== 组织管理看板（仅有系统管理权限展示）：部门人力分布 ======
+
+function DeptPanel() {
   const fetchDepts = useCallback(async () => {
     const res = await dashboardApi.getDepartmentStats();
-    if (res.code === 0 && res.data) return res.data;
-    throw new Error(res.message || '获取组织数据失败');
-  }, []);
-  const fetchTrend = useCallback(async () => {
-    const res = await dashboardApi.getAttendanceTrend(7);
     if (res.code === 0 && res.data) return res.data;
     throw new Error(res.message || '获取组织数据失败');
   }, []);
@@ -755,115 +848,46 @@ function OrgChart() {
     'dashboard:dept-stats',
     fetchDepts,
   );
-  const { data: trend, loading: trendLoading, error: trendError, revalidate: revalidateTrend } = useCachedData<AttendanceTrendPoint[]>(
-    'dashboard:attendance-trend:7',
-    fetchTrend,
-  );
 
   const deptList = depts ?? [];
-  const trendList = trend ?? [];
   const maxDept = Math.max(1, ...deptList.map((d) => d.count));
-  // 堆叠柱总高按「最大日出勤人数」归一（present 是绝对主项，单独归一会把异常日放得巨大）
-  const maxTotal = Math.max(1, ...trendList.map((p) => p.present + p.late + p.leave + p.absent));
 
   return (
-    <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-      <Col xs={24} lg={10}>
-        <div className="dsh-panel">
-          <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title" style={panelTone('/employees')}>部门人力分布</h3>
-          </div>
-          <DataState
-            loading={deptsLoading}
-            skeleton
-            skeletonType="list"
-            skeletonRows={4}
-            error={deptsError}
-            isEmpty={deptList.length === 0}
-            emptyText="暂无部门数据"
-            onRetry={revalidateDepts}
-          >
-            <div className="flex flex-col gap-3 py-2">
-              {deptList.map((d) => (
-                <div key={d.id}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <Text type="secondary">{d.name}</Text>
-                    <Text style={{ fontWeight: 500 }}>{d.count} 人</Text>
-                  </div>
-                  {/* 轨道色必须用有效 token：曾写成 bg-bg-3（Tailwind 未注册该色名，类不存在 → 轨道透明隐形） */}
-                  <div className="h-2 bg-bg-tertiary rounded overflow-hidden">
-                    <div
-                      className="h-full rounded"
-                      style={{
-                        width: `${(d.count / maxDept) * 100}%`,
-                        background: 'var(--lx-primary)',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DataState>
-        </div>
-      </Col>
-      <Col xs={24} lg={14}>
-        <div className="dsh-panel">
-          <div className="dsh-panel-head">
-            <h3 className="dsh-panel-title" style={panelTone('/attendance/daily')}>近 7 日考勤趋势</h3>
-          </div>
-          <DataState
-            loading={trendLoading}
-            skeleton
-            skeletonType="list"
-            skeletonRows={3}
-            error={trendError}
-            isEmpty={trendList.length === 0}
-            emptyText="暂无考勤数据"
-            onRetry={revalidateTrend}
-          >
-            <div className="trend-legend">
-              <span><i style={{ background: 'var(--lx-primary)' }} />出勤</span>
-              <span><i style={{ background: 'var(--lx-warning)' }} />迟到</span>
-              <span><i style={{ background: 'var(--lx-teal)' }} />请假</span>
-              <span><i style={{ background: 'var(--lx-danger)' }} />缺勤</span>
-            </div>
-            <div className="trend-chart">
-              {/* 网格线（纯装饰）：水平 3 线均匀分布 */}
-              <div className="trend-grid" aria-hidden="true">
-                <span /><span /><span />
+    <div className="dsh-panel">
+      <div className="dsh-panel-head">
+        <h3 className="dsh-panel-title" style={panelTone('/employees')}>部门人力分布</h3>
+      </div>
+      <DataState
+        loading={deptsLoading}
+        skeleton
+        skeletonType="list"
+        skeletonRows={4}
+        error={deptsError}
+        isEmpty={deptList.length === 0}
+        emptyText="暂无部门数据"
+        onRetry={revalidateDepts}
+      >
+        <div className="flex flex-col gap-3 py-2">
+          {deptList.map((d) => (
+            <div key={d.id}>
+              <div className="flex justify-between text-xs mb-1">
+                <Text type="secondary">{d.name}</Text>
+                <Text style={{ fontWeight: 500 }}>{d.count} 人</Text>
               </div>
-              <div className="trend-bars">
-                {trendList.map((p) => {
-                  const total = p.present + p.late + p.leave + p.absent;
-                  const stackH = Math.max(2, Math.round((total / maxTotal) * TREND_STACK_H));
-                  // 段内按占比分高；零值段不渲染
-                  const segPct = (v: number) => (total === 0 ? 0 : (v / total) * 100);
-                  const segments = [
-                    { v: p.present, color: 'var(--lx-primary)' },
-                    { v: p.late, color: 'var(--lx-warning)' },
-                    { v: p.leave, color: 'var(--lx-teal)' },
-                    { v: p.absent, color: 'var(--lx-danger)' },
-                  ].filter((s) => s.v > 0);
-                  return (
-                    <div key={p.date} className="trend-col">
-                      <div
-                        className="trend-stack"
-                        style={{ height: stackH }}
-                        title={`${p.date}：出勤 ${p.present}，迟到 ${p.late}，请假 ${p.leave}，缺勤 ${p.absent}`}
-                      >
-                        {segments.map((s) => (
-                          <i key={s.color} style={{ height: `${segPct(s.v)}%`, background: s.color }} />
-                        ))}
-                      </div>
-                      <span className="trend-date">{p.date.slice(5)}</span>
-                    </div>
-                  );
-                })}
+              {/* 轨道色必须用有效 token：曾写成 bg-bg-3（Tailwind 未注册该色名，类不存在 → 轨道透明隐形） */}
+              <div className="h-2 bg-bg-tertiary rounded overflow-hidden">
+                <div
+                  className="h-full rounded"
+                  style={{
+                    width: `${(d.count / maxDept) * 100}%`,
+                    background: 'var(--lx-primary)',
+                  }}
+                />
               </div>
             </div>
-          </DataState>
+          ))}
         </div>
-      </Col>
-    </Row>
+      </DataState>
+    </div>
   );
 }
