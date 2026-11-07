@@ -56,7 +56,7 @@
 - 演示账号：`admin/123456`（全部权限）、`staff/123456`（员工视角）；密码统一 123456，bcrypt cost 10。
 - 种子入口：`backend/prisma/seed.ts`（它调 `seed-real-data.ts` 的 seedRealData；后者只导出不执行，直接跑无效）。种子幂等：员工=30 部门=4 日报=644 薪资批次=2。
 - 本地 Redis：`"D:\Program Files\FlyEnv-Data\env\redis\redis-server.exe" --port 6379 --requirepass 123456`（Docker Desktop 未开时用）；后端启动：`cd backend && npx dotenv -e ../.env -- node --watch --require ts-node/register src/main.ts`（main.ts 的 dotenv 找 CWD 的 .env，必须借 dotenv -e 注入根目录 .env）。
-- 登录体系：token 走 HttpOnly cookie（access_token）+ body.csrfToken，请求需 X-CSRF-Token。
+- 登录体系：token 走 HttpOnly cookie（access_token）+ body.csrfToken，请求需 X-CSRF-Token。**2026-11-06 修复**：此前 CsrfGuard 读 req.user（APP_GUARD 先于 controller 级 JwtAuthGuard 执行，恒为空），全站写接口从未校验过 CSRF；现守卫自行从 Cookie 验 JWT 取 userId，不依赖守卫顺序。前端 request.ts 接管登录响应的 csrfToken、primeCsrfToken() 惰性补取（并发去重）、5012/5013 时换 token 重放一次。新增全局写校验时注意：非浏览器客户端直连写接口会因缺 CSRF 头被 403。
 - 登录失败文案统一在 `backend/src/common/error-messages.ts`（错误码→文案映射，会覆盖 service 里的 message）——2026-10-22 已把 AUTH_INVALID_CREDENTIALS 从「凭据错误」改为「账号或密码错误」。
 - ⚠️ leixin_v2 本地库曾是旧版遗留结构（与迁移基线不兼容），2026-10-22 已整库 RENAME 备份到 `leixin_v2_old_backup` 后按迁移重建 + 种子；回滚把表搬回即可。
 
@@ -65,3 +65,5 @@
 - 接口新增方法必须与实现类**同批提交**，否则中间态 tsc 失败。
 - 冗余中间产物移入 `.workbuddy/scratch/`（已 gitignore），不直接删除。
 - 提交信息正文用中文、分条列根因与验证结果（仓库既有风格）。
+- 提交信息含反引号（代码片段）时必须 `git commit -F <file>`：双引号 heredoc 里的反引号会被 bash 命令替换吞掉，`if (!userId) return true` 这类片段直接消失（2026-11-06 踩过，amend -F 修正）。
+- **Arco Select 完全受控**：props 有 value 就永远用 props（`es/Select/select.js`），onChange 后必须自己维护乐观值层，否则点选立即回退旧值、等 revalidate 才重现（生产 200-500ms 观感=点了没反应）。
