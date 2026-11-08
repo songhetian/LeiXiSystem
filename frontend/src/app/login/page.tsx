@@ -99,35 +99,6 @@ export default function LoginPage() {
               </li>
             ))}
           </ul>
-
-          {/* 工资条样卡：这个产品的世界就是工资单与工时表，一张真实凭证比任何
-              插画都只属于它。纯代码绘制（纸色 + 穿孔线 + mono 数字），数据为静态演示值 */}
-          <div className="lx-login-payslip">
-            <i className="lx-login-payslip-notch left" aria-hidden="true" />
-            <i className="lx-login-payslip-notch" aria-hidden="true" />
-            <div className="lx-login-payslip-stub">
-              <span className="lx-login-payslip-title">十月工资条</span>
-              <span className="lx-login-payslip-state">已发放</span>
-            </div>
-            <dl className="lx-login-payslip-rows">
-              <div>
-                <dt>基本工资</dt>
-                <dd>6,500.00</dd>
-              </div>
-              <div>
-                <dt>加班费</dt>
-                <dd>812.50</dd>
-              </div>
-              <div>
-                <dt>应扣合计</dt>
-                <dd>-432.00</dd>
-              </div>
-            </dl>
-            <div className="lx-login-payslip-net">
-              <span>实发</span>
-              <strong>¥6,880.50</strong>
-            </div>
-          </div>
         </div>
 
         <div className="lx-login-aside-foot">数据本地部署 · 权限按角色隔离</div>
