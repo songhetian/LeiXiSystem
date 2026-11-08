@@ -41,7 +41,7 @@ from api import (
     check_name_exists,
     default_password,
     ensure_weak_password_policy,
-    next_username,
+    random_username,
 )
 from theme import app_mark, build_qss
 
@@ -564,7 +564,7 @@ class MainWindow(QMainWindow):
 
             # 3. 生成账号与密码
             report("生成登录账号…")
-            username = next_username(client, payload["name"])
+            username = random_username(client, payload["name"])
             password, pwd_reason = default_password()
 
             # 4. 创建（默认挂「普通员工」角色）

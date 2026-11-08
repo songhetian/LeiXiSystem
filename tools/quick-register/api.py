@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 from typing import Any
 
 import requests
@@ -144,12 +145,16 @@ class LeiXiClient:
                              json={"value": level, "label": "密码强度", "group": "security"})
 
 
-# ---- 账号生成规则（拼音首字母 + 4 位序号，如 zs0001） ----
+# ---- 账号生成规则（拼音首字母 + 6 位随机串，如 zs7k2mq） ----
+
+# 去掉 0/1/i/l/o，避免人工抄写时和数字混淆
+RANDOM_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+RANDOM_SUFFIX_LEN = 6
+MAX_RANDOM_ATTEMPTS = 10
+
 
 def initials_of(name: str) -> str:
     """张三 → zs；欧阳娜娜 → oynn；英文按单词取首字母 Tony Sun → ts；全空 → user。"""
-    import re
-
     from pypinyin import Style, lazy_pinyin
     out = []
     for token in re.findall(r"[A-Za-z0-9]+|\S", name):
@@ -191,17 +196,30 @@ def check_name_exists(client: LeiXiClient, name: str) -> dict:
     return {"user": users, "employee": employees}
 
 
-def next_username(client: LeiXiClient, name: str) -> str:
-    """拼音首字母 + 现有最大序号 + 1（4 位补零）：zs0001、zs0002…"""
+def random_suffix(length: int = RANDOM_SUFFIX_LEN) -> str:
+    """密码学安全随机串（小写字母 + 数字，去掉易混字符）。"""
+    return "".join(secrets.choice(RANDOM_ALPHABET) for _ in range(length))
+
+
+def username_taken(client: LeiXiClient, username: str) -> bool:
+    """keyword 是 contains 查询，需按 username 精确比对（不区分大小写）。"""
+    data = client.search_users(username, page=1, page_size=100)
+    return any((u.get("username") or "").lower() == username.lower()
+               for u in (data.get("list") or []))
+
+
+def random_username(client: LeiXiClient, name: str) -> str:
+    """拼音首字母 + 6 位随机串：zs7k2mq、csdj8n3vb…
+
+    随机串每次都不同（不可按顺序猜测账号）；生成后查服务端确认未占用，
+    万一撞号自动重摇，最多 MAX_RANDOM_ATTEMPTS 次。
+    """
     ini = initials_of(name)
-    pat = re.compile(rf"^{re.escape(ini)}(\d+)$", re.IGNORECASE)
-    best = 0
-    for items in iter_keyword_pages(client, client.search_users, ini):
-        for u in items:
-            m = pat.match(u.get("username") or "")
-            if m:
-                best = max(best, int(m.group(1)))
-    return f"{ini}{best + 1:04d}"
+    for _ in range(MAX_RANDOM_ATTEMPTS):
+        candidate = f"{ini}{random_suffix()}"
+        if not username_taken(client, candidate):
+            return candidate
+    raise ApiError("随机账号连续冲突，请重试", code=-1)
 
 
 def ensure_weak_password_policy(client: LeiXiClient) -> str:

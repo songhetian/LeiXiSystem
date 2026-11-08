@@ -43,7 +43,7 @@ if __name__ == "__main__":
         {"id": 3, "name": "生产部", "deletedAt": None},
     ], [{"id": 1, "name": "普工"}, {"id": 2, "name": "主管"}])
     win.main_page.set_busy(False)
-    win.main_page.show_result("张三", "zs0001", "123456", "生产部", "普工")
+    win.main_page.show_result("张三", "zs7k2mq", "123456", "生产部", "普工")
     from main import set_tip
     set_tip(win.main_page.tip, "已连接 www.leixidianshang.com，默认角色已就绪", "okTip")
     shot(win, os.path.join(os.path.dirname(__file__), "preview_main.png"))

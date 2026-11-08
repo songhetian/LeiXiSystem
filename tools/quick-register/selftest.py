@@ -2,7 +2,7 @@
 """打包后的连接自检：LeiXiQuickRegister.exe --selftest
 
 只读检查（不会在生产库创建账号）：
-登录 → CSRF → 部门/岗位/角色读取 → 密码策略 weak 确认。
+登录 → CSRF → 部门/岗位/角色读取 → 密码策略 weak 确认 → 随机账号生成示例。
 结果写 %TEMP%/leixi_quick_register_selftest.json，返回码 0=全部通过。
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ import os
 import tempfile
 import traceback
 
-from api import ApiError, LeiXiClient, ensure_weak_password_policy
+from api import ApiError, LeiXiClient, ensure_weak_password_policy, random_username
 from main import DEFAULT_BASE, DEFAULT_PASSWORD, DEFAULT_USERNAME
 
 REPORT = os.path.join(tempfile.gettempdir(), "leixi_quick_register_selftest.json")
@@ -40,11 +40,17 @@ def run_selftest() -> int:
         out["steps"]["default_role"] = {"ok": bool(staff), "staff": staff}
         policy = ensure_weak_password_policy(c)
         out["steps"]["password_policy"] = {"ok": policy.startswith("weak"), "value": policy}
+        sample = random_username(c, "张三")
+        out["steps"]["username_rule"] = {
+            "ok": sample.startswith("zs") and len(sample) == 8,
+            "sample": sample, "note": "拼音首字母 + 6 位随机串（仅生成不创建）",
+        }
         out["steps"]["write_permission"] = {"ok": True, "note": "登录接口返回 csrfToken，写接口可带 X-CSRF-Token"}
         out["ok"] = (out["steps"]["login"]["ok"]
                      and out["steps"]["departments"]["ok"]
                      and out["steps"]["default_role"]["ok"]
-                     and out["steps"]["password_policy"]["ok"])
+                     and out["steps"]["password_policy"]["ok"]
+                     and out["steps"]["username_rule"]["ok"])
     except ApiError as e:
         out["error"] = f"{e}（code={e.code}, status={e.status}）"
     except Exception as e:  # noqa: BLE001 自检要吞掉一切异常并落盘

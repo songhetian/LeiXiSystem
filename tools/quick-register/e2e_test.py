@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 """端到端实测：登录 → 重名检查 → 账号生成 → 创建 → 验证 → 清理。"""
 import os
+import re
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from api import (
+    ApiError,
     LeiXiClient,
+    RANDOM_ALPHABET,
     check_name_exists,
     default_password,
     ensure_weak_password_policy,
     initials_of,
-    next_username,
+    random_username,
 )
 
 BASE = "http://localhost:4001/api/v1"
@@ -44,11 +47,37 @@ def main():
         dup = check_name_exists(c, probe)
         print(f"   {probe}: user={len(dup['user'])} employee={len(dup['employee'])}")
 
-    print("== 6. 生成账号")
-    username = next_username(c, NAME)
-    print(f"   {NAME} → {username}")
+    print("== 6. 生成账号（拼音首字母 + 6 位随机串）")
+    username = random_username(c, NAME)
+    again = random_username(c, NAME)
+    print(f"   {NAME} → {username} / 再次生成 → {again}")
+    assert re.fullmatch(rf"csdj[{RANDOM_ALPHABET}]{{6}}", username), f"格式不对：{username}"
+    assert username != again, "两次生成了相同账号，不是随机的"
+    assert not any(ch in "01ilo" for ch in username[-6:]), "随机串含易混字符"
+    print("   格式 / 随机性 ✓")
     password, reason = default_password()
     print(f"   初始密码: {password}（{reason}）")
+
+    print("== 6b. 撞号重摇（模拟服务端已有该账号）")
+    class FakeClient:
+        def __init__(self, occupied: int):
+            self.occupied = occupied
+            self.calls = 0
+
+        def search_users(self, keyword, page=1, page_size=100):
+            self.calls += 1
+            hit = [{"username": keyword}] if self.calls <= self.occupied else []
+            return {"list": hit, "total": len(hit)}
+
+    fake = FakeClient(1)
+    picked = random_username(fake, "张三")
+    assert fake.calls == 2 and picked.startswith("zs"), "撞号未自动重摇"
+    print(f"   首摇占用 → 重摇得到 {picked}（查询 {fake.calls} 次）")
+    try:
+        random_username(FakeClient(999), "张三")
+        raise AssertionError("连续冲突应报错")
+    except ApiError:
+        print("   连续冲突上限 ✓")
 
     print("== 7. 创建账号（默认挂「普通员工」角色）")
     role_id = None
