@@ -4349,3 +4349,388 @@ body.arco-theme-dark .lx-salary-badge--income {
   align-items: center;
   gap: 8px;
 }
+
+/* ========================================
+   人员履历（employee/timeline）
+   概览计数 + 12 月趋势 + 三种视图（时间轴 / 按员工 / 明细）
+   ======================================== */
+
+/* 概览卡：左侧类型计数（可点筛选），右侧 12 个月变动柱 */
+.tl-overview {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-card);
+}
+.tl-counts {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.tl-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-2);
+  transition: border-color var(--lx-transition-base), background var(--lx-transition-base);
+}
+.tl-count:hover {
+  border-color: var(--lx-border-1);
+  background: var(--lx-bg-secondary);
+}
+/* 选中态只改边框与底色，不刷成整块主色：计数条重复度高，实心块会压过下面的内容 */
+.tl-count.is-active {
+  border-color: var(--lx-primary);
+  background: var(--lx-primary-bg);
+  color: var(--lx-primary);
+}
+.tl-count-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tl-count-label {
+  white-space: nowrap;
+}
+.tl-count-num {
+  font-weight: var(--lx-font-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--lx-text-1);
+}
+.tl-count.is-active .tl-count-num {
+  color: var(--lx-primary);
+}
+
+/* 12 个月变动分布：堆叠柱，段色 = 变动类型 */
+.tl-months {
+  flex: 0 0 400px;
+  padding-left: 24px;
+  border-left: 1px solid var(--lx-border-1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.tl-months-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.tl-months-title {
+  font-size: var(--lx-font-xs);
+  font-weight: var(--lx-font-medium);
+  color: var(--lx-text-2);
+}
+.tl-months-note {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 72px;
+}
+.tl-bar-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.tl-bar-stack {
+  width: 100%;
+  max-width: 18px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+}
+/* 零值月留一条 2px 基线，避免图表出现「断档」让人以为数据缺失 */
+.tl-bar-col[data-zero] .tl-bar-stack {
+  background: var(--lx-border-2);
+}
+.tl-bar-stack i {
+  display: block;
+  width: 100%;
+}
+.tl-bar-label {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 视图卡片：顶部切换 + 右侧统计与导出 */
+.tl-panel {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-1);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-card);
+  padding: 14px 18px 16px;
+}
+.tl-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.tl-panel-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tl-panel-scope {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.tl-panel-body {
+  padding-top: 16px;
+}
+.tl-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+.tl-empty {
+  padding: 32px 0;
+}
+.tl-truncated {
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-warning-bg);
+  color: var(--lx-warning-text);
+  font-size: var(--lx-font-xs);
+}
+/* 明细视图：表格自身带边框，外层卡片已提供边界，去掉重复圆角 */
+.tl-table .arco-table-container {
+  border-radius: var(--lx-radius-md);
+}
+
+/* ---- 时间轴（按月分组 / 单人履历共用）---- */
+.tl-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.tl-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tl-group-month {
+  font-size: var(--lx-font-sm);
+  font-weight: var(--lx-font-semibold);
+  color: var(--lx-text-1);
+}
+.tl-group-count {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.tl-track {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+/* 竖轴：只在有节点时画线，首尾各留 6px 让圆点落在轴的端点上 */
+.tl-track::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--lx-border-1);
+}
+.tl-node {
+  position: relative;
+  padding-bottom: 16px;
+}
+.tl-node:last-child {
+  padding-bottom: 0;
+}
+/* 圆点用与卡片同色的外环把竖轴「断开」，而不是靠盖一层白块 */
+.tl-node-dot {
+  position: absolute;
+  left: -20px;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--lx-bg-card);
+}
+.tl-node-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tl-node-date {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+}
+.tl-node-type {
+  font-size: var(--lx-font-xs);
+  font-weight: var(--lx-font-medium);
+}
+.tl-node-who {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-1);
+  text-decoration: none;
+}
+.tl-node-who em {
+  font-style: normal;
+  margin-left: 6px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.tl-node-who:hover {
+  color: var(--lx-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tl-node-who.is-plain:hover {
+  color: var(--lx-text-1);
+  text-decoration: none;
+}
+.tl-node-detail {
+  margin-top: 3px;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-2);
+  line-height: 1.6;
+}
+.tl-node-reason {
+  margin-top: 2px;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+}
+
+/* ---- 按员工视图：一人一行，点击展开该员工的竖向履历 ---- */
+.tl-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tl-person {
+  border-bottom: 1px solid var(--lx-border-1);
+}
+.tl-person:last-child {
+  border-bottom: none;
+}
+.tl-person-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 6px;
+  background: none;
+  border: none;
+  border-radius: var(--lx-radius-sm);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.tl-person-head:hover {
+  background: var(--lx-bg-secondary);
+}
+.tl-person-caret {
+  display: inline-flex;
+  align-items: center;
+  color: var(--lx-text-4);
+  font-size: 12px;
+  transition: transform var(--lx-transition-base);
+  flex-shrink: 0;
+}
+.tl-person-caret.is-open {
+  transform: rotate(180deg);
+}
+.tl-person-name {
+  font-size: var(--lx-font-sm);
+  font-weight: var(--lx-font-medium);
+  color: var(--lx-text-1);
+  white-space: nowrap;
+}
+.tl-person-no {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl-person-dept {
+  padding: 1px 6px;
+  border-radius: var(--lx-radius-2xs);
+  background: var(--lx-bg-secondary);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+.tl-person-fill {
+  flex: 1;
+  min-width: 8px;
+}
+.tl-person-count {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tl-person-last {
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl-person-body {
+  padding: 2px 6px 16px 34px;
+}
+
+/* 窄屏：概览改为上下两段，趋势图不再固定 400px */
+@media (max-width: 1100px) {
+  .tl-overview {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .tl-months {
+    flex: 1 1 auto;
+    padding-left: 0;
+    padding-top: 14px;
+    border-left: none;
+    border-top: 1px solid var(--lx-border-1);
+  }
+  .tl-person-last {
+    display: none;
+  }
+}

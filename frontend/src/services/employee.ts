@@ -124,6 +124,36 @@ export interface TimelineRecord {
   reason?: string | null;
 }
 
+export type TimelineTypeCounts = Record<TimelineRecordType, number>;
+
+export interface TimelineMonthPoint {
+  month: string; // YYYY-MM
+  total: number;
+  counts: TimelineTypeCounts;
+}
+
+export interface TimelineEmployeeSummary {
+  employeeId: number;
+  employeeName: string;
+  employeeNo: string;
+  departmentId?: number;
+  total: number;
+  firstAt: string;
+  lastAt: string;
+  counts: TimelineTypeCounts;
+}
+
+/** 概览统计：与列表同一次响应返回，供「概览 / 时间轴 / 按员工」三种视图共用 */
+export interface TimelineSummary {
+  total: number;
+  scopeTotal: number;
+  counts: TimelineTypeCounts;
+  months: TimelineMonthPoint[];
+  employees: TimelineEmployeeSummary[];
+  records: TimelineRecord[];
+  truncated: boolean;
+}
+
 const TX_SEG: Record<string, string> = {
   onboardings: 'onboarding',
   resignations: 'resignations',
@@ -244,7 +274,7 @@ export const employeeApi = {
     dateTo?: string;
     departmentId?: number;
     employeeId?: number;
-  } = {}): Promise<{ code: number; message?: string; data?: { list: TimelineRecord[]; total: number; page: number; pageSize: number } }> {
+  } = {}): Promise<{ code: number; message?: string; data?: { list: TimelineRecord[]; total: number; page: number; pageSize: number; summary: TimelineSummary } }> {
     return request.get('/employees/timeline', { params });
   },
 
