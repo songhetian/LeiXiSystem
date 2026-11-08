@@ -199,6 +199,29 @@ export const REIMBURSEMENT_TYPES: { code: string; name: string; description: str
   { code: 'welfare', name: '员工福利', description: '团队建设与福利采购' },
 ];
 
+// 二级费用类型（与 migrations/20261108120000_seed_reimbursement_dicts 保持一致）
+export const EXPENSE_TYPES: { name: string; unit: string | null; sortOrder: number }[] = [
+  { name: '飞机票', unit: '张', sortOrder: 10 },
+  { name: '火车票', unit: '张', sortOrder: 20 },
+  { name: '长途汽车票', unit: '张', sortOrder: 30 },
+  { name: '住宿费', unit: '晚', sortOrder: 40 },
+  { name: '出差补贴', unit: '天', sortOrder: 50 },
+  { name: '市内交通费', unit: '次', sortOrder: 60 },
+  { name: '停车费', unit: '次', sortOrder: 70 },
+  { name: '过路费', unit: '次', sortOrder: 80 },
+  { name: '招待餐费', unit: '次', sortOrder: 90 },
+  { name: '招待礼品', unit: '份', sortOrder: 100 },
+  { name: '办公用品', unit: '件', sortOrder: 110 },
+  { name: '打印复印', unit: '次', sortOrder: 120 },
+  { name: '快递费', unit: '单', sortOrder: 130 },
+  { name: '软件订阅', unit: '项', sortOrder: 140 },
+  { name: '手机话费', unit: '月', sortOrder: 150 },
+  { name: '宽带费', unit: '月', sortOrder: 160 },
+  { name: '团队活动费', unit: '次', sortOrder: 170 },
+  { name: '节日礼品', unit: '份', sortOrder: 180 },
+  { name: '其他费用', unit: '项', sortOrder: 999 },
+];
+
 export const RS_REIMBURSEMENTS: RSReimbursement[] = [
   {
     id: 're1', typeCode: 'travel', title: '出差成都差旅费', description: '8月项目对接出差', applicantNo: 'E013',
@@ -590,9 +613,18 @@ export async function seedRealData(
     }
   }
 
-  // 8) 报销类型 + 报销单 + 费用明细 + 支付
+  // 8) 报销类型 + 费用类型 + 报销单 + 费用明细 + 支付
   for (const t of REIMBURSEMENT_TYPES) {
     await prisma.reimbursementType.upsert({ where: { code: t.code }, update: { name: t.name, description: t.description }, create: { code: t.code, name: t.name, description: t.description, status: 'active' } });
+  }
+  // expense_types 无业务唯一键：按 name 判重，避免每次 seed 都重复插入
+  for (const t of EXPENSE_TYPES) {
+    const exists = await prisma.expenseType.findFirst({ where: { name: t.name } });
+    if (!exists) {
+      await prisma.expenseType.create({
+        data: { name: t.name, unit: t.unit, sortOrder: t.sortOrder, status: 'active' },
+      });
+    }
   }
   if ((await prisma.reimbursement.count()) === 0) {
     const typeId = new Map(REIMBURSEMENT_TYPES.map((t) => [t.code, 0]));
