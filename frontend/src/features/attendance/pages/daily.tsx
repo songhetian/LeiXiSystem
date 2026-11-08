@@ -216,9 +216,9 @@ export default function AttendanceDailyPage() {
     { title: '班次', dataIndex: 'shiftName', width: 100, render: (_: any, r: DailyRecord) => r.shift?.name ?? '--' },
     { title: '上班打卡', dataIndex: 'firstPunch', width: 100, render: (v: string | null) => formatDate(v, 'HH:mm', '--') },
     { title: '下班打卡', dataIndex: 'lastPunch', width: 100, render: (v: string | null) => formatDate(v, 'HH:mm', '--') },
-    { title: '迟到(分)', dataIndex: 'lateMinutes', width: 90, align: 'right', render: (v: number) => minutesText(v) },
-    { title: '早退(分)', dataIndex: 'earlyMinutes', width: 90, align: 'right', render: (v: number) => minutesText(v) },
-    { title: '加班(小时)', dataIndex: 'overtimeMinutes', width: 110, align: 'right', render: (v: number) => overtimeText(v) },
+    { title: '迟到(分)', dataIndex: 'lateMinutes', width: 90, align: 'center', render: (v: number) => minutesText(v) },
+    { title: '早退(分)', dataIndex: 'earlyMinutes', width: 90, align: 'center', render: (v: number) => minutesText(v) },
+    { title: '加班(小时)', dataIndex: 'overtimeMinutes', width: 110, align: 'center', render: (v: number) => overtimeText(v) },
     {
       title: '状态',
       dataIndex: 'status',

@@ -170,7 +170,7 @@ export default function ApproverManagementPage() {
           {
             title: '操作',
             width: 140,
-            align: 'right' as const,
+            align: 'center' as const,
             render: (_: unknown, item: ApprovalGroup) => (
               <Space>
                 <Button size="mini" onClick={() => openEdit(item)}>

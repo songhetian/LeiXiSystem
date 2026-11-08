@@ -2180,6 +2180,9 @@
   letter-spacing: 0.02em;
   /* 与 .arco-table-td 保持一致，避免表头折行导致与列体垂直错位 */
   white-space: nowrap;
+  /* 表头统一居中：Arco 的 th 没有 align 能力（只有 td.js 读 column.align），
+     故表头只能靠 CSS；业务列若显式 align 只影响单元格，表头仍居中，视觉才齐 */
+  text-align: center;
 }
 
 .arco-table-th:hover {
@@ -2197,6 +2200,15 @@
   white-space: nowrap;
   /* 不再设 min-width：排班日历有 52px 的日期列，min-width 会撑破 colgroup 宽度，
      导致表头与表体错位（列宽由 columns.width + scroll.x 决定） */
+  /* 内容统一居中（数字/金额列已由业务侧 align 显式覆盖，见各页 columns）。
+     排除展开行里的 Descriptions：它是"字段-值"描述对，居中会让标签与值脱离。 */
+  text-align: center;
+}
+
+/* 展开行内嵌的 Descriptions 维持左对齐（它是描述对，不是表格数据） */
+.arco-table-td .arco-descriptions-item-label,
+.arco-table-td .arco-descriptions-item-value {
+  text-align: left;
 }
 
 /* 次要信息的列（状态描述等由业务组件自行用 text-3）不做全局弱化，仅默认值提亮 */

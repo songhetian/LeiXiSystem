@@ -41,7 +41,7 @@ const detailItemColumns: TableColumnProps<ReimbursementItem>[] = [
     title: '金额',
     dataIndex: 'amount',
     width: 140,
-    align: 'right',
+    align: 'center',
     render: (value) => (
       <>
         ¥ <MoneyText value={value} fallback="0.00" />

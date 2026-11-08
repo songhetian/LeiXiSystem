@@ -119,13 +119,13 @@ export default function AttendanceStatisticsPage() {
     { title: '工号', dataIndex: 'employeeNo', width: 100 },
     { title: '姓名', dataIndex: 'name', width: 120 },
     { title: '部门', dataIndex: 'departmentName', width: 140, ellipsis: true },
-    { title: '应休(天)', dataIndex: 'totalDays', width: 100, align: 'right' },
-    { title: '已休(天)', dataIndex: 'usedDays', width: 100, align: 'right' },
+    { title: '应休(天)', dataIndex: 'totalDays', width: 100, align: 'center' },
+    { title: '已休(天)', dataIndex: 'usedDays', width: 100, align: 'center' },
     {
       title: '剩余(天)',
       dataIndex: 'remainingDays',
       width: 100,
-      align: 'right',
+      align: 'center',
       render: (value: number | null) =>
         value == null ? (
           '--'
@@ -133,7 +133,7 @@ export default function AttendanceStatisticsPage() {
           <span className={value < 0 ? 'text-danger' : 'text-text-1'}>{value}</span>
         ),
     },
-    { title: '加班时长(小时)', dataIndex: 'overtimeHours', width: 120, align: 'right' },
+    { title: '加班时长(小时)', dataIndex: 'overtimeHours', width: 120, align: 'center' },
   ];
 
   return (

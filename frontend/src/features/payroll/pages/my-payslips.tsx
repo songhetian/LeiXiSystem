@@ -458,7 +458,7 @@ export default function MyPayslipsPage() {
             title: '金额',
             dataIndex: 'amount',
             width: 140,
-            align: 'right',
+            align: 'center',
             render: (value: unknown) => <MoneyText value={value} />,
           },
         ]}

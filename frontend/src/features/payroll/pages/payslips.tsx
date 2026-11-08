@@ -250,7 +250,7 @@ export default function PayslipsPage() {
     {
       title: '金额',
       dataIndex: 'amount',
-      align: 'right' as const,
+      align: 'center' as const,
       render: (value: unknown) => <MoneyText value={value} />,
     },
   ];

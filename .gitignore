@@ -77,3 +77,6 @@ prototypes/
 
 # ===== Redis 意外落盘的持久化文件 =====
 dump.rdb
+
+# ===== playwright-cli 会话产物 =====
+.playwright-cli/

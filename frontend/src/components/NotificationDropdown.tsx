@@ -79,7 +79,21 @@ export function NotificationDropdown() {
       void revalidateList();
     };
     window.addEventListener('socket-notification', handler);
-    return () => window.removeEventListener('socket-notification', handler);
+    // 轮询兜底：线上若反向代理没转发 WebSocket upgrade，socket 会一直连不上，
+    // 此时没有这条兜底角标就永远停在旧数字（用户会以为"通知没实现"）。
+    // 页面不可见时不打接口，回来后立即补一次。
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void fetchUnread();
+    }, 60_000);
+    const onVisible = () => {
+      if (!document.hidden) void fetchUnread();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('socket-notification', handler);
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchUnread, revalidateList]);
 
   useEffect(() => {

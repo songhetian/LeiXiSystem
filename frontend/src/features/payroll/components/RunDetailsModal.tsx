@@ -243,7 +243,7 @@ export default function RunDetailsModal({ run, visible = false, canManage, onCan
       title: '合计',
       dataIndex: 'total',
       width: 110,
-      align: 'right' as const,
+      align: 'center' as const,
       // 合计统一经 MoneyText → formatMoney（含千分位/两位小数/负数标红），列不再丢裸数值
       render: (v: string) => v,
     },

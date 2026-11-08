@@ -199,6 +199,8 @@ export default function HomePage() {
       value: stats?.employeeCount?.toString() ?? '0',
       suffix: '人',
       accent: 'var(--lx-primary)',
+      // 数字本身就是入口：点进去看具体是哪些人，省得再从侧栏找
+      onClick: () => router.push('/employees'),
     },
     {
       label: '今日出勤',
@@ -218,6 +220,7 @@ export default function HomePage() {
               ? `出勤率 ${attendanceRate}%`
               : undefined
         : undefined,
+      onClick: () => router.push('/attendance/daily'),
     },
     {
       label: '待审批',
@@ -235,6 +238,7 @@ export default function HomePage() {
       suffix: '小时',
       accent: 'var(--lx-coral-text)',
       hint: '全员累计',
+      onClick: () => router.push('/attendance/vacation/overtime'),
     },
   ];
 
@@ -251,6 +255,7 @@ export default function HomePage() {
           ? `迟到 ${stats.myWeek.lateDays} 天`
           : '全勤'
         : undefined,
+      onClick: () => router.push('/attendance/punch'),
     },
     {
       label: '本周缺勤',
@@ -259,6 +264,7 @@ export default function HomePage() {
       accent: 'var(--lx-danger)',
       tone: stats?.myWeek && stats.myWeek.absentDays > 0 ? 'danger' : undefined,
       hint: stats?.myWeek && stats.myWeek.absentDays > 0 ? '需补交说明' : undefined,
+      onClick: () => router.push('/attendance/punch'),
     },
     {
       label: '日均工时',
@@ -266,6 +272,7 @@ export default function HomePage() {
       suffix: 'h',
       accent: 'var(--lx-coral-text)',
       hint: '已扣班次休息',
+      onClick: () => router.push('/attendance/punch'),
     },
     {
       label: '待我审批',

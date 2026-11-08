@@ -82,20 +82,20 @@ export default function VacationBalancePage() {
 
   const balanceColumns: ProTableColumn[] = [
     { title: '假期类型', dataIndex: 'vacationTypeName', width: 140, render: (_: any, r: VacationBalance) => r.vacationType?.name },
-    { title: '年度', dataIndex: 'year', width: 100, align: 'right' },
+    { title: '年度', dataIndex: 'year', width: 100, align: 'center' },
     {
       title: '月份',
       dataIndex: 'month',
       width: 100,
       render: (_: any, r: VacationBalance) => monthText(r.month),
     },
-    { title: '总天数', dataIndex: 'totalDays', width: 100, align: 'right' },
-    { title: '已用', dataIndex: 'usedDays', width: 100, align: 'right' },
+    { title: '总天数', dataIndex: 'totalDays', width: 100, align: 'center' },
+    { title: '已用', dataIndex: 'usedDays', width: 100, align: 'center' },
     {
       title: '剩余',
       dataIndex: 'remaining',
       width: 100,
-      align: 'right',
+      align: 'center',
       render: (_: any, r: VacationBalance) => {
         const remaining = Number(r.totalDays ?? 0) - Number(r.usedDays ?? 0);
         return <Tag color={remaining > 0 ? 'green' : 'red'}>{remaining.toFixed(1)} 天</Tag>;

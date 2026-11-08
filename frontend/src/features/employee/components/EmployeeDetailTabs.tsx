@@ -18,10 +18,10 @@ const MONTH_STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 const monthlyColumns = [
   { title: '月份', dataIndex: 'month', width: 100 },
-  { title: '出勤天数', dataIndex: 'workDays', width: 90, align: 'right' as const },
-  { title: '迟到', dataIndex: 'lateCount', width: 70, align: 'right' as const },
-  { title: '缺勤', dataIndex: 'absentDays', width: 70, align: 'right' as const },
-  { title: '加班(时)', dataIndex: 'overtimeHours', width: 90, align: 'right' as const },
+  { title: '出勤天数', dataIndex: 'workDays', width: 90, align: 'center' as const },
+  { title: '迟到', dataIndex: 'lateCount', width: 70, align: 'center' as const },
+  { title: '缺勤', dataIndex: 'absentDays', width: 70, align: 'center' as const },
+  { title: '加班(时)', dataIndex: 'overtimeHours', width: 90, align: 'center' as const },
   {
     title: '状态',
     dataIndex: 'status',
@@ -32,9 +32,9 @@ const monthlyColumns = [
 
 const balanceColumns = [
   { title: '类型', dataIndex: 'vacationType', width: 100, render: (v: VacationBalance['vacationType']) => v.name },
-  { title: '总额', dataIndex: 'totalDays', width: 80, align: 'right' as const },
-  { title: '已用', dataIndex: 'usedDays', width: 80, align: 'right' as const },
-  { title: '剩余', dataIndex: 'remaining', width: 80, align: 'right' as const },
+  { title: '总额', dataIndex: 'totalDays', width: 80, align: 'center' as const },
+  { title: '已用', dataIndex: 'usedDays', width: 80, align: 'center' as const },
+  { title: '剩余', dataIndex: 'remaining', width: 80, align: 'center' as const },
 ];
 
 export default function EmployeeDetailTabs({ employeeId }: EmployeeDetailTabsProps) {

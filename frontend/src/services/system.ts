@@ -104,7 +104,9 @@ export interface SysDepartment {
   id: number;
   name: string;
   parentId?: number | null;
+  /** 负责人 = 员工 ID（department.manager_id 引用 employees.id，不是 users.id） */
   managerId?: number | null;
+  manager?: { id: number; name: string; employeeNo: string } | null;
   description?: string | null;
   status?: string;
   deletedAt?: string | null;
@@ -207,11 +209,11 @@ export const systemApi = {
     }
     return cachedGet('departments', () => request.get('/system/departments'));
   },
-  createDepartment(data: { name: string; parentId?: number; description?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
+  createDepartment(data: { name: string; parentId?: number; managerId?: number; description?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
     invalidateReferenceCache('departments');
     return request.post('/system/departments', data);
   },
-  updateDepartment(id: number, data: { name?: string; parentId?: number | null; description?: string; status?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
+  updateDepartment(id: number, data: { name?: string; parentId?: number | null; managerId?: number | null; description?: string; status?: string }): Promise<{ code: number; message?: string; data: SysDepartment }> {
     invalidateReferenceCache('departments');
     return request.put(`/system/departments/${id}`, data);
   },
@@ -239,7 +241,26 @@ export const systemApi = {
     return request.delete(`/system/positions/${id}`);
   },
   // ---- 操作日志 ----
-  listLogs(params: { page?: number; pageSize?: number; module?: string; userId?: number; startDate?: string; endDate?: string } = {}): Promise<ListResult<OperationLog>> {
+  listLogs(params: {
+    page?: number;
+    pageSize?: number;
+    module?: string;
+    action?: string;
+    status?: string;
+    keyword?: string;
+    ip?: string;
+    userId?: number;
+    startDate?: string;
+    endDate?: string;
+  } = {}): Promise<ListResult<OperationLog>> {
     return request.get('/system/logs', { params });
+  },
+  /** 日志里出现过的模块名（后端 distinct），用于筛选下拉 */
+  listLogModules(): Promise<{ code: number; message?: string; data: string[] }> {
+    return request.get('/system/logs/modules');
+  },
+  /** 某个模块下出现过的动作名，用于筛选下拉 */
+  listLogActions(module?: string): Promise<{ code: number; message?: string; data: string[] }> {
+    return request.get('/system/logs/actions', { params: module ? { module } : {} });
   },
 };

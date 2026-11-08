@@ -1,15 +1,18 @@
 ﻿'use client';
 
 import { useState } from 'react';
-import { Message, Modal, Tag, Space, Button } from '@arco-design/web-react';
+import { Message, Modal, Tag, Space, Button, Form, Input, Radio, Select } from '@arco-design/web-react';
 import PageContainer from '@/components/PageContainer';
 import StatusTag from '@/components/StatusTag';
 import { PermissionGate } from '@/components/PermissionGate';
 import ProTable, { ProTableColumn, ProTableToolbarAction } from '@/components/ProTable';
 import { SearchFieldConfig } from '@/components/SearchForm';
 import { broadcastApi, Broadcast, BroadcastCreateDto } from '@/services/broadcast';
+import { systemApi, SysUser } from '@/services/system';
 import { usePermission } from '@/hooks/use-permission';
+import { useDepartments } from '@/hooks/use-departments';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { sanitizeHtml } from '@/lib/sanitize';
 
 interface BroadcastListEnvelope {
@@ -18,6 +21,10 @@ interface BroadcastListEnvelope {
   data?: { list: Broadcast[]; page: number; pageSize: number; total: number };
 }
 
+// 后端 priority 是 Int（0/1/2），不是 'normal'/'important'/'urgent'，别按字符串映射
+const PRIORITY_TEXT: Record<number, string> = { 0: '普通', 1: '重要', 2: '紧急' };
+const PRIORITY_COLOR: Record<number, string> = { 0: 'gray', 1: 'orange', 2: 'red' };
+
 export default function BroadcastsPage() {
   const { can } = usePermission();
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -25,6 +32,14 @@ export default function BroadcastsPage() {
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [currentBroadcast, setCurrentBroadcast] = useState<Broadcast | null>(null);
+
+  // 新建公告
+  const [createVisible, setCreateVisible] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [users, setUsers] = useState<SysUser[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [createForm] = Form.useForm();
+  const { departments } = useDepartments();
 
   // SWR 缓存：参数编入 cacheKey，翻页/搜索即重新订阅；同参数复用缓存
   const cacheKey = `system:broadcasts:${pagination.current}:${pagination.pageSize}:${JSON.stringify(searchParams)}`;
@@ -111,6 +126,66 @@ export default function BroadcastsPage() {
     setCurrentBroadcast(null);
   };
 
+  const openCreate = async () => {
+    createForm.resetFields();
+    createForm.setFieldsValue({ recipientType: 'all', priority: 0 });
+    setCreateVisible(true);
+    if (usersLoaded) return;
+    try {
+      // 指定人员要全量候选：后端 pageSize 上限 100，只取首页会缺人
+      const list = await fetchAllPages<SysUser>(async (page, pageSize) => {
+        const res = await systemApi.listUsers({ page, pageSize });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
+      setUsers(list);
+      setUsersLoaded(true);
+    } catch {
+      // 无用户查看权限时「全员/指定部门」仍可发，不阻塞表单
+    }
+  };
+
+  const handleCreate = async (publish: boolean) => {
+    try {
+      const values = await createForm.validate();
+      setCreating(true);
+      const payload: BroadcastCreateDto = {
+        title: values.title,
+        content: values.content || '',
+        type: 'notice',
+        priority: values.priority ?? 0,
+        recipientType: values.recipientType,
+      };
+      if (values.recipientType === 'department') payload.recipientDepartmentIds = values.recipientDepartmentIds || [];
+      if (values.recipientType === 'user') payload.recipientUserIds = values.recipientUserIds || [];
+
+      const created = await broadcastApi.create(payload);
+      if (created.code !== 0 || !created.data) {
+        Message.error(created.message || '创建失败');
+        return;
+      }
+      if (publish) {
+        const pub = await broadcastApi.publish(created.data.id);
+        if (pub.code !== 0) {
+          Message.warning(`草稿已保存，但发布失败：${pub.message || '未知错误'}`);
+          setCreateVisible(false);
+          revalidate();
+          return;
+        }
+        Message.success('公告已发布');
+      } else {
+        Message.success('已保存为草稿');
+      }
+      setCreateVisible(false);
+      revalidate();
+    } catch (e: any) {
+      // Arco Form.validate 失败会抛 { errors }，不是业务错误，别误报「创建失败」
+      if (e?.errors) return;
+      Message.error('创建失败');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   // 广播状态统一走公共 StatusTag
   const getStatusTag = (status: string) => {
     const map: Record<string, { color: string; text: string }> = {
@@ -158,10 +233,9 @@ export default function BroadcastsPage() {
       title: '优先级',
       dataIndex: 'priority',
       width: 100,
-      render: (value: string) => {
-        const map: Record<string, string> = { normal: '普通', important: '重要', urgent: '紧急' };
-        return <Tag>{map[value] || value}</Tag>;
-      },
+      render: (value: number) => (
+        <Tag color={PRIORITY_COLOR[value] ?? 'gray'}>{PRIORITY_TEXT[value] ?? '普通'}</Tag>
+      ),
     },
     {
       title: '状态',
@@ -192,7 +266,7 @@ export default function BroadcastsPage() {
 
   // 工具栏为配置数组，无权限时返回空数组让「新建公告」整体不渲染
   const toolbar: ProTableToolbarAction[] = can('system:broadcast:manage')
-    ? [{ key: 'add', label: '新建公告', type: 'primary', onClick: () => Message.info('新建公告功能开发中') }]
+    ? [{ key: 'add', label: '新建公告', type: 'primary', onClick: openCreate }]
     : [];
 
   return (
@@ -231,6 +305,81 @@ export default function BroadcastsPage() {
             />
           </div>
         )}
+      </Modal>
+
+      {/* 新建公告：后端 CRUD/publish 早已实现，这里补齐发布端表单 */}
+      <Modal
+        title="新建公告"
+        visible={createVisible}
+        onCancel={() => setCreateVisible(false)}
+        style={{ width: 640 }}
+        footer={[
+          <Button key="cancel" onClick={() => setCreateVisible(false)}>取消</Button>,
+          <Button key="draft" onClick={() => handleCreate(false)} loading={creating}>保存草稿</Button>,
+          <Button key="publish" type="primary" onClick={() => handleCreate(true)} loading={creating}>
+            保存并发布
+          </Button>,
+        ]}
+      >
+        <Form form={createForm} layout="vertical">
+          <Form.Item label="标题" field="title" rules={[{ required: true, message: '请输入公告标题' }]}>
+            <Input placeholder="请输入公告标题" maxLength={200} showWordLimit />
+          </Form.Item>
+          <Form.Item label="正文" field="content">
+            <Input.TextArea placeholder="请输入公告内容（支持换行）" rows={6} maxLength={5000} />
+          </Form.Item>
+          <Form.Item label="接收范围" field="recipientType" rules={[{ required: true, message: '请选择接收范围' }]}>
+            <Radio.Group>
+              <Radio value="all">全员</Radio>
+              <Radio value="department">指定部门</Radio>
+              <Radio value="user">指定人员</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate>
+            {() => {
+              const targetType = createForm.getFieldValue('recipientType');
+              if (targetType === 'department') {
+                return (
+                  <Form.Item
+                    label="接收部门"
+                    field="recipientDepartmentIds"
+                    rules={[{ required: true, type: 'array', message: '请选择接收部门' }]}
+                  >
+                    <Select
+                      mode="multiple"
+                      placeholder="请选择接收部门"
+                      options={departments.map((d) => ({ label: d.name, value: d.id }))}
+                    />
+                  </Form.Item>
+                );
+              }
+              if (targetType === 'user') {
+                return (
+                  <Form.Item
+                    label="接收人员"
+                    field="recipientUserIds"
+                    rules={[{ required: true, type: 'array', message: '请选择接收人员' }]}
+                  >
+                    <Select
+                      mode="multiple"
+                      showSearch
+                      placeholder="请选择接收人员"
+                      options={users.map((u) => ({ label: u.name || u.username, value: u.id }))}
+                    />
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+          <Form.Item label="优先级" field="priority">
+            <Radio.Group>
+              <Radio value={0}>普通</Radio>
+              <Radio value={1}>重要</Radio>
+              <Radio value={2}>紧急</Radio>
+            </Radio.Group>
+          </Form.Item>
+        </Form>
       </Modal>
     </PageContainer>
   );

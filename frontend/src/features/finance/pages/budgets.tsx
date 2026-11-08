@@ -263,14 +263,14 @@ export default function BudgetsPage() {
       title: '总额',
       dataIndex: 'amount',
       width: 150,
-      align: 'right',
+      align: 'center',
       render: (v: number | string) => `¥ ${formatMoney(Number(v ?? 0), '0.00')}`,
     },
     {
       title: '已用',
       dataIndex: 'usedAmount',
       width: 150,
-      align: 'right',
+      align: 'center',
       render: (v: number | string | undefined) => (v == null ? '--' : `¥ ${formatMoney(Number(v), '0.00')}`),
     },
     {
@@ -279,7 +279,7 @@ export default function BudgetsPage() {
       // 复用错列节点（列显隐/重排时尤其明显）
       dataIndex: 'remaining',
       width: 150,
-      align: 'right',
+      align: 'center',
       render: (_: unknown, record: Budget) =>
         record.usedAmount == null
           ? '--'

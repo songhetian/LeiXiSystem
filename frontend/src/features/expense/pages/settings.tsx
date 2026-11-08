@@ -219,7 +219,7 @@ export default function ReimbursementSettingsPage() {
           {
             title: '操作',
             width: 140,
-            align: 'right' as const,
+            align: 'center' as const,
             render: (_: unknown, item: ReimbursementType) => (
               <Space>
                 <Button size="mini" onClick={() => openTypeEdit(item)}>
@@ -253,7 +253,7 @@ export default function ReimbursementSettingsPage() {
           {
             title: '操作',
             width: 140,
-            align: 'right' as const,
+            align: 'center' as const,
             render: (_: unknown, item: ExpenseType) => (
               <Space>
                 <Button size="mini" onClick={() => openExpenseEdit(item)}>

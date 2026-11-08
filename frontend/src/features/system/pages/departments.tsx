@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Message,
   Modal,
@@ -19,9 +19,11 @@ import ProTable, { ProTableColumn } from '@/components/ProTable';
 import StatusTag from '@/components/StatusTag';
 import { PermissionGate } from '@/components/PermissionGate';
 import { systemApi, SysDepartment } from '@/services/system';
+import { employeeApi, Employee } from '@/services/employee';
 import { usePermission } from '@/hooks/use-permission';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { notifyError } from '@/lib/request';
+import { fetchAllPages } from '@/lib/fetch-all';
 import { formatDate } from '@/lib/format';
 import { PositionList } from './positions';
 
@@ -55,6 +57,30 @@ function DepartmentManager() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
+  // 部门负责人候选（Employee.id）：审批链的「部门主管」节点按 department.managerId 解析，
+  // 没有负责人时该节点无人可审。按需加载一次，避免每次开弹窗都拉全量员工。
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const employeesLoadedRef = useRef(false);
+
+  const ensureEmployees = async () => {
+    if (employeesLoadedRef.current) return;
+    setEmployeesLoading(true);
+    try {
+      const list = await fetchAllPages<Employee>(async (page, pageSize) => {
+        const res = await employeeApi.getList({ page, pageSize, status: 'active' });
+        return { list: res.data?.list ?? [], total: res.data?.total ?? 0 };
+      });
+      setEmployees(list);
+      employeesLoadedRef.current = true;
+    } catch (e) {
+      // 无 employee:view 权限时不阻塞部门编辑，只是选不了负责人
+      notifyError(e, '加载员工列表失败，暂时无法设置部门负责人');
+    } finally {
+      setEmployeesLoading(false);
+    }
+  };
+
   // SWR 共享缓存：以 showDeleted 编入 cacheKey，切换显示回收站时自动复用历史缓存/重新请求
   const cacheKey = `system:departments:${showDeleted}`;
   const fetcher = useMemo(
@@ -76,13 +102,20 @@ function DepartmentManager() {
     setIsEdit(false);
     setEditItem(null);
     form.resetFields();
+    void ensureEmployees();
     setCreateVisible(true);
   };
 
   const openEdit = (item: SysDepartment) => {
     setIsEdit(true);
     setEditItem(item);
-    form.setFieldsValue({ name: item.name, parentId: item.parentId, description: item.description || '' });
+    void ensureEmployees();
+    form.setFieldsValue({
+      name: item.name,
+      parentId: item.parentId,
+      managerId: item.managerId ?? undefined,
+      description: item.description || '',
+    });
     setEditVisible(true);
   };
 
@@ -94,6 +127,7 @@ function DepartmentManager() {
         const res = await systemApi.updateDepartment(editItem.id, {
           name: values.name,
           parentId: values.parentId ?? null,
+          managerId: values.managerId ?? null,
           description: values.description || '',
         });
         if (res.code === 0) {
@@ -107,6 +141,7 @@ function DepartmentManager() {
         const res = await systemApi.createDepartment({
           name: values.name,
           parentId: values.parentId,
+          managerId: values.managerId ?? undefined,
           description: values.description || '',
         });
         if (res.code === 0) {
@@ -196,11 +231,34 @@ function DepartmentManager() {
     .filter((d) => !editItem || d.id !== editItem.id)
     .map((d) => ({ label: d.name, value: d.id }));
 
+  // 候选人只取在职员工；若当前负责人已离职（不在候选里），把历史负责人补进选项，
+  // 否则 Arco Select 会把裸 ID 显示成"3"这种数字。
+  const managerOptions = useMemo(() => {
+    const opts = employees.map((e) => ({ label: `${e.name}（${e.employeeNo}）`, value: e.id }));
+    const current = editItem?.manager;
+    if (current && !opts.some((o) => o.value === current.id)) {
+      opts.unshift({ label: `${current.name}（${current.employeeNo}）`, value: current.id });
+    }
+    return opts;
+  }, [employees, editItem]);
+
   const columns: ProTableColumn[] = [
     {
       title: '部门名称',
       dataIndex: 'name',
-      width: 200,
+      width: 160,
+    },
+    {
+      title: '负责人',
+      dataIndex: 'manager',
+      width: 110,
+      // 负责人是审批链「部门主管」节点的解析依据：列表里要能一眼看出有没有设、是谁
+      render: (_: unknown, row: SysDepartment) => {
+        if (!row.manager) {
+          return <span style={{ color: 'var(--lx-text-3)' }}>未设置</span>;
+        }
+        return <span title={`工号 ${row.manager.employeeNo}`}>{row.manager.name}</span>;
+      },
     },
     {
       title: '职责描述',
@@ -213,13 +271,13 @@ function DepartmentManager() {
     {
       title: '在册人数',
       dataIndex: 'employeeCount',
-      width: 100,
+      width: 90,
       render: (v: number) => (v == null ? 0 : v),
     },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 120,
+      width: 90,
       render: (_: any, row: SysDepartment) => {
         if (row.deletedAt) {
           return <StatusTag status="destroyed" statusMap={{ destroyed: { label: '已销毁', color: 'danger' } }} />;
@@ -241,13 +299,13 @@ function DepartmentManager() {
     {
       title: '创建时间',
       dataIndex: 'createdAt',
-      width: 140,
+      width: 110,
       render: (v: string) => formatDate(v),
     },
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 170,
+      width: 120,
       render: (_: any, row: SysDepartment) => {
         if (row.deletedAt) {
           // 按钮级权限：恢复是写操作，无 department:manage 时不渲染
@@ -323,6 +381,19 @@ function DepartmentManager() {
           </Form.Item>
           <Form.Item label="上级部门" field="parentId">
             <Select placeholder="不选则为顶级部门" allowClear options={parentOptions} />
+          </Form.Item>
+          <Form.Item
+            label="部门负责人"
+            field="managerId"
+            extra="审批流程中的「部门主管」节点按此人生效；未设置时该节点无人可审。"
+          >
+            <Select
+              placeholder={employeesLoading ? '正在加载员工…' : '请选择部门负责人'}
+              allowClear
+              showSearch
+              loading={employeesLoading}
+              options={managerOptions}
+            />
           </Form.Item>
           <Form.Item label="职责描述" field="description">
             <TextArea placeholder="请输入部门主要职责描述" rows={3} />

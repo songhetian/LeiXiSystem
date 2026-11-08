@@ -248,7 +248,7 @@ export default function MyReimbursementPage() {
               { title: '费用类型', dataIndex: 'itemType', width: 140, render: (v: string) => v || '-' },
               { title: '产生日期', dataIndex: 'expenseDate', width: 130, render: (v: string) => v || '-' },
               { title: '用途说明', dataIndex: 'description', render: (v: string) => v || '-' },
-              { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number) => `¥ ${formatMoney(v)}` },
+              { title: '金额', dataIndex: 'amount', width: 120, align: 'center', render: (v: number) => `¥ ${formatMoney(v)}` },
               {
                 title: '凭证',
                 dataIndex: 'attachmentUrl',

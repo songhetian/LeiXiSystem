@@ -254,7 +254,7 @@ export default function ExpenseStandardsPage() {
       title: '金额',
       dataIndex: 'amount',
       width: 130,
-      align: 'right',
+      align: 'center',
       render: (v: number | string) => `¥ ${formatMoney(v ?? 0, '0.00')}`,
     },
     { title: '单位', dataIndex: 'unit', width: 130, render: (v: string) => v || '--' },

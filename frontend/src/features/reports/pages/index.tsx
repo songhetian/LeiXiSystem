@@ -160,22 +160,22 @@ export default function ReportsPage() {
 
   const attendanceColumns: ProTableColumn[] = [
     { title: '部门', dataIndex: 'name', width: 140 },
-    { title: '人数', dataIndex: 'employeeCount', width: 80, align: 'right' },
-    { title: '出勤天数', dataIndex: 'totalWorkDays', width: 100, align: 'right' },
-    { title: '迟到', dataIndex: 'totalLateCount', width: 80, align: 'right' },
-    { title: '早退', dataIndex: 'totalEarlyCount', width: 80, align: 'right' },
-    { title: '缺勤(天)', dataIndex: 'totalAbsentDays', width: 100, align: 'right' },
-    { title: '加班(小时)', dataIndex: 'totalOvertimeHours', width: 110, align: 'right' },
+    { title: '人数', dataIndex: 'employeeCount', width: 80, align: 'center' },
+    { title: '出勤天数', dataIndex: 'totalWorkDays', width: 100, align: 'center' },
+    { title: '迟到', dataIndex: 'totalLateCount', width: 80, align: 'center' },
+    { title: '早退', dataIndex: 'totalEarlyCount', width: 80, align: 'center' },
+    { title: '缺勤(天)', dataIndex: 'totalAbsentDays', width: 100, align: 'center' },
+    { title: '加班(小时)', dataIndex: 'totalOvertimeHours', width: 110, align: 'center' },
   ];
 
   const laborColumns: ProTableColumn[] = [
     { title: '部门', dataIndex: 'name', width: 140 },
-    { title: '人数', dataIndex: 'totalEmployees', width: 80, align: 'right' },
+    { title: '人数', dataIndex: 'totalEmployees', width: 80, align: 'center' },
     {
       title: '合计金额',
       dataIndex: 'totalAmount',
       width: 150,
-      align: 'right',
+      align: 'center',
       render: (v: unknown) => `¥ ${formatMoney(v)}`,
     },
   ];

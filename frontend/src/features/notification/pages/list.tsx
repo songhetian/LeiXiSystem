@@ -7,7 +7,6 @@ import {
   Tag,
   Button,
   Space,
-  Badge,
   List,
   Modal,
   Form,
@@ -148,7 +147,7 @@ export default function NotificationsPage() {
   return (
     <PageContainer action={
         <Space>
-          {unread > 0 && <Badge count={unread} />}
+          {/* 未读数只在顶栏铃铛显示一次；页内再放一枚红点会出现两个"2" */}
           {can('system:notification:send') && (
             <Button size="small" type="primary" onClick={openSend}>
               发送通知

@@ -58,10 +58,16 @@ export function useSocket() {
     setSocket(s);
 
     const handleNotification = (payload: SocketNotificationPayload) => {
-      Message.info({
-        content: payload?.title ?? '收到新通知',
-        duration: 5000,
-      });
+      // 通知页本身就在展示这些通知，再弹 toast 只会和「发送成功」叠成两条；
+      // 其它页面才提示，用户点角标去列表看。
+      const onNotificationPage =
+        typeof window !== 'undefined' && window.location.pathname.startsWith('/notifications');
+      if (!onNotificationPage) {
+        Message.info({
+          content: payload?.title ?? '收到新通知',
+          duration: 5000,
+        });
+      }
       // 派发自定义事件，通知头部角标 / 通知列表等组件刷新未读数
       window.dispatchEvent(new CustomEvent('socket-notification'));
     };
