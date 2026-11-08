@@ -54,6 +54,7 @@
 
 ## 本地环境与演示账号
 - 演示账号：`admin/123456`（全部权限）、`staff/123456`（员工视角）；密码统一 123456，bcrypt cost 10。
+- **密码强度默认 weak（2026-11-08）**：`system-user.service.ts` 的 `DEFAULT_PASSWORD_STRENGTH_LEVEL` 已由 medium 改为 weak，线上库也显式写入 settings `password_strength_level=weak`。快速登记工具（`tools/quick-register/`）初始密码固定 123456、连接时自检并自动写回 weak；线上域名 `https://www.leixidianshang.com/api/v1`，打包产物 `dist/LeiXiQuickRegister.exe`（`--selftest` 可只读验证连接）。
 - 种子入口：`backend/prisma/seed.ts`（它调 `seed-real-data.ts` 的 seedRealData；后者只导出不执行，直接跑无效）。种子幂等：员工=30 部门=4 日报=644 薪资批次=2。
 - 本地 Redis：`"D:\Program Files\FlyEnv-Data\env\redis\redis-server.exe" --port 6379 --requirepass 123456`（Docker Desktop 未开时用）；后端启动：`cd backend && npx dotenv -e ../.env -- node --watch --require ts-node/register src/main.ts`（main.ts 的 dotenv 找 CWD 的 .env，必须借 dotenv -e 注入根目录 .env）。
 - 登录体系：token 走 HttpOnly cookie（access_token）+ body.csrfToken，请求需 X-CSRF-Token。**2026-11-06 修复**：此前 CsrfGuard 读 req.user（APP_GUARD 先于 controller 级 JwtAuthGuard 执行，恒为空），全站写接口从未校验过 CSRF；现守卫自行从 Cookie 验 JWT 取 userId，不依赖守卫顺序。前端 request.ts 接管登录响应的 csrfToken、primeCsrfToken() 惰性补取（并发去重）、5012/5013 时换 token 重放一次。新增全局写校验时注意：非浏览器客户端直连写接口会因缺 CSRF 头被 403。
