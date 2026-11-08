@@ -12,7 +12,9 @@ import * as bcrypt from 'bcryptjs';
 const DEPT_CACHE_KEY = 'sys:departments';
 const DEPT_CACHE_TTL = 30 * 60;
 const PASSWORD_STRENGTH_SETTING_KEY = 'password_strength_level';
-const DEFAULT_PASSWORD_STRENGTH_LEVEL: PasswordStrengthLevel = 'medium';
+// 默认档为 weak：快速登记工具批量开户统一使用初始密码 123456（用户明确要求）。
+// 线上库已显式写入 password_strength_level=weak；此处保证新装环境/设置被删时口径一致。
+const DEFAULT_PASSWORD_STRENGTH_LEVEL: PasswordStrengthLevel = 'weak';
 
 @Injectable()
 export class SystemUserService {

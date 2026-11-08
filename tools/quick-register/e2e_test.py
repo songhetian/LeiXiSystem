@@ -10,6 +10,7 @@ from api import (
     LeiXiClient,
     check_name_exists,
     default_password,
+    ensure_weak_password_policy,
     initials_of,
     next_username,
 )
@@ -30,8 +31,9 @@ def main():
     positions = c.positions()
     print(f"   岗位 {len(positions)} 个:", [p["name"] for p in positions][:6])
 
-    print("== 3. 密码强度与默认密码")
-    print("   强度设置:", c.password_strength_level(), "→", default_password(c))
+    print("== 3. 密码策略与默认密码")
+    print("   连接自检:", ensure_weak_password_policy(c))
+    print("   固定初始密码:", default_password()[0])
 
     print("== 4. 拼音首字母")
     for n in ("张三", "欧阳娜娜", "测试登记", "Tony Sun"):
@@ -45,7 +47,7 @@ def main():
     print("== 6. 生成账号")
     username = next_username(c, NAME)
     print(f"   {NAME} → {username}")
-    password, reason = default_password(c)
+    password, reason = default_password()
     print(f"   初始密码: {password}（{reason}）")
 
     print("== 7. 创建账号（默认挂「普通员工」角色）")

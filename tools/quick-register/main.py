@@ -40,6 +40,7 @@ from api import (
     NeedRelogin,
     check_name_exists,
     default_password,
+    ensure_weak_password_policy,
     next_username,
 )
 from theme import app_mark, build_qss
@@ -478,7 +479,9 @@ class MainWindow(QMainWindow):
                         break
             except ApiError:
                 pass  # 无角色查看权限时跳过，仅影响新账号默认角色
-            return client, depts, positions, role_id
+            report("确认密码策略…")
+            policy = ensure_weak_password_policy(client)
+            return client, depts, positions, role_id, policy
 
         task = AsyncTask(fn, self)
         task.progress.connect(lambda t: self._on_connect_progress(t, dialog))
@@ -493,7 +496,7 @@ class MainWindow(QMainWindow):
 
     def _on_connect_ok(self, result, base: str, username: str, password: str,
                        dialog: SettingsDialog | None) -> None:
-        self.client, self.depts, positions, self.role_id = result
+        self.client, self.depts, positions, self.role_id, policy = result
         self.cfg.update({"base_url": base, "username": username, "password": password})
         save_config(self.cfg)
         self.connected = True
@@ -502,7 +505,9 @@ class MainWindow(QMainWindow):
         self.main_page.populate(host, username, self.depts, positions)
         self.main_page.set_busy(False)
         self.main_page.result.setVisible(False)
-        set_tip(self.main_page.tip, f"已连接 {host}，默认角色已就绪{role_note}", "okTip")
+        policy_note = "" if policy.startswith("weak") else f"；密码策略异常：{policy}（123456 可能被拒）"
+        set_tip(self.main_page.tip,
+                f"已连接 {host}，默认角色已就绪，密码策略 {policy}{role_note}{policy_note}", "okTip")
         if dialog:
             dialog.accept()
             self.settings_dialog = None
@@ -560,7 +565,7 @@ class MainWindow(QMainWindow):
             # 3. 生成账号与密码
             report("生成登录账号…")
             username = next_username(client, payload["name"])
-            password, pwd_reason = default_password(client)
+            password, pwd_reason = default_password()
 
             # 4. 创建（默认挂「普通员工」角色）
             report(f"创建账号 {username}…")

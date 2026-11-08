@@ -139,6 +139,10 @@ class LeiXiClient:
         except ApiError:
             return None
 
+    def set_password_strength_level(self, level: str) -> dict:
+        return self._request("PUT", "/settings/password_strength_level",
+                             json={"value": level, "label": "密码强度", "group": "security"})
+
 
 # ---- 账号生成规则（拼音首字母 + 4 位序号，如 zs0001） ----
 
@@ -200,11 +204,21 @@ def next_username(client: LeiXiClient, name: str) -> str:
     return f"{ini}{best + 1:04d}"
 
 
-def default_password(client: LeiXiClient) -> tuple[str, str]:
-    """按系统密码强度设置选初始密码，返回 (密码, 采用原因)。"""
-    level = client.password_strength_level() or "medium"
+def ensure_weak_password_policy(client: LeiXiClient) -> str:
+    """启动自检：确认系统密码强度为 weak（初始密码统一 123456）。
+    不是 weak（含未设置）就写入 weak 并回读验证；无权限时返回警示文本，不阻断连接。
+    """
+    level = client.password_strength_level()
     if level == "weak":
-        return "123456", "系统密码强度为 weak，使用默认密码 123456"
-    if level == "strong":
-        return "Lx@123456", "系统密码强度为 strong，使用合规初始密码"
-    return "lx123456", "系统密码强度为 medium，使用合规初始密码"
+        return "weak（已配置）"
+    try:
+        client.set_password_strength_level("weak")
+        verified = client.password_strength_level()
+        return "weak（已自动设置）" if verified == "weak" else "未生效（请检查设置权限）"
+    except ApiError as e:
+        return f"写入失败：{e}"
+
+
+def default_password() -> tuple[str, str]:
+    """初始密码固定 123456（系统密码强度已设为 weak，连接时 ensure_weak_password_policy 保证）。"""
+    return "123456", "默认初始密码 123456（系统密码强度 weak）"
