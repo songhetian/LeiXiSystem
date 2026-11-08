@@ -11,34 +11,28 @@
     "dev:backend": "pnpm --filter @lei/backend dev",
     "dev:seed": "pnpm --filter @lei/backend migrate && pnpm --filter @lei/backend db:seed",
     "redis:start": "\"D:\\Program Files\\FlyEnv-Data\\env\\redis\\redis-server.exe\" --port 6379 --requirepass 123456",
-
     "============ 构建 ============": "",
     "build": "pnpm -r build",
     "build:frontend": "pnpm --filter @lei/frontend build",
     "build:backend": "pnpm --filter @lei/backend build",
-
     "============ 测试 ============": "",
     "test": "pnpm -r test",
     "test:backend": "pnpm --filter @lei/backend test",
     "test:frontend": "pnpm --filter @lei/frontend test",
     "typecheck": "pnpm -r typecheck",
     "verify": "pnpm typecheck && pnpm test",
-
     "============ 重启 ============": "",
     "restart": "npx kill-port 4000 4001 && pnpm -r --parallel dev",
     "restart:frontend": "npx kill-port 4000 && pnpm dev:frontend",
     "restart:backend": "npx kill-port 4001 && pnpm dev:backend",
-
     "============ 重构（重新安装依赖 + 构建）============": "",
     "rebuild": "pnpm install --config.dangerouslyAllowAllBuilds=true && pnpm -r build",
-
     "============ Docker 部署 ============": "",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:restart": "docker compose down && docker compose up -d --build",
     "docker:logs": "docker compose logs -f",
     "docker:ps": "docker compose ps",
-
     "============ 生产部署（在生产服务器的仓库目录里执行，如 /root/LeiXiSystem）============": "",
     "prod:pull": "git pull --ff-only",
     "prod:build:backend": "docker compose -f docker-compose.prod.yml --env-file .env.production build backend",
